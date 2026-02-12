@@ -128,6 +128,248 @@ export type Database = {
         }
         Relationships: []
       }
+      food_items: {
+        Row: {
+          brand: string | null
+          calories: number
+          carbs: number
+          created_at: string
+          created_by: string | null
+          fat: number
+          fiber: number | null
+          id: string
+          is_verified: boolean
+          name: string
+          protein: number
+          serving_size: number
+          serving_unit: string
+          updated_at: string
+        }
+        Insert: {
+          brand?: string | null
+          calories?: number
+          carbs?: number
+          created_at?: string
+          created_by?: string | null
+          fat?: number
+          fiber?: number | null
+          id?: string
+          is_verified?: boolean
+          name: string
+          protein?: number
+          serving_size?: number
+          serving_unit?: string
+          updated_at?: string
+        }
+        Update: {
+          brand?: string | null
+          calories?: number
+          carbs?: number
+          created_at?: string
+          created_by?: string | null
+          fat?: number
+          fiber?: number | null
+          id?: string
+          is_verified?: boolean
+          name?: string
+          protein?: number
+          serving_size?: number
+          serving_unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meal_plan_items: {
+        Row: {
+          calories: number
+          carbs: number
+          created_at: string
+          custom_name: string | null
+          fat: number
+          food_item_id: string | null
+          id: string
+          item_order: number
+          meal_plan_id: string
+          meal_type: string
+          protein: number
+          servings: number
+        }
+        Insert: {
+          calories?: number
+          carbs?: number
+          created_at?: string
+          custom_name?: string | null
+          fat?: number
+          food_item_id?: string | null
+          id?: string
+          item_order?: number
+          meal_plan_id: string
+          meal_type?: string
+          protein?: number
+          servings?: number
+        }
+        Update: {
+          calories?: number
+          carbs?: number
+          created_at?: string
+          custom_name?: string | null
+          fat?: number
+          food_item_id?: string | null
+          id?: string
+          item_order?: number
+          meal_plan_id?: string
+          meal_type?: string
+          protein?: number
+          servings?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_items_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meal_plan_items_meal_plan_id_fkey"
+            columns: ["meal_plan_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_plans: {
+        Row: {
+          client_id: string | null
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_template: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nutrition_logs: {
+        Row: {
+          calories: number
+          carbs: number
+          client_id: string
+          created_at: string
+          custom_name: string | null
+          fat: number
+          food_item_id: string | null
+          id: string
+          logged_at: string
+          meal_type: string
+          protein: number
+          servings: number
+        }
+        Insert: {
+          calories?: number
+          carbs?: number
+          client_id: string
+          created_at?: string
+          custom_name?: string | null
+          fat?: number
+          food_item_id?: string | null
+          id?: string
+          logged_at?: string
+          meal_type?: string
+          protein?: number
+          servings?: number
+        }
+        Update: {
+          calories?: number
+          carbs?: number
+          client_id?: string
+          created_at?: string
+          custom_name?: string | null
+          fat?: number
+          food_item_id?: string | null
+          id?: string
+          logged_at?: string
+          meal_type?: string
+          protein?: number
+          servings?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nutrition_logs_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nutrition_targets: {
+        Row: {
+          calories: number
+          carbs: number
+          client_id: string
+          coach_id: string
+          created_at: string
+          effective_date: string
+          fat: number
+          id: string
+          is_refeed: boolean
+          notes: string | null
+          protein: number
+          updated_at: string
+        }
+        Insert: {
+          calories?: number
+          carbs?: number
+          client_id: string
+          coach_id: string
+          created_at?: string
+          effective_date?: string
+          fat?: number
+          id?: string
+          is_refeed?: boolean
+          notes?: string | null
+          protein?: number
+          updated_at?: string
+        }
+        Update: {
+          calories?: number
+          carbs?: number
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          effective_date?: string
+          fat?: number
+          id?: string
+          is_refeed?: boolean
+          notes?: string | null
+          protein?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       personal_records: {
         Row: {
           client_id: string
@@ -208,6 +450,30 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      water_logs: {
+        Row: {
+          amount_ml: number
+          client_id: string
+          created_at: string
+          id: string
+          logged_at: string
+        }
+        Insert: {
+          amount_ml?: number
+          client_id: string
+          created_at?: string
+          id?: string
+          logged_at?: string
+        }
+        Update: {
+          amount_ml?: number
+          client_id?: string
+          created_at?: string
+          id?: string
+          logged_at?: string
         }
         Relationships: []
       }
