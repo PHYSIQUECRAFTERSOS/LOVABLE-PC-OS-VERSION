@@ -1,0 +1,87 @@
+import { useState, useEffect } from "react";
+import AppLayout from "@/components/AppLayout";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
+
+const Profile = () => {
+  const { user, role } = useAuth();
+  const { toast } = useToast();
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from("profiles")
+        .select("full_name, phone")
+        .eq("user_id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setFullName(data.full_name || "");
+            setPhone(data.phone || "");
+          }
+        });
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName, phone })
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Profile updated" });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <AppLayout>
+      <div className="animate-fade-in space-y-6 max-w-lg">
+        <h1 className="font-display text-2xl font-bold text-foreground">Profile</h1>
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input value={user?.email || ""} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Input value={role || ""} disabled className="capitalize" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone</Label>
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading && <Loader2 className="animate-spin" />}
+              Save Changes
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+};
+
+export default Profile;
