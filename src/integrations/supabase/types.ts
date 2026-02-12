@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      body_measurements: {
+        Row: {
+          chest: number | null
+          client_id: string
+          created_at: string
+          hips: number | null
+          id: string
+          left_arm: number | null
+          left_calf: number | null
+          left_thigh: number | null
+          measured_at: string
+          neck: number | null
+          right_arm: number | null
+          right_calf: number | null
+          right_thigh: number | null
+          waist: number | null
+        }
+        Insert: {
+          chest?: number | null
+          client_id: string
+          created_at?: string
+          hips?: number | null
+          id?: string
+          left_arm?: number | null
+          left_calf?: number | null
+          left_thigh?: number | null
+          measured_at?: string
+          neck?: number | null
+          right_arm?: number | null
+          right_calf?: number | null
+          right_thigh?: number | null
+          waist?: number | null
+        }
+        Update: {
+          chest?: number | null
+          client_id?: string
+          created_at?: string
+          hips?: number | null
+          id?: string
+          left_arm?: number | null
+          left_calf?: number | null
+          left_thigh?: number | null
+          measured_at?: string
+          neck?: number | null
+          right_arm?: number | null
+          right_calf?: number | null
+          right_thigh?: number | null
+          waist?: number | null
+        }
+        Relationships: []
+      }
       coach_clients: {
         Row: {
           assigned_at: string
@@ -552,6 +603,36 @@ export type Database = {
         }
         Relationships: []
       }
+      progress_photos: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          photo_date: string
+          pose: string
+          storage_path: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          photo_date?: string
+          pose?: string
+          storage_path: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          photo_date?: string
+          pose?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -591,6 +672,78 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+        }
+        Relationships: []
+      }
+      weekly_checkins: {
+        Row: {
+          client_id: string
+          created_at: string
+          digestion: number | null
+          energy_level: number | null
+          id: string
+          libido: number | null
+          mood: number | null
+          notes: string | null
+          sleep_quality: number | null
+          stress_level: number | null
+          updated_at: string
+          week_date: string
+          weight: number | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          digestion?: number | null
+          energy_level?: number | null
+          id?: string
+          libido?: number | null
+          mood?: number | null
+          notes?: string | null
+          sleep_quality?: number | null
+          stress_level?: number | null
+          updated_at?: string
+          week_date?: string
+          weight?: number | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          digestion?: number | null
+          energy_level?: number | null
+          id?: string
+          libido?: number | null
+          mood?: number | null
+          notes?: string | null
+          sleep_quality?: number | null
+          stress_level?: number | null
+          updated_at?: string
+          week_date?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
+      weight_logs: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          logged_at: string
+          weight: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          logged_at?: string
+          weight: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          logged_at?: string
+          weight?: number
         }
         Relationships: []
       }
