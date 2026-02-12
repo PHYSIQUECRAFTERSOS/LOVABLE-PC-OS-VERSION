@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Play, Check } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, Trophy, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import RestTimer from "./RestTimer";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 interface ExerciseLogForm {
   id: string;
@@ -24,8 +26,22 @@ interface ExerciseLogForm {
     reps?: number;
     tempo?: string;
     rir?: number;
+    rpe?: number;
     notes?: string;
+    completed?: boolean;
   }[];
+}
+
+interface PersonalRecord {
+  exercise_id: string;
+  weight: number;
+  reps: number;
+}
+
+interface PRAlert {
+  exerciseName: string;
+  weight: number;
+  reps: number;
 }
 
 interface WorkoutLoggerProps {
@@ -42,16 +58,72 @@ const WorkoutLogger = ({ workoutId, workoutName, exercises: initialExercises, on
   const [currentExerciseIdx, setCurrentExerciseIdx] = useState(0);
   const [exercises, setExercises] = useState(initialExercises);
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [restTimerKey, setRestTimerKey] = useState(0);
+  const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
+  const [prAlerts, setPrAlerts] = useState<PRAlert[]>([]);
+  const [startTime] = useState(Date.now());
 
   const currentExercise = exercises[currentExerciseIdx];
 
-  const updateLog = (setIdx: number, field: string, value: any) => {
+  // Load existing PRs
+  useEffect(() => {
+    if (!user) return;
+    const loadPRs = async () => {
+      const exerciseIds = initialExercises.map(e => e.id);
+      const { data } = await supabase
+        .from("personal_records")
+        .select("exercise_id, weight, reps")
+        .eq("client_id", user.id)
+        .in("exercise_id", exerciseIds);
+      setPersonalRecords((data as PersonalRecord[]) || []);
+    };
+    loadPRs();
+  }, [user, initialExercises]);
+
+  // Total sets progress
+  const totalSets = exercises.reduce((acc, ex) => acc + ex.logs.length, 0);
+  const completedSets = exercises.reduce(
+    (acc, ex) => acc + ex.logs.filter(l => l.completed).length, 0
+  );
+  const progressPercent = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
+
+  const updateLog = (setIdx: number, field: string, value: unknown) => {
     const newEx = [...exercises];
     newEx[currentExerciseIdx].logs[setIdx] = {
       ...newEx[currentExerciseIdx].logs[setIdx],
       [field]: value,
     };
     setExercises(newEx);
+  };
+
+  const checkPR = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number) => {
+    const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
+    if (!existingPR || weight > existingPR.weight || (weight === existingPR.weight && reps > existingPR.reps)) {
+      // Check if we already alerted for a better PR this session
+      const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
+      if (!existingAlert || weight > existingAlert.weight || (weight === existingAlert.weight && reps > existingAlert.reps)) {
+        setPrAlerts(prev => [
+          ...prev.filter(a => a.exerciseName !== exerciseName),
+          { exerciseName, weight, reps },
+        ]);
+        toast({
+          title: "🏆 NEW PR!",
+          description: `${exerciseName}: ${weight} lbs × ${reps} reps`,
+        });
+      }
+    }
+  }, [personalRecords, prAlerts, toast]);
+
+  const completeSet = (setIdx: number) => {
+    const log = currentExercise.logs[setIdx];
+    if (!log.weight || !log.reps) return;
+
+    updateLog(setIdx, "completed", true);
+    checkPR(currentExercise.id, currentExercise.name, log.weight, log.reps);
+
+    // Auto-start rest timer
+    setShowRestTimer(true);
+    setRestTimerKey(prev => prev + 1);
   };
 
   const completeWorkout = async () => {
@@ -71,23 +143,44 @@ const WorkoutLogger = ({ workoutId, workoutName, exercises: initialExercises, on
 
       if (sessionError) throw sessionError;
 
-      const logsToInsert = exercises.flatMap((ex, exIdx) =>
-        ex.logs.map((log) => ({
-          session_id: session.id,
-          exercise_id: ex.id,
-          set_number: log.setNumber,
-          weight: log.weight || null,
-          reps: log.reps || null,
-          tempo: log.tempo || null,
-          rir: log.rir || null,
-          notes: log.notes || null,
-        }))
+      const logsToInsert = exercises.flatMap((ex) =>
+        ex.logs
+          .filter(log => log.completed)
+          .map((log) => ({
+            session_id: session.id,
+            exercise_id: ex.id,
+            set_number: log.setNumber,
+            weight: log.weight || null,
+            reps: log.reps || null,
+            tempo: log.tempo || null,
+            rir: log.rir ?? log.rpe ? (10 - (log.rpe || 0)) : null,
+            notes: log.notes || null,
+          }))
       );
 
-      const { error: logsError } = await supabase.from("exercise_logs").insert(logsToInsert);
-      if (logsError) throw logsError;
+      if (logsToInsert.length > 0) {
+        const { error: logsError } = await supabase.from("exercise_logs").insert(logsToInsert);
+        if (logsError) throw logsError;
+      }
 
-      toast({ title: "Workout logged successfully!" });
+      // Update PRs
+      for (const alert of prAlerts) {
+        const ex = exercises.find(e => e.name === alert.exerciseName);
+        if (ex) {
+          await supabase.rpc("update_personal_record", {
+            _client_id: user.id,
+            _exercise_id: ex.id,
+            _weight: alert.weight,
+            _reps: alert.reps,
+          });
+        }
+      }
+
+      const elapsed = Math.round((Date.now() - startTime) / 60000);
+      toast({
+        title: "Workout Complete! 💪",
+        description: `${completedSets} sets in ${elapsed} min${prAlerts.length > 0 ? ` — ${prAlerts.length} new PR(s)!` : ""}`,
+      });
       onComplete?.();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -96,125 +189,193 @@ const WorkoutLogger = ({ workoutId, workoutName, exercises: initialExercises, on
     }
   };
 
+  const getPRForExercise = (exerciseId: string) => personalRecords.find(pr => pr.exercise_id === exerciseId);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-display font-bold">{workoutName}</h2>
-          <p className="text-sm text-muted-foreground">
-            Exercise {currentExerciseIdx + 1} of {exercises.length}
-          </p>
+    <div className="space-y-4">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-display font-bold text-foreground">{workoutName}</h2>
+        <div className="flex items-center gap-3 mt-2">
+          <Progress value={progressPercent} className="flex-1 h-2" />
+          <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+            {completedSets}/{totalSets} sets
+          </span>
         </div>
       </div>
 
+      {/* PR Alerts Banner */}
+      {prAlerts.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {prAlerts.map((pr, i) => (
+            <Badge key={i} variant="default" className="gap-1">
+              <Trophy className="h-3 w-3" /> {pr.exerciseName}: {pr.weight}×{pr.reps}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Exercise Navigation */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCurrentExerciseIdx(Math.max(0, currentExerciseIdx - 1))}
+          disabled={currentExerciseIdx === 0}
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex-1 flex gap-1.5 overflow-x-auto py-1">
+          {exercises.map((ex, i) => {
+            const allDone = ex.logs.every(l => l.completed);
+            const someDone = ex.logs.some(l => l.completed);
+            return (
+              <button
+                key={i}
+                onClick={() => setCurrentExerciseIdx(i)}
+                className={`h-2 flex-1 min-w-4 rounded-full transition-colors ${
+                  i === currentExerciseIdx
+                    ? "bg-primary"
+                    : allDone
+                    ? "bg-primary/40"
+                    : someDone
+                    ? "bg-primary/20"
+                    : "bg-secondary"
+                }`}
+              />
+            );
+          })}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCurrentExerciseIdx(Math.min(exercises.length - 1, currentExerciseIdx + 1))}
+          disabled={currentExerciseIdx === exercises.length - 1}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Current Exercise */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{currentExercise.name}</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{currentExercise.name}</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              {currentExerciseIdx + 1}/{exercises.length}
+            </span>
+          </div>
+          {/* Exercise metadata */}
+          <div className="flex flex-wrap gap-2 mt-1">
+            <span className="text-xs bg-secondary px-2 py-0.5 rounded">{currentExercise.sets}×{currentExercise.reps}</span>
+            {currentExercise.tempo && <span className="text-xs bg-secondary px-2 py-0.5 rounded">Tempo: {currentExercise.tempo}</span>}
+            {currentExercise.rir != null && <span className="text-xs bg-secondary px-2 py-0.5 rounded">RIR: {currentExercise.rir}</span>}
+            {currentExercise.restSeconds > 0 && <span className="text-xs bg-secondary px-2 py-0.5 rounded">Rest: {currentExercise.restSeconds}s</span>}
+          </div>
+          {(() => {
+            const pr = getPRForExercise(currentExercise.id);
+            return pr ? (
+              <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                <Trophy className="h-3 w-3" /> PR: {pr.weight} lbs × {pr.reps} reps
+              </p>
+            ) : null;
+          })()}
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {currentExercise.notes && (
-            <div className="p-3 rounded bg-secondary/50 text-sm text-muted-foreground">
-              <strong>Notes:</strong> {currentExercise.notes}
+            <div className="p-2 rounded bg-secondary/50 text-xs text-muted-foreground">
+              {currentExercise.notes}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <span className="text-muted-foreground">Sets:</span> {currentExercise.sets}
-            </div>
-            <div>
-              <span className="text-muted-foreground">Reps:</span> {currentExercise.reps}
-            </div>
-            <div>
-              <span className="text-muted-foreground">Tempo:</span> {currentExercise.tempo}
-            </div>
-            <div>
-              <span className="text-muted-foreground">Rest:</span> {currentExercise.restSeconds}s
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-4 border-t">
-            {currentExercise.logs.map((log, setIdx) => (
-              <div key={setIdx} className="border rounded-lg p-3 space-y-2 bg-card/50">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-sm">Set {log.setNumber}</h4>
-                  {log.reps && log.weight && <Check className="h-4 w-4 text-primary" />}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Weight (lbs)</Label>
-                    <Input
-                      type="number"
-                      value={log.weight || ""}
-                      onChange={(e) => updateLog(setIdx, "weight", e.target.value ? parseFloat(e.target.value) : null)}
-                      placeholder="0"
-                      className="text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Reps</Label>
-                    <Input
-                      type="number"
-                      value={log.reps || ""}
-                      onChange={(e) => updateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : null)}
-                      placeholder="0"
-                      className="text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Tempo</Label>
-                    <Input
-                      value={log.tempo || ""}
-                      onChange={(e) => updateLog(setIdx, "tempo", e.target.value)}
-                      placeholder="3-1-1"
-                      className="text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">RIR</Label>
-                    <Input
-                      type="number"
-                      value={log.rir || ""}
-                      onChange={(e) => updateLog(setIdx, "rir", e.target.value ? parseInt(e.target.value) : null)}
-                      placeholder="2"
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setShowRestTimer(!showRestTimer)}
-                  className="w-full"
-                >
-                  <Play className="h-3 w-3 mr-1" />
-                  Start Rest Timer ({currentExercise.restSeconds}s)
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-2 pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setCurrentExerciseIdx(Math.max(0, currentExerciseIdx - 1))}
-              disabled={currentExerciseIdx === 0}
+          {/* Set rows */}
+          {currentExercise.logs.map((log, setIdx) => (
+            <div
+              key={setIdx}
+              className={`border rounded-lg p-3 space-y-2 transition-colors ${
+                log.completed ? "border-primary/30 bg-primary/5" : "bg-card/50"
+              }`}
             >
-              Previous
-            </Button>
-            {currentExerciseIdx < exercises.length - 1 ? (
-              <Button onClick={() => setCurrentExerciseIdx(currentExerciseIdx + 1)} className="flex-1">
-                Next Exercise
-              </Button>
-            ) : (
-              <Button onClick={completeWorkout} disabled={loading} className="flex-1 bg-primary">
-                {loading && <Loader2 className="animate-spin" />}
-                Complete Workout
-              </Button>
-            )}
-          </div>
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  Set {log.setNumber}
+                  {log.completed && <Check className="h-4 w-4 text-primary" />}
+                </h4>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Weight</Label>
+                  <Input
+                    type="number"
+                    value={log.weight ?? ""}
+                    onChange={(e) => updateLog(setIdx, "weight", e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="lbs"
+                    className="text-sm h-9"
+                    disabled={log.completed}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">Reps</Label>
+                  <Input
+                    type="number"
+                    value={log.reps ?? ""}
+                    onChange={(e) => updateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="0"
+                    className="text-sm h-9"
+                    disabled={log.completed}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">RPE</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={log.rpe ?? ""}
+                    onChange={(e) => updateLog(setIdx, "rpe", e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="1-10"
+                    className="text-sm h-9"
+                    disabled={log.completed}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    size="sm"
+                    className="w-full h-9"
+                    variant={log.completed ? "secondary" : "default"}
+                    disabled={log.completed || !log.weight || !log.reps}
+                    onClick={() => completeSet(setIdx)}
+                  >
+                    {log.completed ? <Check className="h-4 w-4" /> : "Log"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
+
+      {/* Rest Timer */}
+      {showRestTimer && currentExercise.restSeconds > 0 && (
+        <RestTimer
+          key={restTimerKey}
+          initialSeconds={currentExercise.restSeconds}
+          onComplete={() => setShowRestTimer(false)}
+        />
+      )}
+
+      {/* Complete Workout */}
+      {completedSets > 0 && (
+        <Button
+          onClick={completeWorkout}
+          disabled={loading}
+          className="w-full"
+          size="lg"
+        >
+          {loading && <Loader2 className="animate-spin mr-2" />}
+          Complete Workout ({completedSets} sets logged)
+        </Button>
+      )}
     </div>
   );
 };
