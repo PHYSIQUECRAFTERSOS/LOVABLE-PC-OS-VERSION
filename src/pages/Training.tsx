@@ -4,10 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, Play } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Plus, Play, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WorkoutBuilder from "@/components/WorkoutBuilder";
 import WorkoutLogger from "@/components/WorkoutLogger";
+import WorkoutHistory from "@/components/training/WorkoutHistory";
 
 const Training = () => {
   const { role, user } = useAuth();
@@ -148,58 +150,74 @@ const Training = () => {
           )}
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : workouts.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground">
-                {role === "coach" ? "Create your first workout template" : "No workouts assigned yet"}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {workouts.map((workout) => (
-              <Card key={workout.id} className="flex flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{workout.name}</CardTitle>
-                      {workout.phase && (
-                        <p className="text-xs text-muted-foreground mt-1">{workout.phase}</p>
-                      )}
-                    </div>
-                    {workout.is_template && (
-                      <span className="text-xs bg-secondary px-2 py-1 rounded">Template</span>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 space-y-4">
-                  {workout.description && (
-                    <p className="text-sm text-muted-foreground">{workout.description}</p>
-                  )}
-                  {role === "client" && (
-                    <Button
-                      className="w-full"
-                      onClick={() => loadWorkoutExercises(workout.id)}
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      Start Workout
-                    </Button>
-                  )}
-                  {role === "coach" && (
-                    <Button variant="outline" className="w-full">
-                      Edit
-                    </Button>
-                  )}
+        <Tabs defaultValue="workouts">
+          <TabsList>
+            <TabsTrigger value="workouts">Workouts</TabsTrigger>
+            <TabsTrigger value="history" className="gap-1.5">
+              <History className="h-3.5 w-3.5" />
+              History
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="workouts">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : workouts.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6">
+                  <p className="text-center text-muted-foreground">
+                    {role === "coach" ? "Create your first workout template" : "No workouts assigned yet"}
+                  </p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {workouts.map((workout) => (
+                  <Card key={workout.id} className="flex flex-col">
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg">{workout.name}</CardTitle>
+                          {workout.phase && (
+                            <p className="text-xs text-muted-foreground mt-1">{workout.phase}</p>
+                          )}
+                        </div>
+                        {workout.is_template && (
+                          <span className="text-xs bg-secondary px-2 py-1 rounded">Template</span>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 space-y-4">
+                      {workout.description && (
+                        <p className="text-sm text-muted-foreground">{workout.description}</p>
+                      )}
+                      {role === "client" && (
+                        <Button
+                          className="w-full"
+                          onClick={() => loadWorkoutExercises(workout.id)}
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Start Workout
+                        </Button>
+                      )}
+                      {role === "coach" && (
+                        <Button variant="outline" className="w-full">
+                          Edit
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="history">
+            <WorkoutHistory />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
