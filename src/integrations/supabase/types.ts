@@ -286,6 +286,8 @@ export type Database = {
           protein: number
           serving_size: number
           serving_unit: string
+          sodium: number | null
+          sugar: number | null
           updated_at: string
         }
         Insert: {
@@ -302,6 +304,8 @@ export type Database = {
           protein?: number
           serving_size?: number
           serving_unit?: string
+          sodium?: number | null
+          sugar?: number | null
           updated_at?: string
         }
         Update: {
@@ -318,6 +322,8 @@ export type Database = {
           protein?: number
           serving_size?: number
           serving_unit?: string
+          sodium?: number | null
+          sugar?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -541,6 +547,8 @@ export type Database = {
           meal_type: string
           protein: number
           servings: number
+          sodium: number | null
+          sugar: number | null
         }
         Insert: {
           calories?: number
@@ -555,6 +563,8 @@ export type Database = {
           meal_type?: string
           protein?: number
           servings?: number
+          sodium?: number | null
+          sugar?: number | null
         }
         Update: {
           calories?: number
@@ -569,6 +579,8 @@ export type Database = {
           meal_type?: string
           protein?: number
           servings?: number
+          sodium?: number | null
+          sugar?: number | null
         }
         Relationships: [
           {
@@ -717,6 +729,60 @@ export type Database = {
           photo_date?: string
           pose?: string
           storage_path?: string
+        }
+        Relationships: []
+      }
+      saved_meals: {
+        Row: {
+          calories: number
+          carbs: number
+          client_id: string
+          created_at: string
+          fat: number
+          fiber: number | null
+          id: string
+          meal_type: string
+          name: string
+          notes: string | null
+          protein: number
+          servings: number
+          sodium: number | null
+          sugar: number | null
+          updated_at: string
+        }
+        Insert: {
+          calories?: number
+          carbs?: number
+          client_id: string
+          created_at?: string
+          fat?: number
+          fiber?: number | null
+          id?: string
+          meal_type?: string
+          name: string
+          notes?: string | null
+          protein?: number
+          servings?: number
+          sodium?: number | null
+          sugar?: number | null
+          updated_at?: string
+        }
+        Update: {
+          calories?: number
+          carbs?: number
+          client_id?: string
+          created_at?: string
+          fat?: number
+          fiber?: number | null
+          id?: string
+          meal_type?: string
+          name?: string
+          notes?: string | null
+          protein?: number
+          servings?: number
+          sodium?: number | null
+          sugar?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
