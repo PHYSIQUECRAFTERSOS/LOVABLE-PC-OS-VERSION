@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Bookmark } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface FoodItem {
@@ -31,6 +31,9 @@ interface FoodItem {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
 }
 
 interface FoodLoggerProps {
@@ -53,8 +56,12 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
   const [customProtein, setCustomProtein] = useState("");
   const [customCarbs, setCustomCarbs] = useState("");
   const [customFat, setCustomFat] = useState("");
+  const [customFiber, setCustomFiber] = useState("");
+  const [customSugar, setCustomSugar] = useState("");
+  const [customSodium, setCustomSodium] = useState("");
   const [mode, setMode] = useState<"search" | "custom">("search");
   const [loading, setLoading] = useState(false);
+  const [saveMealName, setSaveMealName] = useState("");
 
   const handleSearch = async (q: string) => {
     setSearch(q);
@@ -72,7 +79,7 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
     setLoading(true);
     const s = parseFloat(servings) || 1;
 
-    const entry = mode === "search" && selected
+     const entry = mode === "search" && selected
       ? {
           client_id: user.id,
           food_item_id: selected.id,
@@ -82,6 +89,9 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
           protein: Math.round(selected.protein * s),
           carbs: Math.round(selected.carbs * s),
           fat: Math.round(selected.fat * s),
+          fiber: Math.round((selected.fiber || 0) * s),
+          sugar: Math.round((selected.sugar || 0) * s),
+          sodium: Math.round((selected.sodium || 0) * s),
         }
       : {
           client_id: user.id,
@@ -92,6 +102,9 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
           protein: parseInt(customProtein) || 0,
           carbs: parseInt(customCarbs) || 0,
           fat: parseInt(customFat) || 0,
+          fiber: parseInt(customFiber) || 0,
+          sugar: parseInt(customSugar) || 0,
+          sodium: parseInt(customSodium) || 0,
         };
 
     const { error } = await supabase.from("nutrition_logs").insert(entry);
@@ -101,6 +114,33 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
       toast({ title: "Error logging food", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Food logged!" });
+      
+      // Optionally save as meal
+      if (saveMealName.trim()) {
+        await supabase.from("saved_meals").insert({
+          client_id: user.id,
+          name: saveMealName,
+          meal_type: mealType,
+          ...(mode === "search" && selected ? {
+            calories: Math.round(selected.calories * s),
+            protein: Math.round(selected.protein * s),
+            carbs: Math.round(selected.carbs * s),
+            fat: Math.round(selected.fat * s),
+            fiber: Math.round((selected.fiber || 0) * s),
+            sugar: Math.round((selected.sugar || 0) * s),
+            sodium: Math.round((selected.sodium || 0) * s),
+          } : {
+            calories: parseInt(customCal) || 0,
+            protein: parseInt(customProtein) || 0,
+            carbs: parseInt(customCarbs) || 0,
+            fat: parseInt(customFat) || 0,
+            fiber: parseInt(customFiber) || 0,
+            sugar: parseInt(customSugar) || 0,
+            sodium: parseInt(customSodium) || 0,
+          })
+        });
+      }
+      
       setOpen(false);
       resetForm();
       onLogged();
@@ -111,7 +151,8 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
     setSearch(""); setResults([]); setSelected(null);
     setServings("1"); setMealType("snack"); setMode("search");
     setCustomName(""); setCustomCal(""); setCustomProtein("");
-    setCustomCarbs(""); setCustomFat("");
+    setCustomCarbs(""); setCustomFat(""); setCustomFiber("");
+    setCustomSugar(""); setCustomSodium(""); setSaveMealName("");
   };
 
   return (
@@ -206,12 +247,14 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
                       onChange={(e) => setServings(e.target.value)}
                     />
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-center text-xs">
+               <div className="grid grid-cols-2 gap-2 text-center text-xs">
                     <div><div className="font-bold text-foreground">{Math.round(selected.calories * (parseFloat(servings) || 1))}</div>Cal</div>
                     <div><div className="font-bold text-foreground">{Math.round(selected.protein * (parseFloat(servings) || 1))}g</div>Protein</div>
                     <div><div className="font-bold text-foreground">{Math.round(selected.carbs * (parseFloat(servings) || 1))}g</div>Carbs</div>
                     <div><div className="font-bold text-foreground">{Math.round(selected.fat * (parseFloat(servings) || 1))}g</div>Fat</div>
-                  </div>
+                    <div><div className="font-bold text-foreground">{Math.round((selected.fiber || 0) * (parseFloat(servings) || 1))}g</div>Fiber</div>
+                    <div><div className="font-bold text-foreground">{Math.round((selected.sugar || 0) * (parseFloat(servings) || 1))}g</div>Sugar</div>
+                   </div>
                 </div>
               )}
             </>
@@ -226,6 +269,13 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
                 <div><Label>Protein (g)</Label><Input type="number" value={customProtein} onChange={(e) => setCustomProtein(e.target.value)} /></div>
                 <div><Label>Carbs (g)</Label><Input type="number" value={customCarbs} onChange={(e) => setCustomCarbs(e.target.value)} /></div>
                 <div><Label>Fat (g)</Label><Input type="number" value={customFat} onChange={(e) => setCustomFat(e.target.value)} /></div>
+                <div><Label>Fiber (g)</Label><Input type="number" value={customFiber} onChange={(e) => setCustomFiber(e.target.value)} /></div>
+                <div><Label>Sugar (g)</Label><Input type="number" value={customSugar} onChange={(e) => setCustomSugar(e.target.value)} /></div>
+                <div><Label>Sodium (mg)</Label><Input type="number" value={customSodium} onChange={(e) => setCustomSodium(e.target.value)} /></div>
+              </div>
+              <div>
+                <Label>Save as Meal (optional)</Label>
+                <Input placeholder="e.g., Protein Shake" value={saveMealName} onChange={(e) => setSaveMealName(e.target.value)} />
               </div>
             </div>
           )}
