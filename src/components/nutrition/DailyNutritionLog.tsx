@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MacroRing from "./MacroRing";
 import FoodLogger from "./FoodLogger";
+import BarcodeScanner from "./BarcodeScanner";
 
 
 interface NutritionLog {
@@ -125,8 +126,11 @@ const DailyNutritionLog = () => {
       </div>
 
 
-      {/* Log Button */}
-      <FoodLogger onLogged={fetchLogs} />
+      {/* Log Buttons */}
+      <div className="flex gap-2">
+        <FoodLogger onLogged={fetchLogs} />
+        <BarcodeScanner onLogged={fetchLogs} />
+      </div>
 
       {/* Logged Meals */}
       <div className="space-y-4">
