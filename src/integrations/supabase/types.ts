@@ -65,6 +65,42 @@ export type Database = {
         }
         Relationships: []
       }
+      client_goals: {
+        Row: {
+          client_id: string
+          created_at: string
+          goal: string
+          id: string
+          started_at: string
+          starting_weight: number | null
+          target_rate: number
+          target_weight: number | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          goal?: string
+          id?: string
+          started_at?: string
+          starting_weight?: number | null
+          target_rate?: number
+          target_weight?: number | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          goal?: string
+          id?: string
+          started_at?: string
+          starting_weight?: number | null
+          target_rate?: number
+          target_weight?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       coach_clients: {
         Row: {
           assigned_at: string
@@ -283,6 +319,57 @@ export type Database = {
           serving_size?: number
           serving_unit?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      macro_adjustment_history: {
+        Row: {
+          adjustment_date: string
+          client_id: string
+          created_at: string
+          estimated_tdee: number | null
+          id: string
+          new_calories: number
+          new_carbs: number | null
+          new_fat: number | null
+          new_protein: number | null
+          previous_calories: number
+          previous_carbs: number | null
+          previous_fat: number | null
+          previous_protein: number | null
+          reason: string
+        }
+        Insert: {
+          adjustment_date?: string
+          client_id: string
+          created_at?: string
+          estimated_tdee?: number | null
+          id?: string
+          new_calories: number
+          new_carbs?: number | null
+          new_fat?: number | null
+          new_protein?: number | null
+          previous_calories: number
+          previous_carbs?: number | null
+          previous_fat?: number | null
+          previous_protein?: number | null
+          reason: string
+        }
+        Update: {
+          adjustment_date?: string
+          client_id?: string
+          created_at?: string
+          estimated_tdee?: number | null
+          id?: string
+          new_calories?: number
+          new_carbs?: number | null
+          new_fat?: number | null
+          new_protein?: number | null
+          previous_calories?: number
+          previous_carbs?: number | null
+          previous_fat?: number | null
+          previous_protein?: number | null
+          reason?: string
         }
         Relationships: []
       }
@@ -630,6 +717,45 @@ export type Database = {
           photo_date?: string
           pose?: string
           storage_path?: string
+        }
+        Relationships: []
+      }
+      tdee_estimates: {
+        Row: {
+          adherence_pct: number
+          avg_daily_calories: number
+          avg_weight: number
+          calculated_at: string
+          client_id: string
+          created_at: string
+          data_points: number
+          estimated_tdee: number
+          id: string
+          weight_change_rate: number
+        }
+        Insert: {
+          adherence_pct?: number
+          avg_daily_calories: number
+          avg_weight: number
+          calculated_at?: string
+          client_id: string
+          created_at?: string
+          data_points?: number
+          estimated_tdee: number
+          id?: string
+          weight_change_rate: number
+        }
+        Update: {
+          adherence_pct?: number
+          avg_daily_calories?: number
+          avg_weight?: number
+          calculated_at?: string
+          client_id?: string
+          created_at?: string
+          data_points?: number
+          estimated_tdee?: number
+          id?: string
+          weight_change_rate?: number
         }
         Relationships: []
       }
