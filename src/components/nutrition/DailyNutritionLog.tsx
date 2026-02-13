@@ -6,7 +6,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MacroRing from "./MacroRing";
 import FoodLogger from "./FoodLogger";
-import WaterTracker from "./WaterTracker";
+
 
 interface NutritionLog {
   id: string;
@@ -124,8 +124,6 @@ const DailyNutritionLog = () => {
         </div>
       </div>
 
-      {/* Water */}
-      <WaterTracker />
 
       {/* Log Button */}
       <FoodLogger onLogged={fetchLogs} />
