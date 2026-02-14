@@ -7,6 +7,7 @@ import MeasurementsForm from "@/components/biofeedback/MeasurementsForm";
 import ProgressPhotoUpload from "@/components/biofeedback/ProgressPhotoUpload";
 import PhotoTimeline from "@/components/biofeedback/PhotoTimeline";
 import PhotoComparisonSlider from "@/components/biofeedback/PhotoComparisonSlider";
+import ProgressMetricsDashboard from "@/components/biofeedback/ProgressMetricsDashboard";
 import WeightTracker from "@/components/biofeedback/WeightTracker";
 import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
 import CheckinFormBuilder from "@/components/checkin/CheckinFormBuilder";
@@ -25,9 +26,10 @@ const Progress = () => {
         <h1 className="font-display text-2xl font-bold text-foreground">Progress</h1>
 
         <Tabs defaultValue="checkin" className="w-full">
-          <TabsList className="w-full grid grid-cols-5">
+          <TabsList className="w-full grid grid-cols-6">
             <TabsTrigger value="checkin">Check-In</TabsTrigger>
             <TabsTrigger value="forms">Forms</TabsTrigger>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="weight">Weight</TabsTrigger>
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="trends">Trends</TabsTrigger>
@@ -47,6 +49,10 @@ const Progress = () => {
             ) : (
               <CheckinSubmissionForm />
             )}
+          </TabsContent>
+
+          <TabsContent value="dashboard" className="mt-4">
+            <ProgressMetricsDashboard key={refreshKey} />
           </TabsContent>
 
           <TabsContent value="weight" className="mt-4">
