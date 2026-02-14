@@ -1961,6 +1961,7 @@ export type Database = {
           created_at: string
           id: string
           logged_at: string
+          notes: string | null
           servings: number
           supplement_id: string
         }
@@ -1969,6 +1970,7 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+          notes?: string | null
           servings?: number
           supplement_id: string
         }
@@ -1977,6 +1979,7 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+          notes?: string | null
           servings?: number
           supplement_id?: string
         }
@@ -1990,18 +1993,103 @@ export type Database = {
           },
         ]
       }
+      supplement_nutrient_forms: {
+        Row: {
+          absorption_multiplier: number
+          created_at: string
+          form_name: string
+          id: string
+          nutrient_key: string
+          supplement_id: string
+        }
+        Insert: {
+          absorption_multiplier?: number
+          created_at?: string
+          form_name: string
+          id?: string
+          nutrient_key: string
+          supplement_id: string
+        }
+        Update: {
+          absorption_multiplier?: number
+          created_at?: string
+          form_name?: string
+          id?: string
+          nutrient_key?: string
+          supplement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplement_nutrient_forms_supplement_id_fkey"
+            columns: ["supplement_id"]
+            isOneToOne: false
+            referencedRelation: "supplements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplement_stacks: {
+        Row: {
+          client_id: string | null
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          supplement_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          supplement_ids?: string[]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          supplement_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       supplements: {
         Row: {
+          added_sugars: number | null
+          barcode: string | null
+          bioavailability_multiplier: number | null
           brand: string | null
           calcium_mg: number | null
+          calories: number | null
+          carbs: number | null
+          cholesterol: number | null
           chromium_mcg: number | null
           client_id: string
+          coach_id: string | null
           copper_mg: number | null
           created_at: string
+          data_source: string | null
+          electrolytes_mg: number | null
+          fat: number | null
+          fiber: number | null
+          form_type: string | null
           id: string
           iodine_mcg: number | null
           iron_mg: number | null
           is_active: boolean
+          is_coach_recommended: boolean | null
+          is_verified: boolean | null
           magnesium_mg: number | null
           manganese_mg: number | null
           molybdenum_mcg: number | null
@@ -2011,9 +2099,12 @@ export type Database = {
           omega_6: number | null
           phosphorus_mg: number | null
           potassium_mg: number | null
+          protein: number | null
           selenium_mcg: number | null
           serving_size: number | null
           serving_unit: string | null
+          servings_per_container: number | null
+          sodium: number | null
           updated_at: string
           vitamin_a_mcg: number | null
           vitamin_b1_mg: number | null
@@ -2031,16 +2122,30 @@ export type Database = {
           zinc_mg: number | null
         }
         Insert: {
+          added_sugars?: number | null
+          barcode?: string | null
+          bioavailability_multiplier?: number | null
           brand?: string | null
           calcium_mg?: number | null
+          calories?: number | null
+          carbs?: number | null
+          cholesterol?: number | null
           chromium_mcg?: number | null
           client_id: string
+          coach_id?: string | null
           copper_mg?: number | null
           created_at?: string
+          data_source?: string | null
+          electrolytes_mg?: number | null
+          fat?: number | null
+          fiber?: number | null
+          form_type?: string | null
           id?: string
           iodine_mcg?: number | null
           iron_mg?: number | null
           is_active?: boolean
+          is_coach_recommended?: boolean | null
+          is_verified?: boolean | null
           magnesium_mg?: number | null
           manganese_mg?: number | null
           molybdenum_mcg?: number | null
@@ -2050,9 +2155,12 @@ export type Database = {
           omega_6?: number | null
           phosphorus_mg?: number | null
           potassium_mg?: number | null
+          protein?: number | null
           selenium_mcg?: number | null
           serving_size?: number | null
           serving_unit?: string | null
+          servings_per_container?: number | null
+          sodium?: number | null
           updated_at?: string
           vitamin_a_mcg?: number | null
           vitamin_b1_mg?: number | null
@@ -2070,16 +2178,30 @@ export type Database = {
           zinc_mg?: number | null
         }
         Update: {
+          added_sugars?: number | null
+          barcode?: string | null
+          bioavailability_multiplier?: number | null
           brand?: string | null
           calcium_mg?: number | null
+          calories?: number | null
+          carbs?: number | null
+          cholesterol?: number | null
           chromium_mcg?: number | null
           client_id?: string
+          coach_id?: string | null
           copper_mg?: number | null
           created_at?: string
+          data_source?: string | null
+          electrolytes_mg?: number | null
+          fat?: number | null
+          fiber?: number | null
+          form_type?: string | null
           id?: string
           iodine_mcg?: number | null
           iron_mg?: number | null
           is_active?: boolean
+          is_coach_recommended?: boolean | null
+          is_verified?: boolean | null
           magnesium_mg?: number | null
           manganese_mg?: number | null
           molybdenum_mcg?: number | null
@@ -2089,9 +2211,12 @@ export type Database = {
           omega_6?: number | null
           phosphorus_mg?: number | null
           potassium_mg?: number | null
+          protein?: number | null
           selenium_mcg?: number | null
           serving_size?: number | null
           serving_unit?: string | null
+          servings_per_container?: number | null
+          sodium?: number | null
           updated_at?: string
           vitamin_a_mcg?: number | null
           vitamin_b1_mg?: number | null
