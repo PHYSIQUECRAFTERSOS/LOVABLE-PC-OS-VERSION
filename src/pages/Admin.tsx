@@ -5,6 +5,7 @@ import PlatformMetrics from "@/components/admin/PlatformMetrics";
 import UserManagement from "@/components/admin/UserManagement";
 import BulkNotifications from "@/components/admin/BulkNotifications";
 import ComplianceOverview from "@/components/admin/ComplianceOverview";
+import RetentionPanel from "@/components/admin/RetentionPanel";
 
 const Admin = () => {
   const { role, loading } = useAuth();
@@ -23,6 +24,7 @@ const Admin = () => {
         </div>
 
         <PlatformMetrics />
+        <RetentionPanel />
         <ComplianceOverview />
         <UserManagement />
         <BulkNotifications />

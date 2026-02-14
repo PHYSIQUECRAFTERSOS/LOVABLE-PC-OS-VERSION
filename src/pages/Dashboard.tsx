@@ -4,6 +4,7 @@ import TodayWorkout from "@/components/dashboard/TodayWorkout";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import ComplianceScore from "@/components/dashboard/ComplianceScore";
 import ClientCards from "@/components/dashboard/ClientCards";
+import RecommitFlow from "@/components/retention/RecommitFlow";
 
 const Dashboard = () => {
   const { role } = useAuth();
@@ -23,6 +24,7 @@ const Dashboard = () => {
         {/* Client View */}
         {role === "client" && (
           <div className="space-y-4">
+            <RecommitFlow />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <TodayWorkout />
               <MacroSummary />
