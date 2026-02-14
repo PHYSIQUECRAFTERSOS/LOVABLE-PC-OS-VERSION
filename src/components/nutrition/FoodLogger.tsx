@@ -9,15 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Plus, Search, Bookmark } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -38,19 +30,18 @@ interface FoodItem {
 
 interface FoodLoggerProps {
   onLogged: () => void;
+  mealType: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
-
-const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
+const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<FoodItem[]>([]);
   const [selected, setSelected] = useState<FoodItem | null>(null);
   const [servings, setServings] = useState("1");
-  const [mealType, setMealType] = useState("snack");
   const [customName, setCustomName] = useState("");
   const [customCal, setCustomCal] = useState("");
   const [customProtein, setCustomProtein] = useState("");
@@ -63,6 +54,15 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
   const [loading, setLoading] = useState(false);
   const [saveMealName, setSaveMealName] = useState("");
 
+  const MEAL_LABELS: Record<string, string> = {
+    breakfast: "Breakfast",
+    "pre-workout": "Pre-Workout Meal",
+    "post-workout": "Post-Workout Meal",
+    lunch: "Lunch",
+    dinner: "Dinner",
+    snack: "Snacks",
+  };
+
   const handleSearch = async (q: string) => {
     setSearch(q);
     if (q.length < 2) { setResults([]); return; }
@@ -70,6 +70,7 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
       .from("food_items")
       .select("*")
       .ilike("name", `%${q}%`)
+      .order("is_verified", { ascending: false })
       .limit(10);
     setResults((data as FoodItem[]) || []);
   };
@@ -79,7 +80,7 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
     setLoading(true);
     const s = parseFloat(servings) || 1;
 
-     const entry = mode === "search" && selected
+    const entry = mode === "search" && selected
       ? {
           client_id: user.id,
           food_item_id: selected.id,
@@ -114,8 +115,7 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
       toast({ title: "Error logging food", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Food logged!" });
-      
-      // Optionally save as meal
+
       if (saveMealName.trim()) {
         await supabase.from("saved_meals").insert({
           client_id: user.id,
@@ -140,8 +140,8 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
           })
         });
       }
-      
-      setOpen(false);
+
+      onOpenChange(false);
       resetForm();
       onLogged();
     }
@@ -149,22 +149,17 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
 
   const resetForm = () => {
     setSearch(""); setResults([]); setSelected(null);
-    setServings("1"); setMealType("snack"); setMode("search");
+    setServings("1"); setMode("search");
     setCustomName(""); setCustomCal(""); setCustomProtein("");
     setCustomCarbs(""); setCustomFat(""); setCustomFiber("");
     setCustomSugar(""); setCustomSodium(""); setSaveMealName("");
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Log Food
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetForm(); }}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Log Food</DialogTitle>
+          <DialogTitle>Add Food — {MEAL_LABELS[mealType] || mealType}</DialogTitle>
         </DialogHeader>
 
         <div className="flex gap-2 mb-4">
@@ -185,18 +180,6 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
         </div>
 
         <div className="space-y-4">
-          <div>
-            <Label>Meal Type</Label>
-            <Select value={mealType} onValueChange={setMealType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {MEAL_TYPES.map((m) => (
-                  <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {mode === "search" ? (
             <>
               <div className="relative">
@@ -206,6 +189,7 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
                   value={search}
                   onChange={(e) => handleSearch(e.target.value)}
                   className="pl-9"
+                  autoFocus
                 />
               </div>
 
@@ -247,14 +231,14 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
                       onChange={(e) => setServings(e.target.value)}
                     />
                   </div>
-               <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
                     <div><div className="font-bold text-foreground">{Math.round(selected.calories * (parseFloat(servings) || 1))}</div>Cal</div>
                     <div><div className="font-bold text-foreground">{Math.round(selected.protein * (parseFloat(servings) || 1))}g</div>Protein</div>
                     <div><div className="font-bold text-foreground">{Math.round(selected.carbs * (parseFloat(servings) || 1))}g</div>Carbs</div>
                     <div><div className="font-bold text-foreground">{Math.round(selected.fat * (parseFloat(servings) || 1))}g</div>Fat</div>
                     <div><div className="font-bold text-foreground">{Math.round((selected.fiber || 0) * (parseFloat(servings) || 1))}g</div>Fiber</div>
                     <div><div className="font-bold text-foreground">{Math.round((selected.sugar || 0) * (parseFloat(servings) || 1))}g</div>Sugar</div>
-                   </div>
+                  </div>
                 </div>
               )}
             </>
@@ -262,7 +246,7 @@ const FoodLogger = ({ onLogged }: FoodLoggerProps) => {
             <div className="space-y-3">
               <div>
                 <Label>Food Name</Label>
-                <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="e.g. Homemade smoothie" />
+                <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="e.g. Homemade smoothie" autoFocus />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Calories</Label><Input type="number" value={customCal} onChange={(e) => setCustomCal(e.target.value)} /></div>
