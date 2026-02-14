@@ -5,11 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Plus, Play, History } from "lucide-react";
+import { Loader2, Plus, Play, History, Copy, HeartPulse } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WorkoutBuilder from "@/components/WorkoutBuilder";
 import WorkoutLogger from "@/components/WorkoutLogger";
 import WorkoutHistory from "@/components/training/WorkoutHistory";
+import CardioManager from "@/components/training/CardioManager";
 
 const Training = () => {
   const { role, user } = useAuth();
@@ -153,6 +154,10 @@ const Training = () => {
         <Tabs defaultValue="workouts">
           <TabsList>
             <TabsTrigger value="workouts">Workouts</TabsTrigger>
+            <TabsTrigger value="cardio" className="gap-1.5">
+              <HeartPulse className="h-3.5 w-3.5" />
+              Cardio
+            </TabsTrigger>
             <TabsTrigger value="history" className="gap-1.5">
               <History className="h-3.5 w-3.5" />
               History
@@ -203,15 +208,65 @@ const Training = () => {
                         </Button>
                       )}
                       {role === "coach" && (
-                        <Button variant="outline" className="w-full">
-                          Edit
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" className="flex-1">
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={async () => {
+                              try {
+                                // Duplicate workout
+                                const { data: newWorkout, error: wErr } = await supabase
+                                  .from("workouts")
+                                  .insert({
+                                    coach_id: user!.id,
+                                    name: `${workout.name} (Copy)`,
+                                    description: workout.description,
+                                    phase: workout.phase,
+                                    is_template: true,
+                                  })
+                                  .select()
+                                  .single();
+                                if (wErr) throw wErr;
+
+                                // Copy exercises
+                                const { data: exercises } = await supabase
+                                  .from("workout_exercises")
+                                  .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes")
+                                  .eq("workout_id", workout.id);
+
+                                if (exercises && exercises.length > 0) {
+                                  await supabase.from("workout_exercises").insert(
+                                    exercises.map((ex: any) => ({
+                                      ...ex,
+                                      workout_id: newWorkout.id,
+                                    }))
+                                  );
+                                }
+
+                                toast({ title: "Workout duplicated" });
+                                loadWorkouts();
+                              } catch (err: any) {
+                                toast({ title: "Error", description: err.message, variant: "destructive" });
+                              }
+                            }}
+                            title="Duplicate"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="cardio">
+            <CardioManager />
           </TabsContent>
 
           <TabsContent value="history">
