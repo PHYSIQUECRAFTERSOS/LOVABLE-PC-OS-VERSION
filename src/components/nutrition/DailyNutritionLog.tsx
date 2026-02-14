@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MacroRing from "./MacroRing";
-import FoodLogger from "./FoodLogger";
-import BarcodeScanner from "./BarcodeScanner";
+import AddFoodScreen from "./AddFoodScreen";
 
 interface NutritionLog {
   id: string;
@@ -42,7 +41,7 @@ const MEAL_SECTIONS = [
   { key: "lunch", label: "Lunch" },
   { key: "dinner", label: "Dinner" },
   { key: "snack", label: "Snacks" },
-];
+] as const;
 
 const DailyNutritionLog = () => {
   const { user } = useAuth();
@@ -52,6 +51,7 @@ const DailyNutritionLog = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loggerOpen, setLoggerOpen] = useState(false);
   const [activeMealType, setActiveMealType] = useState("snack");
+  const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
 
@@ -117,8 +117,9 @@ const DailyNutritionLog = () => {
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
-  const openLoggerFor = (mealType: string) => {
+  const openLoggerFor = (mealType: string, label: string) => {
     setActiveMealType(mealType);
+    setActiveMealLabel(label);
     setLoggerOpen(true);
   };
 
@@ -177,11 +178,7 @@ const DailyNutritionLog = () => {
           <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(45 80% 55%)" />
         </div>
       </div>
-
-      {/* Barcode Scanner */}
-      <div className="flex gap-2">
-        <BarcodeScanner onLogged={fetchLogs} />
-      </div>
+      {/* Barcode scanner removed — integrated into AddFoodScreen */}
 
       {/* Meal Sections */}
       <div className="space-y-4">
@@ -237,7 +234,7 @@ const DailyNutritionLog = () => {
 
               {/* Add Food Button */}
               <button
-                onClick={() => openLoggerFor(key)}
+                onClick={() => openLoggerFor(key, label)}
                 className="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/5 transition-colors"
               >
                 <Plus className="h-4 w-4" />
@@ -249,11 +246,12 @@ const DailyNutritionLog = () => {
       </div>
 
       {/* Food Logger Modal */}
-      <FoodLogger
-        onLogged={fetchLogs}
+      <AddFoodScreen
         mealType={activeMealType}
+        mealLabel={activeMealLabel}
         open={loggerOpen}
-        onOpenChange={setLoggerOpen}
+        onClose={() => setLoggerOpen(false)}
+        onLogged={() => { fetchLogs(); setLoggerOpen(false); }}
       />
     </div>
   );
