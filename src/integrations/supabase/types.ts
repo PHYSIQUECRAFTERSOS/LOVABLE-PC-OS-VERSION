@@ -717,10 +717,12 @@ export type Database = {
       }
       client_goals: {
         Row: {
+          aggressiveness: number | null
           client_id: string
           created_at: string
           goal: string
           id: string
+          phase_notes: string | null
           started_at: string
           starting_weight: number | null
           target_rate: number
@@ -728,10 +730,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aggressiveness?: number | null
           client_id: string
           created_at?: string
           goal?: string
           id?: string
+          phase_notes?: string | null
           started_at?: string
           starting_weight?: number | null
           target_rate?: number
@@ -739,10 +743,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aggressiveness?: number | null
           client_id?: string
           created_at?: string
           goal?: string
           id?: string
+          phase_notes?: string | null
           started_at?: string
           starting_weight?: number | null
           target_rate?: number
@@ -2108,37 +2114,52 @@ export type Database = {
         Row: {
           adherence_pct: number
           avg_daily_calories: number
+          avg_sleep_hours: number | null
+          avg_steps: number | null
           avg_weight: number
           calculated_at: string
+          cardio_minutes: number | null
           client_id: string
           created_at: string
           data_points: number
           estimated_tdee: number
           id: string
+          metabolic_adaptation_pct: number | null
+          training_sessions: number | null
           weight_change_rate: number
         }
         Insert: {
           adherence_pct?: number
           avg_daily_calories: number
+          avg_sleep_hours?: number | null
+          avg_steps?: number | null
           avg_weight: number
           calculated_at?: string
+          cardio_minutes?: number | null
           client_id: string
           created_at?: string
           data_points?: number
           estimated_tdee: number
           id?: string
+          metabolic_adaptation_pct?: number | null
+          training_sessions?: number | null
           weight_change_rate: number
         }
         Update: {
           adherence_pct?: number
           avg_daily_calories?: number
+          avg_sleep_hours?: number | null
+          avg_steps?: number | null
           avg_weight?: number
           calculated_at?: string
+          cardio_minutes?: number | null
           client_id?: string
           created_at?: string
           data_points?: number
           estimated_tdee?: number
           id?: string
+          metabolic_adaptation_pct?: number | null
+          training_sessions?: number | null
           weight_change_rate?: number
         }
         Relationships: []
@@ -2182,6 +2203,78 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+        }
+        Relationships: []
+      }
+      weekly_calorie_suggestions: {
+        Row: {
+          biofeedback_factors: Json | null
+          client_id: string
+          coach_id: string | null
+          coach_modified_calories: number | null
+          coach_notes: string | null
+          created_at: string
+          current_calories: number
+          estimated_tdee: number
+          id: string
+          metabolic_adaptation_pct: number | null
+          phase: string
+          predicted_4week_weight: number | null
+          predicted_weekly_change: number | null
+          reason: string
+          resolved_at: string | null
+          status: string
+          suggested_calories: number
+          suggested_carbs: number | null
+          suggested_fat: number | null
+          suggested_protein: number | null
+          week_start: string
+        }
+        Insert: {
+          biofeedback_factors?: Json | null
+          client_id: string
+          coach_id?: string | null
+          coach_modified_calories?: number | null
+          coach_notes?: string | null
+          created_at?: string
+          current_calories: number
+          estimated_tdee: number
+          id?: string
+          metabolic_adaptation_pct?: number | null
+          phase?: string
+          predicted_4week_weight?: number | null
+          predicted_weekly_change?: number | null
+          reason: string
+          resolved_at?: string | null
+          status?: string
+          suggested_calories: number
+          suggested_carbs?: number | null
+          suggested_fat?: number | null
+          suggested_protein?: number | null
+          week_start?: string
+        }
+        Update: {
+          biofeedback_factors?: Json | null
+          client_id?: string
+          coach_id?: string | null
+          coach_modified_calories?: number | null
+          coach_notes?: string | null
+          created_at?: string
+          current_calories?: number
+          estimated_tdee?: number
+          id?: string
+          metabolic_adaptation_pct?: number | null
+          phase?: string
+          predicted_4week_weight?: number | null
+          predicted_weekly_change?: number | null
+          reason?: string
+          resolved_at?: string | null
+          status?: string
+          suggested_calories?: number
+          suggested_carbs?: number | null
+          suggested_fat?: number | null
+          suggested_protein?: number | null
+          week_start?: string
         }
         Relationships: []
       }
