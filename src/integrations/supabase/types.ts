@@ -14,6 +14,146 @@ export type Database = {
   }
   public: {
     Tables: {
+      auto_message_logs: {
+        Row: {
+          client_id: string
+          coach_id: string
+          created_at: string
+          id: string
+          message_content: string
+          read_at: string | null
+          sent_at: string
+          template_id: string | null
+          trigger_id: string | null
+          trigger_reason: string | null
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          created_at?: string
+          id?: string
+          message_content: string
+          read_at?: string | null
+          sent_at?: string
+          template_id?: string | null
+          trigger_id?: string | null
+          trigger_reason?: string | null
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          id?: string
+          message_content?: string
+          read_at?: string | null
+          sent_at?: string
+          template_id?: string | null
+          trigger_id?: string | null
+          trigger_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_message_logs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "auto_message_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auto_message_logs_trigger_id_fkey"
+            columns: ["trigger_id"]
+            isOneToOne: false
+            referencedRelation: "auto_message_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auto_message_templates: {
+        Row: {
+          category: string
+          coach_id: string
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          coach_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          coach_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      auto_message_triggers: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_evaluated_at: string | null
+          recurrence_cron: string | null
+          target_client_id: string | null
+          target_tag: string | null
+          target_type: string
+          template_id: string
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_evaluated_at?: string | null
+          recurrence_cron?: string | null
+          target_client_id?: string | null
+          target_tag?: string | null
+          target_type?: string
+          template_id: string
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_evaluated_at?: string | null
+          recurrence_cron?: string | null
+          target_client_id?: string | null
+          target_tag?: string | null
+          target_type?: string
+          template_id?: string
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_message_triggers_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "auto_message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       body_measurements: {
         Row: {
           blood_pressure_diastolic: number | null
