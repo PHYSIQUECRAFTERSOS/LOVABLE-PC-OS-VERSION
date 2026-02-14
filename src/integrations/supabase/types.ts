@@ -1022,58 +1022,178 @@ export type Database = {
       }
       food_items: {
         Row: {
+          added_sugars: number | null
+          alcohol: number | null
           brand: string | null
+          calcium_mg: number | null
           calories: number
           carbs: number
+          cholesterol: number | null
+          chromium_mcg: number | null
+          copper_mg: number | null
           created_at: string
           created_by: string | null
+          data_source: string | null
           fat: number
           fiber: number | null
+          food_quality_score: number | null
           id: string
+          insoluble_fiber: number | null
+          iodine_mcg: number | null
+          iron_mg: number | null
           is_verified: boolean
+          magnesium_mg: number | null
+          manganese_mg: number | null
+          molybdenum_mcg: number | null
+          monounsaturated_fat: number | null
           name: string
+          net_carbs: number | null
+          omega_3: number | null
+          omega_6: number | null
+          phosphorus_mg: number | null
+          polyunsaturated_fat: number | null
+          potassium_mg: number | null
           protein: number
+          saturated_fat: number | null
+          selenium_mcg: number | null
           serving_size: number
           serving_unit: string
           sodium: number | null
+          soluble_fiber: number | null
           sugar: number | null
+          trans_fat: number | null
           updated_at: string
+          usda_fdc_id: string | null
+          vitamin_a_mcg: number | null
+          vitamin_b1_mg: number | null
+          vitamin_b12_mcg: number | null
+          vitamin_b2_mg: number | null
+          vitamin_b3_mg: number | null
+          vitamin_b5_mg: number | null
+          vitamin_b6_mg: number | null
+          vitamin_b7_mcg: number | null
+          vitamin_b9_mcg: number | null
+          vitamin_c_mg: number | null
+          vitamin_d_mcg: number | null
+          vitamin_e_mg: number | null
+          vitamin_k_mcg: number | null
+          zinc_mg: number | null
         }
         Insert: {
+          added_sugars?: number | null
+          alcohol?: number | null
           brand?: string | null
+          calcium_mg?: number | null
           calories?: number
           carbs?: number
+          cholesterol?: number | null
+          chromium_mcg?: number | null
+          copper_mg?: number | null
           created_at?: string
           created_by?: string | null
+          data_source?: string | null
           fat?: number
           fiber?: number | null
+          food_quality_score?: number | null
           id?: string
+          insoluble_fiber?: number | null
+          iodine_mcg?: number | null
+          iron_mg?: number | null
           is_verified?: boolean
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
+          molybdenum_mcg?: number | null
+          monounsaturated_fat?: number | null
           name: string
+          net_carbs?: number | null
+          omega_3?: number | null
+          omega_6?: number | null
+          phosphorus_mg?: number | null
+          polyunsaturated_fat?: number | null
+          potassium_mg?: number | null
           protein?: number
+          saturated_fat?: number | null
+          selenium_mcg?: number | null
           serving_size?: number
           serving_unit?: string
           sodium?: number | null
+          soluble_fiber?: number | null
           sugar?: number | null
+          trans_fat?: number | null
           updated_at?: string
+          usda_fdc_id?: string | null
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
         }
         Update: {
+          added_sugars?: number | null
+          alcohol?: number | null
           brand?: string | null
+          calcium_mg?: number | null
           calories?: number
           carbs?: number
+          cholesterol?: number | null
+          chromium_mcg?: number | null
+          copper_mg?: number | null
           created_at?: string
           created_by?: string | null
+          data_source?: string | null
           fat?: number
           fiber?: number | null
+          food_quality_score?: number | null
           id?: string
+          insoluble_fiber?: number | null
+          iodine_mcg?: number | null
+          iron_mg?: number | null
           is_verified?: boolean
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
+          molybdenum_mcg?: number | null
+          monounsaturated_fat?: number | null
           name?: string
+          net_carbs?: number | null
+          omega_3?: number | null
+          omega_6?: number | null
+          phosphorus_mg?: number | null
+          polyunsaturated_fat?: number | null
+          potassium_mg?: number | null
           protein?: number
+          saturated_fat?: number | null
+          selenium_mcg?: number | null
           serving_size?: number
           serving_unit?: string
           sodium?: number | null
+          soluble_fiber?: number | null
           sugar?: number | null
+          trans_fat?: number | null
           updated_at?: string
+          usda_fdc_id?: string | null
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
         }
         Relationships: []
       }
@@ -1282,54 +1402,276 @@ export type Database = {
           },
         ]
       }
+      micronutrient_targets: {
+        Row: {
+          calcium_mg: number | null
+          chromium_mcg: number | null
+          client_id: string
+          coach_id: string | null
+          copper_mg: number | null
+          created_at: string
+          id: string
+          iodine_mcg: number | null
+          iron_mg: number | null
+          is_athlete_profile: boolean | null
+          magnesium_mg: number | null
+          manganese_mg: number | null
+          molybdenum_mcg: number | null
+          notes: string | null
+          omega_3: number | null
+          phosphorus_mg: number | null
+          potassium_mg: number | null
+          selenium_mcg: number | null
+          sodium_mg: number | null
+          updated_at: string
+          vitamin_a_mcg: number | null
+          vitamin_b1_mg: number | null
+          vitamin_b12_mcg: number | null
+          vitamin_b2_mg: number | null
+          vitamin_b3_mg: number | null
+          vitamin_b5_mg: number | null
+          vitamin_b6_mg: number | null
+          vitamin_b7_mcg: number | null
+          vitamin_b9_mcg: number | null
+          vitamin_c_mg: number | null
+          vitamin_d_mcg: number | null
+          vitamin_e_mg: number | null
+          vitamin_k_mcg: number | null
+          zinc_mg: number | null
+        }
+        Insert: {
+          calcium_mg?: number | null
+          chromium_mcg?: number | null
+          client_id: string
+          coach_id?: string | null
+          copper_mg?: number | null
+          created_at?: string
+          id?: string
+          iodine_mcg?: number | null
+          iron_mg?: number | null
+          is_athlete_profile?: boolean | null
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
+          molybdenum_mcg?: number | null
+          notes?: string | null
+          omega_3?: number | null
+          phosphorus_mg?: number | null
+          potassium_mg?: number | null
+          selenium_mcg?: number | null
+          sodium_mg?: number | null
+          updated_at?: string
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
+        }
+        Update: {
+          calcium_mg?: number | null
+          chromium_mcg?: number | null
+          client_id?: string
+          coach_id?: string | null
+          copper_mg?: number | null
+          created_at?: string
+          id?: string
+          iodine_mcg?: number | null
+          iron_mg?: number | null
+          is_athlete_profile?: boolean | null
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
+          molybdenum_mcg?: number | null
+          notes?: string | null
+          omega_3?: number | null
+          phosphorus_mg?: number | null
+          potassium_mg?: number | null
+          selenium_mcg?: number | null
+          sodium_mg?: number | null
+          updated_at?: string
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
+        }
+        Relationships: []
+      }
       nutrition_logs: {
         Row: {
+          added_sugars: number | null
+          alcohol: number | null
+          calcium_mg: number | null
           calories: number
           carbs: number
+          cholesterol: number | null
+          chromium_mcg: number | null
           client_id: string
+          copper_mg: number | null
           created_at: string
           custom_name: string | null
           fat: number
           food_item_id: string | null
           id: string
+          insoluble_fiber: number | null
+          iodine_mcg: number | null
+          iron_mg: number | null
           logged_at: string
+          magnesium_mg: number | null
+          manganese_mg: number | null
           meal_type: string
+          molybdenum_mcg: number | null
+          monounsaturated_fat: number | null
+          net_carbs: number | null
+          omega_3: number | null
+          omega_6: number | null
+          phosphorus_mg: number | null
+          polyunsaturated_fat: number | null
+          potassium_mg: number | null
           protein: number
+          saturated_fat: number | null
+          selenium_mcg: number | null
           servings: number
           sodium: number | null
+          soluble_fiber: number | null
           sugar: number | null
+          trans_fat: number | null
+          vitamin_a_mcg: number | null
+          vitamin_b1_mg: number | null
+          vitamin_b12_mcg: number | null
+          vitamin_b2_mg: number | null
+          vitamin_b3_mg: number | null
+          vitamin_b5_mg: number | null
+          vitamin_b6_mg: number | null
+          vitamin_b7_mcg: number | null
+          vitamin_b9_mcg: number | null
+          vitamin_c_mg: number | null
+          vitamin_d_mcg: number | null
+          vitamin_e_mg: number | null
+          vitamin_k_mcg: number | null
+          zinc_mg: number | null
         }
         Insert: {
+          added_sugars?: number | null
+          alcohol?: number | null
+          calcium_mg?: number | null
           calories?: number
           carbs?: number
+          cholesterol?: number | null
+          chromium_mcg?: number | null
           client_id: string
+          copper_mg?: number | null
           created_at?: string
           custom_name?: string | null
           fat?: number
           food_item_id?: string | null
           id?: string
+          insoluble_fiber?: number | null
+          iodine_mcg?: number | null
+          iron_mg?: number | null
           logged_at?: string
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
           meal_type?: string
+          molybdenum_mcg?: number | null
+          monounsaturated_fat?: number | null
+          net_carbs?: number | null
+          omega_3?: number | null
+          omega_6?: number | null
+          phosphorus_mg?: number | null
+          polyunsaturated_fat?: number | null
+          potassium_mg?: number | null
           protein?: number
+          saturated_fat?: number | null
+          selenium_mcg?: number | null
           servings?: number
           sodium?: number | null
+          soluble_fiber?: number | null
           sugar?: number | null
+          trans_fat?: number | null
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
         }
         Update: {
+          added_sugars?: number | null
+          alcohol?: number | null
+          calcium_mg?: number | null
           calories?: number
           carbs?: number
+          cholesterol?: number | null
+          chromium_mcg?: number | null
           client_id?: string
+          copper_mg?: number | null
           created_at?: string
           custom_name?: string | null
           fat?: number
           food_item_id?: string | null
           id?: string
+          insoluble_fiber?: number | null
+          iodine_mcg?: number | null
+          iron_mg?: number | null
           logged_at?: string
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
           meal_type?: string
+          molybdenum_mcg?: number | null
+          monounsaturated_fat?: number | null
+          net_carbs?: number | null
+          omega_3?: number | null
+          omega_6?: number | null
+          phosphorus_mg?: number | null
+          polyunsaturated_fat?: number | null
+          potassium_mg?: number | null
           protein?: number
+          saturated_fat?: number | null
+          selenium_mcg?: number | null
           servings?: number
           sodium?: number | null
+          soluble_fiber?: number | null
           sugar?: number | null
+          trans_fat?: number | null
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
         }
         Relationships: [
           {
@@ -1604,6 +1946,161 @@ export type Database = {
           sodium?: number | null
           sugar?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      supplement_logs: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          logged_at: string
+          servings: number
+          supplement_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          logged_at?: string
+          servings?: number
+          supplement_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          logged_at?: string
+          servings?: number
+          supplement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplement_logs_supplement_id_fkey"
+            columns: ["supplement_id"]
+            isOneToOne: false
+            referencedRelation: "supplements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplements: {
+        Row: {
+          brand: string | null
+          calcium_mg: number | null
+          chromium_mcg: number | null
+          client_id: string
+          copper_mg: number | null
+          created_at: string
+          id: string
+          iodine_mcg: number | null
+          iron_mg: number | null
+          is_active: boolean
+          magnesium_mg: number | null
+          manganese_mg: number | null
+          molybdenum_mcg: number | null
+          name: string
+          notes: string | null
+          omega_3: number | null
+          omega_6: number | null
+          phosphorus_mg: number | null
+          potassium_mg: number | null
+          selenium_mcg: number | null
+          serving_size: number | null
+          serving_unit: string | null
+          updated_at: string
+          vitamin_a_mcg: number | null
+          vitamin_b1_mg: number | null
+          vitamin_b12_mcg: number | null
+          vitamin_b2_mg: number | null
+          vitamin_b3_mg: number | null
+          vitamin_b5_mg: number | null
+          vitamin_b6_mg: number | null
+          vitamin_b7_mcg: number | null
+          vitamin_b9_mcg: number | null
+          vitamin_c_mg: number | null
+          vitamin_d_mcg: number | null
+          vitamin_e_mg: number | null
+          vitamin_k_mcg: number | null
+          zinc_mg: number | null
+        }
+        Insert: {
+          brand?: string | null
+          calcium_mg?: number | null
+          chromium_mcg?: number | null
+          client_id: string
+          copper_mg?: number | null
+          created_at?: string
+          id?: string
+          iodine_mcg?: number | null
+          iron_mg?: number | null
+          is_active?: boolean
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
+          molybdenum_mcg?: number | null
+          name: string
+          notes?: string | null
+          omega_3?: number | null
+          omega_6?: number | null
+          phosphorus_mg?: number | null
+          potassium_mg?: number | null
+          selenium_mcg?: number | null
+          serving_size?: number | null
+          serving_unit?: string | null
+          updated_at?: string
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
+        }
+        Update: {
+          brand?: string | null
+          calcium_mg?: number | null
+          chromium_mcg?: number | null
+          client_id?: string
+          copper_mg?: number | null
+          created_at?: string
+          id?: string
+          iodine_mcg?: number | null
+          iron_mg?: number | null
+          is_active?: boolean
+          magnesium_mg?: number | null
+          manganese_mg?: number | null
+          molybdenum_mcg?: number | null
+          name?: string
+          notes?: string | null
+          omega_3?: number | null
+          omega_6?: number | null
+          phosphorus_mg?: number | null
+          potassium_mg?: number | null
+          selenium_mcg?: number | null
+          serving_size?: number | null
+          serving_unit?: string | null
+          updated_at?: string
+          vitamin_a_mcg?: number | null
+          vitamin_b1_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b2_mg?: number | null
+          vitamin_b3_mg?: number | null
+          vitamin_b5_mg?: number | null
+          vitamin_b6_mg?: number | null
+          vitamin_b7_mcg?: number | null
+          vitamin_b9_mcg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
+          vitamin_k_mcg?: number | null
+          zinc_mg?: number | null
         }
         Relationships: []
       }
