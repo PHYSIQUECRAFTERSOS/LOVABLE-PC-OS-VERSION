@@ -21,17 +21,34 @@ serve(async (req) => {
       );
     }
 
-    // Query Open Food Facts API
-    const offUrl = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,nutriments,serving_size,serving_quantity,product_quantity`;
+    // Query Open Food Facts API with timeout
+    const offUrl = `https://world.openfoodfacts.net/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,nutriments,serving_size,serving_quantity,product_quantity`;
     
-    const response = await fetch(offUrl, {
-      headers: { "User-Agent": "PhysiqueCrafters/1.0" },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    let response: Response;
+    try {
+      response = await fetch(offUrl, {
+        headers: { "User-Agent": "PhysiqueCrafters/1.0 - contact@physiquecrafters.com" },
+        signal: controller.signal,
+      });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      console.error("Fetch error:", fetchErr);
+      // Return not-found instead of 502 so UI can handle gracefully
+      return new Response(
+        JSON.stringify({ found: false, barcode, error: "Food database temporarily unavailable" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
+      console.error("OFF API status:", response.status);
       return new Response(
-        JSON.stringify({ error: "Failed to query food database" }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ found: false, barcode, error: "Food database returned an error" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
