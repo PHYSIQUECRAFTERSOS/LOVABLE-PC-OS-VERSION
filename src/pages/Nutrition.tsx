@@ -9,7 +9,10 @@ import ClientMealPlanView from "@/components/nutrition/ClientMealPlanView";
 import MicronutrientDashboard from "@/components/nutrition/MicronutrientDashboard";
 import SupplementLogger from "@/components/nutrition/SupplementLogger";
 import USDAFoodSearch from "@/components/nutrition/USDAFoodSearch";
-import { Pill, FlaskConical } from "lucide-react";
+import CoachNutritionAnalytics from "@/components/nutrition/CoachNutritionAnalytics";
+import ChronicDeficiencyTracker from "@/components/nutrition/ChronicDeficiencyTracker";
+import ClientNutritionDashboard from "@/components/nutrition/ClientNutritionDashboard";
+import { Pill, FlaskConical, Brain, BarChart3 } from "lucide-react";
 
 const Nutrition = () => {
   const { role } = useAuth();
@@ -26,6 +29,9 @@ const Nutrition = () => {
           </div>
         </div>
 
+        {/* Client Quick Summary */}
+        {!isCoach && <ClientNutritionDashboard />}
+
         <Tabs defaultValue="tracker" className="w-full">
           <TabsList className="w-full">
             <TabsTrigger value="tracker" className="flex-1">Tracker</TabsTrigger>
@@ -38,19 +44,33 @@ const Nutrition = () => {
               Supps
             </TabsTrigger>
             {isCoach && (
-              <TabsTrigger value="mealplans" className="flex-1">Meal Plans</TabsTrigger>
+              <TabsTrigger value="analytics" className="flex-1 gap-1.5">
+                <Brain className="h-3.5 w-3.5" />
+                Engine
+              </TabsTrigger>
             )}
-            <TabsTrigger value="coachplan" className="flex-1">Coach Plan</TabsTrigger>
+            {isCoach && (
+              <TabsTrigger value="mealplans" className="flex-1">Plans</TabsTrigger>
+            )}
+            <TabsTrigger value="coachplan" className="flex-1">
+              {isCoach ? "Upload" : "Plan"}
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="tracker">
             <DailyNutritionLog />
           </TabsContent>
-          <TabsContent value="micros">
+          <TabsContent value="micros" className="space-y-6">
             <MicronutrientDashboard />
+            <ChronicDeficiencyTracker />
           </TabsContent>
           <TabsContent value="supplements">
             <SupplementLogger />
           </TabsContent>
+          {isCoach && (
+            <TabsContent value="analytics">
+              <CoachNutritionAnalytics />
+            </TabsContent>
+          )}
           {isCoach && (
             <TabsContent value="mealplans">
               <MealPlanBuilder />
