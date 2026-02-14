@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { format } from "date-fns";
-import { Trash2 } from "lucide-react";
+import { format, addDays, subDays } from "date-fns";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MacroRing from "./MacroRing";
 import FoodLogger from "./FoodLogger";
-import SavedMeals from "./SavedMeals";
 import BarcodeScanner from "./BarcodeScanner";
-
 
 interface NutritionLog {
   id: string;
@@ -34,14 +34,26 @@ interface Targets {
 }
 
 const DEFAULT_TARGETS: Targets = { calories: 2000, protein: 150, carbs: 200, fat: 70, is_refeed: false };
-const MEAL_ORDER = ["breakfast", "lunch", "dinner", "pre-workout", "post-workout", "snack"];
+
+const MEAL_SECTIONS = [
+  { key: "breakfast", label: "Breakfast" },
+  { key: "pre-workout", label: "Pre-Workout Meal" },
+  { key: "post-workout", label: "Post-Workout Meal" },
+  { key: "lunch", label: "Lunch" },
+  { key: "dinner", label: "Dinner" },
+  { key: "snack", label: "Snacks" },
+];
 
 const DailyNutritionLog = () => {
   const { user } = useAuth();
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
-  const today = format(new Date(), "yyyy-MM-dd");
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [loggerOpen, setLoggerOpen] = useState(false);
+  const [activeMealType, setActiveMealType] = useState("snack");
+
+  const dateStr = format(selectedDate, "yyyy-MM-dd");
 
   const fetchLogs = async () => {
     if (!user) return;
@@ -49,11 +61,10 @@ const DailyNutritionLog = () => {
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
-      .eq("logged_at", today)
+      .eq("logged_at", dateStr)
       .order("created_at", { ascending: true });
     setLogs((data as NutritionLog[]) || []);
 
-    // Fetch food names for items with food_item_id
     const foodIds = (data || []).filter(d => d.food_item_id).map(d => d.food_item_id!);
     if (foodIds.length > 0) {
       const { data: foods } = await supabase
@@ -72,7 +83,7 @@ const DailyNutritionLog = () => {
       .from("nutrition_targets")
       .select("*")
       .eq("client_id", user.id)
-      .lte("effective_date", today)
+      .lte("effective_date", dateStr)
       .order("effective_date", { ascending: false })
       .limit(1);
     if (data && data.length > 0) {
@@ -89,7 +100,7 @@ const DailyNutritionLog = () => {
   useEffect(() => {
     fetchLogs();
     fetchTargets();
-  }, [user]);
+  }, [user, dateStr]);
 
   const deleteLog = async (id: string) => {
     await supabase.from("nutrition_logs").delete().eq("id", id);
@@ -106,15 +117,53 @@ const DailyNutritionLog = () => {
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
-  const groupedLogs = MEAL_ORDER.reduce((acc, meal) => {
-    const items = logs.filter(l => l.meal_type === meal);
-    if (items.length > 0) acc[meal] = items;
-    return acc;
-  }, {} as Record<string, NutritionLog[]>);
+  const openLoggerFor = (mealType: string) => {
+    setActiveMealType(mealType);
+    setLoggerOpen(true);
+  };
+
+  const getMealTotals = (items: NutritionLog[]) =>
+    items.reduce(
+      (acc, l) => ({
+        calories: acc.calories + l.calories,
+        protein: acc.protein + l.protein,
+        carbs: acc.carbs + l.carbs,
+        fat: acc.fat + l.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    );
+
+  const isToday = format(new Date(), "yyyy-MM-dd") === dateStr;
 
   return (
-    <div className="space-y-6">
-      {/* Macro Summary */}
+    <div className="space-y-5">
+      {/* Date Navigation */}
+      <div className="flex items-center justify-center gap-3">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2 text-sm font-medium">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {isToday ? "Today" : format(selectedDate, "EEE, MMM d")}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(d) => d && setSelectedDate(d)}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Daily Macro Summary */}
       <div className="rounded-lg border border-border bg-card p-4">
         {targets.is_refeed && (
           <div className="mb-3 rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary text-center">
@@ -129,66 +178,83 @@ const DailyNutritionLog = () => {
         </div>
       </div>
 
-
-       {/* Log Buttons */}
-       <div className="flex gap-2 flex-wrap">
-         <FoodLogger onLogged={fetchLogs} />
-         <BarcodeScanner onLogged={fetchLogs} />
-         <SavedMeals onSelectMeal={(meal) => {
-           // Log the saved meal
-           supabase.from("nutrition_logs").insert({
-             client_id: user?.id,
-             custom_name: meal.name,
-             meal_type: meal.meal_type,
-             calories: meal.calories,
-             protein: meal.protein,
-             carbs: meal.carbs,
-             fat: meal.fat,
-             fiber: meal.fiber || 0,
-             sugar: meal.sugar || 0,
-             sodium: meal.sodium || 0,
-             servings: 1,
-           }).then(() => fetchLogs());
-         }} />
-       </div>
-
-      {/* Logged Meals */}
-      <div className="space-y-4">
-        {Object.entries(groupedLogs).map(([meal, items]) => (
-          <div key={meal}>
-            <h3 className="mb-2 text-sm font-semibold capitalize text-foreground">{meal}</h3>
-            <div className="space-y-1">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-foreground truncate">
-                      {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
-                    </div>
-                     <div className="text-xs text-muted-foreground">
-                       {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
-                       {item.fiber ? ` · ${item.fiber}Fb` : ""}
-                       {item.sugar ? ` · ${item.sugar}S` : ""}
-                       {item.sodium ? ` · ${item.sodium}mg` : ""}
-                     </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteLog(item.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {logs.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-8">
-            No food logged today. Tap "Log Food" to get started.
-          </p>
-        )}
+      {/* Barcode Scanner */}
+      <div className="flex gap-2">
+        <BarcodeScanner onLogged={fetchLogs} />
       </div>
+
+      {/* Meal Sections */}
+      <div className="space-y-4">
+        {MEAL_SECTIONS.map(({ key, label }) => {
+          const items = logs.filter(l => l.meal_type === key);
+          const mealTotals = getMealTotals(items);
+
+          return (
+            <div key={key} className="rounded-lg border border-border bg-card overflow-hidden">
+              {/* Meal Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+                  {items.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {mealTotals.calories} cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F
+                    </p>
+                  )}
+                </div>
+                <span className="text-sm font-bold text-foreground tabular-nums">
+                  {mealTotals.calories > 0 ? `${mealTotals.calories}` : "—"}
+                </span>
+              </div>
+
+              {/* Food Entries */}
+              {items.length > 0 && (
+                <div className="divide-y divide-border/30">
+                  {items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between px-4 py-2.5"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => deleteLog(item.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Food Button */}
+              <button
+                onClick={() => openLoggerFor(key)}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/5 transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Add Food
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Food Logger Modal */}
+      <FoodLogger
+        onLogged={fetchLogs}
+        mealType={activeMealType}
+        open={loggerOpen}
+        onOpenChange={setLoggerOpen}
+      />
     </div>
   );
 };
