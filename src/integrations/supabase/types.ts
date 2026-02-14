@@ -268,6 +268,103 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_events: {
+        Row: {
+          color: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          end_time: string | null
+          event_date: string
+          event_time: string | null
+          event_type: string
+          id: string
+          is_completed: boolean
+          is_recurring: boolean
+          linked_cardio_id: string | null
+          linked_checkin_id: string | null
+          linked_workout_id: string | null
+          notes: string | null
+          recurrence_days: number[] | null
+          recurrence_end_date: string | null
+          recurrence_pattern: string | null
+          target_client_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          event_date: string
+          event_time?: string | null
+          event_type?: string
+          id?: string
+          is_completed?: boolean
+          is_recurring?: boolean
+          linked_cardio_id?: string | null
+          linked_checkin_id?: string | null
+          linked_workout_id?: string | null
+          notes?: string | null
+          recurrence_days?: number[] | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
+          target_client_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          end_time?: string | null
+          event_date?: string
+          event_time?: string | null
+          event_type?: string
+          id?: string
+          is_completed?: boolean
+          is_recurring?: boolean
+          linked_cardio_id?: string | null
+          linked_checkin_id?: string | null
+          linked_workout_id?: string | null
+          notes?: string | null
+          recurrence_days?: number[] | null
+          recurrence_end_date?: string | null
+          recurrence_pattern?: string | null
+          target_client_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_linked_cardio_id_fkey"
+            columns: ["linked_cardio_id"]
+            isOneToOne: false
+            referencedRelation: "cardio_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_linked_checkin_id_fkey"
+            columns: ["linked_checkin_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_linked_workout_id_fkey"
+            columns: ["linked_workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cardio_assignments: {
         Row: {
           assigned_date: string
