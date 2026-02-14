@@ -8,6 +8,7 @@ import ProgressPhotoUpload from "@/components/biofeedback/ProgressPhotoUpload";
 import PhotoTimeline from "@/components/biofeedback/PhotoTimeline";
 import PhotoComparisonSlider from "@/components/biofeedback/PhotoComparisonSlider";
 import ProgressMetricsDashboard from "@/components/biofeedback/ProgressMetricsDashboard";
+import BodyFatEstimation from "@/components/biofeedback/BodyFatEstimation";
 import WeightTracker from "@/components/biofeedback/WeightTracker";
 import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
 import CheckinFormBuilder from "@/components/checkin/CheckinFormBuilder";
@@ -62,15 +63,19 @@ const Progress = () => {
           <TabsContent value="photos" className="space-y-6 mt-4">
             <ProgressPhotoUpload onUploaded={refresh} />
             <Tabs defaultValue="gallery" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="gallery">Gallery</TabsTrigger>
                 <TabsTrigger value="compare">Comparison</TabsTrigger>
+                <TabsTrigger value="bodyfat">AI Body Fat</TabsTrigger>
               </TabsList>
               <TabsContent value="gallery" className="mt-4">
                 <PhotoTimeline key={refreshKey} />
               </TabsContent>
               <TabsContent value="compare" className="mt-4">
                 <PhotoComparisonSlider key={refreshKey} />
+              </TabsContent>
+              <TabsContent value="bodyfat" className="mt-4">
+                <BodyFatEstimation key={refreshKey} />
               </TabsContent>
             </Tabs>
           </TabsContent>

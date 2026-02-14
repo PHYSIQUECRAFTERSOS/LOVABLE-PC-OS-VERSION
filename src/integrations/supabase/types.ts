@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_body_fat_estimates: {
+        Row: {
+          ai_notes: string | null
+          client_id: string
+          coach_id: string | null
+          coach_notes: string | null
+          coach_override_pct: number | null
+          confidence_high: number
+          confidence_low: number
+          created_at: string
+          estimated_bf_pct: number
+          id: string
+          lighting_warning: boolean
+          photo_ids: string[]
+        }
+        Insert: {
+          ai_notes?: string | null
+          client_id: string
+          coach_id?: string | null
+          coach_notes?: string | null
+          coach_override_pct?: number | null
+          confidence_high: number
+          confidence_low: number
+          created_at?: string
+          estimated_bf_pct: number
+          id?: string
+          lighting_warning?: boolean
+          photo_ids?: string[]
+        }
+        Update: {
+          ai_notes?: string | null
+          client_id?: string
+          coach_id?: string | null
+          coach_notes?: string | null
+          coach_override_pct?: number | null
+          confidence_high?: number
+          confidence_low?: number
+          created_at?: string
+          estimated_bf_pct?: number
+          id?: string
+          lighting_warning?: boolean
+          photo_ids?: string[]
+        }
+        Relationships: []
+      }
       auto_message_logs: {
         Row: {
           client_id: string
