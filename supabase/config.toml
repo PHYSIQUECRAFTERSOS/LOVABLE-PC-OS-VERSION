@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.progress-insights]
 verify_jwt = false
+
+[functions.estimate-body-fat]
+verify_jwt = false
