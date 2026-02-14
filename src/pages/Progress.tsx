@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WeeklyCheckinForm from "@/components/biofeedback/WeeklyCheckinForm";
@@ -7,10 +8,15 @@ import ProgressPhotoUpload from "@/components/biofeedback/ProgressPhotoUpload";
 import PhotoTimeline from "@/components/biofeedback/PhotoTimeline";
 import WeightTracker from "@/components/biofeedback/WeightTracker";
 import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
+import CheckinFormBuilder from "@/components/checkin/CheckinFormBuilder";
+import CheckinSubmissionForm from "@/components/checkin/CheckinSubmissionForm";
+import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard";
 
 const Progress = () => {
+  const { role } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
+  const isCoach = role === "coach" || role === "admin";
 
   return (
     <AppLayout>
@@ -18,8 +24,9 @@ const Progress = () => {
         <h1 className="font-display text-2xl font-bold text-foreground">Progress</h1>
 
         <Tabs defaultValue="checkin" className="w-full">
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="checkin">Check-In</TabsTrigger>
+            <TabsTrigger value="forms">Forms</TabsTrigger>
             <TabsTrigger value="weight">Weight</TabsTrigger>
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="trends">Trends</TabsTrigger>
@@ -28,6 +35,17 @@ const Progress = () => {
           <TabsContent value="checkin" className="space-y-6 mt-4">
             <WeeklyCheckinForm onSubmitted={refresh} />
             <MeasurementsForm onSubmitted={refresh} />
+          </TabsContent>
+
+          <TabsContent value="forms" className="space-y-6 mt-4">
+            {isCoach ? (
+              <>
+                <CheckinFormBuilder />
+                <CheckinReviewDashboard />
+              </>
+            ) : (
+              <CheckinSubmissionForm />
+            )}
           </TabsContent>
 
           <TabsContent value="weight" className="mt-4">

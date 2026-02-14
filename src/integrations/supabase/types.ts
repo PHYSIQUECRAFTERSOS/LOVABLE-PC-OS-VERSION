@@ -214,6 +214,225 @@ export type Database = {
           },
         ]
       }
+      checkin_assignments: {
+        Row: {
+          client_id: string
+          coach_id: string
+          created_at: string
+          day_of_week: number | null
+          deadline_hours: number | null
+          id: string
+          is_active: boolean
+          next_due_date: string
+          recurrence: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          created_at?: string
+          day_of_week?: number | null
+          deadline_hours?: number | null
+          id?: string
+          is_active?: boolean
+          next_due_date?: string
+          recurrence?: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          day_of_week?: number | null
+          deadline_hours?: number | null
+          id?: string
+          is_active?: boolean
+          next_due_date?: string
+          recurrence?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_assignments_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkin_questions: {
+        Row: {
+          created_at: string
+          id: string
+          is_required: boolean
+          options: Json | null
+          question_order: number
+          question_text: string
+          question_type: string
+          scale_max: number | null
+          scale_min: number | null
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          options?: Json | null
+          question_order?: number
+          question_text: string
+          question_type?: string
+          scale_max?: number | null
+          scale_min?: number | null
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          options?: Json | null
+          question_order?: number
+          question_text?: string
+          question_type?: string
+          scale_max?: number | null
+          scale_min?: number | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_questions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkin_responses: {
+        Row: {
+          answer_boolean: boolean | null
+          answer_choice: string | null
+          answer_numeric: number | null
+          answer_scale: number | null
+          answer_text: string | null
+          created_at: string
+          id: string
+          question_id: string
+          submission_id: string
+        }
+        Insert: {
+          answer_boolean?: boolean | null
+          answer_choice?: string | null
+          answer_numeric?: number | null
+          answer_scale?: number | null
+          answer_text?: string | null
+          created_at?: string
+          id?: string
+          question_id: string
+          submission_id: string
+        }
+        Update: {
+          answer_boolean?: boolean | null
+          answer_choice?: string | null
+          answer_numeric?: number | null
+          answer_scale?: number | null
+          answer_text?: string | null
+          created_at?: string
+          id?: string
+          question_id?: string
+          submission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkin_responses_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkin_submissions: {
+        Row: {
+          assignment_id: string
+          client_id: string
+          coach_notes: string | null
+          created_at: string
+          due_date: string
+          id: string
+          status: string
+          submitted_at: string | null
+        }
+        Insert: {
+          assignment_id: string
+          client_id: string
+          coach_notes?: string | null
+          created_at?: string
+          due_date: string
+          id?: string
+          status?: string
+          submitted_at?: string | null
+        }
+        Update: {
+          assignment_id?: string
+          client_id?: string
+          coach_notes?: string | null
+          created_at?: string
+          due_date?: string
+          id?: string
+          status?: string
+          submitted_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkin_submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkin_templates: {
+        Row: {
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_goals: {
         Row: {
           client_id: string
