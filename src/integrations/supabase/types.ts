@@ -16,6 +16,9 @@ export type Database = {
     Tables: {
       body_measurements: {
         Row: {
+          blood_pressure_diastolic: number | null
+          blood_pressure_systolic: number | null
+          body_fat_pct: number | null
           chest: number | null
           client_id: string
           created_at: string
@@ -26,12 +29,18 @@ export type Database = {
           left_thigh: number | null
           measured_at: string
           neck: number | null
+          resting_hr: number | null
           right_arm: number | null
           right_calf: number | null
           right_thigh: number | null
+          sleep_hours: number | null
+          steps: number | null
           waist: number | null
         }
         Insert: {
+          blood_pressure_diastolic?: number | null
+          blood_pressure_systolic?: number | null
+          body_fat_pct?: number | null
           chest?: number | null
           client_id: string
           created_at?: string
@@ -42,12 +51,18 @@ export type Database = {
           left_thigh?: number | null
           measured_at?: string
           neck?: number | null
+          resting_hr?: number | null
           right_arm?: number | null
           right_calf?: number | null
           right_thigh?: number | null
+          sleep_hours?: number | null
+          steps?: number | null
           waist?: number | null
         }
         Update: {
+          blood_pressure_diastolic?: number | null
+          blood_pressure_systolic?: number | null
+          body_fat_pct?: number | null
           chest?: number | null
           client_id?: string
           created_at?: string
@@ -58,12 +73,146 @@ export type Database = {
           left_thigh?: number | null
           measured_at?: string
           neck?: number | null
+          resting_hr?: number | null
           right_arm?: number | null
           right_calf?: number | null
           right_thigh?: number | null
+          sleep_hours?: number | null
+          steps?: number | null
           waist?: number | null
         }
         Relationships: []
+      }
+      cardio_assignments: {
+        Row: {
+          assigned_date: string
+          cardio_type: string
+          client_id: string
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          interval_config: Json | null
+          is_active: boolean
+          is_recurring: boolean
+          notes: string | null
+          recurrence_days: string[] | null
+          target_calories: number | null
+          target_distance_km: number | null
+          target_duration_min: number | null
+          target_hr_zone: string | null
+          target_steps: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_date?: string
+          cardio_type?: string
+          client_id: string
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          interval_config?: Json | null
+          is_active?: boolean
+          is_recurring?: boolean
+          notes?: string | null
+          recurrence_days?: string[] | null
+          target_calories?: number | null
+          target_distance_km?: number | null
+          target_duration_min?: number | null
+          target_hr_zone?: string | null
+          target_steps?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_date?: string
+          cardio_type?: string
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          interval_config?: Json | null
+          is_active?: boolean
+          is_recurring?: boolean
+          notes?: string | null
+          recurrence_days?: string[] | null
+          target_calories?: number | null
+          target_distance_km?: number | null
+          target_duration_min?: number | null
+          target_hr_zone?: string | null
+          target_steps?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cardio_logs: {
+        Row: {
+          assignment_id: string | null
+          avg_hr: number | null
+          calories_burned: number | null
+          cardio_type: string
+          client_id: string
+          completed: boolean
+          created_at: string
+          difficulty_rating: number | null
+          distance_km: number | null
+          duration_min: number | null
+          id: string
+          logged_at: string
+          max_hr: number | null
+          notes: string | null
+          steps: number | null
+          title: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          avg_hr?: number | null
+          calories_burned?: number | null
+          cardio_type?: string
+          client_id: string
+          completed?: boolean
+          created_at?: string
+          difficulty_rating?: number | null
+          distance_km?: number | null
+          duration_min?: number | null
+          id?: string
+          logged_at?: string
+          max_hr?: number | null
+          notes?: string | null
+          steps?: number | null
+          title: string
+        }
+        Update: {
+          assignment_id?: string | null
+          avg_hr?: number | null
+          calories_burned?: number | null
+          cardio_type?: string
+          client_id?: string
+          completed?: boolean
+          created_at?: string
+          difficulty_rating?: number | null
+          distance_km?: number | null
+          duration_min?: number | null
+          id?: string
+          logged_at?: string
+          max_hr?: number | null
+          notes?: string | null
+          steps?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cardio_logs_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "cardio_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_goals: {
         Row: {
@@ -128,6 +277,30 @@ export type Database = {
           risk_level?: string
           score?: number
           signals?: Json
+        }
+        Relationships: []
+      }
+      client_tags: {
+        Row: {
+          client_id: string
+          coach_id: string
+          created_at: string
+          id: string
+          tag: string
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          created_at?: string
+          id?: string
+          tag: string
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          id?: string
+          tag?: string
         }
         Relationships: []
       }
