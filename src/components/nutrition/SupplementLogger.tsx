@@ -444,18 +444,33 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded,
             {nutrientValues.map(n => {
               const raw = (s[n.key] || 0) * Math.max(servings, 1);
               const formInfo = BIOAVAILABILITY_FORMS[n.key];
-              const hasHighForm = s.form_type && formInfo?.some(f => f.form === s.form_type && f.multiplier >= 0.85);
+              const multiplier = s.bioavailability_multiplier && formInfo
+                ? (formInfo.find(f => f.multiplier === s.bioavailability_multiplier)?.multiplier || s.bioavailability_multiplier)
+                : 1.0;
+              const effective = raw * multiplier;
+              const isHighForm = multiplier >= 0.85;
               return (
                 <div key={n.key} className="flex items-center justify-between text-[11px]">
                   <div className="flex items-center gap-1">
                     <span className="text-muted-foreground">{n.label}</span>
-                    {hasHighForm && <Sparkles className="h-2.5 w-2.5 text-primary" />}
+                    {isHighForm && <Sparkles className="h-2.5 w-2.5 text-primary" />}
                   </div>
-                  <span className="text-foreground font-medium tabular-nums">{raw.toFixed(1)}{n.unit}</span>
+                  <div className="flex items-center gap-1">
+                    {multiplier < 1.0 && (
+                      <span className="text-[9px] text-muted-foreground line-through tabular-nums">{raw.toFixed(1)}</span>
+                    )}
+                    <span className="text-foreground font-medium tabular-nums">{effective.toFixed(1)}{n.unit}</span>
+                  </div>
                 </div>
               );
             })}
           </div>
+          {s.bioavailability_multiplier && s.bioavailability_multiplier < 1.0 && (
+            <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1">
+              <AlertTriangle className="h-2.5 w-2.5" />
+              Effective amounts adjusted for absorption ({Math.round(s.bioavailability_multiplier * 100)}%)
+            </p>
+          )}
         </div>
       )}
     </div>
