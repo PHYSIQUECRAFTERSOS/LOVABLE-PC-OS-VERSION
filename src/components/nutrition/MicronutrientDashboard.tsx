@@ -4,14 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { format, subDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 import {
   MICRONUTRIENTS, NutrientInfo, calculateOptimizationScore, getDeficiencies,
   getOverconsumption, getOptimizationStatus, OptimizationStatus, BIOAVAILABILITY_FORMS,
-  getDuplicateStackingWarnings
+  getNutrientScore, generateSmartWarnings
 } from "@/lib/micronutrients";
-import { AlertTriangle, CheckCircle2, TrendingDown, Shield, Pill, ChevronDown, Sparkles, Flame, Zap } from "lucide-react";
+import {
+  AlertTriangle, CheckCircle2, TrendingDown, Pill, ChevronDown,
+  Sparkles, Flame, Zap, Eye, EyeOff, ShieldCheck
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MicronutrientDashboardProps {
@@ -57,13 +59,12 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
   const [expandedNutrient, setExpandedNutrient] = useState<string | null>(null);
   const [smartWarnings, setSmartWarnings] = useState<string[]>([]);
   const [rolling7Day, setRolling7Day] = useState<Record<string, number>>({});
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (!targetId) return;
     const load = async () => {
       setLoading(true);
-
-      // Load 7-day logs for rolling average
       const sevenDaysAgo = format(subDays(new Date(), 6), "yyyy-MM-dd");
       const [{ data: logs }, { data: todayLogs }, { data: suppLogs }, { data: weekSuppLogs }, { data: customTargets }] = await Promise.all([
         supabase.from("nutrition_logs").select("*").eq("client_id", targetId).gte("logged_at", sevenDaysAgo),
@@ -73,14 +74,12 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
         supabase.from("micronutrient_targets").select("*").eq("client_id", targetId).limit(1).maybeSingle(),
       ]);
 
-      // Today's food intakes
       const fi: Record<string, number> = {};
       (todayLogs || []).forEach((log: any) => {
         MICRONUTRIENTS.forEach((n) => { fi[n.key] = (fi[n.key] || 0) + (log[n.key] || 0); });
       });
       setFoodIntakes(fi);
 
-      // Today's supplement intakes
       const si: Record<string, number> = {};
       (suppLogs || []).forEach((sl: any) => {
         if (!sl.supplements) return;
@@ -90,7 +89,6 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
       });
       setSupplementIntakes(si);
 
-      // 7-day rolling average
       const r7: Record<string, number> = {};
       const allLogs = logs || [];
       const allSuppLogs = weekSuppLogs || [];
@@ -108,7 +106,6 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
       });
       setRolling7Day(r7);
 
-      // Custom targets
       if (customTargets) {
         const t: Record<string, number> = {};
         MICRONUTRIENTS.forEach((n) => {
@@ -118,23 +115,8 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
         setTargets(t);
       }
 
-      // Smart warnings
-      const warnings: string[] = [];
-      // Check electrolyte balance
-      const totalNa = (fi.sodium || 0) + (si.sodium || 0);
-      const totalK = (fi.potassium_mg || 0) + (si.potassium_mg || 0);
-      if (totalNa > 0 && totalK > 0 && totalNa / totalK > 2) {
-        warnings.push("Sodium-to-potassium ratio is high. Consider increasing potassium intake.");
-      }
-      // Check 7-day chronic under
-      MICRONUTRIENTS.forEach(n => {
-        if (n.category === "other") return;
-        if (r7[n.key] < n.pcOptimalMin * 0.5 && dayCount >= 3) {
-          warnings.push(`${n.label} has been below 50% of optimal for ${dayCount}+ days.`);
-        }
-      });
-      setSmartWarnings(warnings.slice(0, 5));
-
+      const warnings = generateSmartWarnings(fi, si, r7, dayCount);
+      setSmartWarnings(warnings);
       setLoading(false);
     };
     load();
@@ -157,86 +139,22 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
   };
 
   const intakes = getIntakes();
-  const optimizationScore = calculateOptimizationScore(rolling7Day, Object.keys(targets).length > 0 ? targets : undefined);
-  const deficiencies = getDeficiencies(intakes, Object.keys(targets).length > 0 ? targets : undefined);
+  const customTargets = Object.keys(targets).length > 0 ? targets : undefined;
+  const optimizationScore = calculateOptimizationScore(rolling7Day, customTargets);
+  const deficiencies = getDeficiencies(intakes, customTargets);
   const overconsumption = getOverconsumption(intakes);
 
-  const renderNutrientRow = (n: NutrientInfo) => {
-    const intake = intakes[n.key] || 0;
-    const target = targets[n.key] ?? n.pcOptimalMin;
-    const pct = target > 0 ? Math.round((intake / target) * 100) : 0;
-    const status = getOptimizationStatus(intake, n);
-    const suppAmount = supplementIntakes[n.key] || 0;
-    const r7Avg = rolling7Day[n.key] || 0;
-    const isExpanded = expandedNutrient === n.key;
-    const hasForms = BIOAVAILABILITY_FORMS[n.key]?.length > 0;
-
-    return (
-      <div key={n.key}>
-        <button
-          onClick={() => setExpandedNutrient(isExpanded ? null : n.key)}
-          className="w-full text-left space-y-1 py-1.5 hover:bg-secondary/30 rounded-sm px-1 -mx-1 transition-colors"
-        >
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium text-foreground">{n.label}</span>
-              {suppAmount > 0 && <Pill className="h-3 w-3 text-primary" />}
-              {hasForms && <Sparkles className="h-2.5 w-2.5 text-muted-foreground" />}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={cn("tabular-nums", STATUS_TEXT[status])}>
-                {intake.toFixed(1)}/{target}{n.unit}
-              </span>
-              <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 border-none", STATUS_TEXT[status])}>
-                {STATUS_LABELS[status]}
-              </Badge>
-            </div>
-          </div>
-          <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all", STATUS_COLORS[status])}
-              style={{ width: `${Math.min(pct, 100)}%` }}
-            />
-          </div>
-        </button>
-
-        {/* Expanded Detail */}
-        {isExpanded && (
-          <div className="ml-1 pl-3 border-l-2 border-primary/20 py-2 space-y-1 text-[11px]">
-            <div className="flex justify-between text-muted-foreground">
-              <span>Today (Food)</span>
-              <span className="text-foreground">{(foodIntakes[n.key] || 0).toFixed(1)}{n.unit}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Today (Supps)</span>
-              <span className="text-primary">{suppAmount.toFixed(1)}{n.unit}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>7-Day Avg</span>
-              <span className="text-foreground">{r7Avg.toFixed(1)}{n.unit}</span>
-            </div>
-            <div className="h-px bg-border my-1" />
-            <div className="flex justify-between text-muted-foreground">
-              <span>RDA</span><span>{n.rda}{n.unit}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>PC Optimal</span>
-              <span className="text-primary">{n.pcOptimalMin}–{n.pcOptimalMax}{n.unit}</span>
-            </div>
-            {n.upperLimit && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>Upper Limit</span><span className="text-destructive">{n.upperLimit}{n.unit}</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Tier 1: top deficiencies & excess
+  const sortedByGap = MICRONUTRIENTS
+    .filter(n => n.category !== "other")
+    .map(n => ({ nutrient: n, score: getNutrientScore(rolling7Day[n.key] || 0, n) }))
+    .sort((a, b) => a.score - b.score);
+  const top3Low = sortedByGap.filter(d => d.score < 80).slice(0, 3);
+  const topExcess = sortedByGap.filter(d => d.score <= 60 && d.score >= 20).slice(0, 1);
 
   return (
     <div className="space-y-4">
-      {/* Optimization Score */}
+      {/* ═══ TIER 1: Summary View ═══ */}
       <Card className="border-primary/20 glow-gold">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
@@ -260,7 +178,7 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
                    optimizationScore >= 40 ? "Moderate — needs attention" :
                    "Low — significant gaps detected"}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Based on 7-day rolling average</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Weighted 7-day rolling avg · Priority: Mg, D, ω3, Zn</p>
               </div>
             </div>
             <div className="text-right space-y-1">
@@ -276,6 +194,30 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
               )}
             </div>
           </div>
+
+          {/* Quick gaps summary */}
+          {(top3Low.length > 0 || topExcess.length > 0) && (
+            <div className="mt-4 pt-3 border-t border-border/50 space-y-1.5">
+              {top3Low.map(({ nutrient, score }) => (
+                <div key={nutrient.key} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <TrendingDown className="h-3 w-3 text-yellow-400" />
+                    {nutrient.label}
+                  </span>
+                  <span className="text-yellow-400 tabular-nums">{score}/100</span>
+                </div>
+              ))}
+              {topExcess.map(({ nutrient, score }) => (
+                <div key={nutrient.key} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <AlertTriangle className="h-3 w-3 text-orange-400" />
+                    {nutrient.label}
+                  </span>
+                  <span className="text-orange-400 tabular-nums">{score}/100</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -299,54 +241,225 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
         </Card>
       )}
 
-      {/* Source Filter Toggle */}
-      <div className="flex gap-1 p-0.5 rounded-md bg-secondary w-fit">
-        {(["combined", "food", "supplements"] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setSourceFilter(mode)}
-            className={cn(
-              "px-3 py-1 text-xs font-medium rounded-sm transition-all capitalize",
-              sourceFilter === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {mode === "combined" ? "Combined" : mode === "food" ? "Food Only" : "Supps Only"}
-          </button>
-        ))}
+      {/* Source Filter */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 p-0.5 rounded-md bg-secondary w-fit">
+          {(["combined", "food", "supplements"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setSourceFilter(mode)}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-sm transition-all",
+                sourceFilter === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {mode === "combined" ? "Combined" : mode === "food" ? "Food" : "Supps"}
+            </button>
+          ))}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-xs text-muted-foreground"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+        >
+          {showAdvanced ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+          {showAdvanced ? "Simple" : "Advanced"}
+        </Button>
       </div>
 
-      {/* Nutrient Breakdown */}
-      <Tabs defaultValue="vitamins">
-        <TabsList className="w-full">
-          <TabsTrigger value="vitamins" className="flex-1">Vitamins</TabsTrigger>
-          <TabsTrigger value="minerals" className="flex-1">Minerals</TabsTrigger>
-          <TabsTrigger value="fatty_acids" className="flex-1">Fatty Acids</TabsTrigger>
-        </TabsList>
+      {/* ═══ TIER 2: Expandable Nutrient Cards ═══ */}
+      <NutrientSection
+        title="Vitamins"
+        nutrients={MICRONUTRIENTS.filter(n => n.category === "vitamin")}
+        intakes={intakes}
+        foodIntakes={foodIntakes}
+        supplementIntakes={supplementIntakes}
+        rolling7Day={rolling7Day}
+        targets={targets}
+        expandedNutrient={expandedNutrient}
+        setExpandedNutrient={setExpandedNutrient}
+        showAdvanced={showAdvanced}
+      />
+      <NutrientSection
+        title="Minerals"
+        nutrients={MICRONUTRIENTS.filter(n => n.category === "mineral")}
+        intakes={intakes}
+        foodIntakes={foodIntakes}
+        supplementIntakes={supplementIntakes}
+        rolling7Day={rolling7Day}
+        targets={targets}
+        expandedNutrient={expandedNutrient}
+        setExpandedNutrient={setExpandedNutrient}
+        showAdvanced={showAdvanced}
+      />
+      <NutrientSection
+        title="Fatty Acids & Other"
+        nutrients={MICRONUTRIENTS.filter(n => n.category === "fatty_acid" || n.category === "other")}
+        intakes={intakes}
+        foodIntakes={foodIntakes}
+        supplementIntakes={supplementIntakes}
+        rolling7Day={rolling7Day}
+        targets={targets}
+        expandedNutrient={expandedNutrient}
+        setExpandedNutrient={setExpandedNutrient}
+        showAdvanced={showAdvanced}
+      />
+    </div>
+  );
+};
 
-        <TabsContent value="vitamins">
-          <Card>
-            <CardContent className="pt-4 space-y-1">
-              {MICRONUTRIENTS.filter((n) => n.category === "vitamin").map(renderNutrientRow)}
-            </CardContent>
-          </Card>
-        </TabsContent>
+// ═══ Nutrient Section Component ═══
 
-        <TabsContent value="minerals">
-          <Card>
-            <CardContent className="pt-4 space-y-1">
-              {MICRONUTRIENTS.filter((n) => n.category === "mineral").map(renderNutrientRow)}
-            </CardContent>
-          </Card>
-        </TabsContent>
+interface NutrientSectionProps {
+  title: string;
+  nutrients: NutrientInfo[];
+  intakes: Record<string, number>;
+  foodIntakes: Record<string, number>;
+  supplementIntakes: Record<string, number>;
+  rolling7Day: Record<string, number>;
+  targets: Record<string, number>;
+  expandedNutrient: string | null;
+  setExpandedNutrient: (key: string | null) => void;
+  showAdvanced: boolean;
+}
 
-        <TabsContent value="fatty_acids">
-          <Card>
-            <CardContent className="pt-4 space-y-1">
-              {MICRONUTRIENTS.filter((n) => n.category === "fatty_acid").map(renderNutrientRow)}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+const NutrientSection = ({
+  title, nutrients, intakes, foodIntakes, supplementIntakes, rolling7Day, targets,
+  expandedNutrient, setExpandedNutrient, showAdvanced
+}: NutrientSectionProps) => (
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-sm text-foreground">{title}</CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-1">
+      {nutrients.map(n => (
+        <NutrientRow
+          key={n.key}
+          nutrient={n}
+          intake={intakes[n.key] || 0}
+          foodAmount={foodIntakes[n.key] || 0}
+          suppAmount={supplementIntakes[n.key] || 0}
+          r7Avg={rolling7Day[n.key] || 0}
+          target={targets[n.key]}
+          isExpanded={expandedNutrient === n.key}
+          onToggle={() => setExpandedNutrient(expandedNutrient === n.key ? null : n.key)}
+          showAdvanced={showAdvanced}
+        />
+      ))}
+    </CardContent>
+  </Card>
+);
+
+// ═══ Individual Nutrient Row ═══
+
+interface NutrientRowProps {
+  nutrient: NutrientInfo;
+  intake: number;
+  foodAmount: number;
+  suppAmount: number;
+  r7Avg: number;
+  target?: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  showAdvanced: boolean;
+}
+
+const NutrientRow = ({
+  nutrient: n, intake, foodAmount, suppAmount, r7Avg, target, isExpanded, onToggle, showAdvanced
+}: NutrientRowProps) => {
+  const effectiveTarget = target ?? n.pcOptimalMin;
+  const pct = effectiveTarget > 0 ? Math.round((intake / effectiveTarget) * 100) : 0;
+  const status = getOptimizationStatus(intake, n);
+  const score = getNutrientScore(intake, n);
+  const hasForms = BIOAVAILABILITY_FORMS[n.key]?.length > 0;
+
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="w-full text-left space-y-1 py-1.5 hover:bg-secondary/30 rounded-sm px-1 -mx-1 transition-colors"
+      >
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-foreground">{n.label}</span>
+            {suppAmount > 0 && <Pill className="h-3 w-3 text-primary" />}
+            {hasForms && <Sparkles className="h-2.5 w-2.5 text-muted-foreground" />}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn("tabular-nums", STATUS_TEXT[status])}>
+              {intake.toFixed(1)}/{effectiveTarget}{n.unit}
+            </span>
+            <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0 border-none", STATUS_TEXT[status])}>
+              {STATUS_LABELS[status]}
+            </Badge>
+          </div>
+        </div>
+        <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+          <div
+            className={cn("h-full rounded-full transition-all", STATUS_COLORS[status])}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+      </button>
+
+      {/* ═══ TIER 2: Expanded Detail ═══ */}
+      {isExpanded && (
+        <div className="ml-1 pl-3 border-l-2 border-primary/20 py-2 space-y-1 text-[11px]">
+          <div className="flex justify-between text-muted-foreground">
+            <span>Food</span>
+            <span className="text-foreground">{foodAmount.toFixed(1)}{n.unit}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>Supplements</span>
+            <span className="text-primary">{suppAmount.toFixed(1)}{n.unit}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>7-Day Avg</span>
+            <span className="text-foreground">{r7Avg.toFixed(1)}{n.unit}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>Nutrient Score</span>
+            <span className={cn("font-medium", score >= 80 ? "text-primary" : score >= 60 ? "text-yellow-400" : "text-destructive")}>
+              {score}/100
+            </span>
+          </div>
+          {hasForms && (
+            <div className="flex items-center gap-1 text-muted-foreground mt-1">
+              <ShieldCheck className="h-3 w-3 text-primary" />
+              <span>Absorption quality varies by form</span>
+            </div>
+          )}
+          <div className="h-px bg-border my-1" />
+          <div className="flex justify-between text-muted-foreground">
+            <span>PC Optimal</span>
+            <span className="text-primary">{n.pcOptimalMin}–{n.pcOptimalMax}{n.unit}</span>
+          </div>
+
+          {/* ═══ TIER 3: Advanced ═══ */}
+          {showAdvanced && (
+            <>
+              <div className="h-px bg-border my-1" />
+              <div className="flex justify-between text-muted-foreground">
+                <span>RDA</span><span>{n.rda}{n.unit}</span>
+              </div>
+              {n.pcUpperCaution && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Upper Caution</span><span className="text-orange-400">{n.pcUpperCaution}{n.unit}</span>
+                </div>
+              )}
+              {n.upperLimit && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Hard Upper Limit</span><span className="text-destructive">{n.upperLimit}{n.unit}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-muted-foreground">
+                <span>Priority Weight</span><span>{n.weight || 1}×</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
