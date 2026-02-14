@@ -27,7 +27,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/training", icon: Dumbbell, label: "Training" },
     { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
-    { to: "/analytics", icon: Activity, label: "Engine" },
+    { to: "/analytics", icon: Activity, label: "Analytics" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/progress", icon: BarChart3, label: "Progress" },
     { to: "/calendar", icon: CalendarDays, label: "Calendar" },
