@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.evaluate-auto-messages]
 verify_jwt = false
+
+[functions.progress-insights]
+verify_jwt = false
