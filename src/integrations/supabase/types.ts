@@ -101,6 +101,36 @@ export type Database = {
         }
         Relationships: []
       }
+      client_risk_scores: {
+        Row: {
+          calculated_at: string
+          client_id: string
+          created_at: string
+          id: string
+          risk_level: string
+          score: number
+          signals: Json
+        }
+        Insert: {
+          calculated_at?: string
+          client_id: string
+          created_at?: string
+          id?: string
+          risk_level?: string
+          score?: number
+          signals?: Json
+        }
+        Update: {
+          calculated_at?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          risk_level?: string
+          score?: number
+          signals?: Json
+        }
+        Relationships: []
+      }
       coach_clients: {
         Row: {
           assigned_at: string
@@ -729,6 +759,78 @@ export type Database = {
           photo_date?: string
           pose?: string
           storage_path?: string
+        }
+        Relationships: []
+      }
+      recommit_events: {
+        Row: {
+          badge_awarded: boolean
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          micro_action: string | null
+          public_post: string | null
+          step_completed: number
+          streak_reset: boolean
+        }
+        Insert: {
+          badge_awarded?: boolean
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          micro_action?: string | null
+          public_post?: string | null
+          step_completed?: number
+          streak_reset?: boolean
+        }
+        Update: {
+          badge_awarded?: boolean
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          micro_action?: string | null
+          public_post?: string | null
+          step_completed?: number
+          streak_reset?: boolean
+        }
+        Relationships: []
+      }
+      retention_nudges: {
+        Row: {
+          acknowledged_at: string | null
+          client_id: string
+          created_at: string
+          id: string
+          message: string
+          nudge_type: string
+          reengaged_at: string | null
+          risk_level_at_send: string
+          sent_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          message: string
+          nudge_type?: string
+          reengaged_at?: string | null
+          risk_level_at_send: string
+          sent_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          nudge_type?: string
+          reengaged_at?: string | null
+          risk_level_at_send?: string
+          sent_at?: string
         }
         Relationships: []
       }
