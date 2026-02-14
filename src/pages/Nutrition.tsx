@@ -4,6 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyNutritionLog from "@/components/nutrition/DailyNutritionLog";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
 import MacroTargetEditor from "@/components/nutrition/MacroTargetEditor";
+import CoachMealPlanUpload from "@/components/nutrition/CoachMealPlanUpload";
+import ClientMealPlanView from "@/components/nutrition/ClientMealPlanView";
 
 const Nutrition = () => {
   const { role } = useAuth();
@@ -17,22 +19,26 @@ const Nutrition = () => {
           {isCoach && <MacroTargetEditor />}
         </div>
 
-        {isCoach ? (
-          <Tabs defaultValue="tracker" className="w-full">
-            <TabsList className="w-full">
-              <TabsTrigger value="tracker" className="flex-1">My Tracker</TabsTrigger>
+        <Tabs defaultValue="tracker" className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger value="tracker" className="flex-1">My Tracker</TabsTrigger>
+            {isCoach && (
               <TabsTrigger value="mealplans" className="flex-1">Meal Plans</TabsTrigger>
-            </TabsList>
-            <TabsContent value="tracker">
-              <DailyNutritionLog />
-            </TabsContent>
+            )}
+            <TabsTrigger value="coachplan" className="flex-1">Coach Meal Plan</TabsTrigger>
+          </TabsList>
+          <TabsContent value="tracker">
+            <DailyNutritionLog />
+          </TabsContent>
+          {isCoach && (
             <TabsContent value="mealplans">
               <MealPlanBuilder />
             </TabsContent>
-          </Tabs>
-        ) : (
-          <DailyNutritionLog />
-        )}
+          )}
+          <TabsContent value="coachplan">
+            {isCoach ? <CoachMealPlanUpload /> : <ClientMealPlanView />}
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

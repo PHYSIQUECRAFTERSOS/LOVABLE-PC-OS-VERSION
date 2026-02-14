@@ -155,6 +155,51 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_meal_plan_uploads: {
+        Row: {
+          client_id: string
+          client_viewed_at: string | null
+          coach_id: string
+          coach_notes: string | null
+          created_at: string
+          effective_date: string
+          file_name: string
+          id: string
+          is_active: boolean
+          storage_path: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          client_id: string
+          client_viewed_at?: string | null
+          coach_id: string
+          coach_notes?: string | null
+          created_at?: string
+          effective_date?: string
+          file_name: string
+          id?: string
+          is_active?: boolean
+          storage_path: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          client_id?: string
+          client_viewed_at?: string | null
+          coach_id?: string
+          coach_notes?: string | null
+          created_at?: string
+          effective_date?: string
+          file_name?: string
+          id?: string
+          is_active?: boolean
+          storage_path?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
