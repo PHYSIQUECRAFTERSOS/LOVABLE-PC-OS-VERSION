@@ -10,6 +10,7 @@ import {
   LogOut,
   LayoutDashboard,
   Shield,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/analytics", icon: Activity, label: "Engine" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/progress", icon: BarChart3, label: "Progress" },
+    { to: "/calendar", icon: CalendarDays, label: "Calendar" },
     { to: "/profile", icon: User, label: "Profile" },
   ];
 
