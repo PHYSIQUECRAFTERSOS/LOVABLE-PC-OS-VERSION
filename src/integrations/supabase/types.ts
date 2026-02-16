@@ -1154,6 +1154,156 @@ export type Database = {
         }
         Relationships: []
       }
+      culture_badges: {
+        Row: {
+          badge_type: string
+          created_at: string
+          id: string
+          metadata: Json
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          badge_type: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          badge_type?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
+      culture_messages: {
+        Row: {
+          coach_id: string
+          content: string
+          created_at: string
+          id: string
+          is_pinned: boolean
+          week_start: string
+        }
+        Insert: {
+          coach_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean
+          week_start: string
+        }
+        Update: {
+          coach_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean
+          week_start?: string
+        }
+        Relationships: []
+      }
+      culture_profiles: {
+        Row: {
+          below_60_weeks: number
+          below_70_weeks: number
+          comeback_count: number
+          consistency_active: boolean
+          consistency_weeks: number
+          created_at: string
+          current_streak: number
+          id: string
+          lifetime_avg: number
+          longest_streak: number
+          most_improved_count: number
+          reset_count: number
+          reset_week_active: boolean
+          reset_week_eligible: boolean
+          tier: string
+          total_elite_weeks: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          below_60_weeks?: number
+          below_70_weeks?: number
+          comeback_count?: number
+          consistency_active?: boolean
+          consistency_weeks?: number
+          created_at?: string
+          current_streak?: number
+          id?: string
+          lifetime_avg?: number
+          longest_streak?: number
+          most_improved_count?: number
+          reset_count?: number
+          reset_week_active?: boolean
+          reset_week_eligible?: boolean
+          tier?: string
+          total_elite_weeks?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          below_60_weeks?: number
+          below_70_weeks?: number
+          comeback_count?: number
+          consistency_active?: boolean
+          consistency_weeks?: number
+          created_at?: string
+          current_streak?: number
+          id?: string
+          lifetime_avg?: number
+          longest_streak?: number
+          most_improved_count?: number
+          reset_count?: number
+          reset_week_active?: boolean
+          reset_week_eligible?: boolean
+          tier?: string
+          total_elite_weeks?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      culture_spotlights: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          message: string | null
+          spotlight_type: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message?: string | null
+          spotlight_type: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message?: string | null
+          spotlight_type?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       exercise_logs: {
         Row: {
           created_at: string
@@ -2666,6 +2816,42 @@ export type Database = {
           updated_at?: string
           week_date?: string
           weight?: number | null
+        }
+        Relationships: []
+      }
+      weekly_compliance_scores: {
+        Row: {
+          checkin_completed: boolean
+          community_post_count: number
+          created_at: string
+          id: string
+          nutrition_pct: number
+          total_score: number
+          user_id: string
+          week_start: string
+          workout_pct: number
+        }
+        Insert: {
+          checkin_completed?: boolean
+          community_post_count?: number
+          created_at?: string
+          id?: string
+          nutrition_pct?: number
+          total_score?: number
+          user_id: string
+          week_start: string
+          workout_pct?: number
+        }
+        Update: {
+          checkin_completed?: boolean
+          community_post_count?: number
+          created_at?: string
+          id?: string
+          nutrition_pct?: number
+          total_score?: number
+          user_id?: string
+          week_start?: string
+          workout_pct?: number
         }
         Relationships: []
       }

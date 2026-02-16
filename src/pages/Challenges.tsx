@@ -4,7 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Plus, Users, Calendar, Flame } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Trophy, Plus, Users, Calendar, Flame, Star, Shield } from "lucide-react";
+import CultureLeaderboard from "@/components/culture/CultureLeaderboard";
+import IdentityStack from "@/components/culture/IdentityStack";
+import CoachCulturePanel from "@/components/culture/CoachCulturePanel";
 
 const sampleChallenges = [
   {
@@ -36,14 +40,6 @@ const sampleChallenges = [
   },
 ];
 
-const leaderboard = [
-  { rank: 1, name: "Sarah K.", points: 980 },
-  { rank: 2, name: "Marcus T.", points: 945 },
-  { rank: 3, name: "Diana L.", points: 920 },
-  { rank: 4, name: "Jake R.", points: 890 },
-  { rank: 5, name: "Priya M.", points: 855 },
-];
-
 const Challenges = () => {
   const { role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
@@ -53,9 +49,9 @@ const Challenges = () => {
       <div className="animate-fade-in space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">Challenges</h1>
+            <h1 className="font-display text-2xl font-bold text-foreground">Culture & Challenges</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Compete, stay accountable, and win.
+              Compete, grow, and earn your identity.
             </p>
           </div>
           {isCoach && (
@@ -65,9 +61,36 @@ const Challenges = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Challenges List */}
-          <div className="lg:col-span-2 space-y-4">
+        <Tabs defaultValue="leaderboard" className="w-full">
+          <TabsList className="w-full bg-secondary/50">
+            <TabsTrigger value="leaderboard" className="flex-1 gap-1.5 text-xs">
+              <Trophy className="h-3.5 w-3.5" /> Leaderboard
+            </TabsTrigger>
+            <TabsTrigger value="identity" className="flex-1 gap-1.5 text-xs">
+              <Shield className="h-3.5 w-3.5" /> My Identity
+            </TabsTrigger>
+            <TabsTrigger value="challenges" className="flex-1 gap-1.5 text-xs">
+              <Flame className="h-3.5 w-3.5" /> Challenges
+            </TabsTrigger>
+            {isCoach && (
+              <TabsTrigger value="culture" className="flex-1 gap-1.5 text-xs">
+                <Star className="h-3.5 w-3.5" /> Culture Panel
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          {/* COMPLIANCE LEADERBOARD */}
+          <TabsContent value="leaderboard" className="mt-4">
+            <CultureLeaderboard />
+          </TabsContent>
+
+          {/* IDENTITY STACK */}
+          <TabsContent value="identity" className="mt-4">
+            <IdentityStack />
+          </TabsContent>
+
+          {/* CHALLENGES */}
+          <TabsContent value="challenges" className="mt-4 space-y-4">
             {sampleChallenges.map((challenge) => (
               <Card key={challenge.id} className="border-border bg-card">
                 <CardContent className="pt-4 space-y-3">
@@ -102,28 +125,15 @@ const Challenges = () => {
                 </CardContent>
               </Card>
             ))}
-          </div>
+          </TabsContent>
 
-          {/* Leaderboard */}
-          <Card className="border-border bg-card h-fit">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Trophy className="h-4 w-4 text-primary" /> Leaderboard
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {leaderboard.map((entry) => (
-                <div key={entry.rank} className="flex items-center gap-3 py-1.5">
-                  <span className={`w-6 text-center font-bold text-sm ${entry.rank <= 3 ? "text-primary" : "text-muted-foreground"}`}>
-                    {entry.rank}
-                  </span>
-                  <span className="flex-1 text-sm text-foreground">{entry.name}</span>
-                  <span className="text-sm font-mono text-muted-foreground">{entry.points}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+          {/* COACH CULTURE PANEL */}
+          {isCoach && (
+            <TabsContent value="culture" className="mt-4">
+              <CoachCulturePanel />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </AppLayout>
   );
