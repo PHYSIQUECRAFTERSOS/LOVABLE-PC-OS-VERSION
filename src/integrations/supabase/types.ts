@@ -880,6 +880,224 @@ export type Database = {
         }
         Relationships: []
       }
+      community_comments: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          post_id: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          post_id: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_likes: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_posts: {
+        Row: {
+          author_id: string
+          comments_locked: boolean
+          content: string
+          created_at: string
+          id: string
+          is_pinned: boolean
+          is_spotlight: boolean
+          media_type: string | null
+          media_url: string | null
+          post_type: string
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          comments_locked?: boolean
+          content?: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean
+          is_spotlight?: boolean
+          media_type?: string | null
+          media_url?: string | null
+          post_type?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          comments_locked?: boolean
+          content?: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean
+          is_spotlight?: boolean
+          media_type?: string | null
+          media_url?: string | null
+          post_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      community_reports: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          reason: string
+          reporter_id: string
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          reason?: string
+          reporter_id: string
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          reason?: string
+          reporter_id?: string
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_reports_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_saved_posts: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_saved_posts_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_user_stats: {
+        Row: {
+          badges: Json
+          created_at: string
+          current_streak: number
+          engagement_score: number
+          id: string
+          last_post_date: string | null
+          longest_streak: number
+          posting_restricted: boolean
+          total_comments: number
+          total_likes_received: number
+          total_posts: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          badges?: Json
+          created_at?: string
+          current_streak?: number
+          engagement_score?: number
+          id?: string
+          last_post_date?: string | null
+          longest_streak?: number
+          posting_restricted?: boolean
+          total_comments?: number
+          total_likes_received?: number
+          total_posts?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          badges?: Json
+          created_at?: string
+          current_streak?: number
+          engagement_score?: number
+          id?: string
+          last_post_date?: string | null
+          longest_streak?: number
+          posting_restricted?: boolean
+          total_comments?: number
+          total_likes_received?: number
+          total_posts?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -2627,6 +2845,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      recalc_engagement_score: {
+        Args: { _user_id: string }
+        Returns: undefined
       }
       update_personal_record: {
         Args: {
