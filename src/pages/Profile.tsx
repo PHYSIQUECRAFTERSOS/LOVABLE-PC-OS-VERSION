@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import HealthIntegrations from "@/components/settings/HealthIntegrations";
 
 const Profile = () => {
   const { user, role } = useAuth();
@@ -51,7 +52,7 @@ const Profile = () => {
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-6 max-w-lg">
-        <h1 className="font-display text-2xl font-bold text-foreground">Profile</h1>
+        <h1 className="font-display text-2xl font-bold text-foreground">Settings</h1>
         <Card>
           <CardHeader>
             <CardTitle>Your Information</CardTitle>
@@ -79,6 +80,7 @@ const Profile = () => {
             </Button>
           </CardContent>
         </Card>
+        <HealthIntegrations />
       </div>
     </AppLayout>
   );
