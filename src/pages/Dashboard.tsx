@@ -3,6 +3,7 @@ import AppLayout from "@/components/AppLayout";
 import TodayWorkout from "@/components/dashboard/TodayWorkout";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import ComplianceScore from "@/components/dashboard/ComplianceScore";
+import StepsCard from "@/components/dashboard/StepsCard";
 import ClientCards from "@/components/dashboard/ClientCards";
 import RecommitFlow from "@/components/retention/RecommitFlow";
 
@@ -29,6 +30,7 @@ const Dashboard = () => {
               <TodayWorkout />
               <MacroSummary />
             </div>
+            <StepsCard />
             <ComplianceScore />
           </div>
         )}

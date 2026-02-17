@@ -1304,6 +1304,63 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_health_metrics: {
+        Row: {
+          active_energy_kcal: number | null
+          created_at: string
+          hrv_ms: number | null
+          id: string
+          metric_date: string
+          resting_heart_rate: number | null
+          sleep_duration_min: number | null
+          source: string
+          step_goal: number | null
+          steps: number | null
+          synced_at: string | null
+          updated_at: string
+          user_id: string
+          vo2_max: number | null
+          walking_running_distance_km: number | null
+          weight_kg: number | null
+        }
+        Insert: {
+          active_energy_kcal?: number | null
+          created_at?: string
+          hrv_ms?: number | null
+          id?: string
+          metric_date: string
+          resting_heart_rate?: number | null
+          sleep_duration_min?: number | null
+          source?: string
+          step_goal?: number | null
+          steps?: number | null
+          synced_at?: string | null
+          updated_at?: string
+          user_id: string
+          vo2_max?: number | null
+          walking_running_distance_km?: number | null
+          weight_kg?: number | null
+        }
+        Update: {
+          active_energy_kcal?: number | null
+          created_at?: string
+          hrv_ms?: number | null
+          id?: string
+          metric_date?: string
+          resting_heart_rate?: number | null
+          sleep_duration_min?: number | null
+          source?: string
+          step_goal?: number | null
+          steps?: number | null
+          synced_at?: string | null
+          updated_at?: string
+          user_id?: string
+          vo2_max?: number | null
+          walking_running_distance_km?: number | null
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
       exercise_logs: {
         Row: {
           created_at: string
@@ -1568,6 +1625,51 @@ export type Database = {
           vitamin_e_mg?: number | null
           vitamin_k_mcg?: number | null
           zinc_mg?: number | null
+        }
+        Relationships: []
+      }
+      health_connections: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          disconnected_at: string | null
+          id: string
+          is_connected: boolean
+          last_sync_at: string | null
+          permissions_granted: string[]
+          provider: string
+          sync_error: string | null
+          sync_status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          last_sync_at?: string | null
+          permissions_granted?: string[]
+          provider: string
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          disconnected_at?: string | null
+          id?: string
+          is_connected?: boolean
+          last_sync_at?: string | null
+          permissions_granted?: string[]
+          provider?: string
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
