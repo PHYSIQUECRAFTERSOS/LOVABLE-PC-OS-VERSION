@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ShieldCheck, Clock, AlertTriangle } from "lucide-react";
 
-type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "accept_terms" | "complete" | "error";
+type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "complete" | "error";
 
 interface InviteInfo {
   first_name: string;
@@ -40,32 +40,56 @@ const ClientSetup = () => {
     validateToken();
   }, [token]);
 
-  const validateToken = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke("validate-invite-token", {
-        body: { token, action: "validate" },
-      });
+  const callEdgeFunction = async (payload: Record<string, unknown>) => {
+    console.log("[Setup] Calling validate-invite-token with:", { ...payload, password: payload.password ? "***" : undefined });
 
-      if (error) {
-        const parsed = typeof error === "object" && "message" in error ? error.message : String(error);
-        if (parsed.includes("EXPIRED")) {
-          setStep("expired");
-        } else if (parsed.includes("ALREADY_USED")) {
-          setStep("already_used");
-        } else {
-          setStep("invalid");
+    const { data, error } = await supabase.functions.invoke("validate-invite-token", {
+      body: payload,
+    });
+
+    // supabase.functions.invoke returns data on 2xx, error on non-2xx
+    // Since we now always return 200, data should always be populated
+    if (error) {
+      console.error("[Setup] Edge function error:", error);
+      // Try to extract JSON from FunctionsHttpError
+      let parsed: Record<string, unknown> | null = null;
+      try {
+        if (error && typeof error === "object" && "context" in error) {
+          const ctx = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            parsed = await ctx.json();
+          }
         }
-        return;
+      } catch {
+        // ignore parse failure
       }
 
-      if (data?.valid) {
-        setInviteInfo(data.invite);
+      if (parsed) {
+        console.log("[Setup] Parsed error response:", parsed);
+        return parsed;
+      }
+
+      return { success: false, message: "Unable to reach the server. Please try again.", errorCode: "NETWORK_ERROR" };
+    }
+
+    console.log("[Setup] Response:", data);
+    return data;
+  };
+
+  const validateToken = async () => {
+    try {
+      const result = await callEdgeFunction({ token, action: "validate" });
+
+      if (result?.success && result?.valid) {
+        setInviteInfo(result.invite as InviteInfo);
         setStep("create_password");
-      } else if (data?.error) {
-        if (data.code === "EXPIRED") setStep("expired");
-        else if (data.code === "ALREADY_USED") setStep("already_used");
+      } else {
+        const code = result?.errorCode;
+        if (code === "EXPIRED") setStep("expired");
+        else if (code === "ALREADY_USED") setStep("already_used");
+        else if (code === "INVALID_TOKEN" || code === "INVALIDATED") setStep("invalid");
         else {
-          setErrorMessage(data.error);
+          setErrorMessage(result?.message || "Something went wrong.");
           setStep("error");
         }
       }
@@ -84,24 +108,22 @@ const ClientSetup = () => {
       return;
     }
 
+    console.log("[Setup] Confirm Account clicked");
     setLoading(true);
+
     try {
-      const { data, error } = await supabase.functions.invoke("validate-invite-token", {
-        body: { token, password, action: "setup" },
-      });
+      const result = await callEdgeFunction({ token, password, action: "setup" });
 
-      if (error) {
-        throw new Error(typeof error === "object" && "message" in error ? error.message : String(error));
-      }
-
-      if (data?.success) {
+      if (result?.success) {
         // Sign the user in
+        console.log("[Setup] Account created, signing in as:", result.email);
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: data.email,
+          email: result.email as string,
           password,
         });
 
         if (signInError) {
+          console.error("[Setup] Sign-in error:", signInError.message);
           toast({ title: "Account created! Please sign in.", description: signInError.message });
           navigate("/auth");
           return;
@@ -109,11 +131,25 @@ const ClientSetup = () => {
 
         setStep("complete");
         setTimeout(() => navigate("/dashboard"), 2000);
-      } else if (data?.error) {
-        throw new Error(data.error);
+      } else {
+        const code = result?.errorCode;
+        const msg = result?.message || "Something went wrong.";
+        console.error("[Setup] Setup failed:", code, msg);
+
+        if (code === "USER_EXISTS") {
+          toast({ title: "Account already exists", description: "Please sign in with your credentials.", variant: "destructive" });
+          setTimeout(() => navigate("/auth"), 2000);
+        } else {
+          toast({ title: "Error", description: msg, variant: "destructive" });
+        }
       }
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("[Setup] Unexpected error:", err);
+      toast({
+        title: "Something went wrong",
+        description: "We're having trouble confirming your account. Please try again or contact support.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -141,45 +177,33 @@ const ClientSetup = () => {
         {step === "invalid" && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
-              Invalid Invite Link
-            </h2>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Invalid Invite Link</h2>
             <p className="text-sm text-muted-foreground mb-6">
               This invite link is not valid. Please contact your coach to receive a new access link.
             </p>
-            <p className="text-xs text-muted-foreground">
-              Access is by invitation only.
-            </p>
+            <p className="text-xs text-muted-foreground">Access is by invitation only.</p>
           </div>
         )}
 
         {step === "expired" && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <Clock className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
-              Invite Expired
-            </h2>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Invite Expired</h2>
             <p className="text-sm text-muted-foreground mb-6">
               This invite link has expired. Please contact your coach to receive a new access link.
             </p>
-            <p className="text-xs text-muted-foreground">
-              Invite links are valid for 7 days.
-            </p>
+            <p className="text-xs text-muted-foreground">Invite links are valid for 7 days.</p>
           </div>
         )}
 
         {step === "already_used" && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <ShieldCheck className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
-              Already Set Up
-            </h2>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Already Set Up</h2>
             <p className="text-sm text-muted-foreground mb-6">
               This invite has already been used. You can sign in with your credentials.
             </p>
-            <Button onClick={() => navigate("/auth")} className="w-full">
-              Sign In
-            </Button>
+            <Button onClick={() => navigate("/auth")} className="w-full">Sign In</Button>
           </div>
         )}
 
@@ -256,27 +280,17 @@ const ClientSetup = () => {
         {step === "complete" && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <ShieldCheck className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
-              Account Created
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Redirecting you to your dashboard…
-            </p>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Account Created</h2>
+            <p className="text-sm text-muted-foreground">Redirecting you to your dashboard…</p>
           </div>
         )}
 
         {step === "error" && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
-              Something Went Wrong
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {errorMessage || "An unexpected error occurred."}
-            </p>
-            <Button variant="outline" onClick={() => navigate("/auth")}>
-              Back to Sign In
-            </Button>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Something Went Wrong</h2>
+            <p className="text-sm text-muted-foreground mb-4">{errorMessage || "An unexpected error occurred."}</p>
+            <Button variant="outline" onClick={() => navigate("/auth")}>Back to Sign In</Button>
           </div>
         )}
       </div>
