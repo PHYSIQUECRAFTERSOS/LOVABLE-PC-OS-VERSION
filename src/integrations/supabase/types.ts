@@ -757,6 +757,60 @@ export type Database = {
         }
         Relationships: []
       }
+      client_invites: {
+        Row: {
+          accepted_at: string | null
+          assigned_coach_id: string
+          client_type: string
+          created_at: string
+          created_client_id: string | null
+          email: string
+          expires_at: string
+          first_name: string
+          id: string
+          invite_status: string
+          invite_token: string
+          last_name: string
+          phone: string | null
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          assigned_coach_id: string
+          client_type?: string
+          created_at?: string
+          created_client_id?: string | null
+          email: string
+          expires_at: string
+          first_name: string
+          id?: string
+          invite_status?: string
+          invite_token: string
+          last_name: string
+          phone?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          assigned_coach_id?: string
+          client_type?: string
+          created_at?: string
+          created_client_id?: string | null
+          email?: string
+          expires_at?: string
+          first_name?: string
+          id?: string
+          invite_status?: string
+          invite_token?: string
+          last_name?: string
+          phone?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_risk_scores: {
         Row: {
           calculated_at: string

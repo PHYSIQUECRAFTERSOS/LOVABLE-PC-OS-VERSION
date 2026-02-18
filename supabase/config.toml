@@ -17,3 +17,12 @@ verify_jwt = false
 
 [functions.usda-food-search]
 verify_jwt = false
+
+[functions.send-client-invite]
+verify_jwt = false
+
+[functions.validate-invite-token]
+verify_jwt = false
+
+[functions.calculate-culture-scores]
+verify_jwt = false

@@ -1,0 +1,193 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Send } from "lucide-react";
+
+interface AddClientDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onInviteSent: () => void;
+}
+
+const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogProps) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    email: "",
+    first_name: "",
+    last_name: "",
+    phone: "",
+    client_type: "full_access",
+    tags: "",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setLoading(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+
+      const res = await supabase.functions.invoke("send-client-invite", {
+        body: {
+          email: form.email.trim(),
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim(),
+          phone: form.phone.trim() || undefined,
+          client_type: form.client_type,
+          tags: form.tags
+            ? form.tags.split(",").map((t) => t.trim()).filter(Boolean)
+            : [],
+        },
+      });
+
+      if (res.error) {
+        throw new Error(res.error.message || "Failed to send invite");
+      }
+
+      toast({
+        title: "Invite Sent",
+        description: `Invitation sent to ${form.email}. They have 7 days to set up their account.`,
+      });
+
+      setForm({
+        email: "",
+        first_name: "",
+        last_name: "",
+        phone: "",
+        client_type: "full_access",
+        tags: "",
+      });
+      onOpenChange(false);
+      onInviteSent();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to send invite",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-display">Add Client</DialogTitle>
+          <DialogDescription>
+            Send a secure invite link. The client will have 7 days to set up their account.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="first_name">First Name *</Label>
+              <Input
+                id="first_name"
+                value={form.first_name}
+                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                placeholder="John"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="last_name">Last Name *</Label>
+              <Input
+                id="last_name"
+                value={form.last_name}
+                onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                placeholder="Doe"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="invite_email">Email *</Label>
+            <Input
+              id="invite_email"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              placeholder="client@example.com"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone (optional)</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="+1 555 0123"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="client_type">Client Type</Label>
+            <Select
+              value={form.client_type}
+              onValueChange={(v) => setForm({ ...form, client_type: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full_access">Full Access</SelectItem>
+                <SelectItem value="read_only">Read-Only</SelectItem>
+                <SelectItem value="program_only">Program Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tags">Tags (comma separated, optional)</Label>
+            <Input
+              id="tags"
+              value={form.tags}
+              onChange={(e) => setForm({ ...form, tags: e.target.value })}
+              placeholder="Fat Loss Phase 1, High Stress"
+            />
+          </div>
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            Send Invite
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default AddClientDialog;
