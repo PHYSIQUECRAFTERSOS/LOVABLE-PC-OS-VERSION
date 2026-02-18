@@ -5,41 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        navigate("/dashboard");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-        toast({
-          title: "Check your email",
-          description: "We sent you a confirmation link to verify your account.",
-        });
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      navigate("/dashboard");
     } catch (error: any) {
       toast({
         title: "Error",
@@ -64,23 +46,14 @@ const Auth = () => {
         </div>
 
         <div className="rounded-lg border border-border bg-card p-8">
-          <h2 className="mb-6 font-display text-xl font-semibold text-foreground">
-            {isLogin ? "Sign In" : "Create Account"}
+          <h2 className="mb-2 font-display text-xl font-semibold text-foreground">
+            Sign In
           </h2>
+          <p className="mb-6 text-xs text-muted-foreground">
+            Access is by invitation only. If you've received an invite, use the link in your email to set up your account first.
+          </p>
 
-          <form onSubmit={handleAuth} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Your full name"
-                  required={!isLogin}
-                />
-              </div>
-            )}
+          <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -107,17 +80,15 @@ const Auth = () => {
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="animate-spin" />}
-              {isLogin ? "Sign In" : "Create Account"}
+              Sign In
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
-            >
-              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
-            </button>
+          <div className="mt-6 flex items-center gap-2 rounded-md border border-border bg-secondary/50 p-3">
+            <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              This platform is invite-only. New clients must be invited by their coach to create an account.
+            </p>
           </div>
         </div>
       </div>
