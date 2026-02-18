@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +82,15 @@ const Auth = () => {
               {loading && <Loader2 className="animate-spin" />}
               Sign In
             </Button>
+
+            <div className="text-right">
+              <Link
+                to="/forgot-password"
+                className="text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                Forgot Password?
+              </Link>
+            </div>
           </form>
 
           <div className="mt-6 flex items-center gap-2 rounded-md border border-border bg-secondary/50 p-3">
