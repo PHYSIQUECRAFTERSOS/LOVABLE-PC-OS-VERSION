@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import CustomFoodCreator from "./CustomFoodCreator";
+import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
   id: string;
@@ -508,6 +509,7 @@ const MealPlanBuilder = () => {
                           const macros = calcMacros(food);
                           return (
                             <div key={food.id} className="flex items-center gap-2 px-3 py-2">
+                              <FoodIcon name={food.food_name} size={28} />
                               <div className="flex-1 min-w-0">
                                 <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
                                 {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
@@ -569,8 +571,9 @@ const MealPlanBuilder = () => {
                                   <button
                                     key={f.id}
                                     onClick={() => addFoodToMeal(day.id, meal.id, f)}
-                                    className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors"
+                                    className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
                                   >
+                                    <FoodIcon name={f.name} size={24} />
                                     <span className="font-medium text-foreground">{f.name}</span>
                                     {f.brand && <span className="text-muted-foreground ml-1">({f.brand})</span>}
                                     <span className="text-muted-foreground ml-2">
