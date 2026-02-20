@@ -1509,6 +1509,7 @@ export type Database = {
         Row: {
           added_sugars: number | null
           alcohol: number | null
+          barcode: string | null
           brand: string | null
           calcium_mg: number | null
           calories: number
@@ -1567,6 +1568,7 @@ export type Database = {
         Insert: {
           added_sugars?: number | null
           alcohol?: number | null
+          barcode?: string | null
           brand?: string | null
           calcium_mg?: number | null
           calories?: number
@@ -1625,6 +1627,7 @@ export type Database = {
         Update: {
           added_sugars?: number | null
           alcohol?: number | null
+          barcode?: string | null
           brand?: string | null
           calcium_mg?: number | null
           calories?: number
@@ -1778,16 +1781,52 @@ export type Database = {
         }
         Relationships: []
       }
+      meal_plan_days: {
+        Row: {
+          created_at: string
+          day_order: number
+          day_type: string
+          id: string
+          meal_plan_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_order?: number
+          day_type?: string
+          id?: string
+          meal_plan_id: string
+        }
+        Update: {
+          created_at?: string
+          day_order?: number
+          day_type?: string
+          id?: string
+          meal_plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_days_meal_plan_id_fkey"
+            columns: ["meal_plan_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meal_plan_items: {
         Row: {
           calories: number
           carbs: number
           created_at: string
           custom_name: string | null
+          day_id: string | null
           fat: number
           food_item_id: string | null
+          gram_amount: number
           id: string
           item_order: number
+          meal_name: string
+          meal_order: number
           meal_plan_id: string
           meal_type: string
           protein: number
@@ -1798,10 +1837,14 @@ export type Database = {
           carbs?: number
           created_at?: string
           custom_name?: string | null
+          day_id?: string | null
           fat?: number
           food_item_id?: string | null
+          gram_amount?: number
           id?: string
           item_order?: number
+          meal_name?: string
+          meal_order?: number
           meal_plan_id: string
           meal_type?: string
           protein?: number
@@ -1812,16 +1855,27 @@ export type Database = {
           carbs?: number
           created_at?: string
           custom_name?: string | null
+          day_id?: string | null
           fat?: number
           food_item_id?: string | null
+          gram_amount?: number
           id?: string
           item_order?: number
+          meal_name?: string
+          meal_order?: number
           meal_plan_id?: string
           meal_type?: string
           protein?: number
           servings?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "meal_plan_items_day_id_fkey"
+            columns: ["day_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plan_days"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "meal_plan_items_food_item_id_fkey"
             columns: ["food_item_id"]
@@ -1844,6 +1898,7 @@ export type Database = {
           coach_id: string
           created_at: string
           description: string | null
+          flexibility_mode: boolean
           id: string
           is_template: boolean
           name: string
@@ -1854,6 +1909,7 @@ export type Database = {
           coach_id: string
           created_at?: string
           description?: string | null
+          flexibility_mode?: boolean
           id?: string
           is_template?: boolean
           name: string
@@ -1864,6 +1920,7 @@ export type Database = {
           coach_id?: string
           created_at?: string
           description?: string | null
+          flexibility_mode?: boolean
           id?: string
           is_template?: boolean
           name?: string
@@ -2377,6 +2434,99 @@ export type Database = {
           photo_date?: string
           pose?: string
           storage_path?: string
+        }
+        Relationships: []
+      }
+      recipe_ingredients: {
+        Row: {
+          created_at: string
+          food_item_id: string
+          gram_amount: number
+          id: string
+          ingredient_order: number
+          recipe_id: string
+        }
+        Insert: {
+          created_at?: string
+          food_item_id: string
+          gram_amount?: number
+          id?: string
+          ingredient_order?: number
+          recipe_id: string
+        }
+        Update: {
+          created_at?: string
+          food_item_id?: string
+          gram_amount?: number
+          id?: string
+          ingredient_order?: number
+          recipe_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredients_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipe_ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recipes: {
+        Row: {
+          calories_per_100g: number
+          carbs_per_100g: number
+          created_at: string
+          created_by: string
+          description: string | null
+          fat_per_100g: number
+          fiber_per_100g: number | null
+          id: string
+          is_public: boolean
+          name: string
+          protein_per_100g: number
+          sugar_per_100g: number | null
+          total_weight_g: number
+          updated_at: string
+        }
+        Insert: {
+          calories_per_100g?: number
+          carbs_per_100g?: number
+          created_at?: string
+          created_by: string
+          description?: string | null
+          fat_per_100g?: number
+          fiber_per_100g?: number | null
+          id?: string
+          is_public?: boolean
+          name: string
+          protein_per_100g?: number
+          sugar_per_100g?: number | null
+          total_weight_g?: number
+          updated_at?: string
+        }
+        Update: {
+          calories_per_100g?: number
+          carbs_per_100g?: number
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          fat_per_100g?: number
+          fiber_per_100g?: number | null
+          id?: string
+          is_public?: boolean
+          name?: string
+          protein_per_100g?: number
+          sugar_per_100g?: number | null
+          total_weight_g?: number
+          updated_at?: string
         }
         Relationships: []
       }

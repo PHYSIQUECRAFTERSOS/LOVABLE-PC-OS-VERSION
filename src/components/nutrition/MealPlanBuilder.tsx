@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,29 +12,61 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Search, ClipboardList } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Search,
+  ClipboardList,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Save,
+  ScanBarcode,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import CustomFoodCreator from "./CustomFoodCreator";
 
 interface FoodItem {
   id: string;
   name: string;
+  brand: string | null;
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
+  sugar: number;
   serving_size: number;
   serving_unit: string;
 }
 
-interface PlanItem {
-  food_item_id?: string;
-  custom_name?: string;
-  meal_type: string;
-  servings: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+interface MealFood {
+  id: string;
+  food_item_id: string;
+  food_name: string;
+  brand: string | null;
+  gram_amount: number;
+  // per 100g values
+  cal_per_100: number;
+  protein_per_100: number;
+  carbs_per_100: number;
+  fat_per_100: number;
+  fiber_per_100: number;
+  sugar_per_100: number;
+}
+
+interface Meal {
+  id: string;
+  name: string;
+  foods: MealFood[];
+}
+
+interface DayType {
+  id: string;
+  type: string;
+  meals: Meal[];
 }
 
 interface Client {
@@ -42,20 +74,39 @@ interface Client {
   full_name: string | null;
 }
 
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
+const DAY_TYPE_PRESETS = ["Training Day", "Rest Day", "Refeed Day", "High Carb Day", "Low Carb Day"];
+
+const calcMacros = (food: MealFood) => {
+  const m = food.gram_amount / 100;
+  return {
+    calories: Math.round(food.cal_per_100 * m),
+    protein: +(food.protein_per_100 * m).toFixed(1),
+    carbs: +(food.carbs_per_100 * m).toFixed(1),
+    fat: +(food.fat_per_100 * m).toFixed(1),
+    fiber: +(food.fiber_per_100 * m).toFixed(1),
+    sugar: +(food.sugar_per_100 * m).toFixed(1),
+  };
+};
+
+const uid = () => crypto.randomUUID();
 
 const MealPlanBuilder = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [planName, setPlanName] = useState("");
-  const [description, setDescription] = useState("");
-  const [items, setItems] = useState<PlanItem[]>([]);
-  const [search, setSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
-  const [addingMeal, setAddingMeal] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [days, setDays] = useState<DayType[]>([
+    { id: uid(), type: "Training Day", meals: [{ id: uid(), name: "Meal 1", foods: [] }] },
+  ]);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Search state
+  const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
+  const [showCustomFood, setShowCustomFood] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -69,178 +120,523 @@ const MealPlanBuilder = () => {
           const { data: profiles } = await supabase
             .from("profiles")
             .select("user_id, full_name")
-            .in("user_id", data.map(d => d.client_id));
+            .in("user_id", data.map((d) => d.client_id));
           setClients((profiles as Client[]) || []);
         }
       });
   }, [user]);
 
+  useEffect(() => {
+    if (days.length > 0 && !expandedDay) setExpandedDay(days[0].id);
+  }, []);
+
   const handleSearch = async (q: string) => {
-    setSearch(q);
+    setSearchQuery(q);
     if (q.length < 2) { setSearchResults([]); return; }
     const { data } = await supabase
       .from("food_items")
-      .select("*")
+      .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit")
       .ilike("name", `%${q}%`)
-      .limit(8);
+      .order("is_verified", { ascending: false })
+      .limit(12);
     setSearchResults((data as FoodItem[]) || []);
   };
 
-  const addFood = (food: FoodItem) => {
-    setItems([...items, {
-      food_item_id: food.id,
-      custom_name: food.name,
-      meal_type: addingMeal || "snack",
-      servings: 1,
-      calories: food.calories,
-      protein: food.protein,
-      carbs: food.carbs,
-      fat: food.fat,
-    }]);
-    setSearch("");
+  const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? {
+              ...d,
+              meals: d.meals.map((m) =>
+                m.id === mealId
+                  ? {
+                      ...m,
+                      foods: [
+                        ...m.foods,
+                        {
+                          id: uid(),
+                          food_item_id: food.id,
+                          food_name: food.name,
+                          brand: food.brand,
+                          gram_amount: food.serving_size || 100,
+                          cal_per_100: (food.calories / food.serving_size) * 100,
+                          protein_per_100: (food.protein / food.serving_size) * 100,
+                          carbs_per_100: (food.carbs / food.serving_size) * 100,
+                          fat_per_100: (food.fat / food.serving_size) * 100,
+                          fiber_per_100: ((food.fiber || 0) / food.serving_size) * 100,
+                          sugar_per_100: ((food.sugar || 0) / food.serving_size) * 100,
+                        },
+                      ],
+                    }
+                  : m
+              ),
+            }
+          : d
+      )
+    );
+    setSearchingMealId(null);
+    setSearchQuery("");
     setSearchResults([]);
-    setAddingMeal("");
   };
 
-  const removeItem = (idx: number) => {
-    setItems(items.filter((_, i) => i !== idx));
+  const updateGrams = (dayId: string, mealId: string, foodId: string, grams: number) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? {
+              ...d,
+              meals: d.meals.map((m) =>
+                m.id === mealId
+                  ? { ...m, foods: m.foods.map((f) => (f.id === foodId ? { ...f, gram_amount: grams } : f)) }
+                  : m
+              ),
+            }
+          : d
+      )
+    );
   };
+
+  const removeFood = (dayId: string, mealId: string, foodId: string) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? {
+              ...d,
+              meals: d.meals.map((m) =>
+                m.id === mealId ? { ...m, foods: m.foods.filter((f) => f.id !== foodId) } : m
+              ),
+            }
+          : d
+      )
+    );
+  };
+
+  const addMeal = (dayId: string) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? { ...d, meals: [...d.meals, { id: uid(), name: `Meal ${d.meals.length + 1}`, foods: [] }] }
+          : d
+      )
+    );
+  };
+
+  const removeMeal = (dayId: string, mealId: string) => {
+    setDays((prev) =>
+      prev.map((d) => (d.id === dayId ? { ...d, meals: d.meals.filter((m) => m.id !== mealId) } : d))
+    );
+  };
+
+  const renameMeal = (dayId: string, mealId: string, name: string) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? { ...d, meals: d.meals.map((m) => (m.id === mealId ? { ...m, name } : m)) }
+          : d
+      )
+    );
+  };
+
+  const duplicateMeal = (dayId: string, mealId: string) => {
+    setDays((prev) =>
+      prev.map((d) => {
+        if (d.id !== dayId) return d;
+        const meal = d.meals.find((m) => m.id === mealId);
+        if (!meal) return d;
+        const clone = {
+          ...meal,
+          id: uid(),
+          name: `${meal.name} (copy)`,
+          foods: meal.foods.map((f) => ({ ...f, id: uid() })),
+        };
+        return { ...d, meals: [...d.meals, clone] };
+      })
+    );
+  };
+
+  const addDay = () => {
+    setDays((prev) => [
+      ...prev,
+      { id: uid(), type: "Rest Day", meals: [{ id: uid(), name: "Meal 1", foods: [] }] },
+    ]);
+  };
+
+  const removeDay = (dayId: string) => {
+    setDays((prev) => prev.filter((d) => d.id !== dayId));
+  };
+
+  const duplicateDay = (dayId: string) => {
+    const day = days.find((d) => d.id === dayId);
+    if (!day) return;
+    const clone: DayType = {
+      ...day,
+      id: uid(),
+      type: `${day.type} (copy)`,
+      meals: day.meals.map((m) => ({
+        ...m,
+        id: uid(),
+        foods: m.foods.map((f) => ({ ...f, id: uid() })),
+      })),
+    };
+    setDays((prev) => [...prev, clone]);
+  };
+
+  const renameDayType = (dayId: string, type: string) => {
+    setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, type } : d)));
+  };
+
+  // Totals
+  const getMealTotals = (meal: Meal) =>
+    meal.foods.reduce(
+      (acc, f) => {
+        const m = calcMacros(f);
+        return {
+          calories: acc.calories + m.calories,
+          protein: +(acc.protein + m.protein).toFixed(1),
+          carbs: +(acc.carbs + m.carbs).toFixed(1),
+          fat: +(acc.fat + m.fat).toFixed(1),
+          fiber: +(acc.fiber + m.fiber).toFixed(1),
+          sugar: +(acc.sugar + m.sugar).toFixed(1),
+        };
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
+    );
+
+  const getDayTotals = (day: DayType) =>
+    day.meals.reduce(
+      (acc, meal) => {
+        const t = getMealTotals(meal);
+        return {
+          calories: acc.calories + t.calories,
+          protein: +(acc.protein + t.protein).toFixed(1),
+          carbs: +(acc.carbs + t.carbs).toFixed(1),
+          fat: +(acc.fat + t.fat).toFixed(1),
+          fiber: +(acc.fiber + t.fiber).toFixed(1),
+          sugar: +(acc.sugar + t.sugar).toFixed(1),
+        };
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
+    );
 
   const handleSave = async () => {
     if (!user || !planName) return;
-    setLoading(true);
+    setSaving(true);
 
-    const { data: plan, error } = await supabase
-      .from("meal_plans")
-      .insert({
-        coach_id: user.id,
-        client_id: selectedClient || null,
-        name: planName,
-        description,
-        is_template: !selectedClient,
-      })
-      .select("id")
-      .single();
+    try {
+      const { data: plan, error } = await supabase
+        .from("meal_plans")
+        .insert({
+          coach_id: user.id,
+          client_id: selectedClient || null,
+          name: planName,
+          is_template: !selectedClient,
+          flexibility_mode: false,
+        })
+        .select("id")
+        .single();
 
-    if (error || !plan) {
-      toast({ title: "Error", description: error?.message, variant: "destructive" });
-      setLoading(false);
-      return;
+      if (error || !plan) throw error;
+
+      for (let di = 0; di < days.length; di++) {
+        const day = days[di];
+        const { data: dayRow, error: dayErr } = await supabase
+          .from("meal_plan_days")
+          .insert({
+            meal_plan_id: plan.id,
+            day_type: day.type,
+            day_order: di,
+          })
+          .select("id")
+          .single();
+
+        if (dayErr || !dayRow) throw dayErr;
+
+        const items = day.meals.flatMap((meal, mi) =>
+          meal.foods.map((food, fi) => ({
+            meal_plan_id: plan.id,
+            day_id: dayRow.id,
+            food_item_id: food.food_item_id,
+            custom_name: food.food_name,
+            meal_name: meal.name,
+            meal_type: "custom",
+            gram_amount: food.gram_amount,
+            servings: 1,
+            calories: Math.round((food.cal_per_100 * food.gram_amount) / 100),
+            protein: Math.round((food.protein_per_100 * food.gram_amount) / 100),
+            carbs: Math.round((food.carbs_per_100 * food.gram_amount) / 100),
+            fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
+            item_order: fi,
+            meal_order: mi,
+          }))
+        );
+
+        if (items.length > 0) {
+          const { error: itemErr } = await supabase.from("meal_plan_items").insert(items);
+          if (itemErr) throw itemErr;
+        }
+      }
+
+      toast({ title: "Meal plan saved!" });
+      setPlanName("");
+      setSelectedClient("");
+      setDays([{ id: uid(), type: "Training Day", meals: [{ id: uid(), name: "Meal 1", foods: [] }] }]);
+    } catch (err: any) {
+      toast({ title: "Error saving", description: err?.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-
-    if (items.length > 0) {
-      const planItems = items.map((item, idx) => ({
-        meal_plan_id: plan.id,
-        food_item_id: item.food_item_id || null,
-        custom_name: item.custom_name,
-        meal_type: item.meal_type,
-        servings: item.servings,
-        calories: Math.round(item.calories * item.servings),
-        protein: Math.round(item.protein * item.servings),
-        carbs: Math.round(item.carbs * item.servings),
-        fat: Math.round(item.fat * item.servings),
-        item_order: idx,
-      }));
-      await supabase.from("meal_plan_items").insert(planItems);
-    }
-
-    setLoading(false);
-    toast({ title: "Meal plan saved!" });
-    setPlanName(""); setDescription(""); setItems([]); setSelectedClient("");
   };
 
-  const totals = items.reduce(
-    (acc, i) => ({
-      calories: acc.calories + Math.round(i.calories * i.servings),
-      protein: acc.protein + Math.round(i.protein * i.servings),
-      carbs: acc.carbs + Math.round(i.carbs * i.servings),
-      fat: acc.fat + Math.round(i.fat * i.servings),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-  );
+  const onCustomFoodCreated = (food: FoodItem) => {
+    setShowCustomFood(false);
+    // If a meal is being searched, add it
+    if (searchingMealId) {
+      const parts = searchingMealId.split("::");
+      if (parts.length === 2) {
+        addFoodToMeal(parts[0], parts[1], food);
+      }
+    }
+  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ClipboardList className="h-5 w-5" /> Meal Plan Builder
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><Label>Plan Name</Label><Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="e.g. Cutting Phase Week 1" /></div>
-          <div>
-            <Label>Assign to Client (optional)</Label>
-            <Select value={selectedClient} onValueChange={setSelectedClient}>
-              <SelectTrigger><SelectValue placeholder="Template (no client)" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Template (no client)</SelectItem>
-                {clients.map((c) => (
-                  <SelectItem key={c.user_id} value={c.user_id}>
-                    {c.full_name || "Unnamed"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Add food to plan */}
-        <div className="space-y-2">
-          <Label>Add Food Items</Label>
-          <div className="flex gap-2">
-            <Select value={addingMeal} onValueChange={setAddingMeal}>
-              <SelectTrigger className="w-36"><SelectValue placeholder="Meal" /></SelectTrigger>
-              <SelectContent>
-                {MEAL_TYPES.map(m => <SelectItem key={m} value={m} className="capitalize">{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search food..." value={search} onChange={(e) => handleSearch(e.target.value)} className="pl-9" />
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ClipboardList className="h-5 w-5" /> Meal Plan Builder
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label>Plan Name</Label>
+              <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="e.g. Cutting Phase Week 1" />
+            </div>
+            <div>
+              <Label>Assign to Client (optional)</Label>
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger><SelectValue placeholder="Template (no client)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Template (no client)</SelectItem>
+                  {clients.map((c) => (
+                    <SelectItem key={c.user_id} value={c.user_id}>{c.full_name || "Unnamed"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {searchResults.length > 0 && (
-            <div className="max-h-40 overflow-y-auto rounded border border-border p-1 space-y-0.5">
-              {searchResults.map(f => (
-                <button key={f.id} onClick={() => addFood(f)} className="w-full text-left rounded px-3 py-1.5 text-sm hover:bg-secondary transition-colors">
-                  <span className="font-medium text-foreground">{f.name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">{f.calories}cal · {f.protein}P · {f.carbs}C · {f.fat}F</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Day Types */}
+      {days.map((day) => {
+        const dayTotals = getDayTotals(day);
+        const isExpanded = expandedDay === day.id;
 
-        {/* Items list */}
-        {items.length > 0 && (
-          <div className="space-y-1">
-            {items.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between rounded border border-border px-3 py-2">
-                <div>
-                  <span className="text-sm font-medium text-foreground">{item.custom_name}</span>
-                  <span className="ml-2 text-xs text-muted-foreground capitalize">({item.meal_type})</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{item.calories}cal</span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(idx)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+        return (
+          <Card key={day.id} className="overflow-hidden">
+            <button
+              onClick={() => setExpandedDay(isExpanded ? null : day.id)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                <div className="text-left">
+                  <Input
+                    value={day.type}
+                    onChange={(e) => { e.stopPropagation(); renameDayType(day.id, e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-7 w-40 text-sm font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
+                  />
                 </div>
               </div>
-            ))}
-            <div className="text-xs text-muted-foreground pt-2 text-right">
-              Total: {totals.calories} cal · {totals.protein}P · {totals.carbs}C · {totals.fat}F
-            </div>
-          </div>
-        )}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  {dayTotals.calories} cal · {dayTotals.protein}P · {dayTotals.carbs}C · {dayTotals.fat}F
+                </span>
+                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </button>
 
-        <Button onClick={handleSave} disabled={loading || !planName} className="w-full">
-          {loading ? "Saving..." : "Save Meal Plan"}
-        </Button>
-      </CardContent>
-    </Card>
+            {isExpanded && (
+              <CardContent className="pt-0 space-y-3">
+                {/* Day actions */}
+                <div className="flex gap-2 flex-wrap">
+                  <Button variant="ghost" size="sm" onClick={() => duplicateDay(day.id)}>
+                    <Copy className="h-3 w-3 mr-1" /> Duplicate Day
+                  </Button>
+                  {days.length > 1 && (
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeDay(day.id)}>
+                      <Trash2 className="h-3 w-3 mr-1" /> Remove
+                    </Button>
+                  )}
+                </div>
+
+                {/* Meals */}
+                {day.meals.map((meal) => {
+                  const mealTotals = getMealTotals(meal);
+                  const isSearching = searchingMealId === `${day.id}::${meal.id}`;
+
+                  return (
+                    <div key={meal.id} className="rounded-lg border border-border bg-card/50 overflow-hidden">
+                      {/* Meal Header */}
+                      <div className="flex items-center justify-between px-3 py-2 bg-secondary/30">
+                        <Input
+                          value={meal.name}
+                          onChange={(e) => renameMeal(day.id, meal.id, e.target.value)}
+                          className="h-6 w-36 text-xs font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
+                        />
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground mr-2">
+                            {mealTotals.calories}cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F
+                          </span>
+                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => duplicateMeal(day.id, meal.id)}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                          {day.meals.length > 1 && (
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeMeal(day.id, meal.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Food Items */}
+                      <div className="divide-y divide-border/50">
+                        {meal.foods.map((food) => {
+                          const macros = calcMacros(food);
+                          return (
+                            <div key={food.id} className="flex items-center gap-2 px-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
+                                {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={food.gram_amount}
+                                  onChange={(e) => updateGrams(day.id, meal.id, food.id, parseFloat(e.target.value) || 0)}
+                                  className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
+                                />
+                                <span className="text-[10px] text-muted-foreground w-4">g</span>
+                              </div>
+                              <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
+                                <span>{macros.calories}cal</span>
+                                <span className="text-red-400">{macros.protein}P</span>
+                                <span className="text-blue-400">{macros.carbs}C</span>
+                                <span className="text-yellow-400">{macros.fat}F</span>
+                              </div>
+                              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Add food search */}
+                      <div className="px-3 py-2 border-t border-border/30">
+                        {isSearching ? (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                <Input
+                                  placeholder="Search food..."
+                                  value={searchQuery}
+                                  onChange={(e) => handleSearch(e.target.value)}
+                                  className="h-8 pl-8 text-xs"
+                                  autoFocus
+                                />
+                              </div>
+                              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowCustomFood(true)}>
+                                <Plus className="h-3 w-3 mr-1" /> Custom
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => { setSearchingMealId(null); setSearchQuery(""); setSearchResults([]); }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                            {searchResults.length > 0 && (
+                              <div className="max-h-36 overflow-y-auto space-y-0.5 rounded border border-border p-1">
+                                {searchResults.map((f) => (
+                                  <button
+                                    key={f.id}
+                                    onClick={() => addFoodToMeal(day.id, meal.id, f)}
+                                    className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors"
+                                  >
+                                    <span className="font-medium text-foreground">{f.name}</span>
+                                    {f.brand && <span className="text-muted-foreground ml-1">({f.brand})</span>}
+                                    <span className="text-muted-foreground ml-2">
+                                      {f.calories}cal · {f.protein}P · {f.carbs}C · {f.fat}F / {f.serving_size}{f.serving_unit}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs w-full"
+                            onClick={() => setSearchingMealId(`${day.id}::${meal.id}`)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Add Food
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <Button variant="outline" size="sm" className="w-full" onClick={() => addMeal(day.id)}>
+                  <Plus className="h-3 w-3 mr-1" /> Add Meal
+                </Button>
+
+                {/* Day Totals Bar */}
+                <div className="rounded-lg bg-primary/5 border border-primary/20 px-4 py-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground">Day Total</span>
+                    <div className="flex gap-3">
+                      <span className="font-bold text-foreground">{dayTotals.calories} cal</span>
+                      <span className="text-red-400 font-medium">{dayTotals.protein}P</span>
+                      <span className="text-blue-400 font-medium">{dayTotals.carbs}C</span>
+                      <span className="text-yellow-400 font-medium">{dayTotals.fat}F</span>
+                      <span className="text-muted-foreground">{dayTotals.fiber}Fi</span>
+                      <span className="text-muted-foreground">{dayTotals.sugar}S</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
+
+      <Button variant="outline" className="w-full" onClick={addDay}>
+        <Plus className="h-4 w-4 mr-2" /> Add Day Type
+      </Button>
+
+      <Button onClick={handleSave} disabled={saving || !planName} className="w-full">
+        <Save className="h-4 w-4 mr-2" />
+        {saving ? "Saving..." : "Save Meal Plan"}
+      </Button>
+
+      {showCustomFood && (
+        <CustomFoodCreator
+          open={showCustomFood}
+          onOpenChange={setShowCustomFood}
+          onCreated={onCustomFoodCreated}
+        />
+      )}
+    </div>
   );
 };
 
