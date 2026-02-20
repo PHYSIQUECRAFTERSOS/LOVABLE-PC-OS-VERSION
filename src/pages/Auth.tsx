@@ -40,9 +40,7 @@ const Auth = () => {
           <h1 className="font-display text-3xl font-bold tracking-tight text-foreground">
             PHYSIQUE <span className="text-gradient-gold">CRAFTERS</span>
           </h1>
-          <p className="mt-2 text-sm tracking-[0.2em] uppercase text-muted-foreground">
-            The Triple O Method
-          </p>
+          <div className="mt-2 h-5" />
         </div>
 
         <div className="rounded-lg border border-border bg-card p-8">
