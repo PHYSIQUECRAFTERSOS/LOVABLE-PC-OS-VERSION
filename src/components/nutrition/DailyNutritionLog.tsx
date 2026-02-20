@@ -8,6 +8,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MacroRing from "./MacroRing";
 import AddFoodScreen from "./AddFoodScreen";
+import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
+import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 
 interface NutritionLog {
   id: string;
@@ -54,6 +56,7 @@ const DailyNutritionLog = () => {
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
 
   const fetchLogs = async () => {
     if (!user) return;
@@ -201,7 +204,15 @@ const DailyNutritionLog = () => {
                 <span className="text-sm font-bold text-foreground tabular-nums">
                   {mealTotals.calories > 0 ? `${mealTotals.calories}` : "—"}
                 </span>
-              </div>
+                </div>
+
+              {/* Quick Add Previous Meal */}
+              <QuickAddPreviousMeal
+                mealType={key}
+                suggestion={suggestions[key] || null}
+                onQuickAdd={quickAdd}
+                onLogged={() => { fetchLogs(); refreshSuggestions(); }}
+              />
 
               {/* Food Entries */}
               {items.length > 0 && (
@@ -251,7 +262,7 @@ const DailyNutritionLog = () => {
         mealLabel={activeMealLabel}
         open={loggerOpen}
         onClose={() => setLoggerOpen(false)}
-        onLogged={() => { fetchLogs(); setLoggerOpen(false); }}
+        onLogged={() => { fetchLogs(); refreshSuggestions(); setLoggerOpen(false); }}
       />
     </div>
   );
