@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MacroRing from "./MacroRing";
 import AddFoodScreen from "./AddFoodScreen";
 import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
+import CopyDayDialog from "./CopyDayDialog";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 
 interface NutritionLog {
@@ -54,6 +55,7 @@ const DailyNutritionLog = () => {
   const [loggerOpen, setLoggerOpen] = useState(false);
   const [activeMealType, setActiveMealType] = useState("snack");
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
@@ -142,29 +144,42 @@ const DailyNutritionLog = () => {
   return (
     <div className="space-y-5">
       {/* Date Navigation */}
-      <div className="flex items-center justify-center gap-3">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2 text-sm font-medium">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {isToday ? "Today" : format(selectedDate, "EEE, MMM d")}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="center">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(d) => d && setSelectedDate(d)}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(subDays(selectedDate, 1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 text-sm font-medium">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {isToday ? "Today" : format(selectedDate, "EEE, MMM d")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(d) => d && setSelectedDate(d)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSelectedDate(addDays(selectedDate, 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        {logs.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setCopyDialogOpen(true)}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy Day
+          </Button>
+        )}
       </div>
 
       {/* Daily Macro Summary */}
@@ -263,6 +278,13 @@ const DailyNutritionLog = () => {
         open={loggerOpen}
         onClose={() => setLoggerOpen(false)}
         onLogged={() => { fetchLogs(); refreshSuggestions(); setLoggerOpen(false); }}
+      />
+      {/* Copy Day Dialog */}
+      <CopyDayDialog
+        sourceDate={selectedDate}
+        open={copyDialogOpen}
+        onOpenChange={setCopyDialogOpen}
+        onCopied={() => { fetchLogs(); refreshSuggestions(); }}
       />
     </div>
   );
