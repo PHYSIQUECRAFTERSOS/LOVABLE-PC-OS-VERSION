@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
   id: string;
@@ -421,6 +422,7 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange }
   return (
     <div className="rounded-xl bg-card border border-border/50 overflow-hidden transition-all">
       <div className="flex items-center gap-3 px-4 py-3">
+        <FoodIcon name={item.name} size={36} />
         <button onClick={onToggle} className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-foreground truncate">{item.name}</span>

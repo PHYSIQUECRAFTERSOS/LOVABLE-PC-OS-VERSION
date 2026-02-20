@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Plus, Trash2, Search, ChefHat, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
   id: string;
@@ -225,8 +226,9 @@ const RecipeBuilder = () => {
                   <button
                     key={f.id}
                     onClick={() => addIngredient(f)}
-                    className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors"
+                    className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
                   >
+                    <FoodIcon name={f.name} size={24} />
                     <span className="font-medium text-foreground">{f.name}</span>
                     {f.brand && <span className="text-muted-foreground ml-1">({f.brand})</span>}
                     <span className="text-muted-foreground ml-2">
@@ -244,7 +246,8 @@ const RecipeBuilder = () => {
               {ingredients.map((ing) => {
                 const m = ing.gram_amount / ing.food.serving_size;
                 return (
-                  <div key={ing.id} className="flex items-center gap-2 px-3 py-2">
+                   <div key={ing.id} className="flex items-center gap-2 px-3 py-2">
+                    <FoodIcon name={ing.food.name} size={26} />
                     <div className="flex-1 min-w-0">
                       <span className="text-xs font-medium text-foreground truncate block">{ing.food.name}</span>
                     </div>

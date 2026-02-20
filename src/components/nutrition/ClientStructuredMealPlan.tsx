@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, ChevronDown, ChevronUp, ClipboardList, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import FoodIcon from "@/lib/foodIcons";
 
 interface MealPlanItem {
   id: string;
@@ -228,6 +229,7 @@ const ClientStructuredMealPlan = () => {
                       <div className="divide-y divide-border/30">
                         {meal.items.map((item) => (
                           <div key={item.id} className="flex items-center gap-2 px-3 py-2">
+                            <FoodIcon name={item.custom_name || ""} size={26} />
                             <div className="flex-1 min-w-0">
                               <span className="text-xs text-foreground">{item.custom_name}</span>
                               <span className="text-[10px] text-muted-foreground ml-2">{item.gram_amount}g</span>
