@@ -135,20 +135,10 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
     const setupUrl = `${origin}/setup?token=${token}`;
 
-    // Send invite email via Supabase Auth admin
-    const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email.toLowerCase(), {
-      data: {
-        full_name: `${first_name} ${last_name}`,
-        invite_token: token,
-        invited_by: user.id,
-      },
-      redirectTo: setupUrl,
-    });
-
-    // If the built-in invite fails (user may already exist), we still have the token-based flow
-    if (emailError) {
-      console.log("Auth invite info:", emailError.message, "- falling back to custom flow");
-    }
+    // Note: We do NOT create an auth user here. The user account is created
+    // only when the client completes their setup (validate-invite-token action=setup).
+    // This prevents the "account already exists" error during password creation.
+    console.log("Invite created for:", email.toLowerCase(), "Setup URL:", setupUrl);
 
     return new Response(
       JSON.stringify({

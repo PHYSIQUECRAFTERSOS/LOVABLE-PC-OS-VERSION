@@ -132,16 +132,9 @@ const ClientSetup = () => {
         setStep("complete");
         setTimeout(() => navigate("/dashboard"), 2000);
       } else {
-        const code = result?.errorCode;
         const msg = result?.message || "Something went wrong.";
-        console.error("[Setup] Setup failed:", code, msg);
-
-        if (code === "USER_EXISTS") {
-          toast({ title: "Account already exists", description: "Please sign in with your credentials.", variant: "destructive" });
-          setTimeout(() => navigate("/auth"), 2000);
-        } else {
-          toast({ title: "Error", description: msg, variant: "destructive" });
-        }
+        console.error("[Setup] Setup failed:", result?.errorCode, msg);
+        toast({ title: "Error", description: msg, variant: "destructive" });
       }
     } catch (err: any) {
       console.error("[Setup] Unexpected error:", err);
