@@ -1754,6 +1754,89 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          app_version: string | null
+          created_at: string
+          document_id: string
+          document_type: string
+          document_version: number
+          id: string
+          ip_address: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          app_version?: string | null
+          created_at?: string
+          document_id: string
+          document_type: string
+          document_version: number
+          id?: string
+          ip_address?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          app_version?: string | null
+          created_at?: string
+          document_id?: string
+          document_type?: string
+          document_version?: number
+          id?: string
+          ip_address?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_acceptances_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_documents: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string | null
+          document_type: string
+          effective_date: string
+          id: string
+          is_current: boolean
+          title: string
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by?: string | null
+          document_type: string
+          effective_date?: string
+          id?: string
+          is_current?: boolean
+          title: string
+          updated_at?: string
+          version_number?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          document_type?: string
+          effective_date?: string
+          id?: string
+          is_current?: boolean
+          title?: string
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: []
+      }
       macro_adjustment_history: {
         Row: {
           adjustment_date: string
