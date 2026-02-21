@@ -53,6 +53,7 @@ const Training = () => {
       .from("workout_exercises")
       .select(`
         id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override,
+        progression_type, weight_increment, increment_type, rpe_threshold, progression_mode,
         exercises (id, name, youtube_url, video_url)
       `)
       .eq("workout_id", workoutId)
@@ -69,6 +70,13 @@ const Training = () => {
         rir: we.rir,
         notes: we.notes,
         videoUrl: we.video_override || we.exercises.youtube_url || we.exercises.video_url || null,
+        progression: {
+          progressionType: we.progression_type || "double",
+          weightIncrement: we.weight_increment || 5,
+          incrementType: we.increment_type || "fixed",
+          rpeThreshold: we.rpe_threshold || 8,
+          progressionMode: we.progression_mode || "moderate",
+        },
         logs: Array.from({ length: we.sets }, (_, idx) => ({
           setNumber: idx + 1,
           weight: undefined,

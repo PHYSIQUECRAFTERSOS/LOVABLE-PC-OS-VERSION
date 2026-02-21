@@ -29,6 +29,20 @@ const REST_OPTIONS = [
   { label: "5 minutes", value: 300 },
 ];
 
+const PROGRESSION_TYPES = [
+  { label: "Double Progression", value: "double", desc: "Increase reps first, then weight" },
+  { label: "Linear", value: "linear", desc: "Fixed weight increase each session" },
+  { label: "RPE-Based", value: "rpe", desc: "Adjust based on RPE feedback" },
+  { label: "Percentage", value: "percentage", desc: "Percentage-based increments" },
+  { label: "Manual", value: "manual", desc: "Coach controls all changes" },
+];
+
+const PROGRESSION_MODES = [
+  { label: "Conservative", value: "conservative" },
+  { label: "Moderate", value: "moderate" },
+  { label: "Aggressive", value: "aggressive" },
+];
+
 interface WorkoutExerciseForm {
   exerciseId: string;
   exerciseName: string;
@@ -41,6 +55,11 @@ interface WorkoutExerciseForm {
   videoOverride: string;
   youtubeUrl?: string;
   youtubeThumbnail?: string;
+  progressionType: string;
+  weightIncrement: number;
+  incrementType: string;
+  rpeThreshold: number;
+  progressionMode: string;
 }
 
 interface WorkoutBuilderProps {
@@ -74,6 +93,11 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
         videoOverride: "",
         youtubeUrl: exercise.youtube_url || "",
         youtubeThumbnail: exercise.youtube_thumbnail || "",
+        progressionType: "double",
+        weightIncrement: 5,
+        incrementType: "fixed",
+        rpeThreshold: 8,
+        progressionMode: "moderate",
       },
     ]);
     setShowExercisePicker(false);
@@ -152,6 +176,11 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
         rir: ex.rir || null,
         notes: ex.notes || null,
         video_override: ex.videoOverride || null,
+        progression_type: ex.progressionType,
+        weight_increment: ex.weightIncrement,
+        increment_type: ex.incrementType,
+        rpe_threshold: ex.rpeThreshold,
+        progression_mode: ex.progressionMode,
       }));
 
       const { error: exError } = await supabase.from("workout_exercises").insert(workoutExercisesData);
@@ -305,11 +334,11 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                   />
                 </div>
 
-                {/* Collapsible Notes & Video Override */}
+                {/* Collapsible Notes, Video & Progression */}
                 <Collapsible>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1 h-6 px-2">
-                      <ChevronDown className="h-3 w-3" /> Notes & Video Override
+                      <ChevronDown className="h-3 w-3" /> Notes, Progression & Video
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 pt-2">
@@ -331,6 +360,78 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                         placeholder="YouTube or direct video URL"
                         className="text-xs h-8"
                       />
+                    </div>
+
+                    {/* Progression Settings */}
+                    <div className="border-t border-border pt-3 mt-2 space-y-3">
+                      <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wide">Auto Progression</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">Progression Type</Label>
+                          <Select
+                            value={ex.progressionType}
+                            onValueChange={(v) => updateExercise(idx, "progressionType", v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {PROGRESSION_TYPES.map(p => (
+                                <SelectItem key={p.value} value={p.value}>
+                                  <span>{p.label}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">Mode</Label>
+                          <Select
+                            value={ex.progressionMode}
+                            onValueChange={(v) => updateExercise(idx, "progressionMode", v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {PROGRESSION_MODES.map(m => (
+                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">Increment</Label>
+                          <Input
+                            type="number"
+                            value={ex.weightIncrement}
+                            onChange={(e) => updateExercise(idx, "weightIncrement", parseFloat(e.target.value) || 5)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">Type</Label>
+                          <Select
+                            value={ex.incrementType}
+                            onValueChange={(v) => updateExercise(idx, "incrementType", v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="fixed">Fixed (lbs)</SelectItem>
+                              <SelectItem value="percentage">Percentage (%)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] text-muted-foreground">RPE Target</Label>
+                          <Input
+                            type="number"
+                            min={5}
+                            max={10}
+                            value={ex.rpeThreshold}
+                            onChange={(e) => updateExercise(idx, "rpeThreshold", parseFloat(e.target.value) || 8)}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

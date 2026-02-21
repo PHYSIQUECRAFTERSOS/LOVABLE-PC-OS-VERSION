@@ -6,6 +6,7 @@ import ComplianceScore from "@/components/dashboard/ComplianceScore";
 import StepsCard from "@/components/dashboard/StepsCard";
 import ClientCards from "@/components/dashboard/ClientCards";
 import RecommitFlow from "@/components/retention/RecommitFlow";
+import PlateauDetection from "@/components/training/PlateauDetection";
 
 const Dashboard = () => {
   const { role } = useAuth();
@@ -39,6 +40,7 @@ const Dashboard = () => {
         {(role === "coach" || role === "admin") && (
           <div className="space-y-6">
             <ClientCards />
+            <PlateauDetection />
           </div>
         )}
       </div>

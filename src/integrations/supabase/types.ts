@@ -2401,6 +2401,69 @@ export type Database = {
           },
         ]
       }
+      plateau_flags: {
+        Row: {
+          client_id: string
+          coach_id: string | null
+          created_at: string
+          exercise_id: string
+          flagged_at: string
+          id: string
+          last_reps: number | null
+          last_rpe: number | null
+          last_weight: number | null
+          resolution: string | null
+          resolved_at: string | null
+          stagnant_sessions: number | null
+          workout_id: string
+        }
+        Insert: {
+          client_id: string
+          coach_id?: string | null
+          created_at?: string
+          exercise_id: string
+          flagged_at?: string
+          id?: string
+          last_reps?: number | null
+          last_rpe?: number | null
+          last_weight?: number | null
+          resolution?: string | null
+          resolved_at?: string | null
+          stagnant_sessions?: number | null
+          workout_id: string
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string | null
+          created_at?: string
+          exercise_id?: string
+          flagged_at?: string
+          id?: string
+          last_reps?: number | null
+          last_rpe?: number | null
+          last_weight?: number | null
+          resolution?: string | null
+          resolved_at?: string | null
+          stagnant_sessions?: number | null
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plateau_flags_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plateau_flags_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -3396,14 +3459,19 @@ export type Database = {
           exercise_id: string
           exercise_order: number
           id: string
+          increment_type: string | null
           notes: string | null
+          progression_mode: string | null
+          progression_type: string | null
           reps: string | null
           rest_seconds: number | null
           rir: number | null
+          rpe_threshold: number | null
           sets: number
           tempo: string | null
           updated_at: string
           video_override: string | null
+          weight_increment: number | null
           workout_id: string
         }
         Insert: {
@@ -3411,14 +3479,19 @@ export type Database = {
           exercise_id: string
           exercise_order: number
           id?: string
+          increment_type?: string | null
           notes?: string | null
+          progression_mode?: string | null
+          progression_type?: string | null
           reps?: string | null
           rest_seconds?: number | null
           rir?: number | null
+          rpe_threshold?: number | null
           sets: number
           tempo?: string | null
           updated_at?: string
           video_override?: string | null
+          weight_increment?: number | null
           workout_id: string
         }
         Update: {
@@ -3426,14 +3499,19 @@ export type Database = {
           exercise_id?: string
           exercise_order?: number
           id?: string
+          increment_type?: string | null
           notes?: string | null
+          progression_mode?: string | null
+          progression_type?: string | null
           reps?: string | null
           rest_seconds?: number | null
           rir?: number | null
+          rpe_threshold?: number | null
           sets?: number
           tempo?: string | null
           updated_at?: string
           video_override?: string | null
+          weight_increment?: number | null
           workout_id?: string
         }
         Relationships: [

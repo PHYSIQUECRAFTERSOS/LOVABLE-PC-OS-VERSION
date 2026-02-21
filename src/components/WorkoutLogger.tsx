@@ -3,13 +3,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Check, ChevronLeft, ChevronRight, Trophy, Timer } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, Trophy, Timer, TrendingUp, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import RestTimer from "./RestTimer";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+
+interface ProgressionSettings {
+  progressionType: string;
+  weightIncrement: number;
+  incrementType: string;
+  rpeThreshold: number;
+  progressionMode: string;
+}
 
 interface ExerciseLogForm {
   id: string;
@@ -20,6 +28,7 @@ interface ExerciseLogForm {
   restSeconds: number;
   rir?: number;
   notes: string;
+  progression?: ProgressionSettings;
   logs: {
     setNumber: number;
     weight?: number;
@@ -67,6 +76,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const currentExercise = exercises[currentExerciseIdx];
 
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
+  const [suggestedWeights, setSuggestedWeights] = useState<Record<string, number>>({});
 
   // Load existing PRs and previous performance
   useEffect(() => {
@@ -104,6 +114,73 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             grouped[l.exercise_id].push(l);
           });
           setPreviousPerformance(grouped);
+
+          // Compute suggested weights based on progression settings
+          const suggestions: Record<string, number> = {};
+          initialExercises.forEach(ex => {
+            const prevLogs = grouped[ex.id];
+            if (!prevLogs || prevLogs.length === 0 || !ex.progression) return;
+            const prog = ex.progression;
+            const avgWeight = prevLogs.reduce((s, l) => s + (l.weight || 0), 0) / prevLogs.length;
+            const avgReps = prevLogs.reduce((s, l) => s + (l.reps || 0), 0) / prevLogs.length;
+            const avgRpe = prevLogs.filter(l => l.rir != null).length > 0
+              ? 10 - (prevLogs.reduce((s, l) => s + (l.rir ?? 0), 0) / prevLogs.filter(l => l.rir != null).length)
+              : null;
+
+            // Parse rep range
+            const repRange = ex.reps.replace(/[–—]/g, "-");
+            const [minReps, maxReps] = repRange.split("-").map(Number);
+            const topReps = maxReps || minReps || 10;
+            const bottomReps = minReps || 8;
+
+            if (prog.progressionType === "manual") {
+              suggestions[ex.id] = avgWeight;
+              return;
+            }
+
+            let suggested = avgWeight;
+
+            if (prog.progressionType === "double") {
+              // Double progression: if hit top of range on all sets, increase weight
+              const allHitTop = prevLogs.every(l => (l.reps ?? 0) >= topReps);
+              const anyBelowMin = prevLogs.some(l => (l.reps ?? 0) < bottomReps);
+              const rpeOk = avgRpe === null || avgRpe <= prog.rpeThreshold;
+
+              if (allHitTop && rpeOk) {
+                if (prog.incrementType === "percentage") {
+                  suggested = Math.round(avgWeight * (1 + prog.weightIncrement / 100) * 2) / 2;
+                } else {
+                  suggested = avgWeight + prog.weightIncrement;
+                }
+              } else if (anyBelowMin) {
+                suggested = Math.round(avgWeight * 0.95 * 2) / 2;
+              }
+            } else if (prog.progressionType === "linear") {
+              if (prog.incrementType === "percentage") {
+                suggested = Math.round(avgWeight * (1 + prog.weightIncrement / 100) * 2) / 2;
+              } else {
+                suggested = avgWeight + prog.weightIncrement;
+              }
+            } else if (prog.progressionType === "rpe") {
+              if (avgRpe !== null) {
+                if (avgRpe < prog.rpeThreshold - 0.5) {
+                  const mult = prog.progressionMode === "aggressive" ? 1.05 : prog.progressionMode === "conservative" ? 1.02 : 1.03;
+                  suggested = Math.round(avgWeight * mult * 2) / 2;
+                } else if (avgRpe > prog.rpeThreshold + 0.5) {
+                  suggested = Math.round(avgWeight * 0.97 * 2) / 2;
+                }
+              }
+            } else if (prog.progressionType === "percentage") {
+              if (prog.incrementType === "percentage") {
+                suggested = Math.round(avgWeight * (1 + prog.weightIncrement / 100) * 2) / 2;
+              } else {
+                suggested = avgWeight + prog.weightIncrement;
+              }
+            }
+
+            suggestions[ex.id] = Math.round(suggested * 2) / 2;
+          });
+          setSuggestedWeights(suggestions);
         }
       }
     };
@@ -203,6 +280,58 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             _weight: alert.weight,
             _reps: alert.reps,
           });
+        }
+      }
+
+      // Plateau detection: check for stagnation
+      for (const ex of exercises) {
+        const prev = previousPerformance[ex.id];
+        if (!prev || prev.length === 0) continue;
+
+        const currentLogs = ex.logs.filter(l => l.completed);
+        if (currentLogs.length === 0) continue;
+
+        const prevAvgWeight = prev.reduce((s, l) => s + (l.weight || 0), 0) / prev.length;
+        const currAvgWeight = currentLogs.reduce((s, l) => s + (l.weight || 0), 0) / currentLogs.length;
+        const prevAvgReps = prev.reduce((s, l) => s + (l.reps || 0), 0) / prev.length;
+        const currAvgReps = currentLogs.reduce((s, l) => s + (l.reps || 0), 0) / currentLogs.length;
+
+        // If weight hasn't increased and reps stagnated
+        const weightStagnant = Math.abs(currAvgWeight - prevAvgWeight) < 2.5;
+        const repsStagnant = Math.abs(currAvgReps - prevAvgReps) < 1;
+
+        if (weightStagnant && repsStagnant) {
+          // Check how many sessions have been stagnant
+          const { data: recentSessions } = await supabase
+            .from("workout_sessions")
+            .select("id")
+            .eq("client_id", user.id)
+            .eq("workout_id", workoutId)
+            .order("created_at", { ascending: false })
+            .limit(3);
+
+          if (recentSessions && recentSessions.length >= 3) {
+            // Check if already flagged
+            const { data: existingFlag } = await supabase
+              .from("plateau_flags")
+              .select("id")
+              .eq("client_id", user.id)
+              .eq("exercise_id", ex.id)
+              .eq("workout_id", workoutId)
+              .is("resolved_at", null)
+              .maybeSingle();
+
+            if (!existingFlag) {
+              await supabase.from("plateau_flags").insert({
+                client_id: user.id,
+                exercise_id: ex.id,
+                workout_id: workoutId,
+                stagnant_sessions: recentSessions.length,
+                last_weight: currAvgWeight,
+                last_reps: Math.round(currAvgReps),
+              });
+            }
+          }
         }
       }
 
@@ -317,6 +446,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           })()}
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* Suggested Weight Banner */}
+          {suggestedWeights[currentExercise.id] && (
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/10 border border-primary/20">
+              <TrendingUp className="h-4 w-4 text-primary flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs font-medium text-foreground">
+                  Suggested Weight: {suggestedWeights[currentExercise.id]} lbs
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  Based on {currentExercise.progression?.progressionType === "double" ? "double progression" : currentExercise.progression?.progressionType || "progression"} logic
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => {
+                  const newEx = [...exercises];
+                  newEx[currentExerciseIdx].logs.forEach((log, i) => {
+                    if (!log.completed && !log.weight) {
+                      newEx[currentExerciseIdx].logs[i].weight = suggestedWeights[currentExercise.id];
+                    }
+                  });
+                  setExercises(newEx);
+                }}
+              >
+                Apply
+              </Button>
+            </div>
+          )}
+
           {currentExercise.notes && (
             <div className="p-2 rounded bg-secondary/50 text-xs text-muted-foreground">
               {currentExercise.notes}
