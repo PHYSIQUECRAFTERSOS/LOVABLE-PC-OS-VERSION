@@ -2449,6 +2449,72 @@ export type Database = {
         }
         Relationships: []
       }
+      onboarding_profiles: {
+        Row: {
+          activity_level: string | null
+          age: number | null
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          current_weight_kg: number | null
+          digestive_issues: string[] | null
+          estimated_body_fat_pct: number | null
+          food_intolerances: string[] | null
+          health_sync_status: string
+          height_cm: number | null
+          id: string
+          injuries: string | null
+          onboarding_completed: boolean
+          primary_goal: string | null
+          surgeries: string | null
+          tracked_macros_before: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activity_level?: string | null
+          age?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          current_weight_kg?: number | null
+          digestive_issues?: string[] | null
+          estimated_body_fat_pct?: number | null
+          food_intolerances?: string[] | null
+          health_sync_status?: string
+          height_cm?: number | null
+          id?: string
+          injuries?: string | null
+          onboarding_completed?: boolean
+          primary_goal?: string | null
+          surgeries?: string | null
+          tracked_macros_before?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activity_level?: string | null
+          age?: number | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          current_weight_kg?: number | null
+          digestive_issues?: string[] | null
+          estimated_body_fat_pct?: number | null
+          food_intolerances?: string[] | null
+          health_sync_status?: string
+          height_cm?: number | null
+          id?: string
+          injuries?: string | null
+          onboarding_completed?: boolean
+          primary_goal?: string | null
+          surgeries?: string | null
+          tracked_macros_before?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       personal_records: {
         Row: {
           client_id: string
