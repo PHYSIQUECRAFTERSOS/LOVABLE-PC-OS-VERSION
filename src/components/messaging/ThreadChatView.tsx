@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Send, CheckCheck, Check, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import UserAvatar from "@/components/profile/UserAvatar";
 
 interface Message {
   id: string;
@@ -18,14 +19,16 @@ interface Message {
 interface ThreadChatViewProps {
   threadId: string;
   otherUserName: string;
+  otherUserAvatar?: string | null;
   onBack?: () => void;
 }
 
-const ThreadChatView = ({ threadId, otherUserName, onBack }: ThreadChatViewProps) => {
+const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: ThreadChatViewProps) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -55,6 +58,12 @@ const ThreadChatView = ({ threadId, otherUserName, onBack }: ThreadChatViewProps
 
   useEffect(() => {
     fetchMessages();
+
+    // Fetch my avatar
+    if (user) {
+      supabase.from("profiles").select("avatar_url").eq("user_id", user.id).single()
+        .then(({ data }) => setMyAvatarUrl(data?.avatar_url || null));
+    }
 
     const channel = supabase
       .channel(`thread-chat-${threadId}`)
@@ -122,11 +131,7 @@ const ThreadChatView = ({ threadId, otherUserName, onBack }: ThreadChatViewProps
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-          <span className="text-sm font-semibold text-muted-foreground">
-            {otherUserName.charAt(0).toUpperCase()}
-          </span>
-        </div>
+        <UserAvatar src={otherUserAvatar} name={otherUserName} className="h-8 w-8 text-xs" />
         <h2 className="font-medium text-foreground truncate">{otherUserName}</h2>
       </div>
 
@@ -140,8 +145,11 @@ const ThreadChatView = ({ threadId, otherUserName, onBack }: ThreadChatViewProps
         {messages.map((msg) => {
           const isOwn = msg.sender_id === user?.id;
           return (
-            <div key={msg.id} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
-              <div className={cn("max-w-[75%] space-y-1")}>
+            <div key={msg.id} className={cn("flex gap-2", isOwn ? "justify-end" : "justify-start")}>
+              {!isOwn && (
+                <UserAvatar src={otherUserAvatar} name={otherUserName} className="h-7 w-7 text-[10px] mt-1 ring-1" />
+              )}
+              <div className={cn("max-w-[70%] space-y-1")}>
                 <div
                   className={cn(
                     "rounded-2xl px-4 py-2 text-sm",
@@ -161,6 +169,9 @@ const ThreadChatView = ({ threadId, otherUserName, onBack }: ThreadChatViewProps
                   )}
                 </div>
               </div>
+              {isOwn && (
+                <UserAvatar src={myAvatarUrl} name="Me" className="h-7 w-7 text-[10px] mt-1 ring-1" />
+              )}
             </div>
           );
         })}

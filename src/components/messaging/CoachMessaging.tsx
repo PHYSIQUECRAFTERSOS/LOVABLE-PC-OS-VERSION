@@ -10,6 +10,7 @@ const CoachMessaging = () => {
   const { user } = useAuth();
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeClientName, setActiveClientName] = useState("");
+  const [activeClientAvatar, setActiveClientAvatar] = useState<string | null>(null);
 
   const handleSelectThread = async (threadId: string) => {
     setActiveThreadId(threadId);
@@ -24,10 +25,11 @@ const CoachMessaging = () => {
     if (thread) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, avatar_url")
         .eq("user_id", thread.client_id)
         .single();
       setActiveClientName(profile?.full_name || "Client");
+      setActiveClientAvatar(profile?.avatar_url || null);
     }
   };
 
@@ -59,6 +61,7 @@ const CoachMessaging = () => {
           <ThreadChatView
             threadId={activeThreadId}
             otherUserName={activeClientName}
+            otherUserAvatar={activeClientAvatar}
             onBack={() => setActiveThreadId(null)}
           />
         ) : (

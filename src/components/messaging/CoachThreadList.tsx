@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { MessageSquare, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from "date-fns";
+import UserAvatar from "@/components/profile/UserAvatar";
 
 interface Thread {
   id: string;
@@ -12,6 +13,7 @@ interface Thread {
   updated_at: string;
   is_archived: boolean;
   clientName: string;
+  clientAvatar?: string | null;
   lastMessage?: string;
   unreadCount: number;
 }
@@ -46,11 +48,15 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
     const clientIds = rawThreads.map(t => t.client_id);
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("user_id, full_name")
+      .select("user_id, full_name, avatar_url")
       .in("user_id", clientIds);
 
     const nameMap: Record<string, string> = {};
-    (profiles || []).forEach(p => { nameMap[p.user_id] = p.full_name || "Unnamed Client"; });
+    const avatarMap: Record<string, string | null> = {};
+    (profiles || []).forEach(p => {
+      nameMap[p.user_id] = p.full_name || "Unnamed Client";
+      avatarMap[p.user_id] = p.avatar_url || null;
+    });
 
     const enriched = await Promise.all(rawThreads.map(async (thread) => {
       // Last message
@@ -75,6 +81,7 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
         updated_at: thread.updated_at,
         is_archived: thread.is_archived,
         clientName: nameMap[thread.client_id] || "Unnamed Client",
+        clientAvatar: avatarMap[thread.client_id],
         lastMessage: lastMsg?.[0]?.content,
         unreadCount: count || 0,
       };
@@ -138,11 +145,11 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
               activeThreadId === thread.id ? "bg-primary/10" : "hover:bg-secondary"
             )}
           >
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted">
-              <span className="text-sm font-semibold text-muted-foreground">
-                {thread.clientName.charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <UserAvatar
+              src={thread.clientAvatar}
+              name={thread.clientName}
+              className="h-9 w-9 text-xs mt-0.5"
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground truncate">
