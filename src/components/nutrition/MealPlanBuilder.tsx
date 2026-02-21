@@ -97,8 +97,16 @@ const MealPlanBuilder = () => {
   const [planName, setPlanName] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
+  const DEFAULT_MEALS: Meal[] = [
+    { id: uid(), name: "Breakfast", foods: [] },
+    { id: uid(), name: "Pre-Workout", foods: [] },
+    { id: uid(), name: "Post-Workout", foods: [] },
+    { id: uid(), name: "Lunch", foods: [] },
+    { id: uid(), name: "Dinner", foods: [] },
+    { id: uid(), name: "Snacks", foods: [] },
+  ];
   const [days, setDays] = useState<DayType[]>([
-    { id: uid(), type: "Training Day", meals: [{ id: uid(), name: "Meal 1", foods: [] }] },
+    { id: uid(), type: "Training Day", meals: DEFAULT_MEALS },
   ]);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -257,9 +265,17 @@ const MealPlanBuilder = () => {
   };
 
   const addDay = () => {
+    const newMeals: Meal[] = [
+      { id: uid(), name: "Breakfast", foods: [] },
+      { id: uid(), name: "Pre-Workout", foods: [] },
+      { id: uid(), name: "Post-Workout", foods: [] },
+      { id: uid(), name: "Lunch", foods: [] },
+      { id: uid(), name: "Dinner", foods: [] },
+      { id: uid(), name: "Snacks", foods: [] },
+    ];
     setDays((prev) => [
       ...prev,
-      { id: uid(), type: "Rest Day", meals: [{ id: uid(), name: "Meal 1", foods: [] }] },
+      { id: uid(), type: "Rest Day", meals: newMeals },
     ]);
   };
 
@@ -381,7 +397,15 @@ const MealPlanBuilder = () => {
       toast({ title: "Meal plan saved!" });
       setPlanName("");
       setSelectedClient("");
-      setDays([{ id: uid(), type: "Training Day", meals: [{ id: uid(), name: "Meal 1", foods: [] }] }]);
+      const resetMeals: Meal[] = [
+        { id: uid(), name: "Breakfast", foods: [] },
+        { id: uid(), name: "Pre-Workout", foods: [] },
+        { id: uid(), name: "Post-Workout", foods: [] },
+        { id: uid(), name: "Lunch", foods: [] },
+        { id: uid(), name: "Dinner", foods: [] },
+        { id: uid(), name: "Snacks", foods: [] },
+      ];
+      setDays([{ id: uid(), type: "Training Day", meals: resetMeals }]);
     } catch (err: any) {
       toast({ title: "Error saving", description: err?.message, variant: "destructive" });
     } finally {

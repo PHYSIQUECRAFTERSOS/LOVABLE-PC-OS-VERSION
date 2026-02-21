@@ -1,120 +1,133 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, ChevronDown, ChevronUp, ClipboardList, Plus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  ClipboardCopy,
+  PlusCircle,
+  Zap,
+  Utensils,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FoodIcon from "@/lib/foodIcons";
+import {
+  useMealPlanTracker,
+  MEAL_SECTIONS,
+  mapMealNameToKey,
+  type MealPlanFood,
+} from "@/hooks/useMealPlanTracker";
+import { format } from "date-fns";
 
-interface MealPlanItem {
-  id: string;
-  food_item_id: string | null;
-  custom_name: string | null;
-  meal_name: string;
-  gram_amount: number;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  meal_order: number;
-  item_order: number;
-  day_id: string | null;
+interface ClientStructuredMealPlanProps {
+  selectedDate?: Date;
+  onLogged?: () => void;
 }
 
-interface MealPlanDay {
-  id: string;
-  day_type: string;
-  day_order: number;
-}
-
-interface MealPlan {
-  id: string;
-  name: string;
-  flexibility_mode: boolean;
-  coach_id: string;
-}
-
-const ClientStructuredMealPlan = () => {
+const ClientStructuredMealPlan = ({
+  selectedDate,
+  onLogged,
+}: ClientStructuredMealPlanProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [expandedDay, setExpandedDay] = useState<string | null>(null);
-  const [completedMeals, setCompletedMeals] = useState<Set<string>>(new Set());
+  const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(MEAL_SECTIONS.map((s) => s.key))
+  );
+  const [completedSections, setCompletedSections] = useState<Set<string>>(new Set());
+  const [autoTrack, setAutoTrack] = useState(false);
+  const [copyingSection, setCopyingSection] = useState<string | null>(null);
 
-  const { data: plan } = useQuery({
-    queryKey: ["client-structured-plan", user?.id],
-    queryFn: async () => {
-      // Get the most recent assigned meal plan
-      const { data: plans } = await supabase
-        .from("meal_plans")
-        .select("id, name, flexibility_mode, coach_id")
-        .eq("client_id", user!.id)
-        .eq("is_template", false)
-        .order("created_at", { ascending: false })
-        .limit(1);
+  const {
+    plan,
+    days,
+    items,
+    getItemsBySection,
+    getItemsForMealSection,
+    copyMealToTracker,
+    copyEntireDayToTracker,
+  } = useMealPlanTracker(selectedDate);
 
-      if (!plans || plans.length === 0) return null;
-      return plans[0] as MealPlan;
-    },
-    enabled: !!user,
-  });
+  // Auto-select first day
+  useEffect(() => {
+    if (days && days.length > 0 && !selectedDayId) {
+      setSelectedDayId(days[0].id);
+    }
+  }, [days, selectedDayId]);
 
-  const { data: days } = useQuery({
-    queryKey: ["plan-days", plan?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("meal_plan_days")
-        .select("*")
-        .eq("meal_plan_id", plan!.id)
-        .order("day_order");
-      return (data || []) as MealPlanDay[];
-    },
-    enabled: !!plan,
-  });
+  // Auto-track entire day
+  useEffect(() => {
+    if (autoTrack && selectedDayId && items) {
+      handleAutoTrack();
+    }
+  }, [autoTrack, selectedDayId]);
 
-  const { data: items } = useQuery({
-    queryKey: ["plan-items", plan?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("meal_plan_items")
-        .select("*")
-        .eq("meal_plan_id", plan!.id)
-        .order("meal_order")
-        .order("item_order");
-      return (data || []) as MealPlanItem[];
-    },
-    enabled: !!plan,
-  });
+  const handleAutoTrack = async () => {
+    if (!selectedDayId) return;
+    const success = await copyEntireDayToTracker(selectedDayId);
+    if (success) {
+      setCompletedSections(new Set(MEAL_SECTIONS.map((s) => s.key)));
+      onLogged?.();
+    }
+  };
 
-  const logFoodToTracker = async (item: MealPlanItem) => {
+  const handleCopySection = async (mealKey: string) => {
+    if (!selectedDayId) return;
+    setCopyingSection(mealKey);
+
+    const sectionItems = getItemsForMealSection(selectedDayId, mealKey);
+    const success = await copyMealToTracker(sectionItems, mealKey);
+
+    if (success) {
+      toast({ title: `${sectionItems.length} items added to tracker` });
+      setCompletedSections((prev) => new Set([...prev, mealKey]));
+      onLogged?.();
+    }
+
+    setCopyingSection(null);
+  };
+
+  const handleAddSingleItem = async (item: MealPlanFood) => {
     if (!user) return;
+    const mealKey = mapMealNameToKey(item.meal_name);
+    const dateStr = selectedDate
+      ? format(selectedDate, "yyyy-MM-dd")
+      : format(new Date(), "yyyy-MM-dd");
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: item.food_item_id,
       custom_name: item.custom_name,
-      meal_type: "custom",
+      meal_type: mealKey,
       servings: 1,
       calories: item.calories,
       protein: item.protein,
       carbs: item.carbs,
       fat: item.fat,
+      logged_at: dateStr,
     });
 
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: `${item.custom_name} logged to tracker` });
+      toast({ title: `${item.custom_name} logged` });
+      onLogged?.();
     }
   };
 
-  const toggleMealComplete = (mealKey: string) => {
-    setCompletedMeals((prev) => {
+  const toggleSection = (key: string) => {
+    setExpandedSections((prev) => {
       const next = new Set(prev);
-      if (next.has(mealKey)) next.delete(mealKey);
-      else next.add(mealKey);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -134,131 +147,247 @@ const ClientStructuredMealPlan = () => {
 
   if (!days || !items) return null;
 
-  // Group items by day and meal
-  const getItemsForDay = (dayId: string) => {
-    const dayItems = items.filter((i) => i.day_id === dayId);
-    const mealGroups: Record<string, { name: string; order: number; items: MealPlanItem[] }> = {};
-    dayItems.forEach((item) => {
-      if (!mealGroups[item.meal_name]) {
-        mealGroups[item.meal_name] = { name: item.meal_name, order: item.meal_order, items: [] };
-      }
-      mealGroups[item.meal_name].items.push(item);
-    });
-    return Object.values(mealGroups).sort((a, b) => a.order - b.order);
-  };
+  const sectionsByDay = selectedDayId ? getItemsBySection(selectedDayId) : {};
 
-  const getDayTotals = (dayId: string) => {
-    const dayItems = items.filter((i) => i.day_id === dayId);
-    return dayItems.reduce(
-      (acc, i) => ({
-        calories: acc.calories + i.calories,
-        protein: acc.protein + i.protein,
-        carbs: acc.carbs + i.carbs,
-        fat: acc.fat + i.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    );
-  };
+  // Day totals
+  const dayTotals = selectedDayId
+    ? items
+        .filter((i) => i.day_id === selectedDayId)
+        .reduce(
+          (acc, i) => ({
+            calories: acc.calories + i.calories,
+            protein: acc.protein + i.protein,
+            carbs: acc.carbs + i.carbs,
+            fat: acc.fat + i.fat,
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        )
+    : { calories: 0, protein: 0, carbs: 0, fat: 0 };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
-        {plan.flexibility_mode && (
-          <Badge variant="secondary" className="text-xs">Flex Mode</Badge>
-        )}
+        <div>
+          <h3 className="text-base font-semibold text-foreground">{plan.name}</h3>
+          {plan.flexibility_mode && (
+            <Badge variant="secondary" className="text-xs mt-1">
+              Flex Mode
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="auto-track" className="text-xs text-muted-foreground cursor-pointer">
+            Auto Track
+          </Label>
+          <Switch
+            id="auto-track"
+            checked={autoTrack}
+            onCheckedChange={setAutoTrack}
+            className="data-[state=checked]:bg-primary"
+          />
+        </div>
       </div>
 
-      {days.map((day) => {
-        const isExpanded = expandedDay === day.id;
-        const totals = getDayTotals(day.id);
-        const meals = getItemsForDay(day.id);
+      {/* Day Selector */}
+      {days.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {days.map((day) => (
+            <button
+              key={day.id}
+              onClick={() => {
+                setSelectedDayId(day.id);
+                setCompletedSections(new Set());
+              }}
+              className={cn(
+                "whitespace-nowrap px-3.5 py-1.5 text-xs font-medium rounded-full transition-all shrink-0",
+                selectedDayId === day.id
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              )}
+            >
+              {day.day_type}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Day Totals Bar */}
+      <div className="rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Daily Total
+          </span>
+          <div className="flex items-center gap-3">
+            <MacroPill label="Cal" value={dayTotals.calories} color="text-foreground" />
+            <MacroPill label="P" value={dayTotals.protein} color="text-red-400" />
+            <MacroPill label="C" value={dayTotals.carbs} color="text-blue-400" />
+            <MacroPill label="F" value={dayTotals.fat} color="text-yellow-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Meal Sections */}
+      {MEAL_SECTIONS.map(({ key, label }) => {
+        const sectionItems = sectionsByDay[key] || [];
+        const isExpanded = expandedSections.has(key);
+        const isCompleted = completedSections.has(key);
+        const isCopying = copyingSection === key;
+
+        const sectionTotals = sectionItems.reduce(
+          (acc, i) => ({
+            calories: acc.calories + i.calories,
+            protein: acc.protein + i.protein,
+            carbs: acc.carbs + i.carbs,
+            fat: acc.fat + i.fat,
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        );
+
+        if (sectionItems.length === 0) return null;
 
         return (
-          <Card key={day.id}>
+          <div
+            key={key}
+            className={cn(
+              "rounded-lg border overflow-hidden transition-all",
+              isCompleted ? "border-primary/30 opacity-70" : "border-border bg-card"
+            )}
+          >
+            {/* Section Header */}
             <button
-              onClick={() => setExpandedDay(isExpanded ? null : day.id)}
+              onClick={() => toggleSection(key)}
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/30 transition-colors"
             >
-              <span className="text-sm font-semibold text-foreground">{day.day_type}</span>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
+                {isCompleted && (
+                  <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="h-3 w-3 text-primary-foreground" />
+                  </div>
+                )}
+                <Utensils className={cn("h-4 w-4", isCompleted ? "text-primary" : "text-muted-foreground")} />
+                <span className="text-sm font-semibold text-foreground">{label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {totals.calories}cal · {totals.protein}P · {totals.carbs}C · {totals.fat}F
+                  ({sectionItems.length} item{sectionItems.length !== 1 ? "s" : ""})
                 </span>
-                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {sectionTotals.calories} cal
+                </span>
+                {isExpanded ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
               </div>
             </button>
 
             {isExpanded && (
-              <CardContent className="pt-0 space-y-3">
-                {meals.map((meal) => {
-                  const mealKey = `${day.id}::${meal.name}`;
-                  const isComplete = completedMeals.has(mealKey);
-                  const mealTotals = meal.items.reduce(
-                    (acc, i) => ({
-                      calories: acc.calories + i.calories,
-                      protein: acc.protein + i.protein,
-                      carbs: acc.carbs + i.carbs,
-                      fat: acc.fat + i.fat,
-                    }),
-                    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-                  );
+              <div>
+                {/* Section Macro Summary */}
+                <div className="px-4 py-2 border-t border-border/30 bg-secondary/20">
+                  <div className="flex items-center gap-3 text-xs">
+                    <MacroPill label="Cal" value={sectionTotals.calories} color="text-foreground" />
+                    <MacroPill label="P" value={sectionTotals.protein} color="text-red-400" />
+                    <MacroPill label="C" value={sectionTotals.carbs} color="text-blue-400" />
+                    <MacroPill label="F" value={sectionTotals.fat} color="text-yellow-400" />
+                  </div>
+                </div>
 
-                  return (
-                    <div key={mealKey} className={cn(
-                      "rounded-lg border overflow-hidden transition-opacity",
-                      isComplete ? "border-primary/30 opacity-60" : "border-border"
-                    )}>
-                      <div className="flex items-center justify-between px-3 py-2 bg-secondary/30">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleMealComplete(mealKey)}
-                            className={cn(
-                              "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                              isComplete ? "bg-primary border-primary" : "border-muted-foreground/30"
-                            )}
-                          >
-                            {isComplete && <Check className="h-3 w-3 text-primary-foreground" />}
-                          </button>
-                          <span className="text-xs font-semibold text-foreground">{meal.name}</span>
+                {/* Individual Food Items */}
+                <div className="divide-y divide-border/20">
+                  {sectionItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/10 transition-colors"
+                    >
+                      <FoodIcon name={item.custom_name || ""} size={30} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {item.custom_name}
                         </div>
-                        <span className="text-[10px] text-muted-foreground">
-                          {mealTotals.calories}cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F
-                        </span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground">
+                            {item.gram_amount}g
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/70">•</span>
+                          <span className="text-xs text-muted-foreground">
+                            {item.calories} cal
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/70">•</span>
+                          <span className="text-[10px] text-red-400/80">{item.protein}P</span>
+                          <span className="text-[10px] text-blue-400/80">{item.carbs}C</span>
+                          <span className="text-[10px] text-yellow-400/80">{item.fat}F</span>
+                        </div>
                       </div>
-                      <div className="divide-y divide-border/30">
-                        {meal.items.map((item) => (
-                          <div key={item.id} className="flex items-center gap-2 px-3 py-2">
-                            <FoodIcon name={item.custom_name || ""} size={26} />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs text-foreground">{item.custom_name}</span>
-                              <span className="text-[10px] text-muted-foreground ml-2">{item.gram_amount}g</span>
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">
-                              {item.calories}cal
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => logFoodToTracker(item)}
-                              title="Log to tracker"
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
+                      <button
+                        onClick={() => handleAddSingleItem(item)}
+                        className="h-7 w-7 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
+                        title="Add to tracker"
+                      >
+                        <PlusCircle className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  );
-                })}
-              </CardContent>
+                  ))}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 px-4 py-3 border-t border-border/30 bg-secondary/10">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-1.5 text-xs"
+                    onClick={() => handleCopySection(key)}
+                    disabled={isCopying || isCompleted}
+                  >
+                    <ClipboardCopy className="h-3.5 w-3.5" />
+                    {isCompleted ? "Copied" : "Copy From Meal Plan"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5 text-xs"
+                    onClick={() => handleCopySection(key)}
+                    disabled={isCopying || isCompleted}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    {isCopying ? "Adding..." : "Add To Food Tracker"}
+                  </Button>
+                </div>
+              </div>
             )}
-          </Card>
+          </div>
         );
       })}
+
+      {/* Empty state for sections with no items */}
+      {Object.keys(sectionsByDay).length === 0 && selectedDayId && (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              No foods assigned for this day type.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
+
+/* ── Macro Pill ── */
+const MacroPill = ({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) => (
+  <span className={cn("tabular-nums", color)}>
+    <span className="font-semibold">{Math.round(value)}</span>
+    <span className="text-muted-foreground ml-0.5">{label}</span>
+  </span>
+);
 
 export default ClientStructuredMealPlan;
