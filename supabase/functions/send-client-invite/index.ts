@@ -135,14 +135,28 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
     const setupUrl = `${origin}/setup?token=${token}`;
 
-    // Note: We do NOT create an auth user here. The user account is created
-    // only when the client completes their setup (validate-invite-token action=setup).
-    // This prevents the "account already exists" error during password creation.
-    console.log("Invite created for:", email.toLowerCase(), "Setup URL:", setupUrl);
+    // Send invite email via Supabase Auth admin
+    const { error: emailError } = await supabase.auth.admin.inviteUserByEmail(email.toLowerCase(), {
+      data: {
+        full_name: `${first_name} ${last_name}`,
+        invite_token: token,
+        invited_by: user.id,
+      },
+      redirectTo: setupUrl,
+    });
+
+    let emailSent = true;
+    if (emailError) {
+      console.error("Email send failed:", emailError.message);
+      emailSent = false;
+    } else {
+      console.log("Invite email sent successfully to:", email.toLowerCase());
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
+        email_sent: emailSent,
         invite: {
           id: invite.id,
           email: invite.email,
@@ -150,7 +164,7 @@ serve(async (req) => {
           last_name: invite.last_name,
           invite_status: invite.invite_status,
           expires_at: invite.expires_at,
-          setup_url: setupUrl,
+          setup_url: emailSent ? undefined : setupUrl,
         },
         coach_name: coachName,
       }),
