@@ -163,7 +163,7 @@ const ClientSetup = () => {
         }
 
         setStep("complete");
-        setTimeout(() => navigate("/dashboard"), 2000);
+        setTimeout(() => navigate("/onboarding"), 2000);
       } else {
         const msg = result?.message || "Something went wrong.";
         console.error("[Setup] Setup failed:", result?.errorCode, msg);
