@@ -97,9 +97,11 @@ serve(async (req) => {
         return jsonResponse({ success: false, message: "Password must be at least 8 characters", errorCode: "WEAK_PASSWORD" }, 200);
       }
 
-      console.log("[validate-invite-token] Creating user for:", invite.email);
+      console.log("[validate-invite-token] Creating/activating user for:", invite.email);
 
-      // Create user account via admin API
+      let userId: string;
+
+      // Try to create user first
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: invite.email,
         password,
@@ -110,25 +112,54 @@ serve(async (req) => {
       });
 
       if (createError) {
-        console.error("[validate-invite-token] Create user error:", createError.message);
+        console.log("[validate-invite-token] Create user result:", createError.message);
 
         if (createError.message?.includes("already been registered")) {
+          // User exists (e.g. from a previous inviteUserByEmail call) — update their password
+          const { data: listData } = await supabase.auth.admin.listUsers();
+          const existingUser = listData?.users?.find(
+            (u: any) => u.email?.toLowerCase() === invite.email.toLowerCase()
+          );
+
+          if (!existingUser) {
+            return jsonResponse({
+              success: false,
+              message: "Unable to locate your account. Please contact your coach.",
+              errorCode: "USER_LOOKUP_FAILED",
+            }, 200);
+          }
+
+          // Update password and confirm email
+          const { error: updateError } = await supabase.auth.admin.updateUserById(existingUser.id, {
+            password,
+            email_confirm: true,
+            user_metadata: {
+              full_name: `${invite.first_name} ${invite.last_name}`,
+            },
+          });
+
+          if (updateError) {
+            console.error("[validate-invite-token] Update user error:", updateError.message);
+            return jsonResponse({
+              success: false,
+              message: "We're having trouble activating your account. Please try again or contact support.",
+              errorCode: "UPDATE_FAILED",
+            }, 200);
+          }
+
+          userId = existingUser.id;
+          console.log("[validate-invite-token] Existing user activated:", userId);
+        } else {
           return jsonResponse({
             success: false,
-            message: "An account with this email already exists. Please sign in instead.",
-            errorCode: "USER_EXISTS",
+            message: "We're having trouble creating your account. Please try again or contact support.",
+            errorCode: "CREATE_FAILED",
           }, 200);
         }
-
-        return jsonResponse({
-          success: false,
-          message: "We're having trouble creating your account. Please try again or contact support.",
-          errorCode: "CREATE_FAILED",
-        }, 200);
+      } else {
+        userId = newUser.user.id;
+        console.log("[validate-invite-token] New user created:", userId);
       }
-
-      const userId = newUser.user.id;
-      console.log("[validate-invite-token] User created:", userId);
 
       // Create coach_clients assignment
       const { error: assignError } = await supabase.from("coach_clients").insert({
