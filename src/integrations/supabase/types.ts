@@ -2453,65 +2453,113 @@ export type Database = {
         Row: {
           activity_level: string | null
           age: number | null
+          baseline_assessment_date: string | null
+          baseline_photo_set_id: string | null
+          bodyfat_final_confirmed: number | null
+          bodyfat_range_high: number | null
+          bodyfat_range_low: number | null
           completed_at: string | null
+          confidence_level: string | null
           created_at: string
           current_step: number
           current_weight_kg: number | null
+          custom_allergy_text: string | null
+          custom_digestive_text: string | null
           digestive_issues: string[] | null
           estimated_body_fat_pct: number | null
           food_intolerances: string[] | null
+          gender: string | null
           health_sync_status: string
           height_cm: number | null
+          height_feet: number | null
+          height_inches: number | null
           id: string
           injuries: string | null
+          lower_body_score: number | null
+          midsection_score: number | null
           onboarding_completed: boolean
+          posture_flag: string | null
           primary_goal: string | null
           surgeries: string | null
           tracked_macros_before: boolean | null
           updated_at: string
+          upper_body_score: number | null
           user_id: string
+          weight_lb: number | null
         }
         Insert: {
           activity_level?: string | null
           age?: number | null
+          baseline_assessment_date?: string | null
+          baseline_photo_set_id?: string | null
+          bodyfat_final_confirmed?: number | null
+          bodyfat_range_high?: number | null
+          bodyfat_range_low?: number | null
           completed_at?: string | null
+          confidence_level?: string | null
           created_at?: string
           current_step?: number
           current_weight_kg?: number | null
+          custom_allergy_text?: string | null
+          custom_digestive_text?: string | null
           digestive_issues?: string[] | null
           estimated_body_fat_pct?: number | null
           food_intolerances?: string[] | null
+          gender?: string | null
           health_sync_status?: string
           height_cm?: number | null
+          height_feet?: number | null
+          height_inches?: number | null
           id?: string
           injuries?: string | null
+          lower_body_score?: number | null
+          midsection_score?: number | null
           onboarding_completed?: boolean
+          posture_flag?: string | null
           primary_goal?: string | null
           surgeries?: string | null
           tracked_macros_before?: boolean | null
           updated_at?: string
+          upper_body_score?: number | null
           user_id: string
+          weight_lb?: number | null
         }
         Update: {
           activity_level?: string | null
           age?: number | null
+          baseline_assessment_date?: string | null
+          baseline_photo_set_id?: string | null
+          bodyfat_final_confirmed?: number | null
+          bodyfat_range_high?: number | null
+          bodyfat_range_low?: number | null
           completed_at?: string | null
+          confidence_level?: string | null
           created_at?: string
           current_step?: number
           current_weight_kg?: number | null
+          custom_allergy_text?: string | null
+          custom_digestive_text?: string | null
           digestive_issues?: string[] | null
           estimated_body_fat_pct?: number | null
           food_intolerances?: string[] | null
+          gender?: string | null
           health_sync_status?: string
           height_cm?: number | null
+          height_feet?: number | null
+          height_inches?: number | null
           id?: string
           injuries?: string | null
+          lower_body_score?: number | null
+          midsection_score?: number | null
           onboarding_completed?: boolean
+          posture_flag?: string | null
           primary_goal?: string | null
           surgeries?: string | null
           tracked_macros_before?: boolean | null
           updated_at?: string
+          upper_body_score?: number | null
           user_id?: string
+          weight_lb?: number | null
         }
         Relationships: []
       }

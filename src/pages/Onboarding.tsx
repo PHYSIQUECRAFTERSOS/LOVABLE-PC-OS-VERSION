@@ -9,39 +9,73 @@ import OnboardingGoals from "@/components/onboarding/OnboardingGoals";
 import OnboardingMetrics from "@/components/onboarding/OnboardingMetrics";
 import OnboardingNutrition from "@/components/onboarding/OnboardingNutrition";
 import OnboardingTraining from "@/components/onboarding/OnboardingTraining";
+import OnboardingBodyComp from "@/components/onboarding/OnboardingBodyComp";
 import OnboardingHealthSync from "@/components/onboarding/OnboardingHealthSync";
 import OnboardingSummary from "@/components/onboarding/OnboardingSummary";
 
 export interface OnboardingData {
   primary_goal: string;
+  gender: string;
   age: number | null;
+  height_feet: number | null;
+  height_inches: number | null;
   height_cm: number | null;
+  weight_lb: number | null;
   current_weight_kg: number | null;
   estimated_body_fat_pct: number | null;
   activity_level: string;
   tracked_macros_before: boolean | null;
   food_intolerances: string[];
   digestive_issues: string[];
+  custom_allergy_text: string;
+  custom_digestive_text: string;
   injuries: string;
   surgeries: string;
   health_sync_status: string;
+  // Body comp assessment
+  bodyfat_range_low: number | null;
+  bodyfat_range_high: number | null;
+  bodyfat_final_confirmed: number | null;
+  confidence_level: string;
+  baseline_assessment_date: string | null;
+  baseline_photo_set_id: string;
+  upper_body_score: number | null;
+  midsection_score: number | null;
+  lower_body_score: number | null;
+  posture_flag: string;
 }
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 const defaultData: OnboardingData = {
   primary_goal: "",
+  gender: "",
   age: null,
+  height_feet: null,
+  height_inches: null,
   height_cm: null,
+  weight_lb: null,
   current_weight_kg: null,
   estimated_body_fat_pct: null,
   activity_level: "",
   tracked_macros_before: null,
   food_intolerances: [],
   digestive_issues: [],
+  custom_allergy_text: "",
+  custom_digestive_text: "",
   injuries: "",
   surgeries: "",
   health_sync_status: "pending",
+  bodyfat_range_low: null,
+  bodyfat_range_high: null,
+  bodyfat_final_confirmed: null,
+  confidence_level: "",
+  baseline_assessment_date: null,
+  baseline_photo_set_id: "",
+  upper_body_score: null,
+  midsection_score: null,
+  lower_body_score: null,
+  posture_flag: "",
 };
 
 const Onboarding = () => {
@@ -52,7 +86,6 @@ const Onboarding = () => {
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Load existing onboarding data
   useEffect(() => {
     if (!user) return;
     supabase
@@ -69,17 +102,33 @@ const Onboarding = () => {
           setStep(existing.current_step || 1);
           setData({
             primary_goal: existing.primary_goal || "",
+            gender: existing.gender || "",
             age: existing.age,
+            height_feet: existing.height_feet,
+            height_inches: existing.height_inches,
             height_cm: existing.height_cm,
+            weight_lb: existing.weight_lb,
             current_weight_kg: existing.current_weight_kg,
             estimated_body_fat_pct: existing.estimated_body_fat_pct,
             activity_level: existing.activity_level || "",
             tracked_macros_before: existing.tracked_macros_before,
             food_intolerances: existing.food_intolerances || [],
             digestive_issues: existing.digestive_issues || [],
+            custom_allergy_text: existing.custom_allergy_text || "",
+            custom_digestive_text: existing.custom_digestive_text || "",
             injuries: existing.injuries || "",
             surgeries: existing.surgeries || "",
             health_sync_status: existing.health_sync_status || "pending",
+            bodyfat_range_low: existing.bodyfat_range_low,
+            bodyfat_range_high: existing.bodyfat_range_high,
+            bodyfat_final_confirmed: existing.bodyfat_final_confirmed,
+            confidence_level: existing.confidence_level || "",
+            baseline_assessment_date: existing.baseline_assessment_date,
+            baseline_photo_set_id: existing.baseline_photo_set_id || "",
+            upper_body_score: existing.upper_body_score,
+            midsection_score: existing.midsection_score,
+            lower_body_score: existing.lower_body_score,
+            posture_flag: existing.posture_flag || "",
           });
         }
         setInitialLoading(false);
@@ -90,7 +139,6 @@ const Onboarding = () => {
     setData(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  // Auto-save on step change
   const saveProgress = useCallback(async (nextStep: number, completed = false) => {
     if (!user) return;
     setSaving(true);
@@ -129,7 +177,6 @@ const Onboarding = () => {
 
   const handleComplete = async () => {
     await saveProgress(TOTAL_STEPS, true);
-    // Notify coach
     if (user) {
       const { data: assignment } = await supabase
         .from("coach_clients")
@@ -140,7 +187,6 @@ const Onboarding = () => {
         .maybeSingle();
 
       if (assignment) {
-        // Find or create thread and send auto message
         const { data: thread } = await supabase
           .from("message_threads")
           .select("id")
@@ -148,10 +194,9 @@ const Onboarding = () => {
           .eq("client_id", user.id)
           .maybeSingle();
 
-        const threadId = thread?.id;
-        if (threadId) {
+        if (thread?.id) {
           await supabase.from("thread_messages").insert({
-            thread_id: threadId,
+            thread_id: thread.id,
             sender_id: user.id,
             content: "✅ I've completed my onboarding profile! Ready to get started.",
           });
@@ -164,11 +209,12 @@ const Onboarding = () => {
   const canProceed = (): boolean => {
     switch (step) {
       case 1: return !!data.primary_goal;
-      case 2: return !!data.age && !!data.height_cm && !!data.current_weight_kg && !!data.activity_level;
-      case 3: return data.tracked_macros_before !== null;
-      case 4: return true; // skippable
-      case 5: return true; // skip allowed
+      case 2: return !!data.gender && !!data.age && data.height_feet != null && data.height_inches != null && data.weight_lb != null && !!data.activity_level;
+      case 3: return true; // body comp is optional
+      case 4: return data.tracked_macros_before !== null;
+      case 5: return true;
       case 6: return true;
+      case 7: return true;
       default: return false;
     }
   };
@@ -183,9 +229,18 @@ const Onboarding = () => {
 
   const progressPct = (step / TOTAL_STEPS) * 100;
 
+  const stepLabels: Record<number, string> = {
+    1: "Goals",
+    2: "Metrics",
+    3: "Body Comp",
+    4: "Nutrition",
+    5: "Training",
+    6: "Health Sync",
+    7: "Summary",
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
         <div className="max-w-lg mx-auto space-y-2">
           <div className="flex items-center justify-between">
@@ -193,26 +248,25 @@ const Onboarding = () => {
               PHYSIQUE <span className="text-gradient-gold">CRAFTERS</span>
             </h1>
             <span className="text-xs text-muted-foreground">
-              Step {step} of {TOTAL_STEPS}
+              {stepLabels[step]} — {step}/{TOTAL_STEPS}
             </span>
           </div>
           <Progress value={progressPct} className="h-1.5" />
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 px-4 py-6">
         <div className="max-w-lg mx-auto animate-fade-in">
           {step === 1 && <OnboardingGoals data={data} updateField={updateField} />}
           {step === 2 && <OnboardingMetrics data={data} updateField={updateField} />}
-          {step === 3 && <OnboardingNutrition data={data} updateField={updateField} />}
-          {step === 4 && <OnboardingTraining data={data} updateField={updateField} />}
-          {step === 5 && <OnboardingHealthSync data={data} updateField={updateField} />}
-          {step === 6 && <OnboardingSummary data={data} />}
+          {step === 3 && <OnboardingBodyComp data={data} updateField={updateField} />}
+          {step === 4 && <OnboardingNutrition data={data} updateField={updateField} />}
+          {step === 5 && <OnboardingTraining data={data} updateField={updateField} />}
+          {step === 6 && <OnboardingHealthSync data={data} updateField={updateField} />}
+          {step === 7 && <OnboardingSummary data={data} />}
         </div>
       </div>
 
-      {/* Footer */}
       <div className="sticky bottom-0 bg-background/95 backdrop-blur border-t border-border px-4 py-3">
         <div className="max-w-lg mx-auto flex gap-3">
           {step > 1 && (
@@ -223,7 +277,7 @@ const Onboarding = () => {
           {step < TOTAL_STEPS ? (
             <Button onClick={goNext} disabled={!canProceed() || saving} className="flex-1">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              {step === 4 ? (data.injuries || data.surgeries ? "Next" : "Skip & Continue") : "Continue"}
+              {step === 3 ? "Continue" : step === 5 ? (data.injuries || data.surgeries ? "Next" : "Skip & Continue") : "Continue"}
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
