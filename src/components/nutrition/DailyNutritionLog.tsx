@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +11,8 @@ import AddFoodScreen from "./AddFoodScreen";
 import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
 import CopyDayDialog from "./CopyDayDialog";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
+import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
+import { useToast } from "@/hooks/use-toast";
 
 interface NutritionLog {
   id: string;
@@ -47,7 +49,9 @@ const MEAL_SECTIONS = [
 ] as const;
 
 const DailyNutritionLog = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const { toast } = useToast();
+  const isCoach = role === "coach" || role === "admin";
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
@@ -56,9 +60,22 @@ const DailyNutritionLog = () => {
   const [activeMealType, setActiveMealType] = useState("snack");
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [copyingMeal, setCopyingMeal] = useState<string | null>(null);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
+
+  // Meal plan tracker for "Copy From Meal Plan"
+  const {
+    plan: mealPlan,
+    days: mealPlanDays,
+    items: mealPlanItems,
+    getItemsForMealSection,
+    copyMealToTracker,
+  } = useMealPlanTracker(selectedDate);
+
+  // Pick the first day from plan (could be enhanced to match day type)
+  const activeDayId = mealPlanDays?.[0]?.id || null;
 
   const fetchLogs = async () => {
     if (!user) return;
@@ -139,6 +156,32 @@ const DailyNutritionLog = () => {
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
 
+  const handleCopyFromPlan = async (mealKey: string) => {
+    if (!activeDayId || !mealPlanItems) return;
+    setCopyingMeal(mealKey);
+
+    const planItems = getItemsForMealSection(activeDayId, mealKey);
+    if (planItems.length === 0) {
+      toast({ title: "No items in meal plan for this section" });
+      setCopyingMeal(null);
+      return;
+    }
+
+    const success = await copyMealToTracker(planItems, mealKey);
+    if (success) {
+      toast({ title: `${planItems.length} items copied from meal plan` });
+      fetchLogs();
+      refreshSuggestions();
+    }
+    setCopyingMeal(null);
+  };
+
+  // Check if a meal section has plan items
+  const hasPlanItems = (mealKey: string) => {
+    if (!activeDayId || !mealPlanItems) return false;
+    return getItemsForMealSection(activeDayId, mealKey).length > 0;
+  };
+
   const isToday = format(new Date(), "yyyy-MM-dd") === dateStr;
 
   return (
@@ -196,13 +239,13 @@ const DailyNutritionLog = () => {
           <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(45 80% 55%)" />
         </div>
       </div>
-      {/* Barcode scanner removed — integrated into AddFoodScreen */}
 
       {/* Meal Sections */}
       <div className="space-y-4">
         {MEAL_SECTIONS.map(({ key, label }) => {
           const items = logs.filter(l => l.meal_type === key);
           const mealTotals = getMealTotals(items);
+          const hasplanForMeal = !isCoach && hasPlanItems(key);
 
           return (
             <div key={key} className="rounded-lg border border-border bg-card overflow-hidden">
@@ -219,7 +262,21 @@ const DailyNutritionLog = () => {
                 <span className="text-sm font-bold text-foreground tabular-nums">
                   {mealTotals.calories > 0 ? `${mealTotals.calories}` : "—"}
                 </span>
-                </div>
+              </div>
+
+              {/* Copy From Meal Plan */}
+              {hasplanForMeal && (
+                <button
+                  onClick={() => handleCopyFromPlan(key)}
+                  disabled={copyingMeal === key}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-xs transition-colors text-primary/80 hover:text-primary hover:bg-primary/5 border-b border-border/20"
+                >
+                  <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    {copyingMeal === key ? "Copying..." : "Copy from meal plan"}
+                  </span>
+                </button>
+              )}
 
               {/* Quick Add Previous Meal */}
               <QuickAddPreviousMeal
