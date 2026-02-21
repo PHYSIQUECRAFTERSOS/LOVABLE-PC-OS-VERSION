@@ -66,10 +66,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const currentExercise = exercises[currentExerciseIdx];
 
-  // Load existing PRs
+  const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
+
+  // Load existing PRs and previous performance
   useEffect(() => {
     if (!user) return;
-    const loadPRs = async () => {
+    const loadData = async () => {
       const exerciseIds = initialExercises.map(e => e.id);
       const { data } = await supabase
         .from("personal_records")
@@ -77,9 +79,36 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         .eq("client_id", user.id)
         .in("exercise_id", exerciseIds);
       setPersonalRecords((data as PersonalRecord[]) || []);
+
+      // Load last session performance for each exercise
+      const { data: lastSession } = await supabase
+        .from("workout_sessions")
+        .select("id")
+        .eq("client_id", user.id)
+        .eq("workout_id", workoutId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastSession) {
+        const { data: logs } = await supabase
+          .from("exercise_logs")
+          .select("exercise_id, set_number, weight, reps, rir")
+          .eq("session_id", lastSession.id)
+          .order("set_number");
+
+        if (logs) {
+          const grouped: Record<string, any[]> = {};
+          logs.forEach(l => {
+            if (!grouped[l.exercise_id]) grouped[l.exercise_id] = [];
+            grouped[l.exercise_id].push(l);
+          });
+          setPreviousPerformance(grouped);
+        }
+      }
     };
-    loadPRs();
-  }, [user, initialExercises]);
+    loadData();
+  }, [user, initialExercises, workoutId]);
 
   // Total sets progress
   const totalSets = exercises.reduce((acc, ex) => acc + ex.logs.length, 0);
@@ -307,6 +336,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
                   Set {log.setNumber}
                   {log.completed && <Check className="h-4 w-4 text-primary" />}
                 </h4>
+                {(() => {
+                  const prev = previousPerformance[currentExercise.id];
+                  const prevSet = prev?.find(p => p.set_number === log.setNumber);
+                  return prevSet ? (
+                    <span className="text-[10px] text-muted-foreground">
+                      Last: {prevSet.weight ?? "–"} lbs × {prevSet.reps ?? "–"}
+                    </span>
+                  ) : null;
+                })()}
               </div>
               <div className="grid grid-cols-4 gap-2">
                 <div className="space-y-1">

@@ -3,6 +3,7 @@ import AppLayout from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dumbbell, FolderOpen } from "lucide-react";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
+import ProgramList from "@/components/training/ProgramList";
 
 const MasterLibraries = () => {
   return (
@@ -15,7 +16,7 @@ const MasterLibraries = () => {
           </p>
         </div>
 
-        <Tabs defaultValue="exercises" className="space-y-4">
+        <Tabs defaultValue="programs" className="space-y-4">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="programs" className="gap-1.5">
               <FolderOpen className="h-3.5 w-3.5" /> Programs
@@ -26,9 +27,7 @@ const MasterLibraries = () => {
           </TabsList>
 
           <TabsContent value="programs" className="space-y-4">
-            <div className="text-center py-12 text-muted-foreground text-sm">
-              Programs will be available in Phase 2.
-            </div>
+            <ProgramList />
           </TabsContent>
 
           <TabsContent value="exercises" className="space-y-4">

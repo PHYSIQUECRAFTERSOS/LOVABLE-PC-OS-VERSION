@@ -2431,6 +2431,125 @@ export type Database = {
         }
         Relationships: []
       }
+      program_weeks: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          program_id: string
+          week_number: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          program_id: string
+          week_number?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          program_id?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_weeks_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_workouts: {
+        Row: {
+          created_at: string
+          day_label: string | null
+          day_of_week: number | null
+          id: string
+          sort_order: number | null
+          week_id: string
+          workout_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_label?: string | null
+          day_of_week?: number | null
+          id?: string
+          sort_order?: number | null
+          week_id: string
+          workout_id: string
+        }
+        Update: {
+          created_at?: string
+          day_label?: string | null
+          day_of_week?: number | null
+          id?: string
+          sort_order?: number | null
+          week_id?: string
+          workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_workouts_week_id_fkey"
+            columns: ["week_id"]
+            isOneToOne: false
+            referencedRelation: "program_weeks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_workouts_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programs: {
+        Row: {
+          client_id: string | null
+          coach_id: string
+          created_at: string
+          description: string | null
+          end_date: string | null
+          goal_type: string | null
+          id: string
+          is_template: boolean | null
+          name: string
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          goal_type?: string | null
+          id?: string
+          is_template?: boolean | null
+          name: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          goal_type?: string | null
+          id?: string
+          is_template?: boolean | null
+          name?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       progress_photos: {
         Row: {
           client_id: string
