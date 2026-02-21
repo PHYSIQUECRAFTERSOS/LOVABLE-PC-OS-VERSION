@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,18 +38,17 @@ const CommentThread = ({ postId, locked }: CommentThreadProps) => {
       )}
 
       {(comments || []).map((c) => {
-        const initials = (c.author_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
         const isCommentCoach = c.author_role === "coach" || c.author_role === "admin";
         const canDelete = user?.id === c.author_id || isCoach;
 
         return (
           <div key={c.id} className="flex items-start gap-2.5 group">
-            <Avatar className="h-7 w-7">
-              {c.author_avatar && <AvatarImage src={c.author_avatar} />}
-              <AvatarFallback className={`text-[10px] ${isCommentCoach ? "bg-primary/20 text-primary" : "bg-secondary text-foreground"}`}>
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              src={c.author_avatar}
+              name={c.author_name}
+              className="h-7 w-7 text-[10px]"
+              fallbackClassName={isCommentCoach ? "bg-primary/20 text-primary" : undefined}
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-semibold text-foreground">{c.author_name}</span>

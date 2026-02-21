@@ -3,11 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MessageSquare, Lock } from "lucide-react";
 import ThreadChatView from "./ThreadChatView";
+import UserAvatar from "@/components/profile/UserAvatar";
 
 const ClientMessaging = () => {
   const { user } = useAuth();
   const [threadId, setThreadId] = useState<string | null>(null);
   const [coachName, setCoachName] = useState("");
+  const [coachAvatar, setCoachAvatar] = useState<string | null>(null);
   const [noCoach, setNoCoach] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -35,10 +37,11 @@ const ClientMessaging = () => {
       // Get coach name
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, avatar_url")
         .eq("user_id", coachId)
         .single();
       setCoachName(profile?.full_name || "Your Coach");
+      setCoachAvatar(profile?.avatar_url || null);
 
       // Find or create thread
       const { data: existingThread } = await supabase
@@ -100,7 +103,7 @@ const ClientMessaging = () => {
 
   return (
     <div className="h-full rounded-lg border border-border bg-card overflow-hidden">
-      <ThreadChatView threadId={threadId} otherUserName={coachName} />
+      <ThreadChatView threadId={threadId} otherUserName={coachName} otherUserAvatar={coachAvatar} />
     </div>
   );
 };

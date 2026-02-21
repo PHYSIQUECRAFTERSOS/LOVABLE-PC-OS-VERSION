@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Heart, MessageCircle, Bookmark, Pin, MoreHorizontal, Trash2, Lock, Flag, Star, Sparkles } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,12 +60,12 @@ const PostCard = ({ post }: PostCardProps) => {
     >
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Avatar className="h-10 w-10">
-          {post.author_avatar && <AvatarImage src={post.author_avatar} />}
-          <AvatarFallback className={roleBadge ? "bg-primary/20 text-primary" : "bg-secondary text-foreground"}>
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          src={post.author_avatar}
+          name={post.author_name}
+          className="h-10 w-10"
+          fallbackClassName={roleBadge ? "bg-primary/20 text-primary" : undefined}
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-semibold text-foreground">{post.author_name}</span>

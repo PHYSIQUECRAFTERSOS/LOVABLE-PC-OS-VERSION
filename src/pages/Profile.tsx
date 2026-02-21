@@ -9,25 +9,28 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import HealthIntegrations from "@/components/settings/HealthIntegrations";
+import AvatarUpload from "@/components/profile/AvatarUpload";
 
 const Profile = () => {
   const { user, roles } = useAuth();
   const { toast } = useToast();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
       supabase
         .from("profiles")
-        .select("full_name, phone")
+        .select("full_name, phone, avatar_url")
         .eq("user_id", user.id)
         .single()
         .then(({ data }) => {
           if (data) {
             setFullName(data.full_name || "");
             setPhone(data.phone || "");
+            setAvatarUrl(data.avatar_url || null);
           }
         });
     }
@@ -57,7 +60,12 @@ const Profile = () => {
           <CardHeader>
             <CardTitle>Your Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            <AvatarUpload
+              currentUrl={avatarUrl}
+              fullName={fullName}
+              onUploaded={(url) => setAvatarUrl(url)}
+            />
             <div className="space-y-2">
               <Label>Email</Label>
               <Input value={user?.email || ""} disabled />

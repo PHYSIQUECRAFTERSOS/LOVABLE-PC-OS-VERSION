@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/profile/UserAvatar";
 import { Users, TrendingUp, Zap } from "lucide-react";
 import { subDays, format } from "date-fns";
 
@@ -120,10 +120,7 @@ const ClientCards = () => {
             <CardContent className="pt-6">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={client.avatar_url} alt={client.name} />
-                    <AvatarFallback>{client.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
+                  <UserAvatar src={client.avatar_url} name={client.name} className="h-10 w-10" />
                   <div>
                     <p className="font-medium text-foreground text-sm">{client.name}</p>
                     <p className="text-xs text-muted-foreground">{client.id.slice(0, 8)}</p>
