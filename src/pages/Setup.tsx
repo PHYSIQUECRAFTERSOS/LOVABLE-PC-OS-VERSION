@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ShieldCheck, Clock, AlertTriangle } from "lucide-react";
+import LegalDocumentModal from "@/components/legal/LegalDocumentModal";
 
 type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "complete" | "error";
 
@@ -15,6 +16,14 @@ interface InviteInfo {
   last_name: string;
   email: string;
   coach_name: string;
+}
+
+interface LegalDoc {
+  id: string;
+  document_type: string;
+  title: string;
+  content: string;
+  version_number: number;
 }
 
 const ClientSetup = () => {
@@ -32,13 +41,28 @@ const ClientSetup = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Legal documents
+  const [legalDocs, setLegalDocs] = useState<LegalDoc[]>([]);
+  const [activeModal, setActiveModal] = useState<"terms_of_service" | "privacy_policy" | null>(null);
+
   useEffect(() => {
     if (!token) {
       setStep("invalid");
       return;
     }
     validateToken();
+    fetchLegalDocs();
   }, [token]);
+
+  const fetchLegalDocs = async () => {
+    const { data } = await supabase
+      .from("legal_documents")
+      .select("id, document_type, title, content, version_number")
+      .eq("is_current", true);
+    if (data) setLegalDocs(data);
+  };
+
+  const getDoc = (type: string) => legalDocs.find((d) => d.document_type === type);
 
   const callEdgeFunction = async (payload: Record<string, unknown>) => {
     console.log("[Setup] Calling validate-invite-token with:", { ...payload, password: payload.password ? "***" : undefined });
@@ -47,11 +71,8 @@ const ClientSetup = () => {
       body: payload,
     });
 
-    // supabase.functions.invoke returns data on 2xx, error on non-2xx
-    // Since we now always return 200, data should always be populated
     if (error) {
       console.error("[Setup] Edge function error:", error);
-      // Try to extract JSON from FunctionsHttpError
       let parsed: Record<string, unknown> | null = null;
       try {
         if (error && typeof error === "object" && "context" in error) {
@@ -112,10 +133,22 @@ const ClientSetup = () => {
     setLoading(true);
 
     try {
-      const result = await callEdgeFunction({ token, password, action: "setup" });
+      // Collect legal document acceptance info
+      const termsDoc = getDoc("terms_of_service");
+      const privacyDoc = getDoc("privacy_policy");
+      const legalAcceptances = [
+        termsDoc && { document_id: termsDoc.id, document_type: "terms_of_service", document_version: termsDoc.version_number },
+        privacyDoc && { document_id: privacyDoc.id, document_type: "privacy_policy", document_version: privacyDoc.version_number },
+      ].filter(Boolean);
+
+      const result = await callEdgeFunction({
+        token,
+        password,
+        action: "setup",
+        legal_acceptances: legalAcceptances,
+      });
 
       if (result?.success) {
-        // Sign the user in
         console.log("[Setup] Account created, signing in as:", result.email);
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: result.email as string,
@@ -147,6 +180,10 @@ const ClientSetup = () => {
       setLoading(false);
     }
   };
+
+  const termsDoc = getDoc("terms_of_service");
+  const privacyDoc = getDoc("privacy_policy");
+  const activeDoc = activeModal ? getDoc(activeModal) : null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -240,20 +277,38 @@ const ClientSetup = () => {
                   <Checkbox
                     id="terms"
                     checked={termsAccepted}
-                    onCheckedChange={(v) => setTermsAccepted(v as boolean)}
+                    disabled={true}
+                    onCheckedChange={() => {}}
                   />
-                  <Label htmlFor="terms" className="text-xs text-muted-foreground leading-tight cursor-pointer">
-                    I agree to the Terms of Service and understand the coaching program requirements.
+                  <Label htmlFor="terms" className="text-xs text-muted-foreground leading-tight">
+                    I agree to the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal("terms_of_service")}
+                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
+                    >
+                      Terms of Service
+                    </button>{" "}
+                    and understand the coaching program requirements.
                   </Label>
                 </div>
                 <div className="flex items-start gap-2">
                   <Checkbox
                     id="privacy"
                     checked={privacyAccepted}
-                    onCheckedChange={(v) => setPrivacyAccepted(v as boolean)}
+                    disabled={true}
+                    onCheckedChange={() => {}}
                   />
-                  <Label htmlFor="privacy" className="text-xs text-muted-foreground leading-tight cursor-pointer">
-                    I agree to the Privacy Policy and consent to the collection of health data.
+                  <Label htmlFor="privacy" className="text-xs text-muted-foreground leading-tight">
+                    I agree to the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal("privacy_policy")}
+                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
+                    >
+                      Privacy Policy
+                    </button>{" "}
+                    and consent to the collection of health data.
                   </Label>
                 </div>
               </div>
@@ -287,6 +342,19 @@ const ClientSetup = () => {
           </div>
         )}
       </div>
+
+      {/* Legal Document Modal */}
+      <LegalDocumentModal
+        open={!!activeModal && !!activeDoc}
+        onClose={() => setActiveModal(null)}
+        onAccept={() => {
+          if (activeModal === "terms_of_service") setTermsAccepted(true);
+          if (activeModal === "privacy_policy") setPrivacyAccepted(true);
+          setActiveModal(null);
+        }}
+        title={activeDoc?.title || ""}
+        content={activeDoc?.content || ""}
+      />
     </div>
   );
 };

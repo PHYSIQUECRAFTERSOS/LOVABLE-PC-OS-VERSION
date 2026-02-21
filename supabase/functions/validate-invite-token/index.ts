@@ -189,6 +189,32 @@ serve(async (req) => {
         })
         .eq("id", invite.id);
 
+      // Record legal acceptances
+      const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() 
+        || req.headers.get("cf-connecting-ip") 
+        || "unknown";
+      
+      if (body.legal_acceptances && Array.isArray(body.legal_acceptances)) {
+        const acceptanceRows = body.legal_acceptances.map((acc: any) => ({
+          user_id: userId,
+          document_id: acc.document_id,
+          document_type: acc.document_type,
+          document_version: acc.document_version,
+          ip_address: clientIp,
+          app_version: "1.0.0",
+        }));
+        
+        const { error: legalError } = await supabase
+          .from("legal_acceptances")
+          .insert(acceptanceRows);
+        
+        if (legalError) {
+          console.error("[validate-invite-token] Legal acceptance insert error:", legalError);
+        } else {
+          console.log("[validate-invite-token] Legal acceptances recorded for:", userId);
+        }
+      }
+
       console.log("[validate-invite-token] Setup complete for:", invite.email);
 
       return jsonResponse({
