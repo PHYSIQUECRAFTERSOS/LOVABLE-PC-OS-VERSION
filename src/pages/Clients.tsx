@@ -1,6 +1,9 @@
 import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
-import ClientCards from "@/components/dashboard/ClientCards";
+import SelectableClientCards, {
+  type SelectableClient,
+} from "@/components/clients/SelectableClientCards";
+import BulkMessageComposer from "@/components/clients/BulkMessageComposer";
 import AddClientDialog from "@/components/clients/AddClientDialog";
 import InviteList from "@/components/clients/InviteList";
 import { Button } from "@/components/ui/button";
@@ -10,13 +13,17 @@ import { Plus, Users, Send } from "lucide-react";
 const Clients = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [selectedClients, setSelectedClients] = useState<SelectableClient[]>([]);
 
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">Clients</h1>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              Clients
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Manage your client roster, invites, and progress.
             </p>
@@ -40,7 +47,10 @@ const Clients = () => {
           </TabsList>
 
           <TabsContent value="active" className="mt-4">
-            <ClientCards />
+            <SelectableClientCards
+              onSelectionChange={setSelectedClients}
+              onSendMessage={() => setBulkOpen(true)}
+            />
           </TabsContent>
 
           <TabsContent value="invites" className="mt-4">
@@ -52,6 +62,12 @@ const Clients = () => {
           open={addOpen}
           onOpenChange={setAddOpen}
           onInviteSent={() => setRefreshKey((k) => k + 1)}
+        />
+
+        <BulkMessageComposer
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          recipients={selectedClients}
         />
       </div>
     </AppLayout>
