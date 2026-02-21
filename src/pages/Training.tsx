@@ -29,13 +29,13 @@ const Training = () => {
       if (role === "coach") {
         const { data } = await supabase
           .from("workouts")
-          .select("id, name, description, phase, is_template")
+          .select("id, name, description, phase, is_template, instructions")
           .eq("coach_id", user.id);
         setWorkouts(data || []);
       } else if (role === "client") {
         const { data } = await supabase
           .from("workouts")
-          .select("id, name, description, phase, is_template")
+          .select("id, name, description, phase, is_template, instructions")
           .eq("client_id", user.id);
         setWorkouts(data || []);
       }
@@ -63,7 +63,8 @@ const Training = () => {
         rest_seconds,
         rir,
         notes,
-        exercises (id, name)
+        video_override,
+        exercises (id, name, youtube_url, video_url)
       `
       )
       .eq("workout_id", workoutId)
@@ -79,6 +80,7 @@ const Training = () => {
         restSeconds: we.rest_seconds,
         rir: we.rir,
         notes: we.notes,
+        videoUrl: we.video_override || we.exercises.youtube_url || we.exercises.video_url || null,
         logs: Array.from({ length: we.sets }, (_, idx) => ({
           setNumber: idx + 1,
           weight: undefined,
@@ -89,8 +91,11 @@ const Training = () => {
         })),
       }));
 
+      const workout = workouts.find(w => w.id === workoutId);
       setSelectedWorkout({
         id: workoutId,
+        name: workout?.name || "Workout",
+        instructions: workout?.instructions || null,
         exercises: exerciseLogs,
       });
       setShowLogger(true);
@@ -125,7 +130,8 @@ const Training = () => {
           </Button>
           <WorkoutLogger
             workoutId={selectedWorkout.id}
-            workoutName={workouts.find((w) => w.id === selectedWorkout.id)?.name || "Workout"}
+            workoutName={selectedWorkout.name}
+            workoutInstructions={selectedWorkout.instructions}
             exercises={selectedWorkout.exercises}
             onComplete={() => {
               setShowLogger(false);
