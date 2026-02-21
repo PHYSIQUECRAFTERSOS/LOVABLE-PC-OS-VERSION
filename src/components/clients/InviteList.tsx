@@ -12,6 +12,7 @@ import {
   XCircle,
   AlertTriangle,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -24,6 +25,7 @@ interface Invite {
   invite_status: string;
   expires_at: string;
   created_at: string;
+  updated_at: string;
   tags: string[];
 }
 
@@ -53,7 +55,6 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
       .order("created_at", { ascending: false });
 
     if (!error && data) {
-      // Check for expired invites that are still marked pending
       const now = new Date();
       const updated = data.map((inv: any) => {
         if (inv.invite_status === "pending" && new Date(inv.expires_at) < now) {
@@ -71,30 +72,43 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
   }, [user, refreshKey]);
 
   const handleResend = async (invite: Invite) => {
+    if (resending) return; // Prevent multiple simultaneous resends
     setResending(invite.id);
+    console.log("[InviteList] Resend clicked for:", invite.id, invite.email);
+
     try {
-      const res = await supabase.functions.invoke("send-client-invite", {
-        body: {
-          email: invite.email,
-          first_name: invite.first_name,
-          last_name: invite.last_name,
-          client_type: invite.client_type,
-          tags: invite.tags,
-          invite_id: invite.id,
-        },
+      const { data, error } = await supabase.functions.invoke("resend-client-invite", {
+        body: { invite_id: invite.id },
       });
 
-      if (res.error) throw new Error(res.error.message);
+      console.log("[InviteList] Resend response:", data, "Error:", error);
 
-      toast({
-        title: "Invite Resent",
-        description: `New invite sent to ${invite.email}. Previous link invalidated.`,
-      });
+      if (error) throw new Error(error.message || "Failed to resend invite");
+
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to resend invite");
+      }
+
+      if (data.email_sent) {
+        toast({
+          title: "Invite Resent",
+          description: `New invite email sent to ${invite.email}. Expires in 7 days.`,
+        });
+      } else if (data.setup_url) {
+        // Email couldn't be sent automatically — show URL for manual sharing
+        await navigator.clipboard.writeText(data.setup_url).catch(() => {});
+        toast({
+          title: "Invite Updated — Link Copied",
+          description: `New invite link generated and copied to clipboard. Share it with ${invite.first_name} manually.`,
+        });
+      }
+
       fetchInvites();
     } catch (err: any) {
+      console.error("[InviteList] Resend error:", err);
       toast({
-        title: "Error",
-        description: err.message || "Failed to resend invite",
+        title: "Resend Failed",
+        description: err.message || "Failed to resend invite. Check logs for details.",
         variant: "destructive",
       });
     } finally {
@@ -125,6 +139,8 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
         const StatusIcon = config.icon;
         const isExpired = invite.invite_status === "expired";
         const isPending = invite.invite_status === "pending";
+        const isInvalidated = invite.invite_status === "invalidated";
+        const canResend = isExpired || isPending || isInvalidated;
 
         return (
           <Card key={invite.id} className="hover:border-primary/20 transition-colors">
@@ -158,7 +174,7 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
                   )}
                 </div>
 
-                {(isExpired || isPending) && (
+                {canResend && (
                   <Button
                     size="sm"
                     variant="outline"

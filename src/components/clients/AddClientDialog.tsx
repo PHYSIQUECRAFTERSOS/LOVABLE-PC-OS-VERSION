@@ -66,10 +66,21 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
         throw new Error(res.error.message || "Failed to send invite");
       }
 
-      toast({
-        title: "Invite Sent",
-        description: `Invitation sent to ${form.email}. They have 7 days to set up their account.`,
-      });
+      const emailSent = res.data?.email_sent !== false;
+      const setupUrl = res.data?.invite?.setup_url;
+
+      if (emailSent) {
+        toast({
+          title: "Invite Sent",
+          description: `Invitation email sent to ${form.email}. They have 7 days to set up their account.`,
+        });
+      } else if (setupUrl) {
+        await navigator.clipboard.writeText(setupUrl).catch(() => {});
+        toast({
+          title: "Invite Created — Link Copied",
+          description: `Email delivery failed. The setup link has been copied to your clipboard. Share it with ${form.first_name} manually.`,
+        });
+      }
 
       setForm({
         email: "",
