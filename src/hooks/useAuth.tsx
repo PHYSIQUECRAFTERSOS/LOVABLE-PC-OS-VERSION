@@ -7,8 +7,17 @@ type AppRole = "admin" | "coach" | "client";
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<AppRole | null>(null);
+  const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchRoles = async (userId: string) => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    const fetched = (data || []).map((r) => r.role as AppRole);
+    setRoles(fetched.length > 0 ? fetched : ["client"]);
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -17,14 +26,9 @@ export function useAuth() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const { data } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", session.user.id)
-            .single();
-          setRole((data?.role as AppRole) ?? "client");
+          await fetchRoles(session.user.id);
         } else {
-          setRole(null);
+          setRoles([]);
         }
         setLoading(false);
       }
@@ -34,15 +38,7 @@ export function useAuth() {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .single()
-          .then(({ data }) => {
-            setRole((data?.role as AppRole) ?? "client");
-            setLoading(false);
-          });
+        fetchRoles(session.user.id).then(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -51,12 +47,23 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Primary role for backward compat: admin > coach > client
+  const role: AppRole | null = roles.includes("admin")
+    ? "admin"
+    : roles.includes("coach")
+    ? "coach"
+    : roles.length > 0
+    ? roles[0]
+    : null;
+
+  const hasRole = (r: AppRole) => roles.includes(r);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setRole(null);
+    setRoles([]);
   };
 
-  return { user, session, role, loading, signOut };
+  return { user, session, role, roles, hasRole, loading, signOut };
 }

@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 import HealthIntegrations from "@/components/settings/HealthIntegrations";
 
 const Profile = () => {
-  const { user, role } = useAuth();
+  const { user, roles } = useAuth();
   const { toast } = useToast();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -63,8 +63,8 @@ const Profile = () => {
               <Input value={user?.email || ""} disabled />
             </div>
             <div className="space-y-2">
-              <Label>Role</Label>
-              <Input value={role || ""} disabled className="capitalize" />
+              <Label>Roles</Label>
+              <Input value={roles.join(", ")} disabled className="capitalize" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
