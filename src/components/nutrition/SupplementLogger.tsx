@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MICRONUTRIENTS, BIOAVAILABILITY_FORMS, NutrientInfo } from "@/lib/micronutrients";
 import { cn } from "@/lib/utils";
 import { Html5Qrcode } from "html5-qrcode";
+import SupplementScanFlow from "./SupplementScanFlow";
 
 const SupplementLogger = () => {
   const { user, role } = useAuth();
@@ -29,6 +30,7 @@ const SupplementLogger = () => {
   const [loading, setLoading] = useState(true);
   const [historyMode, setHistoryMode] = useState<"recent" | "frequent">("recent");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showScanFlow, setShowScanFlow] = useState(false);
 
   // Barcode scanning
   const [scanning, setScanning] = useState(false);
@@ -216,11 +218,16 @@ const SupplementLogger = () => {
             variant="outline"
             size="sm"
             className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
-            onClick={startScanner}
+            onClick={() => setShowScanFlow(true)}
           >
             <ScanBarcode className="h-3.5 w-3.5" />
             Scan
           </Button>
+          <SupplementScanFlow
+            open={showScanFlow}
+            onOpenChange={setShowScanFlow}
+            onSuppAdded={load}
+          />
           {/* Manual Add */}
           <Dialog open={showAdd} onOpenChange={(v) => { if (!v) resetForm(); else setShowAdd(true); }}>
             <DialogTrigger asChild>

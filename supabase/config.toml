@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.calculate-culture-scores]
 verify_jwt = false
+
+[functions.analyze-supplement-label]
+verify_jwt = false
