@@ -37,14 +37,14 @@ serve(async (req) => {
       });
     }
 
-    // Check role
-    const { data: roleData } = await supabase
+    // Check role - user may have multiple roles
+    const { data: rolesData } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .eq("user_id", user.id);
 
-    if (!roleData || (roleData.role !== "coach" && roleData.role !== "admin")) {
+    const userRoles = (rolesData || []).map((r: any) => r.role);
+    if (!userRoles.includes("coach") && !userRoles.includes("admin")) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
