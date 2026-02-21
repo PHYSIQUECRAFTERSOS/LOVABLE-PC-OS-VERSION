@@ -1,13 +1,33 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Plus, Trash2, Copy, GripVertical, ChevronDown, Dumbbell, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import ExerciseLibrary from "@/components/training/ExerciseLibrary";
+
+const REST_OPTIONS = [
+  { label: "10 seconds", value: 10 },
+  { label: "15 seconds", value: 15 },
+  { label: "30 seconds", value: 30 },
+  { label: "45 seconds", value: 45 },
+  { label: "60 seconds", value: 60 },
+  { label: "90 seconds", value: 90 },
+  { label: "2 minutes", value: 120 },
+  { label: "2 minutes 30 seconds", value: 150 },
+  { label: "3 minutes", value: 180 },
+  { label: "3 minutes 30 seconds", value: 210 },
+  { label: "4 minutes", value: 240 },
+  { label: "4 minutes 30 seconds", value: 270 },
+  { label: "5 minutes", value: 300 },
+];
 
 interface WorkoutExerciseForm {
   exerciseId: string;
@@ -18,27 +38,27 @@ interface WorkoutExerciseForm {
   restSeconds: number;
   rir?: number;
   notes: string;
+  videoOverride: string;
+  youtubeUrl?: string;
+  youtubeThumbnail?: string;
 }
 
 interface WorkoutBuilderProps {
   onSave?: (workoutId: string) => void;
+  editWorkoutId?: string;
 }
 
-const WorkoutBuilder = ({ onSave }: WorkoutBuilderProps) => {
+const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [workoutName, setWorkoutName] = useState("");
   const [workoutDescription, setWorkoutDescription] = useState("");
+  const [workoutInstructions, setWorkoutInstructions] = useState("");
   const [phase, setPhase] = useState("");
   const [exercises, setExercises] = useState<WorkoutExerciseForm[]>([]);
-  const [exerciseList, setExerciseList] = useState<any[]>([]);
-  const [searchExercise, setSearchExercise] = useState("");
-
-  const loadExercises = async () => {
-    const { data } = await supabase.from("exercises").select("id, name, category").limit(50);
-    setExerciseList(data || []);
-  };
+  const [showExercisePicker, setShowExercisePicker] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   const addExercise = (exercise: any) => {
     setExercises([
@@ -47,17 +67,51 @@ const WorkoutBuilder = ({ onSave }: WorkoutBuilderProps) => {
         exerciseId: exercise.id,
         exerciseName: exercise.name,
         sets: 3,
-        reps: "8-10",
-        tempo: "3-1-1",
+        reps: "8–10",
+        tempo: "",
         restSeconds: 90,
         notes: "",
+        videoOverride: "",
+        youtubeUrl: exercise.youtube_url || "",
+        youtubeThumbnail: exercise.youtube_thumbnail || "",
       },
     ]);
-    setSearchExercise("");
+    setShowExercisePicker(false);
   };
 
   const removeExercise = (index: number) => {
     setExercises(exercises.filter((_, i) => i !== index));
+  };
+
+  const duplicateExercise = (index: number) => {
+    const copy = { ...exercises[index] };
+    const newList = [...exercises];
+    newList.splice(index + 1, 0, copy);
+    setExercises(newList);
+  };
+
+  const updateExercise = (index: number, field: keyof WorkoutExerciseForm, value: any) => {
+    const newEx = [...exercises];
+    (newEx[index] as any)[field] = value;
+    setExercises(newEx);
+  };
+
+  // Drag and drop
+  const handleDragStart = (idx: number) => setDragIdx(idx);
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === idx) return;
+    const newList = [...exercises];
+    const [moved] = newList.splice(dragIdx, 1);
+    newList.splice(idx, 0, moved);
+    setExercises(newList);
+    setDragIdx(idx);
+  };
+  const handleDragEnd = () => setDragIdx(null);
+
+  const formatRestLabel = (seconds: number) => {
+    const opt = REST_OPTIONS.find(o => o.value === seconds);
+    return opt?.label || `${seconds}s`;
   };
 
   const saveWorkout = async () => {
@@ -77,8 +131,9 @@ const WorkoutBuilder = ({ onSave }: WorkoutBuilderProps) => {
         .insert({
           coach_id: user.id,
           name: workoutName,
-          description: workoutDescription,
-          phase,
+          description: workoutDescription || null,
+          instructions: workoutInstructions || null,
+          phase: phase || null,
           is_template: true,
         })
         .select()
@@ -92,20 +147,17 @@ const WorkoutBuilder = ({ onSave }: WorkoutBuilderProps) => {
         exercise_order: idx,
         sets: ex.sets,
         reps: ex.reps,
-        tempo: ex.tempo,
+        tempo: ex.tempo || null,
         rest_seconds: ex.restSeconds,
         rir: ex.rir || null,
-        notes: ex.notes,
+        notes: ex.notes || null,
+        video_override: ex.videoOverride || null,
       }));
 
       const { error: exError } = await supabase.from("workout_exercises").insert(workoutExercisesData);
       if (exError) throw exError;
 
       toast({ title: "Workout saved successfully" });
-      setWorkoutName("");
-      setWorkoutDescription("");
-      setPhase("");
-      setExercises([]);
       onSave?.(workout.id);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -116,174 +168,198 @@ const WorkoutBuilder = ({ onSave }: WorkoutBuilderProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Workout Details */}
       <Card>
         <CardHeader>
-          <CardTitle>Workout Details</CardTitle>
+          <CardTitle className="text-lg">Workout Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Workout Name</Label>
-            <Input
-              id="name"
-              value={workoutName}
-              onChange={(e) => setWorkoutName(e.target.value)}
-              placeholder="Push Day A"
-            />
+            <Label>Workout Name *</Label>
+            <Input value={workoutName} onChange={(e) => setWorkoutName(e.target.value)} placeholder="Push Day A" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={workoutDescription}
-              onChange={(e) => setWorkoutDescription(e.target.value)}
-              placeholder="Optional notes about this workout"
-            />
+            <Label>Description</Label>
+            <Textarea value={workoutDescription} onChange={(e) => setWorkoutDescription(e.target.value)} placeholder="Optional description" rows={2} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phase">Phase</Label>
-            <Input
-              id="phase"
-              value={phase}
-              onChange={(e) => setPhase(e.target.value)}
-              placeholder="Strength, Hypertrophy, Endurance, etc."
-            />
+            <Label>Instructions (shown to client at top of workout)</Label>
+            <Textarea value={workoutInstructions} onChange={(e) => setWorkoutInstructions(e.target.value)} placeholder="Warm up with 5 minutes of light cardio..." rows={3} />
+          </div>
+          <div className="space-y-2">
+            <Label>Phase</Label>
+            <Input value={phase} onChange={(e) => setPhase(e.target.value)} placeholder="Hypertrophy, Strength, etc." />
           </div>
         </CardContent>
       </Card>
 
+      {/* Exercises */}
       <Card>
-        <CardHeader>
-          <CardTitle>Add Exercises</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-lg">Exercises</CardTitle>
+          <Button size="sm" onClick={() => setShowExercisePicker(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Add Exercise
+          </Button>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="search">Search Exercises</Label>
-            <Input
-              id="search"
-              value={searchExercise}
-              onChange={(e) => setSearchExercise(e.target.value)}
-              onFocus={loadExercises}
-              placeholder="Type to search exercises..."
-            />
-          </div>
-
-          {searchExercise && (
-            <div className="border rounded-lg max-h-40 overflow-y-auto space-y-1">
-              {exerciseList
-                .filter((ex) => ex.name.toLowerCase().includes(searchExercise.toLowerCase()))
-                .slice(0, 10)
-                .map((ex) => (
-                  <button
-                    key={ex.id}
-                    onClick={() => addExercise(ex)}
-                    className="w-full text-left px-3 py-2 hover:bg-secondary rounded text-sm"
-                  >
-                    {ex.name}
-                  </button>
-                ))}
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {exercises.map((ex, idx) => (
-              <div key={idx} className="border rounded-lg p-4 space-y-3 bg-card/50">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">{ex.exerciseName}</h4>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => removeExercise(idx)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
+        <CardContent className="space-y-3">
+          {exercises.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No exercises added yet. Click "Add Exercise" to begin.
+            </p>
+          ) : (
+            exercises.map((ex, idx) => (
+              <div
+                key={idx}
+                draggable
+                onDragStart={() => handleDragStart(idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDragEnd={handleDragEnd}
+                className={`border rounded-lg p-4 space-y-3 bg-card/50 transition-all ${
+                  dragIdx === idx ? "opacity-50 border-primary" : ""
+                }`}
+              >
+                {/* Exercise Header */}
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab flex-shrink-0" />
+                  <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
+                  {ex.youtubeThumbnail ? (
+                    <img src={ex.youtubeThumbnail} alt="" className="w-10 h-7 rounded object-cover" />
+                  ) : (
+                    <div className="w-10 h-7 rounded bg-secondary flex items-center justify-center">
+                      <Dumbbell className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                  )}
+                  <h4 className="font-medium text-sm flex-1 truncate">{ex.exerciseName}</h4>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => duplicateExercise(idx)} title="Duplicate">
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeExercise(idx)}>
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Sets</Label>
-                    <Input
-                      type="number"
-                      value={ex.sets}
-                      onChange={(e) => {
-                        const newEx = [...exercises];
-                        newEx[idx].sets = parseInt(e.target.value) || 0;
-                        setExercises(newEx);
-                      }}
-                    />
+
+                {/* Exercise Settings */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground uppercase">Sets</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={ex.sets}
+                        onChange={(e) => updateExercise(idx, "sets", parseInt(e.target.value) || 1)}
+                        className="h-8 text-sm w-16"
+                      />
+                      <span className="text-xs text-muted-foreground">sets</span>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Reps</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground uppercase">Reps</Label>
                     <Input
                       value={ex.reps}
-                      onChange={(e) => {
-                        const newEx = [...exercises];
-                        newEx[idx].reps = e.target.value;
-                        setExercises(newEx);
-                      }}
-                      placeholder="8-10"
+                      onChange={(e) => updateExercise(idx, "reps", e.target.value)}
+                      placeholder="8–10"
+                      className="h-8 text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Tempo</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground uppercase">Tempo</Label>
                     <Input
                       value={ex.tempo}
-                      onChange={(e) => {
-                        const newEx = [...exercises];
-                        newEx[idx].tempo = e.target.value;
-                        setExercises(newEx);
-                      }}
+                      onChange={(e) => updateExercise(idx, "tempo", e.target.value)}
                       placeholder="3-1-1"
+                      className="h-8 text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Rest (sec)</Label>
-                    <Input
-                      type="number"
-                      value={ex.restSeconds}
-                      onChange={(e) => {
-                        const newEx = [...exercises];
-                        newEx[idx].restSeconds = parseInt(e.target.value) || 0;
-                        setExercises(newEx);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs">RIR</Label>
-                    <Input
-                      type="number"
-                      value={ex.rir || ""}
-                      onChange={(e) => {
-                        const newEx = [...exercises];
-                        newEx[idx].rir = e.target.value ? parseInt(e.target.value) : undefined;
-                        setExercises(newEx);
-                      }}
-                      placeholder="2"
-                    />
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground uppercase">Rest</Label>
+                    <Select
+                      value={String(ex.restSeconds)}
+                      onValueChange={(v) => updateExercise(idx, "restSeconds", parseInt(v))}
+                    >
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue>{formatRestLabel(ex.restSeconds)}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REST_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={String(opt.value)}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Notes</Label>
-                  <Textarea
-                    value={ex.notes}
-                    onChange={(e) => {
-                      const newEx = [...exercises];
-                      newEx[idx].notes = e.target.value;
-                      setExercises(newEx);
-                    }}
-                    placeholder="Form cues, substitutions, etc."
-                    className="text-xs"
+
+                {/* RIR */}
+                <div className="w-24">
+                  <Label className="text-[10px] text-muted-foreground uppercase">RIR</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    value={ex.rir ?? ""}
+                    onChange={(e) => updateExercise(idx, "rir", e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="2"
+                    className="h-8 text-sm"
                   />
                 </div>
-              </div>
-            ))}
-          </div>
 
-          <Button onClick={saveWorkout} disabled={loading || !workoutName || exercises.length === 0}>
-            {loading && <Loader2 className="animate-spin" />}
-            Save Workout Template
-          </Button>
+                {/* Collapsible Notes & Video Override */}
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1 h-6 px-2">
+                      <ChevronDown className="h-3 w-3" /> Notes & Video Override
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 pt-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] text-muted-foreground uppercase">Exercise Notes</Label>
+                      <Textarea
+                        value={ex.notes}
+                        onChange={(e) => updateExercise(idx, "notes", e.target.value)}
+                        placeholder="Form cues, substitutions, special instructions..."
+                        className="text-xs"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] text-muted-foreground uppercase">Video Override URL</Label>
+                      <Input
+                        value={ex.videoOverride}
+                        onChange={(e) => updateExercise(idx, "videoOverride", e.target.value)}
+                        placeholder="YouTube or direct video URL"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
+
+      {/* Save */}
+      <Button
+        onClick={saveWorkout}
+        disabled={loading || !workoutName || exercises.length === 0}
+        className="w-full"
+        size="lg"
+      >
+        {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+        Save Workout Template
+      </Button>
+
+      {/* Exercise Picker Dialog */}
+      <Dialog open={showExercisePicker} onOpenChange={setShowExercisePicker}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Select Exercise</DialogTitle>
+          </DialogHeader>
+          <ExerciseLibrary selectionMode onSelectExercise={addExercise} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

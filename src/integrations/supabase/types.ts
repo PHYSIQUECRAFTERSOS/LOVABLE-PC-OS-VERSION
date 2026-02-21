@@ -1475,33 +1475,57 @@ export type Database = {
       exercises: {
         Row: {
           category: string
+          coaching_cues: string | null
           created_at: string
           created_by: string | null
           description: string | null
+          equipment: string | null
           id: string
+          movement_pattern: string | null
           name: string
+          primary_muscle: string | null
+          secondary_muscle: string | null
+          tags: string[] | null
           updated_at: string
           video_url: string | null
+          youtube_thumbnail: string | null
+          youtube_url: string | null
         }
         Insert: {
           category: string
+          coaching_cues?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          equipment?: string | null
           id?: string
+          movement_pattern?: string | null
           name: string
+          primary_muscle?: string | null
+          secondary_muscle?: string | null
+          tags?: string[] | null
           updated_at?: string
           video_url?: string | null
+          youtube_thumbnail?: string | null
+          youtube_url?: string | null
         }
         Update: {
           category?: string
+          coaching_cues?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          equipment?: string | null
           id?: string
+          movement_pattern?: string | null
           name?: string
+          primary_muscle?: string | null
+          secondary_muscle?: string | null
+          tags?: string[] | null
           updated_at?: string
           video_url?: string | null
+          youtube_thumbnail?: string | null
+          youtube_url?: string | null
         }
         Relationships: []
       }
@@ -3260,6 +3284,7 @@ export type Database = {
           sets: number
           tempo: string | null
           updated_at: string
+          video_override: string | null
           workout_id: string
         }
         Insert: {
@@ -3274,6 +3299,7 @@ export type Database = {
           sets: number
           tempo?: string | null
           updated_at?: string
+          video_override?: string | null
           workout_id: string
         }
         Update: {
@@ -3288,6 +3314,7 @@ export type Database = {
           sets?: number
           tempo?: string | null
           updated_at?: string
+          video_override?: string | null
           workout_id?: string
         }
         Relationships: [
@@ -3352,6 +3379,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          instructions: string | null
           is_template: boolean
           name: string
           notes: string | null
@@ -3364,6 +3392,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          instructions?: string | null
           is_template?: boolean
           name: string
           notes?: string | null
@@ -3376,6 +3405,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          instructions?: string | null
           is_template?: boolean
           name?: string
           notes?: string | null

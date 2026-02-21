@@ -47,11 +47,12 @@ interface PRAlert {
 interface WorkoutLoggerProps {
   workoutId: string;
   workoutName: string;
+  workoutInstructions?: string | null;
   exercises: ExerciseLogForm[];
   onComplete?: () => void;
 }
 
-const WorkoutLogger = ({ workoutId, workoutName, exercises: initialExercises, onComplete }: WorkoutLoggerProps) => {
+const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -196,6 +197,11 @@ const WorkoutLogger = ({ workoutId, workoutName, exercises: initialExercises, on
       {/* Header */}
       <div>
         <h2 className="text-2xl font-display font-bold text-foreground">{workoutName}</h2>
+        {workoutInstructions && (
+          <div className="mt-2 p-3 rounded-lg bg-secondary/50 border border-border">
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{workoutInstructions}</p>
+          </div>
+        )}
         <div className="flex items-center gap-3 mt-2">
           <Progress value={progressPercent} className="flex-1 h-2" />
           <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
@@ -267,7 +273,7 @@ const WorkoutLogger = ({ workoutId, workoutName, exercises: initialExercises, on
           </div>
           {/* Exercise metadata */}
           <div className="flex flex-wrap gap-2 mt-1">
-            <span className="text-xs bg-secondary px-2 py-0.5 rounded">{currentExercise.sets}×{currentExercise.reps}</span>
+            <span className="text-xs bg-secondary px-2 py-0.5 rounded">{currentExercise.sets} sets · {currentExercise.reps} reps</span>
             {currentExercise.tempo && <span className="text-xs bg-secondary px-2 py-0.5 rounded">Tempo: {currentExercise.tempo}</span>}
             {currentExercise.rir != null && <span className="text-xs bg-secondary px-2 py-0.5 rounded">RIR: {currentExercise.rir}</span>}
             {currentExercise.restSeconds > 0 && <span className="text-xs bg-secondary px-2 py-0.5 rounded">Rest: {currentExercise.restSeconds}s</span>}
