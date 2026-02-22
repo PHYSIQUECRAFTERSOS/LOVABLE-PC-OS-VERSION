@@ -197,7 +197,16 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
         </p>
       </div>
 
-      {/* Photo instructions */}
+      {/* Reference Photo Instructions Image */}
+      <div className="rounded-xl overflow-hidden border border-border">
+        <img
+          src={referencePhotoImg}
+          alt="Reference Photo Instructions: Front View (Full Body, Relaxed), Side View (Full Body, Profile), Back View (Full Body)"
+          className="w-full h-auto"
+        />
+      </div>
+
+      {/* Photo requirements text */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Photo Requirements
@@ -211,6 +220,17 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
           To ensure accurate comparisons over time.
         </p>
       </div>
+
+      {/* Gender-conditional Body Fat % Reference Chart */}
+      {data.gender && (
+        <div className="rounded-xl overflow-hidden border border-border">
+          <img
+            src={data.gender === "female" ? femaleBfChart : maleBfChart}
+            alt={`${data.gender === "female" ? "Female" : "Male"} Body Fat % Reference Chart`}
+            className="w-full h-auto"
+          />
+        </div>
+      )}
 
       {/* Photo upload grid */}
       <div className="grid grid-cols-3 gap-3">
