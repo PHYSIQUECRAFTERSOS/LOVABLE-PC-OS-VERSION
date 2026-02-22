@@ -166,8 +166,14 @@ const Onboarding = () => {
 
   const goNext = async () => {
     if (step < TOTAL_STEPS) {
-      await saveProgress(step + 1);
-      setStep(step + 1);
+      // For body comp step (3), don't block on save — fire and forget
+      if (step === 3) {
+        setStep(step + 1);
+        saveProgress(step + 1).catch(console.error);
+      } else {
+        await saveProgress(step + 1);
+        setStep(step + 1);
+      }
     }
   };
 
