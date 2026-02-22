@@ -7,6 +7,9 @@ import { Loader2, Upload, Camera, Check, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import referencePhotoImg from "@/assets/reference-photo-instructions.png";
+import maleBfChart from "@/assets/male-bodyfat-chart.png";
+import femaleBfChart from "@/assets/female-bodyfat-chart.png";
 
 interface Props {
   data: OnboardingData;
