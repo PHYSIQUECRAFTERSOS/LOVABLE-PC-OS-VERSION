@@ -91,20 +91,33 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
 
   const uploadSinglePhoto = useCallback(
     async (pose: Pose, file: File) => {
-      if (!user) return;
+      if (!user) {
+        setErrorMessage("You must be signed in to upload photos.");
+        return;
+      }
       setPhotos((prev) => ({
         ...prev,
         [pose]: { ...prev[pose], uploading: true },
       }));
+      setErrorMessage(null);
+
+      // 30-second timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
       try {
         const compressed = await compressImage(file);
         const path = `${user.id}/onboarding_${pose}_${Date.now()}.jpg`;
-        const { error } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("progress-photos")
           .upload(path, compressed, { contentType: "image/jpeg", upsert: true });
-        if (error) throw error;
 
-        const { data: record } = await supabase
+        if (uploadError) {
+          console.error("Storage upload error:", uploadError);
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
+
+        const { data: record, error: dbError } = await supabase
           .from("progress_photos")
           .insert({
             client_id: user.id,
@@ -116,13 +129,17 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
           .select("id")
           .single();
 
+        if (dbError) {
+          console.error("DB insert error:", dbError);
+          throw new Error(`Save failed: ${dbError.message}`);
+        }
+
         if (record) {
           setPhotos((prev) => {
             const updated = {
               ...prev,
               [pose]: { ...prev[pose], uploaded: true, uploading: false, storageId: record.id },
             };
-            // Save photo set ID when all uploaded
             const allUploaded = poses.every((p) => updated[p.key].uploaded);
             if (allUploaded) {
               const ids = poses.map((p) => updated[p.key].storageId).filter(Boolean).join(",");
@@ -132,11 +149,16 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
             return updated;
           });
         }
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Upload failed. Please try again.";
+        console.error("Photo upload error:", msg);
+        setErrorMessage(`${pose} photo: ${msg}`);
         setPhotos((prev) => ({
           ...prev,
           [pose]: { ...prev[pose], uploading: false },
         }));
+      } finally {
+        clearTimeout(timeout);
       }
     },
     [user, updateField]
