@@ -1,12 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { OnboardingData } from "@/pages/Onboarding";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Check, Camera, AlertTriangle } from "lucide-react";
+import { Camera, Check, AlertTriangle, Upload } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import imageCompression from "browser-image-compression";
 import referencePhotoImg from "@/assets/reference-photo-instructions.png";
 import maleBfChart from "@/assets/male-bodyfat-chart.png";
 import femaleBfChart from "@/assets/female-bodyfat-chart.png";
@@ -21,9 +22,10 @@ type Pose = "front" | "side" | "back";
 interface PhotoState {
   file: File | null;
   preview: string | null;
-  uploaded: boolean;
+  status: "idle" | "compressing" | "uploading" | "done" | "error";
+  progress: number; // 0-100
+  errorMsg: string | null;
   storageId: string | null;
-  uploading: boolean;
 }
 
 const poses: { key: Pose; label: string; desc: string }[] = [
@@ -32,173 +34,152 @@ const poses: { key: Pose; label: string; desc: string }[] = [
   { key: "back", label: "Back View", desc: "Full body, facing away" },
 ];
 
-// Compress image to max 1080px longest edge, JPEG
-async function compressImage(file: File): Promise<Blob> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const MAX_DIM = 1080;
-      let { width, height } = img;
-      if (width > MAX_DIM || height > MAX_DIM) {
-        const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(
-        (blob) => resolve(blob || file),
-        "image/jpeg",
-        0.85
-      );
-    };
-    img.onerror = () => resolve(file);
-    img.src = URL.createObjectURL(file);
-  });
-}
+const COMPRESSION_OPTIONS = {
+  maxSizeMB: 0.5,
+  maxWidthOrHeight: 1200,
+  useWebWorker: true,
+  fileType: "image/jpeg" as const,
+  initialQuality: 0.7,
+};
 
 const OnboardingBodyComp = ({ data, updateField }: Props) => {
   const { user } = useAuth();
   const [photos, setPhotos] = useState<Record<Pose, PhotoState>>({
-    front: { file: null, preview: null, uploaded: false, storageId: null, uploading: false },
-    side: { file: null, preview: null, uploaded: false, storageId: null, uploading: false },
-    back: { file: null, preview: null, uploaded: false, storageId: null, uploading: false },
+    front: { file: null, preview: null, status: "idle", progress: 0, errorMsg: null, storageId: null },
+    side: { file: null, preview: null, status: "idle", progress: 0, errorMsg: null, storageId: null },
+    back: { file: null, preview: null, status: "idle", progress: 0, errorMsg: null, storageId: null },
   });
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const uploadAbortRefs = useRef<Record<Pose, AbortController | null>>({ front: null, side: null, back: null });
 
-  const allPhotosSelected = poses.every((p) => photos[p.key].file);
+  const updatePhoto = useCallback((pose: Pose, patch: Partial<PhotoState>) => {
+    setPhotos(prev => ({ ...prev, [pose]: { ...prev[pose], ...patch } }));
+  }, []);
 
-  const handlePhotoSelect = async (pose: Pose, file: File) => {
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage("Image too large. Please use a file under 10MB.");
+  const compressAndUpload = useCallback(async (pose: Pose, file: File) => {
+    if (!user) return;
+
+    // Abort any in-flight upload for this pose
+    uploadAbortRefs.current[pose]?.abort();
+    const controller = new AbortController();
+    uploadAbortRefs.current[pose] = controller;
+
+    const preview = URL.createObjectURL(file);
+    updatePhoto(pose, { file, preview, status: "compressing", progress: 10, errorMsg: null, storageId: null });
+
+    // 25-second failsafe
+    const failsafeTimer = setTimeout(() => {
+      controller.abort();
+      updatePhoto(pose, { status: "error", progress: 0, errorMsg: "Upload timed out. You can continue and retry later." });
+    }, 25000);
+
+    try {
+      // Compress
+      let compressed: Blob;
+      try {
+        compressed = await imageCompression(file, {
+          ...COMPRESSION_OPTIONS,
+          signal: controller.signal,
+          onProgress: (p) => {
+            if (!controller.signal.aborted) {
+              updatePhoto(pose, { progress: Math.min(10 + p * 0.4, 50) });
+            }
+          },
+        });
+      } catch (compErr) {
+        if (controller.signal.aborted) return;
+        // Fallback: use original file if compression fails
+        compressed = file;
+      }
+
+      if (controller.signal.aborted) return;
+      updatePhoto(pose, { status: "uploading", progress: 55 });
+
+      // Upload to storage
+      const path = `${user.id}/onboarding_${pose}_${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("progress-photos")
+        .upload(path, compressed, { contentType: "image/jpeg", upsert: true });
+
+      if (controller.signal.aborted) return;
+      if (uploadError) throw new Error(uploadError.message);
+
+      updatePhoto(pose, { progress: 80 });
+
+      // Save record
+      const { data: record, error: dbError } = await supabase
+        .from("progress_photos")
+        .insert({
+          client_id: user.id,
+          storage_path: path,
+          pose,
+          photo_date: new Date().toISOString().split("T")[0],
+        })
+        .select("id")
+        .single();
+
+      if (controller.signal.aborted) return;
+      if (dbError) throw new Error(dbError.message);
+
+      updatePhoto(pose, { status: "done", progress: 100, storageId: record?.id || null });
+
+      // Update parent with photo IDs
+      setPhotos(prev => {
+        const updated = { ...prev, [pose]: { ...prev[pose], status: "done" as const, progress: 100, storageId: record?.id || null } };
+        const ids = poses.map(p => updated[p.key].storageId).filter(Boolean).join(",");
+        if (ids) {
+          updateField("baseline_photo_set_id", ids);
+          updateField("baseline_assessment_date", new Date().toISOString());
+        }
+        return updated;
+      });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      updatePhoto(pose, { status: "error", progress: 0, errorMsg: msg });
+    } finally {
+      clearTimeout(failsafeTimer);
+      uploadAbortRefs.current[pose] = null;
+    }
+  }, [user, updateField, updatePhoto]);
+
+  const handlePhotoSelect = (pose: Pose, file: File) => {
+    if (file.size > 15 * 1024 * 1024) {
+      updatePhoto(pose, { errorMsg: "File too large (max 15MB)" });
       return;
     }
-    setErrorMessage(null);
-    const preview = URL.createObjectURL(file);
-    setPhotos((prev) => ({
-      ...prev,
-      [pose]: { file, preview, uploaded: false, storageId: null, uploading: false },
-    }));
-
-    // Auto-upload immediately
-    if (user) {
-      uploadSinglePhoto(pose, file);
-    }
+    compressAndUpload(pose, file);
   };
 
-  const uploadSinglePhoto = useCallback(
-    async (pose: Pose, file: File) => {
-      if (!user) {
-        setErrorMessage("You must be signed in to upload photos.");
-        return;
-      }
-      setPhotos((prev) => ({
-        ...prev,
-        [pose]: { ...prev[pose], uploading: true },
-      }));
-      setErrorMessage(null);
-
-      // 30-second timeout
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-
-      try {
-        const compressed = await compressImage(file);
-        const path = `${user.id}/onboarding_${pose}_${Date.now()}.jpg`;
-        const { error: uploadError } = await supabase.storage
-          .from("progress-photos")
-          .upload(path, compressed, { contentType: "image/jpeg", upsert: true });
-
-        if (uploadError) {
-          console.error("Storage upload error:", uploadError);
-          throw new Error(`Upload failed: ${uploadError.message}`);
-        }
-
-        const { data: record, error: dbError } = await supabase
-          .from("progress_photos")
-          .insert({
-            client_id: user.id,
-            storage_path: path,
-            pose,
-            photo_date: new Date().toISOString().split("T")[0],
-          })
-          .select("id")
-          .single();
-
-        if (dbError) {
-          console.error("DB insert error:", dbError);
-          throw new Error(`Save failed: ${dbError.message}`);
-        }
-
-        if (record) {
-          setPhotos((prev) => {
-            const updated = {
-              ...prev,
-              [pose]: { ...prev[pose], uploaded: true, uploading: false, storageId: record.id },
-            };
-            const allUploaded = poses.every((p) => updated[p.key].uploaded);
-            if (allUploaded) {
-              const ids = poses.map((p) => updated[p.key].storageId).filter(Boolean).join(",");
-              updateField("baseline_photo_set_id", ids);
-              updateField("baseline_assessment_date", new Date().toISOString());
-            }
-            return updated;
-          });
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload failed. Please try again.";
-        console.error("Photo upload error:", msg);
-        setErrorMessage(`${pose} photo: ${msg}`);
-        setPhotos((prev) => ({
-          ...prev,
-          [pose]: { ...prev[pose], uploading: false },
-        }));
-      } finally {
-        clearTimeout(timeout);
-      }
-    },
-    [user, updateField]
-  );
+  const anyUploading = poses.some(p => photos[p.key].status === "compressing" || photos[p.key].status === "uploading");
+  const anyError = poses.some(p => photos[p.key].status === "error");
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-2xl font-bold text-foreground">
-          Body Composition Baseline Assessment
+          Body Composition Baseline
         </h2>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-          We use visual analysis to establish a starting reference point. This is not a medical measurement.
+          Upload reference photos and select your estimated body fat percentage.
         </p>
       </div>
 
-      {/* Reference Photo Instructions Image */}
+      {/* Reference Photo Instructions */}
       <div className="rounded-xl overflow-hidden border border-border">
-        <img
-          src={referencePhotoImg}
-          alt="Reference Photo Instructions: Front View, Side View, Back View"
-          className="w-full h-auto"
-        />
+        <img src={referencePhotoImg} alt="Photo instructions" className="w-full h-auto" />
       </div>
 
-      {/* Photo requirements text */}
+      {/* Requirements */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Photo Requirements
-        </p>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Photo Requirements</p>
         <ul className="space-y-1 text-xs text-muted-foreground">
           <li>• Neutral lighting — no pump, no flexing</li>
           <li>• Minimal clothing for accurate visual assessment</li>
           <li>• Same lighting setup for future check-ins</li>
         </ul>
-        <p className="text-[10px] text-muted-foreground/70 italic">
-          To ensure accurate comparisons over time.
-        </p>
       </div>
 
-      {/* Gender-conditional Body Fat % Reference Chart */}
+      {/* Gender-conditional BF chart */}
       {data.gender && (
         <div className="rounded-xl overflow-hidden border border-border">
           <img
@@ -209,10 +190,22 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
         </div>
       )}
 
+      {/* Upload status banner */}
+      {anyUploading && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center gap-3">
+          <Upload className="h-4 w-4 text-primary animate-pulse shrink-0" />
+          <div className="flex-1 space-y-1">
+            <p className="text-xs font-medium text-foreground">Uploading photos…</p>
+            <p className="text-[10px] text-muted-foreground">You can continue to the next step while photos finish uploading.</p>
+          </div>
+        </div>
+      )}
+
       {/* Photo upload grid */}
       <div className="grid grid-cols-3 gap-3">
         {poses.map(({ key, label, desc }) => {
           const photo = photos[key];
+          const isActive = photo.status === "compressing" || photo.status === "uploading";
           return (
             <div key={key} className="space-y-2">
               <label
@@ -224,25 +217,29 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
                 )}
               >
                 {photo.preview ? (
-                  <img
-                    src={photo.preview}
-                    alt={label}
-                    className="h-full w-full object-cover rounded-lg"
-                  />
+                  <img src={photo.preview} alt={label} className="h-full w-full object-cover rounded-lg" />
                 ) : (
                   <>
                     <Camera className="h-5 w-5 text-muted-foreground mb-1" />
                     <span className="text-[10px] text-muted-foreground text-center">{label}</span>
                   </>
                 )}
-                {photo.uploaded && (
+                {photo.status === "done" && (
                   <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
                     <Check className="h-3 w-3 text-primary-foreground" />
                   </div>
                 )}
-                {photo.uploading && (
-                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl">
-                    <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                {isActive && (
+                  <div className="absolute inset-x-0 bottom-0 bg-background/80 p-1.5">
+                    <Progress value={photo.progress} className="h-1.5" />
+                    <p className="text-[9px] text-center text-muted-foreground mt-0.5">
+                      {photo.status === "compressing" ? "Compressing…" : "Uploading…"}
+                    </p>
+                  </div>
+                )}
+                {photo.status === "error" && (
+                  <div className="absolute inset-0 bg-destructive/10 flex items-center justify-center rounded-xl">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
                   </div>
                 )}
                 <input
@@ -256,9 +253,9 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
                 />
               </label>
               <div className="flex items-center justify-center gap-1">
-                {photo.uploaded && <Check className="h-3 w-3 text-primary" />}
-                <p className={cn("text-[10px] text-center", photo.uploaded ? "text-primary font-medium" : "text-muted-foreground")}>
-                  {photo.uploaded ? `${label} uploaded` : desc}
+                {photo.status === "done" && <Check className="h-3 w-3 text-primary" />}
+                <p className={cn("text-[10px] text-center", photo.status === "done" ? "text-primary font-medium" : photo.status === "error" ? "text-destructive" : "text-muted-foreground")}>
+                  {photo.status === "done" ? `${label} ✓` : photo.status === "error" ? (photo.errorMsg || "Failed — tap to retry") : desc}
                 </p>
               </div>
             </div>
@@ -266,15 +263,17 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
         })}
       </div>
 
-      {/* Error message */}
-      {errorMessage && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-3">
+      {/* Error details */}
+      {anyError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-          <p className="text-xs text-destructive">{errorMessage}</p>
+          <p className="text-xs text-destructive">
+            Some photos failed to upload. Tap the photo to retry, or continue and upload later from your profile.
+          </p>
         </div>
       )}
 
-      {/* Manual body fat estimation slider */}
+      {/* Manual body fat slider */}
       <div className="space-y-3 pt-2">
         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Estimated Body Fat %
@@ -303,7 +302,7 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
       </div>
 
       <p className="text-[10px] text-muted-foreground/60 text-center leading-relaxed">
-        This assessment provides a visual baseline. Progress will be tracked relative to your starting point.
+        Progress will be tracked relative to your starting point. Photos upload in the background.
       </p>
     </div>
   );
