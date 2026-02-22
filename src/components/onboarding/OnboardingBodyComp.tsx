@@ -124,7 +124,6 @@ const OnboardingBodyComp = ({ data, updateField }: Props) => {
             storage_path: path,
             pose,
             photo_date: new Date().toISOString().split("T")[0],
-            tags: ["onboarding_baseline"],
           })
           .select("id")
           .single();
