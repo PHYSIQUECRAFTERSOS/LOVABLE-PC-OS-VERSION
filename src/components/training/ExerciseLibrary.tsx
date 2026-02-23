@@ -164,13 +164,20 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
     }
   };
 
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const saveExercise = async () => {
     if (!user || !formName || !formCategory) {
       toast({ title: "Name and category are required", variant: "destructive" });
       return;
     }
     setSaving(true);
+    setSaveSuccess(false);
+    const startTime = performance.now();
+    console.log("[ExerciseLibrary] Save started at", new Date().toISOString());
+
     const tags = formTags.split(",").map(t => t.trim()).filter(Boolean);
+    // Extract thumbnail client-side only — no API call
     const thumbnail = formYoutubeUrl ? getYouTubeThumbnail(formYoutubeUrl) : null;
 
     const payload = {
@@ -188,28 +195,53 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
       tags,
     };
 
-    if (editingExercise) {
-      const { error } = await supabase.from("exercises").update(payload).eq("id", editingExercise.id);
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+    // 8-second timeout protection
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const dbStart = performance.now();
+      let error: any = null;
+
+      if (editingExercise) {
+        const res = await supabase.from("exercises").update(payload).eq("id", editingExercise.id).abortSignal(controller.signal);
+        error = res.error;
       } else {
-        toast({ title: "Exercise updated" });
-        setShowForm(false);
-        resetForm();
-        loadExercises();
+        const res = await supabase.from("exercises").insert({ ...payload, created_by: user.id }).abortSignal(controller.signal);
+        error = res.error;
       }
-    } else {
-      const { error } = await supabase.from("exercises").insert({ ...payload, created_by: user.id });
+
+      clearTimeout(timeout);
+      console.log("[ExerciseLibrary] DB write completed in", Math.round(performance.now() - dbStart), "ms");
+
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Exercise created" });
+        console.error("[ExerciseLibrary] Save error:", error);
+        toast({ title: "Unable to save. Please try again.", description: error.message, variant: "destructive" });
+        setSaving(false);
+        return;
+      }
+
+      // Show success state briefly then close
+      setSaveSuccess(true);
+      setSaving(false);
+      console.log("[ExerciseLibrary] Total save flow:", Math.round(performance.now() - startTime), "ms");
+
+      setTimeout(() => {
         setShowForm(false);
         resetForm();
+        setSaveSuccess(false);
         loadExercises();
+      }, 1200);
+    } catch (err: any) {
+      clearTimeout(timeout);
+      console.error("[ExerciseLibrary] Save aborted/failed:", err);
+      setSaving(false);
+      if (err.name === "AbortError") {
+        toast({ title: "Save timed out", description: "Please check your connection and try again.", variant: "destructive" });
+      } else {
+        toast({ title: "Unable to save. Please try again.", variant: "destructive" });
       }
     }
-    setSaving(false);
   };
 
   const deleteExercise = async (id: string) => {
@@ -508,9 +540,9 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
               <Input value={formTags} onChange={(e) => setFormTags(e.target.value)} placeholder="compound, beginner, lower body" />
             </div>
 
-            <Button onClick={saveExercise} disabled={saving} className="w-full">
+            <Button onClick={saveExercise} disabled={saving || saveSuccess} className="w-full">
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {editingExercise ? "Update Exercise" : "Save Exercise"}
+              {saveSuccess ? "Saved ✓" : saving ? "Saving…" : editingExercise ? "Update Exercise" : "Save Exercise"}
             </Button>
           </div>
         </DialogContent>
