@@ -18,6 +18,7 @@ import OnboardingMotivation from "@/components/onboarding/OnboardingMotivation";
 import OnboardingFinalNotes from "@/components/onboarding/OnboardingFinalNotes";
 import OnboardingHealthSync from "@/components/onboarding/OnboardingHealthSync";
 import OnboardingWaiver from "@/components/onboarding/OnboardingWaiver";
+import OnboardingDisclaimer from "@/components/onboarding/OnboardingDisclaimer";
 import OnboardingSummary from "@/components/onboarding/OnboardingSummary";
 
 export interface OnboardingData {
@@ -390,7 +391,14 @@ const Onboarding = () => {
 
       <div className="flex-1 px-4 py-6">
         <div className="max-w-lg mx-auto animate-fade-in">
-          {step === 1 && <OnboardingGoals data={data} updateField={updateField} />}
+          {step === 1 && (
+            <>
+              <OnboardingDisclaimer />
+              <div className="mt-6">
+                <OnboardingGoals data={data} updateField={updateField} />
+              </div>
+            </>
+          )}
           {step === 2 && <OnboardingMetrics data={data} updateField={updateField} />}
           {step === 3 && <OnboardingBodyComp data={data} updateField={updateField} />}
           {step === 4 && <OnboardingTrainingEnv data={data} updateField={updateField} validationErrors={validationErrors} />}
