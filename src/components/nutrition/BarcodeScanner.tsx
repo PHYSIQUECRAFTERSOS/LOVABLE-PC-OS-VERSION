@@ -47,12 +47,19 @@ const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "pos
 
 interface BarcodeScannerProps {
   onLogged: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const BarcodeScanner = ({ onLogged }: BarcodeScannerProps) => {
+const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: BarcodeScannerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (onOpenChange) onOpenChange(v);
+    else setInternalOpen(v);
+  };
   const [scanning, setScanning] = useState(false);
   const [looking, setLooking] = useState(false);
   const [product, setProduct] = useState<ScannedProduct | null>(null);
@@ -245,13 +252,23 @@ const BarcodeScanner = ({ onLogged }: BarcodeScannerProps) => {
 
   const nutrition = calculateNutrition();
 
+  // Auto-start scanner when dialog opens
+  useEffect(() => {
+    if (open && !scanning && !product && !notFound && !looking) {
+      startScanner();
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <ScanBarcode className="h-4 w-4" /> Scan Barcode
-        </Button>
-      </DialogTrigger>
+      {/* Only show trigger button when not externally controlled */}
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button variant="outline" className="gap-2">
+            <ScanBarcode className="h-4 w-4" /> Scan Barcode
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

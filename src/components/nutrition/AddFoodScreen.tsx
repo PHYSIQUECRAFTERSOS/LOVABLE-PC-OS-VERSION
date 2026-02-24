@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import FoodIcon from "@/lib/foodIcons";
+import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
+import MealScanCapture from "@/components/nutrition/MealScanCapture";
 
 interface FoodItem {
   id: string;
@@ -77,6 +79,10 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
   const [quickProtein, setQuickProtein] = useState("");
   const [quickCarbs, setQuickCarbs] = useState("");
   const [quickFat, setQuickFat] = useState("");
+
+  // Barcode & Meal Scan state
+  const [barcodeOpen, setBarcodeOpen] = useState(false);
+  const [mealScanOpen, setMealScanOpen] = useState(false);
 
   // Focus search on open
   useEffect(() => {
@@ -290,10 +296,10 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
         {/* Quick Actions */}
         {search.length < 2 && !showMeals && (
           <div className="grid grid-cols-4 gap-2.5 py-3">
-            <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => {}} />
-            <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => {}} />
+            <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => { console.log("[AddFood] Barcode tapped"); setBarcodeOpen(true); }} />
+            <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => { console.log("[AddFood] Meal Scan tapped"); setMealScanOpen(true); }} />
             <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
-            <QuickActionCard icon={Mic} label="Voice Log" onClick={() => {}} />
+            <QuickActionCard icon={Mic} label="Voice Log" onClick={() => toast({ title: "Coming Soon", description: "Voice logging is under development." })} />
           </div>
         )}
 
@@ -401,6 +407,21 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
           </div>
         )}
       </div>
+
+      {/* Barcode Scanner */}
+      <BarcodeScanner
+        open={barcodeOpen}
+        onOpenChange={setBarcodeOpen}
+        onLogged={() => { setBarcodeOpen(false); onLogged(); }}
+      />
+
+      {/* Meal Scan */}
+      <MealScanCapture
+        open={mealScanOpen}
+        onClose={() => setMealScanOpen(false)}
+        mealType={mealType}
+        onLogged={onLogged}
+      />
     </div>
   );
 };
