@@ -18,4 +18,22 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: mode === "production",
+        drop_debugger: true,
+      },
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-tabs", "@radix-ui/react-select"],
+          charts: ["recharts"],
+        },
+      },
+    },
+  },
 }));
