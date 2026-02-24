@@ -1,76 +1,51 @@
-import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UtensilsCrossed } from "lucide-react";
 import MacroRing from "@/components/nutrition/MacroRing";
 import { format } from "date-fns";
+import { useDataFetch } from "@/hooks/useDataFetch";
+import { CardSkeleton } from "@/components/ui/data-skeleton";
 
-interface Targets {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+interface MacroData {
+  totals: { calories: number; protein: number; carbs: number; fat: number };
+  targets: { calories: number; protein: number; carbs: number; fat: number };
 }
 
 const MacroSummary = () => {
   const { user } = useAuth();
-  const [totals, setTotals] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const [targets, setTargets] = useState<Targets>({ calories: 2000, protein: 150, carbs: 200, fat: 70 });
+  const today = format(new Date(), "yyyy-MM-dd");
 
-  useEffect(() => {
-    if (!user) return;
-    const fetch = async () => {
-      const today = format(new Date(), "yyyy-MM-dd");
+  const { data, loading } = useDataFetch<MacroData>({
+    queryKey: `macros-${user?.id}-${today}`,
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+    timeout: 5000,
+    fallback: { totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }, targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 } },
+    queryFn: async (signal) => {
+      if (!user) throw new Error("No user");
 
-      // Fetch logs
-      const { data: logs } = await supabase
-        .from("nutrition_logs")
-        .select("calories, protein, carbs, fat")
-        .eq("client_id", user.id)
-        .eq("logged_at", today);
+      const [logsRes, tgtRes] = await Promise.all([
+        supabase.from("nutrition_logs").select("calories, protein, carbs, fat").eq("client_id", user.id).eq("logged_at", today).abortSignal(signal),
+        supabase.from("nutrition_targets").select("calories, protein, carbs, fat").eq("client_id", user.id).lte("effective_date", today).order("effective_date", { ascending: false }).limit(1).abortSignal(signal),
+      ]);
 
-      if (logs) {
-        const totaled = logs.reduce(
-          (acc, l) => ({
-            calories: acc.calories + l.calories,
-            protein: acc.protein + l.protein,
-            carbs: acc.carbs + l.carbs,
-            fat: acc.fat + l.fat,
-          }),
-          { calories: 0, protein: 0, carbs: 0, fat: 0 }
-        );
-        setTotals(totaled);
-      }
+      const logs = logsRes.data || [];
+      const totals = logs.reduce((acc, l) => ({ calories: acc.calories + l.calories, protein: acc.protein + l.protein, carbs: acc.carbs + l.carbs, fat: acc.fat + l.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+      const tgt = tgtRes.data?.[0];
+      const targets = tgt ? { calories: tgt.calories, protein: tgt.protein, carbs: tgt.carbs, fat: tgt.fat } : { calories: 2000, protein: 150, carbs: 200, fat: 70 };
 
-      // Fetch targets
-      const { data: tgt } = await supabase
-        .from("nutrition_targets")
-        .select("calories, protein, carbs, fat")
-        .eq("client_id", user.id)
-        .lte("effective_date", today)
-        .order("effective_date", { ascending: false })
-        .limit(1);
+      return { totals, targets };
+    },
+  });
 
-      if (tgt && tgt.length > 0) {
-        setTargets({
-          calories: tgt[0].calories,
-          protein: tgt[0].protein,
-          carbs: tgt[0].carbs,
-          fat: tgt[0].fat,
-        });
-      }
-    };
-    fetch();
-  }, [user]);
+  if (loading) return <CardSkeleton lines={3} />;
+
+  const { totals, targets } = data || { totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }, targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 } };
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <UtensilsCrossed className="h-5 w-5" /> Macros Today
-        </CardTitle>
-      </CardHeader>
+      <CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5" /> Macros Today</CardTitle></CardHeader>
       <CardContent>
         <div className="flex justify-around">
           <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />

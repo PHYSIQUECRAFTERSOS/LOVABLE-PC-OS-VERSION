@@ -1,82 +1,79 @@
-import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dumbbell, Clock } from "lucide-react";
+import { Dumbbell } from "lucide-react";
 import { format } from "date-fns";
+import { useDataFetch } from "@/hooks/useDataFetch";
+import { CardSkeleton } from "@/components/ui/data-skeleton";
 
 interface TodayWorkoutData {
   id: string;
   name: string;
   exercises: { name: string; sets: number; reps?: string }[];
   phase?: string;
+  completed: boolean;
 }
 
 const TodayWorkout = () => {
   const { user } = useAuth();
-  const [workout, setWorkout] = useState<TodayWorkoutData | null>(null);
-  const [completed, setCompleted] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    const fetch = async () => {
+  const { data: workout, loading } = useDataFetch<TodayWorkoutData | null>({
+    queryKey: `today-workout-${user?.id}-${format(new Date(), "yyyy-MM-dd")}`,
+    enabled: !!user,
+    staleTime: 2 * 60 * 1000,
+    timeout: 5000,
+    fallback: null,
+    queryFn: async (signal) => {
+      if (!user) return null;
       const today = format(new Date(), "yyyy-MM-dd");
+
       const { data: sessions } = await supabase
         .from("workout_sessions")
         .select("id, workout_id, completed_at, workouts:workout_id(id, name, phase)")
         .eq("client_id", user.id)
         .gte("created_at", today)
         .lte("created_at", `${today}T23:59:59`)
-        .single();
+        .limit(1);
 
-      if (sessions) {
-        setCompleted(!!sessions.completed_at);
-        const workoutId = (sessions.workouts as any)?.id || sessions.workout_id;
+      const session = sessions?.[0];
 
-        const { data: exercises } = await supabase
-          .from("workout_exercises")
-          .select("exercise_id, sets, reps, exercises:exercise_id(name)")
-          .eq("workout_id", workoutId)
-          .order("exercise_order", { ascending: true });
+      if (!session) return null;
 
-        setWorkout({
-          id: workoutId,
-          name: (sessions.workouts as any)?.name || "Workout",
-          phase: (sessions.workouts as any)?.phase,
-          exercises: (exercises || []).map((e: any) => ({
-            name: e.exercises?.name || "",
-            sets: e.sets,
-            reps: e.reps,
-          })),
-        });
-      }
-    };
-    fetch();
-  }, [user]);
+      const workoutId = (session.workouts as any)?.id || session.workout_id;
+      const { data: exercises } = await supabase
+        .from("workout_exercises")
+        .select("sets, reps, exercises:exercise_id(name)")
+        .eq("workout_id", workoutId)
+        .order("exercise_order", { ascending: true })
+        .abortSignal(signal);
+
+      return {
+        id: workoutId,
+        name: (session.workouts as any)?.name || "Workout",
+        phase: (session.workouts as any)?.phase,
+        completed: !!session.completed_at,
+        exercises: (exercises || []).map((e: any) => ({ name: e.exercises?.name || "", sets: e.sets, reps: e.reps })),
+      };
+    },
+  });
+
+  if (loading) return <CardSkeleton lines={4} />;
 
   if (!workout) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5" /> Today's Workout
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">No workout scheduled today</p>
-        </CardContent>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Dumbbell className="h-5 w-5" /> Today's Workout</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">No workout scheduled today</p></CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className={completed ? "border-primary/30" : ""}>
+    <Card className={workout.completed ? "border-primary/30" : ""}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <Dumbbell className="h-5 w-5" /> {workout.name}
-          </span>
-          {completed && <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">✓ Done</span>}
+          <span className="flex items-center gap-2"><Dumbbell className="h-5 w-5" /> {workout.name}</span>
+          {workout.completed && <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">✓ Done</span>}
         </CardTitle>
         {workout.phase && <p className="text-xs text-muted-foreground mt-1 capitalize">{workout.phase} Phase</p>}
       </CardHeader>
