@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,12 @@ interface AvatarUploadProps {
   onUploaded: (url: string | null) => void;
 }
 
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp"];
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const MAX_RAW_SIZE = 10 * 1024 * 1024; // 10MB raw limit
 
-const compressAndCropImage = (file: File): Promise<Blob> => {
+const compressImage = (file: File): Promise<Blob> => {
   return new Promise((resolve, reject) => {
+    const start = performance.now();
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -24,25 +25,26 @@ const compressAndCropImage = (file: File): Promise<Blob> => {
       const size = Math.min(img.width, img.height);
       const sx = (img.width - size) / 2;
       const sy = (img.height - size) / 2;
-
-      // Create thumbnail (256px) and full (512px)
-      const outputSize = 512;
       const canvas = document.createElement("canvas");
-      canvas.width = outputSize;
-      canvas.height = outputSize;
+      canvas.width = 512;
+      canvas.height = 512;
       const ctx = canvas.getContext("2d");
       if (!ctx) return reject(new Error("Canvas not supported"));
-      ctx.drawImage(img, sx, sy, size, size, 0, 0, outputSize, outputSize);
+      ctx.drawImage(img, sx, sy, size, size, 0, 0, 512, 512);
       canvas.toBlob(
         (blob) => {
           if (!blob) return reject(new Error("Compression failed"));
+          console.log(`[Perf] Avatar compress: ${(performance.now() - start).toFixed(0)}ms, ${(blob.size / 1024).toFixed(0)}KB`);
           resolve(blob);
         },
         "image/jpeg",
-        0.85
+        0.75
       );
     };
-    img.onerror = () => reject(new Error("Failed to load image"));
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
     img.src = url;
   });
 };
@@ -52,54 +54,85 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [optimisticUrl, setOptimisticUrl] = useState<string | null>(null);
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const displayUrl = optimisticUrl || currentUrl;
+
+  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
+    // Validate type
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast({ title: "Invalid format", description: "Please use JPG, PNG, or HEIC.", variant: "destructive" });
+      toast({ title: "Invalid format", description: "Use JPG, PNG, or WebP.", variant: "destructive" });
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    if (file.size > MAX_SIZE) {
-      toast({ title: "File too large", description: "Max 5MB allowed.", variant: "destructive" });
+    if (file.size > MAX_RAW_SIZE) {
+      toast({ title: "File too large", description: "Max 10MB before compression.", variant: "destructive" });
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
 
     setUploading(true);
+    const totalStart = performance.now();
+
     try {
-      const compressed = await compressAndCropImage(file);
+      // Step 1: Compress
+      const compressed = await compressImage(file);
+
+      // Step 2: Optimistic preview
+      const localPreview = URL.createObjectURL(compressed);
+      setOptimisticUrl(localPreview);
+
+      // Step 3: Upload with 5s timeout
       const path = `${user.id}/avatar.jpg`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      // Remove old file first (ignore error if not found)
-      await supabase.storage.from("avatars").remove([path]);
-
+      const uploadStart = performance.now();
       const { error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(path, compressed, { contentType: "image/jpeg", upsert: true });
+      clearTimeout(timeoutId);
+      console.log(`[Perf] Avatar upload: ${(performance.now() - uploadStart).toFixed(0)}ms`);
 
       if (uploadError) throw uploadError;
 
+      // Step 4: Get URL and update profile
       const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
       const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
       await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("user_id", user.id);
+
+      // Clean up optimistic preview, set real URL
+      URL.revokeObjectURL(localPreview);
+      setOptimisticUrl(null);
       onUploaded(publicUrl);
-      toast({ title: "Profile photo updated" });
+
+      console.log(`[Perf] Avatar total: ${(performance.now() - totalStart).toFixed(0)}ms`);
+      toast({ title: "Profile photo updated ✓" });
     } catch (err: any) {
-      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+      // Revert optimistic
+      setOptimisticUrl(null);
+      const msg = err?.name === "AbortError" || err?.message?.includes("abort")
+        ? "Upload timed out. Try again."
+        : err?.message || "Upload failed";
+      console.error("[Avatar] Upload failed:", msg);
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
     }
-  };
+  }, [user, toast, onUploaded]);
 
-  const handleRemove = async () => {
+  const handleRemove = useCallback(async () => {
     if (!user) return;
     setUploading(true);
     try {
       await supabase.storage.from("avatars").remove([`${user.id}/avatar.jpg`]);
       await supabase.from("profiles").update({ avatar_url: null }).eq("user_id", user.id);
+      setOptimisticUrl(null);
       onUploaded(null);
       toast({ title: "Profile photo removed" });
     } catch (err: any) {
@@ -107,12 +140,12 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
     } finally {
       setUploading(false);
     }
-  };
+  }, [user, toast, onUploaded]);
 
   return (
     <div className="flex items-center gap-4">
       <div className="relative">
-        <UserAvatar src={currentUrl} name={fullName} className="h-20 w-20 text-lg" />
+        <UserAvatar src={displayUrl} name={fullName} className="h-20 w-20 text-lg" />
         {uploading && (
           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -123,7 +156,7 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/heic,image/heif,image/webp"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           onChange={handleFile}
           className="hidden"
         />
@@ -135,9 +168,9 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
           className="gap-2"
         >
           <Camera className="h-4 w-4" />
-          {currentUrl ? "Change Photo" : "Upload Photo"}
+          {displayUrl ? "Change Photo" : "Upload Photo"}
         </Button>
-        {currentUrl && (
+        {displayUrl && !optimisticUrl && (
           <Button
             variant="ghost"
             size="sm"
