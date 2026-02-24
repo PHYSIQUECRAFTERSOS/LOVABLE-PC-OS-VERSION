@@ -43,12 +43,16 @@ Rules:
   molybdenum_mcg, iodine_mcg, omega_3, omega_6
 - Also extract macros if present: calories, protein, carbs, fat, fiber, sugar, sodium`;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
@@ -90,6 +94,8 @@ Rules:
         tool_choice: { type: "function", function: { name: "extract_supplement_facts" } },
       }),
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       if (response.status === 429) {

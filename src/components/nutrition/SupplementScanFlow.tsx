@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { supabase } from "@/integrations/supabase/client";
+import imageCompression from "browser-image-compression";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,19 +132,39 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
     if (!file) return;
 
     setAnalyzing(true);
+    const totalStart = performance.now();
 
     try {
-      // Convert to base64
+      // Step 1: Compress image (target < 300KB, max 800px)
+      const compressStart = performance.now();
+      const compressed = await imageCompression(file, {
+        maxWidthOrHeight: 800,
+        maxSizeMB: 0.3,
+        useWebWorker: true,
+        fileType: "image/jpeg",
+      });
+      console.log("[SuppScan] Compressed:", file.size, "→", compressed.size, "bytes in", Math.round(performance.now() - compressStart), "ms");
+
+      // Step 2: Convert to base64 data URL
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(compressed);
       });
+
+      // Step 3: Call AI with 10s hard timeout
+      const apiStart = performance.now();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
 
       const { data, error } = await supabase.functions.invoke("analyze-supplement-label", {
         body: { image: base64 },
       });
+
+      clearTimeout(timeout);
+      console.log("[SuppScan] API response in", Math.round(performance.now() - apiStart), "ms");
+      console.log("[SuppScan] Total time:", Math.round(performance.now() - totalStart), "ms");
 
       if (error) throw error;
 
@@ -161,7 +182,6 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
       setConfidence(ext.confidence || "medium");
       setWasAiExtracted(true);
 
-      // Map nutrients to form state
       const nutMap: Record<string, string> = {};
       if (ext.nutrients) {
         Object.entries(ext.nutrients).forEach(([key, val]) => {
@@ -172,7 +192,14 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
       setStep("review");
       toast({ title: "Label analyzed!", description: `${Object.keys(nutMap).length} nutrients detected` });
     } catch (err: any) {
-      toast({ title: "Analysis failed", description: err.message || "Please try again", variant: "destructive" });
+      console.error("[SuppScan] Error:", err);
+      const isTimeout = err.name === "AbortError" || (performance.now() - totalStart > 9500);
+      toast({
+        title: isTimeout ? "Analysis timed out" : "Analysis failed",
+        description: isTimeout ? "Try again with better lighting." : (err.message || "Please try again"),
+        variant: "destructive",
+      });
+      setWasAiExtracted(false);
       setStep("review");
     } finally {
       setAnalyzing(false);
@@ -316,7 +343,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
               <div className="flex flex-col items-center justify-center py-10 gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Analyzing label with AI...</p>
-                <p className="text-xs text-muted-foreground">This may take a few seconds</p>
+                <p className="text-xs text-muted-foreground">Usually completes in 5–10 seconds</p>
               </div>
             ) : (
               <div className="space-y-4">
