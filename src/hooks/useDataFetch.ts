@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { TIMEOUTS } from "@/lib/performance";
 
 interface UseDataFetchOptions<T> {
   queryKey: string;
@@ -6,6 +7,8 @@ interface UseDataFetchOptions<T> {
   enabled?: boolean;
   staleTime?: number; // ms before data is considered stale (default 5min)
   timeout?: number; // ms before request is aborted (default 5000)
+  /** Set to true for AI endpoints — uses 10s timeout instead of 5s */
+  isAI?: boolean;
   fallback?: T;
 }
 
@@ -24,10 +27,12 @@ export function useDataFetch<T>({
   queryKey,
   queryFn,
   enabled = true,
-  staleTime = 5 * 60 * 1000, // 5 minutes default
-  timeout = 5000,
+  staleTime = 5 * 60 * 1000,
+  timeout,
+  isAI = false,
   fallback,
 }: UseDataFetchOptions<T>): UseDataFetchResult<T> {
+  const effectiveTimeout = timeout ?? (isAI ? TIMEOUTS.AI_PROCESS : TIMEOUTS.STANDARD_API);
   const [data, setData] = useState<T | undefined>(() => {
     const cached = cache.get(queryKey);
     if (cached && Date.now() - cached.timestamp < staleTime) {
@@ -69,7 +74,7 @@ export function useDataFetch<T>({
     abortRef.current = controller;
 
     // Timeout protection
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     const startTime = performance.now();
 
     try {
@@ -93,7 +98,7 @@ export function useDataFetch<T>({
       if (!mountedRef.current) return;
 
       if (err.name === "AbortError") {
-        console.warn(`[Perf] ${queryKey} timed out after ${timeout}ms`);
+        console.warn(`[Perf] ${queryKey} timed out after ${effectiveTimeout}ms`);
         setTimedOut(true);
         // Use stale cache or fallback
         if (cached) {
@@ -110,7 +115,7 @@ export function useDataFetch<T>({
       }
       setLoading(false);
     }
-  }, [queryKey, enabled, staleTime, timeout]);
+  }, [queryKey, enabled, staleTime, effectiveTimeout]);
 
   useEffect(() => {
     mountedRef.current = true;
