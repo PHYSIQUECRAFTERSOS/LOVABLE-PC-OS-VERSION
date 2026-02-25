@@ -2,14 +2,17 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import ProgramBuilder from "./ProgramBuilder";
+import { format } from "date-fns";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy",
@@ -19,6 +22,7 @@ const GOAL_LABELS: Record<string, string> = {
   athletic: "Athletic",
   general: "General Fitness",
   recomp: "Recomp",
+  prep: "Contest Prep",
 };
 
 const ProgramList = () => {
@@ -32,17 +36,35 @@ const ProgramList = () => {
   const [assignProgramId, setAssignProgramId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [autoAdvance, setAutoAdvance] = useState(true);
   const [assigning, setAssigning] = useState(false);
+  const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
 
   const loadPrograms = async () => {
     if (!user) return;
     setLoading(true);
     const { data } = await supabase
       .from("programs")
-      .select("id, name, description, goal_type, start_date, end_date, is_template, client_id, created_at")
+      .select("id, name, description, goal_type, start_date, end_date, is_template, client_id, created_at, duration_weeks, tags")
       .eq("coach_id", user.id)
       .order("created_at", { ascending: false });
     setPrograms(data || []);
+
+    // Load phase counts
+    if (data && data.length > 0) {
+      const ids = data.map((p: any) => p.id);
+      const { data: phases } = await supabase
+        .from("program_phases")
+        .select("program_id")
+        .in("program_id", ids);
+      const counts: Record<string, number> = {};
+      (phases || []).forEach((p: any) => {
+        counts[p.program_id] = (counts[p.program_id] || 0) + 1;
+      });
+      setPhaseCounts(counts);
+    }
+
     setLoading(false);
   };
 
@@ -54,13 +76,11 @@ const ProgramList = () => {
       .eq("coach_id", user.id)
       .eq("status", "active");
 
-    // Fallback: if the join doesn't work, just get client IDs
     if (data) {
-      const clientList = data.map((d: any) => ({
+      setClients(data.map((d: any) => ({
         id: d.client_id,
         name: d.profiles?.full_name || d.client_id.slice(0, 8),
-      }));
-      setClients(clientList);
+      })));
     }
   };
 
@@ -75,29 +95,80 @@ const ProgramList = () => {
       const { data: newProg, error } = await supabase.from("programs").insert({
         coach_id: user.id, name: `${source.name} (Copy)`,
         description: source.description, goal_type: source.goal_type, is_template: true,
-      }).select().single();
+        duration_weeks: source.duration_weeks, tags: source.tags,
+      } as any).select().single();
       if (error) throw error;
 
-      // Copy weeks and workouts
-      const { data: weeks } = await supabase
+      // Copy phases
+      const { data: phaseRows } = await supabase
+        .from("program_phases")
+        .select("*")
+        .eq("program_id", programId)
+        .order("phase_order");
+
+      if (phaseRows) {
+        for (const phase of phaseRows) {
+          const { data: newPhase } = await supabase
+            .from("program_phases")
+            .insert({
+              program_id: newProg.id, name: phase.name, description: phase.description,
+              phase_order: phase.phase_order, duration_weeks: phase.duration_weeks,
+              training_style: phase.training_style, intensity_system: phase.intensity_system,
+              progression_rule: phase.progression_rule,
+            })
+            .select().single();
+
+          if (newPhase) {
+            const { data: weeks } = await supabase
+              .from("program_weeks")
+              .select("id, week_number, name")
+              .eq("program_id", programId)
+              .eq("phase_id", phase.id)
+              .order("week_number");
+
+            if (weeks) {
+              for (const week of weeks) {
+                const { data: newWeek } = await supabase
+                  .from("program_weeks")
+                  .insert({ program_id: newProg.id, phase_id: newPhase.id, week_number: week.week_number, name: week.name })
+                  .select().single();
+
+                if (newWeek) {
+                  const { data: workouts } = await supabase
+                    .from("program_workouts")
+                    .select("workout_id, day_of_week, day_label, sort_order")
+                    .eq("week_id", week.id);
+                  if (workouts && workouts.length > 0) {
+                    await supabase.from("program_workouts").insert(
+                      workouts.map(w => ({ ...w, week_id: newWeek.id }))
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Also copy legacy weeks without phases
+      const { data: legacyWeeks } = await supabase
         .from("program_weeks")
         .select("id, week_number, name")
         .eq("program_id", programId)
+        .is("phase_id", null)
         .order("week_number");
 
-      if (weeks) {
-        for (const week of weeks) {
+      if (legacyWeeks) {
+        for (const week of legacyWeeks) {
           const { data: newWeek } = await supabase
             .from("program_weeks")
             .insert({ program_id: newProg.id, week_number: week.week_number, name: week.name })
             .select().single();
-
           if (newWeek) {
             const { data: workouts } = await supabase
               .from("program_workouts")
               .select("workout_id, day_of_week, day_label, sort_order")
               .eq("week_id", week.id);
-
             if (workouts && workouts.length > 0) {
               await supabase.from("program_workouts").insert(
                 workouts.map(w => ({ ...w, week_id: newWeek.id }))
@@ -131,73 +202,103 @@ const ProgramList = () => {
       const source = programs.find(p => p.id === assignProgramId);
       if (!source) throw new Error("Program not found");
 
-      // Create a copy for the client
+      // 1. Fork: Create a client-specific copy of the program
       const { data: newProg, error } = await supabase.from("programs").insert({
-        coach_id: user.id, client_id: selectedClientId,
-        name: source.name, description: source.description,
-        goal_type: source.goal_type, start_date: source.start_date,
-        end_date: source.end_date, is_template: false,
-      }).select().single();
+        coach_id: user.id,
+        client_id: selectedClientId,
+        name: source.name,
+        description: source.description,
+        goal_type: source.goal_type,
+        start_date: startDate,
+        is_template: false,
+        duration_weeks: source.duration_weeks,
+        tags: source.tags,
+      } as any).select().single();
       if (error) throw error;
 
-      // Copy structure
-      const { data: weeks } = await supabase
-        .from("program_weeks")
-        .select("id, week_number, name")
+      // 2. Copy phases and structure
+      const { data: phaseRows } = await supabase
+        .from("program_phases")
+        .select("*")
         .eq("program_id", assignProgramId)
-        .order("week_number");
+        .order("phase_order");
 
-      if (weeks) {
-        for (const week of weeks) {
-          const { data: newWeek } = await supabase
-            .from("program_weeks")
-            .insert({ program_id: newProg.id, week_number: week.week_number, name: week.name })
+      let firstPhaseId: string | null = null;
+
+      if (phaseRows && phaseRows.length > 0) {
+        for (const phase of phaseRows) {
+          const { data: newPhase } = await supabase
+            .from("program_phases")
+            .insert({
+              program_id: newProg.id, name: phase.name, description: phase.description,
+              phase_order: phase.phase_order, duration_weeks: phase.duration_weeks,
+              training_style: phase.training_style, intensity_system: phase.intensity_system,
+              progression_rule: phase.progression_rule,
+            })
             .select().single();
 
-          if (newWeek) {
-            const { data: workouts } = await supabase
-              .from("program_workouts")
-              .select("workout_id, day_of_week, day_label, sort_order")
-              .eq("week_id", week.id);
+          if (newPhase) {
+            if (!firstPhaseId) firstPhaseId = newPhase.id;
 
-            if (workouts && workouts.length > 0) {
-              // Also assign the workouts to the client
-              for (const w of workouts) {
-                // Duplicate the workout for the client
-                const { data: origWorkout } = await supabase
-                  .from("workouts")
-                  .select("name, description, instructions, phase")
-                  .eq("id", w.workout_id)
-                  .single();
+            const { data: weeks } = await supabase
+              .from("program_weeks")
+              .select("id, week_number, name")
+              .eq("program_id", assignProgramId)
+              .eq("phase_id", phase.id)
+              .order("week_number");
 
-                if (origWorkout) {
-                  const { data: clientWorkout } = await supabase
-                    .from("workouts")
-                    .insert({
-                      coach_id: user.id, client_id: selectedClientId,
-                      name: origWorkout.name, description: origWorkout.description,
-                      instructions: origWorkout.instructions, phase: origWorkout.phase,
-                      is_template: false,
-                    })
-                    .select().single();
+            if (weeks) {
+              for (const week of weeks) {
+                const { data: newWeek } = await supabase
+                  .from("program_weeks")
+                  .insert({ program_id: newProg.id, phase_id: newPhase.id, week_number: week.week_number, name: week.name })
+                  .select().single();
 
-                  if (clientWorkout) {
-                    // Copy exercises
-                    const { data: exercises } = await supabase
-                      .from("workout_exercises")
-                      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override")
-                      .eq("workout_id", w.workout_id);
+                if (newWeek) {
+                  const { data: workouts } = await supabase
+                    .from("program_workouts")
+                    .select("workout_id, day_of_week, day_label, sort_order")
+                    .eq("week_id", week.id);
 
-                    if (exercises && exercises.length > 0) {
-                      await supabase.from("workout_exercises").insert(
-                        exercises.map(ex => ({ ...ex, workout_id: clientWorkout.id }))
-                      );
+                  if (workouts && workouts.length > 0) {
+                    for (const w of workouts) {
+                      // Deep-copy workout for client
+                      const { data: origWorkout } = await supabase
+                        .from("workouts")
+                        .select("name, description, instructions, phase, workout_type")
+                        .eq("id", w.workout_id)
+                        .single();
+
+                      if (origWorkout) {
+                        const { data: clientWorkout } = await supabase
+                          .from("workouts")
+                          .insert({
+                            coach_id: user.id, client_id: selectedClientId,
+                            name: origWorkout.name, description: origWorkout.description,
+                            instructions: origWorkout.instructions, phase: origWorkout.phase,
+                            is_template: false, workout_type: (origWorkout as any).workout_type || "regular",
+                          } as any)
+                          .select().single();
+
+                        if (clientWorkout) {
+                          const { data: exes } = await supabase
+                            .from("workout_exercises")
+                            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
+                            .eq("workout_id", w.workout_id);
+
+                          if (exes && exes.length > 0) {
+                            await supabase.from("workout_exercises").insert(
+                              exes.map((ex: any) => ({ ...ex, workout_id: clientWorkout.id }))
+                            );
+                          }
+
+                          await supabase.from("program_workouts").insert({
+                            week_id: newWeek.id, workout_id: clientWorkout.id,
+                            day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
+                          });
+                        }
+                      }
                     }
-
-                    await supabase.from("program_workouts").insert({
-                      week_id: newWeek.id, workout_id: clientWorkout.id,
-                      day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
-                    });
                   }
                 }
               }
@@ -206,9 +307,23 @@ const ProgramList = () => {
         }
       }
 
-      toast({ title: "Program assigned to client" });
+      // 3. Create assignment tracking record
+      await supabase.from("client_program_assignments").insert({
+        client_id: selectedClientId,
+        program_id: newProg.id,
+        coach_id: user.id,
+        start_date: startDate,
+        current_phase_id: firstPhaseId,
+        current_week_number: 1,
+        status: "active",
+        auto_advance: autoAdvance,
+        forked_from_program_id: assignProgramId,
+      });
+
+      toast({ title: "Program assigned to client", description: `Starting ${format(new Date(startDate), "MMM d, yyyy")}` });
       setShowAssignDialog(false);
       setSelectedClientId("");
+      setStartDate(format(new Date(), "yyyy-MM-dd"));
       loadPrograms();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -240,7 +355,7 @@ const ProgramList = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Create multi-week training programs and assign to clients.
+          Create multi-phase training programs and assign to clients.
         </p>
         <Button size="sm" onClick={() => setShowBuilder(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> New Program
@@ -279,6 +394,16 @@ const ProgramList = () => {
                           <Users className="h-2.5 w-2.5" /> Assigned
                         </Badge>
                       )}
+                      {phaseCounts[program.id] > 0 && (
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                          <Layers className="h-2.5 w-2.5" /> {phaseCounts[program.id]} phases
+                        </Badge>
+                      )}
+                      {program.duration_weeks && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {program.duration_weeks}w
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -286,6 +411,13 @@ const ProgramList = () => {
               <CardContent className="flex-1 space-y-3">
                 {program.description && (
                   <p className="text-xs text-muted-foreground line-clamp-2">{program.description}</p>
+                )}
+                {program.tags && program.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {program.tags.map((tag: string) => (
+                      <Badge key={tag} variant="outline" className="text-[9px]">{tag}</Badge>
+                    ))}
+                  </div>
                 )}
                 {program.start_date && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -316,7 +448,7 @@ const ProgramList = () => {
         </div>
       )}
 
-      {/* Assign Dialog */}
+      {/* Assign Dialog — Enhanced */}
       <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Assign Program to Client</DialogTitle></DialogHeader>
@@ -332,6 +464,31 @@ const ProgramList = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <p className="text-[11px] text-muted-foreground">
+                Phases will auto-map from this date forward.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm">Auto-Advance Phases</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Automatically move to next phase when complete
+                </p>
+              </div>
+              <Switch checked={autoAdvance} onCheckedChange={setAutoAdvance} />
+            </div>
+
+            <div className="p-3 rounded-lg bg-muted/30 border">
+              <p className="text-[11px] text-muted-foreground">
+                <strong>Fork from master:</strong> A client-specific copy will be created. Edits to the client's program won't affect the master template.
+              </p>
+            </div>
+
             <Button onClick={assignToClient} disabled={assigning || !selectedClientId} className="w-full">
               {assigning && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
               Assign Program

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, GripVertical } from "lucide-react";
+import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -296,6 +296,14 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     }]);
   };
 
+  const movePhase = (idx: number, direction: "up" | "down") => {
+    const newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= phases.length) return;
+    const newPhases = [...phases];
+    [newPhases[idx], newPhases[newIdx]] = [newPhases[newIdx], newPhases[idx]];
+    setPhases(newPhases.map((p, i) => ({ ...p, phaseOrder: i + 1 })));
+  };
+
   const updatePhase = (idx: number, updates: Partial<ProgramPhase>) => {
     const newPhases = [...phases];
     newPhases[idx] = { ...newPhases[idx], ...updates };
@@ -531,6 +539,16 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                     </span>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    {phaseIdx > 0 && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phaseIdx, "up")} title="Move up">
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {phaseIdx < phases.length - 1 && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phaseIdx, "down")} title="Move down">
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => duplicatePhase(phaseIdx)} title="Duplicate phase">
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
