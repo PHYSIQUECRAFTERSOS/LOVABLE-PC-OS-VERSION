@@ -851,6 +851,9 @@ export type Database = {
           current_week_number: number
           forked_from_program_id: string | null
           id: string
+          is_linked_to_master: boolean
+          last_synced_at: string | null
+          master_version_number: number
           program_id: string
           start_date: string
           status: string
@@ -865,6 +868,9 @@ export type Database = {
           current_week_number?: number
           forked_from_program_id?: string | null
           id?: string
+          is_linked_to_master?: boolean
+          last_synced_at?: string | null
+          master_version_number?: number
           program_id: string
           start_date?: string
           status?: string
@@ -879,6 +885,9 @@ export type Database = {
           current_week_number?: number
           forked_from_program_id?: string | null
           id?: string
+          is_linked_to_master?: boolean
+          last_synced_at?: string | null
+          master_version_number?: number
           program_id?: string
           start_date?: string
           status?: string
@@ -1985,6 +1994,44 @@ export type Database = {
         }
         Relationships: []
       }
+      master_program_versions: {
+        Row: {
+          change_log: string | null
+          created_at: string
+          id: string
+          program_id: string
+          snapshot: Json | null
+          updated_by: string
+          version_number: number
+        }
+        Insert: {
+          change_log?: string | null
+          created_at?: string
+          id?: string
+          program_id: string
+          snapshot?: Json | null
+          updated_by: string
+          version_number: number
+        }
+        Update: {
+          change_log?: string | null
+          created_at?: string
+          id?: string
+          program_id?: string
+          snapshot?: Json | null
+          updated_by?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "master_program_versions_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meal_plan_days: {
         Row: {
           created_at: string
@@ -2998,11 +3045,13 @@ export type Database = {
           end_date: string | null
           goal_type: string | null
           id: string
+          is_master: boolean
           is_template: boolean | null
           name: string
           start_date: string | null
           tags: string[] | null
           updated_at: string
+          version_number: number
         }
         Insert: {
           client_id?: string | null
@@ -3013,11 +3062,13 @@ export type Database = {
           end_date?: string | null
           goal_type?: string | null
           id?: string
+          is_master?: boolean
           is_template?: boolean | null
           name: string
           start_date?: string | null
           tags?: string[] | null
           updated_at?: string
+          version_number?: number
         }
         Update: {
           client_id?: string | null
@@ -3028,11 +3079,13 @@ export type Database = {
           end_date?: string | null
           goal_type?: string | null
           id?: string
+          is_master?: boolean
           is_template?: boolean | null
           name?: string
           start_date?: string | null
           tags?: string[] | null
           updated_at?: string
+          version_number?: number
         }
         Relationships: []
       }
