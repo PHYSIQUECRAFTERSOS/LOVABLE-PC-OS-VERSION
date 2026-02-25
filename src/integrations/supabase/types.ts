@@ -811,6 +811,103 @@ export type Database = {
         }
         Relationships: []
       }
+      client_notes: {
+        Row: {
+          client_id: string
+          coach_id: string
+          content: string
+          created_at: string
+          id: string
+          is_pinned: boolean
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_pinned?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      client_program_assignments: {
+        Row: {
+          auto_advance: boolean
+          client_id: string
+          coach_id: string
+          created_at: string
+          current_phase_id: string | null
+          current_week_number: number
+          forked_from_program_id: string | null
+          id: string
+          program_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          auto_advance?: boolean
+          client_id: string
+          coach_id: string
+          created_at?: string
+          current_phase_id?: string | null
+          current_week_number?: number
+          forked_from_program_id?: string | null
+          id?: string
+          program_id: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_advance?: boolean
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          current_phase_id?: string | null
+          current_week_number?: number
+          forked_from_program_id?: string | null
+          id?: string
+          program_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_program_assignments_current_phase_id_fkey"
+            columns: ["current_phase_id"]
+            isOneToOne: false
+            referencedRelation: "program_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_program_assignments_forked_from_program_id_fkey"
+            columns: ["forked_from_program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_program_assignments_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_risk_scores: {
         Row: {
           calculated_at: string
@@ -2754,11 +2851,62 @@ export type Database = {
         }
         Relationships: []
       }
+      program_phases: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_weeks: number
+          id: string
+          intensity_system: string | null
+          name: string
+          phase_order: number
+          program_id: string
+          progression_rule: string | null
+          training_style: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_weeks?: number
+          id?: string
+          intensity_system?: string | null
+          name?: string
+          phase_order?: number
+          program_id: string
+          progression_rule?: string | null
+          training_style?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_weeks?: number
+          id?: string
+          intensity_system?: string | null
+          name?: string
+          phase_order?: number
+          program_id?: string
+          progression_rule?: string | null
+          training_style?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_phases_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       program_weeks: {
         Row: {
           created_at: string
           id: string
           name: string | null
+          phase_id: string | null
           program_id: string
           week_number: number
         }
@@ -2766,6 +2914,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string | null
+          phase_id?: string | null
           program_id: string
           week_number?: number
         }
@@ -2773,10 +2922,18 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string | null
+          phase_id?: string | null
           program_id?: string
           week_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "program_weeks_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "program_phases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "program_weeks_program_id_fkey"
             columns: ["program_id"]
@@ -2837,12 +2994,14 @@ export type Database = {
           coach_id: string
           created_at: string
           description: string | null
+          duration_weeks: number | null
           end_date: string | null
           goal_type: string | null
           id: string
           is_template: boolean | null
           name: string
           start_date: string | null
+          tags: string[] | null
           updated_at: string
         }
         Insert: {
@@ -2850,12 +3009,14 @@ export type Database = {
           coach_id: string
           created_at?: string
           description?: string | null
+          duration_weeks?: number | null
           end_date?: string | null
           goal_type?: string | null
           id?: string
           is_template?: boolean | null
           name: string
           start_date?: string | null
+          tags?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -2863,12 +3024,14 @@ export type Database = {
           coach_id?: string
           created_at?: string
           description?: string | null
+          duration_weeks?: number | null
           end_date?: string | null
           goal_type?: string | null
           id?: string
           is_template?: boolean | null
           name?: string
           start_date?: string | null
+          tags?: string[] | null
           updated_at?: string
         }
         Relationships: []
@@ -3720,14 +3883,20 @@ export type Database = {
           exercise_order: number
           id: string
           increment_type: string | null
+          intensity_type: string | null
+          is_amrap: boolean | null
+          loading_percentage: number | null
+          loading_type: string | null
           notes: string | null
           progression_mode: string | null
           progression_type: string | null
           reps: string | null
           rest_seconds: number | null
           rir: number | null
+          rpe_target: number | null
           rpe_threshold: number | null
           sets: number
+          superset_group: string | null
           tempo: string | null
           updated_at: string
           video_override: string | null
@@ -3740,14 +3909,20 @@ export type Database = {
           exercise_order: number
           id?: string
           increment_type?: string | null
+          intensity_type?: string | null
+          is_amrap?: boolean | null
+          loading_percentage?: number | null
+          loading_type?: string | null
           notes?: string | null
           progression_mode?: string | null
           progression_type?: string | null
           reps?: string | null
           rest_seconds?: number | null
           rir?: number | null
+          rpe_target?: number | null
           rpe_threshold?: number | null
           sets: number
+          superset_group?: string | null
           tempo?: string | null
           updated_at?: string
           video_override?: string | null
@@ -3760,14 +3935,20 @@ export type Database = {
           exercise_order?: number
           id?: string
           increment_type?: string | null
+          intensity_type?: string | null
+          is_amrap?: boolean | null
+          loading_percentage?: number | null
+          loading_type?: string | null
           notes?: string | null
           progression_mode?: string | null
           progression_type?: string | null
           reps?: string | null
           rest_seconds?: number | null
           rir?: number | null
+          rpe_target?: number | null
           rpe_threshold?: number | null
           sets?: number
+          superset_group?: string | null
           tempo?: string | null
           updated_at?: string
           video_override?: string | null
@@ -3842,6 +4023,7 @@ export type Database = {
           notes: string | null
           phase: string | null
           updated_at: string
+          workout_type: string | null
         }
         Insert: {
           client_id?: string | null
@@ -3855,6 +4037,7 @@ export type Database = {
           notes?: string | null
           phase?: string | null
           updated_at?: string
+          workout_type?: string | null
         }
         Update: {
           client_id?: string | null
@@ -3868,6 +4051,7 @@ export type Database = {
           notes?: string | null
           phase?: string | null
           updated_at?: string
+          workout_type?: string | null
         }
         Relationships: []
       }

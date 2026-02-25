@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,7 @@ interface SelectableClientCardsProps {
 
 const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableClientCardsProps) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [clients, setClients] = useState<SelectableClient[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -263,7 +265,11 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
                   ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
                   : "hover:border-primary/20"
               }`}
-              onClick={() => toggleOne(client.id)}
+              onClick={(e) => {
+                // If clicking checkbox area, toggle selection; otherwise navigate
+                if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
+                navigate(`/clients/${client.id}`);
+              }}
             >
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
