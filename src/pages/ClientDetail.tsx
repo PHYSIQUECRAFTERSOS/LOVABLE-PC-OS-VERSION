@@ -7,30 +7,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  ArrowLeft,
-  MessageSquare,
-  Edit,
-  Calendar,
-  StickyNote,
-  Dumbbell,
-  UtensilsCrossed,
-  Activity,
-  BarChart3,
-  Users,
-  Zap,
-  TrendingUp,
-  Weight,
+  ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
+  LayoutDashboard, Target, ClipboardList, BarChart3,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
-import ClientWorkspaceExercise from "@/components/clients/workspace/ExerciseTab";
-import ClientWorkspaceNutrition from "@/components/clients/workspace/NutritionTab";
-import ClientWorkspaceWeight from "@/components/clients/workspace/WeightTab";
+import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
+import NutritionTargetsTab from "@/components/clients/workspace/NutritionTargetsTab";
+import MealPlanTab from "@/components/clients/workspace/MealPlanTab";
+import CalendarTab from "@/components/clients/workspace/CalendarTab";
 import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
-import ClientWorkspaceEngagement from "@/components/clients/workspace/EngagementTab";
-import ClientWorkspaceNotes from "@/components/clients/workspace/NotesTab";
+import MessagingTab from "@/components/clients/workspace/MessagingTab";
 
 interface ClientProfile {
   user_id: string;
@@ -45,7 +33,7 @@ const ClientDetail = () => {
   const { user } = useAuth();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("summary");
+  const [activeTab, setActiveTab] = useState("dash");
   const [programName, setProgramName] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
 
@@ -103,13 +91,13 @@ const ClientDetail = () => {
   }
 
   const tabItems = [
-    { value: "summary", label: "Summary", icon: Activity },
-    { value: "exercise", label: "Exercise", icon: Dumbbell },
-    { value: "nutrition", label: "Nutrition", icon: UtensilsCrossed },
-    { value: "weight", label: "Weight", icon: Weight },
+    { value: "dash", label: "Dash", icon: LayoutDashboard },
+    { value: "calendar", label: "Calendar", icon: CalendarDays },
+    { value: "training", label: "Training", icon: Dumbbell },
+    { value: "nutrition", label: "Nutrition", icon: Target },
+    { value: "mealplan", label: "Meal Plan", icon: ClipboardList },
     { value: "progress", label: "Progress", icon: BarChart3 },
-    { value: "engagement", label: "Engagement", icon: TrendingUp },
-    { value: "notes", label: "Notes", icon: StickyNote },
+    { value: "messaging", label: "Messages", icon: MessageSquare },
   ];
 
   return (
@@ -144,12 +132,6 @@ const ClientDetail = () => {
               ))}
             </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button size="sm" variant="outline" onClick={() => navigate("/messages")}>
-              <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
-              Message
-            </Button>
-          </div>
         </div>
 
         {/* Workspace Tabs */}
@@ -163,26 +145,26 @@ const ClientDetail = () => {
             ))}
           </TabsList>
 
-          <TabsContent value="summary">
+          <TabsContent value="dash">
             <ClientWorkspaceSummary clientId={clientId!} />
           </TabsContent>
-          <TabsContent value="exercise">
-            <ClientWorkspaceExercise clientId={clientId!} />
+          <TabsContent value="calendar">
+            <CalendarTab clientId={clientId!} />
+          </TabsContent>
+          <TabsContent value="training">
+            <ClientWorkspaceTraining clientId={clientId!} />
           </TabsContent>
           <TabsContent value="nutrition">
-            <ClientWorkspaceNutrition clientId={clientId!} />
+            <NutritionTargetsTab clientId={clientId!} />
           </TabsContent>
-          <TabsContent value="weight">
-            <ClientWorkspaceWeight clientId={clientId!} />
+          <TabsContent value="mealplan">
+            <MealPlanTab clientId={clientId!} />
           </TabsContent>
           <TabsContent value="progress">
             <ClientWorkspaceProgress clientId={clientId!} />
           </TabsContent>
-          <TabsContent value="engagement">
-            <ClientWorkspaceEngagement clientId={clientId!} />
-          </TabsContent>
-          <TabsContent value="notes">
-            <ClientWorkspaceNotes clientId={clientId!} />
+          <TabsContent value="messaging">
+            <MessagingTab clientId={clientId!} />
           </TabsContent>
         </Tabs>
       </div>
