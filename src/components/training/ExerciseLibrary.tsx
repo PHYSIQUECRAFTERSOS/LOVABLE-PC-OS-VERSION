@@ -154,13 +154,49 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
     setUploading(false);
   };
 
-  const handleYoutubeImport = () => {
+  const [ytImporting, setYtImporting] = useState(false);
+  const [ytPreview, setYtPreview] = useState<{ thumbnail: string; title?: string } | null>(null);
+
+  const extractVideoId = (url: string): string | null => {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
+  };
+
+  const handleYoutubeImport = async () => {
     if (!formYoutubeUrl) return;
-    const thumb = getYouTubeThumbnail(formYoutubeUrl);
-    if (thumb) {
-      toast({ title: "YouTube link imported" });
-    } else {
-      toast({ title: "Invalid YouTube URL", variant: "destructive" });
+
+    const videoId = extractVideoId(formYoutubeUrl);
+    if (!videoId) {
+      toast({ title: "Invalid YouTube URL", description: "Please paste a valid youtube.com or youtu.be link.", variant: "destructive" });
+      return;
+    }
+
+    // Instant thumbnail preview — no network needed
+    const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    setYtPreview({ thumbnail: thumbUrl });
+    setYtImporting(true);
+
+    // Attempt oEmbed metadata fetch with 4s hard timeout
+    try {
+      const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+      const result = await Promise.race([
+        fetch(oembedUrl).then(r => r.ok ? r.json() : null),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
+      ]);
+
+      if (result?.title) {
+        setYtPreview({ thumbnail: thumbUrl, title: result.title });
+        // Auto-fill exercise name if empty
+        if (!formName) setFormName(result.title);
+        toast({ title: "YouTube video imported", description: result.title });
+      } else {
+        toast({ title: "YouTube link imported", description: "Metadata unavailable — thumbnail loaded." });
+      }
+    } catch {
+      // Timeout or network error — still have thumbnail, that's fine
+      toast({ title: "YouTube link imported", description: "Couldn't fetch title — thumbnail loaded." });
+    } finally {
+      setYtImporting(false);
     }
   };
 
@@ -514,11 +550,19 @@ const ExerciseLibrary = ({ onSelectExercise, selectionMode = false }: ExerciseLi
                 </TabsList>
                 <TabsContent value="youtube" className="space-y-2">
                   <div className="flex gap-2">
-                    <Input value={formYoutubeUrl} onChange={(e) => setFormYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="flex-1" />
-                    <Button variant="outline" size="sm" onClick={handleYoutubeImport}>Import</Button>
+                    <Input value={formYoutubeUrl} onChange={(e) => { setFormYoutubeUrl(e.target.value); setYtPreview(null); }} placeholder="https://youtube.com/watch?v=..." className="flex-1" />
+                    <Button variant="outline" size="sm" onClick={handleYoutubeImport} disabled={ytImporting || !formYoutubeUrl}>
+                      {ytImporting ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Loading…</> : "Import"}
+                    </Button>
                   </div>
-                  {formYoutubeUrl && getYouTubeThumbnail(formYoutubeUrl) && (
-                    <img src={getYouTubeThumbnail(formYoutubeUrl)!} alt="Preview" className="w-full rounded-lg" />
+                  {ytPreview && (
+                    <div className="space-y-1.5">
+                      <img src={ytPreview.thumbnail} alt="YouTube Preview" className="w-full rounded-lg bg-secondary" />
+                      {ytPreview.title && <p className="text-xs text-muted-foreground truncate">{ytPreview.title}</p>}
+                    </div>
+                  )}
+                  {!ytPreview && formYoutubeUrl && getYouTubeThumbnail(formYoutubeUrl) && (
+                    <img src={getYouTubeThumbnail(formYoutubeUrl)!} alt="Preview" className="w-full rounded-lg opacity-50" />
                   )}
                 </TabsContent>
                 <TabsContent value="upload" className="space-y-2">
