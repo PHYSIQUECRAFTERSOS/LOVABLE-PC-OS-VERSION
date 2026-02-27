@@ -14,6 +14,86 @@ function jsonResponse(body: Record<string, unknown>, status: number) {
   });
 }
 
+/**
+ * Ensures all required records exist for a client user.
+ * Uses upserts to be idempotent — safe to call multiple times.
+ */
+async function ensureClientRecords(
+  supabase: any,
+  userId: string,
+  coachId: string,
+  fullName: string,
+  tags: string[] | null
+) {
+  // 1. Ensure profile exists
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .upsert(
+      { user_id: userId, full_name: fullName },
+      { onConflict: "user_id" }
+    );
+  if (profileError) console.error("[ensure] Profile upsert error:", profileError);
+  else console.log("[ensure] Profile OK for:", userId);
+
+  // 2. Ensure user_roles has 'client' role
+  const { error: roleError } = await supabase
+    .from("user_roles")
+    .upsert(
+      { user_id: userId, role: "client" },
+      { onConflict: "user_id,role" }
+    );
+  if (roleError) console.error("[ensure] Role upsert error:", roleError);
+  else console.log("[ensure] Role OK for:", userId);
+
+  // 3. Ensure coach_clients assignment exists
+  // Check first to avoid duplicate key errors (no unique constraint on coach_id+client_id)
+  const { data: existingAssignment } = await supabase
+    .from("coach_clients")
+    .select("id")
+    .eq("coach_id", coachId)
+    .eq("client_id", userId)
+    .maybeSingle();
+
+  if (!existingAssignment) {
+    const { error: assignError } = await supabase.from("coach_clients").insert({
+      coach_id: coachId,
+      client_id: userId,
+      status: "active",
+    });
+    if (assignError) console.error("[ensure] Coach assign error:", assignError);
+    else console.log("[ensure] Coach assignment created for:", userId);
+  } else {
+    // Ensure it's active
+    await supabase
+      .from("coach_clients")
+      .update({ status: "active" })
+      .eq("id", existingAssignment.id);
+    console.log("[ensure] Coach assignment already exists, ensured active:", userId);
+  }
+
+  // 4. Add tags if any
+  if (tags && tags.length > 0) {
+    for (const tag of tags) {
+      const { data: existingTag } = await supabase
+        .from("client_tags")
+        .select("id")
+        .eq("client_id", userId)
+        .eq("coach_id", coachId)
+        .eq("tag", tag)
+        .maybeSingle();
+
+      if (!existingTag) {
+        await supabase.from("client_tags").insert({
+          client_id: userId,
+          coach_id: coachId,
+          tag,
+        });
+      }
+    }
+    console.log("[ensure] Tags processed for:", userId);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -28,6 +108,74 @@ serve(async (req) => {
     const { token, password, action } = body;
 
     console.log("[validate-invite-token] Action:", action, "Token present:", !!token);
+
+    // NEW: "auto-accept" action — called post-login to bind user to pending invite
+    if (action === "auto-accept") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return jsonResponse({ success: false, message: "Unauthorized" }, 401);
+      }
+
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(
+        authHeader.replace("Bearer ", "")
+      );
+      if (authErr || !user) {
+        return jsonResponse({ success: false, message: "Unauthorized" }, 401);
+      }
+
+      console.log("[auto-accept] Checking pending invites for:", user.email);
+
+      // Find any pending invite for this user's email
+      const { data: pendingInvites } = await supabase
+        .from("client_invites")
+        .select("*")
+        .eq("email", user.email!.toLowerCase())
+        .eq("invite_status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false });
+
+      if (!pendingInvites || pendingInvites.length === 0) {
+        // Also check if user already has coach_clients (already set up)
+        const { data: existingAssignment } = await supabase
+          .from("coach_clients")
+          .select("id")
+          .eq("client_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (existingAssignment) {
+          return jsonResponse({ success: true, message: "Already set up", already_setup: true }, 200);
+        }
+
+        return jsonResponse({ success: false, message: "No pending invites found", errorCode: "NO_INVITE" }, 200);
+      }
+
+      // Accept the most recent pending invite
+      const invite = pendingInvites[0];
+      const fullName = `${invite.first_name} ${invite.last_name}`;
+
+      console.log("[auto-accept] Accepting invite:", invite.id, "for user:", user.id);
+
+      await ensureClientRecords(supabase, user.id, invite.assigned_coach_id, fullName, invite.tags);
+
+      // Mark invite as accepted
+      await supabase
+        .from("client_invites")
+        .update({
+          invite_status: "accepted",
+          accepted_at: new Date().toISOString(),
+          created_client_id: user.id,
+        })
+        .eq("id", invite.id);
+
+      console.log("[auto-accept] Complete for:", user.email);
+
+      return jsonResponse({
+        success: true,
+        message: "Invite accepted and access granted",
+        accepted: true,
+      }, 200);
+    }
 
     if (!token) {
       return jsonResponse({ success: false, message: "Token is required", errorCode: "MISSING_TOKEN" }, 400);
@@ -100,24 +248,26 @@ serve(async (req) => {
       console.log("[validate-invite-token] Creating/activating user for:", invite.email);
 
       let userId: string;
+      const fullName = `${invite.first_name} ${invite.last_name}`;
 
       // Try to create user first
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: invite.email,
         password,
         email_confirm: true,
-        user_metadata: {
-          full_name: `${invite.first_name} ${invite.last_name}`,
-        },
+        user_metadata: { full_name: fullName },
       });
 
       if (createError) {
         console.log("[validate-invite-token] Create user result:", createError.message);
 
         if (createError.message?.includes("already been registered")) {
-          // User exists (e.g. from a previous inviteUserByEmail call) — update their password
-          const { data: listData } = await supabase.auth.admin.listUsers();
-          const existingUser = listData?.users?.find(
+          // User exists — find them and update password
+          const { data: { users } } = await supabase.auth.admin.listUsers({
+            page: 1,
+            perPage: 1000,
+          });
+          const existingUser = (users || []).find(
             (u: any) => u.email?.toLowerCase() === invite.email.toLowerCase()
           );
 
@@ -133,9 +283,7 @@ serve(async (req) => {
           const { error: updateError } = await supabase.auth.admin.updateUserById(existingUser.id, {
             password,
             email_confirm: true,
-            user_metadata: {
-              full_name: `${invite.first_name} ${invite.last_name}`,
-            },
+            user_metadata: { full_name: fullName },
           });
 
           if (updateError) {
@@ -161,23 +309,8 @@ serve(async (req) => {
         console.log("[validate-invite-token] New user created:", userId);
       }
 
-      // Create coach_clients assignment
-      const { error: assignError } = await supabase.from("coach_clients").insert({
-        coach_id: invite.assigned_coach_id,
-        client_id: userId,
-        status: "active",
-      });
-      if (assignError) console.error("[validate-invite-token] Coach assign error:", assignError);
-
-      // Add tags if any
-      if (invite.tags && invite.tags.length > 0) {
-        const tagInserts = invite.tags.map((tag: string) => ({
-          client_id: userId,
-          coach_id: invite.assigned_coach_id,
-          tag,
-        }));
-        await supabase.from("client_tags").insert(tagInserts);
-      }
+      // *** CRITICAL: Ensure ALL client records exist using idempotent upserts ***
+      await ensureClientRecords(supabase, userId, invite.assigned_coach_id, fullName, invite.tags);
 
       // Mark invite as accepted
       await supabase
@@ -190,10 +323,10 @@ serve(async (req) => {
         .eq("id", invite.id);
 
       // Record legal acceptances
-      const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() 
-        || req.headers.get("cf-connecting-ip") 
+      const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+        || req.headers.get("cf-connecting-ip")
         || "unknown";
-      
+
       if (body.legal_acceptances && Array.isArray(body.legal_acceptances)) {
         const acceptanceRows = body.legal_acceptances.map((acc: any) => ({
           user_id: userId,
@@ -203,11 +336,11 @@ serve(async (req) => {
           ip_address: clientIp,
           app_version: "1.0.0",
         }));
-        
+
         const { error: legalError } = await supabase
           .from("legal_acceptances")
           .insert(acceptanceRows);
-        
+
         if (legalError) {
           console.error("[validate-invite-token] Legal acceptance insert error:", legalError);
         } else {

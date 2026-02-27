@@ -14,15 +14,20 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const location = useLocation();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+
+  // Hard timeout — never show spinner longer than 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!user || !role) return;
-    // Only check onboarding for clients, not coaches/admins
     if (role !== "client") {
       setOnboardingChecked(true);
       return;
     }
-    // Don't check if already on onboarding page
     if (location.pathname === "/onboarding") {
       setOnboardingChecked(true);
       return;
@@ -34,13 +39,13 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        // If no record or not completed, needs onboarding
         setNeedsOnboarding(!data?.onboarding_completed);
         setOnboardingChecked(true);
       });
   }, [user, role, location.pathname]);
 
-  if (loading || (!onboardingChecked && role === "client")) {
+  // Still loading but within timeout
+  if (loading && !timedOut) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -48,12 +53,27 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     );
   }
 
+  // Timed out while loading — if we have a user, proceed with best-effort role
+  if (timedOut && loading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
+  // If role check is needed but role hasn't resolved yet, allow access rather than blocking
   if (allowedRoles && role && !allowedRoles.includes(role)) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // Onboarding check for clients
+  if (role === "client" && !onboardingChecked && !timedOut) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (needsOnboarding && role === "client" && location.pathname !== "/onboarding") {
