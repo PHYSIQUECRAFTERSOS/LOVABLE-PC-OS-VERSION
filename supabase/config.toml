@@ -29,3 +29,12 @@ verify_jwt = false
 
 [functions.analyze-supplement-label]
 verify_jwt = false
+
+[functions.staff-invite]
+verify_jwt = false
+
+[functions.resend-client-invite]
+verify_jwt = false
+
+[functions.meal-scan]
+verify_jwt = false
