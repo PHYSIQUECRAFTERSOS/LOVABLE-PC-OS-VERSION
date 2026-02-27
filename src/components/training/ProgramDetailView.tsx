@@ -434,15 +434,33 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       phase: origW.phase,
       is_template: true,
       workout_type: (origW as any).workout_type || "regular",
+      source_workout_id: sourceWorkout.id,
     } as any).select().single();
     if (!newW) return;
 
-    // Clone exercises
+    // Clone exercises and their individual workout_sets
     const { data: exes } = await supabase.from("workout_exercises")
       .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, rpe_target")
       .eq("workout_id", sourceWorkout.id);
     if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
+      const { data: insertedExes } = await supabase.from("workout_exercises")
+        .insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })))
+        .select("id");
+
+      if (insertedExes) {
+        const { data: origExIds } = await supabase.from("workout_exercises")
+          .select("id").eq("workout_id", sourceWorkout.id).order("exercise_order");
+        if (origExIds) {
+          const allSets: any[] = [];
+          for (let i = 0; i < origExIds.length; i++) {
+            const { data: sets } = await supabase.from("workout_sets")
+              .select("set_number, rep_target, weight_target, rpe_target, set_type")
+              .eq("workout_exercise_id", origExIds[i].id);
+            if (sets) allSets.push(...sets.map((s: any) => ({ ...s, workout_exercise_id: insertedExes[i].id })));
+          }
+          if (allSets.length > 0) await supabase.from("workout_sets").insert(allSets);
+        }
+      }
     }
 
     // Add to week
@@ -495,6 +513,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       phase: origW.phase,
       is_template: true,
       workout_type: (origW as any).workout_type || "regular",
+      source_workout_id: copyWorkout.workoutId,
     } as any).select().single();
     if (!newW) return;
 

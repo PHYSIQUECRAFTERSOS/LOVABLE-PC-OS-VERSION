@@ -219,9 +219,9 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         workoutId = newW.id;
       }
 
-      // Insert exercises
+      // Insert exercises and individual workout_sets
       if (exercises.length > 0 && workoutId) {
-        await supabase.from("workout_exercises").insert(
+        const { data: insertedExercises } = await supabase.from("workout_exercises").insert(
           exercises.map((ex, i) => ({
             workout_id: workoutId!,
             exercise_id: ex.exerciseId,
@@ -235,7 +235,27 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             notes: ex.notes || null,
             superset_group: ex.supersetGroup || null,
           }))
-        );
+        ).select("id");
+
+        // Create individual workout_sets rows for each exercise
+        if (insertedExercises) {
+          const setRows: any[] = [];
+          insertedExercises.forEach((we, idx) => {
+            const ex = exercises[idx];
+            for (let s = 1; s <= ex.sets; s++) {
+              setRows.push({
+                workout_exercise_id: we.id,
+                set_number: s,
+                rep_target: ex.reps || null,
+                rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
+                set_type: "working",
+              });
+            }
+          });
+          if (setRows.length > 0) {
+            await supabase.from("workout_sets").insert(setRows);
+          }
+        }
       }
 
       clearTimeout(timeout);
