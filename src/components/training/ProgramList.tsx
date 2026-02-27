@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import ProgramBuilder from "./ProgramBuilder";
+import ProgramDetailView from "./ProgramDetailView";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -30,6 +31,8 @@ const ProgramList = () => {
   const [loading, setLoading] = useState(true);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
+  const [drillProgramId, setDrillProgramId] = useState<string | null>(null);
+  const [drillProgramName, setDrillProgramName] = useState("");
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
   const [linkedCounts, setLinkedCounts] = useState<Record<string, number>>({});
 
@@ -397,6 +400,17 @@ const ProgramList = () => {
     loadPrograms();
   };
 
+  // Drill-down view into a program
+  if (drillProgramId) {
+    return (
+      <ProgramDetailView
+        programId={drillProgramId}
+        programName={drillProgramName}
+        onBack={() => { setDrillProgramId(null); loadPrograms(); }}
+      />
+    );
+  }
+
   if (showBuilder) {
     return (
       <div className="space-y-4">
@@ -425,7 +439,11 @@ const ProgramList = () => {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {programs.map((program) => (
-            <Card key={program.id} className="flex flex-col">
+            <Card
+              key={program.id}
+              className="flex flex-col cursor-pointer hover:border-primary/40 transition-colors"
+              onClick={() => { setDrillProgramId(program.id); setDrillProgramName(program.name); }}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1.5">
@@ -446,12 +464,12 @@ const ProgramList = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 space-y-3">
+              <CardContent className="flex-1 space-y-3" onClick={(e) => e.stopPropagation()}>
                 {program.description && <p className="text-xs text-muted-foreground line-clamp-2">{program.description}</p>}
 
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => { setEditingId(program.id); setShowBuilder(true); }}>
-                    <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => { setDrillProgramId(program.id); setDrillProgramName(program.name); }}>
+                    <Edit className="h-3.5 w-3.5 mr-1" /> Open
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => {
                     setAssignProgramId(program.id);
