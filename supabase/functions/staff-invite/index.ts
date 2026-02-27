@@ -1,0 +1,207 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    const body = await req.json();
+    const { action } = body;
+
+    // ── SEND INVITE ──
+    if (action === "send") {
+      // Verify caller is admin
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) return json({ error: "Unauthorized" }, 401);
+
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(
+        authHeader.replace("Bearer ", "")
+      );
+      if (authErr || !user) return json({ error: "Unauthorized" }, 401);
+
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      const isAdmin = (roles || []).some((r: any) => r.role === "admin");
+      if (!isAdmin) return json({ error: "Only admins can invite staff" }, 403);
+
+      const { email, role } = body;
+      if (!email) return json({ error: "Email is required" }, 400);
+      if (!["coach", "admin"].includes(role)) {
+        return json({ error: "Role must be coach or admin" }, 400);
+      }
+
+      // Check for existing pending invite
+      const { data: existing } = await supabase
+        .from("staff_invites")
+        .select("id")
+        .eq("email", email.toLowerCase())
+        .eq("used", false)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+
+      if (existing) {
+        return json({ error: "A pending invite already exists for this email" }, 400);
+      }
+
+      // Generate token
+      const tokenBytes = new Uint8Array(16);
+      crypto.getRandomValues(tokenBytes);
+      const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, "0")).join("");
+
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48 hours
+
+      // Store invite
+      const { error: insertErr } = await supabase.from("staff_invites").insert({
+        email: email.toLowerCase(),
+        role,
+        invited_by: user.id,
+        invite_token: token,
+        expires_at: expiresAt,
+      });
+
+      if (insertErr) {
+        console.error("[staff-invite] Insert error:", insertErr);
+        return json({ error: "Failed to create invite" }, 500);
+      }
+
+      // Send invite email via Supabase Auth admin
+      const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
+      const setupUrl = `${origin}/accept-invite?token=${token}`;
+
+      const { error: emailErr } = await supabase.auth.admin.inviteUserByEmail(
+        email.toLowerCase(),
+        {
+          data: {
+            staff_invite_token: token,
+            invited_by: user.id,
+            staff_role: role,
+          },
+          redirectTo: setupUrl,
+        }
+      );
+
+      let emailSent = true;
+      if (emailErr) {
+        console.error("[staff-invite] Email error:", emailErr.message);
+        emailSent = false;
+      }
+
+      return json({
+        success: true,
+        email_sent: emailSent,
+        setup_url: emailSent ? undefined : setupUrl,
+      });
+    }
+
+    // ── ACCEPT INVITE ──
+    if (action === "accept") {
+      const { token, password } = body;
+      if (!token) return json({ error: "Token required" }, 400);
+
+      // Look up invite
+      const { data: invite, error: lookupErr } = await supabase
+        .from("staff_invites")
+        .select("*")
+        .eq("invite_token", token)
+        .maybeSingle();
+
+      if (lookupErr || !invite) {
+        return json({ success: false, message: "Invalid invite link", errorCode: "INVALID" });
+      }
+
+      if (invite.used) {
+        return json({ success: false, message: "This invite has already been used", errorCode: "ALREADY_USED" });
+      }
+
+      if (new Date(invite.expires_at) < new Date()) {
+        return json({ success: false, message: "This invite has expired (48h limit)", errorCode: "EXPIRED" });
+      }
+
+      if (!password || password.length < 8) {
+        return json({ success: false, message: "Password must be at least 8 characters", errorCode: "WEAK_PASSWORD" });
+      }
+
+      // Create or activate user
+      let userId: string;
+      const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+        email: invite.email,
+        password,
+        email_confirm: true,
+        user_metadata: { staff_role: invite.role },
+      });
+
+      if (createErr) {
+        if (createErr.message?.includes("already been registered")) {
+          // Find existing user and update password
+          const { data: { users } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+          const existing = (users || []).find((u: any) => u.email?.toLowerCase() === invite.email.toLowerCase());
+          if (!existing) {
+            return json({ success: false, message: "Unable to locate account", errorCode: "NOT_FOUND" });
+          }
+          await supabase.auth.admin.updateUserById(existing.id, {
+            password,
+            email_confirm: true,
+          });
+          userId = existing.id;
+        } else {
+          console.error("[staff-invite] Create error:", createErr);
+          return json({ success: false, message: "Failed to create account", errorCode: "CREATE_FAILED" });
+        }
+      } else {
+        userId = newUser.user.id;
+      }
+
+      // Ensure profile exists
+      await supabase.from("profiles").upsert(
+        { user_id: userId, full_name: "" },
+        { onConflict: "user_id" }
+      );
+
+      // Assign role — remove default 'client' role if present, add the staff role
+      await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "client");
+
+      const { error: roleErr } = await supabase.from("user_roles").upsert(
+        { user_id: userId, role: invite.role },
+        { onConflict: "user_id,role" }
+      );
+      if (roleErr) console.error("[staff-invite] Role error:", roleErr);
+
+      // Mark invite as used
+      await supabase.from("staff_invites").update({
+        used: true,
+        accepted_at: new Date().toISOString(),
+        created_user_id: userId,
+      }).eq("id", invite.id);
+
+      console.log("[staff-invite] Accept complete for:", invite.email, "role:", invite.role);
+
+      return json({ success: true, email: invite.email });
+    }
+
+    return json({ error: "Invalid action" }, 400);
+  } catch (err) {
+    console.error("[staff-invite] Error:", err);
+    return json({ error: "Internal server error" }, 500);
+  }
+});

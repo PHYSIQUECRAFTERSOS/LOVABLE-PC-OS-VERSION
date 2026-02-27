@@ -3376,6 +3376,45 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          created_user_id: string | null
+          email: string
+          expires_at: string
+          id: string
+          invite_token: string
+          invited_by: string
+          role: Database["public"]["Enums"]["app_role"]
+          used: boolean
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          created_user_id?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          invite_token: string
+          invited_by: string
+          role?: Database["public"]["Enums"]["app_role"]
+          used?: boolean
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          created_user_id?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invite_token?: string
+          invited_by?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          used?: boolean
+        }
+        Relationships: []
+      }
       supplement_logs: {
         Row: {
           client_id: string
