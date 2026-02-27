@@ -1578,6 +1578,44 @@ export type Database = {
           },
         ]
       }
+      exercise_media: {
+        Row: {
+          created_at: string
+          duration: number | null
+          exercise_id: string
+          id: string
+          media_type: string
+          thumbnail_url: string | null
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration?: number | null
+          exercise_id: string
+          id?: string
+          media_type?: string
+          thumbnail_url?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration?: number | null
+          exercise_id?: string
+          id?: string
+          media_type?: string
+          thumbnail_url?: string | null
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_media_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercises: {
         Row: {
           category: string
@@ -4063,18 +4101,62 @@ export type Database = {
           },
         ]
       }
+      workout_sets: {
+        Row: {
+          created_at: string
+          id: string
+          rep_target: string | null
+          rpe_target: number | null
+          set_number: number
+          set_type: string | null
+          weight_target: number | null
+          workout_exercise_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rep_target?: string | null
+          rpe_target?: number | null
+          set_number: number
+          set_type?: string | null
+          weight_target?: number | null
+          workout_exercise_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rep_target?: string | null
+          rpe_target?: number | null
+          set_number?: number
+          set_type?: string | null
+          weight_target?: number | null
+          workout_exercise_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workout_sets_workout_exercise_id_fkey"
+            columns: ["workout_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "workout_exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workouts: {
         Row: {
           client_id: string | null
           coach_id: string
           created_at: string
           description: string | null
+          estimated_duration: number | null
           id: string
           instructions: string | null
           is_template: boolean
           name: string
           notes: string | null
+          order_index: number | null
           phase: string | null
+          source_workout_id: string | null
           updated_at: string
           workout_type: string | null
         }
@@ -4083,12 +4165,15 @@ export type Database = {
           coach_id: string
           created_at?: string
           description?: string | null
+          estimated_duration?: number | null
           id?: string
           instructions?: string | null
           is_template?: boolean
           name: string
           notes?: string | null
+          order_index?: number | null
           phase?: string | null
+          source_workout_id?: string | null
           updated_at?: string
           workout_type?: string | null
         }
@@ -4097,16 +4182,27 @@ export type Database = {
           coach_id?: string
           created_at?: string
           description?: string | null
+          estimated_duration?: number | null
           id?: string
           instructions?: string | null
           is_template?: boolean
           name?: string
           notes?: string | null
+          order_index?: number | null
           phase?: string | null
+          source_workout_id?: string | null
           updated_at?: string
           workout_type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workouts_source_workout_id_fkey"
+            columns: ["source_workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
