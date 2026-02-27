@@ -40,7 +40,7 @@ const ClientMessaging = () => {
         .select("full_name, avatar_url")
         .eq("user_id", coachId)
         .single();
-      setCoachName(profile?.full_name || "Physique Crafters Head Coach");
+      setCoachName(profile?.full_name || "Physique Crafters Coaching Team");
       setCoachAvatar(profile?.avatar_url || null);
 
       // Find or create thread
