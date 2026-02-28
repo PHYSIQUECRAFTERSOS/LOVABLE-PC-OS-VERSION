@@ -20,6 +20,7 @@ import {
   Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import {
   Sheet,
@@ -35,9 +36,20 @@ interface NavItem {
 }
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
-  const { role, signOut, user } = useAuth();
+  const { role, roleLoading, signOut, user } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Never render layout until role is confirmed — prevents cross-rendering
+  if (roleLoading || !role) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  console.log("[AppLayout] Rendering with role:", role);
 
   const handleSignOut = async () => {
     await signOut();
