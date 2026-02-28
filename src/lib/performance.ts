@@ -113,6 +113,40 @@ export async function fetchWithTimeout<T>(
   }
 }
 
+// ── Global Async Guard ──
+/**
+ * Wraps any async operation with a hard timeout + structured error.
+ * Use this for ALL user-facing async operations.
+ * Never allows an unresolved promise to hang the UI.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = TIMEOUTS.STANDARD_API,
+  label: string = "operation"
+): Promise<T> {
+  const start = performance.now();
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const elapsed = Math.round(performance.now() - start);
+      console.error(`[Perf] ${label} timed out after ${elapsed}ms`);
+      reject(new Error(`${label} timed out after ${(timeoutMs / 1000).toFixed(0)}s. Tap to retry.`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeout]);
+    const elapsed = Math.round(performance.now() - start);
+    if (elapsed > 2000) {
+      console.warn(`[Perf] ${label}: ${elapsed}ms (slow)`);
+    }
+    return result;
+  } finally {
+    clearTimeout(timeoutId!);
+  }
+}
+
 // ── Accepted image types ──
 export const ACCEPTED_IMAGE_TYPES = [
   "image/jpeg",

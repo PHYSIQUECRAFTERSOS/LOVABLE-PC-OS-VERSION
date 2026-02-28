@@ -5,9 +5,8 @@ interface UseDataFetchOptions<T> {
   queryKey: string;
   queryFn: (signal: AbortSignal) => Promise<T>;
   enabled?: boolean;
-  staleTime?: number; // ms before data is considered stale (default 5min)
-  timeout?: number; // ms before request is aborted (default 5000)
-  /** Set to true for AI endpoints — uses 10s timeout instead of 5s */
+  staleTime?: number;
+  timeout?: number;
   isAI?: boolean;
   fallback?: T;
 }
@@ -22,6 +21,54 @@ interface UseDataFetchResult<T> {
 
 // Simple in-memory cache
 const cache = new Map<string, { data: any; timestamp: number }>();
+
+// ── Performance log buffer ──
+interface PerfLogEntry {
+  queryKey: string;
+  durationMs: number;
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
+const perfLog: PerfLogEntry[] = [];
+const MAX_PERF_LOG = 200;
+
+function logPerf(entry: PerfLogEntry) {
+  perfLog.push(entry);
+  if (perfLog.length > MAX_PERF_LOG) perfLog.shift();
+
+  // Flag slow endpoints
+  if (entry.durationMs > 3000) {
+    console.error(`[Perf] 🔴 SLOW: ${entry.queryKey} took ${entry.durationMs}ms (>3s limit)`);
+  } else if (entry.durationMs > 2000) {
+    console.warn(`[Perf] 🟡 ${entry.queryKey}: ${entry.durationMs}ms`);
+  }
+}
+
+/** Get the performance log for admin dashboards */
+export function getPerfLog(): readonly PerfLogEntry[] {
+  return perfLog;
+}
+
+/** Get average duration and failure rate per query key */
+export function getPerfSummary() {
+  const map = new Map<string, { total: number; count: number; failures: number }>();
+  for (const e of perfLog) {
+    const entry = map.get(e.queryKey) || { total: 0, count: 0, failures: 0 };
+    entry.total += e.durationMs;
+    entry.count++;
+    if (!e.success) entry.failures++;
+    map.set(e.queryKey, entry);
+  }
+  return Array.from(map.entries()).map(([key, v]) => ({
+    queryKey: key,
+    avgMs: Math.round(v.total / v.count),
+    calls: v.count,
+    failureRate: Math.round((v.failures / v.count) * 100),
+    flagged: Math.round(v.total / v.count) > 3000,
+  }));
+}
 
 export function useDataFetch<T>({
   queryKey,
@@ -49,7 +96,6 @@ export function useDataFetch<T>({
   const fetchData = useCallback(async () => {
     if (!enabled) return;
 
-    // Check cache first
     const cached = cache.get(queryKey);
     if (cached && Date.now() - cached.timestamp < staleTime) {
       setData(cached.data as T);
@@ -57,10 +103,10 @@ export function useDataFetch<T>({
       return;
     }
 
-    // If we have stale cache, show it while fetching fresh
+    // Stale-while-revalidate
     if (cached) {
       setData(cached.data as T);
-      setLoading(false); // Don't show loading if we have stale data
+      setLoading(false);
     } else {
       setLoading(true);
     }
@@ -68,12 +114,10 @@ export function useDataFetch<T>({
     setError(null);
     setTimedOut(false);
 
-    // Abort previous request
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Timeout protection
     const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     const startTime = performance.now();
 
@@ -84,11 +128,7 @@ export function useDataFetch<T>({
       if (!mountedRef.current) return;
 
       const elapsed = Math.round(performance.now() - startTime);
-      if (elapsed > 2000) {
-        console.warn(`[Perf] ${queryKey} took ${elapsed}ms`);
-      } else {
-        console.log(`[Perf] ${queryKey}: ${elapsed}ms`);
-      }
+      logPerf({ queryKey, durationMs: elapsed, success: true, timestamp: Date.now() });
 
       cache.set(queryKey, { data: result, timestamp: Date.now() });
       setData(result);
@@ -97,16 +137,18 @@ export function useDataFetch<T>({
       clearTimeout(timeoutId);
       if (!mountedRef.current) return;
 
+      const elapsed = Math.round(performance.now() - startTime);
+
       if (err.name === "AbortError") {
-        console.warn(`[Perf] ${queryKey} timed out after ${effectiveTimeout}ms`);
+        logPerf({ queryKey, durationMs: elapsed, success: false, error: "timeout", timestamp: Date.now() });
         setTimedOut(true);
-        // Use stale cache or fallback
         if (cached) {
           setData(cached.data as T);
         } else if (fallback !== undefined) {
           setData(fallback);
         }
       } else {
+        logPerf({ queryKey, durationMs: elapsed, success: false, error: err.message, timestamp: Date.now() });
         console.error(`[Perf] ${queryKey} error:`, err.message);
         setError(err.message);
         if (fallback !== undefined && !data) {
