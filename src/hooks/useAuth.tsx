@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { TIMEOUTS } from "@/lib/performance";
 
 type AppRole = "admin" | "coach" | "client";
 
@@ -10,20 +11,22 @@ export function useAuth() {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
   const autoAcceptAttempted = useRef(false);
+  const loadingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    const fetched = (data || []).map((r) => r.role as AppRole);
-    return fetched.length > 0 ? fetched : [];
+    try {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      const fetched = (data || []).map((r) => r.role as AppRole);
+      return fetched.length > 0 ? fetched : [];
+    } catch (err) {
+      console.error("[useAuth] fetchRoles error:", err);
+      return [];
+    }
   }, []);
 
-  /**
-   * Safety net: If a user is authenticated but has no roles or no coach_clients,
-   * call the auto-accept endpoint to bind any pending invite.
-   */
   const tryAutoAcceptInvite = useCallback(async (currentSession: Session) => {
     if (autoAcceptAttempted.current) return;
     autoAcceptAttempted.current = true;
@@ -41,18 +44,15 @@ export function useAuth() {
 
       if (data?.success && data?.accepted) {
         console.log("[useAuth] Auto-accept succeeded, refreshing roles...");
-        // Re-fetch roles after auto-accept
         const newRoles = await fetchRoles(currentSession.user.id);
         if (newRoles.length > 0) {
           setRoles(newRoles);
         } else {
-          // Trigger created role via DB trigger, wait briefly and retry
-          await new Promise((r) => setTimeout(r, 1000));
+          await new Promise((r) => setTimeout(r, 500));
           const retryRoles = await fetchRoles(currentSession.user.id);
           setRoles(retryRoles.length > 0 ? retryRoles : ["client"]);
         }
       } else if (data?.already_setup) {
-        console.log("[useAuth] User already set up, refreshing roles...");
         const newRoles = await fetchRoles(currentSession.user.id);
         setRoles(newRoles.length > 0 ? newRoles : ["client"]);
       }
@@ -64,6 +64,14 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
+    // Hard timeout — never block loading beyond 3s
+    loadingTimeout.current = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn("[useAuth] Loading timed out after 3s, forcing complete");
+        setLoading(false);
+      }
+    }, TIMEOUTS.SPINNER_MAX);
+
     const handleSession = async (session: Session | null) => {
       if (!mounted) return;
 
@@ -73,9 +81,9 @@ export function useAuth() {
       if (session?.user) {
         let fetched = await fetchRoles(session.user.id);
 
-        // If no roles found, wait briefly for trigger and retry
+        // If no roles found, single brief retry
         if (fetched.length === 0) {
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((r) => setTimeout(r, 300));
           fetched = await fetchRoles(session.user.id);
         }
 
@@ -83,14 +91,13 @@ export function useAuth() {
           if (fetched.length > 0) {
             setRoles(fetched);
           } else {
-            // Still no roles — try auto-accept as last resort
             setRoles(["client"]); // Optimistic default
             tryAutoAcceptInvite(session);
           }
           setLoading(false);
         }
 
-        // Even with roles, check if coach_clients is missing (safety net)
+        // Background check for client assignment
         if (fetched.includes("client") || fetched.length === 0) {
           const { data: coachLink } = await supabase
             .from("coach_clients")
@@ -125,10 +132,11 @@ export function useAuth() {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (loadingTimeout.current) clearTimeout(loadingTimeout.current);
     };
   }, [fetchRoles, tryAutoAcceptInvite]);
 
-  // Primary role for backward compat: admin > coach > client
+  // Primary role: admin > coach > client
   const role: AppRole | null = roles.includes("admin")
     ? "admin"
     : roles.includes("coach")

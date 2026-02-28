@@ -2,7 +2,9 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TIMEOUTS } from "@/lib/performance";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,9 +18,12 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
 
-  // Hard timeout — never show spinner longer than 5 seconds
+  // Hard timeout — 3 seconds max per performance standards
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 5000);
+    const timer = setTimeout(() => {
+      console.error("[ProtectedRoute] Auth loading timed out after 3s");
+      setTimedOut(true);
+    }, TIMEOUTS.SPINNER_MAX);
     return () => clearTimeout(timer);
   }, []);
 
@@ -33,12 +38,19 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       return;
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUTS.SPINNER_MAX);
+
     supabase
       .from("onboarding_profiles")
       .select("onboarding_completed")
       .eq("user_id", user.id)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        clearTimeout(timeout);
+        if (error) {
+          console.error("[ProtectedRoute] Onboarding check failed:", error);
+        }
         setNeedsOnboarding(!data?.onboarding_completed);
         setOnboardingChecked(true);
       });
@@ -53,16 +65,22 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     );
   }
 
-  // Timed out while loading — if we have a user, proceed with best-effort role
+  // Timed out while loading — if no user, redirect to auth
   if (timedOut && loading && !user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Timed out but we have a user — let them through (best-effort)
+  if (timedOut && loading && user) {
+    console.warn("[ProtectedRoute] Timed out but user exists, allowing access");
+    return <>{children}</>;
   }
 
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // If role check is needed but role hasn't resolved yet, allow access rather than blocking
+  // Role check
   if (allowedRoles && role && !allowedRoles.includes(role)) {
     return <Navigate to="/dashboard" replace />;
   }
