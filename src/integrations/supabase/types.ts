@@ -3383,9 +3383,11 @@ export type Database = {
           created_user_id: string | null
           email: string
           expires_at: string
+          first_name: string | null
           id: string
           invite_token: string
           invited_by: string
+          last_name: string | null
           role: Database["public"]["Enums"]["app_role"]
           used: boolean
         }
@@ -3395,9 +3397,11 @@ export type Database = {
           created_user_id?: string | null
           email: string
           expires_at: string
+          first_name?: string | null
           id?: string
           invite_token: string
           invited_by: string
+          last_name?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           used?: boolean
         }
@@ -3407,9 +3411,11 @@ export type Database = {
           created_user_id?: string | null
           email?: string
           expires_at?: string
+          first_name?: string | null
           id?: string
           invite_token?: string
           invited_by?: string
+          last_name?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           used?: boolean
         }
