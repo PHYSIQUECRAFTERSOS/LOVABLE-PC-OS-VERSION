@@ -2,6 +2,8 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTimedLoader } from "@/hooks/useTimedLoader";
+import { withTimeout, TIMEOUTS } from "@/lib/performance";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface AddClientDialogProps {
   open: boolean;
@@ -30,7 +32,6 @@ interface AddClientDialogProps {
 const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     email: "",
     first_name: "",
@@ -40,31 +41,46 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
     tags: "",
   });
 
+  const { phase, start, stop, fail } = useTimedLoader({
+    onTimeout: () => {
+      toast({
+        title: "Request Timed Out",
+        description: "The invite took too long. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isLoading = phase === "loading" || phase === "slow";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    setLoading(true);
+    start();
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const res = await supabase.functions.invoke("send-client-invite", {
-        body: {
-          email: form.email.trim(),
-          first_name: form.first_name.trim(),
-          last_name: form.last_name.trim(),
-          phone: form.phone.trim() || undefined,
-          client_type: form.client_type,
-          tags: form.tags
-            ? form.tags.split(",").map((t) => t.trim()).filter(Boolean)
-            : [],
-        },
-      });
+      const res = await withTimeout(
+        supabase.functions.invoke("send-client-invite", {
+          body: {
+            email: form.email.trim(),
+            first_name: form.first_name.trim(),
+            last_name: form.last_name.trim(),
+            phone: form.phone.trim() || undefined,
+            client_type: form.client_type,
+            tags: form.tags
+              ? form.tags.split(",").map((t) => t.trim()).filter(Boolean)
+              : [],
+          },
+        }),
+        TIMEOUTS.STANDARD_API,
+        "send-client-invite"
+      );
 
       if (res.error) {
         throw new Error(res.error.message || "Failed to send invite");
       }
+
+      stop();
 
       const emailSent = res.data?.email_sent !== false;
       const setupUrl = res.data?.invite?.setup_url;
@@ -93,13 +109,12 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
       onOpenChange(false);
       onInviteSent();
     } catch (err: any) {
+      fail();
       toast({
         title: "Error",
         description: err.message || "Failed to send invite",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -187,14 +202,21 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            Send Invite
-          </Button>
+          {phase === "failed" ? (
+            <Button type="button" variant="destructive" className="w-full" onClick={handleSubmit as any}>
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          ) : (
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {phase === "slow" ? "Still working..." : "Send Invite"}
+            </Button>
+          )}
         </form>
       </DialogContent>
     </Dialog>
