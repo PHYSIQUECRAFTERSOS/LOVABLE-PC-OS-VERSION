@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { withTimeout, TIMEOUTS } from "@/lib/performance";
 import { Camera, Trash2, Loader2 } from "lucide-react";
 import UserAvatar from "./UserAvatar";
 
@@ -85,16 +86,19 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
       const localPreview = URL.createObjectURL(compressed);
       setOptimisticUrl(localPreview);
 
-      // Step 3: Upload with 5s timeout
+      // Step 3: Upload with timeout
       const path = `${user.id}/avatar.jpg`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const uploadStart = performance.now();
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(path, compressed, { contentType: "image/jpeg", upsert: true });
-      clearTimeout(timeoutId);
+      const { error: uploadError } = await withTimeout(
+        Promise.resolve(
+          supabase.storage
+            .from("avatars")
+            .upload(path, compressed, { contentType: "image/jpeg", upsert: true })
+        ),
+        TIMEOUTS.UPLOAD,
+        "avatar-upload"
+      );
       console.log(`[Perf] Avatar upload: ${(performance.now() - uploadStart).toFixed(0)}ms`);
 
       if (uploadError) throw uploadError;
@@ -103,7 +107,13 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
       const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
       const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
-      await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("user_id", user.id);
+      await withTimeout(
+        Promise.resolve(
+          supabase.from("profiles").update({ avatar_url: publicUrl }).eq("user_id", user.id)
+        ),
+        TIMEOUTS.STANDARD_API,
+        "avatar-profile-update"
+      );
 
       // Clean up optimistic preview, set real URL
       URL.revokeObjectURL(localPreview);
@@ -115,7 +125,7 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
     } catch (err: any) {
       // Revert optimistic
       setOptimisticUrl(null);
-      const msg = err?.name === "AbortError" || err?.message?.includes("abort")
+      const msg = err?.message?.includes("timed out")
         ? "Upload timed out. Try again."
         : err?.message || "Upload failed";
       console.error("[Avatar] Upload failed:", msg);
