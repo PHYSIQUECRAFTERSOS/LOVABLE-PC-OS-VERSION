@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ShieldCheck, Clock, AlertTriangle } from "lucide-react";
 import LegalDocumentModal from "@/components/legal/LegalDocumentModal";
+import { TIMEOUTS } from "@/lib/performance";
 
 type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "complete" | "error";
 
@@ -41,15 +42,22 @@ const ClientSetup = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Legal documents
   const [legalDocs, setLegalDocs] = useState<LegalDoc[]>([]);
   const [activeModal, setActiveModal] = useState<"terms_of_service" | "privacy_policy" | null>(null);
 
+  // 3s timeout on initial loading
   useEffect(() => {
-    if (!token) {
-      setStep("invalid");
-      return;
-    }
+    if (step !== "loading") return;
+    const timeout = setTimeout(() => {
+      console.error("[Setup] Validation timed out after 3s");
+      setErrorMessage("Validation is taking too long. Please try again.");
+      setStep("error");
+    }, TIMEOUTS.SPINNER_MAX);
+    return () => clearTimeout(timeout);
+  }, [step]);
+
+  useEffect(() => {
+    if (!token) { setStep("invalid"); return; }
     validateToken();
     fetchLegalDocs();
   }, [token]);
@@ -67,34 +75,40 @@ const ClientSetup = () => {
   const callEdgeFunction = async (payload: Record<string, unknown>) => {
     console.log("[Setup] Calling validate-invite-token with:", { ...payload, password: payload.password ? "***" : undefined });
 
-    const { data, error } = await supabase.functions.invoke("validate-invite-token", {
-      body: payload,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUTS.STANDARD_API);
 
-    if (error) {
-      console.error("[Setup] Edge function error:", error);
-      let parsed: Record<string, unknown> | null = null;
-      try {
-        if (error && typeof error === "object" && "context" in error) {
-          const ctx = (error as any).context;
-          if (ctx && typeof ctx.json === "function") {
-            parsed = await ctx.json();
+    try {
+      const { data, error } = await supabase.functions.invoke("validate-invite-token", {
+        body: payload,
+      });
+
+      clearTimeout(timeout);
+
+      if (error) {
+        console.error("[Setup] Edge function error:", error);
+        let parsed: Record<string, unknown> | null = null;
+        try {
+          if (error && typeof error === "object" && "context" in error) {
+            const ctx = (error as any).context;
+            if (ctx && typeof ctx.json === "function") {
+              parsed = await ctx.json();
+            }
           }
-        }
-      } catch {
-        // ignore parse failure
+        } catch { /* ignore */ }
+
+        if (parsed) return parsed;
+        return { success: false, message: "Unable to reach the server. Please try again.", errorCode: "NETWORK_ERROR" };
       }
 
-      if (parsed) {
-        console.log("[Setup] Parsed error response:", parsed);
-        return parsed;
+      return data;
+    } catch (err: any) {
+      clearTimeout(timeout);
+      if (err.name === "AbortError") {
+        return { success: false, message: "Request timed out. Please try again.", errorCode: "TIMEOUT" };
       }
-
-      return { success: false, message: "Unable to reach the server. Please try again.", errorCode: "NETWORK_ERROR" };
+      throw err;
     }
-
-    console.log("[Setup] Response:", data);
-    return data;
   };
 
   const validateToken = async () => {
@@ -129,11 +143,14 @@ const ClientSetup = () => {
       return;
     }
 
-    console.log("[Setup] Confirm Account clicked");
     setLoading(true);
+    const hardTimeout = setTimeout(() => {
+      setLoading(false);
+      setErrorMessage("Account creation is taking too long. Please try again.");
+      setStep("error");
+    }, TIMEOUTS.STANDARD_API);
 
     try {
-      // Collect legal document acceptance info
       const termsDoc = getDoc("terms_of_service");
       const privacyDoc = getDoc("privacy_policy");
       const legalAcceptances = [
@@ -147,6 +164,8 @@ const ClientSetup = () => {
         action: "setup",
         legal_acceptances: legalAcceptances,
       });
+
+      clearTimeout(hardTimeout);
 
       if (result?.success) {
         console.log("[Setup] Account created, signing in as:", result.email);
@@ -163,17 +182,33 @@ const ClientSetup = () => {
         }
 
         setStep("complete");
-        setTimeout(() => navigate("/onboarding"), 2000);
+
+        // Poll for session, redirect within 3s max
+        const startTime = Date.now();
+        const checkSession = async () => {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            navigate("/onboarding", { replace: true });
+            return;
+          }
+          if (Date.now() - startTime < TIMEOUTS.SPINNER_MAX) {
+            setTimeout(checkSession, 300);
+          } else {
+            navigate("/onboarding", { replace: true });
+          }
+        };
+        checkSession();
       } else {
         const msg = result?.message || "Something went wrong.";
         console.error("[Setup] Setup failed:", result?.errorCode, msg);
         toast({ title: "Error", description: msg, variant: "destructive" });
       }
     } catch (err: any) {
+      clearTimeout(hardTimeout);
       console.error("[Setup] Unexpected error:", err);
       toast({
         title: "Something went wrong",
-        description: "We're having trouble confirming your account. Please try again or contact support.",
+        description: "Please try again or contact support.",
         variant: "destructive",
       });
     } finally {
@@ -211,7 +246,6 @@ const ClientSetup = () => {
             <p className="text-sm text-muted-foreground mb-6">
               This invite link is not valid. Please contact your coach to receive a new access link.
             </p>
-            <p className="text-xs text-muted-foreground">Access is by invitation only.</p>
           </div>
         )}
 
@@ -222,7 +256,6 @@ const ClientSetup = () => {
             <p className="text-sm text-muted-foreground mb-6">
               This invite link has expired. Please contact your coach to receive a new access link.
             </p>
-            <p className="text-xs text-muted-foreground">Invite links are valid for 7 days.</p>
           </div>
         )}
 
@@ -249,75 +282,35 @@ const ClientSetup = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="setup_password">Create Password</Label>
-                <Input
-                  id="setup_password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                  minLength={8}
-                  required
-                />
+                <Input id="setup_password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 8 characters" minLength={8} required />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="confirm_password">Confirm Password</Label>
-                <Input
-                  id="confirm_password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
-                  required
-                />
+                <Input id="confirm_password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" required />
               </div>
 
               <div className="space-y-3 pt-2">
                 <div className="flex items-start gap-2">
-                  <Checkbox
-                    id="terms"
-                    checked={termsAccepted}
-                    disabled={true}
-                    onCheckedChange={() => {}}
-                  />
+                  <Checkbox id="terms" checked={termsAccepted} disabled={true} onCheckedChange={() => {}} />
                   <Label htmlFor="terms" className="text-xs text-muted-foreground leading-tight">
                     I agree to the{" "}
-                    <button
-                      type="button"
-                      onClick={() => setActiveModal("terms_of_service")}
-                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
-                    >
+                    <button type="button" onClick={() => setActiveModal("terms_of_service")} className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium">
                       Terms of Service
-                    </button>{" "}
-                    and understand the coaching program requirements.
+                    </button>
                   </Label>
                 </div>
                 <div className="flex items-start gap-2">
-                  <Checkbox
-                    id="privacy"
-                    checked={privacyAccepted}
-                    disabled={true}
-                    onCheckedChange={() => {}}
-                  />
+                  <Checkbox id="privacy" checked={privacyAccepted} disabled={true} onCheckedChange={() => {}} />
                   <Label htmlFor="privacy" className="text-xs text-muted-foreground leading-tight">
                     I agree to the{" "}
-                    <button
-                      type="button"
-                      onClick={() => setActiveModal("privacy_policy")}
-                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium"
-                    >
+                    <button type="button" onClick={() => setActiveModal("privacy_policy")} className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium">
                       Privacy Policy
-                    </button>{" "}
-                    and consent to the collection of health data.
+                    </button>
                   </Label>
                 </div>
               </div>
 
-              <Button
-                onClick={handleCreateAccount}
-                className="w-full"
-                disabled={loading || !termsAccepted || !privacyAccepted || !password || !confirmPassword}
-              >
+              <Button onClick={handleCreateAccount} className="w-full" disabled={loading || !termsAccepted || !privacyAccepted || !password || !confirmPassword}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Confirm Account
               </Button>
@@ -329,7 +322,8 @@ const ClientSetup = () => {
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <ShieldCheck className="h-12 w-12 text-primary mx-auto mb-4" />
             <h2 className="font-display text-xl font-semibold text-foreground mb-2">Account Created</h2>
-            <p className="text-sm text-muted-foreground">Redirecting you to your dashboard…</p>
+            <p className="text-sm text-muted-foreground">Redirecting…</p>
+            <Loader2 className="h-5 w-5 animate-spin text-primary mx-auto mt-4" />
           </div>
         )}
 
@@ -338,12 +332,14 @@ const ClientSetup = () => {
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <h2 className="font-display text-xl font-semibold text-foreground mb-2">Something Went Wrong</h2>
             <p className="text-sm text-muted-foreground mb-4">{errorMessage || "An unexpected error occurred."}</p>
-            <Button variant="outline" onClick={() => navigate("/auth")}>Back to Sign In</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate("/auth")} className="flex-1">Sign In</Button>
+              <Button onClick={() => window.location.reload()} className="flex-1">Retry</Button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Legal Document Modal */}
       <LegalDocumentModal
         open={!!activeModal && !!activeDoc}
         onClose={() => setActiveModal(null)}

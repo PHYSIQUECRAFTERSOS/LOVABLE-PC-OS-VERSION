@@ -14,6 +14,26 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+/** Ensure staff role is assigned. Idempotent. */
+async function ensureStaffRole(supabase: any, userId: string, role: string) {
+  // Remove default 'client' role if present
+  await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "client");
+
+  // Upsert the staff role
+  const { error } = await supabase.from("user_roles").upsert(
+    { user_id: userId, role },
+    { onConflict: "user_id,role" }
+  );
+  if (error) console.error("[staff-invite] Role upsert error:", error);
+  else console.log("[staff-invite] Role assigned:", role, "for user:", userId);
+
+  // Ensure profile exists
+  await supabase.from("profiles").upsert(
+    { user_id: userId, full_name: "" },
+    { onConflict: "user_id" }
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -27,9 +47,26 @@ serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // ── VALIDATE (check token without accepting) ──
+    if (action === "validate") {
+      const { token } = body;
+      if (!token) return json({ success: false, errorCode: "INVALID" });
+
+      const { data: invite } = await supabase
+        .from("staff_invites")
+        .select("*")
+        .eq("invite_token", token)
+        .maybeSingle();
+
+      if (!invite) return json({ success: false, errorCode: "INVALID" });
+      if (invite.used) return json({ success: false, errorCode: "ALREADY_USED" });
+      if (new Date(invite.expires_at) < new Date()) return json({ success: false, errorCode: "EXPIRED" });
+
+      return json({ success: true, valid: true, invite: { email: invite.email, role: invite.role } });
+    }
+
     // ── SEND INVITE ──
     if (action === "send") {
-      // Verify caller is admin
       const authHeader = req.headers.get("Authorization");
       if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
@@ -69,9 +106,8 @@ serve(async (req) => {
       crypto.getRandomValues(tokenBytes);
       const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, "0")).join("");
 
-      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48 hours
+      const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
-      // Store invite
       const { error: insertErr } = await supabase.from("staff_invites").insert({
         email: email.toLowerCase(),
         role,
@@ -85,7 +121,7 @@ serve(async (req) => {
         return json({ error: "Failed to create invite" }, 500);
       }
 
-      // Send invite email via Supabase Auth admin
+      // Send invite email via Auth admin
       const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
       const setupUrl = `${origin}/accept-invite?token=${token}`;
 
@@ -117,9 +153,8 @@ serve(async (req) => {
     // ── ACCEPT INVITE ──
     if (action === "accept") {
       const { token, password } = body;
-      if (!token) return json({ error: "Token required" }, 400);
+      if (!token) return json({ success: false, message: "Token required", errorCode: "INVALID" });
 
-      // Look up invite
       const { data: invite, error: lookupErr } = await supabase
         .from("staff_invites")
         .select("*")
@@ -153,7 +188,6 @@ serve(async (req) => {
 
       if (createErr) {
         if (createErr.message?.includes("already been registered")) {
-          // Find existing user and update password
           const { data: { users } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
           const existing = (users || []).find((u: any) => u.email?.toLowerCase() === invite.email.toLowerCase());
           if (!existing) {
@@ -172,20 +206,8 @@ serve(async (req) => {
         userId = newUser.user.id;
       }
 
-      // Ensure profile exists
-      await supabase.from("profiles").upsert(
-        { user_id: userId, full_name: "" },
-        { onConflict: "user_id" }
-      );
-
-      // Assign role — remove default 'client' role if present, add the staff role
-      await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "client");
-
-      const { error: roleErr } = await supabase.from("user_roles").upsert(
-        { user_id: userId, role: invite.role },
-        { onConflict: "user_id,role" }
-      );
-      if (roleErr) console.error("[staff-invite] Role error:", roleErr);
+      // *** CRITICAL: Assign role BEFORE returning success ***
+      await ensureStaffRole(supabase, userId, invite.role);
 
       // Mark invite as used
       await supabase.from("staff_invites").update({
@@ -194,7 +216,7 @@ serve(async (req) => {
         created_user_id: userId,
       }).eq("id", invite.id);
 
-      console.log("[staff-invite] Accept complete for:", invite.email, "role:", invite.role);
+      console.log("[staff-invite] Accept complete for:", invite.email, "role:", invite.role, "userId:", userId);
 
       return json({ success: true, email: invite.email });
     }

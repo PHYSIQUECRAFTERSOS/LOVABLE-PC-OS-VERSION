@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ShieldCheck, Clock, AlertTriangle } from "lucide-react";
+import { TIMEOUTS } from "@/lib/performance";
 
 type Step = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "complete" | "error";
 
@@ -14,6 +15,7 @@ const AcceptInvite = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const token = searchParams.get("token");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [step, setStep] = useState<Step>("loading");
   const [password, setPassword] = useState("");
@@ -21,26 +23,44 @@ const AcceptInvite = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Hard timeout on loading state — 3s max
+  useEffect(() => {
+    if (step === "loading") {
+      timeoutRef.current = setTimeout(() => {
+        console.error("[AcceptInvite] Validation timed out after 3s");
+        setErrorMessage("Validation is taking too long. Please try again.");
+        setStep("error");
+      }, TIMEOUTS.SPINNER_MAX);
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [step]);
+
   useEffect(() => {
     if (!token) { setStep("invalid"); return; }
 
-    // Simple validate — just check the token exists and is valid
+    // Validate token only — use the "validate" action pattern from staff-invite
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUTS.STANDARD_API);
+
     supabase.functions.invoke("staff-invite", {
-      body: { action: "accept", token, password: "________" }, // dummy to check token
-    }).then(({ data }) => {
+      body: { action: "validate", token },
+    }).then(({ data, error }) => {
+      clearTimeout(timeout);
+      if (error) {
+        console.error("[AcceptInvite] Validation error:", error);
+        setStep("invalid");
+        return;
+      }
       if (data?.errorCode === "INVALID") setStep("invalid");
       else if (data?.errorCode === "ALREADY_USED") setStep("already_used");
       else if (data?.errorCode === "EXPIRED") setStep("expired");
-      else if (data?.errorCode === "WEAK_PASSWORD" || data?.success === false) {
-        // Token is valid but password was dummy — show password form
-        setStep("create_password");
-      } else if (data?.success) {
-        // Shouldn't happen with dummy password but handle it
-        setStep("complete");
-      } else {
-        setStep("create_password");
-      }
-    }).catch(() => setStep("invalid"));
+      else if (data?.success && data?.valid) setStep("create_password");
+      else setStep("create_password"); // Token exists, show password form
+    }).catch((err) => {
+      clearTimeout(timeout);
+      console.error("[AcceptInvite] Validation failed:", err);
+      setStep("invalid");
+    });
   }, [token]);
 
   const handleSubmit = async () => {
@@ -54,13 +74,22 @@ const AcceptInvite = () => {
     }
 
     setLoading(true);
+    const submitTimeout = setTimeout(() => {
+      setLoading(false);
+      setErrorMessage("Account creation is taking too long. Please try again.");
+      setStep("error");
+    }, TIMEOUTS.STANDARD_API);
+
     try {
       const { data, error } = await supabase.functions.invoke("staff-invite", {
         body: { action: "accept", token, password },
       });
 
+      clearTimeout(submitTimeout);
+
       if (error || !data?.success) {
         const msg = data?.message || "Something went wrong";
+        console.error("[AcceptInvite] Accept failed:", data?.errorCode, msg);
         toast({ title: "Error", description: msg, variant: "destructive" });
         if (data?.errorCode) {
           setErrorMessage(msg);
@@ -69,22 +98,45 @@ const AcceptInvite = () => {
         return;
       }
 
-      // Sign in
+      // Sign in immediately
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: data.email,
         password,
       });
 
       if (signInErr) {
+        console.error("[AcceptInvite] Sign-in error:", signInErr.message);
         toast({ title: "Account created! Please sign in.", description: signInErr.message });
         navigate("/auth");
         return;
       }
 
+      // Wait for session to be established, then redirect immediately
       setStep("complete");
-      setTimeout(() => navigate("/dashboard"), 2000);
-    } catch {
+
+      // Poll for session confirmation, max 3s
+      const startTime = Date.now();
+      const checkSession = async () => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          console.log("[AcceptInvite] Session confirmed, redirecting...");
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+        if (Date.now() - startTime < TIMEOUTS.SPINNER_MAX) {
+          setTimeout(checkSession, 300);
+        } else {
+          console.warn("[AcceptInvite] Session not confirmed in 3s, forcing redirect");
+          navigate("/dashboard", { replace: true });
+        }
+      };
+      checkSession();
+    } catch (err) {
+      clearTimeout(submitTimeout);
+      console.error("[AcceptInvite] Unexpected error:", err);
       toast({ title: "Something went wrong", variant: "destructive" });
+      setErrorMessage("An unexpected error occurred. Please try again.");
+      setStep("error");
     } finally {
       setLoading(false);
     }
@@ -162,6 +214,7 @@ const AcceptInvite = () => {
             <ShieldCheck className="h-12 w-12 text-primary mx-auto mb-4" />
             <h2 className="font-display text-xl font-semibold text-foreground mb-2">You're In</h2>
             <p className="text-sm text-muted-foreground">Redirecting to dashboard…</p>
+            <Loader2 className="h-5 w-5 animate-spin text-primary mx-auto mt-4" />
           </div>
         )}
 
@@ -170,7 +223,10 @@ const AcceptInvite = () => {
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <h2 className="font-display text-xl font-semibold text-foreground mb-2">Error</h2>
             <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-            <Button variant="outline" onClick={() => navigate("/auth")}>Back to Sign In</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate("/auth")} className="flex-1">Sign In</Button>
+              <Button onClick={() => window.location.reload()} className="flex-1">Retry</Button>
+            </div>
           </div>
         )}
       </div>
