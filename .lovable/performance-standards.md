@@ -63,11 +63,40 @@ Every feature must:
 
 | Utility | Location | Purpose |
 |---------|----------|---------|
-| `useDataFetch` | `src/hooks/useDataFetch.ts` | Cached, timed, non-blocking data fetching |
+| `useDataFetch` | `src/hooks/useDataFetch.ts` | Cached, timed, non-blocking data fetching with perf logging |
+| `useTimedLoader` | `src/hooks/useTimedLoader.ts` | Tiered loading phases: loading → slow → failed |
+| `useOptimistic` | `src/hooks/useOptimistic.ts` | Optimistic UI updates with auto-rollback |
+| `TimedLoader` | `src/components/ui/timed-loader.tsx` | Standard loading UI enforcing no-spinner policy |
 | `compressImage` | `src/lib/performance.ts` | Client-side image compression |
 | `fetchWithTimeout` | `src/lib/performance.ts` | Promise wrapper with abort timeout |
+| `withTimeout` | `src/lib/performance.ts` | Generic async guard — wraps any promise with hard timeout |
 | `TIMEOUTS` | `src/lib/performance.ts` | Standard timeout constants |
 | `DataSkeleton` | `src/components/ui/data-skeleton.tsx` | Skeleton loader components |
+| `getPerfLog` | `src/hooks/useDataFetch.ts` | Access raw performance log entries |
+| `getPerfSummary` | `src/hooks/useDataFetch.ts` | Aggregated avg/failure stats per endpoint |
+
+## No-Spinner Policy
+
+Spinners are allowed for 3 seconds max. After that:
+- 3-5s: Show "Still working..." secondary state
+- 5s+: Auto-fail with retry button and error explanation
+
+Endless spinning is **forbidden**. Use `useTimedLoader` + `TimedLoader` component.
+
+## Optimistic UI
+
+Where safe (meal tracking, mark complete, profile updates):
+- Show immediate UI update
+- Sync in background via `useOptimistic`
+- Revert on failure with toast
+
+## Performance Logging
+
+Every `useDataFetch` call automatically logs:
+- Query key, duration, success/failure
+- Flagged 🔴 if >3s average
+
+Access via `getPerfSummary()` for admin dashboard.
 
 ## Feature Checklist
 
@@ -80,3 +109,6 @@ Before any feature ships:
 - [ ] Error state visible
 - [ ] Works on mobile Safari
 - [ ] No console errors
+- [ ] Has retry option
+- [ ] Parallel loading (no sequential blocking)
+- [ ] No redirect before DB confirmation

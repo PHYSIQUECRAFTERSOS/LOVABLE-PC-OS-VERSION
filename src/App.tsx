@@ -33,9 +33,14 @@ import ProtectedRoute from "./components/ProtectedRoute";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
+      // Global 5s timeout for all react-query fetches
+      queryFn: undefined,
+    },
+    mutations: {
+      retry: 0,
     },
   },
 });
