@@ -15,7 +15,7 @@ function json(body: Record<string, unknown>, status = 200) {
 }
 
 /** Ensure staff role is assigned. Idempotent. */
-async function ensureStaffRole(supabase: any, userId: string, role: string) {
+async function ensureStaffRole(supabase: any, userId: string, role: string, firstName?: string, lastName?: string) {
   // Remove default 'client' role if present
   await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "client");
 
@@ -27,11 +27,14 @@ async function ensureStaffRole(supabase: any, userId: string, role: string) {
   if (error) console.error("[staff-invite] Role upsert error:", error);
   else console.log("[staff-invite] Role assigned:", role, "for user:", userId);
 
-  // Ensure profile exists
-  await supabase.from("profiles").upsert(
-    { user_id: userId, full_name: "" },
-    { onConflict: "user_id" }
-  );
+  // Ensure profile exists with name from invite
+  const profileData: Record<string, unknown> = { user_id: userId };
+  if (firstName || lastName) {
+    profileData.full_name = `${firstName || ""} ${lastName || ""}`.trim();
+  } else {
+    profileData.full_name = "";
+  }
+  await supabase.from("profiles").upsert(profileData, { onConflict: "user_id" });
 }
 
 serve(async (req) => {
@@ -82,8 +85,11 @@ serve(async (req) => {
       const isAdmin = (roles || []).some((r: any) => r.role === "admin");
       if (!isAdmin) return json({ error: "Only admins can invite staff" }, 403);
 
-      const { email, role } = body;
+      const { email, role, first_name, last_name } = body;
       if (!email) return json({ error: "Email is required" }, 400);
+      if (!first_name?.trim() || !last_name?.trim()) {
+        return json({ error: "First and last name are required" }, 400);
+      }
       if (!["coach", "admin"].includes(role)) {
         return json({ error: "Role must be coach or admin" }, 400);
       }
@@ -114,6 +120,8 @@ serve(async (req) => {
         invited_by: user.id,
         invite_token: token,
         expires_at: expiresAt,
+        first_name: first_name.trim(),
+        last_name: last_name.trim(),
       });
 
       if (insertErr) {
@@ -207,7 +215,7 @@ serve(async (req) => {
       }
 
       // *** CRITICAL: Assign role BEFORE returning success ***
-      await ensureStaffRole(supabase, userId, invite.role);
+      await ensureStaffRole(supabase, userId, invite.role, invite.first_name, invite.last_name);
 
       // Mark invite as used
       await supabase.from("staff_invites").update({

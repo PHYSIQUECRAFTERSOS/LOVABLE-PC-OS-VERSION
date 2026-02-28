@@ -29,6 +29,8 @@ interface PendingInvite {
   id: string;
   email: string;
   role: string;
+  first_name: string | null;
+  last_name: string | null;
   created_at: string;
   expires_at: string;
 }
@@ -47,6 +49,8 @@ const Team = () => {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("coach");
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -118,7 +122,7 @@ const Team = () => {
       // Fetch pending invites
       const { data: invites } = await supabase
         .from("staff_invites")
-        .select("id, email, role, created_at, expires_at")
+        .select("id, email, role, first_name, last_name, created_at, expires_at")
         .eq("used", false)
         .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
@@ -134,11 +138,17 @@ const Team = () => {
   useEffect(() => { fetchStaff(); }, [fetchStaff]);
 
   const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
+    if (!inviteFirstName.trim() || !inviteLastName.trim() || !inviteEmail.trim()) return;
     setInviteLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("staff-invite", {
-        body: { action: "send", email: inviteEmail.trim(), role: inviteRole },
+        body: {
+          action: "send",
+          email: inviteEmail.trim(),
+          role: inviteRole,
+          first_name: inviteFirstName.trim(),
+          last_name: inviteLastName.trim(),
+        },
       });
 
       if (error) throw new Error("Failed to send invite");
@@ -157,6 +167,8 @@ const Team = () => {
         });
       }
 
+      setInviteFirstName("");
+      setInviteLastName("");
       setInviteEmail("");
       setInviteRole("coach");
       setInviteOpen(false);
@@ -276,25 +288,30 @@ const Team = () => {
               <CardTitle className="text-base">Pending Invites</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {pendingInvites.map((inv) => (
+              {pendingInvites.map((inv) => {
+                const displayName = [inv.first_name, inv.last_name].filter(Boolean).join(" ");
+                return (
                 <div key={inv.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-muted text-muted-foreground">
-                      {inv.email[0].toUpperCase()}
+                      {displayName ? displayName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0,2) : inv.email[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground">{inv.email}</p>
+                    <p className="text-sm font-semibold text-foreground">{displayName || inv.email}</p>
+                    {displayName && <p className="text-xs text-muted-foreground">{inv.email}</p>}
                     <p className="text-xs text-muted-foreground">
                       Expires {new Date(inv.expires_at).toLocaleDateString()}
                     </p>
                   </div>
+                  <Badge variant="outline" className="bg-accent/10 text-accent-foreground border-accent/20">Pending</Badge>
                   <Badge variant="outline">{roleLabels[inv.role] || inv.role}</Badge>
                   <Button variant="ghost" size="icon" onClick={() => handleRevokeInvite(inv.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}
@@ -308,6 +325,28 @@ const Team = () => {
             <DialogDescription>Send a secure invite. They'll have 48 hours to accept.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="staff_first_name">First Name *</Label>
+                <Input
+                  id="staff_first_name"
+                  value={inviteFirstName}
+                  onChange={(e) => setInviteFirstName(e.target.value)}
+                  placeholder="John"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="staff_last_name">Last Name *</Label>
+                <Input
+                  id="staff_last_name"
+                  value={inviteLastName}
+                  onChange={(e) => setInviteLastName(e.target.value)}
+                  placeholder="Smith"
+                  required
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="staff_email">Email *</Label>
               <Input
@@ -331,7 +370,7 @@ const Team = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleInvite} className="w-full" disabled={inviteLoading || !inviteEmail}>
+            <Button onClick={handleInvite} className="w-full" disabled={inviteLoading || !inviteEmail || !inviteFirstName.trim() || !inviteLastName.trim()}>
               {inviteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Send Invite
             </Button>
