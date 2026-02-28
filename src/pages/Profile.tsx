@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { withTimeout, TIMEOUTS } from "@/lib/performance";
 import HealthIntegrations from "@/components/settings/HealthIntegrations";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 
@@ -26,7 +27,10 @@ const Profile = () => {
         .select("full_name, phone, avatar_url")
         .eq("user_id", user.id)
         .single()
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          if (error) {
+            console.error("[Profile] Fetch error:", error.message);
+          }
           if (data) {
             setFullName(data.full_name || "");
             setPhone(data.phone || "");
@@ -37,19 +41,34 @@ const Profile = () => {
   }, [user]);
 
   const handleSave = async () => {
-    if (!user) return;
-    setLoading(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ full_name: fullName, phone })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Profile updated" });
+    if (!user) {
+      toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" });
+      return;
     }
-    setLoading(false);
+    setLoading(true);
+    try {
+      const { error } = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from("profiles")
+            .update({ full_name: fullName, phone })
+            .eq("user_id", user.id)
+        ),
+        TIMEOUTS.STANDARD_API,
+        "profile-save"
+      );
+
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Profile updated ✓" });
+      }
+    } catch (err: any) {
+      console.error("[Profile] Save failed:", err);
+      toast({ title: "Save failed", description: err.message || "Request timed out. Try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
