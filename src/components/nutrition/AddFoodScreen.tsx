@@ -49,6 +49,7 @@ interface AddFoodScreenProps {
 
 type TabKey = "all" | "my-meals" | "my-recipes" | "my-foods";
 type HistorySort = "recent" | "frequent";
+type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
@@ -71,6 +72,7 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
   const [history, setHistory] = useState<FoodItem[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
   const [servings, setServings] = useState<Record<string, string>>({});
+  const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
   // Quick Add state
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -163,20 +165,34 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
 
   const logFood = async (item: FoodItem) => {
     if (!user) return;
-    const s = parseFloat(servings[item.id] || "1") || 1;
+    const unit = servingUnits[item.id] || "serving";
+    const inputVal = parseFloat(servings[item.id] || "1") || 1;
+    
+    // Calculate multiplier based on unit
+    let multiplier: number;
+    if (unit === "g") {
+      // inputVal is grams, item macros are per serving_size (in serving_unit)
+      const baseSizeG = item.serving_unit === "oz" ? item.serving_size * 28.3495 : item.serving_size;
+      multiplier = inputVal / baseSizeG;
+    } else if (unit === "oz") {
+      const baseSizeOz = item.serving_unit === "g" ? item.serving_size / 28.3495 : item.serving_size;
+      multiplier = inputVal / baseSizeOz;
+    } else {
+      multiplier = inputVal; // servings
+    }
 
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: item.id,
       meal_type: mealType,
-      servings: s,
-      calories: Math.round(item.calories * s),
-      protein: Math.round(item.protein * s),
-      carbs: Math.round(item.carbs * s),
-      fat: Math.round(item.fat * s),
-      fiber: Math.round((item.fiber || 0) * s),
-      sugar: Math.round((item.sugar || 0) * s),
-      sodium: Math.round((item.sodium || 0) * s),
+      servings: multiplier,
+      calories: Math.round(item.calories * multiplier),
+      protein: Math.round(item.protein * multiplier),
+      carbs: Math.round(item.carbs * multiplier),
+      fat: Math.round(item.fat * multiplier),
+      fiber: Math.round((item.fiber || 0) * multiplier),
+      sugar: Math.round((item.sugar || 0) * multiplier),
+      sodium: Math.round((item.sodium || 0) * multiplier),
     });
 
     if (error) {
@@ -365,14 +381,22 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
             </div>
             <div className="space-y-1">
               {history.map((item) => (
-                <FoodRow
+                 <FoodRow
                   key={item.id}
                   item={item}
                   expanded={expandedId === item.id}
                   onToggle={() => toggleExpand(item.id)}
                   onAdd={() => logFood(item)}
-                  servings={servings[item.id] || "1"}
+                  servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
                   onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                  servingUnit={servingUnits[item.id] || "g"}
+                  onServingUnitChange={(u) => {
+                    setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                    // Reset amount to sensible default when switching units
+                    if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                    else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                    else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                  }}
                 />
               ))}
               {history.length === 0 && (
@@ -393,14 +417,21 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
               <p className="text-center text-sm text-muted-foreground py-12">No results found</p>
             ) : (
               displayItems.map((item) => (
-                <FoodRow
+                 <FoodRow
                   key={item.id}
                   item={item}
                   expanded={expandedId === item.id}
                   onToggle={() => toggleExpand(item.id)}
                   onAdd={() => logFood(item)}
-                  servings={servings[item.id] || "1"}
+                  servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
                   onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                  servingUnit={servingUnits[item.id] || "g"}
+                  onServingUnitChange={(u) => {
+                    setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                    if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                    else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                    else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                  }}
                 />
               ))
             )}
@@ -435,10 +466,23 @@ interface FoodRowProps {
   onAdd: () => void;
   servings: string;
   onServingsChange: (v: string) => void;
+  servingUnit: ServingUnit;
+  onServingUnitChange: (u: ServingUnit) => void;
 }
 
-const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange }: FoodRowProps) => {
-  const s = parseFloat(servings) || 1;
+const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange }: FoodRowProps) => {
+  // Calculate multiplier based on unit
+  const inputVal = parseFloat(servings) || 1;
+  let multiplier: number;
+  if (servingUnit === "g") {
+    const baseSizeG = item.serving_unit === "oz" ? item.serving_size * 28.3495 : item.serving_size;
+    multiplier = inputVal / baseSizeG;
+  } else if (servingUnit === "oz") {
+    const baseSizeOz = item.serving_unit === "g" ? item.serving_size / 28.3495 : item.serving_size;
+    multiplier = inputVal / baseSizeOz;
+  } else {
+    multiplier = inputVal;
+  }
 
   return (
     <div className="rounded-xl bg-card border border-border/50 overflow-hidden transition-all">
@@ -455,10 +499,7 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange }
             <span className="text-xs text-muted-foreground/60">· {item.serving_size}{item.serving_unit}</span>
           </div>
         </button>
-        <button
-          onClick={onToggle}
-          className="p-1 text-muted-foreground"
-        >
+        <button onClick={onToggle} className="p-1 text-muted-foreground">
           {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </button>
         <button
@@ -472,27 +513,41 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange }
       {expanded && (
         <div className="px-4 pb-3 pt-0 border-t border-border/30 animate-fade-in">
           <div className="flex items-center gap-2 mb-3 mt-2">
-            <span className="text-xs text-muted-foreground">Servings</span>
             <Input
               type="number"
-              step="0.25"
-              min="0.25"
+              step="1"
+              min="1"
               value={servings}
               onChange={(e) => onServingsChange(e.target.value)}
-              className="h-7 w-16 text-xs text-center bg-secondary border-0 rounded-lg"
+              className="h-7 w-20 text-xs text-center bg-secondary border-0 rounded-lg"
             />
-            <span className="text-xs text-muted-foreground">× {item.serving_size}{item.serving_unit}</span>
+            <div className="flex rounded-lg overflow-hidden border border-border/50">
+              {(["g", "oz", "serving"] as ServingUnit[]).map((u) => (
+                <button
+                  key={u}
+                  onClick={() => onServingUnitChange(u)}
+                  className={cn(
+                    "px-2 py-1 text-[10px] font-medium transition-colors",
+                    servingUnit === u
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {u === "serving" ? `× ${item.serving_size}${item.serving_unit}` : u}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
-            <MacroRow label="Protein" value={`${Math.round(item.protein * s)}g`} color="text-red-400" />
-            <MacroRow label="Carbs" value={`${Math.round(item.carbs * s)}g`} color="text-blue-400" />
-            <MacroRow label="Fat" value={`${Math.round(item.fat * s)}g`} color="text-yellow-400" />
-            <MacroRow label="Fiber" value={`${Math.round((item.fiber || 0) * s)}g`} />
-            <MacroRow label="Sugar" value={`${Math.round((item.sugar || 0) * s)}g`} />
-            <MacroRow label="Sodium" value={`${Math.round((item.sodium || 0) * s)}mg`} />
+            <MacroRow label="Protein" value={`${Math.round(item.protein * multiplier * 10) / 10}g`} color="text-red-400" />
+            <MacroRow label="Carbs" value={`${Math.round(item.carbs * multiplier * 10) / 10}g`} color="text-blue-400" />
+            <MacroRow label="Fat" value={`${Math.round(item.fat * multiplier * 10) / 10}g`} color="text-yellow-400" />
+            <MacroRow label="Fiber" value={`${Math.round((item.fiber || 0) * multiplier * 10) / 10}g`} />
+            <MacroRow label="Sugar" value={`${Math.round((item.sugar || 0) * multiplier * 10) / 10}g`} />
+            <MacroRow label="Sodium" value={`${Math.round((item.sodium || 0) * multiplier)}mg`} />
           </div>
           <div className="mt-2 text-center">
-            <span className="text-lg font-bold text-foreground">{Math.round(item.calories * s)}</span>
+            <span className="text-lg font-bold text-foreground">{Math.round(item.calories * multiplier)}</span>
             <span className="text-xs text-muted-foreground ml-1">cal total</span>
           </div>
         </div>

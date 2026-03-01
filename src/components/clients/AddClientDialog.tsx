@@ -72,7 +72,7 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
               : [],
           },
         }),
-        TIMEOUTS.STANDARD_API,
+        TIMEOUTS.AI_PROCESS,
         "send-client-invite"
       );
 

@@ -133,9 +133,9 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       await scanner.start(
         { facingMode: "environment" },
         {
-          fps: 10,
-          qrbox: { width: 280, height: 150 },
-          aspectRatio: 1.5,
+          fps: 15,
+          qrbox: { width: 300, height: 150 },
+          aspectRatio: 1.7778,
         },
         async (decodedText) => {
           await stopScanner();
