@@ -73,7 +73,7 @@ const OnboardingWaiver = ({ data, updateField, validationErrors }: Props) => {
     canvas.width = rect.width * 2;
     canvas.height = rect.height * 2;
     ctx.scale(2, 2);
-    ctx.strokeStyle = "hsl(43, 72%, 55%)";
+    ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";

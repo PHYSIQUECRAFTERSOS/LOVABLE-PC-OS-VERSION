@@ -254,22 +254,22 @@ const Onboarding = () => {
       case 4:
         if (!data.training_location) errors.training_location = "This field is required before continuing.";
         if (data.training_location === "home") {
-          if (!data.home_equipment_list || data.home_equipment_list.length < 20)
-            errors.home_equipment_list = "Please list your equipment (minimum 20 characters).";
+          if (!data.home_equipment_list?.trim())
+            errors.home_equipment_list = "Please list your equipment.";
           if (!data.equipment_photo_urls || data.equipment_photo_urls.length < 1)
             errors.equipment_photo_urls = "Please upload at least 1 photo of your equipment.";
         }
         if (data.training_location === "gym") {
-          if (!data.gym_name_address || data.gym_name_address.length < 5)
-            errors.gym_name_address = "Please include your gym name and full address.";
+          if (!data.gym_name_address?.trim())
+            errors.gym_name_address = "Please include your gym name and address.";
         }
         break;
       case 5:
         if (!data.wake_time) errors.wake_time = "This field is required before continuing.";
         if (!data.workout_time) errors.workout_time = "This field is required before continuing.";
         if (!data.sleep_time) errors.sleep_time = "This field is required before continuing.";
-        if (!data.occupation || data.occupation.length < 10)
-          errors.occupation = "Please describe your work (minimum 10 characters).";
+        if (!data.occupation?.trim())
+          errors.occupation = "Please describe your work.";
         break;
       case 6:
         if (!data.foods_love) errors.foods_love = "This field is required before continuing.";
@@ -289,13 +289,13 @@ const Onboarding = () => {
           errors.available_days = "Please select at least one day.";
         break;
       case 10:
-        if (!data.motivation_text || data.motivation_text.length < 20)
-          errors.motivation_text = "Please share what motivates you (minimum 20 characters).";
+        if (!data.motivation_text?.trim())
+          errors.motivation_text = "Please share what motivates you.";
         if (!data.favorite_body_part) errors.favorite_body_part = "This field is required before continuing.";
         if (!data.work_on_most) errors.work_on_most = "This field is required before continuing.";
         break;
       case 11:
-        if (!data.final_notes) errors.final_notes = "This field is required before continuing.";
+        // Final notes are optional - no minimum required
         break;
       case 12:
         break; // Health sync optional
