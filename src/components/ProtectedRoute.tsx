@@ -103,11 +103,28 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/auth" replace />;
   }
 
-  // Still no role (shouldn't happen if not loading, but safety)
+  // Role unresolved after auth completed — fail fast, do not infinite-spin
   if (!role) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <p className="text-foreground font-medium">Could not load your session role</p>
+        <p className="text-sm text-muted-foreground">Please refresh. If this persists, sign in again.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => window.location.reload()} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/auth";
+            }}
+          >
+            Sign in again
+          </Button>
+        </div>
       </div>
     );
   }
