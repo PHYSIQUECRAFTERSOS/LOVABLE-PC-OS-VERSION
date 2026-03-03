@@ -19,8 +19,13 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+
+      // Ensure session is hydrated before redirecting to avoid bounce/spinner races
+      const session = signInData?.session ?? (await supabase.auth.getSession()).data.session;
+      if (!session) throw new Error("Sign-in succeeded but session was not restored. Please try again.");
+
       navigate("/dashboard");
     } catch (error: any) {
       toast({
