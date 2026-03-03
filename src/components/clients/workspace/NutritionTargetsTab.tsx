@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Target, Edit2, Save, UtensilsCrossed } from "lucide-react";
+import { Target, Edit2, Save, Plus } from "lucide-react";
 import { format } from "date-fns";
 
 interface Targets {
@@ -28,36 +28,18 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Targets>({ calories: 2000, protein: 150, carbs: 200, fat: 70 });
 
-  useEffect(() => {
-    loadData();
-  }, [clientId]);
+  useEffect(() => { loadData(); }, [clientId]);
 
   const loadData = async () => {
     setLoading(true);
     const today = format(new Date(), "yyyy-MM-dd");
-
     const [targetsRes, logsRes] = await Promise.all([
-      supabase
-        .from("nutrition_targets")
-        .select("calories, protein, carbs, fat")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("nutrition_logs")
-        .select("calories, protein, carbs, fat")
-        .eq("client_id", clientId)
-        .gte("logged_at", `${today}T00:00:00`)
-        .lte("logged_at", `${today}T23:59:59`),
+      supabase.from("nutrition_targets").select("calories, protein, carbs, fat")
+        .eq("client_id", clientId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
+        .eq("client_id", clientId).gte("logged_at", `${today}T00:00:00`).lte("logged_at", `${today}T23:59:59`),
     ]);
-
-    if (targetsRes.data) {
-      const t = targetsRes.data as Targets;
-      setTargets(t);
-      setForm(t);
-    }
-
+    if (targetsRes.data) { const t = targetsRes.data as Targets; setTargets(t); setForm(t); }
     const logs = logsRes.data || [];
     setTodayTotals({
       calories: logs.reduce((s, l) => s + (l.calories || 0), 0),
@@ -68,16 +50,34 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
     setLoading(false);
   };
 
+  // Live-computed percentages from form values
+  const formPercentages = useMemo(() => {
+    const totalCals = (form.protein * 4) + (form.carbs * 4) + (form.fat * 9);
+    if (totalCals === 0) return { protein: 0, carbs: 0, fat: 0 };
+    return {
+      protein: Math.round((form.protein * 4 / totalCals) * 100),
+      carbs: Math.round((form.carbs * 4 / totalCals) * 100),
+      fat: Math.round((form.fat * 9 / totalCals) * 100),
+    };
+  }, [form.protein, form.carbs, form.fat]);
+
+  const targetPercentages = useMemo(() => {
+    if (!targets) return { protein: 0, carbs: 0, fat: 0 };
+    const totalCals = (targets.protein * 4) + (targets.carbs * 4) + (targets.fat * 9);
+    if (totalCals === 0) return { protein: 0, carbs: 0, fat: 0 };
+    return {
+      protein: Math.round((targets.protein * 4 / totalCals) * 100),
+      carbs: Math.round((targets.carbs * 4 / totalCals) * 100),
+      fat: Math.round((targets.fat * 9 / totalCals) * 100),
+    };
+  }, [targets]);
+
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
     const { error } = await supabase.from("nutrition_targets").insert({
-      client_id: clientId,
-      coach_id: user.id,
-      calories: form.calories,
-      protein: form.protein,
-      carbs: form.carbs,
-      fat: form.fat,
+      client_id: clientId, coach_id: user.id,
+      calories: form.calories, protein: form.protein, carbs: form.carbs, fat: form.fat,
     });
     setSaving(false);
     if (error) {
@@ -89,29 +89,17 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-48 rounded-xl" />
-        <Skeleton className="h-32 rounded-xl" />
-      </div>
-    );
-  }
+  if (loading) return <div className="space-y-4"><Skeleton className="h-48 rounded-xl" /><Skeleton className="h-32 rounded-xl" /></div>;
 
   const macros = [
-    { key: "calories", label: "Calories", unit: "kcal", color: "bg-primary" },
-    { key: "protein", label: "Protein", unit: "g", color: "bg-blue-500" },
-    { key: "carbs", label: "Carbs", unit: "g", color: "bg-amber-500" },
-    { key: "fat", label: "Fat", unit: "g", color: "bg-rose-500" },
-  ] as const;
-
-  const totalMacroCals = targets
-    ? (targets.protein * 4) + (targets.carbs * 4) + (targets.fat * 9)
-    : 0;
+    { key: "calories" as const, label: "Calories", unit: "kcal", color: "bg-primary" },
+    { key: "protein" as const, label: "Protein", unit: "g", color: "bg-blue-500" },
+    { key: "carbs" as const, label: "Carbs", unit: "g", color: "bg-amber-500" },
+    { key: "fat" as const, label: "Fat", unit: "g", color: "bg-rose-500" },
+  ];
 
   return (
     <div className="space-y-4">
-      {/* Targets Card */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -133,13 +121,40 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                 <div><Label>Carbs (g)</Label><Input type="number" value={form.carbs} onChange={e => setForm({ ...form, carbs: parseInt(e.target.value) || 0 })} /></div>
                 <div><Label>Fat (g)</Label><Input type="number" value={form.fat} onChange={e => setForm({ ...form, fat: parseInt(e.target.value) || 0 })} /></div>
               </div>
+
+              {/* Live macro split preview */}
+              <div className="p-3 rounded-lg bg-muted/30 border">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Live Macro Split</p>
+                <div className="flex gap-6">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-foreground">{form.protein}g</p>
+                    <p className="text-xs text-primary font-semibold">{formPercentages.protein}%</p>
+                    <p className="text-[10px] text-muted-foreground">Protein</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-foreground">{form.carbs}g</p>
+                    <p className="text-xs text-amber-500 font-semibold">{formPercentages.carbs}%</p>
+                    <p className="text-[10px] text-muted-foreground">Carbs</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-foreground">{form.fat}g</p>
+                    <p className="text-xs text-rose-500 font-semibold">{formPercentages.fat}%</p>
+                    <p className="text-[10px] text-muted-foreground">Fat</p>
+                  </div>
+                </div>
+                {/* Visual bar */}
+                <div className="flex h-2 rounded-full overflow-hidden mt-2">
+                  <div className="bg-blue-500" style={{ width: `${formPercentages.protein}%` }} />
+                  <div className="bg-amber-500" style={{ width: `${formPercentages.carbs}%` }} />
+                  <div className="bg-rose-500" style={{ width: `${formPercentages.fat}%` }} />
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <Button onClick={handleSave} disabled={saving} className="flex-1">
                   <Save className="h-3.5 w-3.5 mr-1" /> {saving ? "Saving..." : "Save Targets"}
                 </Button>
-                <Button variant="outline" onClick={() => { setEditing(false); if (targets) setForm(targets); }}>
-                  Cancel
-                </Button>
+                <Button variant="outline" onClick={() => { setEditing(false); if (targets) setForm(targets); }}>Cancel</Button>
               </div>
             </div>
           ) : targets ? (
@@ -149,11 +164,23 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                 const current = Math.round(todayTotals[m.key]);
                 const remaining = Math.max(0, target - current);
                 const pct = target > 0 ? Math.min(Math.round((current / target) * 100), 100) : 0;
+                const macroPct = m.key !== "calories" ? targetPercentages[m.key as keyof typeof targetPercentages] : null;
 
                 return (
                   <div key={m.key} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{m.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{m.label}</span>
+                        {macroPct !== null && (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                            m.key === "protein" ? "bg-blue-500/10 text-blue-500" :
+                            m.key === "carbs" ? "bg-amber-500/10 text-amber-500" :
+                            "bg-rose-500/10 text-rose-500"
+                          }`}>
+                            {macroPct}%
+                          </span>
+                        )}
+                      </div>
                       <div className="text-right">
                         <span className="text-sm font-semibold">{current}</span>
                         <span className="text-xs text-muted-foreground"> / {target} {m.unit}</span>
@@ -168,33 +195,37 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                 );
               })}
 
-              {/* Macro Percentages */}
-              {totalMacroCals > 0 && (
-                <div className="pt-3 border-t border-border">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Macro Split</p>
-                  <div className="flex gap-4">
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-foreground">{Math.round((targets.protein * 4 / totalMacroCals) * 100)}%</p>
-                      <p className="text-[10px] text-muted-foreground">Protein</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-foreground">{Math.round((targets.carbs * 4 / totalMacroCals) * 100)}%</p>
-                      <p className="text-[10px] text-muted-foreground">Carbs</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-lg font-bold text-foreground">{Math.round((targets.fat * 9 / totalMacroCals) * 100)}%</p>
-                      <p className="text-[10px] text-muted-foreground">Fat</p>
-                    </div>
+              {/* Macro split bar */}
+              <div className="pt-3 border-t border-border">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Macro Split</p>
+                <div className="flex gap-6 mb-2">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-foreground">{targets.protein}g</p>
+                    <p className="text-xs text-blue-500 font-semibold">{targetPercentages.protein}%</p>
+                    <p className="text-[10px] text-muted-foreground">Protein</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-foreground">{targets.carbs}g</p>
+                    <p className="text-xs text-amber-500 font-semibold">{targetPercentages.carbs}%</p>
+                    <p className="text-[10px] text-muted-foreground">Carbs</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-foreground">{targets.fat}g</p>
+                    <p className="text-xs text-rose-500 font-semibold">{targetPercentages.fat}%</p>
+                    <p className="text-[10px] text-muted-foreground">Fat</p>
                   </div>
                 </div>
-              )}
+                <div className="flex h-2 rounded-full overflow-hidden">
+                  <div className="bg-blue-500" style={{ width: `${targetPercentages.protein}%` }} />
+                  <div className="bg-amber-500" style={{ width: `${targetPercentages.carbs}%` }} />
+                  <div className="bg-rose-500" style={{ width: `${targetPercentages.fat}%` }} />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-3">No nutrition targets set yet.</p>
-              <Button size="sm" onClick={() => setEditing(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Set Targets
-              </Button>
+              <Button size="sm" onClick={() => setEditing(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Set Targets</Button>
             </div>
           )}
         </CardContent>
@@ -202,9 +233,5 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
     </div>
   );
 };
-
-const Plus = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-);
 
 export default NutritionTargetsTab;
