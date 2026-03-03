@@ -2993,6 +2993,7 @@ export type Database = {
       program_phases: {
         Row: {
           created_at: string
+          custom_intensity: string | null
           description: string | null
           duration_weeks: number
           id: string
@@ -3006,6 +3007,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_intensity?: string | null
           description?: string | null
           duration_weeks?: number
           id?: string
@@ -3019,6 +3021,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_intensity?: string | null
           description?: string | null
           duration_weeks?: number
           id?: string
@@ -3088,6 +3091,7 @@ export type Database = {
           day_label: string | null
           day_of_week: number | null
           id: string
+          phase_id: string | null
           sort_order: number | null
           week_id: string
           workout_id: string
@@ -3097,6 +3101,7 @@ export type Database = {
           day_label?: string | null
           day_of_week?: number | null
           id?: string
+          phase_id?: string | null
           sort_order?: number | null
           week_id: string
           workout_id: string
@@ -3106,11 +3111,19 @@ export type Database = {
           day_label?: string | null
           day_of_week?: number | null
           id?: string
+          phase_id?: string | null
           sort_order?: number | null
           week_id?: string
           workout_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "program_workouts_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "program_phases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "program_workouts_week_id_fkey"
             columns: ["week_id"]
@@ -4071,6 +4084,8 @@ export type Database = {
           created_at: string
           exercise_id: string
           exercise_order: number
+          grouping_id: string | null
+          grouping_type: string | null
           id: string
           increment_type: string | null
           intensity_type: string | null
@@ -4097,6 +4112,8 @@ export type Database = {
           created_at?: string
           exercise_id: string
           exercise_order: number
+          grouping_id?: string | null
+          grouping_type?: string | null
           id?: string
           increment_type?: string | null
           intensity_type?: string | null
@@ -4123,6 +4140,8 @@ export type Database = {
           created_at?: string
           exercise_id?: string
           exercise_order?: number
+          grouping_id?: string | null
+          grouping_type?: string | null
           id?: string
           increment_type?: string | null
           intensity_type?: string | null
