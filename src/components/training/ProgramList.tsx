@@ -96,19 +96,27 @@ const ProgramList = () => {
 
   const loadClients = async () => {
     if (!user) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("coach_clients")
-      .select("client_id, profiles!coach_clients_client_id_fkey(full_name)")
+      .select("client_id")
       .eq("coach_id", user.id)
       .eq("status", "active");
-    if (data) {
-      setClients(data.map((d: any) => ({ id: d.client_id, name: d.profiles?.full_name || d.client_id.slice(0, 8) })));
-    }
+    if (error || !data) return;
+    
+    const clientIds = data.map((d: any) => d.client_id);
+    if (clientIds.length === 0) { setClients([]); return; }
+    
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", clientIds);
+    
+    const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+    setClients(clientIds.map((id: string) => ({ id, name: profileMap.get(id) || id.slice(0, 8) })));
   };
 
   useEffect(() => { loadPrograms(); loadClients(); }, [user]);
 
-  // ── Deep clone helper ──
   const cloneProgramToClient = async (masterProgramId: string, clientId: string, isLinked: boolean) => {
     if (!user) throw new Error("Not authenticated");
 
@@ -123,7 +131,7 @@ const ProgramList = () => {
     } as any).select().single();
     if (error) throw error;
 
-    // 2. Clone phases → weeks → workouts → exercises
+    // 2. Clone phases → workouts → exercises (phase-direct, no weeks needed)
     const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", masterProgramId).order("phase_order");
     let firstPhaseId: string | null = null;
 
@@ -136,41 +144,34 @@ const ProgramList = () => {
       }).select().single();
       if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-      const { data: weeks } = await supabase.from("program_weeks").select("id, week_number, name")
-        .eq("program_id", masterProgramId).eq("phase_id", phase.id).order("week_number");
+      // Get workouts linked to this phase
+      const { data: pws } = await supabase.from("program_workouts")
+        .select("workout_id, day_of_week, day_label, sort_order")
+        .eq("phase_id", phase.id);
 
-      for (const week of (weeks || [])) {
-        const { data: newWeek } = await supabase.from("program_weeks")
-          .insert({ program_id: newProg.id, phase_id: newPhase!.id, week_number: week.week_number, name: week.name })
-          .select().single();
+      for (const w of (pws || [])) {
+        const { data: origW } = await supabase.from("workouts")
+          .select("name, description, instructions, phase, workout_type").eq("id", w.workout_id).single();
+        if (!origW) continue;
 
-        const { data: pws } = await supabase.from("program_workouts")
-          .select("workout_id, day_of_week, day_label, sort_order").eq("week_id", week.id);
+        const { data: clientW } = await supabase.from("workouts").insert({
+          coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
+          instructions: origW.instructions, phase: origW.phase, is_template: false,
+          workout_type: (origW as any).workout_type || "regular",
+        } as any).select().single();
+        if (!clientW) continue;
 
-        for (const w of (pws || [])) {
-          const { data: origW } = await supabase.from("workouts")
-            .select("name, description, instructions, phase, workout_type").eq("id", w.workout_id).single();
-          if (!origW) continue;
-
-          const { data: clientW } = await supabase.from("workouts").insert({
-            coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
-            instructions: origW.instructions, phase: origW.phase, is_template: false,
-            workout_type: (origW as any).workout_type || "regular",
-          } as any).select().single();
-          if (!clientW) continue;
-
-          const { data: exes } = await supabase.from("workout_exercises")
-            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
-            .eq("workout_id", w.workout_id);
-          if (exes && exes.length > 0) {
-            await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
-          }
-
-          await supabase.from("program_workouts").insert({
-            week_id: newWeek!.id, workout_id: clientW.id,
-            day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
-          });
+        const { data: exes } = await supabase.from("workout_exercises")
+          .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
+          .eq("workout_id", w.workout_id);
+        if (exes && exes.length > 0) {
+          await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
         }
+
+        await supabase.from("program_workouts").insert({
+          phase_id: newPhase!.id, workout_id: clientW.id,
+          day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
+        });
       }
     }
 

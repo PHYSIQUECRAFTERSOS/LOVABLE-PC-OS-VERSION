@@ -103,14 +103,24 @@ const MasterLibraries = () => {
 
   const loadClients = async () => {
     if (!user) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("coach_clients")
-      .select("client_id, profiles!coach_clients_client_id_fkey(full_name)")
+      .select("client_id")
       .eq("coach_id", user.id)
       .eq("status", "active");
-    if (data) {
-      setClients(data.map((d: any) => ({ id: d.client_id, name: d.profiles?.full_name || d.client_id.slice(0, 8) })));
-    }
+    if (error || !data) return;
+    
+    // Fetch profiles separately to avoid FK join issues
+    const clientIds = data.map((d: any) => d.client_id);
+    if (clientIds.length === 0) { setClients([]); return; }
+    
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", clientIds);
+    
+    const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
+    setClients(clientIds.map((id: string) => ({ id, name: profileMap.get(id) || id.slice(0, 8) })));
   };
 
   useEffect(() => { loadPrograms(); loadClients(); }, [user]);

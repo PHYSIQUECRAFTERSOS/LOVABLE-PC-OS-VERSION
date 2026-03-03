@@ -267,7 +267,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setShowWorkoutBuilder(true);
   };
 
-  const handleWorkoutSaved = (workoutId: string, workoutName: string) => {
+  const handleWorkoutSaved = async (workoutId: string, workoutName: string) => {
     const newPhases = [...phases];
     const phase = newPhases[builderTargetPhase];
 
@@ -287,6 +287,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setPhases(newPhases);
     setShowWorkoutBuilder(false);
     setEditingWorkout(null);
+
+    // Auto-save the phase-workout link to database immediately
+    if (phase.id) {
+      // Phase already exists in DB - insert the link directly
+      await supabase.from("program_workouts").insert({
+        phase_id: phase.id,
+        workout_id: workoutId,
+        day_of_week: phase.workouts.length - 1,
+        day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
+        sort_order: phase.workouts.length - 1,
+      });
+    }
   };
 
   const removeWorkoutFromPhase = (phaseIdx: number, workoutIdx: number) => {
@@ -353,12 +365,16 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
       await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
 
-      // Delete existing structure
+      // Delete existing program_workouts linked to this program's phases
+      const { data: existingPhases } = await supabase.from("program_phases").select("id").eq("program_id", programId);
+      if (existingPhases && existingPhases.length > 0) {
+        await supabase.from("program_workouts").delete().in("phase_id", existingPhases.map(p => p.id));
+      }
+      // Delete existing phases and orphan weeks
       await supabase.from("program_phases").delete().eq("program_id", programId);
-      // Also clear any orphan weeks
       await supabase.from("program_weeks").delete().eq("program_id", programId);
 
-      // Insert phases with direct workout links
+      // Insert phases with direct workout links (week_id is now nullable)
       for (const phase of phases) {
         const { data: phaseRow, error: phaseErr } = await supabase
           .from("program_phases")
@@ -384,32 +400,15 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               day_of_week: w.dayOfWeek,
               day_label: w.dayLabel,
               sort_order: i,
-              // week_id is required NOT NULL — we need a dummy. Let's create a single week per phase for compat.
-              week_id: null as any,
             }))
           );
-          // If week_id NOT NULL causes error, create a dummy week
-          if (pwErr && pwErr.message.includes("week_id")) {
-            const { data: dummyWeek } = await supabase.from("program_weeks").insert({
-              program_id: programId, phase_id: phaseRow.id, week_number: phase.phaseOrder, name: phase.name,
-            }).select().single();
-            if (dummyWeek) {
-              await supabase.from("program_workouts").insert(
-                phase.workouts.map((w, i) => ({
-                  phase_id: phaseRow.id,
-                  week_id: dummyWeek.id,
-                  workout_id: w.workoutId,
-                  day_of_week: w.dayOfWeek,
-                  day_label: w.dayLabel,
-                  sort_order: i,
-                }))
-              );
-            }
-          }
+          if (pwErr) throw pwErr;
         }
       }
 
       toast({ title: "Program saved" });
+      // Re-fetch from database to ensure UI matches persisted state
+      await loadProgram();
     } catch (err: any) {
       toast({ title: "Error saving", description: err.message, variant: "destructive" });
     } finally {
