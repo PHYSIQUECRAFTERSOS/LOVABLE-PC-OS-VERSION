@@ -113,6 +113,10 @@ export function useAuth() {
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        // Reset loading states for new session to prevent premature guard evaluation
+        setLoading(true);
+        setRoleLoading(true);
+
         // Use cached roles immediately for instant render
         const cached = getCachedRoles();
         if (cached.length > 0) {
