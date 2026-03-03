@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import AddCustomExerciseModal from "./AddCustomExerciseModal";
 
 const MUSCLE_GROUPS = [
   "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Forearms",
@@ -78,6 +79,10 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   // Selection for grouping
   const [selectionMode, setSelectionMode] = useState(false);
+
+  // Custom exercise modal
+  const [showCustomExerciseModal, setShowCustomExerciseModal] = useState(false);
+  const [highlightExerciseIdx, setHighlightExerciseIdx] = useState<number | null>(null);
 
   const loadLibrary = useCallback(async () => {
     setLibraryLoading(true);
@@ -385,9 +390,9 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                       return (
                         <div
                           key={idx}
-                          className={`border rounded-lg p-3 bg-card space-y-2 group transition-colors ${
+                          className={`border rounded-lg p-3 bg-card space-y-2 group transition-all duration-300 ${
                             isInGroup ? `border-l-4 ${getGroupColor(ex.groupingId)} ${isGroupStart ? "rounded-b-none" : ""} ${isGroupEnd ? "rounded-t-none" : ""} ${!isGroupStart && !isGroupEnd ? "rounded-none" : ""}` : ""
-                          } ${ex.selected ? "ring-2 ring-primary bg-primary/5" : ""}`}
+                          } ${ex.selected ? "ring-2 ring-primary bg-primary/5" : ""} ${highlightExerciseIdx === idx ? "ring-2 ring-primary bg-primary/10 animate-pulse" : ""}`}
                         >
                           {isGroupStart && (
                             <div className="flex items-center gap-1.5 -mt-1 mb-1">
@@ -476,6 +481,14 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                     {MUSCLE_GROUPS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-8 text-xs text-primary hover:text-primary hover:bg-primary/10 justify-start gap-1.5"
+                  onClick={() => setShowCustomExerciseModal(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Custom Exercise
+                </Button>
               </div>
 
               <ScrollArea className="flex-1">
@@ -507,6 +520,28 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             </div>
           </div>
         )}
+
+        {/* Custom Exercise Modal */}
+        <AddCustomExerciseModal
+          open={showCustomExerciseModal}
+          onClose={() => setShowCustomExerciseModal(false)}
+          userId={coachId}
+          onExerciseCreated={(newEx) => {
+            // Auto-add to workout
+            const newIdx = exercises.length;
+            setExercises(prev => [...prev, {
+              exerciseId: newEx.id, exerciseName: newEx.name, thumbnail: newEx.youtube_thumbnail,
+              exerciseOrder: prev.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 60,
+              rir: "", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
+            }]);
+            // Refresh library
+            loadLibrary();
+            // Highlight briefly
+            setHighlightExerciseIdx(newIdx);
+            setTimeout(() => setHighlightExerciseIdx(null), 2000);
+            toast({ title: "Exercise added to workout" });
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
