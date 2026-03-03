@@ -38,3 +38,9 @@ verify_jwt = false
 
 [functions.meal-scan]
 verify_jwt = false
+
+[functions.request-account-deletion]
+verify_jwt = false
+
+[functions.confirm-account-deletion]
+verify_jwt = false

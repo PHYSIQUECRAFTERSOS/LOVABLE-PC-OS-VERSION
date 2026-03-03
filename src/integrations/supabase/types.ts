@@ -1521,6 +1521,60 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_requests: {
+        Row: {
+          completed_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          ip_address: string | null
+          reason: string | null
+          requested_at: string
+          source: string
+          status: string
+          token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          ip_address?: string | null
+          reason?: string | null
+          requested_at?: string
+          source?: string
+          status?: string
+          token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          ip_address?: string | null
+          reason?: string | null
+          requested_at?: string
+          source?: string
+          status?: string
+          token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       exercise_logs: {
         Row: {
           created_at: string
