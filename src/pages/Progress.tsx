@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import WeeklyCheckinForm from "@/components/biofeedback/WeeklyCheckinForm";
+import WeeklyCheckinForm from "@/components/checkin/WeeklyCheckinForm";
 import MeasurementsForm from "@/components/biofeedback/MeasurementsForm";
 import ProgressPhotoUpload from "@/components/biofeedback/ProgressPhotoUpload";
 import PhotoTimeline from "@/components/biofeedback/PhotoTimeline";
@@ -37,16 +37,19 @@ const Progress = () => {
           </TabsList>
 
           <TabsContent value="checkin" className="space-y-6 mt-4">
-            <WeeklyCheckinForm onSubmitted={refresh} />
-            <MeasurementsForm onSubmitted={refresh} />
+            {isCoach ? (
+              <CheckinReviewDashboard />
+            ) : (
+              <>
+                <WeeklyCheckinForm onSubmitted={refresh} />
+                <MeasurementsForm onSubmitted={refresh} />
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="forms" className="space-y-6 mt-4">
             {isCoach ? (
-              <>
-                <CheckinFormBuilder />
-                <CheckinReviewDashboard />
-              </>
+              <CheckinFormBuilder />
             ) : (
               <CheckinSubmissionForm />
             )}
