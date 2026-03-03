@@ -1,10 +1,9 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TIMEOUTS } from "@/lib/performance";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -17,15 +16,27 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hard timeout — 3 seconds max
+  // Hard timeout — 5 seconds max (generous to avoid false redirects)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      console.error("[ProtectedRoute] Auth loading timed out after 3s");
+    timerRef.current = setTimeout(() => {
+      console.error("[ProtectedRoute] Auth loading timed out after 5s");
       setTimedOut(true);
-    }, TIMEOUTS.SPINNER_MAX);
-    return () => clearTimeout(timer);
+    }, 5000);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
+
+  // Clear timeout as soon as auth resolves
+  const isAuthLoading = loading || (!!user && roleLoading);
+  useEffect(() => {
+    if (!isAuthLoading && timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, [isAuthLoading]);
 
   useEffect(() => {
     if (!user || !role) return;
@@ -38,16 +49,12 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       return;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUTS.SPINNER_MAX);
-
     supabase
       .from("onboarding_profiles")
       .select("onboarding_completed")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data, error }) => {
-        clearTimeout(timeout);
         if (error) {
           console.error("[ProtectedRoute] Onboarding check failed:", error);
         }
@@ -56,9 +63,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       });
   }, [user, role, location.pathname]);
 
-  const isAuthLoading = loading || (!!user && roleLoading);
-
-  // Still loading but within timeout
+  // Still loading and within timeout
   if (isAuthLoading && !timedOut) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -67,14 +72,15 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     );
   }
 
-  // Timed out while loading — if no user, redirect to auth
+  // Timed out while loading — if no user at all, redirect to auth
   if (timedOut && !user) {
+    console.error("[ProtectedRoute] Timed out with no user, redirecting to /auth");
     return <Navigate to="/auth" replace />;
   }
 
-  // Timed out but we have a user and no role — show error, don't render blank
+  // Timed out but we have a user and no role — show error
   if (timedOut && user && !role) {
-    console.error("[ProtectedRoute] Timed out with user but no role resolved");
+    console.error("[ProtectedRoute] Timed out with user but no role");
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
         <AlertTriangle className="h-10 w-10 text-destructive" />
@@ -92,11 +98,12 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     );
   }
 
-  if (!user) {
+  // Auth fully resolved, no user
+  if (!isAuthLoading && !user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Wait for role before rendering anything
+  // Still no role (shouldn't happen if not loading, but safety)
   if (!role) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
