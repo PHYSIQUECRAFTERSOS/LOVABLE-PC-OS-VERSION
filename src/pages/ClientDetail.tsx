@@ -19,6 +19,7 @@ import MealPlanTab from "@/components/clients/workspace/MealPlanTab";
 import CalendarTab from "@/components/clients/workspace/CalendarTab";
 import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
 import MessagingTab from "@/components/clients/workspace/MessagingTab";
+import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
 
 interface ClientProfile {
   user_id: string;
@@ -92,6 +93,7 @@ const ClientDetail = () => {
 
   const tabItems = [
     { value: "dash", label: "Dash", icon: LayoutDashboard },
+    { value: "checkins", label: "Check-Ins", icon: ClipboardList },
     { value: "calendar", label: "Calendar", icon: CalendarDays },
     { value: "training", label: "Training", icon: Dumbbell },
     { value: "nutrition", label: "Nutrition", icon: Target },
@@ -158,6 +160,9 @@ const ClientDetail = () => {
 
           <TabsContent value="dash">
             <ClientWorkspaceSummary clientId={clientId!} />
+          </TabsContent>
+          <TabsContent value="checkins">
+            <ClientCheckinHistory clientId={clientId!} />
           </TabsContent>
           <TabsContent value="calendar">
             <CalendarTab clientId={clientId!} />
