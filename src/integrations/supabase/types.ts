@@ -646,34 +646,49 @@ export type Database = {
       }
       checkin_submissions: {
         Row: {
-          assignment_id: string
+          assignment_id: string | null
           client_id: string
           coach_notes: string | null
+          coach_response: string | null
           created_at: string
           due_date: string
           id: string
+          reviewed_at: string | null
           status: string
           submitted_at: string | null
+          submitted_at_pst: string | null
+          template_id: string | null
+          week_number: number | null
         }
         Insert: {
-          assignment_id: string
+          assignment_id?: string | null
           client_id: string
           coach_notes?: string | null
+          coach_response?: string | null
           created_at?: string
           due_date: string
           id?: string
+          reviewed_at?: string | null
           status?: string
           submitted_at?: string | null
+          submitted_at_pst?: string | null
+          template_id?: string | null
+          week_number?: number | null
         }
         Update: {
-          assignment_id?: string
+          assignment_id?: string | null
           client_id?: string
           coach_notes?: string | null
+          coach_response?: string | null
           created_at?: string
           due_date?: string
           id?: string
+          reviewed_at?: string | null
           status?: string
           submitted_at?: string | null
+          submitted_at_pst?: string | null
+          template_id?: string | null
+          week_number?: number | null
         }
         Relationships: [
           {
@@ -681,6 +696,13 @@ export type Database = {
             columns: ["assignment_id"]
             isOneToOne: false
             referencedRelation: "checkin_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkin_submissions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_templates"
             referencedColumns: ["id"]
           },
         ]
