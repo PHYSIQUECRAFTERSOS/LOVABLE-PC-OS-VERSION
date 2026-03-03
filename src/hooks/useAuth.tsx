@@ -1,56 +1,92 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
 type AppRole = "admin" | "coach" | "client";
 
-const ROLE_CACHE_KEY = "pc_cached_roles";
+interface AuthContextValue {
+  user: User | null;
+  session: Session | null;
+  role: AppRole | null;
+  roles: AppRole[];
+  hasRole: (r: AppRole) => boolean;
+  loading: boolean;
+  roleLoading: boolean;
+  signOut: () => Promise<void>;
+}
 
-function getCachedRoles(): AppRole[] {
+const ROLE_CACHE_PREFIX = "pc_cached_roles";
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function getRoleCacheKey(userId: string) {
+  return `${ROLE_CACHE_PREFIX}:${userId}`;
+}
+
+function getCachedRoles(userId: string): AppRole[] {
   try {
-    const cached = sessionStorage.getItem(ROLE_CACHE_KEY);
+    const cached = sessionStorage.getItem(getRoleCacheKey(userId));
     if (cached) return JSON.parse(cached);
   } catch {}
   return [];
 }
 
-function setCachedRoles(roles: AppRole[]) {
+function setCachedRoles(userId: string, roles: AppRole[]) {
   try {
-    sessionStorage.setItem(ROLE_CACHE_KEY, JSON.stringify(roles));
+    sessionStorage.setItem(getRoleCacheKey(userId), JSON.stringify(roles));
   } catch {}
 }
 
-function clearCachedRoles() {
+function clearCachedRoles(userId?: string) {
   try {
-    sessionStorage.removeItem(ROLE_CACHE_KEY);
+    if (userId) {
+      sessionStorage.removeItem(getRoleCacheKey(userId));
+      return;
+    }
+
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith(`${ROLE_CACHE_PREFIX}:`))
+      .forEach((key) => sessionStorage.removeItem(key));
   } catch {}
 }
 
-export function useAuth() {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [roles, setRoles] = useState<AppRole[]>(getCachedRoles);
+  const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
-  const [roleLoading, setRoleLoading] = useState(true);
-  const autoAcceptAttempted = useRef(false);
-  
-  // Guard: prevent concurrent handleSession calls from racing
-  const processingSessionRef = useRef(false);
-  const lastProcessedUserId = useRef<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
+
   const mountedRef = useRef(true);
+  const activeUserIdRef = useRef<string | null>(null);
+  const autoAcceptAttempted = useRef(false);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
 
   const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
     try {
-      console.log("[useAuth] Fetching roles for", userId.slice(0, 8));
-      const { data } = await supabase
+      const rolePromise = supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
-      const fetched = (data || []).map((r) => r.role as AppRole);
-      console.log("[useAuth] Roles fetched:", fetched);
-      return fetched.length > 0 ? fetched : [];
-    } catch (err) {
-      console.error("[useAuth] fetchRoles error:", err);
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("role_fetch_timeout")), 3000);
+      });
+
+      const { data } = (await Promise.race([rolePromise, timeoutPromise])) as {
+        data: { role: string }[] | null;
+      };
+
+      return (data || []).map((r) => r.role as AppRole);
+    } catch (error) {
+      console.error("[auth] fetchRoles failed:", error);
       return [];
     }
   }, []);
@@ -60,229 +96,171 @@ export function useAuth() {
     autoAcceptAttempted.current = true;
 
     try {
-      console.log("[useAuth] Attempting auto-accept for pending invites...");
       const { data, error } = await supabase.functions.invoke("validate-invite-token", {
         body: { action: "auto-accept" },
       });
 
-      if (error) {
-        console.error("[useAuth] Auto-accept error:", error);
-        return;
-      }
+      if (error || (!data?.accepted && !data?.already_setup)) return;
 
-      if (data?.success && data?.accepted) {
-        console.log("[useAuth] Auto-accept succeeded, refreshing roles...");
-        const newRoles = await fetchRoles(currentSession.user.id);
-        if (mountedRef.current) {
-          const finalRoles = newRoles.length > 0 ? newRoles : ["client" as AppRole];
-          setRoles(finalRoles);
-          setCachedRoles(finalRoles);
-          setRoleLoading(false);
-        }
-      } else if (data?.already_setup) {
-        const newRoles = await fetchRoles(currentSession.user.id);
-        if (mountedRef.current) {
-          const finalRoles = newRoles.length > 0 ? newRoles : ["client" as AppRole];
-          setRoles(finalRoles);
-          setCachedRoles(finalRoles);
-          setRoleLoading(false);
-        }
+      const freshRoles = await fetchRoles(currentSession.user.id);
+      if (!mountedRef.current || currentSession.user.id !== activeUserIdRef.current) return;
+
+      if (freshRoles.length > 0) {
+        setRoles(freshRoles);
+        setCachedRoles(currentSession.user.id, freshRoles);
       }
-    } catch (err) {
-      console.error("[useAuth] Auto-accept failed:", err);
+      setRoleLoading(false);
+    } catch (error) {
+      console.error("[auth] auto-accept failed:", error);
     }
   }, [fetchRoles]);
+
+  const resolveSession = useCallback(async (incomingSession: Session | null) => {
+    if (!mountedRef.current) return;
+
+    if (!incomingSession?.user) {
+      const previousUserId = activeUserIdRef.current;
+
+      setSession(null);
+      setUser(null);
+      setRoles([]);
+      setRoleLoading(false);
+      setLoading(false);
+      activeUserIdRef.current = null;
+      autoAcceptAttempted.current = false;
+
+      if (previousUserId) clearCachedRoles(previousUserId);
+
+      console.log("[auth] session resolved: anonymous");
+      return;
+    }
+
+    const currentUserId = incomingSession.user.id;
+    activeUserIdRef.current = currentUserId;
+
+    setSession(incomingSession);
+    setUser(incomingSession.user);
+    setLoading(false);
+
+    const cached = getCachedRoles(currentUserId);
+    if (cached.length > 0) {
+      setRoles(cached);
+      setRoleLoading(false);
+    } else {
+      setRoleLoading(true);
+    }
+
+    let fetchedRoles = await fetchRoles(currentUserId);
+
+    if (fetchedRoles.length === 0) {
+      await tryAutoAcceptInvite(incomingSession);
+      fetchedRoles = await fetchRoles(currentUserId);
+    }
+
+    if (!mountedRef.current || activeUserIdRef.current !== currentUserId) return;
+
+    if (fetchedRoles.length > 0) {
+      setRoles(fetchedRoles);
+      setCachedRoles(currentUserId, fetchedRoles);
+    } else if (cached.length === 0) {
+      setRoles([]);
+    }
+
+    setRoleLoading(false);
+
+    console.log("[auth] session resolved:", {
+      userId: currentUserId.slice(0, 8),
+      roles: fetchedRoles.length > 0 ? fetchedRoles : cached,
+    });
+  }, [fetchRoles, tryAutoAcceptInvite]);
 
   useEffect(() => {
     mountedRef.current = true;
 
-    // Hard bootstrap guard: auth must settle quickly to avoid infinite app spinner
-    const bootstrapTimeout = setTimeout(() => {
-      if (!mountedRef.current) return;
-      console.error("[useAuth] Bootstrap timeout hit, forcing auth resolution");
-      setLoading(false);
-      setRoleLoading(false);
-      setRoles((prev) => {
-        if (user && prev.length === 0) {
-          const fallback: AppRole[] = ["client"];
-          setCachedRoles(fallback);
-          return fallback;
-        }
-        return prev;
-      });
-    }, 4000);
-
-    const handleSession = async (newSession: Session | null) => {
-      if (!mountedRef.current) return;
-
-      try {
-        // === NO SESSION ===
-        if (!newSession?.user) {
-          console.log("[useAuth] No session, clearing state");
-          setSession(null);
-          setUser(null);
-          setRoles([]);
-          clearCachedRoles();
-          setLoading(false);
-          setRoleLoading(false);
-          autoAcceptAttempted.current = false;
-          lastProcessedUserId.current = null;
-          processingSessionRef.current = false;
-          return;
-        }
-
-        const userId = newSession.user.id;
-
-        // === SAME USER already processed — skip duplicate calls ===
-        if (lastProcessedUserId.current === userId && !loading) {
-          console.log("[useAuth] Session for same user already processed, skipping");
-          // Still update session/user refs in case tokens refreshed
-          setSession(newSession);
-          setUser(newSession.user);
-          return;
-        }
-
-        // === ALREADY PROCESSING this user — skip race ===
-        if (processingSessionRef.current && lastProcessedUserId.current === userId) {
-          console.log("[useAuth] Already processing session for this user, skipping duplicate");
-          return;
-        }
-
-        processingSessionRef.current = true;
-        console.log("[useAuth] Processing session for", userId.slice(0, 8));
-
-        // Set user/session immediately so ProtectedRoute sees a user
-        setSession(newSession);
-        setUser(newSession.user);
-
-        // Use cached roles for instant render — don't reset roleLoading if we have cache
-        const cached = getCachedRoles();
-        if (cached.length > 0) {
-          setRoles(cached);
-          setRoleLoading(false);
-          setLoading(false);
-          console.log("[useAuth] Instant render with cached roles:", cached);
-        }
-
-        // Fetch fresh roles from DB
-        let fetched = await fetchRoles(userId);
-
-        // Single brief retry if empty
-        if (fetched.length === 0) {
-          await new Promise((r) => setTimeout(r, 300));
-          fetched = await fetchRoles(userId);
-        }
-
-        if (!mountedRef.current) {
-          processingSessionRef.current = false;
-          return;
-        }
-
-        if (fetched.length > 0) {
-          setRoles(fetched);
-          setCachedRoles(fetched);
-          setRoleLoading(false);
-          setLoading(false);
-        } else if (cached.length > 0) {
-          // Keep cached roles, we're fine
-          setRoleLoading(false);
-          setLoading(false);
-        } else {
-          // No roles found anywhere — try auto-accept, then default
-          console.warn("[useAuth] No roles found, attempting auto-accept");
-          tryAutoAcceptInvite(newSession);
-          // Give auto-accept 2s, then fallback
-          setTimeout(() => {
-            if (mountedRef.current) {
-              setRoles(prev => {
-                if (prev.length === 0) {
-                  const fallback: AppRole[] = ["client"];
-                  setCachedRoles(fallback);
-                  return fallback;
-                }
-                return prev;
-              });
-              setRoleLoading(false);
-              setLoading(false);
-            }
-          }, 2000);
-        }
-
-        lastProcessedUserId.current = userId;
-
-        // Background: check client assignment
-        if (fetched.includes("client") || fetched.length === 0) {
-          const { data: coachLink } = await supabase
-            .from("coach_clients")
-            .select("id")
-            .eq("client_id", userId)
-            .eq("status", "active")
-            .maybeSingle();
-
-          if (!coachLink && mountedRef.current) {
-            tryAutoAcceptInvite(newSession);
+    const enqueueResolution = (incomingSession: Session | null) => {
+      queueRef.current = queueRef.current
+        .then(() => resolveSession(incomingSession))
+        .catch((error) => {
+          console.error("[auth] resolve queue error:", error);
+          if (mountedRef.current) {
+            setLoading(false);
+            setRoleLoading(false);
           }
-        }
-      } catch (err) {
-        console.error("[useAuth] handleSession fatal error:", err);
+        });
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, incomingSession) => {
+      console.log("[auth] onAuthStateChange:", event);
+      enqueueResolution(incomingSession);
+    });
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: currentSession } }) => {
+        console.log("[auth] getSession:", currentSession ? "has session" : "no session");
+        enqueueResolution(currentSession);
+      })
+      .catch((error) => {
+        console.error("[auth] getSession failed:", error);
         if (mountedRef.current) {
           setLoading(false);
           setRoleLoading(false);
         }
-      } finally {
-        processingSessionRef.current = false;
-      }
-    };
-
-    // Set up auth listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log("[useAuth] onAuthStateChange event:", _event);
-        await handleSession(session);
-      }
-    );
-
-    // Then check existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("[useAuth] getSession result:", session ? "has session" : "no session");
-      handleSession(session);
-    }).catch((err) => {
-      console.error("[useAuth] getSession failed:", err);
-      if (mountedRef.current) {
-        setLoading(false);
-        setRoleLoading(false);
-      }
-    });
+      });
 
     return () => {
       mountedRef.current = false;
-      clearTimeout(bootstrapTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchRoles, tryAutoAcceptInvite]);
+  }, [resolveSession]);
 
-  // Primary role: admin > coach > client
   const role: AppRole | null = roles.includes("admin")
     ? "admin"
     : roles.includes("coach")
-    ? "coach"
-    : roles.length > 0
-    ? roles[0]
-    : null;
+      ? "coach"
+      : roles.includes("client")
+        ? "client"
+        : null;
 
-  const hasRole = (r: AppRole) => roles.includes(r);
+  const hasRole = useCallback((r: AppRole) => roles.includes(r), [roles]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
+    const userId = activeUserIdRef.current;
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setRoles([]);
-    clearCachedRoles();
+    setLoading(false);
+    setRoleLoading(false);
     autoAcceptAttempted.current = false;
-    lastProcessedUserId.current = null;
-  };
+    activeUserIdRef.current = null;
+    if (userId) clearCachedRoles(userId);
+  }, []);
 
-  console.log("[useAuth] State:", { userId: user?.id?.slice(0, 8), role, roles, loading, roleLoading });
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      session,
+      role,
+      roles,
+      hasRole,
+      loading,
+      roleLoading,
+      signOut,
+    }),
+    [user, session, role, roles, hasRole, loading, roleLoading, signOut]
+  );
 
-  return { user, session, role, roles, hasRole, loading, roleLoading, signOut };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
+}
+
