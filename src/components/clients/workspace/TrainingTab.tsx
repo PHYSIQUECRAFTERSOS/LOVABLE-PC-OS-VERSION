@@ -71,21 +71,38 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!clientId || !user) return;
     setLoading(true);
 
-    const { data: assignData } = await supabase
+    const { data: assignData, error: assignErr } = await supabase
       .from("client_program_assignments")
-      .select("*, programs(id, name, description, goal_type, version_number, is_master)")
+      .select("*")
       .eq("client_id", clientId)
       .eq("status", "active")
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (assignErr) {
+      toast({ title: "Error", description: assignErr.message, variant: "destructive" });
+      setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
+      setLoading(false); return;
+    }
 
     if (!assignData) {
       setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
       setLoading(false); return;
     }
 
+    const { data: prog, error: progErr } = await supabase
+      .from("programs")
+      .select("id, name, description, goal_type, version_number, is_master")
+      .eq("id", assignData.program_id)
+      .maybeSingle();
+
+    if (progErr || !prog) {
+      setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
+      setLoading(false); return;
+    }
+
     setAssignment(assignData);
-    const prog = (assignData as any).programs;
     setProgram(prog);
 
     const { data: phaseData } = await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order");
