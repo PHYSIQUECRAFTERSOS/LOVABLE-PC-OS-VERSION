@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MessageSquare } from "lucide-react";
@@ -33,6 +33,12 @@ const CoachMessaging = () => {
     }
   };
 
+  const handleBack = () => {
+    setActiveThreadId(null);
+    // Refresh thread list when going back
+    (window as any).__refetchCoachThreads?.();
+  };
+
   return (
     <div className="flex h-full rounded-lg border border-border bg-card overflow-hidden">
       {/* Thread List Sidebar */}
@@ -62,7 +68,7 @@ const CoachMessaging = () => {
             threadId={activeThreadId}
             otherUserName={activeClientName}
             otherUserAvatar={activeClientAvatar}
-            onBack={() => setActiveThreadId(null)}
+            onBack={handleBack}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
