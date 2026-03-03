@@ -3,10 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, CheckCheck, Check, ArrowLeft } from "lucide-react";
+import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import UserAvatar from "@/components/profile/UserAvatar";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
@@ -25,6 +32,7 @@ interface ThreadChatViewProps {
 
 const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: ThreadChatViewProps) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,6 +43,22 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Update coach_last_seen_at and clear manual unread when opening thread
+  const markThreadSeen = async () => {
+    if (!user) return;
+    await supabase
+      .from("message_threads")
+      .update({
+        coach_last_seen_at: new Date().toISOString(),
+        coach_marked_unread: false,
+      } as any)
+      .eq("id", threadId)
+      .eq("coach_id", user.id);
+
+    // Trigger thread list refresh
+    (window as any).__refetchCoachThreads?.();
+  };
+
   const fetchMessages = async () => {
     const { data } = await supabase
       .from("thread_messages")
@@ -42,22 +66,11 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true });
     setMessages((data as Message[]) || []);
-
-    // Mark unread messages from other person as read
-    if (user && data) {
-      const unread = data.filter(m => m.sender_id !== user.id && !m.read_at);
-      if (unread.length > 0) {
-        const ids = unread.map(m => m.id);
-        await supabase
-          .from("thread_messages")
-          .update({ read_at: new Date().toISOString() })
-          .in("id", ids);
-      }
-    }
   };
 
   useEffect(() => {
     fetchMessages();
+    markThreadSeen();
 
     // Fetch my avatar
     if (user) {
@@ -75,12 +88,9 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       }, (payload) => {
         const newMsg = payload.new as Message;
         setMessages(prev => [...prev, newMsg]);
-        // Auto-mark as read if from other person
+        // Auto-update last_seen when viewing thread
         if (user && newMsg.sender_id !== user.id) {
-          supabase
-            .from("thread_messages")
-            .update({ read_at: new Date().toISOString() })
-            .eq("id", newMsg.id);
+          markThreadSeen();
         }
       })
       .on("postgres_changes", {
@@ -111,8 +121,26 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       content: newMessage.trim(),
     });
 
+    // Update last_seen immediately after sending (coach sent = 0 unread)
+    await markThreadSeen();
+
     setNewMessage("");
     setSending(false);
+  };
+
+  const handleMarkUnread = async () => {
+    if (!user) return;
+    await supabase
+      .from("message_threads")
+      .update({ coach_marked_unread: true } as any)
+      .eq("id", threadId)
+      .eq("coach_id", user.id);
+
+    toast({ title: "Marked as unread" });
+    (window as any).__refetchCoachThreads?.();
+
+    // Go back to list on mobile
+    onBack?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -132,7 +160,21 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
           </Button>
         )}
         <UserAvatar src={otherUserAvatar} name={otherUserName} className="h-8 w-8 text-xs" />
-        <h2 className="font-medium text-foreground truncate">{otherUserName}</h2>
+        <h2 className="font-medium text-foreground truncate flex-1">{otherUserName}</h2>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleMarkUnread}>
+              <EyeOff className="h-4 w-4 mr-2" />
+              Mark as Unread
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Messages */}

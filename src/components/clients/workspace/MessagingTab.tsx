@@ -75,15 +75,16 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
       .limit(50);
     setMessages((data as Message[]) || []);
 
-    // Mark unread messages from client as read
-    if (user && data) {
-      const unread = data.filter(m => m.sender_id !== user.id && !m.read_at);
-      if (unread.length > 0) {
-        await supabase
-          .from("thread_messages")
-          .update({ read_at: new Date().toISOString() })
-          .in("id", unread.map(m => m.id));
-      }
+    // Update coach_last_seen_at to mark thread as read
+    if (user) {
+      await supabase
+        .from("message_threads")
+        .update({
+          coach_last_seen_at: new Date().toISOString(),
+          coach_marked_unread: false,
+        } as any)
+        .eq("id", tId)
+        .eq("coach_id", user.id);
     }
 
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);

@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatDistanceToNow } from "date-fns";
 import UserAvatar from "@/components/profile/UserAvatar";
@@ -12,9 +12,12 @@ interface Thread {
   client_id: string;
   updated_at: string;
   is_archived: boolean;
+  coach_last_seen_at: string | null;
+  coach_marked_unread: boolean;
   clientName: string;
   clientAvatar?: string | null;
   lastMessage?: string;
+  lastMessageSenderId?: string;
   unreadCount: number;
 }
 
@@ -29,7 +32,7 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const fetchThreads = async () => {
+  const fetchThreads = useCallback(async () => {
     if (!user) return;
 
     const { data: rawThreads } = await supabase
@@ -62,34 +65,57 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
       // Last message
       const { data: lastMsg } = await supabase
         .from("thread_messages")
-        .select("content, created_at")
+        .select("content, created_at, sender_id")
         .eq("thread_id", thread.id)
         .order("created_at", { ascending: false })
         .limit(1);
 
-      // Unread count (messages from client that coach hasn't read)
-      const { count } = await supabase
-        .from("thread_messages")
-        .select("id", { count: "exact", head: true })
-        .eq("thread_id", thread.id)
-        .neq("sender_id", user.id)
-        .is("read_at", null);
+      // Unread count: only CLIENT messages after coach_last_seen_at
+      const lastSeen = (thread as any).coach_last_seen_at;
+      const markedUnread = (thread as any).coach_marked_unread ?? false;
+
+      let unreadCount = 0;
+      if (lastSeen) {
+        const { count } = await supabase
+          .from("thread_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("thread_id", thread.id)
+          .eq("sender_id", thread.client_id) // Only client messages
+          .gt("created_at", lastSeen);
+        unreadCount = count || 0;
+      } else {
+        // No last_seen means coach never opened - count all client messages
+        const { count } = await supabase
+          .from("thread_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("thread_id", thread.id)
+          .eq("sender_id", thread.client_id);
+        unreadCount = count || 0;
+      }
+
+      // If manually marked unread and calculated count is 0, show 1
+      if (markedUnread && unreadCount === 0) {
+        unreadCount = 1;
+      }
 
       return {
         id: thread.id,
         client_id: thread.client_id,
         updated_at: thread.updated_at,
         is_archived: thread.is_archived,
+        coach_last_seen_at: lastSeen,
+        coach_marked_unread: markedUnread,
         clientName: nameMap[thread.client_id] || "Unnamed Client",
         clientAvatar: avatarMap[thread.client_id],
         lastMessage: lastMsg?.[0]?.content,
-        unreadCount: count || 0,
+        lastMessageSenderId: lastMsg?.[0]?.sender_id,
+        unreadCount,
       };
     }));
 
     setThreads(enriched);
     setLoading(false);
-  };
+  }, [user]);
 
   useEffect(() => {
     fetchThreads();
@@ -99,10 +125,19 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages" }, () => {
         fetchThreads();
       })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "message_threads" }, () => {
+        fetchThreads();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user]);
+  }, [fetchThreads]);
+
+  // Expose refetch for parent
+  useEffect(() => {
+    (window as any).__refetchCoachThreads = fetchThreads;
+    return () => { delete (window as any).__refetchCoachThreads; };
+  }, [fetchThreads]);
 
   const filtered = threads.filter(t =>
     t.clientName.toLowerCase().includes(search.toLowerCase())
@@ -152,17 +187,27 @@ const CoachThreadList = ({ activeThreadId, onSelect }: CoachThreadListProps) => 
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground truncate">
+                <span className={cn(
+                  "text-sm truncate",
+                  thread.unreadCount > 0 ? "font-bold text-foreground" : "font-medium text-foreground"
+                )}>
                   {thread.clientName}
                 </span>
                 {thread.unreadCount > 0 && (
-                  <span className="ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                    {thread.unreadCount}
-                  </span>
+                  thread.coach_marked_unread && thread.unreadCount === 1 ? (
+                    <span className="ml-2 h-2.5 w-2.5 rounded-full bg-primary shrink-0" />
+                  ) : (
+                    <span className="ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                      {thread.unreadCount}
+                    </span>
+                  )
                 )}
               </div>
               {thread.lastMessage && (
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
+                <p className={cn(
+                  "text-xs truncate mt-0.5",
+                  thread.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
+                )}>
                   {thread.lastMessage}
                 </p>
               )}
