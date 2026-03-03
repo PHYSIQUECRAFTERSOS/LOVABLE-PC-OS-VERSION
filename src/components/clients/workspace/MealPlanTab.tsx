@@ -53,7 +53,9 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
 
     setUploading(true);
-    const path = `${clientId}/${Date.now()}_${file.name}`;
+    // Sanitize filename: remove special chars that break storage keys
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${clientId}/${Date.now()}_${safeName}`;
     const { error: uploadErr } = await supabase.storage
       .from("meal-plans")
       .upload(path, file);

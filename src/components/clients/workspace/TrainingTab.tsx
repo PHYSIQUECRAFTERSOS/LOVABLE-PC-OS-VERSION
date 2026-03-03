@@ -20,6 +20,7 @@ import {
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
   duration_weeks: number; training_style: string | null; intensity_system: string | null; progression_rule: string | null;
+  directWorkouts: ProgramWorkout[];
 }
 
 interface Week {
@@ -88,7 +89,26 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setProgram(prog);
 
     const { data: phaseData } = await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order");
-    setPhases((phaseData || []) as Phase[]);
+
+    // Load phase-direct workouts
+    const phaseIds = (phaseData || []).map(p => p.id);
+    let phaseDirectMap: Record<string, ProgramWorkout[]> = {};
+    if (phaseIds.length > 0) {
+      const { data: directPWs } = await supabase.from("program_workouts")
+        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
+        .in("phase_id", phaseIds).order("sort_order");
+      for (const pw of (directPWs || [])) {
+        const pid = (pw as any).phase_id;
+        if (!phaseDirectMap[pid]) phaseDirectMap[pid] = [];
+        phaseDirectMap[pid].push({
+          id: pw.id, workout_id: pw.workout_id,
+          workout_name: (pw.workouts as any)?.name || "Workout",
+          day_of_week: pw.day_of_week ?? 0, day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+        });
+      }
+    }
+
+    setPhases((phaseData || []).map(p => ({ ...p, directWorkouts: phaseDirectMap[p.id] || [] })) as Phase[]);
 
     const { data: weekData } = await supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number");
 
@@ -159,41 +179,62 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }).select().single();
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-        const { data: masterWeeks } = await supabase.from("program_weeks").select("*")
-          .eq("program_id", selectedMaster).eq("phase_id", phase.id).order("week_number");
+        // Helper to clone a single workout + exercises
+        const cloneWorkout = async (sourceWorkoutId: string) => {
+          const { data: origW } = await supabase.from("workouts")
+            .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkoutId).single();
+          if (!origW) return null;
 
-        for (const week of (masterWeeks || [])) {
-          const { data: newWeek } = await supabase.from("program_weeks")
-            .insert({ program_id: clientProg.id, phase_id: newPhase!.id, week_number: week.week_number, name: week.name })
-            .select().single();
+          const { data: clientW } = await supabase.from("workouts").insert({
+            coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
+            instructions: origW.instructions, phase: origW.phase, is_template: false,
+            workout_type: (origW as any).workout_type || "regular",
+          } as any).select().single();
+          if (!clientW) return null;
 
-          const { data: masterPW } = await supabase.from("program_workouts")
-            .select("*").eq("week_id", week.id).order("sort_order");
+          const { data: exes } = await supabase.from("workout_exercises")
+            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
+            .eq("workout_id", sourceWorkoutId);
+          if (exes && exes.length > 0) {
+            await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
+          }
+          return clientW;
+        };
 
-          for (const pw of (masterPW || [])) {
-            // Deep-copy workout + exercises
-            const { data: origW } = await supabase.from("workouts")
-              .select("name, description, instructions, phase, workout_type").eq("id", pw.workout_id).single();
-            if (!origW) continue;
+        // Try phase-direct workouts first (new structure)
+        const { data: phaseDirectPWs } = await supabase.from("program_workouts")
+          .select("*").eq("phase_id", phase.id).order("sort_order");
 
-            const { data: clientW } = await supabase.from("workouts").insert({
-              coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
-              instructions: origW.instructions, phase: origW.phase, is_template: false,
-              workout_type: (origW as any).workout_type || "regular",
-            } as any).select().single();
+        if (phaseDirectPWs && phaseDirectPWs.length > 0) {
+          for (const pw of phaseDirectPWs) {
+            const clientW = await cloneWorkout(pw.workout_id);
             if (!clientW) continue;
-
-            const { data: exes } = await supabase.from("workout_exercises")
-              .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
-              .eq("workout_id", pw.workout_id);
-            if (exes && exes.length > 0) {
-              await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
-            }
-
             await supabase.from("program_workouts").insert({
-              week_id: newWeek!.id, workout_id: clientW.id,
+              phase_id: newPhase!.id, workout_id: clientW.id,
               day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
             });
+          }
+        } else {
+          // Fallback: clone via weeks (legacy structure)
+          const { data: masterWeeks } = await supabase.from("program_weeks").select("*")
+            .eq("program_id", selectedMaster).eq("phase_id", phase.id).order("week_number");
+
+          for (const week of (masterWeeks || [])) {
+            const { data: newWeek } = await supabase.from("program_weeks")
+              .insert({ program_id: clientProg.id, phase_id: newPhase!.id, week_number: week.week_number, name: week.name })
+              .select().single();
+
+            const { data: masterPW } = await supabase.from("program_workouts")
+              .select("*").eq("week_id", week.id).order("sort_order");
+
+            for (const pw of (masterPW || [])) {
+              const clientW = await cloneWorkout(pw.workout_id);
+              if (!clientW) continue;
+              await supabase.from("program_workouts").insert({
+                week_id: newWeek!.id, workout_id: clientW.id,
+                day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
+              });
+            }
           }
         }
       }
@@ -357,6 +398,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       {/* Phases */}
       {phases.map((phase, phaseIdx) => {
         const phaseWeeks = weeks.filter(w => w.phase_id === phase.id);
+        const totalWorkouts = phase.directWorkouts.length + phaseWeeks.reduce((s, w) => s + w.workouts.length, 0);
         const isExpanded = expandedPhase === phase.id;
         const isCurrent = assignment.current_phase_id === phase.id;
 
@@ -378,7 +420,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                   <div className="flex items-center gap-2 mt-0.5">
                     {isCurrent && <Badge className="text-[9px] h-4">Current</Badge>}
                     {phase.training_style && <span className="text-[10px] text-muted-foreground">{TRAINING_STYLE_LABELS[phase.training_style] || phase.training_style}</span>}
-                    <span className="text-[10px] text-muted-foreground">{phase.duration_weeks}w · {phaseWeeks.reduce((s, w) => s + w.workouts.length, 0)} workouts</span>
+                    <span className="text-[10px] text-muted-foreground">{phase.duration_weeks}w · {totalWorkouts} workouts</span>
                   </div>
                 </div>
               </div>
@@ -395,8 +437,49 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
             {isExpanded && (
               <CardContent className="pt-0 space-y-3 pb-4">
-                {phaseWeeks.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">No weeks in this phase.</p>
+                {/* Phase-direct workouts (new structure) */}
+                {phase.directWorkouts.length > 0 && phase.directWorkouts.map(pw => (
+                  <div key={pw.id}>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-card/50 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => loadWorkoutExercises(pw.workout_id)}>
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center">
+                          <Dumbbell className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{pw.workout_name}</p>
+                          <p className="text-[10px] text-muted-foreground">{pw.day_label}</p>
+                        </div>
+                      </div>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
+                    {expandedWorkout === pw.workout_id && workoutExercises[pw.workout_id] && (
+                      <div className="ml-4 mt-2 space-y-1.5">
+                        {workoutExercises[pw.workout_id].map((ex: any) => (
+                          <div key={ex.id} className="flex items-center gap-3 py-2 px-3 border-l-2 border-primary/20">
+                            {ex.exercises?.youtube_thumbnail ? (
+                              <img src={ex.exercises.youtube_thumbnail} alt="" className="w-8 h-6 rounded object-cover" />
+                            ) : (
+                              <div className="w-8 h-6 rounded bg-muted flex items-center justify-center"><Dumbbell className="h-3 w-3 text-muted-foreground" /></div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">{ex.exercises?.name || "Exercise"}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {ex.sets} sets × {ex.reps}{ex.tempo ? ` · ${ex.tempo}` : ""}{ex.rest_seconds ? ` · ${ex.rest_seconds}s rest` : ""}
+                              </p>
+                            </div>
+                            {ex.superset_group && <Badge variant="outline" className="text-[9px]">{ex.superset_group}</Badge>}
+                            {ex.intensity_type && ex.intensity_type !== "straight" && <Badge variant="secondary" className="text-[9px]">{ex.intensity_type}</Badge>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Legacy week-based workouts */}
+                {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">No workouts in this phase.</p>
                 ) : phaseWeeks.map(week => (
                   <Collapsible key={week.id} open={expandedWeek === week.id} onOpenChange={open => setExpandedWeek(open ? week.id : null)}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-muted/50 transition-colors">
