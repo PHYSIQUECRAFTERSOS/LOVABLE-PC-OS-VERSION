@@ -3121,7 +3121,7 @@ export type Database = {
           id: string
           phase_id: string | null
           sort_order: number | null
-          week_id: string
+          week_id: string | null
           workout_id: string
         }
         Insert: {
@@ -3131,7 +3131,7 @@ export type Database = {
           id?: string
           phase_id?: string | null
           sort_order?: number | null
-          week_id: string
+          week_id?: string | null
           workout_id: string
         }
         Update: {
@@ -3141,7 +3141,7 @@ export type Database = {
           id?: string
           phase_id?: string | null
           sort_order?: number | null
-          week_id?: string
+          week_id?: string | null
           workout_id?: string
         }
         Relationships: [
