@@ -115,9 +115,20 @@ const ClientDetail = () => {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h1 className="font-display text-xl font-bold text-foreground truncate">
-              {profile.full_name || "Client"}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-xl font-bold text-foreground truncate">
+                {profile.full_name || "Client"}
+              </h1>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => setActiveTab("messaging")}
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                Message
+              </Button>
+            </div>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {programName && (
                 <Badge variant="secondary" className="text-[10px]">
