@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,8 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight, Layers,
-  ArrowUp, ArrowDown, Edit2, Link2, Unlink, RefreshCw
+  Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight, GripVertical,
+  ArrowUp, ArrowDown, Edit2, Link2, Unlink, Save, X
 } from "lucide-react";
 
 interface Phase {
@@ -50,6 +50,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
   const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
   const [workoutExercises, setWorkoutExercises] = useState<Record<string, any[]>>({});
+
+  // Inline editing state
+  const [editingExercise, setEditingExercise] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, any>>({});
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Assign dialog
   const [showAssign, setShowAssign] = useState(false);
@@ -107,7 +112,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
     const { data: phaseData } = await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order");
 
-    // Load phase-direct workouts
     const phaseIds = (phaseData || []).map(p => p.id);
     let phaseDirectMap: Record<string, ProgramWorkout[]> = {};
     if (phaseIds.length > 0) {
@@ -159,6 +163,62 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setExpandedWorkout(workoutId);
   };
 
+  // ── Inline exercise editing ──
+  const startEditExercise = (ex: any) => {
+    if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
+    setEditingExercise(ex.id);
+    setEditValues({ sets: ex.sets, reps: ex.reps, rest_seconds: ex.rest_seconds, tempo: ex.tempo || "" });
+  };
+
+  const saveExerciseEdit = useCallback(async (exId: string, values: Record<string, any>) => {
+    const { error } = await supabase.from("workout_exercises").update({
+      sets: parseInt(values.sets) || 0,
+      reps: values.reps,
+      rest_seconds: parseInt(values.rest_seconds) || 0,
+      tempo: values.tempo || null,
+    }).eq("id", exId);
+
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    } else {
+      // Update local state
+      setWorkoutExercises(prev => {
+        const updated = { ...prev };
+        for (const wid of Object.keys(updated)) {
+          updated[wid] = updated[wid].map(e => e.id === exId ? { ...e, ...values } : e);
+        }
+        return updated;
+      });
+    }
+  }, [toast]);
+
+  const handleEditChange = (field: string, value: string) => {
+    const newValues = { ...editValues, [field]: value };
+    setEditValues(newValues);
+
+    // Debounced auto-save
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (editingExercise) saveExerciseEdit(editingExercise, newValues);
+    }, 500);
+  };
+
+  const finishEdit = () => {
+    if (debounceRef.current) { clearTimeout(debounceRef.current); }
+    if (editingExercise) saveExerciseEdit(editingExercise, editValues);
+    setEditingExercise(null);
+  };
+
+  const deleteExercise = async (exId: string, workoutId: string) => {
+    if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
+    await supabase.from("workout_exercises").delete().eq("id", exId);
+    setWorkoutExercises(prev => ({
+      ...prev,
+      [workoutId]: (prev[workoutId] || []).filter(e => e.id !== exId),
+    }));
+    toast({ title: "Exercise removed" });
+  };
+
   // ── Assign (Subscribe / Import) ──
   const openAssignDialog = async () => {
     const { data } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
@@ -182,7 +242,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       } as any).select().single();
       if (progErr) throw progErr;
 
-      // Clone phases
       const { data: masterPhases } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
       let firstPhaseId: string | null = null;
@@ -196,7 +255,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }).select().single();
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-        // Helper to clone a single workout + exercises
         const cloneWorkout = async (sourceWorkoutId: string) => {
           const { data: origW } = await supabase.from("workouts")
             .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkoutId).single();
@@ -218,7 +276,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           return clientW;
         };
 
-        // Try phase-direct workouts first (new structure)
         const { data: phaseDirectPWs } = await supabase.from("program_workouts")
           .select("*").eq("phase_id", phase.id).order("sort_order");
 
@@ -232,7 +289,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
             });
           }
         } else {
-          // Fallback: clone via weeks (legacy structure)
           const { data: masterWeeks } = await supabase.from("program_weeks").select("*")
             .eq("program_id", selectedMaster).eq("phase_id", phase.id).order("week_number");
 
@@ -256,7 +312,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }
       }
 
-      // Deactivate old
       await supabase.from("client_program_assignments").update({ status: "completed" })
         .eq("client_id", clientId).eq("status", "active");
 
@@ -276,7 +331,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     } finally { setAssigning(false); }
   };
 
-  // ── Detach from master ──
   const detachFromMaster = async () => {
     if (!assignment) return;
     await supabase.from("client_program_assignments").update({ is_linked_to_master: false } as any).eq("id", assignment.id);
@@ -285,7 +339,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     loadClientProgram();
   };
 
-  // ── Phase operations ──
   const renamePhase = async (phaseId: string, newName: string) => {
     await supabase.from("program_phases").update({ name: newName }).eq("id", phaseId);
     setPhases(prev => prev.map(p => p.id === phaseId ? { ...p, name: newName } : p));
@@ -341,13 +394,68 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     loadClientProgram();
   };
 
-  // ── Detach guard on edits ──
   const guardEdit = (action: () => void) => {
     if (assignment?.is_linked_to_master) {
       setShowDetach(true);
     } else {
       action();
     }
+  };
+
+  // ── Exercise row renderer with inline editing ──
+  const renderExerciseRow = (ex: any, workoutId: string) => {
+    const isEditing = editingExercise === ex.id;
+
+    return (
+      <div key={ex.id} className="flex items-center gap-2 py-2 px-3 border-l-2 border-primary/20 group">
+        <GripVertical className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity cursor-grab shrink-0" />
+        {ex.exercises?.youtube_thumbnail ? (
+          <img src={ex.exercises.youtube_thumbnail} alt="" className="w-8 h-6 rounded object-cover shrink-0" />
+        ) : (
+          <div className="w-8 h-6 rounded bg-muted flex items-center justify-center shrink-0"><Dumbbell className="h-3 w-3 text-muted-foreground" /></div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium truncate">{ex.exercises?.name || "Exercise"}</p>
+          {isEditing ? (
+            <div className="flex items-center gap-1.5 mt-1">
+              <Input className="h-6 w-12 text-[10px] px-1" value={editValues.sets}
+                onChange={e => handleEditChange("sets", e.target.value)} placeholder="Sets" />
+              <span className="text-[10px] text-muted-foreground">×</span>
+              <Input className="h-6 w-14 text-[10px] px-1" value={editValues.reps}
+                onChange={e => handleEditChange("reps", e.target.value)} placeholder="Reps" />
+              <Input className="h-6 w-16 text-[10px] px-1" value={editValues.tempo}
+                onChange={e => handleEditChange("tempo", e.target.value)} placeholder="Tempo" />
+              <Input className="h-6 w-14 text-[10px] px-1" value={editValues.rest_seconds}
+                onChange={e => handleEditChange("rest_seconds", e.target.value)} placeholder="Rest" />
+              <span className="text-[10px] text-muted-foreground">s</span>
+              <Button size="icon" variant="ghost" className="h-5 w-5" onClick={finishEdit}>
+                <Save className="h-2.5 w-2.5 text-green-500" />
+              </Button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground">
+              {ex.sets} sets × {ex.reps}{ex.tempo ? ` · ${ex.tempo}` : ""}{ex.rest_seconds ? ` · ${ex.rest_seconds}s rest` : ""}
+            </p>
+          )}
+        </div>
+
+        {ex.superset_group && <Badge variant="outline" className="text-[9px]">{ex.superset_group}</Badge>}
+        {ex.intensity_type && ex.intensity_type !== "straight" && <Badge variant="secondary" className="text-[9px]">{ex.intensity_type}</Badge>}
+
+        {/* Edit/Delete controls */}
+        {!isEditing && (
+          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEditExercise(ex)}>
+              <Edit2 className="h-2.5 w-2.5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteExercise(ex.id, workoutId)}>
+              <Trash2 className="h-2.5 w-2.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -372,7 +480,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   }
 
   const isLinked = assignment.is_linked_to_master;
-  const masterName = assignment.forked_from_program_id ? "Master Program" : null;
 
   return (
     <div className="space-y-4">
@@ -393,17 +500,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                 ) : assignment.forked_from_program_id ? (
                   <Badge variant="outline" className="text-[10px] gap-1"><Unlink className="h-2.5 w-2.5" /> Detached</Badge>
                 ) : null}
-                {assignment.last_synced_at && isLinked && (
-                  <span className="text-[10px] text-muted-foreground">
-                    Synced {new Date(assignment.last_synced_at).toLocaleDateString()}
-                  </span>
-                )}
               </div>
             </div>
             <div className="flex gap-2">
               {isLinked && (
-                <Button variant="outline" size="sm" onClick={() => setShowDetach(true)} title="Detach from master">
-                  <Unlink className="h-3.5 w-3.5 mr-1" /> Detach
+                <Button variant="outline" size="sm" onClick={() => setShowDetach(true)} title="Detach & Edit">
+                  <Unlink className="h-3.5 w-3.5 mr-1" /> Detach & Edit
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={openAssignDialog}>Change</Button>
@@ -454,7 +556,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
             {isExpanded && (
               <CardContent className="pt-0 space-y-3 pb-4">
-                {/* Phase-direct workouts (new structure) */}
                 {phase.directWorkouts.length > 0 && phase.directWorkouts.map(pw => (
                   <div key={pw.id}>
                     <div className="flex items-center justify-between p-3 border rounded-lg bg-card/50 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -471,30 +572,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
                     {expandedWorkout === pw.workout_id && workoutExercises[pw.workout_id] && (
-                      <div className="ml-4 mt-2 space-y-1.5">
-                        {workoutExercises[pw.workout_id].map((ex: any) => (
-                          <div key={ex.id} className="flex items-center gap-3 py-2 px-3 border-l-2 border-primary/20">
-                            {ex.exercises?.youtube_thumbnail ? (
-                              <img src={ex.exercises.youtube_thumbnail} alt="" className="w-8 h-6 rounded object-cover" />
-                            ) : (
-                              <div className="w-8 h-6 rounded bg-muted flex items-center justify-center"><Dumbbell className="h-3 w-3 text-muted-foreground" /></div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium truncate">{ex.exercises?.name || "Exercise"}</p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {ex.sets} sets × {ex.reps}{ex.tempo ? ` · ${ex.tempo}` : ""}{ex.rest_seconds ? ` · ${ex.rest_seconds}s rest` : ""}
-                              </p>
-                            </div>
-                            {ex.superset_group && <Badge variant="outline" className="text-[9px]">{ex.superset_group}</Badge>}
-                            {ex.intensity_type && ex.intensity_type !== "straight" && <Badge variant="secondary" className="text-[9px]">{ex.intensity_type}</Badge>}
-                          </div>
-                        ))}
+                      <div className="ml-4 mt-2 space-y-1">
+                        {workoutExercises[pw.workout_id].map((ex: any) => renderExerciseRow(ex, pw.workout_id))}
                       </div>
                     )}
                   </div>
                 ))}
 
-                {/* Legacy week-based workouts */}
                 {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">No workouts in this phase.</p>
                 ) : phaseWeeks.map(week => (
@@ -525,24 +609,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                           </div>
                           {expandedWorkout === pw.workout_id && workoutExercises[pw.workout_id] && (
-                            <div className="ml-4 mt-2 space-y-1.5">
-                              {workoutExercises[pw.workout_id].map((ex: any) => (
-                                <div key={ex.id} className="flex items-center gap-3 py-2 px-3 border-l-2 border-primary/20">
-                                  {ex.exercises?.youtube_thumbnail ? (
-                                    <img src={ex.exercises.youtube_thumbnail} alt="" className="w-8 h-6 rounded object-cover" />
-                                  ) : (
-                                    <div className="w-8 h-6 rounded bg-muted flex items-center justify-center"><Dumbbell className="h-3 w-3 text-muted-foreground" /></div>
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium truncate">{ex.exercises?.name || "Exercise"}</p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {ex.sets} sets × {ex.reps}{ex.tempo ? ` · ${ex.tempo}` : ""}{ex.rest_seconds ? ` · ${ex.rest_seconds}s rest` : ""}
-                                    </p>
-                                  </div>
-                                  {ex.superset_group && <Badge variant="outline" className="text-[9px]">{ex.superset_group}</Badge>}
-                                  {ex.intensity_type && ex.intensity_type !== "straight" && <Badge variant="secondary" className="text-[9px]">{ex.intensity_type}</Badge>}
-                                </div>
-                              ))}
+                            <div className="ml-4 mt-2 space-y-1">
+                              {workoutExercises[pw.workout_id].map((ex: any) => renderExerciseRow(ex, pw.workout_id))}
                             </div>
                           )}
                         </div>
@@ -577,14 +645,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       <AlertDialog open={showDetach} onOpenChange={setShowDetach}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Detach from Master Program?</AlertDialogTitle>
+            <AlertDialogTitle>Detach & Edit Program?</AlertDialogTitle>
             <AlertDialogDescription>
-              This client is linked to a master program. Detaching will make this program fully independent — future master updates will no longer sync.
+              This client is linked to a master program. Detaching will make this program fully independent — future master updates will no longer sync. You'll be able to edit all exercises, sets, reps, and structure freely.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={detachFromMaster}>Detach</AlertDialogAction>
+            <AlertDialogAction onClick={detachFromMaster}>Detach & Edit</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -592,7 +660,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   );
 };
 
-// ── Assign Dialog (Subscribe vs Import) ──
+// ── Assign Dialog ──
 const AssignDialog = ({ open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   programs: any[]; selected: string; onSelect: (v: string) => void;
