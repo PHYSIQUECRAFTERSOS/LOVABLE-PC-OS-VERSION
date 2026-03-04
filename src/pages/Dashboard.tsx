@@ -1,15 +1,20 @@
+import { useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
-import TodayWorkout from "@/components/dashboard/TodayWorkout";
-import TodayCardio from "@/components/dashboard/TodayCardio";
+import TodayActions, { ActionItem } from "@/components/dashboard/TodayActions";
+import DailyCompletionRing from "@/components/dashboard/DailyCompletionRing";
+import { useConsistencyStreak } from "@/components/dashboard/ConsistencyStreak";
+import ComplianceMomentum from "@/components/dashboard/ComplianceMomentum";
+import ProgressMomentum from "@/components/dashboard/ProgressMomentum";
 import MacroSummary from "@/components/dashboard/MacroSummary";
-import ComplianceScore from "@/components/dashboard/ComplianceScore";
-import StepsCard from "@/components/dashboard/StepsCard";
+import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
+import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 import RecommitFlow from "@/components/retention/RecommitFlow";
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 
 const Dashboard = () => {
   const { role } = useAuth();
+  const isClient = role === "client";
 
   return (
     <AppLayout>
@@ -25,24 +30,53 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Client View */}
-        {role === "client" && (
-          <div className="space-y-4">
-            <RecommitFlow />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TodayWorkout />
-              <MacroSummary />
-            </div>
-            <TodayCardio />
-            <StepsCard />
-            <ComplianceScore />
-          </div>
-        )}
-
-        {/* Coach/Admin Command Center */}
+        {isClient && <ClientDashboard />}
         {(role === "coach" || role === "admin") && <CoachCommandCenter />}
       </div>
     </AppLayout>
+  );
+};
+
+const ClientDashboard = () => {
+  const { streak, last30 } = useConsistencyStreak();
+  const [todayItems, setTodayItems] = useState<ActionItem[]>([]);
+
+  const handleActionsLoaded = useCallback((items: ActionItem[]) => {
+    setTodayItems(items);
+  }, []);
+
+  const completedCount = todayItems.filter((a) => a.completed).length;
+  const totalCount = todayItems.length;
+
+  return (
+    <>
+      <RecommitFlow />
+
+      {/* Hero row: Completion ring + Today's Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4">
+        <DailyCompletionRing
+          completed={completedCount}
+          total={totalCount}
+          streak={streak}
+        />
+        <TodayActions onDataLoaded={handleActionsLoaded} />
+      </div>
+
+      {/* Momentum row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ComplianceMomentum data={last30} />
+        <ProgressMomentum />
+      </div>
+
+      {/* Nutrition */}
+      <MacroSummary />
+
+      {/* Upcoming */}
+      <UpcomingEvents />
+
+      {/* Quick Log FAB */}
+      <QuickLogFAB />
+    </>
   );
 };
 
