@@ -394,16 +394,6 @@ const MealPlanBuilder = () => {
     }
   };
 
-  const onCustomFoodCreated = (food: FoodItem) => {
-    setShowCustomFood(false);
-    // If a meal is being searched, add it
-    if (searchingMealId) {
-      const parts = searchingMealId.split("::");
-      if (parts.length === 2) {
-        addFoodToMeal(parts[0], parts[1], food);
-      }
-    }
-  };
 
   return (
     <div className="space-y-4">
