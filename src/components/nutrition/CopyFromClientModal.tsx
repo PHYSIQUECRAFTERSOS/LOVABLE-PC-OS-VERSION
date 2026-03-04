@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { UserAvatar } from "@/components/profile/UserAvatar";
+import { Search, ArrowLeft, ArrowRight, Copy, Loader2 } from "lucide-react";
 import { Search, ArrowLeft, ArrowRight, Copy, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
