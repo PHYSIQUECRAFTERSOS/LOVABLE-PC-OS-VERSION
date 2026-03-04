@@ -100,6 +100,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       ]
     : [
         { to: "/dashboard", icon: LayoutDashboard, label: "Home" },
+        { to: "/calendar", icon: CalendarDays, label: "Calendar" },
         { to: "/training", icon: Dumbbell, label: "Training" },
         { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
         { to: "/messages", icon: MessageSquare, label: "Messages" },
