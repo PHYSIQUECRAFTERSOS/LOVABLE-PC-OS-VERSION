@@ -112,7 +112,6 @@ const MealPlanBuilder = () => {
 
   // Search state
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
-  const [showCustomFood, setShowCustomFood] = useState(false);
 
   useEffect(() => {
     if (!user) return;
