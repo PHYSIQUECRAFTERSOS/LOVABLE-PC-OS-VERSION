@@ -433,23 +433,25 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+           <div className={cn("grid gap-3", forceTemplate ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
             <div>
-              <Label>Plan Name</Label>
-              <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="e.g. Cutting Phase Week 1" />
+              <Label>{forceTemplate ? "Template Name" : "Plan Name"}</Label>
+              <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder={forceTemplate ? "e.g. Cutting Phase 2000 Calories" : "e.g. Cutting Phase Week 1"} />
             </div>
-            <div>
-              <Label>Assign to Client (optional)</Label>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
-                <SelectTrigger><SelectValue placeholder="Template (no client)" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Template (no client)</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.user_id} value={c.user_id}>{c.full_name || "Unnamed"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!forceTemplate && (
+              <div>
+                <Label>Assign to Client (optional)</Label>
+                <Select value={selectedClient} onValueChange={setSelectedClient}>
+                  <SelectTrigger><SelectValue placeholder="Template (no client)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Template (no client)</SelectItem>
+                    {clients.map((c) => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.full_name || "Unnamed"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
