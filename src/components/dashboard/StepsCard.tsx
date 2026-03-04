@@ -13,6 +13,7 @@ const StepsCard = () => {
     weekMetrics,
     loading,
     syncing,
+    isNative,
     syncNow,
   } = useHealthSync();
   const navigate = useNavigate();
