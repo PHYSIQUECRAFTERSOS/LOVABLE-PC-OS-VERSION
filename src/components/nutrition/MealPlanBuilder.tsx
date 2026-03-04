@@ -432,6 +432,9 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCopyModalOpen(true)}>
                 <Users className="h-3.5 w-3.5" /> Copy From Client
               </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAdjustMacrosOpen(true)}>
+                <Scale className="h-3.5 w-3.5" /> Adjust Macros
+              </Button>
             </div>
           </div>
         </CardHeader>
