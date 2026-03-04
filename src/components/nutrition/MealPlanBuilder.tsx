@@ -392,8 +392,8 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
         }
       }
 
-      toast({ title: "Meal plan saved!" });
-      setPlanName("");
+      toast({ title: forceTemplate ? "Template saved!" : "Meal plan saved!" });
+      if (onSaved) { onSaved(); return; }
       setSelectedClient("");
       const resetMeals: Meal[] = [
         { id: uid(), name: "Breakfast", foods: [] },
