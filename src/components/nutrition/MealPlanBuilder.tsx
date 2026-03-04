@@ -91,7 +91,12 @@ const calcMacros = (food: MealFood) => {
 
 const uid = () => crypto.randomUUID();
 
-const MealPlanBuilder = () => {
+interface MealPlanBuilderProps {
+  forceTemplate?: boolean;
+  onSaved?: () => void;
+}
+
+const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [planName, setPlanName] = useState("");
