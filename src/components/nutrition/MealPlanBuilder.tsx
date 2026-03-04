@@ -114,8 +114,6 @@ const MealPlanBuilder = () => {
 
   // Search state
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
   const [showCustomFood, setShowCustomFood] = useState(false);
 
   useEffect(() => {
