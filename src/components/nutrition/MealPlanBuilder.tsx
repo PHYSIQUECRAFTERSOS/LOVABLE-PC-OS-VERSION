@@ -122,6 +122,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
 
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
