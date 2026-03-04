@@ -601,6 +601,11 @@ const MealPlanBuilder = () => {
         {saving ? "Saving..." : "Save Meal Plan"}
       </Button>
 
+      <CopyFromClientModal
+        open={copyModalOpen}
+        onOpenChange={setCopyModalOpen}
+        onImport={handleImportDays}
+      />
     </div>
   );
 };
