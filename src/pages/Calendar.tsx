@@ -126,6 +126,10 @@ const Calendar = () => {
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
+  const handleStartWorkout = (workoutId: string) => {
+    // Navigate to training page — the workout logger will handle loading
+    navigate("/training", { state: { startWorkoutId: workoutId } });
+  };
   const handleComplete = async (event: CalendarEvent) => {
     if (event.id.startsWith("ws-") || event.id.startsWith("cl-")) {
       toast({ title: "Complete this from the Training page" });
