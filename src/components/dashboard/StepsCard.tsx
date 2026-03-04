@@ -30,7 +30,7 @@ const StepsCard = () => {
     );
   }
 
-  const isConnected = connection?.is_connected;
+  const isConnected = isNative && connection?.is_connected;
   const steps = todayMetrics?.steps ?? 0;
   const goal = todayMetrics?.step_goal ?? 10000;
   const progressPct = Math.min((steps / goal) * 100, 100);

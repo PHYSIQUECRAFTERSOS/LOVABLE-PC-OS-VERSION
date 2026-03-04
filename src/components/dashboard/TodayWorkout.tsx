@@ -90,8 +90,7 @@ const TodayWorkout = () => {
               .from("workouts")
               .select("id, name, phase")
               .eq("id", calEvent.linked_workout_id)
-              .single()
-              .abortSignal(signal),
+              .single(),
             supabase
               .from("workout_exercises")
               .select("sets, reps, exercises:exercise_id(name)")
