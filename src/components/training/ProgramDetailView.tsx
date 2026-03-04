@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, ArrowUp, ArrowDown,
-  MoreHorizontal, Pencil, Download, Save, Loader2, GripVertical,
+  MoreHorizontal, Pencil, Download, Save, Loader2, GripVertical, Clock, Play,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +49,12 @@ const PROGRESSION_RULES = [
 
 const DAY_LABELS = ["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7"];
 
+interface WorkoutMeta {
+  exerciseCount: number;
+  estimatedMinutes: number;
+  thumbnailUrl: string | null;
+}
+
 interface ProgramWorkout {
   id?: string;
   workoutId: string;
@@ -72,6 +78,27 @@ interface ProgramPhase {
   collapsed: boolean;
 }
 
+// ── Duration Estimator ──
+function getYouTubeThumbnail(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
+  return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+}
+
+function estimateWorkoutMinutes(exercises: { sets: number; rest_seconds: number }[]): number {
+  if (exercises.length === 0) return 0;
+  const AVG_SET_DURATION = 35; // seconds (hypertrophy default)
+  let totalSeconds = 0;
+  for (const ex of exercises) {
+    const sets = ex.sets || 3;
+    const rest = ex.rest_seconds || 60;
+    totalSeconds += sets * AVG_SET_DURATION + Math.max(0, sets - 1) * rest;
+  }
+  // Transition + setup buffer: 50s per exercise transition
+  totalSeconds += Math.max(0, exercises.length - 1) * 50;
+  return Math.round(totalSeconds / 60);
+}
+
 interface ProgramDetailViewProps {
   programId: string;
   programName: string;
@@ -90,6 +117,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [builderTargetPhase, setBuilderTargetPhase] = useState(0);
   const [editingWorkout, setEditingWorkout] = useState<ProgramWorkout | null>(null);
+
+  // Workout metadata (exercise counts, durations, thumbnails)
+  const [workoutMeta, setWorkoutMeta] = useState<Record<string, WorkoutMeta>>({});
 
   // Rename phase
   const [renamingPhase, setRenamingPhase] = useState<number | null>(null);
@@ -210,6 +240,39 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
   useEffect(() => { loadProgram(); }, [loadProgram]);
 
+  // Load workout metadata (exercise counts, durations, thumbnails)
+  const loadWorkoutMeta = useCallback(async (allPhases: ProgramPhase[]) => {
+    const workoutIds = allPhases.flatMap(p => p.workouts.map(w => w.workoutId));
+    if (workoutIds.length === 0) return;
+
+    const { data: exerciseRows } = await supabase
+      .from("workout_exercises")
+      .select("workout_id, sets, rest_seconds, exercise_id, exercises(youtube_url, youtube_thumbnail)")
+      .in("workout_id", workoutIds)
+      .order("exercise_order");
+
+    const meta: Record<string, WorkoutMeta> = {};
+    for (const wId of workoutIds) {
+      const exes = (exerciseRows || []).filter((r: any) => r.workout_id === wId);
+      const firstEx = exes[0];
+      const thumb = firstEx
+        ? ((firstEx as any).exercises?.youtube_thumbnail || getYouTubeThumbnail((firstEx as any).exercises?.youtube_url))
+        : null;
+      meta[wId] = {
+        exerciseCount: exes.length,
+        estimatedMinutes: estimateWorkoutMinutes(exes.map((e: any) => ({ sets: e.sets || 3, rest_seconds: e.rest_seconds || 60 }))),
+        thumbnailUrl: thumb,
+      };
+    }
+    setWorkoutMeta(meta);
+  }, []);
+
+  useEffect(() => {
+    if (phases.length > 0 && phases.some(p => p.workouts.length > 0)) {
+      loadWorkoutMeta(phases);
+    }
+  }, [phases, loadWorkoutMeta]);
+
   // ── Phase Operations ──
   const addPhase = () => {
     const order = phases.length + 1;
@@ -287,6 +350,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setPhases(newPhases);
     setShowWorkoutBuilder(false);
     setEditingWorkout(null);
+    // Refresh metadata for updated workout
+    loadWorkoutMeta(newPhases);
 
     // Auto-save the phase-workout link to database immediately
     if (phase.id) {
@@ -546,33 +611,73 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                         <p className="text-[10px] text-muted-foreground/70 mt-0.5">Click "Build Workout" to create one.</p>
                       </div>
                     ) : (
-                      phase.workouts.map((pw, pwIdx) => (
-                        <div key={pwIdx} className="flex items-center gap-2 p-2.5 border rounded-md bg-background group">
-                          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0 cursor-grab" />
-                          <Badge variant="secondary" className="text-[10px] px-1.5 min-w-[40px] justify-center">
-                            {DAY_LABELS[Math.min(pwIdx, 6)]}
-                          </Badge>
-                          <Dumbbell className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                          <button
-                            className="text-xs font-medium flex-1 truncate text-left hover:text-primary transition-colors"
-                            onClick={() => openWorkoutBuilder(phaseIdx, pw)}
-                          >
-                            {pw.workoutName}
-                          </button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <MoreHorizontal className="h-3 w-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      ))
+                      phase.workouts.map((pw, pwIdx) => {
+                        const meta = workoutMeta[pw.workoutId];
+                        return (
+                          <div key={pwIdx} className="flex items-start gap-3 p-3 border rounded-lg bg-background group hover:ring-1 hover:ring-primary/20 transition-all">
+                            <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 cursor-grab mt-1" />
+                            
+                            {/* Thumbnail */}
+                            <div className="w-20 h-14 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                              {meta?.thumbnailUrl ? (
+                                <div className="relative w-full h-full group/thumb">
+                                  <img src={meta.thumbnailUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                                    <Play className="h-5 w-5 text-white" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <Dumbbell className="h-5 w-5 text-muted-foreground/30" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <Badge variant="secondary" className="text-[10px] px-1.5">
+                                  {DAY_LABELS[Math.min(pwIdx, 6)]}
+                                </Badge>
+                              </div>
+                              <button
+                                className="text-sm font-semibold truncate text-left hover:text-primary transition-colors block w-full"
+                                onClick={() => openWorkoutBuilder(phaseIdx, pw)}
+                              >
+                                {pw.workoutName}
+                              </button>
+                              <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                                {meta && meta.exerciseCount > 0 && (
+                                  <>
+                                    <span className="flex items-center gap-1">
+                                      <Dumbbell className="h-3 w-3" />
+                                      {meta.exerciseCount} exercise{meta.exerciseCount !== 1 ? "s" : ""}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      Est. {meta.estimatedMinutes} min
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        );
+                      })
                     )}
 
                     <div className="flex gap-2">
