@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import CustomFoodCreator from "./CustomFoodCreator";
+import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
