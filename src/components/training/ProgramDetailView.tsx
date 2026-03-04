@@ -49,6 +49,12 @@ const PROGRESSION_RULES = [
 
 const DAY_LABELS = ["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6", "Day 7"];
 
+interface WorkoutMeta {
+  exerciseCount: number;
+  estimatedMinutes: number;
+  thumbnailUrl: string | null;
+}
+
 interface ProgramWorkout {
   id?: string;
   workoutId: string;
@@ -70,6 +76,27 @@ interface ProgramPhase {
   progressionRule: string;
   workouts: ProgramWorkout[];
   collapsed: boolean;
+}
+
+// ── Duration Estimator ──
+function getYouTubeThumbnail(url: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
+  return match ? `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg` : null;
+}
+
+function estimateWorkoutMinutes(exercises: { sets: number; rest_seconds: number }[]): number {
+  if (exercises.length === 0) return 0;
+  const AVG_SET_DURATION = 35; // seconds (hypertrophy default)
+  let totalSeconds = 0;
+  for (const ex of exercises) {
+    const sets = ex.sets || 3;
+    const rest = ex.rest_seconds || 60;
+    totalSeconds += sets * AVG_SET_DURATION + Math.max(0, sets - 1) * rest;
+  }
+  // Transition + setup buffer: 50s per exercise transition
+  totalSeconds += Math.max(0, exercises.length - 1) * 50;
+  return Math.round(totalSeconds / 60);
 }
 
 interface ProgramDetailViewProps {
