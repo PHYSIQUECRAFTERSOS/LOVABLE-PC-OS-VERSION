@@ -2146,6 +2146,96 @@ export type Database = {
           },
         ]
       }
+      master_workout_exercises: {
+        Row: {
+          created_at: string
+          exercise_id: string
+          id: string
+          master_workout_id: string
+          notes: string | null
+          order_index: number
+          reps: string | null
+          rest_seconds: number | null
+          rir: number | null
+          sets: number
+          superset_group: string | null
+          tempo: string | null
+        }
+        Insert: {
+          created_at?: string
+          exercise_id: string
+          id?: string
+          master_workout_id: string
+          notes?: string | null
+          order_index?: number
+          reps?: string | null
+          rest_seconds?: number | null
+          rir?: number | null
+          sets?: number
+          superset_group?: string | null
+          tempo?: string | null
+        }
+        Update: {
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          master_workout_id?: string
+          notes?: string | null
+          order_index?: number
+          reps?: string | null
+          rest_seconds?: number | null
+          rir?: number | null
+          sets?: number
+          superset_group?: string | null
+          tempo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "master_workout_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "master_workout_exercises_master_workout_id_fkey"
+            columns: ["master_workout_id"]
+            isOneToOne: false
+            referencedRelation: "master_workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      master_workouts: {
+        Row: {
+          coach_id: string
+          created_at: string
+          estimated_duration: number | null
+          id: string
+          instructions: string | null
+          updated_at: string
+          workout_name: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          estimated_duration?: number | null
+          id?: string
+          instructions?: string | null
+          updated_at?: string
+          workout_name: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          estimated_duration?: number | null
+          id?: string
+          instructions?: string | null
+          updated_at?: string
+          workout_name?: string
+        }
+        Relationships: []
+      }
       meal_plan_days: {
         Row: {
           created_at: string
