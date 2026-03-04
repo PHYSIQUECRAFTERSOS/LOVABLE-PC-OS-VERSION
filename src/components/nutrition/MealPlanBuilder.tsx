@@ -588,13 +588,6 @@ const MealPlanBuilder = () => {
         {saving ? "Saving..." : "Save Meal Plan"}
       </Button>
 
-      {showCustomFood && (
-        <CustomFoodCreator
-          open={showCustomFood}
-          onOpenChange={setShowCustomFood}
-          onCreated={onCustomFoodCreated}
-        />
-      )}
     </div>
   );
 };
