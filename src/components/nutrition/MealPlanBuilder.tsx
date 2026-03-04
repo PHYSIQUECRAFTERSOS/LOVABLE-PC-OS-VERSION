@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import CopyFromClientModal from "./CopyFromClientModal";
+import AssignTemplateModal from "./AssignTemplateModal";
 import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
@@ -91,7 +92,12 @@ const calcMacros = (food: MealFood) => {
 
 const uid = () => crypto.randomUUID();
 
-const MealPlanBuilder = () => {
+interface MealPlanBuilderProps {
+  forceTemplate?: boolean;
+  onSaved?: () => void;
+}
+
+const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [planName, setPlanName] = useState("");
@@ -114,6 +120,7 @@ const MealPlanBuilder = () => {
   // Search state
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
@@ -330,13 +337,15 @@ const MealPlanBuilder = () => {
     setSaving(true);
 
     try {
+      const effectiveClient = forceTemplate ? null : (selectedClient === "none" ? null : selectedClient || null);
+
       const { data: plan, error } = await supabase
         .from("meal_plans")
         .insert({
           coach_id: user.id,
-          client_id: selectedClient || null,
+          client_id: effectiveClient,
           name: planName,
-          is_template: !selectedClient,
+          is_template: forceTemplate || !effectiveClient,
           flexibility_mode: false,
         })
         .select("id")
@@ -383,8 +392,8 @@ const MealPlanBuilder = () => {
         }
       }
 
-      toast({ title: "Meal plan saved!" });
-      setPlanName("");
+      toast({ title: forceTemplate ? "Template saved!" : "Meal plan saved!" });
+      if (onSaved) { onSaved(); return; }
       setSelectedClient("");
       const resetMeals: Meal[] = [
         { id: uid(), name: "Breakfast", foods: [] },
@@ -409,31 +418,40 @@ const MealPlanBuilder = () => {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <ClipboardList className="h-5 w-5" /> Meal Plan Builder
+              <ClipboardList className="h-5 w-5" /> {forceTemplate ? "Template Builder" : "Meal Plan Builder"}
             </CardTitle>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCopyModalOpen(true)}>
-              <Users className="h-3.5 w-3.5" /> Copy From Client
-            </Button>
+            <div className="flex gap-2">
+              {!forceTemplate && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setTemplateModalOpen(true)}>
+                  <ClipboardList className="h-3.5 w-3.5" /> Assign Template
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCopyModalOpen(true)}>
+                <Users className="h-3.5 w-3.5" /> Copy From Client
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+           <div className={cn("grid gap-3", forceTemplate ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
             <div>
-              <Label>Plan Name</Label>
-              <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder="e.g. Cutting Phase Week 1" />
+              <Label>{forceTemplate ? "Template Name" : "Plan Name"}</Label>
+              <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder={forceTemplate ? "e.g. Cutting Phase 2000 Calories" : "e.g. Cutting Phase Week 1"} />
             </div>
-            <div>
-              <Label>Assign to Client (optional)</Label>
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
-                <SelectTrigger><SelectValue placeholder="Template (no client)" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Template (no client)</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.user_id} value={c.user_id}>{c.full_name || "Unnamed"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!forceTemplate && (
+              <div>
+                <Label>Assign to Client (optional)</Label>
+                <Select value={selectedClient} onValueChange={setSelectedClient}>
+                  <SelectTrigger><SelectValue placeholder="Template (no client)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Template (no client)</SelectItem>
+                    {clients.map((c) => (
+                      <SelectItem key={c.user_id} value={c.user_id}>{c.full_name || "Unnamed"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -598,12 +616,18 @@ const MealPlanBuilder = () => {
 
       <Button onClick={handleSave} disabled={saving || !planName} className="w-full">
         <Save className="h-4 w-4 mr-2" />
-        {saving ? "Saving..." : "Save Meal Plan"}
+        {saving ? "Saving..." : forceTemplate ? "Save Template" : "Save Meal Plan"}
       </Button>
 
       <CopyFromClientModal
         open={copyModalOpen}
         onOpenChange={setCopyModalOpen}
+        onImport={handleImportDays}
+      />
+
+      <AssignTemplateModal
+        open={templateModalOpen}
+        onOpenChange={setTemplateModalOpen}
         onImport={handleImportDays}
       />
     </div>

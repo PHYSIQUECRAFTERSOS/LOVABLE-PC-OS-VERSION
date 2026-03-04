@@ -2410,36 +2410,54 @@ export type Database = {
       }
       meal_plans: {
         Row: {
+          category: string | null
           client_id: string | null
           coach_id: string
           created_at: string
           description: string | null
           flexibility_mode: boolean
           id: string
+          is_favorite: boolean | null
           is_template: boolean
           name: string
+          target_calories: number | null
+          target_carbs: number | null
+          target_fat: number | null
+          target_protein: number | null
           updated_at: string
         }
         Insert: {
+          category?: string | null
           client_id?: string | null
           coach_id: string
           created_at?: string
           description?: string | null
           flexibility_mode?: boolean
           id?: string
+          is_favorite?: boolean | null
           is_template?: boolean
           name: string
+          target_calories?: number | null
+          target_carbs?: number | null
+          target_fat?: number | null
+          target_protein?: number | null
           updated_at?: string
         }
         Update: {
+          category?: string | null
           client_id?: string | null
           coach_id?: string
           created_at?: string
           description?: string | null
           flexibility_mode?: boolean
           id?: string
+          is_favorite?: boolean | null
           is_template?: boolean
           name?: string
+          target_calories?: number | null
+          target_carbs?: number | null
+          target_fat?: number | null
+          target_protein?: number | null
           updated_at?: string
         }
         Relationships: []

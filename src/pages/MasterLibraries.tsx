@@ -31,6 +31,7 @@ import ProgramDetailView from "@/components/training/ProgramDetailView";
 import ProgramBuilder from "@/components/training/ProgramBuilder";
 import ExerciseLibrary from "@/components/libraries/ExerciseLibrary";
 import { format } from "date-fns";
+import MealPlanTemplateLibrary from "@/components/nutrition/MealPlanTemplateLibrary";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -487,7 +488,7 @@ const MasterLibraries = () => {
           </TabsContent>
 
           {/* Placeholder Tabs */}
-          <TabsContent value="meals"><ComingSoon label="Meal Templates" /></TabsContent>
+          <TabsContent value="meals" className="mt-4"><MealPlanTemplateLibrary /></TabsContent>
           <TabsContent value="foods"><ComingSoon label="Food Database" /></TabsContent>
           <TabsContent value="habits"><ComingSoon label="Habits Library" /></TabsContent>
           <TabsContent value="forms"><ComingSoon label="Forms Library" /></TabsContent>
