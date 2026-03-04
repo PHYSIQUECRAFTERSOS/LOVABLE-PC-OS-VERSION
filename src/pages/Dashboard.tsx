@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import TodayWorkout from "@/components/dashboard/TodayWorkout";
+import TodayCardio from "@/components/dashboard/TodayCardio";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import ComplianceScore from "@/components/dashboard/ComplianceScore";
 import StepsCard from "@/components/dashboard/StepsCard";
@@ -32,6 +33,7 @@ const Dashboard = () => {
               <TodayWorkout />
               <MacroSummary />
             </div>
+            <TodayCardio />
             <StepsCard />
             <ComplianceScore />
           </div>

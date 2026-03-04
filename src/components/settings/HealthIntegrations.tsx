@@ -18,7 +18,7 @@ const HealthIntegrations = () => {
     syncNow,
   } = useHealthSync();
 
-  const isConnected = connection?.is_connected;
+  const isConnected = isNative && connection?.is_connected;
 
   const providerLabel = provider === "apple_health" ? "Apple Health" : "Google Fit";
   const ProviderIcon = provider === "apple_health" ? Apple : Activity;
