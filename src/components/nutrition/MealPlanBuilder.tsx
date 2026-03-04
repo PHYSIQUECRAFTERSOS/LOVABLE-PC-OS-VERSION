@@ -616,12 +616,18 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
 
       <Button onClick={handleSave} disabled={saving || !planName} className="w-full">
         <Save className="h-4 w-4 mr-2" />
-        {saving ? "Saving..." : "Save Meal Plan"}
+        {saving ? "Saving..." : forceTemplate ? "Save Template" : "Save Meal Plan"}
       </Button>
 
       <CopyFromClientModal
         open={copyModalOpen}
         onOpenChange={setCopyModalOpen}
+        onImport={handleImportDays}
+      />
+
+      <AssignTemplateModal
+        open={templateModalOpen}
+        onOpenChange={setTemplateModalOpen}
         onImport={handleImportDays}
       />
     </div>
