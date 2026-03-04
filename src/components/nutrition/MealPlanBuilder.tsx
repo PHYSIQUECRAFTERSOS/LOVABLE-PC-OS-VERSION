@@ -407,9 +407,14 @@ const MealPlanBuilder = () => {
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ClipboardList className="h-5 w-5" /> Meal Plan Builder
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ClipboardList className="h-5 w-5" /> Meal Plan Builder
+            </CardTitle>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCopyModalOpen(true)}>
+              <Users className="h-3.5 w-3.5" /> Copy From Client
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
