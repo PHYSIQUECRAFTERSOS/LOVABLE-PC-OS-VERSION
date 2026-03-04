@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   CalendarDays, Dumbbell, Heart, Camera, FileText, Bell,
@@ -49,6 +49,19 @@ const WEEK_DAYS_FULL = [
   { label: "Thu", value: 4 }, { label: "Fri", value: 5 }, { label: "Sat", value: 6 }, { label: "Sun", value: 0 },
 ];
 
+const CARDIO_TYPES = [
+  "Running", "Walking", "Cycling", "Rowing", "Elliptical",
+  "Stair Climbing", "Swimming", "HIIT", "Hiking", "Basketball",
+  "Soccer", "Tennis", "Custom",
+];
+
+const CARDIO_TARGET_TYPES = [
+  { value: "none", label: "None" },
+  { value: "distance", label: "Distance" },
+  { value: "time", label: "Time" },
+  { value: "custom", label: "Add my own target" },
+];
+
 interface CalEvent {
   id: string; title: string; event_date: string; event_type: string;
   is_completed: boolean; color: string | null; event_time: string | null;
@@ -80,6 +93,13 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [clientWorkouts, setClientWorkouts] = useState<any[]>([]);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState("");
 
+  // Cardio config
+  const [cardioType, setCardioType] = useState("Running");
+  const [cardioTargetType, setCardioTargetType] = useState("none");
+  const [cardioTargetValue, setCardioTargetValue] = useState("");
+  const [cardioTargetUnit, setCardioTargetUnit] = useState("km");
+  const [cardioNotes, setCardioNotes] = useState("");
+
   // Drag state
   const [dragEvent, setDragEvent] = useState<CalEvent | null>(null);
 
@@ -109,7 +129,6 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   useEffect(() => { loadMonth(); }, [loadMonth]);
 
-  // Load client workouts for workout scheduling
   const loadClientWorkouts = async () => {
     const { data: assignData } = await supabase.from("client_program_assignments")
       .select("program_id").eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle();
@@ -150,7 +169,16 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     const dateStr = format(day, "yyyy-MM-dd");
     const dayEvents = events.filter(e => e.event_date === dateStr);
     const daySessions = sessions.filter(s => format(new Date(s.created_at), "yyyy-MM-dd") === dateStr)
-      .map(s => ({ id: s.id, title: (s.workouts as any)?.name || "Workout", event_type: "workout" as const, is_completed: !!s.completed_at, isSession: true, event_date: dateStr, color: null, event_time: null }));
+      .map(s => ({
+        id: s.id,
+        title: (s.workouts as any)?.name || "Workout",
+        event_type: "workout" as const,
+        is_completed: !!s.completed_at,
+        isSession: true,
+        event_date: dateStr,
+        color: null,
+        event_time: null,
+      }));
     return [...daySessions, ...dayEvents];
   };
 
@@ -161,6 +189,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     setRepeatEnabled(false);
     setRepeatDays([]);
     setSelectedWorkoutId("");
+    setCardioType("Running");
+    setCardioTargetType("none");
+    setCardioTargetValue("");
+    setCardioNotes("");
     loadClientWorkouts();
     setShowSchedule(true);
   };
@@ -169,26 +201,11 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     setSelectedTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
   };
 
-  const handleScheduleFromDropdown = (type: string) => {
-    setScheduleDate(new Date());
-    setSelectedTypes([type]);
-    setScheduleTitle(EVENT_TYPES.find(t => t.value === type)?.label || "");
-    setRepeatEnabled(false);
-    setRepeatDays([]);
-    setSelectedWorkoutId("");
-    loadClientWorkouts();
-    setShowSchedule(true);
-  };
-
-  // Generate dates from repeat config
   const generateRepeatDates = (baseDate: Date): string[] => {
     const dates: string[] = [format(baseDate, "yyyy-MM-dd")];
     if (!repeatEnabled) return dates;
-
     if (repeatFrequency === "daily") {
-      for (let i = 1; i < repeatForWeeks * 7; i++) {
-        dates.push(format(addDays(baseDate, i), "yyyy-MM-dd"));
-      }
+      for (let i = 1; i < repeatForWeeks * 7; i++) dates.push(format(addDays(baseDate, i), "yyyy-MM-dd"));
     } else if (repeatFrequency === "weekly") {
       for (let week = 0; week < repeatForWeeks; week++) {
         const weekStart = addWeeks(baseDate, week * repeatEveryN);
@@ -200,9 +217,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         }
       }
     } else if (repeatFrequency === "monthly") {
-      for (let i = 1; i <= repeatForWeeks; i++) {
-        dates.push(format(addMonths(baseDate, i), "yyyy-MM-dd"));
-      }
+      for (let i = 1; i <= repeatForWeeks; i++) dates.push(format(addMonths(baseDate, i), "yyyy-MM-dd"));
     }
     return dates;
   };
@@ -216,14 +231,45 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
     for (const dateStr of dates) {
       for (const type of selectedTypes) {
-        const title = selectedTypes.length === 1 && scheduleTitle
-          ? scheduleTitle
-          : EVENT_TYPES.find(t => t.value === type)?.label || "Event";
+        // Determine title
+        let title = "";
+        if (type === "workout" && selectedWorkoutId) {
+          const w = clientWorkouts.find(w => w.id === selectedWorkoutId);
+          title = w ? `${w.day_label} – ${w.name}` : "Workout";
+        } else if (type === "cardio") {
+          const targetStr = cardioTargetType !== "none" && cardioTargetValue
+            ? ` — ${cardioTargetValue} ${cardioTargetUnit}`
+            : "";
+          title = `${cardioType}${targetStr}`;
+        } else if (selectedTypes.length === 1 && scheduleTitle) {
+          title = scheduleTitle;
+        } else {
+          title = EVENT_TYPES.find(t => t.value === type)?.label || "Event";
+        }
+
         eventsToInsert.push({
           user_id: clientId, title, event_date: dateStr, event_type: type,
           is_completed: false, is_recurring: repeatEnabled,
           recurrence_pattern: repeatEnabled ? `${repeatFrequency}:${repeatEveryN}:${repeatDays.join(",")}` : null,
           linked_workout_id: type === "workout" && selectedWorkoutId ? selectedWorkoutId : null,
+          notes: type === "cardio" ? cardioNotes || null : null,
+        });
+      }
+    }
+
+    // Also create cardio_assignments if cardio type is selected
+    if (selectedTypes.includes("cardio") && user) {
+      for (const dateStr of dates) {
+        await supabase.from("cardio_assignments").insert({
+          client_id: clientId,
+          coach_id: user.id,
+          title: cardioType,
+          cardio_type: cardioType.toLowerCase().replace(/\s+/g, "_"),
+          assigned_date: dateStr,
+          target_duration_min: cardioTargetType === "time" && cardioTargetValue ? parseInt(cardioTargetValue) : null,
+          target_distance_km: cardioTargetType === "distance" && cardioTargetUnit === "km" && cardioTargetValue ? parseFloat(cardioTargetValue) : null,
+          notes: cardioNotes || null,
+          description: cardioTargetType === "custom" && cardioTargetValue ? cardioTargetValue : null,
         });
       }
     }
@@ -306,18 +352,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             <Button size="icon" variant="ghost" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}><ChevronRight className="h-4 w-4" /></Button>
             <h2 className="font-display text-lg font-bold">{format(currentMonth, "MMMM yyyy")}</h2>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" className="gap-1.5"><Plus className="h-3.5 w-3.5" /> Schedule</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {EVENT_TYPES.map(t => (
-                <DropdownMenuItem key={t.value} onClick={() => handleScheduleFromDropdown(t.value)} className="gap-2">
-                  <t.icon className="h-3.5 w-3.5" />{t.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button size="sm" className="gap-1.5" onClick={() => handleDayClick(new Date())}>
+            <Plus className="h-3.5 w-3.5" /> Schedule
+          </Button>
         </div>
 
         <div className="grid grid-cols-7 gap-px">
@@ -364,7 +401,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         </div>
       </div>
 
-      {/* Schedule Dialog with multi-select + repeat */}
+      {/* Schedule Dialog */}
       <Dialog open={showSchedule} onOpenChange={setShowSchedule}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Schedule Events</DialogTitle></DialogHeader>
@@ -389,22 +426,86 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
               </div>
             </div>
 
-            {/* Workout picker when workout selected */}
+            {/* Workout picker */}
             {selectedTypes.includes("workout") && clientWorkouts.length > 0 && (
               <div>
                 <Label>Link to Workout</Label>
                 <Select value={selectedWorkoutId} onValueChange={setSelectedWorkoutId}>
-                  <SelectTrigger><SelectValue placeholder="Select workout (optional)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                   <SelectContent>
                     {clientWorkouts.map(w => (
-                      <SelectItem key={w.id} value={w.id}>{w.name} — {w.day_label}</SelectItem>
+                      <SelectItem key={w.id} value={w.id}>{w.day_label} – {w.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            {selectedTypes.length === 1 && (
+            {/* Cardio config */}
+            {selectedTypes.includes("cardio") && (
+              <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/20">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cardio Details</p>
+                <div>
+                  <Label className="text-xs">Activity Type</Label>
+                  <Select value={cardioType} onValueChange={setCardioType}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CARDIO_TYPES.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Set a Target</Label>
+                  <Select value={cardioTargetType} onValueChange={setCardioTargetType}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CARDIO_TARGET_TYPES.map(t => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {cardioTargetType === "distance" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Value</Label>
+                      <Input type="number" value={cardioTargetValue} onChange={e => setCardioTargetValue(e.target.value)} className="h-8" placeholder="5" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Unit</Label>
+                      <Select value={cardioTargetUnit} onValueChange={setCardioTargetUnit}>
+                        <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="km">km</SelectItem>
+                          <SelectItem value="miles">miles</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                {cardioTargetType === "time" && (
+                  <div>
+                    <Label className="text-xs">Duration (minutes)</Label>
+                    <Input type="number" value={cardioTargetValue} onChange={e => setCardioTargetValue(e.target.value)} className="h-8" placeholder="30" />
+                  </div>
+                )}
+                {cardioTargetType === "custom" && (
+                  <div>
+                    <Label className="text-xs">Custom Target</Label>
+                    <Input value={cardioTargetValue} onChange={e => setCardioTargetValue(e.target.value)} className="h-8" placeholder="e.g. Burn 300 calories" />
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs">Notes (optional)</Label>
+                  <Textarea value={cardioNotes} onChange={e => setCardioNotes(e.target.value)} className="h-16 text-xs" placeholder="Additional instructions..." />
+                </div>
+              </div>
+            )}
+
+            {/* Title for single non-workout/cardio events */}
+            {selectedTypes.length === 1 && !selectedTypes.includes("workout") && !selectedTypes.includes("cardio") && (
               <div>
                 <Label>Title</Label>
                 <Input value={scheduleTitle} onChange={e => setScheduleTitle(e.target.value)} placeholder="Event title (optional)" />
@@ -418,7 +519,6 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 <Repeat className="h-3.5 w-3.5" />
                 <span className="text-sm font-medium">Repeat</span>
               </label>
-
               {repeatEnabled && (
                 <>
                   <div className="grid grid-cols-3 gap-2">
@@ -429,7 +529,6 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                       </button>
                     ))}
                   </div>
-
                   {repeatFrequency === "weekly" && (
                     <div>
                       <Label className="text-xs mb-1.5 block">Repeat on</Label>
@@ -443,7 +542,6 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                       </div>
                     </div>
                   )}
-
                   <div className="grid grid-cols-2 gap-2">
                     {repeatFrequency === "weekly" && (
                       <div>
