@@ -488,7 +488,7 @@ const MasterLibraries = () => {
           </TabsContent>
 
           {/* Placeholder Tabs */}
-          <TabsContent value="meals"><ComingSoon label="Meal Templates" /></TabsContent>
+          <TabsContent value="meals" className="mt-4"><MealPlanTemplateLibrary /></TabsContent>
           <TabsContent value="foods"><ComingSoon label="Food Database" /></TabsContent>
           <TabsContent value="habits"><ComingSoon label="Habits Library" /></TabsContent>
           <TabsContent value="forms"><ComingSoon label="Forms Library" /></TabsContent>
