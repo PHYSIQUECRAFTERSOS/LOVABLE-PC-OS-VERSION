@@ -1,9 +1,10 @@
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { CalendarEvent } from "./CalendarGrid";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Clock, Repeat, Trash2, MapPin } from "lucide-react";
+import { Check, Clock, Repeat, Trash2, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -14,6 +15,9 @@ const TYPE_LABELS: Record<string, string> = {
   reminder: "Reminder",
   custom: "Event",
   auto_message: "Auto Message",
+  photos: "Photos",
+  body_stats: "Body Stats",
+  steps: "Steps",
 };
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
@@ -24,6 +28,17 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
   reminder: "bg-yellow-500/20 text-yellow-400",
   custom: "bg-primary/20 text-primary",
   auto_message: "bg-orange-500/20 text-orange-400",
+  photos: "bg-purple-500/20 text-purple-400",
+  body_stats: "bg-orange-500/20 text-orange-400",
+};
+
+const EVENT_ROUTES: Record<string, string> = {
+  cardio: "/training",
+  checkin: "/progress",
+  photos: "/progress",
+  body_stats: "/progress",
+  steps: "/progress",
+  nutrition: "/nutrition",
 };
 
 interface EventDetailModalProps {
@@ -33,6 +48,7 @@ interface EventDetailModalProps {
   onComplete: (event: CalendarEvent) => void;
   onDelete: (event: CalendarEvent) => void;
   isCoach: boolean;
+  onStartWorkout?: (workoutId: string) => void;
 }
 
 const EventDetailModal = ({
@@ -42,8 +58,27 @@ const EventDetailModal = ({
   onComplete,
   onDelete,
   isCoach,
+  onStartWorkout,
 }: EventDetailModalProps) => {
+  const navigate = useNavigate();
+
   if (!event) return null;
+
+  const handleOpenAction = () => {
+    onClose();
+    if (event.event_type === "workout") {
+      if (event.linked_workout_id && onStartWorkout) {
+        onStartWorkout(event.linked_workout_id);
+      } else {
+        navigate("/training");
+      }
+    } else {
+      const route = EVENT_ROUTES[event.event_type];
+      if (route) navigate(route);
+    }
+  };
+
+  const hasActionRoute = event.event_type === "workout" || !!EVENT_ROUTES[event.event_type];
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -92,13 +127,20 @@ const EventDetailModal = ({
           )}
 
           <div className="flex gap-2 pt-2">
-            {!event.is_completed && event.event_type !== "rest" && (
-              <Button onClick={() => onComplete(event)} className="flex-1 gap-2">
-                <Check className="h-4 w-4" />
-                Mark Complete
+            {/* Primary action: Open the full screen for this event type */}
+            {!event.is_completed && hasActionRoute && (
+              <Button onClick={handleOpenAction} className="flex-1 gap-2">
+                <Play className="h-4 w-4" />
+                {event.event_type === "workout" ? "Start Workout" : `Open ${TYPE_LABELS[event.event_type] || "Event"}`}
               </Button>
             )}
-            {(isCoach || event.user_id === event.user_id) && (
+            {!event.is_completed && event.event_type !== "rest" && (
+              <Button variant="outline" onClick={() => onComplete(event)} className={cn(!hasActionRoute && "flex-1", "gap-2")}>
+                <Check className="h-4 w-4" />
+                {hasActionRoute ? "Done" : "Mark Complete"}
+              </Button>
+            )}
+            {isCoach && (
               <Button variant="destructive" size="icon" onClick={() => onDelete(event)}>
                 <Trash2 className="h-4 w-4" />
               </Button>
