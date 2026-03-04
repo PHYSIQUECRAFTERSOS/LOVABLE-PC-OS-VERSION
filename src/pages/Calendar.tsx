@@ -17,6 +17,7 @@ import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 
 const Calendar = () => {
   const { user, role } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [view, setView] = useState<"week" | "month">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
