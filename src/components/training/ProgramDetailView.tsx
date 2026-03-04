@@ -118,6 +118,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [builderTargetPhase, setBuilderTargetPhase] = useState(0);
   const [editingWorkout, setEditingWorkout] = useState<ProgramWorkout | null>(null);
 
+  // Workout metadata (exercise counts, durations, thumbnails)
+  const [workoutMeta, setWorkoutMeta] = useState<Record<string, WorkoutMeta>>({});
+
   // Rename phase
   const [renamingPhase, setRenamingPhase] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
