@@ -91,6 +91,15 @@ const Training = () => {
 
   const reloadWorkouts = () => { invalidateCache(cacheKey); refetch(); };
 
+  // Auto-start workout from navigation state (e.g., from calendar)
+  useEffect(() => {
+    const state = location.state as { startWorkoutId?: string } | null;
+    if (state?.startWorkoutId && !showLogger) {
+      loadWorkoutExercises(state.startWorkoutId);
+      // Clear state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadWorkoutExercises = async (workoutId: string) => {
     const { data } = await supabase
       .from("workout_exercises")
