@@ -1017,6 +1017,35 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_favorite_foods: {
+        Row: {
+          coach_id: string
+          created_at: string
+          food_item_id: string
+          id: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          food_item_id: string
+          id?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          food_item_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_favorite_foods_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_meal_plan_uploads: {
         Row: {
           client_id: string
@@ -1061,6 +1090,38 @@ export type Database = {
           version?: number
         }
         Relationships: []
+      }
+      coach_recent_foods: {
+        Row: {
+          coach_id: string
+          food_item_id: string
+          id: string
+          use_count: number
+          used_at: string
+        }
+        Insert: {
+          coach_id: string
+          food_item_id: string
+          id?: string
+          use_count?: number
+          used_at?: string
+        }
+        Update: {
+          coach_id?: string
+          food_item_id?: string
+          id?: string
+          use_count?: number
+          used_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_recent_foods_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       community_comments: {
         Row: {
