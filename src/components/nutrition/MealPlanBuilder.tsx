@@ -113,6 +113,12 @@ const MealPlanBuilder = () => {
 
   // Search state
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+
+  const handleImportDays = (importedDays: DayType[]) => {
+    setDays((prev) => [...prev, ...importedDays]);
+    if (importedDays.length > 0) setExpandedDay(importedDays[0].id);
+  };
 
   useEffect(() => {
     if (!user) return;
