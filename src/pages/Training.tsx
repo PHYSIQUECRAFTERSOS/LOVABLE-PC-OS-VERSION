@@ -15,9 +15,12 @@ import ClientProgramView from "@/components/training/ClientProgramView";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 
+import { useAuth } from "@/hooks/useAuth";
+
 const Training = () => {
   const { role, user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
   const [showLogger, setShowLogger] = useState(false);
