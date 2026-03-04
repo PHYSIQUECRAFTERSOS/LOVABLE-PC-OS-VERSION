@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import CopyFromClientModal from "./CopyFromClientModal";
+import AssignTemplateModal from "./AssignTemplateModal";
 import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
