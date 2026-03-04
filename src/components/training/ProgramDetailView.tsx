@@ -350,6 +350,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setPhases(newPhases);
     setShowWorkoutBuilder(false);
     setEditingWorkout(null);
+    // Refresh metadata for updated workout
+    loadWorkoutMeta(newPhases);
 
     // Auto-save the phase-workout link to database immediately
     if (phase.id) {
