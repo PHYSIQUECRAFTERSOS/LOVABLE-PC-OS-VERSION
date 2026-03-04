@@ -31,6 +31,7 @@ import TermsOfService from "./pages/TermsOfService";
 import DeleteAccount from "./pages/DeleteAccount";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
+        <PWAInstallPrompt />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
