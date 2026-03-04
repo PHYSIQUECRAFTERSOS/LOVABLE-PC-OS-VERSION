@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import CopyFromClientModal from "./CopyFromClientModal";
 import AssignTemplateModal from "./AssignTemplateModal";
+import AdjustMacrosModal from "./AdjustMacrosModal";
 import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
