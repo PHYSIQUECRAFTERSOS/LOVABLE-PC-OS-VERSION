@@ -15,14 +15,12 @@ import {
 import {
   Plus,
   Trash2,
-  Search,
   ClipboardList,
   Copy,
   ChevronDown,
   ChevronUp,
   GripVertical,
   Save,
-  ScanBarcode,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
