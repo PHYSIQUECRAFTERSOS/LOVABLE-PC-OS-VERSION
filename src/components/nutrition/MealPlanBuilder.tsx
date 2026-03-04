@@ -22,12 +22,14 @@ import {
   GripVertical,
   Save,
   Users,
+  Scale,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import CopyFromClientModal from "./CopyFromClientModal";
 import AssignTemplateModal from "./AssignTemplateModal";
+import AdjustMacrosModal from "./AdjustMacrosModal";
 import FoodIcon from "@/lib/foodIcons";
 
 interface FoodItem {
@@ -121,6 +123,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
 
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
@@ -429,6 +432,9 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCopyModalOpen(true)}>
                 <Users className="h-3.5 w-3.5" /> Copy From Client
               </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAdjustMacrosOpen(true)}>
+                <Scale className="h-3.5 w-3.5" /> Adjust Macros
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -629,6 +635,13 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onImport={handleImportDays}
+      />
+
+      <AdjustMacrosModal
+        open={adjustMacrosOpen}
+        onOpenChange={setAdjustMacrosOpen}
+        days={days}
+        onApply={(newDays) => setDays(newDays)}
       />
     </div>
   );
