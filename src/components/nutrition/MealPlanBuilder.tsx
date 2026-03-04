@@ -550,49 +550,10 @@ const MealPlanBuilder = () => {
                       {/* Add food search */}
                       <div className="px-3 py-2 border-t border-border/30">
                         {isSearching ? (
-                          <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <div className="relative flex-1">
-                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                                <Input
-                                  placeholder="Search food..."
-                                  value={searchQuery}
-                                  onChange={(e) => handleSearch(e.target.value)}
-                                  className="h-8 pl-8 text-xs"
-                                  autoFocus
-                                />
-                              </div>
-                              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowCustomFood(true)}>
-                                <Plus className="h-3 w-3 mr-1" /> Custom
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={() => { setSearchingMealId(null); setSearchQuery(""); setSearchResults([]); }}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                            {searchResults.length > 0 && (
-                              <div className="max-h-36 overflow-y-auto space-y-0.5 rounded border border-border p-1">
-                                {searchResults.map((f) => (
-                                  <button
-                                    key={f.id}
-                                    onClick={() => addFoodToMeal(day.id, meal.id, f)}
-                                    className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors flex items-center gap-2"
-                                  >
-                                    <FoodIcon name={f.name} size={24} />
-                                    <span className="font-medium text-foreground">{f.name}</span>
-                                    {f.brand && <span className="text-muted-foreground ml-1">({f.brand})</span>}
-                                    <span className="text-muted-foreground ml-2">
-                                      {f.calories}cal · {f.protein}P · {f.carbs}C · {f.fat}F / {f.serving_size}{f.serving_unit}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                          <FoodSearchPanel
+                            onSelect={(food) => addFoodToMeal(day.id, meal.id, food as any)}
+                            onClose={() => setSearchingMealId(null)}
+                          />
                         ) : (
                           <Button
                             variant="ghost"
