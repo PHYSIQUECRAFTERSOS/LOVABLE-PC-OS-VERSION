@@ -172,8 +172,6 @@ const MealPlanBuilder = () => {
       )
     );
     setSearchingMealId(null);
-    setSearchQuery("");
-    setSearchResults([]);
   };
 
   const updateGrams = (dayId: string, mealId: string, foodId: string, grams: number) => {
