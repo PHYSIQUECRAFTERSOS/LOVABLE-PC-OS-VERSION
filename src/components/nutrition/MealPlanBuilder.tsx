@@ -138,19 +138,7 @@ const MealPlanBuilder = () => {
     if (days.length > 0 && !expandedDay) setExpandedDay(days[0].id);
   }, []);
 
-  const handleSearch = async (q: string) => {
-    setSearchQuery(q);
-    if (q.length < 2) { setSearchResults([]); return; }
-    const { data } = await supabase
-      .from("food_items")
-      .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit")
-      .ilike("name", `%${q}%`)
-      .order("is_verified", { ascending: false })
-      .limit(12);
-    setSearchResults((data as FoodItem[]) || []);
-  };
-
-  const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem) => {
+  const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
