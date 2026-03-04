@@ -337,13 +337,15 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
     setSaving(true);
 
     try {
+      const effectiveClient = forceTemplate ? null : (selectedClient === "none" ? null : selectedClient || null);
+
       const { data: plan, error } = await supabase
         .from("meal_plans")
         .insert({
           coach_id: user.id,
-          client_id: selectedClient || null,
+          client_id: effectiveClient,
           name: planName,
-          is_template: !selectedClient,
+          is_template: forceTemplate || !effectiveClient,
           flexibility_mode: false,
         })
         .select("id")
