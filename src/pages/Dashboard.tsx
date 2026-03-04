@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import TodayActions, { ActionItem } from "@/components/dashboard/TodayActions";
@@ -11,6 +12,9 @@ import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 import RecommitFlow from "@/components/retention/RecommitFlow";
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
+import DateNavigator from "@/components/dashboard/DateNavigator";
+import CoachPriority from "@/components/dashboard/CoachPriority";
+import WeeklyMomentumScore from "@/components/dashboard/WeeklyMomentumScore";
 
 const Dashboard = () => {
   const { role } = useAuth();
@@ -40,6 +44,9 @@ const Dashboard = () => {
 const ClientDashboard = () => {
   const { streak, last30 } = useConsistencyStreak();
   const [todayItems, setTodayItems] = useState<ActionItem[]>([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const dateStr = format(selectedDate, "yyyy-MM-dd");
 
   const handleActionsLoaded = useCallback((items: ActionItem[]) => {
     setTodayItems(items);
@@ -52,6 +59,12 @@ const ClientDashboard = () => {
     <>
       <RecommitFlow />
 
+      {/* Date Navigator */}
+      <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+
+      {/* Coach Priority */}
+      <CoachPriority actions={todayItems} />
+
       {/* Hero row: Completion ring + Today's Actions */}
       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4">
         <DailyCompletionRing
@@ -59,14 +72,19 @@ const ClientDashboard = () => {
           total={totalCount}
           streak={streak}
         />
-        <TodayActions onDataLoaded={handleActionsLoaded} />
+        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
       </div>
 
-      {/* Momentum row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ComplianceMomentum data={last30} />
-        <ProgressMomentum />
+      {/* Weekly Score + Momentum */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <WeeklyMomentumScore />
+        <div className="md:col-span-2">
+          <ComplianceMomentum data={last30} />
+        </div>
       </div>
+
+      {/* Progress */}
+      <ProgressMomentum />
 
       {/* Nutrition */}
       <MacroSummary />

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,12 @@ import ClientProgramView from "@/components/training/ClientProgramView";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 
+import { useAuth } from "@/hooks/useAuth";
+
 const Training = () => {
   const { role, user } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
   const [showLogger, setShowLogger] = useState(false);
@@ -88,6 +91,15 @@ const Training = () => {
 
   const reloadWorkouts = () => { invalidateCache(cacheKey); refetch(); };
 
+  // Auto-start workout from navigation state (e.g., from calendar)
+  useEffect(() => {
+    const state = location.state as { startWorkoutId?: string } | null;
+    if (state?.startWorkoutId && !showLogger) {
+      loadWorkoutExercises(state.startWorkoutId);
+      // Clear state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadWorkoutExercises = async (workoutId: string) => {
     const { data } = await supabase
       .from("workout_exercises")

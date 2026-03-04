@@ -80,13 +80,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   // Client navigation — mobile-first
   const clientNav: NavItem[] = [
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/calendar", icon: CalendarDays, label: "Calendar" },
     { to: "/training", icon: Dumbbell, label: "Training" },
     { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
     { to: "/progress", icon: BarChart3, label: "Progress" },
     { to: "/community", icon: UsersRound, label: "Community" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/challenges", icon: Flame, label: "Challenges" },
-    { to: "/calendar", icon: CalendarDays, label: "Calendar" },
     { to: "/profile", icon: User, label: "Settings" },
   ];
 
@@ -100,6 +100,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       ]
     : [
         { to: "/dashboard", icon: LayoutDashboard, label: "Home" },
+        { to: "/calendar", icon: CalendarDays, label: "Calendar" },
         { to: "/training", icon: Dumbbell, label: "Training" },
         { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
         { to: "/messages", icon: MessageSquare, label: "Messages" },

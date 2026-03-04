@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { addWeeks, subWeeks, addMonths, subMonths, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays, isSameDay } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +17,7 @@ import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 
 const Calendar = () => {
   const { user, role } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [view, setView] = useState<"week" | "month">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -124,6 +126,10 @@ const Calendar = () => {
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
+  const handleStartWorkout = (workoutId: string) => {
+    // Navigate to training page — the workout logger will handle loading
+    navigate("/training", { state: { startWorkoutId: workoutId } });
+  };
   const handleComplete = async (event: CalendarEvent) => {
     if (event.id.startsWith("ws-") || event.id.startsWith("cl-")) {
       toast({ title: "Complete this from the Training page" });
@@ -209,7 +215,7 @@ const Calendar = () => {
         )}
       </div>
 
-      <EventDetailModal event={selectedEvent} open={showEventDetail} onClose={() => setShowEventDetail(false)} onComplete={handleComplete} onDelete={handleDelete} isCoach={isCoach} />
+      <EventDetailModal event={selectedEvent} open={showEventDetail} onClose={() => setShowEventDetail(false)} onComplete={handleComplete} onDelete={handleDelete} isCoach={isCoach} onStartWorkout={handleStartWorkout} />
       <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />
     </AppLayout>
   );
