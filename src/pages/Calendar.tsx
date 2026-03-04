@@ -84,12 +84,13 @@ const Calendar = () => {
 
       const allEvents: CalendarEvent[] = (calRes.data || []) as CalendarEvent[];
 
-      // Merge workout sessions
+      // Merge workout sessions — use actual workout name, never generic "Workout"
       sessRes.data?.forEach((s: any) => {
         const eventDate = format(new Date(s.created_at), "yyyy-MM-dd");
+        const workoutName = s.workouts?.name;
         if (!allEvents.find((e) => e.linked_workout_id === s.workout_id && e.event_date === eventDate)) {
           allEvents.push({
-            id: `ws-${s.id}`, title: s.workouts?.name || "Workout", event_type: "workout",
+            id: `ws-${s.id}`, title: workoutName || "Unnamed Workout", event_type: "workout",
             event_date: eventDate, is_completed: !!s.completed_at, completed_at: s.completed_at,
             is_recurring: false, user_id: user.id, description: null,
             event_time: format(new Date(s.created_at), "HH:mm"), end_time: null, color: null,

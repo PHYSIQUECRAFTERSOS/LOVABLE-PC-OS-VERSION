@@ -33,6 +33,7 @@ const Dashboard = () => {
               <TodayWorkout />
               <MacroSummary />
             </div>
+            <TodayCardio />
             <StepsCard />
             <ComplianceScore />
           </div>

@@ -12,48 +12,116 @@ interface TodayWorkoutData {
   exercises: { name: string; sets: number; reps?: string }[];
   phase?: string;
   completed: boolean;
+  source: "session" | "calendar";
 }
 
 const TodayWorkout = () => {
   const { user } = useAuth();
+  const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: workout, loading } = useDataFetch<TodayWorkoutData | null>({
-    queryKey: `today-workout-${user?.id}-${format(new Date(), "yyyy-MM-dd")}`,
+    queryKey: `today-workout-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
     fallback: null,
     queryFn: async (signal) => {
       if (!user) return null;
-      const today = format(new Date(), "yyyy-MM-dd");
 
-      const { data: sessions } = await supabase
-        .from("workout_sessions")
-        .select("id, workout_id, completed_at, workouts:workout_id(id, name, phase)")
-        .eq("client_id", user.id)
-        .gte("created_at", today)
-        .lte("created_at", `${today}T23:59:59`)
-        .limit(1);
+      // Query both workout_sessions AND calendar_events in parallel
+      const [sessionsRes, calendarRes] = await Promise.all([
+        supabase
+          .from("workout_sessions")
+          .select("id, workout_id, completed_at, workouts:workout_id(id, name, phase)")
+          .eq("client_id", user.id)
+          .gte("created_at", `${today}T00:00:00`)
+          .lte("created_at", `${today}T23:59:59`)
+          .limit(1)
+          .abortSignal(signal),
+        supabase
+          .from("calendar_events")
+          .select("id, title, linked_workout_id, is_completed, completed_at")
+          .eq("user_id", user.id)
+          .eq("event_date", today)
+          .eq("event_type", "workout")
+          .order("event_time", { ascending: true })
+          .limit(3)
+          .abortSignal(signal),
+      ]);
 
-      const session = sessions?.[0];
+      // Priority 1: Active workout session (already started)
+      const session = sessionsRes.data?.[0];
+      if (session) {
+        const workoutId = (session.workouts as any)?.id || session.workout_id;
+        const workoutName = (session.workouts as any)?.name;
 
-      if (!session) return null;
+        const { data: exercises } = await supabase
+          .from("workout_exercises")
+          .select("sets, reps, exercises:exercise_id(name)")
+          .eq("workout_id", workoutId)
+          .order("exercise_order", { ascending: true })
+          .abortSignal(signal);
 
-      const workoutId = (session.workouts as any)?.id || session.workout_id;
-      const { data: exercises } = await supabase
-        .from("workout_exercises")
-        .select("sets, reps, exercises:exercise_id(name)")
-        .eq("workout_id", workoutId)
-        .order("exercise_order", { ascending: true })
-        .abortSignal(signal);
+        return {
+          id: workoutId,
+          name: workoutName || "Workout",
+          phase: (session.workouts as any)?.phase,
+          completed: !!session.completed_at,
+          source: "session" as const,
+          exercises: (exercises || []).map((e: any) => ({
+            name: e.exercises?.name || "",
+            sets: e.sets,
+            reps: e.reps,
+          })),
+        };
+      }
 
-      return {
-        id: workoutId,
-        name: (session.workouts as any)?.name || "Workout",
-        phase: (session.workouts as any)?.phase,
-        completed: !!session.completed_at,
-        exercises: (exercises || []).map((e: any) => ({ name: e.exercises?.name || "", sets: e.sets, reps: e.reps })),
-      };
+      // Priority 2: Scheduled calendar event for today
+      const calEvent = calendarRes.data?.[0];
+      if (calEvent) {
+        let exercises: { name: string; sets: number; reps?: string }[] = [];
+        let workoutName = calEvent.title;
+        let phase: string | undefined;
+
+        // If linked to a workout, pull the real name & exercises
+        if (calEvent.linked_workout_id) {
+          const [workoutRes, exRes] = await Promise.all([
+            supabase
+              .from("workouts")
+              .select("id, name, phase")
+              .eq("id", calEvent.linked_workout_id)
+              .single()
+              .abortSignal(signal),
+            supabase
+              .from("workout_exercises")
+              .select("sets, reps, exercises:exercise_id(name)")
+              .eq("workout_id", calEvent.linked_workout_id)
+              .order("exercise_order", { ascending: true })
+              .abortSignal(signal),
+          ]);
+
+          if (workoutRes.data) {
+            workoutName = workoutRes.data.name || calEvent.title;
+            phase = workoutRes.data.phase;
+          }
+          exercises = (exRes.data || []).map((e: any) => ({
+            name: e.exercises?.name || "",
+            sets: e.sets,
+            reps: e.reps,
+          }));
+        }
+
+        return {
+          id: calEvent.linked_workout_id || calEvent.id,
+          name: workoutName,
+          phase,
+          completed: calEvent.is_completed,
+          source: "calendar" as const,
+          exercises,
+        };
+      }
+
+      return null;
     },
   });
 
@@ -62,8 +130,14 @@ const TodayWorkout = () => {
   if (!workout) {
     return (
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Dumbbell className="h-5 w-5" /> Today's Workout</CardTitle></CardHeader>
-        <CardContent><p className="text-sm text-muted-foreground">No workout scheduled today</p></CardContent>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Dumbbell className="h-5 w-5" /> Today's Workout
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No workout scheduled today</p>
+        </CardContent>
       </Card>
     );
   }
@@ -72,21 +146,31 @@ const TodayWorkout = () => {
     <Card className={workout.completed ? "border-primary/30" : ""}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span className="flex items-center gap-2"><Dumbbell className="h-5 w-5" /> {workout.name}</span>
-          {workout.completed && <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">✓ Done</span>}
+          <span className="flex items-center gap-2">
+            <Dumbbell className="h-5 w-5" /> {workout.name}
+          </span>
+          {workout.completed && (
+            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">✓ Done</span>
+          )}
         </CardTitle>
-        {workout.phase && <p className="text-xs text-muted-foreground mt-1 capitalize">{workout.phase} Phase</p>}
+        {workout.phase && (
+          <p className="text-xs text-muted-foreground mt-1 capitalize">{workout.phase} Phase</p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
-        {workout.exercises.map((ex, i) => (
-          <div key={i} className="flex items-center justify-between text-sm border-b border-border pb-2 last:border-0">
-            <div className="font-medium text-foreground">{ex.name}</div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span>{ex.sets} sets</span>
-              {ex.reps && <span>{ex.reps} reps</span>}
+        {workout.exercises.length > 0 ? (
+          workout.exercises.map((ex, i) => (
+            <div key={i} className="flex items-center justify-between text-sm border-b border-border pb-2 last:border-0">
+              <div className="font-medium text-foreground">{ex.name}</div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{ex.sets} sets</span>
+                {ex.reps && <span>{ex.reps} reps</span>}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">Tap to start your workout</p>
+        )}
       </CardContent>
     </Card>
   );
