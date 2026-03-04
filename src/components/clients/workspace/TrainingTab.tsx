@@ -7,15 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight, GripVertical,
-  ArrowUp, ArrowDown, Edit2, Link2, Unlink, Save, X, Search, Replace
+  Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight,
+  ArrowUp, ArrowDown, Edit2, Link2, Unlink, Search, Pencil
 } from "lucide-react";
+import ClientWorkoutEditorModal from "@/components/training/ClientWorkoutEditorModal";
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
@@ -48,26 +50,19 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
-  const [expandedWorkout, setExpandedWorkout] = useState<string | null>(null);
-  const [workoutExercises, setWorkoutExercises] = useState<Record<string, any[]>>({});
 
-  // Inline editing state
-  const [editingExercise, setEditingExercise] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<Record<string, any>>({});
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  // Workout editor modal
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorWorkoutId, setEditorWorkoutId] = useState("");
+  const [editorWorkoutName, setEditorWorkoutName] = useState("");
 
-  // Workout rename
-  const [editingWorkoutName, setEditingWorkoutName] = useState<string | null>(null);
-  const [workoutNameEdit, setWorkoutNameEdit] = useState("");
+  // Workout selection for bulk actions
+  const [selectedWorkouts, setSelectedWorkouts] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
 
-  // Add exercise dialog
-  const [addExerciseWorkoutId, setAddExerciseWorkoutId] = useState<string | null>(null);
-  const [exerciseSearch, setExerciseSearch] = useState("");
-  const [exerciseResults, setExerciseResults] = useState<any[]>([]);
-  const [searchingExercises, setSearchingExercises] = useState(false);
-
-  // Replace exercise dialog
-  const [replacingExercise, setReplacingExercise] = useState<{ id: string; workoutId: string } | null>(null);
+  // Phase editing
+  const [editingPhase, setEditingPhase] = useState<string | null>(null);
+  const [phaseNameEdit, setPhaseNameEdit] = useState("");
 
   // Assign dialog
   const [showAssign, setShowAssign] = useState(false);
@@ -79,9 +74,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Detach confirm
   const [showDetach, setShowDetach] = useState(false);
 
-  // Phase editing
-  const [editingPhase, setEditingPhase] = useState<string | null>(null);
-  const [phaseNameEdit, setPhaseNameEdit] = useState("");
+  // Delete confirm
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; names: string[] } | null>(null);
 
   useEffect(() => { loadClientProgram(); }, [clientId, user]);
 
@@ -89,16 +83,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!clientId || !user) return;
     setLoading(true);
 
-    const { data: assignData, error: assignErr } = await supabase
+    const { data: assignData } = await supabase
       .from("client_program_assignments").select("*")
       .eq("client_id", clientId).eq("status", "active")
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
-    if (assignErr) {
-      toast({ title: "Error", description: assignErr.message, variant: "destructive" });
-      setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
-      setLoading(false); return;
-    }
     if (!assignData) {
       setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
       setLoading(false); return;
@@ -156,134 +145,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setLoading(false);
   };
 
-  const loadWorkoutExercises = async (workoutId: string) => {
-    if (workoutExercises[workoutId]) { setExpandedWorkout(expandedWorkout === workoutId ? null : workoutId); return; }
-    const { data } = await supabase.from("workout_exercises")
-      .select("*, exercises(name, primary_muscle, youtube_thumbnail)").eq("workout_id", workoutId).order("exercise_order");
-    setWorkoutExercises(prev => ({ ...prev, [workoutId]: data || [] }));
-    setExpandedWorkout(workoutId);
-  };
-
-  // ── Inline exercise editing ──
-  const startEditExercise = (ex: any) => {
+  const openWorkoutEditor = (pw: ProgramWorkout) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    setEditingExercise(ex.id);
-    setEditValues({ sets: ex.sets, reps: ex.reps, rest_seconds: ex.rest_seconds, tempo: ex.tempo || "" });
-  };
-
-  const saveExerciseEdit = useCallback(async (exId: string, values: Record<string, any>) => {
-    const { error } = await supabase.from("workout_exercises").update({
-      sets: parseInt(values.sets) || 0, reps: values.reps,
-      rest_seconds: parseInt(values.rest_seconds) || 0, tempo: values.tempo || null,
-    }).eq("id", exId);
-    if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    else {
-      setWorkoutExercises(prev => {
-        const updated = { ...prev };
-        for (const wid of Object.keys(updated)) {
-          updated[wid] = updated[wid].map(e => e.id === exId ? { ...e, ...values } : e);
-        }
-        return updated;
-      });
-    }
-  }, [toast]);
-
-  const handleEditChange = (field: string, value: string) => {
-    const newValues = { ...editValues, [field]: value };
-    setEditValues(newValues);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      if (editingExercise) saveExerciseEdit(editingExercise, newValues);
-    }, 500);
-  };
-
-  const finishEdit = () => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (editingExercise) saveExerciseEdit(editingExercise, editValues);
-    setEditingExercise(null);
-  };
-
-  const deleteExercise = async (exId: string, workoutId: string) => {
-    if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    await supabase.from("workout_exercises").delete().eq("id", exId);
-    setWorkoutExercises(prev => ({ ...prev, [workoutId]: (prev[workoutId] || []).filter(e => e.id !== exId) }));
-    toast({ title: "Exercise removed" });
-  };
-
-  // ── Rename workout ──
-  const renameWorkout = async (workoutId: string, newName: string) => {
-    if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    await supabase.from("workouts").update({ name: newName }).eq("id", workoutId);
-    // Update local state
-    setPhases(prev => prev.map(p => ({
-      ...p,
-      directWorkouts: p.directWorkouts.map(w => w.workout_id === workoutId ? { ...w, workout_name: newName } : w),
-    })));
-    setWeeks(prev => prev.map(w => ({
-      ...w,
-      workouts: w.workouts.map(pw => pw.workout_id === workoutId ? { ...pw, workout_name: newName } : pw),
-    })));
-    setEditingWorkoutName(null);
-    toast({ title: "Workout renamed" });
-  };
-
-  // ── Reorder exercises ──
-  const moveExercise = async (workoutId: string, exId: string, direction: "up" | "down") => {
-    if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    const exs = workoutExercises[workoutId] || [];
-    const idx = exs.findIndex(e => e.id === exId);
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= exs.length) return;
-    await Promise.all([
-      supabase.from("workout_exercises").update({ exercise_order: swapIdx }).eq("id", exs[idx].id),
-      supabase.from("workout_exercises").update({ exercise_order: idx }).eq("id", exs[swapIdx].id),
-    ]);
-    const newExs = [...exs];
-    [newExs[idx], newExs[swapIdx]] = [newExs[swapIdx], newExs[idx]];
-    setWorkoutExercises(prev => ({ ...prev, [workoutId]: newExs }));
-  };
-
-  // ── Add exercise ──
-  const searchExercises = async (query: string) => {
-    setExerciseSearch(query);
-    if (query.length < 2) { setExerciseResults([]); return; }
-    setSearchingExercises(true);
-    const { data } = await supabase.from("exercises").select("id, name, primary_muscle, youtube_thumbnail")
-      .ilike("name", `%${query}%`).limit(20);
-    setExerciseResults(data || []);
-    setSearchingExercises(false);
-  };
-
-  const addExerciseToWorkout = async (exerciseId: string, exerciseName: string, workoutId: string) => {
-    if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    const existingCount = (workoutExercises[workoutId] || []).length;
-    const { data, error } = await supabase.from("workout_exercises").insert({
-      workout_id: workoutId, exercise_id: exerciseId, exercise_order: existingCount,
-      sets: 3, reps: "10", rest_seconds: 90,
-    }).select("*, exercises(name, primary_muscle, youtube_thumbnail)").single();
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    setWorkoutExercises(prev => ({ ...prev, [workoutId]: [...(prev[workoutId] || []), data] }));
-    toast({ title: `Added ${exerciseName}` });
-    setAddExerciseWorkoutId(null);
-    setExerciseSearch("");
-    setExerciseResults([]);
-  };
-
-  // ── Replace exercise ──
-  const replaceExercise = async (newExerciseId: string, newExerciseName: string) => {
-    if (!replacingExercise) return;
-    const { error } = await supabase.from("workout_exercises")
-      .update({ exercise_id: newExerciseId }).eq("id", replacingExercise.id);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    // Reload exercises for that workout
-    const { data } = await supabase.from("workout_exercises")
-      .select("*, exercises(name, primary_muscle, youtube_thumbnail)")
-      .eq("workout_id", replacingExercise.workoutId).order("exercise_order");
-    setWorkoutExercises(prev => ({ ...prev, [replacingExercise.workoutId]: data || [] }));
-    toast({ title: `Replaced with ${newExerciseName}` });
-    setReplacingExercise(null);
-    setExerciseSearch("");
-    setExerciseResults([]);
+    setEditorWorkoutId(pw.workout_id);
+    setEditorWorkoutName(pw.workout_name);
+    setEditorOpen(true);
   };
 
   // ── Duplicate workout day ──
@@ -300,7 +166,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     } as any).select().single();
     if (!newW) return;
     const { data: exes } = await supabase.from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
+      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
       .eq("workout_id", pw.workout_id);
     if (exes && exes.length > 0) {
       await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
@@ -310,6 +176,18 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       day_label: `${pw.day_label} (Copy)`, sort_order: 99,
     });
     toast({ title: "Workout duplicated" });
+    loadClientProgram();
+  };
+
+  // ── Delete workouts ──
+  const deleteWorkouts = async (programWorkoutIds: string[]) => {
+    for (const pwId of programWorkoutIds) {
+      await supabase.from("program_workouts").delete().eq("id", pwId);
+    }
+    toast({ title: `${programWorkoutIds.length} workout(s) deleted` });
+    setSelectedWorkouts(new Set());
+    setSelectionMode(false);
+    setDeleteTarget(null);
     loadClientProgram();
   };
 
@@ -368,7 +246,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           } as any).select().single();
           if (!clientW) return null;
           const { data: exes } = await supabase.from("workout_exercises")
-            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
+            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
             .eq("workout_id", sourceWorkoutId);
           if (exes && exes.length > 0) {
             await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
@@ -443,13 +321,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const duplicatePhase = async (phase: Phase) => {
     if (!program) return;
-    const { data: newPhase } = await supabase.from("program_phases").insert({
+    await supabase.from("program_phases").insert({
       program_id: program.id, name: `${phase.name} (Copy)`, description: phase.description,
       phase_order: phases.length + 1, duration_weeks: phase.duration_weeks,
       training_style: phase.training_style, intensity_system: phase.intensity_system,
       progression_rule: phase.progression_rule,
-    }).select().single();
-    if (newPhase) { toast({ title: "Phase duplicated" }); loadClientProgram(); }
+    });
+    toast({ title: "Phase duplicated" }); loadClientProgram();
   };
 
   const deletePhase = async (phaseId: string) => {
@@ -479,110 +357,56 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     else action();
   };
 
-  // ── Workout card with rename + actions ──
+  const toggleWorkoutSelection = (pwId: string) => {
+    setSelectedWorkouts(prev => {
+      const next = new Set(prev);
+      if (next.has(pwId)) next.delete(pwId);
+      else next.add(pwId);
+      return next;
+    });
+  };
+
+  const allWorkouts = phases.flatMap(p => p.directWorkouts);
+
+  // ── Workout card ──
   const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string) => (
-    <div key={pw.id}>
-      <div className="flex items-center justify-between p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors">
-        <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => loadWorkoutExercises(pw.workout_id)}>
-          <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
-            <Dumbbell className="h-4 w-4 text-primary" />
-          </div>
-          <div className="min-w-0 flex-1">
-            {editingWorkoutName === pw.workout_id ? (
-              <Input autoFocus value={workoutNameEdit}
-                onChange={e => setWorkoutNameEdit(e.target.value)}
-                onBlur={() => renameWorkout(pw.workout_id, workoutNameEdit)}
-                onKeyDown={e => { if (e.key === "Enter") renameWorkout(pw.workout_id, workoutNameEdit); e.stopPropagation(); }}
-                onClick={e => e.stopPropagation()} className="h-6 text-sm w-48" />
-            ) : (
-              <p className="text-sm font-medium truncate">{pw.workout_name}</p>
-            )}
-            <p className="text-[10px] text-muted-foreground">{pw.day_label}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={e => { e.stopPropagation(); guardEdit(() => { setEditingWorkoutName(pw.workout_id); setWorkoutNameEdit(pw.workout_name); }); }}>
-            <Edit2 className="h-2.5 w-2.5" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={e => { e.stopPropagation(); guardEdit(() => duplicateWorkout(pw, phaseId)); }}>
-            <Copy className="h-2.5 w-2.5" />
-          </Button>
-          {phases.length > 1 && (
-            <Select onValueChange={v => { guardEdit(() => moveWorkoutToPhase(pw.id, v)); }}>
-              <SelectTrigger className="h-6 w-6 p-0 border-0 [&>svg]:hidden">
-                <ArrowUp className="h-2.5 w-2.5" />
-              </SelectTrigger>
-              <SelectContent>
-                {phases.filter(p => p.id !== phaseId).map(p => (
-                  <SelectItem key={p.id} value={p.id}>Move to {p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground cursor-pointer" onClick={() => loadWorkoutExercises(pw.workout_id)} />
-        </div>
-      </div>
-      {expandedWorkout === pw.workout_id && workoutExercises[pw.workout_id] && (
-        <div className="ml-4 mt-2 space-y-1">
-          {workoutExercises[pw.workout_id].map((ex: any) => renderExerciseRow(ex, pw.workout_id))}
-          <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground mt-1"
-            onClick={() => guardEdit(() => { setAddExerciseWorkoutId(pw.workout_id); setExerciseSearch(""); setExerciseResults([]); })}>
-            <Plus className="h-3 w-3 mr-1" /> Add Exercise
-          </Button>
-        </div>
+    <div key={pw.id} className="flex items-center gap-2 p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors group">
+      {selectionMode && (
+        <Checkbox checked={selectedWorkouts.has(pw.id)} onCheckedChange={() => toggleWorkoutSelection(pw.id)} className="shrink-0" />
       )}
+      <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
+        <Dumbbell className="h-4 w-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+        <p className="text-[10px] text-muted-foreground">{pw.day_label}</p>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openWorkoutEditor(pw)} title="Edit workout">
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => guardEdit(() => duplicateWorkout(pw, phaseId))} title="Duplicate">
+          <Copy className="h-3 w-3" />
+        </Button>
+        {phases.length > 1 && (
+          <Select onValueChange={v => guardEdit(() => moveWorkoutToPhase(pw.id, v))}>
+            <SelectTrigger className="h-7 w-7 p-0 border-0 [&>svg]:hidden" title="Move to phase">
+              <ArrowUp className="h-3 w-3" />
+            </SelectTrigger>
+            <SelectContent>
+              {phases.filter(p => p.id !== phaseId).map(p => (
+                <SelectItem key={p.id} value={p.id}>Move to {p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive"
+          onClick={() => guardEdit(() => setDeleteTarget({ ids: [pw.id], names: [pw.workout_name] }))} title="Delete">
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
     </div>
   );
-
-  // ── Exercise row renderer ──
-  const renderExerciseRow = (ex: any, workoutId: string) => {
-    const isEditing = editingExercise === ex.id;
-    return (
-      <div key={ex.id} className="flex items-center gap-2 py-2 px-3 border-l-2 border-primary/20 group">
-        <div className="flex flex-col gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button className="p-0.5 hover:bg-muted rounded" onClick={() => moveExercise(workoutId, ex.id, "up")}><ArrowUp className="h-2.5 w-2.5 text-muted-foreground" /></button>
-          <button className="p-0.5 hover:bg-muted rounded" onClick={() => moveExercise(workoutId, ex.id, "down")}><ArrowDown className="h-2.5 w-2.5 text-muted-foreground" /></button>
-        </div>
-        {ex.exercises?.youtube_thumbnail ? (
-          <img src={ex.exercises.youtube_thumbnail} alt="" className="w-8 h-6 rounded object-cover shrink-0" />
-        ) : (
-          <div className="w-8 h-6 rounded bg-muted flex items-center justify-center shrink-0"><Dumbbell className="h-3 w-3 text-muted-foreground" /></div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium truncate">{ex.exercises?.name || "Exercise"}</p>
-          {isEditing ? (
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <Input className="h-6 w-12 text-[10px] px-1" value={editValues.sets}
-                onChange={e => handleEditChange("sets", e.target.value)} placeholder="Sets" />
-              <span className="text-[10px] text-muted-foreground">×</span>
-              <Input className="h-6 w-14 text-[10px] px-1" value={editValues.reps}
-                onChange={e => handleEditChange("reps", e.target.value)} placeholder="Reps" />
-              <Input className="h-6 w-16 text-[10px] px-1" value={editValues.tempo}
-                onChange={e => handleEditChange("tempo", e.target.value)} placeholder="Tempo" />
-              <Input className="h-6 w-14 text-[10px] px-1" value={editValues.rest_seconds}
-                onChange={e => handleEditChange("rest_seconds", e.target.value)} placeholder="Rest" />
-              <span className="text-[10px] text-muted-foreground">s</span>
-              <Button size="icon" variant="ghost" className="h-5 w-5" onClick={finishEdit}><Save className="h-2.5 w-2.5 text-green-500" /></Button>
-            </div>
-          ) : (
-            <p className="text-[10px] text-muted-foreground">
-              {ex.sets} sets × {ex.reps}{ex.tempo ? ` · ${ex.tempo}` : ""}{ex.rest_seconds ? ` · ${ex.rest_seconds}s rest` : ""}
-            </p>
-          )}
-        </div>
-        {ex.superset_group && <Badge variant="outline" className="text-[9px]">{ex.superset_group}</Badge>}
-        {!isEditing && (
-          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEditExercise(ex)}><Edit2 className="h-2.5 w-2.5" /></Button>
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => guardEdit(() => { setReplacingExercise({ id: ex.id, workoutId }); setExerciseSearch(""); setExerciseResults([]); })} title="Replace exercise">
-              <Replace className="h-2.5 w-2.5" />
-            </Button>
-            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteExercise(ex.id, workoutId)}><Trash2 className="h-2.5 w-2.5" /></Button>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   if (loading) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>;
 
@@ -636,6 +460,24 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         </CardContent>
       </Card>
 
+      {/* Selection toolbar */}
+      {selectionMode && selectedWorkouts.size > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <span className="text-sm font-medium">{selectedWorkouts.size} selected</span>
+          <div className="flex-1" />
+          <Button size="sm" variant="outline" className="h-8 text-xs"
+            onClick={() => {
+              const names = allWorkouts.filter(w => selectedWorkouts.has(w.id)).map(w => w.workout_name);
+              guardEdit(() => setDeleteTarget({ ids: Array.from(selectedWorkouts), names }));
+            }}>
+            <Trash2 className="h-3 w-3 mr-1" /> Delete
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSelectionMode(false); setSelectedWorkouts(new Set()); }}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
       {/* Phases */}
       {phases.map((phase, phaseIdx) => {
         const phaseWeeks = weeks.filter(w => w.phase_id === phase.id);
@@ -670,6 +512,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phase.id, "down")} disabled={phaseIdx === phases.length - 1}><ArrowDown className="h-3 w-3" /></Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => guardEdit(() => { setEditingPhase(phase.id); setPhaseNameEdit(phase.name); })}><Edit2 className="h-3 w-3" /></Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => duplicatePhase(phase)}><Copy className="h-3 w-3" /></Button>
+                {!selectionMode && (
+                  <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2"
+                    onClick={() => { setSelectionMode(true); setSelectedWorkouts(new Set()); }}>
+                    Select
+                  </Button>
+                )}
                 {phases.length > 1 && (
                   <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => guardEdit(() => deletePhase(phase.id))}><Trash2 className="h-3 w-3" /></Button>
                 )}
@@ -677,7 +525,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
             </div>
 
             {isExpanded && (
-              <CardContent className="pt-0 space-y-3 pb-4">
+              <CardContent className="pt-0 space-y-2 pb-4">
                 {phase.directWorkouts.map(pw => renderWorkoutCard(pw, phase.id))}
 
                 {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
@@ -736,71 +584,34 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Exercise Dialog */}
-      <Dialog open={!!addExerciseWorkoutId} onOpenChange={open => { if (!open) setAddExerciseWorkoutId(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Add Exercise</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search exercises..." value={exerciseSearch}
-                onChange={e => searchExercises(e.target.value)} />
-            </div>
-            <div className="max-h-60 overflow-y-auto space-y-1">
-              {searchingExercises && <p className="text-xs text-muted-foreground text-center py-2">Searching...</p>}
-              {exerciseResults.map(ex => (
-                <button key={ex.id}
-                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 text-left transition-colors"
-                  onClick={() => addExerciseWorkoutId && addExerciseToWorkout(ex.id, ex.name, addExerciseWorkoutId)}>
-                  {ex.youtube_thumbnail ? (
-                    <img src={ex.youtube_thumbnail} alt="" className="w-10 h-7 rounded object-cover" />
-                  ) : (
-                    <div className="w-10 h-7 rounded bg-muted flex items-center justify-center"><Dumbbell className="h-3.5 w-3.5 text-muted-foreground" /></div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">{ex.name}</p>
-                    {ex.primary_muscle && <p className="text-[10px] text-muted-foreground">{ex.primary_muscle}</p>}
-                  </div>
-                </button>
-              ))}
-              {exerciseSearch.length >= 2 && !searchingExercises && exerciseResults.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">No exercises found</p>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workout{(deleteTarget?.ids.length ?? 0) > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.names.map((n, i) => <span key={i} className="block text-sm font-medium">{n}</span>)}
+              <span className="block mt-2">This cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTarget && deleteWorkouts(deleteTarget.ids)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
-      {/* Replace Exercise Dialog */}
-      <Dialog open={!!replacingExercise} onOpenChange={open => { if (!open) setReplacingExercise(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Replace Exercise</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search replacement..." value={exerciseSearch}
-                onChange={e => searchExercises(e.target.value)} />
-            </div>
-            <div className="max-h-60 overflow-y-auto space-y-1">
-              {exerciseResults.map(ex => (
-                <button key={ex.id}
-                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 text-left transition-colors"
-                  onClick={() => replaceExercise(ex.id, ex.name)}>
-                  {ex.youtube_thumbnail ? (
-                    <img src={ex.youtube_thumbnail} alt="" className="w-10 h-7 rounded object-cover" />
-                  ) : (
-                    <div className="w-10 h-7 rounded bg-muted flex items-center justify-center"><Dumbbell className="h-3.5 w-3.5 text-muted-foreground" /></div>
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">{ex.name}</p>
-                    {ex.primary_muscle && <p className="text-[10px] text-muted-foreground">{ex.primary_muscle}</p>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Full-screen Workout Editor Modal */}
+      <ClientWorkoutEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSaved={() => loadClientProgram()}
+        workoutId={editorWorkoutId}
+        workoutName={editorWorkoutName}
+        clientId={clientId}
+      />
     </div>
   );
 };
