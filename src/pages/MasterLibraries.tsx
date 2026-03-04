@@ -6,16 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, Search, FolderOpen, Layers, Trash2, Copy, MoreHorizontal,
-  Users, Link2, Unlink, RefreshCw, History, Dumbbell,
+  Users, Link2, Unlink, RefreshCw, History, Dumbbell, UtensilsCrossed,
+  Apple, ListChecks, FileText, Target,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -27,6 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import ProgramDetailView from "@/components/training/ProgramDetailView";
 import ProgramBuilder from "@/components/training/ProgramBuilder";
+import ExerciseLibrary from "@/components/libraries/ExerciseLibrary";
 import { format } from "date-fns";
 
 const GOAL_LABELS: Record<string, string> = {
@@ -38,6 +41,7 @@ const GOAL_LABELS: Record<string, string> = {
 const MasterLibraries = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("programs");
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -109,16 +113,12 @@ const MasterLibraries = () => {
       .eq("coach_id", user.id)
       .eq("status", "active");
     if (error || !data) return;
-    
-    // Fetch profiles separately to avoid FK join issues
     const clientIds = data.map((d: any) => d.client_id);
     if (clientIds.length === 0) { setClients([]); return; }
-    
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name")
       .in("user_id", clientIds);
-    
     const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
     setClients(clientIds.map((id: string) => ({ id, name: profileMap.get(id) || id.slice(0, 8) })));
   };
@@ -141,7 +141,6 @@ const MasterLibraries = () => {
       } as any).select().single();
       if (error) throw error;
 
-      // Clone phases and workouts
       const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", programId).order("phase_order");
       for (const phase of (phaseRows || [])) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
@@ -242,7 +241,6 @@ const MasterLibraries = () => {
       if (!source) throw new Error("Program not found");
       const isLinked = assignMode === "subscribe";
 
-      // Create client program copy
       const { data: newProg, error } = await supabase.from("programs").insert({
         coach_id: user.id, client_id: selectedClientId, name: source.name, description: source.description,
         goal_type: source.goal_type, start_date: startDate, is_template: false, is_master: false,
@@ -250,7 +248,6 @@ const MasterLibraries = () => {
       } as any).select().single();
       if (error) throw error;
 
-      // Clone phases and workouts
       const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", assignProgramId).order("phase_order");
       let firstPhaseId: string | null = null;
 
@@ -263,7 +260,6 @@ const MasterLibraries = () => {
         }).select().single();
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-        // Clone workouts linked to this phase
         const { data: pws } = await supabase.from("program_workouts")
           .select("workout_id, day_of_week, day_label, sort_order")
           .eq("phase_id", phase.id);
@@ -294,7 +290,6 @@ const MasterLibraries = () => {
         }
       }
 
-      // Deactivate old assignments
       await supabase.from("client_program_assignments").update({ status: "completed" })
         .eq("client_id", selectedClientId).eq("status", "active");
 
@@ -319,7 +314,6 @@ const MasterLibraries = () => {
     }
   };
 
-  // If creating/editing program
   if (showBuilder) {
     return (
       <AppLayout>
@@ -334,137 +328,170 @@ const MasterLibraries = () => {
     );
   }
 
+  const ComingSoon = ({ label }: { label: string }) => (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+        <Target className="h-6 w-6 text-muted-foreground/40" />
+      </div>
+      <h3 className="text-base font-semibold text-muted-foreground">{label}</h3>
+      <p className="text-xs text-muted-foreground/70 mt-1">Coming soon.</p>
+    </div>
+  );
+
   return (
     <AppLayout>
-      <div className="animate-fade-in h-[calc(100vh-4rem)]">
-        <div className="flex h-full">
-          {/* LEFT SIDEBAR — Program List */}
-          <div className="w-80 border-r flex flex-col flex-shrink-0">
-            <div className="p-4 border-b space-y-3">
-              <div className="flex items-center justify-between">
-                <h1 className="font-display text-lg font-bold text-foreground">Master Libraries</h1>
-                <Button size="sm" onClick={() => setShowBuilder(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> New Program
-                </Button>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search programs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-8 text-xs"
-                />
+      <div className="animate-fade-in space-y-4">
+        <h1 className="font-display text-2xl font-bold text-foreground">Master Libraries</h1>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="programs" className="gap-1.5 text-xs"><Layers className="h-3.5 w-3.5" /> Programs</TabsTrigger>
+            <TabsTrigger value="exercises" className="gap-1.5 text-xs"><Dumbbell className="h-3.5 w-3.5" /> Exercises</TabsTrigger>
+            <TabsTrigger value="meals" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> Meals</TabsTrigger>
+            <TabsTrigger value="foods" className="gap-1.5 text-xs"><Apple className="h-3.5 w-3.5" /> Foods</TabsTrigger>
+            <TabsTrigger value="habits" className="gap-1.5 text-xs"><ListChecks className="h-3.5 w-3.5" /> Habits</TabsTrigger>
+            <TabsTrigger value="forms" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" /> Forms</TabsTrigger>
+          </TabsList>
+
+          {/* Programs Tab */}
+          <TabsContent value="programs" className="mt-4">
+            <div className="h-[calc(100vh-12rem)]">
+              <div className="flex h-full">
+                {/* LEFT SIDEBAR */}
+                <div className="w-80 border-r flex flex-col flex-shrink-0">
+                  <div className="p-4 border-b space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="font-semibold text-sm text-foreground">Programs</h2>
+                      <Button size="sm" onClick={() => setShowBuilder(true)}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> New
+                      </Button>
+                    </div>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input placeholder="Search programs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 text-xs" />
+                    </div>
+                  </div>
+
+                  <ScrollArea className="flex-1">
+                    <div className="p-2 space-y-1">
+                      {loading ? (
+                        Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
+                      ) : filteredPrograms.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                          <FolderOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                          <p className="text-sm text-muted-foreground">No programs yet.</p>
+                        </div>
+                      ) : (
+                        filteredPrograms.map((program) => (
+                          <button
+                            key={program.id}
+                            onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
+                            className={`w-full text-left p-3 rounded-lg border transition-colors group ${
+                              selectedProgramId === program.id
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                                : "border-transparent hover:bg-muted/50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{program.name}</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {program.is_master && (
+                                    <Badge className="text-[9px] px-1 py-0 bg-primary/20 text-primary gap-0.5">
+                                      <Link2 className="h-2 w-2" /> Master
+                                    </Badge>
+                                  )}
+                                  {phaseCounts[program.id] > 0 && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
+                                      <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
+                                    </Badge>
+                                  )}
+                                  {program.duration_weeks && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
+                                  )}
+                                  {linkedCounts[program.id] > 0 && (
+                                    <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
+                                      <Users className="h-2 w-2" /> {linkedCounts[program.id]}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <div
+                                    role="button"
+                                    className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
+                                  </div>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
+                                    <Users className="h-3.5 w-3.5 mr-2" /> Assign
+                                  </DropdownMenuItem>
+                                  {linkedCounts[program.id] > 0 && (
+                                    <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
+                                      <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
+                                    <History className="h-3.5 w-3.5 mr-2" /> Versions
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
+                                    {program.is_master ? <Unlink className="h-3.5 w-3.5 mr-2" /> : <Link2 className="h-3.5 w-3.5 mr-2" />}
+                                    {program.is_master ? "Unmark Master" : "Mark as Master"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
+                                    <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* RIGHT PANEL */}
+                <div className="flex-1 overflow-auto">
+                  {selectedProgramId ? (
+                    <div className="p-6">
+                      <ProgramDetailView
+                        programId={selectedProgramId}
+                        programName={selectedProgramName}
+                        onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <Dumbbell className="h-16 w-16 text-muted-foreground/20 mb-4" />
+                      <h3 className="text-lg font-semibold text-muted-foreground">Select a Program</h3>
+                      <p className="text-sm text-muted-foreground/70 mt-1">Choose a program from the sidebar or create a new one.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          </TabsContent>
 
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
-                ) : filteredPrograms.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                    <FolderOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">No programs yet.</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">Click "New Program" to create one.</p>
-                  </div>
-                ) : (
-                  filteredPrograms.map((program) => (
-                    <button
-                      key={program.id}
-                      onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
-                      className={`w-full text-left p-3 rounded-lg border transition-colors group ${
-                        selectedProgramId === program.id
-                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                          : "border-transparent hover:bg-muted/50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{program.name}</p>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {program.is_master && (
-                              <Badge className="text-[9px] px-1 py-0 bg-primary/20 text-primary gap-0.5">
-                                <Link2 className="h-2 w-2" /> Master
-                              </Badge>
-                            )}
-                            {phaseCounts[program.id] > 0 && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
-                                <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
-                              </Badge>
-                            )}
-                            {program.duration_weeks && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
-                            )}
-                            {linkedCounts[program.id] > 0 && (
-                              <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
-                                <Users className="h-2 w-2" /> {linkedCounts[program.id]}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <div
-                              role="button"
-                              className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </div>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
-                              <Users className="h-3.5 w-3.5 mr-2" /> Assign
-                            </DropdownMenuItem>
-                            {linkedCounts[program.id] > 0 && (
-                              <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
-                                <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
-                              <History className="h-3.5 w-3.5 mr-2" /> Versions
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
-                              {program.is_master ? <Unlink className="h-3.5 w-3.5 mr-2" /> : <Link2 className="h-3.5 w-3.5 mr-2" />}
-                              {program.is_master ? "Unmark Master" : "Mark as Master"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
-                              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
-                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+          {/* Exercises Tab */}
+          <TabsContent value="exercises" className="mt-4">
+            <ExerciseLibrary />
+          </TabsContent>
 
-          {/* RIGHT PANEL — Program Detail / Builder */}
-          <div className="flex-1 overflow-auto">
-            {selectedProgramId ? (
-              <div className="p-6">
-                <ProgramDetailView
-                  programId={selectedProgramId}
-                  programName={selectedProgramName}
-                  onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Dumbbell className="h-16 w-16 text-muted-foreground/20 mb-4" />
-                <h3 className="text-lg font-semibold text-muted-foreground">Select a Program</h3>
-                <p className="text-sm text-muted-foreground/70 mt-1">Choose a program from the sidebar or create a new one.</p>
-              </div>
-            )}
-          </div>
-        </div>
+          {/* Placeholder Tabs */}
+          <TabsContent value="meals"><ComingSoon label="Meal Templates" /></TabsContent>
+          <TabsContent value="foods"><ComingSoon label="Food Database" /></TabsContent>
+          <TabsContent value="habits"><ComingSoon label="Habits Library" /></TabsContent>
+          <TabsContent value="forms"><ComingSoon label="Forms Library" /></TabsContent>
+        </Tabs>
       </div>
 
       {/* Assign Dialog */}
@@ -472,7 +499,6 @@ const MasterLibraries = () => {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Assign Program to Client</DialogTitle>
-            <DialogDescription>Choose how to assign this program.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -513,7 +539,6 @@ const MasterLibraries = () => {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Push Master Update</DialogTitle>
-            <DialogDescription>Sync latest structure to linked clients.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -524,7 +549,7 @@ const MasterLibraries = () => {
               <Label className="text-sm">{linkedClients.length} linked client(s)</Label>
               {linkedClients.map(c => (
                 <label key={c.assignmentId} className="flex items-center gap-2 p-2 rounded border hover:bg-muted/30 cursor-pointer">
-                  <input type="checkbox" checked={selectedPushClients.includes(c.assignmentId)} onChange={(e) => setSelectedPushClients(prev => e.target.checked ? [...prev, c.assignmentId] : prev.filter(id => id !== c.assignmentId))} className="rounded" />
+                  <input type="checkbox" checked={selectedPushClients.includes(c.assignmentId)} onChange={(e) => setSelectedPushClients(prev => e.target.checked ? [...prev, c.assignmentId] : prev.filter((id: string) => id !== c.assignmentId))} className="rounded" />
                   <span className="text-sm flex-1">{c.name}</span>
                   <Badge variant="outline" className="text-[10px]">v{c.currentVersion}</Badge>
                 </label>
