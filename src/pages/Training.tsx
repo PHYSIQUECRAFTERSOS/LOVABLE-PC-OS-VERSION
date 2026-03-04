@@ -32,13 +32,56 @@ const Training = () => {
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
-      const col = role === "coach" ? "coach_id" : "client_id";
-      const { data, error } = await supabase
+      if (role === "coach") {
+        const { data, error } = await supabase
+          .from("workouts")
+          .select("id, name, description, phase, is_template, instructions")
+          .eq("coach_id", user.id)
+          .abortSignal(signal);
+        if (error) throw error;
+        return data || [];
+      }
+      // Client: only show workouts from assigned programs (no duplicates)
+      const { data: assignments } = await supabase
+        .from("client_program_assignments")
+        .select("program_id")
+        .eq("client_id", user.id)
+        .in("status", ["active", "subscribed"])
+        .abortSignal(signal);
+
+      if (assignments && assignments.length > 0) {
+        const programIds = assignments.map(a => a.program_id);
+        // Get phases for these programs
+        const { data: phases } = await supabase
+          .from("program_phases")
+          .select("id")
+          .in("program_id", programIds);
+        const phaseIds = (phases || []).map(p => p.id);
+
+        // Get workout IDs from program_workouts
+        const { data: pws } = await supabase
+          .from("program_workouts")
+          .select("workout_id")
+          .in("phase_id", phaseIds);
+        const workoutIds = [...new Set((pws || []).map(pw => pw.workout_id))];
+
+        if (workoutIds.length > 0) {
+          const { data, error: wErr } = await supabase
+            .from("workouts")
+            .select("id, name, description, phase, is_template, instructions")
+            .in("id", workoutIds)
+            .abortSignal(signal);
+          if (wErr) throw wErr;
+          return data || [];
+        }
+      }
+      // Fallback: direct client_id workouts
+      const { data, error: fErr } = await supabase
         .from("workouts")
         .select("id, name, description, phase, is_template, instructions")
-        .eq(col, user.id)
+        .eq("client_id", user.id)
         .abortSignal(signal);
-      if (error) throw error;
+      if (fErr) throw fErr;
       return data || [];
     },
   });
@@ -66,7 +109,12 @@ const Training = () => {
           setNumber: idx + 1, weight: undefined, reps: undefined, tempo: undefined, rir: undefined, notes: undefined,
         })),
       }));
-      const workout = workouts.find(w => w.id === workoutId);
+      // Try to find workout name from workouts list or fetch it
+      let workout = workouts.find(w => w.id === workoutId);
+      if (!workout) {
+        const { data: w } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).maybeSingle();
+        workout = w;
+      }
       setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs });
       setShowLogger(true);
     }
