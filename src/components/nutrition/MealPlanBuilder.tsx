@@ -636,6 +636,13 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
         onOpenChange={setTemplateModalOpen}
         onImport={handleImportDays}
       />
+
+      <AdjustMacrosModal
+        open={adjustMacrosOpen}
+        onOpenChange={setAdjustMacrosOpen}
+        days={days}
+        onApply={(newDays) => setDays(newDays)}
+      />
     </div>
   );
 };
