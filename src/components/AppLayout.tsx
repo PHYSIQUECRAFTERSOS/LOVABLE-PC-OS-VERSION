@@ -41,6 +41,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { role, roleLoading, signOut, user } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
 
   // Never render layout until role is confirmed — prevents cross-rendering
   if (roleLoading || !role) {
