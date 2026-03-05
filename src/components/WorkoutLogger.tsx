@@ -79,6 +79,7 @@ interface WorkoutLoggerProps {
   workoutInstructions?: string | null;
   exercises: ExerciseLogForm[];
   onComplete?: () => void;
+  resumeSessionId?: string | null;
 }
 
 const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete }: WorkoutLoggerProps) => {
