@@ -4392,8 +4392,13 @@ export type Database = {
           client_id: string
           completed_at: string | null
           created_at: string
+          duration_seconds: number | null
           id: string
           notes: string | null
+          pr_count: number | null
+          sets_completed: number | null
+          status: string
+          total_volume: number | null
           updated_at: string
           workout_id: string
         }
@@ -4401,8 +4406,13 @@ export type Database = {
           client_id: string
           completed_at?: string | null
           created_at?: string
+          duration_seconds?: number | null
           id?: string
           notes?: string | null
+          pr_count?: number | null
+          sets_completed?: number | null
+          status?: string
+          total_volume?: number | null
           updated_at?: string
           workout_id: string
         }
@@ -4410,8 +4420,13 @@ export type Database = {
           client_id?: string
           completed_at?: string | null
           created_at?: string
+          duration_seconds?: number | null
           id?: string
           notes?: string | null
+          pr_count?: number | null
+          sets_completed?: number | null
+          status?: string
+          total_volume?: number | null
           updated_at?: string
           workout_id?: string
         }
