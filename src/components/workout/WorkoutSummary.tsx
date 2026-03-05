@@ -1,6 +1,7 @@
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Trophy, Clock, Dumbbell, TrendingUp } from "lucide-react";
+import { Trophy, Clock, Dumbbell, TrendingUp, Flame, Share2, Rocket } from "lucide-react";
 
 interface PRDetail {
   exerciseName: string;
@@ -11,39 +12,66 @@ interface PRDetail {
 
 interface WorkoutSummaryProps {
   workoutName: string;
-  durationMinutes: number;
+  durationSeconds: number;
   totalSets: number;
   completedSets: number;
   totalVolume: number;
   exerciseCount: number;
   prs: PRDetail[];
+  isFirstSession?: boolean;
   onDone: () => void;
 }
 
+const POSITIVE_MESSAGES = [
+  "You showed up. That's what champions do. 🏆",
+  "Another session in the books. Stay consistent. 🔥",
+  "Hard work compounds. You're building something great. 💪",
+  "Rest up, recover, and come back stronger. ✅",
+  "Your future self is grateful for what you just did. 🚀",
+];
+
+const formatDuration = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
 const WorkoutSummary = ({
   workoutName,
-  durationMinutes,
+  durationSeconds,
   totalSets,
   completedSets,
   totalVolume,
   exerciseCount,
   prs,
+  isFirstSession,
   onDone,
 }: WorkoutSummaryProps) => {
+  const message = useMemo(() => {
+    if (isFirstSession) return "First session logged! Every rep from here is progress. Welcome to your journey. 🚀";
+    if (prs.length >= 2) return `You crushed ${prs.length} PRs today! Incredible session. 🔥🏆`;
+    if (prs.length === 1) return "You hit a new PR today! Keep pushing! 💪";
+    return POSITIVE_MESSAGES[Math.floor(Math.random() * POSITIVE_MESSAGES.length)];
+  }, [prs.length, isFirstSession]);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-6 bg-background">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-6 bg-background animate-fade-in">
+      {/* Hero */}
       <div className="text-center space-y-2">
-        <div className="text-5xl">💪</div>
+        <div className="text-5xl">{prs.length > 0 ? "🏆" : "💪"}</div>
         <h1 className="text-2xl font-display font-bold text-foreground">Workout Complete!</h1>
         <p className="text-muted-foreground">{workoutName}</p>
       </div>
 
+      {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
         <Card>
           <CardContent className="p-4 flex flex-col items-center gap-1">
             <Clock className="h-5 w-5 text-primary" />
-            <span className="text-xl font-bold tabular-nums">{durationMinutes}</span>
-            <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Minutes</span>
+            <span className="text-xl font-bold tabular-nums">{formatDuration(durationSeconds)}</span>
+            <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Duration</span>
           </CardContent>
         </Card>
         <Card>
@@ -62,27 +90,25 @@ const WorkoutSummary = ({
         </Card>
         <Card>
           <CardContent className="p-4 flex flex-col items-center gap-1">
-            <Trophy className="h-5 w-5 text-primary" />
-            <span className="text-xl font-bold tabular-nums">{prs.length}</span>
-            <span className="text-[10px] uppercase text-muted-foreground tracking-wider">New PRs</span>
+            <Flame className="h-5 w-5 text-primary" />
+            <span className="text-xl font-bold tabular-nums">{exerciseCount}</span>
+            <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Exercises</span>
           </CardContent>
         </Card>
       </div>
 
+      {/* PR Section */}
       {prs.length > 0 && (
         <Card className="w-full max-w-sm border-primary/30">
           <CardContent className="p-4 space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-primary" /> Personal Records
+              <Trophy className="h-4 w-4 text-primary" /> Personal Records This Session
             </h3>
             {prs.map((pr, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
                 <span className="font-medium">{pr.exerciseName}</span>
                 <span className="text-primary font-bold tabular-nums">
-                  {pr.weight} × {pr.reps}
-                  <span className="text-[10px] text-muted-foreground ml-1 uppercase">
-                    {pr.type === "weight" ? "wt" : pr.type === "rep" ? "rep" : "vol"}
-                  </span>
+                  → {pr.weight} lb × {pr.reps}
                 </span>
               </div>
             ))}
@@ -90,9 +116,19 @@ const WorkoutSummary = ({
         </Card>
       )}
 
-      <Button onClick={onDone} size="lg" className="w-full max-w-sm">
-        Done
-      </Button>
+      {/* Motivational Message */}
+      <p className="text-sm text-muted-foreground text-center max-w-xs">{message}</p>
+
+      {/* Actions */}
+      <div className="w-full max-w-sm space-y-2">
+        <Button variant="outline" className="w-full gap-2" disabled>
+          <Share2 className="h-4 w-4" /> Share Workout
+          <span className="text-[10px] text-muted-foreground ml-auto">Coming Soon</span>
+        </Button>
+        <Button onClick={onDone} size="lg" className="w-full">
+          Done
+        </Button>
+      </div>
     </div>
   );
 };
