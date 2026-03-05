@@ -26,7 +26,7 @@ import {
 import ExerciseCard from "@/components/workout/ExerciseCard";
 import FloatingRestTimer from "@/components/workout/FloatingRestTimer";
 import WorkoutSummary from "@/components/workout/WorkoutSummary";
-import { ExerciseLibrary } from "@/components/training/ExerciseLibrary";
+import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 
 interface ProgressionSettings {
   progressionType: string;
