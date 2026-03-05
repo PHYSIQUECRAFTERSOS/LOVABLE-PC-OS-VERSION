@@ -23,6 +23,7 @@ import {
   Save,
   Users,
   Scale,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -52,7 +53,6 @@ interface MealFood {
   food_name: string;
   brand: string | null;
   gram_amount: number;
-  // per 100g values
   cal_per_100: number;
   protein_per_100: number;
   carbs_per_100: number;
@@ -97,15 +97,17 @@ const uid = () => crypto.randomUUID();
 interface MealPlanBuilderProps {
   forceTemplate?: boolean;
   onSaved?: () => void;
+  /** When provided, locks the builder to this client and loads their existing plan */
+  clientId?: string;
 }
 
-const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) => {
+const MealPlanBuilder = ({ forceTemplate, onSaved, clientId }: MealPlanBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [planName, setPlanName] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
-  const DEFAULT_MEALS: Meal[] = [
+  const DEFAULT_MEALS = (): Meal[] => [
     { id: uid(), name: "Breakfast", foods: [] },
     { id: uid(), name: "Pre-Workout", foods: [] },
     { id: uid(), name: "Post-Workout", foods: [] },
@@ -114,10 +116,13 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
     { id: uid(), name: "Snacks", foods: [] },
   ];
   const [days, setDays] = useState<DayType[]>([
-    { id: uid(), type: "Training Day", meals: DEFAULT_MEALS },
+    { id: uid(), type: "Training Day", meals: DEFAULT_MEALS() },
   ]);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  /** ID of existing meal_plan record being edited */
+  const [existingPlanId, setExistingPlanId] = useState<string | null>(null);
 
   // Search state
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
@@ -130,8 +135,9 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
     if (importedDays.length > 0) setExpandedDay(importedDays[0].id);
   };
 
+  // Load clients for dropdown (only when not locked to a clientId)
   useEffect(() => {
-    if (!user) return;
+    if (!user || clientId || forceTemplate) return;
     supabase
       .from("coach_clients")
       .select("client_id")
@@ -146,7 +152,107 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
           setClients((profiles as Client[]) || []);
         }
       });
-  }, [user]);
+  }, [user, clientId, forceTemplate]);
+
+  // Load existing plan when clientId is provided
+  useEffect(() => {
+    if (!clientId || !user) return;
+    loadExistingPlan(clientId);
+  }, [clientId, user]);
+
+  const loadExistingPlan = async (cId: string) => {
+    setLoadingExisting(true);
+    try {
+      // Find the most recent non-template plan for this client
+      const { data: plans } = await supabase
+        .from("meal_plans")
+        .select("id, name, flexibility_mode, coach_id, updated_at")
+        .eq("client_id", cId)
+        .eq("is_template", false)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!plans || plans.length === 0) {
+        setLoadingExisting(false);
+        return;
+      }
+
+      const plan = plans[0];
+      setExistingPlanId(plan.id);
+      setPlanName(plan.name);
+
+      // Load days
+      const { data: dbDays } = await supabase
+        .from("meal_plan_days")
+        .select("*")
+        .eq("meal_plan_id", plan.id)
+        .order("day_order");
+
+      if (!dbDays || dbDays.length === 0) {
+        setLoadingExisting(false);
+        return;
+      }
+
+      // Load items with food details
+      const { data: items } = await supabase
+        .from("meal_plan_items")
+        .select("*, food_items:food_item_id(name, brand, serving_size, calories, protein, carbs, fat, fiber, sugar)")
+        .eq("meal_plan_id", plan.id)
+        .order("meal_order")
+        .order("item_order");
+
+      // Build DayType[] from DB data
+      const loadedDays: DayType[] = dbDays.map((day) => {
+        const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
+        const mealGroups: Record<string, any[]> = {};
+        dayItems.forEach((item: any) => {
+          const key = `${item.meal_order}::${item.meal_name}`;
+          if (!mealGroups[key]) mealGroups[key] = [];
+          mealGroups[key].push(item);
+        });
+
+        const meals: Meal[] = Object.entries(mealGroups)
+          .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+          .map(([key, groupItems]) => {
+            const mealName = key.split("::").slice(1).join("::");
+            return {
+              id: uid(),
+              name: mealName,
+              foods: groupItems.map((item: any) => {
+                const fi = item.food_items as any;
+                const ss = fi?.serving_size || 100;
+                return {
+                  id: uid(),
+                  food_item_id: item.food_item_id || "",
+                  food_name: item.custom_name || fi?.name || "Unknown",
+                  brand: fi?.brand || null,
+                  gram_amount: item.gram_amount || ss,
+                  cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / (item.gram_amount || 100)) * 100,
+                  protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / (item.gram_amount || 100)) * 100,
+                  carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / (item.gram_amount || 100)) * 100,
+                  fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
+                  fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
+                  sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
+                };
+              }),
+            };
+          });
+
+        return {
+          id: day.id, // preserve DB day id for reference
+          type: day.day_type,
+          meals: meals.length > 0 ? meals : DEFAULT_MEALS(),
+        };
+      });
+
+      setDays(loadedDays);
+      if (loadedDays.length > 0) setExpandedDay(loadedDays[0].id);
+    } catch (err: any) {
+      console.error("[MealPlanBuilder] Error loading existing plan:", err);
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
 
   useEffect(() => {
     if (days.length > 0 && !expandedDay) setExpandedDay(days[0].id);
@@ -264,17 +370,9 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
   };
 
   const addDay = () => {
-    const newMeals: Meal[] = [
-      { id: uid(), name: "Breakfast", foods: [] },
-      { id: uid(), name: "Pre-Workout", foods: [] },
-      { id: uid(), name: "Post-Workout", foods: [] },
-      { id: uid(), name: "Lunch", foods: [] },
-      { id: uid(), name: "Dinner", foods: [] },
-      { id: uid(), name: "Snacks", foods: [] },
-    ];
     setDays((prev) => [
       ...prev,
-      { id: uid(), type: "Rest Day", meals: newMeals },
+      { id: uid(), type: "Rest Day", meals: DEFAULT_MEALS() },
     ]);
   };
 
@@ -340,15 +438,121 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
     setSaving(true);
 
     try {
-      const effectiveClient = forceTemplate ? null : (selectedClient === "none" ? null : selectedClient || null);
+      const effectiveClient = clientId || (forceTemplate ? null : (selectedClient === "none" ? null : selectedClient || null));
 
+      let planId = existingPlanId;
+
+      if (planId) {
+        // Update existing plan
+        const { error } = await supabase
+          .from("meal_plans")
+          .update({
+            name: planName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", planId);
+        if (error) throw error;
+
+        // Delete old days & items (cascade will handle items)
+        await supabase.from("meal_plan_days").delete().eq("meal_plan_id", planId);
+      } else {
+        // Create new plan
+        const { data: plan, error } = await supabase
+          .from("meal_plans")
+          .insert({
+            coach_id: user.id,
+            client_id: effectiveClient,
+            name: planName,
+            is_template: forceTemplate || !effectiveClient,
+            flexibility_mode: false,
+          })
+          .select("id")
+          .single();
+
+        if (error || !plan) throw error;
+        planId = plan.id;
+        setExistingPlanId(planId);
+      }
+
+      // Write all days and items
+      for (let di = 0; di < days.length; di++) {
+        const day = days[di];
+        const { data: dayRow, error: dayErr } = await supabase
+          .from("meal_plan_days")
+          .insert({
+            meal_plan_id: planId,
+            day_type: day.type,
+            day_order: di,
+          })
+          .select("id")
+          .single();
+
+        if (dayErr || !dayRow) throw dayErr;
+
+        const items = day.meals.flatMap((meal, mi) =>
+          meal.foods.map((food, fi) => ({
+            meal_plan_id: planId!,
+            day_id: dayRow.id,
+            food_item_id: food.food_item_id,
+            custom_name: food.food_name,
+            meal_name: meal.name,
+            meal_type: "custom",
+            gram_amount: food.gram_amount,
+            servings: 1,
+            calories: Math.round((food.cal_per_100 * food.gram_amount) / 100),
+            protein: Math.round((food.protein_per_100 * food.gram_amount) / 100),
+            carbs: Math.round((food.carbs_per_100 * food.gram_amount) / 100),
+            fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
+            item_order: fi,
+            meal_order: mi,
+          }))
+        );
+
+        if (items.length > 0) {
+          const { error: itemErr } = await supabase.from("meal_plan_items").insert(items);
+          if (itemErr) throw itemErr;
+        }
+      }
+
+      toast({ title: clientId ? "Meal plan saved to client's profile!" : (forceTemplate ? "Template saved!" : "Meal plan saved!") });
+      if (onSaved) { onSaved(); return; }
+      if (!clientId) {
+        setSelectedClient("");
+        setExistingPlanId(null);
+        setDays([{ id: uid(), type: "Training Day", meals: DEFAULT_MEALS() }]);
+      }
+    } catch (err: any) {
+      console.error("[MealPlanBuilder] Save error:", { clientId, existingPlanId, error: err?.message });
+      toast({ title: "Error saving", description: err?.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Deep-copy a template into the DB for the locked clientId, then reload */
+  const handleAssignTemplateToClient = async (importedDays: DayType[], templateName?: string) => {
+    if (!clientId || !user) {
+      // No locked client — just import into local state
+      handleImportDays(importedDays);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // If existing plan for this client, delete it first
+      if (existingPlanId) {
+        await supabase.from("meal_plan_days").delete().eq("meal_plan_id", existingPlanId);
+        await supabase.from("meal_plans").delete().eq("id", existingPlanId);
+      }
+
+      const name = templateName || planName || "Assigned Plan";
       const { data: plan, error } = await supabase
         .from("meal_plans")
         .insert({
           coach_id: user.id,
-          client_id: effectiveClient,
-          name: planName,
-          is_template: forceTemplate || !effectiveClient,
+          client_id: clientId,
+          name,
+          is_template: false,
           flexibility_mode: false,
         })
         .select("id")
@@ -356,18 +560,13 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
 
       if (error || !plan) throw error;
 
-      for (let di = 0; di < days.length; di++) {
-        const day = days[di];
+      for (let di = 0; di < importedDays.length; di++) {
+        const day = importedDays[di];
         const { data: dayRow, error: dayErr } = await supabase
           .from("meal_plan_days")
-          .insert({
-            meal_plan_id: plan.id,
-            day_type: day.type,
-            day_order: di,
-          })
+          .insert({ meal_plan_id: plan.id, day_type: day.type, day_order: di })
           .select("id")
           .single();
-
         if (dayErr || !dayRow) throw dayErr;
 
         const items = day.meals.flatMap((meal, mi) =>
@@ -395,25 +594,29 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
         }
       }
 
-      toast({ title: forceTemplate ? "Template saved!" : "Meal plan saved!" });
-      if (onSaved) { onSaved(); return; }
-      setSelectedClient("");
-      const resetMeals: Meal[] = [
-        { id: uid(), name: "Breakfast", foods: [] },
-        { id: uid(), name: "Pre-Workout", foods: [] },
-        { id: uid(), name: "Post-Workout", foods: [] },
-        { id: uid(), name: "Lunch", foods: [] },
-        { id: uid(), name: "Dinner", foods: [] },
-        { id: uid(), name: "Snacks", foods: [] },
-      ];
-      setDays([{ id: uid(), type: "Training Day", meals: resetMeals }]);
+      toast({ title: "Meal plan assigned to client!" });
+      // Reload from DB
+      await loadExistingPlan(clientId);
     } catch (err: any) {
-      toast({ title: "Error saving", description: err?.message, variant: "destructive" });
+      console.error("[MealPlanBuilder] Assign template error:", err?.message);
+      toast({ title: "Error assigning plan", description: err?.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
+  if (loadingExisting) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">Loading meal plan...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -439,12 +642,12 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-           <div className={cn("grid gap-3", forceTemplate ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
+           <div className={cn("grid gap-3", (forceTemplate || clientId) ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
             <div>
               <Label>{forceTemplate ? "Template Name" : "Plan Name"}</Label>
               <Input value={planName} onChange={(e) => setPlanName(e.target.value)} placeholder={forceTemplate ? "e.g. Cutting Phase 2000 Calories" : "e.g. Cutting Phase Week 1"} />
             </div>
-            {!forceTemplate && (
+            {!forceTemplate && !clientId && (
               <div>
                 <Label>Assign to Client (optional)</Label>
                 <Select value={selectedClient} onValueChange={setSelectedClient}>
@@ -622,19 +825,19 @@ const MealPlanBuilder = ({ forceTemplate, onSaved }: MealPlanBuilderProps = {}) 
 
       <Button onClick={handleSave} disabled={saving || !planName} className="w-full">
         <Save className="h-4 w-4 mr-2" />
-        {saving ? "Saving..." : forceTemplate ? "Save Template" : "Save Meal Plan"}
+        {saving ? "Saving..." : existingPlanId ? "Update Meal Plan" : (forceTemplate ? "Save Template" : "Save Meal Plan")}
       </Button>
 
       <CopyFromClientModal
         open={copyModalOpen}
         onOpenChange={setCopyModalOpen}
-        onImport={handleImportDays}
+        onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays}
       />
 
       <AssignTemplateModal
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
-        onImport={handleImportDays}
+        onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays}
       />
 
       <AdjustMacrosModal
