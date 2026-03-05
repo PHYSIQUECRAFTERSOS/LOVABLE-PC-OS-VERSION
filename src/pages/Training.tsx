@@ -100,7 +100,7 @@ const Training = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
-  const loadWorkoutExercises = async (workoutId: string) => {
+  const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string) => {
     const { data } = await supabase
       .from("workout_exercises")
       .select(`id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, exercises (id, name, youtube_url, video_url)`)
@@ -121,13 +121,12 @@ const Training = () => {
           setNumber: idx + 1, weight: undefined, reps: undefined, tempo: undefined, rir: undefined, notes: undefined,
         })),
       }));
-      // Try to find workout name from workouts list or fetch it
       let workout = workouts.find(w => w.id === workoutId);
       if (!workout) {
         const { data: w } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).maybeSingle();
         workout = w;
       }
-      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs });
+      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs, resumeSessionId: resumeSessionId || null });
       setShowLogger(true);
     }
   };
