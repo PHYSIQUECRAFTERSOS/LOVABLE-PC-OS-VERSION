@@ -91,11 +91,11 @@ const Training = () => {
 
   const reloadWorkouts = () => { invalidateCache(cacheKey); refetch(); };
 
-  // Auto-start workout from navigation state (e.g., from calendar)
+  // Auto-start workout from navigation state (e.g., from calendar or resume banner)
   useEffect(() => {
-    const state = location.state as { startWorkoutId?: string } | null;
+    const state = location.state as { startWorkoutId?: string; resumeSessionId?: string } | null;
     if (state?.startWorkoutId && !showLogger) {
-      loadWorkoutExercises(state.startWorkoutId);
+      loadWorkoutExercises(state.startWorkoutId, state.resumeSessionId);
       // Clear state to prevent re-triggering
       window.history.replaceState({}, document.title);
     }
