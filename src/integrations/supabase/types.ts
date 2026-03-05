@@ -4394,9 +4394,12 @@ export type Database = {
           created_at: string
           duration_seconds: number | null
           id: string
+          last_heartbeat: string | null
+          last_seen: string | null
           notes: string | null
           pr_count: number | null
           sets_completed: number | null
+          started_at: string | null
           status: string
           total_volume: number | null
           updated_at: string
@@ -4408,9 +4411,12 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          last_heartbeat?: string | null
+          last_seen?: string | null
           notes?: string | null
           pr_count?: number | null
           sets_completed?: number | null
+          started_at?: string | null
           status?: string
           total_volume?: number | null
           updated_at?: string
@@ -4422,9 +4428,12 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           id?: string
+          last_heartbeat?: string | null
+          last_seen?: string | null
           notes?: string | null
           pr_count?: number | null
           sets_completed?: number | null
+          started_at?: string | null
           status?: string
           total_volume?: number | null
           updated_at?: string

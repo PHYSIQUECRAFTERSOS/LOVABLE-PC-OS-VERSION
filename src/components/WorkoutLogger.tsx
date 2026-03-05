@@ -79,22 +79,24 @@ interface WorkoutLoggerProps {
   workoutInstructions?: string | null;
   exercises: ExerciseLogForm[];
   onComplete?: () => void;
+  resumeSessionId?: string | null;
 }
 
-const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete }: WorkoutLoggerProps) => {
+const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState(initialExercises);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
   const [prAlerts, setPrAlerts] = useState<PRAlert[]>([]);
-  const [startTime] = useState(Date.now());
+  const [startTime, setStartTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState("0:00");
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
@@ -111,7 +113,83 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     return () => clearInterval(interval);
   }, [startTime]);
 
-  // Load PRs and previous performance
+  // Create in_progress session on mount OR restore resumed session
+  useEffect(() => {
+    if (!user) return;
+    const initSession = async () => {
+      if (resumeSessionId) {
+        // Resuming: restore startTime from DB
+        const { data: s } = await supabase
+          .from("workout_sessions")
+          .select("started_at")
+          .eq("id", resumeSessionId)
+          .maybeSingle();
+        if (s?.started_at) {
+          setStartTime(new Date(s.started_at).getTime());
+        }
+        // Restore previously logged sets
+        const { data: logs } = await supabase
+          .from("exercise_logs")
+          .select("exercise_id, set_number, weight, reps, rir, notes, tempo")
+          .eq("session_id", resumeSessionId)
+          .order("set_number");
+        if (logs && logs.length > 0) {
+          setExercises(prev => {
+            const updated = [...prev];
+            logs.forEach(log => {
+              const exIdx = updated.findIndex(e => e.id === log.exercise_id);
+              if (exIdx === -1) return;
+              const setIdx = updated[exIdx].logs.findIndex(l => l.setNumber === log.set_number);
+              if (setIdx === -1) return;
+              updated[exIdx].logs[setIdx] = {
+                ...updated[exIdx].logs[setIdx],
+                weight: log.weight ?? undefined,
+                reps: log.reps ?? undefined,
+                rir: log.rir ?? undefined,
+                tempo: log.tempo ?? undefined,
+                notes: log.notes ?? undefined,
+                completed: true,
+              };
+            });
+            return updated;
+          });
+        }
+        setSessionId(resumeSessionId);
+      } else {
+        // Create new in_progress session
+        const { data, error } = await supabase
+          .from("workout_sessions")
+          .insert({
+            client_id: user.id,
+            workout_id: workoutId,
+            status: "in_progress",
+            started_at: new Date().toISOString(),
+            last_heartbeat: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+        if (!error && data) {
+          setSessionId(data.id);
+        }
+      }
+    };
+    initSession();
+  }, [user, workoutId, resumeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Heartbeat every 30 seconds
+  useEffect(() => {
+    if (!sessionId) return;
+    const interval = setInterval(() => {
+      supabase
+        .from("workout_sessions")
+        .update({ last_heartbeat: new Date().toISOString() })
+        .eq("id", sessionId)
+        .eq("status", "in_progress")
+        .then(() => {}); // fire-and-forget
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [sessionId]);
+
   useEffect(() => {
     if (!user) return;
     const loadData = async () => {
@@ -253,30 +331,17 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const finishWorkout = async () => {
-    if (!user) return;
+    if (!user || !sessionId) return;
     setLoading(true);
     try {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-      const { data: session, error: sessionError } = await supabase
-        .from("workout_sessions")
-        .insert({
-          client_id: user.id,
-          workout_id: workoutId,
-          completed_at: new Date().toISOString(),
-          duration_seconds: durationSeconds,
-          total_volume: totalVolume,
-          sets_completed: completedSets,
-          pr_count: prAlerts.length,
-          status: "completed",
-        })
-        .select()
-        .single();
-      if (sessionError) throw sessionError;
+      // Delete any existing logs for this session (in case of resume) then re-insert
+      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
 
       const logsToInsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
-          session_id: session.id,
+          session_id: sessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
           weight: log.weight || null,
@@ -291,6 +356,20 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         const { error: logsError } = await supabase.from("exercise_logs").insert(logsToInsert);
         if (logsError) throw logsError;
       }
+
+      // Update session to completed
+      const { error: sessionError } = await supabase
+        .from("workout_sessions")
+        .update({
+          completed_at: new Date().toISOString(),
+          duration_seconds: durationSeconds,
+          total_volume: totalVolume,
+          sets_completed: completedSets,
+          pr_count: prAlerts.length,
+          status: "completed",
+        })
+        .eq("id", sessionId);
+      if (sessionError) throw sessionError;
 
       for (const alert of prAlerts) {
         const ex = exercises.find(e => e.name === alert.exerciseName);
@@ -310,7 +389,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
   };
 
-  const cancelWorkout = () => {
+  const cancelWorkout = async () => {
+    if (sessionId) {
+      await supabase
+        .from("workout_sessions")
+        .update({ status: "cancelled" })
+        .eq("id", sessionId);
+    }
     setShowCancelDialog(false);
     onComplete?.();
   };
