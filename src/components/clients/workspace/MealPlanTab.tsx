@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { FileUp, ClipboardList, Download, Trash2, Upload, Replace, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { FileUp, ClipboardList, Download, Trash2, Upload, Maximize2 } from "lucide-react";
 import { format } from "date-fns";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
 
@@ -16,15 +16,14 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [uploads, setUploads] = useState<any[]>([]);
-  const [structuredPlans, setStructuredPlans] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [viewingPdf, setViewingPdf] = useState<{ url: string; name: string } | null>(null);
+  const [builderKey, setBuilderKey] = useState(0);
 
   useEffect(() => {
     loadPlans();
   }, [clientId]);
 
-  // Auto-open the active PDF on load
   useEffect(() => {
     if (!loading && uploads.length > 0 && !viewingPdf) {
       const active = uploads.find(u => u.is_active) || uploads[0];
@@ -34,21 +33,12 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
 
   const loadPlans = async () => {
     setLoading(true);
-    const [uploadsRes, plansRes] = await Promise.all([
-      supabase
-        .from("coach_meal_plan_uploads")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("meal_plans")
-        .select("id, name, created_at, is_template")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-        .limit(10),
-    ]);
-    setUploads(uploadsRes.data || []);
-    setStructuredPlans(plansRes.data || []);
+    const { data } = await supabase
+      .from("coach_meal_plan_uploads")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+    setUploads(data || []);
     setLoading(false);
   };
 
@@ -94,7 +84,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     } else {
       toast({ title: "Meal plan PDF uploaded" });
       loadPlans();
-      // Auto-open the new upload
       openPdfViewer(path, file.name);
     }
     setUploading(false);
@@ -136,18 +125,25 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   }
 
   return (
-    <Tabs defaultValue="pdf" className="space-y-4">
+    <Tabs defaultValue="builder" className="space-y-4">
       <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="pdf" className="gap-1.5">
-          <FileUp className="h-3.5 w-3.5" /> PDF Upload
-        </TabsTrigger>
         <TabsTrigger value="builder" className="gap-1.5">
           <ClipboardList className="h-3.5 w-3.5" /> Build Plan
         </TabsTrigger>
+        <TabsTrigger value="pdf" className="gap-1.5">
+          <FileUp className="h-3.5 w-3.5" /> PDF Upload
+        </TabsTrigger>
       </TabsList>
 
+      <TabsContent value="builder">
+        <MealPlanBuilder
+          key={builderKey}
+          clientId={clientId}
+          onSaved={() => setBuilderKey(k => k + 1)}
+        />
+      </TabsContent>
+
       <TabsContent value="pdf" className="space-y-4">
-        {/* Inline PDF Viewer */}
         {viewingPdf && (
           <Card>
             <CardHeader className="pb-2">
@@ -177,7 +173,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
           </Card>
         )}
 
-        {/* Upload area */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
@@ -203,7 +198,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
           </CardContent>
         </Card>
 
-        {/* Uploaded PDFs list */}
         {uploads.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
@@ -236,10 +230,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
             </CardContent>
           </Card>
         )}
-      </TabsContent>
-
-      <TabsContent value="builder">
-        <MealPlanBuilder />
       </TabsContent>
     </Tabs>
   );
