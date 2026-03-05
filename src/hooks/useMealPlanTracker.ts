@@ -32,6 +32,9 @@ export interface MealPlanData {
   flexibility_mode: boolean;
   coach_id: string;
   updated_at: string;
+  day_type: string;
+  day_type_label: string;
+  sort_order: number;
 }
 
 const MEAL_SECTION_MAP: Record<string, string> = {
@@ -44,7 +47,6 @@ const MEAL_SECTION_MAP: Record<string, string> = {
   "Dinner": "dinner",
   "Snacks": "snack",
   "Snack": "snack",
-  // Also support already-keyed values
   "breakfast": "breakfast",
   "pre-workout": "pre-workout",
   "post-workout": "post-workout",
@@ -72,87 +74,104 @@ export function useMealPlanTracker(selectedDate?: Date) {
   const queryClient = useQueryClient();
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
 
-  // Fetch active meal plan
-  const { data: plan } = useQuery({
-    queryKey: ["client-active-meal-plan", user?.id],
+  // Fetch ALL active meal plans for this client
+  const { data: plans } = useQuery({
+    queryKey: ["client-all-meal-plans", user?.id],
     queryFn: async () => {
-      const { data: plans } = await supabase
+      const { data } = await supabase
         .from("meal_plans")
-        .select("id, name, flexibility_mode, coach_id, updated_at")
+        .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label, sort_order")
         .eq("client_id", user!.id)
         .eq("is_template", false)
-        .order("created_at", { ascending: false })
-        .limit(1);
+        .order("sort_order");
 
-      if (!plans || plans.length === 0) return null;
-      return plans[0] as MealPlanData;
+      return (data || []) as MealPlanData[];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch days
-  const { data: days } = useQuery({
-    queryKey: ["meal-plan-days", plan?.id],
+  // Fetch days for ALL plans in one query
+  const planIds = plans?.map((p) => p.id) || [];
+  const { data: allDays } = useQuery({
+    queryKey: ["meal-plan-days-all", planIds.join(",")],
     queryFn: async () => {
+      if (planIds.length === 0) return [];
       const { data } = await supabase
         .from("meal_plan_days")
-        .select("*")
-        .eq("meal_plan_id", plan!.id)
+        .select("*, meal_plan_id")
+        .in("meal_plan_id", planIds)
         .order("day_order");
-      return (data || []) as MealPlanDay[];
+      return (data || []) as (MealPlanDay & { meal_plan_id: string })[];
     },
-    enabled: !!plan,
+    enabled: planIds.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch items
-  const { data: items } = useQuery({
-    queryKey: ["meal-plan-items", plan?.id],
+  // Fetch items for ALL plans in one query
+  const { data: allItems } = useQuery({
+    queryKey: ["meal-plan-items-all", planIds.join(",")],
     queryFn: async () => {
+      if (planIds.length === 0) return [];
       const { data } = await supabase
         .from("meal_plan_items")
-        .select("*")
-        .eq("meal_plan_id", plan!.id)
+        .select("*, meal_plan_id")
+        .in("meal_plan_id", planIds)
         .order("meal_order")
         .order("item_order");
-      return (data || []) as MealPlanFood[];
+      return (data || []) as (MealPlanFood & { meal_plan_id: string })[];
     },
-    enabled: !!plan,
+    enabled: planIds.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Get items grouped by meal section for a specific day
-  const getItemsBySection = useCallback(
-    (dayId: string) => {
-      if (!items) return {};
-      const dayItems = items.filter((i) => i.day_id === dayId);
-      const grouped: Record<string, MealPlanFood[]> = {};
+  // Legacy single-plan compat: return first plan
+  const plan = plans?.[0] || null;
+  const days = allDays?.filter((d) => d.meal_plan_id === plan?.id) || null;
+  const items = allItems?.filter((i) => i.meal_plan_id === plan?.id) || null;
 
+  // Get days/items for a specific plan by day_type
+  const getPlanByDayType = useCallback(
+    (dayTypeKey: string) => {
+      const p = plans?.find((pl) => pl.day_type === dayTypeKey);
+      if (!p) return { plan: null, days: [], items: [] };
+      return {
+        plan: p,
+        days: (allDays || []).filter((d) => d.meal_plan_id === p.id),
+        items: (allItems || []).filter((i) => i.meal_plan_id === p.id),
+      };
+    },
+    [plans, allDays, allItems]
+  );
+
+  const getItemsBySection = useCallback(
+    (dayId: string, planItems?: MealPlanFood[]) => {
+      const src = planItems || items || [];
+      const dayItems = src.filter((i) => i.day_id === dayId);
+      const grouped: Record<string, MealPlanFood[]> = {};
       dayItems.forEach((item) => {
         const key = mapMealNameToKey(item.meal_name);
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(item);
       });
-
       return grouped;
     },
     [items]
   );
 
-  // Get all items for a specific meal section across a given day
   const getItemsForMealSection = useCallback(
-    (dayId: string, mealKey: string): MealPlanFood[] => {
-      if (!items) return [];
-      return items.filter(
+    (dayId: string, mealKey: string, planItems?: MealPlanFood[]): MealPlanFood[] => {
+      const src = planItems || items || [];
+      return src.filter(
         (i) => i.day_id === dayId && mapMealNameToKey(i.meal_name) === mealKey
       );
     },
     [items]
   );
 
-  // Copy a full meal section to the tracker
   const copyMealToTracker = useCallback(
     async (mealItems: MealPlanFood[], mealKey: string) => {
       if (!user || mealItems.length === 0) return false;
-
       const entries = mealItems.map((item) => ({
         client_id: user.id,
         food_item_id: item.food_item_id,
@@ -165,27 +184,23 @@ export function useMealPlanTracker(selectedDate?: Date) {
         fat: item.fat,
         logged_at: dateStr,
       }));
-
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });
         return false;
       }
-
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
       return true;
     },
     [user, dateStr, toast, queryClient]
   );
 
-  // Copy entire day to tracker
   const copyEntireDayToTracker = useCallback(
-    async (dayId: string) => {
-      if (!user || !items) return false;
-
-      const dayItems = items.filter((i) => i.day_id === dayId);
+    async (dayId: string, planItems?: MealPlanFood[]) => {
+      if (!user) return false;
+      const src = planItems || items || [];
+      const dayItems = src.filter((i) => i.day_id === dayId);
       if (dayItems.length === 0) return false;
-
       const entries = dayItems.map((item) => ({
         client_id: user.id,
         food_item_id: item.food_item_id,
@@ -198,13 +213,11 @@ export function useMealPlanTracker(selectedDate?: Date) {
         fat: item.fat,
         logged_at: dateStr,
       }));
-
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
         toast({ title: "Error copying day", description: error.message, variant: "destructive" });
         return false;
       }
-
       toast({ title: `${entries.length} items logged to tracker` });
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
       return true;
@@ -214,8 +227,12 @@ export function useMealPlanTracker(selectedDate?: Date) {
 
   return {
     plan,
+    plans: plans || [],
     days,
     items,
+    allDays: allDays || [],
+    allItems: allItems || [],
+    getPlanByDayType,
     getItemsBySection,
     getItemsForMealSection,
     copyMealToTracker,
