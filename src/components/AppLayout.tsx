@@ -28,6 +28,8 @@ import {
   SheetTrigger,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useActiveSession } from "@/hooks/useActiveSession";
+import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanner";
 
 interface NavItem {
   to: string;
