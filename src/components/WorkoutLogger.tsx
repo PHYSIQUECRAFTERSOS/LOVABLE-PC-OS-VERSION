@@ -82,20 +82,21 @@ interface WorkoutLoggerProps {
   resumeSessionId?: string | null;
 }
 
-const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete }: WorkoutLoggerProps) => {
+const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState(initialExercises);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
   const [prAlerts, setPrAlerts] = useState<PRAlert[]>([]);
-  const [startTime] = useState(Date.now());
+  const [startTime, setStartTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState("0:00");
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
