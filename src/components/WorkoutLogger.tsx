@@ -1,15 +1,32 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, RotateCcw, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Trophy } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import ExerciseCard from "@/components/workout/ExerciseCard";
 import FloatingRestTimer from "@/components/workout/FloatingRestTimer";
 import WorkoutSummary from "@/components/workout/WorkoutSummary";
+import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 
 interface ProgressionSettings {
   progressionType: string;
@@ -72,18 +89,25 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
   const [prAlerts, setPrAlerts] = useState<PRAlert[]>([]);
   const [startTime] = useState(Date.now());
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [elapsed, setElapsed] = useState("0:00");
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
   const [showSummary, setShowSummary] = useState(false);
+  const [isFirstSession, setIsFirstSession] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
 
-  // Elapsed timer
+  // Elapsed timer — updates every second
   useEffect(() => {
     const interval = setInterval(() => {
-      setElapsedMinutes(Math.floor((Date.now() - startTime) / 60000));
-    }, 10000);
+      const totalSec = Math.floor((Date.now() - startTime) / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      setElapsed(h > 0 ? `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}` : `${m}:${s.toString().padStart(2, "0")}`);
+    }, 1000);
     return () => clearInterval(interval);
   }, [startTime]);
 
@@ -99,11 +123,20 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         .in("exercise_id", exerciseIds);
       setPersonalRecords((data as PersonalRecord[]) || []);
 
+      // Check if first session
+      const { count } = await supabase
+        .from("workout_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", user.id)
+        .eq("status", "completed");
+      setIsFirstSession((count || 0) === 0);
+
       const { data: lastSession } = await supabase
         .from("workout_sessions")
         .select("id")
         .eq("client_id", user.id)
         .eq("workout_id", workoutId)
+        .eq("status", "completed")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -171,7 +204,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     const newEx = [...exercises];
     newEx[exIdx].logs[setIdx] = { ...newEx[exIdx].logs[setIdx], completed: true, isPR };
 
-    // Auto-fill next incomplete set with same values
+    // Auto-fill next incomplete set
     const nextIdx = newEx[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
     if (nextIdx !== -1) {
       if (!newEx[exIdx].logs[nextIdx].weight) newEx[exIdx].logs[nextIdx].weight = log.weight;
@@ -180,7 +213,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
     setExercises(newEx);
 
-    // Start floating rest timer
     if (ex.restSeconds > 0) {
       setRestTimer({ seconds: ex.restSeconds });
     }
@@ -198,13 +230,46 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(newEx);
   };
 
-  const completeWorkout = async () => {
+  const handleAddExercise = (exercise: any) => {
+    const newExercise: ExerciseLogForm = {
+      id: exercise.id,
+      name: exercise.name,
+      sets: 3,
+      reps: "10",
+      tempo: "",
+      restSeconds: 90,
+      notes: "",
+      videoUrl: exercise.youtube_url || exercise.video_url || null,
+      logs: Array.from({ length: 3 }, (_, idx) => ({
+        setNumber: idx + 1,
+        weight: undefined,
+        reps: undefined,
+        completed: false,
+      })),
+    };
+    setExercises(prev => [...prev, newExercise]);
+    setShowAddExercise(false);
+    toast({ title: `${exercise.name} added to workout` });
+  };
+
+  const finishWorkout = async () => {
     if (!user) return;
     setLoading(true);
     try {
+      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+
       const { data: session, error: sessionError } = await supabase
         .from("workout_sessions")
-        .insert({ client_id: user.id, workout_id: workoutId, completed_at: new Date().toISOString() })
+        .insert({
+          client_id: user.id,
+          workout_id: workoutId,
+          completed_at: new Date().toISOString(),
+          duration_seconds: durationSeconds,
+          total_volume: totalVolume,
+          sets_completed: completedSets,
+          pr_count: prAlerts.length,
+          status: "completed",
+        })
         .select()
         .single();
       if (sessionError) throw sessionError;
@@ -238,41 +303,68 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
       setShowSummary(true);
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });
+      toast({ title: "Error saving workout", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const cancelWorkout = () => {
+    setShowCancelDialog(false);
+    onComplete?.();
   };
 
   if (showSummary) {
     return (
       <WorkoutSummary
         workoutName={workoutName}
-        durationMinutes={Math.round((Date.now() - startTime) / 60000)}
+        durationSeconds={Math.floor((Date.now() - startTime) / 1000)}
         totalSets={totalSets}
         completedSets={completedSets}
         totalVolume={totalVolume}
-        exerciseCount={exercises.length}
+        exerciseCount={exercises.filter(e => e.logs.some(l => l.completed)).length}
         prs={prAlerts}
+        isFirstSession={isFirstSession}
         onDone={() => onComplete?.()}
       />
     );
   }
 
   return (
-    <div className="space-y-4 pb-28">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-3 border-b border-border -mx-4 px-4 pt-2">
+    <div className="space-y-4 pb-52">
+      {/* Sticky Header — Timer + Finish */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 pt-2 pb-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-display font-bold text-foreground">{workoutName}</h2>
-          <span className="text-sm text-muted-foreground tabular-nums">{elapsedMinutes}:{((Math.floor((Date.now() - startTime) / 1000)) % 60).toString().padStart(2, "0")}</span>
+          <button
+            onClick={() => {
+              // Reset timer visual only (cosmetic)
+            }}
+            className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-lg font-bold tabular-nums text-foreground">{elapsed}</span>
+          <Button
+            size="sm"
+            onClick={finishWorkout}
+            disabled={loading || completedSets === 0}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-5"
+          >
+            {loading && <Loader2 className="animate-spin mr-1 h-3.5 w-3.5" />}
+            Finish
+          </Button>
         </div>
+
+        {/* Progress bar */}
         <div className="flex items-center gap-3 mt-2">
-          <Progress value={progressPercent} className="flex-1 h-3" />
-          <span className="text-sm font-bold text-primary whitespace-nowrap tabular-nums">
-            {completedSets}/{totalSets}
+          <Progress value={progressPercent} className="flex-1 h-2.5" />
+          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap tabular-nums">
+            {completedSets} / {totalSets} sets
           </span>
         </div>
+
+        <h2 className="text-sm font-medium text-muted-foreground mt-1 truncate">{workoutName}</h2>
       </div>
 
       {workoutInstructions && (
@@ -295,7 +387,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       {/* Exercise Cards */}
       {exercises.map((exercise, exIdx) => (
         <ExerciseCard
-          key={exIdx}
+          key={`${exercise.id}-${exIdx}`}
           name={exercise.name}
           exerciseId={exercise.id}
           sets={exercise.sets}
@@ -326,15 +418,63 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         />
       )}
 
-      {/* Complete Workout — sticky bottom */}
-      {completedSets > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t border-border z-20">
-          <Button onClick={completeWorkout} disabled={loading} className="w-full" size="lg">
-            {loading && <Loader2 className="animate-spin mr-2" />}
-            Complete Workout ({completedSets}/{totalSets} sets)
-          </Button>
-        </div>
-      )}
+      {/* Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 space-y-2 safe-area-bottom">
+        <Button
+          variant="outline"
+          className="w-full gap-2"
+          onClick={() => setShowAddExercise(true)}
+        >
+          <Plus className="h-4 w-4" /> Add Exercises
+        </Button>
+        <Button
+          onClick={finishWorkout}
+          disabled={loading || completedSets === 0}
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+          size="lg"
+        >
+          {loading && <Loader2 className="animate-spin mr-2" />}
+          Finish Workout
+        </Button>
+        <Button
+          variant="ghost"
+          className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={() => setShowCancelDialog(true)}
+        >
+          <X className="h-4 w-4 mr-1" /> Cancel Workout
+        </Button>
+      </div>
+
+      {/* Cancel Confirmation */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this workout? All progress will be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            <AlertDialogAction
+              onClick={cancelWorkout}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
+            >
+              Cancel Workout
+            </AlertDialogAction>
+            <AlertDialogCancel className="w-full mt-0">Resume</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add Exercise Dialog */}
+      <Dialog open={showAddExercise} onOpenChange={setShowAddExercise}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Exercise</DialogTitle>
+          </DialogHeader>
+          <ExerciseLibrary onSelectExercise={handleAddExercise} selectionMode />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

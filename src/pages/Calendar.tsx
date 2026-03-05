@@ -53,9 +53,10 @@ const Calendar = () => {
       if (!user) return [];
 
       // Run all queries in parallel
+      // Fetch calendar events with linked workout names
       const calendarPromise = supabase
         .from("calendar_events")
-        .select("*")
+        .select("*, workouts:linked_workout_id(name), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
         .gte("event_date", startStr)
         .lte("event_date", endStr)
         .abortSignal(signal);
@@ -65,6 +66,7 @@ const Calendar = () => {
             .from("workout_sessions")
             .select("id, workout_id, created_at, completed_at, workouts:workout_id(id, name)")
             .eq("client_id", user.id)
+            .eq("status", "completed")
             .gte("created_at", `${startStr}T00:00:00`)
             .lte("created_at", `${endStr}T23:59:59`)
             .abortSignal(signal)
@@ -73,7 +75,7 @@ const Calendar = () => {
       const cardioPromise = role === "client"
         ? supabase
             .from("cardio_logs")
-            .select("id, title, cardio_type, logged_at, completed, duration_min")
+            .select("id, title, cardio_type, logged_at, completed, duration_min, notes")
             .eq("client_id", user.id)
             .gte("logged_at", startStr)
             .lte("logged_at", endStr)
@@ -84,7 +86,36 @@ const Calendar = () => {
 
       if (calRes.error) throw calRes.error;
 
-      const allEvents: CalendarEvent[] = (calRes.data || []) as CalendarEvent[];
+      // Enrich calendar events with linked workout/cardio names
+      const allEvents: CalendarEvent[] = (calRes.data || []).map((e: any) => {
+        let title = e.title;
+        let description = e.description;
+
+        // Use linked workout name if available
+        if (e.event_type === "workout" && e.workouts?.name) {
+          title = e.workouts.name;
+        }
+
+        // Enrich cardio with full prescription
+        if (e.event_type === "cardio" && e.cardio_assignments) {
+          const ca = e.cardio_assignments;
+          title = ca.title || ca.cardio_type || title;
+          const parts: string[] = [];
+          if (ca.cardio_type) parts.push(ca.cardio_type);
+          if (ca.target_duration_min) parts.push(`${ca.target_duration_min} min`);
+          if (ca.description) parts.push(ca.description);
+          if (ca.notes) parts.push(ca.notes);
+          description = parts.join(" · ") || description;
+        }
+
+        return {
+          ...e,
+          title,
+          description,
+          workouts: undefined,
+          cardio_assignments: undefined,
+        } as CalendarEvent;
+      });
 
       // Merge workout sessions — use actual workout name, never generic "Workout"
       sessRes.data?.forEach((s: any) => {
