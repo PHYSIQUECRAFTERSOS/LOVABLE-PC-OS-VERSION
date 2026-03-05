@@ -2414,12 +2414,15 @@ export type Database = {
           client_id: string | null
           coach_id: string
           created_at: string
+          day_type: string
+          day_type_label: string
           description: string | null
           flexibility_mode: boolean
           id: string
           is_favorite: boolean | null
           is_template: boolean
           name: string
+          sort_order: number
           target_calories: number | null
           target_carbs: number | null
           target_fat: number | null
@@ -2431,12 +2434,15 @@ export type Database = {
           client_id?: string | null
           coach_id: string
           created_at?: string
+          day_type?: string
+          day_type_label?: string
           description?: string | null
           flexibility_mode?: boolean
           id?: string
           is_favorite?: boolean | null
           is_template?: boolean
           name: string
+          sort_order?: number
           target_calories?: number | null
           target_carbs?: number | null
           target_fat?: number | null
@@ -2448,12 +2454,15 @@ export type Database = {
           client_id?: string | null
           coach_id?: string
           created_at?: string
+          day_type?: string
+          day_type_label?: string
           description?: string | null
           flexibility_mode?: boolean
           id?: string
           is_favorite?: boolean | null
           is_template?: boolean
           name?: string
+          sort_order?: number
           target_calories?: number | null
           target_carbs?: number | null
           target_fat?: number | null
