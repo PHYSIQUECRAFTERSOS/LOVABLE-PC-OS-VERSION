@@ -27,23 +27,29 @@ export type CalendarEvent = {
 };
 
 const EVENT_COLORS: Record<string, string> = {
-  workout: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  workout: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   cardio: "bg-green-500/20 text-green-400 border-green-500/30",
   checkin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   rest: "bg-muted text-muted-foreground border-border",
   reminder: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   custom: "bg-primary/20 text-primary border-primary/30",
   auto_message: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  photos: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  body_stats: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  steps: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
 const EVENT_DOT_COLORS: Record<string, string> = {
-  workout: "bg-blue-500",
+  workout: "bg-amber-500",
   cardio: "bg-green-500",
   checkin: "bg-purple-500",
   rest: "bg-muted-foreground",
   reminder: "bg-yellow-500",
   custom: "bg-primary",
   auto_message: "bg-orange-500",
+  photos: "bg-orange-500",
+  body_stats: "bg-purple-500",
+  steps: "bg-blue-500",
 };
 
 interface CalendarGridProps {
