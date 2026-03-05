@@ -331,30 +331,17 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const finishWorkout = async () => {
-    if (!user) return;
+    if (!user || !sessionId) return;
     setLoading(true);
     try {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-      const { data: session, error: sessionError } = await supabase
-        .from("workout_sessions")
-        .insert({
-          client_id: user.id,
-          workout_id: workoutId,
-          completed_at: new Date().toISOString(),
-          duration_seconds: durationSeconds,
-          total_volume: totalVolume,
-          sets_completed: completedSets,
-          pr_count: prAlerts.length,
-          status: "completed",
-        })
-        .select()
-        .single();
-      if (sessionError) throw sessionError;
+      // Delete any existing logs for this session (in case of resume) then re-insert
+      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
 
       const logsToInsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
-          session_id: session.id,
+          session_id: sessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
           weight: log.weight || null,
@@ -369,6 +356,20 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         const { error: logsError } = await supabase.from("exercise_logs").insert(logsToInsert);
         if (logsError) throw logsError;
       }
+
+      // Update session to completed
+      const { error: sessionError } = await supabase
+        .from("workout_sessions")
+        .update({
+          completed_at: new Date().toISOString(),
+          duration_seconds: durationSeconds,
+          total_volume: totalVolume,
+          sets_completed: completedSets,
+          pr_count: prAlerts.length,
+          status: "completed",
+        })
+        .eq("id", sessionId);
+      if (sessionError) throw sessionError;
 
       for (const alert of prAlerts) {
         const ex = exercises.find(e => e.name === alert.exerciseName);
@@ -388,7 +389,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
   };
 
-  const cancelWorkout = () => {
+  const cancelWorkout = async () => {
+    if (sessionId) {
+      await supabase
+        .from("workout_sessions")
+        .update({ status: "cancelled" })
+        .eq("id", sessionId);
+    }
     setShowCancelDialog(false);
     onComplete?.();
   };
