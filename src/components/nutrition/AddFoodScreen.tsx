@@ -466,6 +466,30 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
+        {/* Frequent Meals */}
+        {showHistory && !quickAddOpen && (
+          <div className="py-2">
+            <FrequentMealsSection
+              mealName={mealType}
+              onLogMeal={async (foods) => {
+                for (const food of foods) {
+                  await logFood({
+                    id: food.id,
+                    name: food.name,
+                    brand: food.brand,
+                    calories: food.calories ?? 0,
+                    protein: food.protein ?? 0,
+                    carbs: food.carbs ?? 0,
+                    fat: food.fat ?? 0,
+                    serving_size: food.serving_size,
+                    serving_unit: food.serving_unit,
+                  } as FoodItem);
+                }
+              }}
+            />
+          </div>
+        )}
+
         {/* History Section */}
         {showHistory && !quickAddOpen && (
           <div className="py-2">
