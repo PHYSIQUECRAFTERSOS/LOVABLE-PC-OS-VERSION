@@ -10,11 +10,11 @@ import ProgressMomentum from "@/components/dashboard/ProgressMomentum";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
-import RecommitFlow from "@/components/retention/RecommitFlow";
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import CoachPriority from "@/components/dashboard/CoachPriority";
 import WeeklyMomentumScore from "@/components/dashboard/WeeklyMomentumScore";
+import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 
 const Dashboard = () => {
   const { role } = useAuth();
@@ -57,8 +57,6 @@ const ClientDashboard = () => {
 
   return (
     <>
-      <RecommitFlow />
-
       {/* Date Navigator */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
@@ -74,6 +72,9 @@ const ClientDashboard = () => {
         />
         <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
       </div>
+
+      {/* Progress Widget Grid */}
+      <ProgressWidgetGrid />
 
       {/* Weekly Score + Momentum */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

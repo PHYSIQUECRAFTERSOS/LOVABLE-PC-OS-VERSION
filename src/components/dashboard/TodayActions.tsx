@@ -116,9 +116,14 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
 
         let completed = e.is_completed;
+        let title = e.title;
+
         if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
+          // Use real workout name instead of generic "Workout"
+          const workoutName = (session as any)?.workouts?.name;
+          if (workoutName) title = workoutName;
         }
         if (e.event_type === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
@@ -127,7 +132,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
 
         items.push({
           id: e.id,
-          title: e.title,
+          title,
           type: e.event_type,
           completed,
           linkedWorkoutId: e.linked_workout_id,
@@ -156,6 +161,18 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           });
         }
       });
+
+      // Deduplicate: keep max 1 workout-type item (prefer named over generic)
+      const workoutItems = items.filter(i => i.type === "workout");
+      if (workoutItems.length > 1) {
+        // Prefer named workouts (not "Workout")
+        const named = workoutItems.find(w => w.title !== "Workout") || workoutItems[0];
+        // Remove all workout items except the preferred one
+        const duplicateIds = new Set(workoutItems.filter(w => w.id !== named.id).map(w => w.id));
+        const filtered = items.filter(i => !duplicateIds.has(i.id));
+        items.length = 0;
+        items.push(...filtered);
+      }
 
       items.push({
         id: "nutrition-track",

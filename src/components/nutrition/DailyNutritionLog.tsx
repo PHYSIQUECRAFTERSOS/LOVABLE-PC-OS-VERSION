@@ -328,6 +328,7 @@ const DailyNutritionLog = () => {
       <AddFoodScreen
         mealType={activeMealType}
         mealLabel={activeMealLabel}
+        logDate={dateStr}
         open={loggerOpen}
         onClose={() => setLoggerOpen(false)}
         onLogged={() => { fetchLogs(); refreshSuggestions(); setLoggerOpen(false); }}

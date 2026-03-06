@@ -42,6 +42,7 @@ interface FoodItem {
 interface AddFoodScreenProps {
   mealType: string;
   mealLabel: string;
+  logDate?: string;
   open: boolean;
   onClose: () => void;
   onLogged: () => void;
@@ -58,7 +59,9 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "my-foods", label: "My Foods" },
 ];
 
-const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFoodScreenProps) => {
+const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
+  // Use provided logDate or fall back to local today
+  const effectiveDate = logDate || new Date().toLocaleDateString("en-CA"); // en-CA gives YYYY-MM-DD
   const { user } = useAuth();
   const { toast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -193,6 +196,7 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
       fiber: Math.round((item.fiber || 0) * multiplier),
       sugar: Math.round((item.sugar || 0) * multiplier),
       sodium: Math.round((item.sodium || 0) * multiplier),
+      logged_at: effectiveDate,
     });
 
     if (error) {
@@ -218,11 +222,13 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
       fiber: meal.fiber || 0,
       sugar: meal.sugar || 0,
       sodium: meal.sodium || 0,
+      logged_at: effectiveDate,
     });
 
     if (error) {
       console.error("[NutritionLog] Insert error:", error);
       toast({ title: "Couldn't save this food. Please try again." });
+    } else {
       toast({ title: `${meal.name} logged` });
       onLogged();
     }
@@ -239,11 +245,13 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
       protein: parseInt(quickProtein) || 0,
       carbs: parseInt(quickCarbs) || 0,
       fat: parseInt(quickFat) || 0,
+      logged_at: effectiveDate,
     });
 
     if (error) {
       console.error("[NutritionLog] Insert error:", error);
       toast({ title: "Couldn't save this food. Please try again." });
+    } else {
       toast({ title: "Logged!" });
       setQuickAddOpen(false);
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
