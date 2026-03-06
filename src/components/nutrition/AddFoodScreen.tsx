@@ -166,7 +166,7 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
   const logFood = async (item: FoodItem) => {
     if (!user) return;
     const unit = servingUnits[item.id] || "serving";
-    const inputVal = parseFloat(servings[item.id] || "1") || 1;
+    const inputVal = parseFloat(servings[item.id] || "1") || 0;
     
     // Calculate multiplier based on unit
     let multiplier: number;
@@ -196,7 +196,8 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
     });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${item.name} logged` });
       onLogged();
@@ -220,8 +221,8 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
     });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
       toast({ title: `${meal.name} logged` });
       onLogged();
     }
@@ -241,8 +242,8 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
     });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
       toast({ title: "Logged!" });
       setQuickAddOpen(false);
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
@@ -472,7 +473,7 @@ interface FoodRowProps {
 
 const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange }: FoodRowProps) => {
   // Calculate multiplier based on unit
-  const inputVal = parseFloat(servings) || 1;
+  const inputVal = parseFloat(servings) || 0;
   let multiplier: number;
   if (servingUnit === "g") {
     const baseSizeG = item.serving_unit === "oz" ? item.serving_size * 28.3495 : item.serving_size;
@@ -515,9 +516,12 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
           <div className="flex items-center gap-2 mb-3 mt-2">
             <Input
               type="number"
-              step="1"
-              min="1"
+              inputMode="decimal"
+              step="any"
+              min="0"
               value={servings}
+              placeholder="0"
+              onFocus={(e) => e.target.select()}
               onChange={(e) => onServingsChange(e.target.value)}
               className="h-7 w-20 text-xs text-center bg-secondary border-0 rounded-lg"
             />

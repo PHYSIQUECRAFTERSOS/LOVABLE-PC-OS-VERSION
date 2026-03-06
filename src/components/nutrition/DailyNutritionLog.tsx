@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -13,6 +13,7 @@ import CopyDayDialog from "./CopyDayDialog";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
+import EditFoodModal from "./EditFoodModal";
 
 interface NutritionLog {
   id: string;
@@ -61,6 +62,7 @@ const DailyNutritionLog = () => {
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copyingMeal, setCopyingMeal] = useState<string | null>(null);
+  const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
@@ -290,9 +292,10 @@ const DailyNutritionLog = () => {
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
                   {items.map((item) => (
-                    <div
+                    <button
                       key={item.id}
-                      className="flex items-center justify-between px-4 py-2.5"
+                      onClick={() => setEditingLog(item)}
+                      className="flex items-center justify-between px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">
@@ -302,15 +305,8 @@ const DailyNutritionLog = () => {
                           {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => deleteLog(item.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                      <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
+                    </button>
                   ))}
                 </div>
               )}
@@ -342,6 +338,14 @@ const DailyNutritionLog = () => {
         open={copyDialogOpen}
         onOpenChange={setCopyDialogOpen}
         onCopied={() => { fetchLogs(); refreshSuggestions(); }}
+      />
+      {/* Edit Food Modal */}
+      <EditFoodModal
+        open={!!editingLog}
+        onOpenChange={(v) => { if (!v) setEditingLog(null); }}
+        logEntry={editingLog}
+        foodName={editingLog?.food_item_id ? (foodNames[editingLog.food_item_id] || "Food") : (editingLog?.custom_name || "Food")}
+        onUpdated={() => { setEditingLog(null); fetchLogs(); }}
       />
     </div>
   );

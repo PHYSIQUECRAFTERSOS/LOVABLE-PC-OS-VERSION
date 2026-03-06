@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Trophy, Play, Plus } from "lucide-react";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Check, Trophy, Plus } from "lucide-react";
 
 interface SetLog {
   setNumber: number;
@@ -60,7 +58,6 @@ const ExerciseCard = ({
   onCompleteSet,
   onAddSet,
 }: ExerciseCardProps) => {
-  const [showVideo, setShowVideo] = useState(false);
   const allDone = logs.every(l => l.completed);
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
 
@@ -68,12 +65,8 @@ const ExerciseCard = ({
     <Card className={`transition-colors ${allDone ? "border-primary/30 bg-primary/5" : ""}`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle
-            className="text-base cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
-            onClick={() => videoId && setShowVideo(!showVideo)}
-          >
+          <CardTitle className="text-base flex items-center gap-2">
             {name}
-            {videoId && <Play className="h-3.5 w-3.5 text-muted-foreground" />}
           </CardTitle>
           {allDone && <Check className="h-5 w-5 text-primary" />}
         </div>
@@ -92,17 +85,19 @@ const ExerciseCard = ({
         )}
       </CardHeader>
 
-      {showVideo && videoId && (
+      {videoId && (
         <div className="px-4 pb-2">
-          <AspectRatio ratio={16 / 9}>
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}?rel=0`}
-              title={name}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full rounded-lg"
-            />
-          </AspectRatio>
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1`}
+            title={name}
+            width="100%"
+            height="200"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            className="rounded-lg"
+          />
         </div>
       )}
 

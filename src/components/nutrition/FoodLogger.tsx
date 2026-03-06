@@ -112,8 +112,8 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
     setLoading(false);
 
     if (error) {
-      toast({ title: "Error logging food", description: error.message, variant: "destructive" });
-    } else {
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
       toast({ title: "Food logged!" });
 
       if (saveMealName.trim()) {
