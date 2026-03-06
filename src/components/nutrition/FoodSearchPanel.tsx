@@ -145,10 +145,12 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const trackUsage = async (foodId: string, foodName: string) => {
     if (!user) return;
     // Track in user_recent_foods
-    await supabase.from("user_recent_foods").upsert(
-      { user_id: user.id, food_id: foodId, food_name: foodName, selected_at: new Date().toISOString() },
-      { onConflict: "user_id,food_id", ignoreDuplicates: false }
-    ).then(() => {}).catch(() => {});
+    try {
+      await supabase.from("user_recent_foods").upsert(
+        { user_id: user.id, food_id: foodId, food_name: foodName, selected_at: new Date().toISOString() },
+        { onConflict: "user_id,food_id", ignoreDuplicates: false }
+      );
+    } catch { /* ignore */ }
     
     // Also track in coach_recent_foods for backward compat
     const { data: existing } = await supabase
