@@ -2023,6 +2023,33 @@ export type Database = {
         }
         Relationships: []
       }
+      food_search_cache: {
+        Row: {
+          cached_at: string | null
+          expires_at: string | null
+          id: string
+          query_key: string
+          result_count: number
+          results: Json
+        }
+        Insert: {
+          cached_at?: string | null
+          expires_at?: string | null
+          id?: string
+          query_key: string
+          result_count?: number
+          results?: Json
+        }
+        Update: {
+          cached_at?: string | null
+          expires_at?: string | null
+          id?: string
+          query_key?: string
+          result_count?: number
+          results?: Json
+        }
+        Relationships: []
+      }
       health_connections: {
         Row: {
           connected_at: string | null
