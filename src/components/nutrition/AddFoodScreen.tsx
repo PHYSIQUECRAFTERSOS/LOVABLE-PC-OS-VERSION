@@ -242,8 +242,8 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
     });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
       toast({ title: "Logged!" });
       setQuickAddOpen(false);
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");

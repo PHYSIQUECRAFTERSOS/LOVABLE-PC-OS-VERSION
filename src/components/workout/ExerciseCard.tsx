@@ -1,9 +1,7 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Trophy, Play, Plus } from "lucide-react";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Check, Trophy, Plus } from "lucide-react";
 
 interface SetLog {
   setNumber: number;
