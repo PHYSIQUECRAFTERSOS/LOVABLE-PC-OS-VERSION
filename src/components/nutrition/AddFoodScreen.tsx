@@ -59,7 +59,9 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "my-foods", label: "My Foods" },
 ];
 
-const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFoodScreenProps) => {
+const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
+  // Use provided logDate or fall back to local today
+  const effectiveDate = logDate || new Date().toLocaleDateString("en-CA"); // en-CA gives YYYY-MM-DD
   const { user } = useAuth();
   const { toast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
