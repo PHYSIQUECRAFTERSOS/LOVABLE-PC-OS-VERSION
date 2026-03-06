@@ -196,38 +196,35 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setResults(deduped.map(f => ({ ...f, source: "local" as const })));
       setSearching(false);
 
-      // Search Open Food Facts in background for more branded results
-      const hasBrandMatch = deduped.some(f => f.brand && f.relevance_score && f.relevance_score >= 4);
-      if (deduped.length < 5 || !hasBrandMatch) {
-        setOffSearching(true);
-        try {
-          const { data: offData } = await supabase.functions.invoke("open-food-facts-search", {
-            body: { query: q, pageSize: 10 },
-          });
-          const offFoods = ((offData?.foods || []) as any[]).map((f: any, i: number) => ({
-            id: `off-${i}-${f.barcode || f.name}`,
-            name: f.name,
-            brand: f.brand,
-            calories: f.calories || 0,
-            protein: f.protein || 0,
-            carbs: f.carbs || 0,
-            fat: f.fat || 0,
-            fiber: f.fiber || 0,
-            sugar: f.sugar || 0,
-            sodium: f.sodium || 0,
-            serving_size: f.serving_size || 100,
-            serving_unit: f.serving_unit || "g",
-            is_verified: false,
-            data_source: "open_food_facts",
-            category: f.category,
-            source: "off" as const,
-          }));
-          // Filter out dupes
-          const localNames = new Set(deduped.map(l => l.name.toLowerCase()));
-          setOffResults(offFoods.filter((o: FoodItem) => !localNames.has(o.name.toLowerCase())));
-        } catch { setOffResults([]); }
-        setOffSearching(false);
-      }
+      // Always search Open Food Facts in background for more branded results
+      setOffSearching(true);
+      try {
+        const { data: offData } = await supabase.functions.invoke("open-food-facts-search", {
+          body: { query: q, pageSize: 10 },
+        });
+        const offFoods = ((offData?.foods || []) as any[]).map((f: any, i: number) => ({
+          id: `off-${i}-${f.barcode || f.name}`,
+          name: f.name,
+          brand: f.brand,
+          calories: f.calories || 0,
+          protein: f.protein || 0,
+          carbs: f.carbs || 0,
+          fat: f.fat || 0,
+          fiber: f.fiber || 0,
+          sugar: f.sugar || 0,
+          sodium: f.sodium || 0,
+          serving_size: f.serving_size || 100,
+          serving_unit: f.serving_unit || "g",
+          is_verified: false,
+          data_source: "open_food_facts",
+          category: f.category,
+          source: "off" as const,
+        }));
+        // Filter out dupes
+        const localNames = new Set(deduped.map(l => l.name.toLowerCase()));
+        setOffResults(offFoods.filter((o: FoodItem) => !localNames.has(o.name.toLowerCase())));
+      } catch { setOffResults([]); }
+      setOffSearching(false);
     }, 300);
   }, [activeTab, user]);
 
