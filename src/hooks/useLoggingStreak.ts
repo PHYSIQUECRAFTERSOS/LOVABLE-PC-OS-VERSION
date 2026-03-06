@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getLocalDateString } from "@/utils/localDate";
 
 const STREAK_MILESTONES = [3, 7, 14, 21, 30, 60, 90, 100];
 
@@ -12,15 +13,25 @@ export function useLoggingStreak() {
   const fetchStreak = async () => {
     if (!user) return;
     try {
+      // Use v2 with local date to avoid UTC mismatch
       const { data, error } = await supabase.rpc(
-        "get_logging_streak" as any,
-        { p_user_id: user.id }
+        "get_logging_streak_v2" as any,
+        { p_user_id: user.id, p_today: getLocalDateString() }
       );
       if (!error && data !== null) {
         setStreak(data as unknown as number);
       }
     } catch {
-      // Function may not exist yet
+      // Fallback to v1 if v2 doesn't exist yet
+      try {
+        const { data, error } = await supabase.rpc(
+          "get_logging_streak" as any,
+          { p_user_id: user.id }
+        );
+        if (!error && data !== null) {
+          setStreak(data as unknown as number);
+        }
+      } catch { /* ignore */ }
     }
     setLoading(false);
   };

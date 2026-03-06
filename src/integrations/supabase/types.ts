@@ -4635,6 +4635,10 @@ export type Database = {
     }
     Functions: {
       get_logging_streak: { Args: { p_user_id: string }; Returns: number }
+      get_logging_streak_v2: {
+        Args: { p_today: string; p_user_id: string }
+        Returns: number
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

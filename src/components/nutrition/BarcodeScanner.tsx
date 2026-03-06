@@ -234,6 +234,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       if (newItem) foodItemId = newItem.id;
     }
 
+    const { getLocalDateString } = await import("@/utils/localDate");
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodItemId,
@@ -246,6 +247,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       fat: Math.round(nutrition.fat),
       quantity_display: parseFloat(servingSize) * numServings,
       quantity_unit: "g",
+      logged_at: getLocalDateString(),
     });
 
     setLogging(false);

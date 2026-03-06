@@ -79,6 +79,8 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
     if (!user) return;
     setLoading(true);
     const s = parseFloat(servings) || 1;
+    const { getLocalDateString } = await import("@/utils/localDate");
+    const localDate = getLocalDateString();
 
     const entry = mode === "search" && selected
       ? {
@@ -93,6 +95,7 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
           fiber: Math.round((selected.fiber || 0) * s),
           sugar: Math.round((selected.sugar || 0) * s),
           sodium: Math.round((selected.sodium || 0) * s),
+          logged_at: localDate,
         }
       : {
           client_id: user.id,
@@ -106,6 +109,7 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
           fiber: parseInt(customFiber) || 0,
           sugar: parseInt(customSugar) || 0,
           sodium: parseInt(customSodium) || 0,
+          logged_at: localDate,
         };
 
     const { error } = await supabase.from("nutrition_logs").insert(entry);

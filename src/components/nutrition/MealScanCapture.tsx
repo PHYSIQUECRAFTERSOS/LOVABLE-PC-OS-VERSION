@@ -131,6 +131,8 @@ const MealScanCapture = ({ open, onClose, mealType, onLogged }: MealScanCaptureP
     setLogging(true);
 
     try {
+      const { getLocalDateString } = await import("@/utils/localDate");
+      const localDate = getLocalDateString();
       const inserts = result.items.map((item) => ({
         client_id: user.id,
         custom_name: `${item.name} (${item.portion})`,
@@ -140,6 +142,7 @@ const MealScanCapture = ({ open, onClose, mealType, onLogged }: MealScanCaptureP
         protein: Math.round(item.protein),
         carbs: Math.round(item.carbs),
         fat: Math.round(item.fat),
+        logged_at: localDate,
       }));
 
       const { error: logError } = await supabase.from("nutrition_logs").insert(inserts);
