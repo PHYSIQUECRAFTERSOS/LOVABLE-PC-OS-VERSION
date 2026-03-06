@@ -244,6 +244,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       protein: parseInt(quickProtein) || 0,
       carbs: parseInt(quickCarbs) || 0,
       fat: parseInt(quickFat) || 0,
+      logged_at: effectiveDate,
     });
 
     if (error) {
