@@ -87,7 +87,7 @@ async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
 /** Direct client-side fetch to OFF API */
 async function searchDirectOFF(query: string): Promise<OFFFood[]> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
     const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
