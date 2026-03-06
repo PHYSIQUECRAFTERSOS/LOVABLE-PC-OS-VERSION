@@ -62,6 +62,7 @@ const DailyNutritionLog = () => {
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copyingMeal, setCopyingMeal] = useState<string | null>(null);
+  const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
