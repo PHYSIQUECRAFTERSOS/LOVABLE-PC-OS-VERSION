@@ -13,6 +13,7 @@ import CopyDayDialog from "./CopyDayDialog";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
+import EditFoodModal from "./EditFoodModal";
 
 interface NutritionLog {
   id: string;
