@@ -316,7 +316,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: `${foodToLog.name} logged` });
       // Check streak milestone
       try {
-        const { data: streakData } = await supabase.rpc("get_logging_streak" as any, { p_user_id: user.id });
+        const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
+        const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
         const newStreak = streakData as unknown as number;
         const msg = getMilestoneMessage(newStreak);
         if (msg) {

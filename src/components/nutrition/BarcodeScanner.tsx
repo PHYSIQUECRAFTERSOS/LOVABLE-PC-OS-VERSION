@@ -234,6 +234,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       if (newItem) foodItemId = newItem.id;
     }
 
+    const { getLocalDateString } = await import("@/utils/localDate");
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodItemId,
@@ -246,6 +247,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       fat: Math.round(nutrition.fat),
       quantity_display: parseFloat(servingSize) * numServings,
       quantity_unit: "g",
+      logged_at: getLocalDateString(),
     });
 
     setLogging(false);
@@ -257,7 +259,8 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
 
       // Check streak milestone
       try {
-        const { data: streakData } = await supabase.rpc("get_logging_streak" as any, { p_user_id: user.id });
+        const { getLocalDateString } = await import("@/utils/localDate");
+        const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDateString() });
         const newStreak = streakData as unknown as number;
         const msg = getMilestoneMessage(newStreak);
         if (msg) {
