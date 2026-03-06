@@ -28,6 +28,8 @@ interface NutritionLog {
   sodium?: number;
   servings: number;
   food_item_id: string | null;
+  quantity_display?: number | null;
+  quantity_unit?: string | null;
 }
 
 interface Targets {
