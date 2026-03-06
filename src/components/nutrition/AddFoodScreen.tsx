@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { getMilestoneMessage } from "@/hooks/useLoggingStreak";
 import {
   ArrowLeft,
   Search,
@@ -313,6 +314,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${foodToLog.name} logged` });
+      // Check streak milestone
+      try {
+        const { data: streakData } = await supabase.rpc("get_logging_streak" as any, { p_user_id: user.id });
+        const newStreak = streakData as unknown as number;
+        const msg = getMilestoneMessage(newStreak);
+        if (msg) {
+          setTimeout(() => toast({ title: `🔥 ${newStreak} day streak!`, description: msg }), 1500);
+        }
+      } catch { /* ignore */ }
       onLogged();
     }
   };

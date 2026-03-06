@@ -1875,6 +1875,7 @@ export type Database = {
           protein: number
           saturated_fat: number | null
           selenium_mcg: number | null
+          serving_label: string | null
           serving_size: number
           serving_unit: string
           sodium: number | null
@@ -1935,6 +1936,7 @@ export type Database = {
           protein?: number
           saturated_fat?: number | null
           selenium_mcg?: number | null
+          serving_label?: string | null
           serving_size?: number
           serving_unit?: string
           sodium?: number | null
@@ -1995,6 +1997,7 @@ export type Database = {
           protein?: number
           saturated_fat?: number | null
           selenium_mcg?: number | null
+          serving_label?: string | null
           serving_size?: number
           serving_unit?: string
           sodium?: number | null
@@ -4631,6 +4634,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_logging_streak: { Args: { p_user_id: string }; Returns: number }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
