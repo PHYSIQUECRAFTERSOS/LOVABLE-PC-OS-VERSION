@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
