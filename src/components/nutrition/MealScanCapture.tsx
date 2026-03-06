@@ -143,6 +143,7 @@ const MealScanCapture = ({ open, onClose, mealType, onLogged }: MealScanCaptureP
         carbs: Math.round(item.carbs),
         fat: Math.round(item.fat),
         logged_at: localDate,
+        tz_corrected: true,
       }));
 
       const { error: logError } = await supabase.from("nutrition_logs").insert(inserts);
