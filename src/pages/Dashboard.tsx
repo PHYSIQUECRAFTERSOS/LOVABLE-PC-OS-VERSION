@@ -57,8 +57,6 @@ const ClientDashboard = () => {
 
   return (
     <>
-      
-
       {/* Date Navigator */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
