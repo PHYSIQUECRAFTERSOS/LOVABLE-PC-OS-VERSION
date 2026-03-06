@@ -15,6 +15,8 @@ import DateNavigator from "@/components/dashboard/DateNavigator";
 import CoachPriority from "@/components/dashboard/CoachPriority";
 import WeeklyMomentumScore from "@/components/dashboard/WeeklyMomentumScore";
 import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
+import { useLoggingStreak } from "@/hooks/useLoggingStreak";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Dashboard = () => {
   const { role } = useAuth();
@@ -42,7 +44,8 @@ const Dashboard = () => {
 };
 
 const ClientDashboard = () => {
-  const { streak, last30 } = useConsistencyStreak();
+  const { streak: consistencyStreak, last30 } = useConsistencyStreak();
+  const { streak: loggingStreak, loading: streakLoading } = useLoggingStreak();
   const [todayItems, setTodayItems] = useState<ActionItem[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -60,6 +63,9 @@ const ClientDashboard = () => {
       {/* Date Navigator */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
+      {/* Logging Streak Widget */}
+      <LoggingStreakWidget streak={loggingStreak} loading={streakLoading} />
+
       {/* Coach Priority */}
       <CoachPriority actions={todayItems} />
 
@@ -68,7 +74,7 @@ const ClientDashboard = () => {
         <DailyCompletionRing
           completed={completedCount}
           total={totalCount}
-          streak={streak}
+          streak={consistencyStreak}
         />
         <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
       </div>
@@ -96,6 +102,40 @@ const ClientDashboard = () => {
       {/* Quick Log FAB */}
       <QuickLogFAB />
     </>
+  );
+};
+
+const LoggingStreakWidget = ({ streak, loading }: { streak: number; loading: boolean }) => {
+  if (loading) {
+    return <Skeleton className="h-16 w-full rounded-lg" />;
+  }
+
+  if (streak > 0) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+        <span className="text-2xl">🔥</span>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-foreground">
+            {streak} day{streak !== 1 ? "s" : ""} logged
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Keep it up — log today to extend your streak
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+      <span className="text-2xl">📋</span>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-foreground">Start your logging streak</p>
+        <p className="text-xs text-muted-foreground">
+          Log your first meal today to begin tracking
+        </p>
+      </div>
+    </div>
   );
 };
 
