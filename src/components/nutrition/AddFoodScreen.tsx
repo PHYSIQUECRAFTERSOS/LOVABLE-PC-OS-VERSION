@@ -42,6 +42,7 @@ interface FoodItem {
 interface AddFoodScreenProps {
   mealType: string;
   mealLabel: string;
+  logDate?: string;
   open: boolean;
   onClose: () => void;
   onLogged: () => void;
