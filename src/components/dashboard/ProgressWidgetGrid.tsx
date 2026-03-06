@@ -150,7 +150,7 @@ const ProgressWidgetGrid = () => {
 
       {/* Body Weight */}
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => navigate("/progress?tab=weight")}
         className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
       >
         <div className="flex items-center gap-1.5 mb-1">
