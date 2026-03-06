@@ -38,17 +38,10 @@ export async function searchOFF(query: string): Promise<OFFFood[]> {
   }
 
   // Fall back to edge proxy for environments with direct fetch restrictions
-  const edgeResult = await withTimeout(searchViaEdgeFunction(query), 4500, [] as OFFFood[]);
+  const edgeResult = await withTimeout(searchViaEdgeFunction(query), 8000, [] as OFFFood[]);
   if (edgeResult.length > 0) {
     console.log('[OFF API] Using edge results:', edgeResult.length);
     return edgeResult;
-  }
-
-  // Final attempt: direct with standard timeout
-  const directRetry = await withTimeout(searchDirectOFF(query), 5000, [] as OFFFood[]);
-  if (directRetry.length > 0) {
-    console.log('[OFF API] Using direct-retry results:', directRetry.length);
-    return directRetry;
   }
 
   return [];
