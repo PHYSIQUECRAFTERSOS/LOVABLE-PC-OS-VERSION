@@ -43,13 +43,13 @@ serve(async (req) => {
 
     // Fetch from Open Food Facts
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=${pageSize}&sort_by=unique_scans_n`;
-    
+    const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=${Math.min(pageSize, 40)}&sort_by=unique_scans_n&fields=code,product_name,product_name_en,brands,nutriments,serving_size,categories_tags,image_front_small_url,image_url`;
+
     const resp = await fetch(url, {
       signal: controller.signal,
-      headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (app.physiquecrafters.com)" },
+      headers: { "Accept": "application/json" },
     });
     clearTimeout(timeout);
 
@@ -61,24 +61,31 @@ serve(async (req) => {
     const products = data.products || [];
 
     const foods = products
-      .filter((p: any) => p.product_name && p.nutriments)
-      .map((p: any) => ({
-        name: p.product_name_en || p.product_name,
-        brand: p.brands ? p.brands.split(',')[0].trim() : null,
-        calories: Math.round(p.nutriments["energy-kcal_100g"] || p.nutriments["energy-kcal"] || 0),
-        protein: Math.round((p.nutriments.proteins_100g || 0) * 10) / 10,
-        carbs: Math.round((p.nutriments.carbohydrates_100g || 0) * 10) / 10,
-        fat: Math.round((p.nutriments.fat_100g || 0) * 10) / 10,
-        fiber: Math.round((p.nutriments.fiber_100g || 0) * 10) / 10,
-        sugar: Math.round((p.nutriments.sugars_100g || 0) * 10) / 10,
-        sodium: Math.round((p.nutriments.sodium_100g || 0) * 1000),
-        serving_size: parseFloat(p.serving_size) || 100,
-        serving_unit: "g",
-        category: (p.categories_tags && p.categories_tags[0]) || null,
-        barcode: p.code || null,
-        source: "open_food_facts",
-      }))
-      .filter((f: any) => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
+      .filter((p: any) => (p.product_name_en || p.product_name))
+      .map((p: any) => {
+        const nutriments = p.nutriments || {};
+        const energyKcal = nutriments["energy-kcal_100g"] ?? nutriments["energy-kcal"];
+        const energyKj = nutriments["energy_100g"] ?? nutriments["energy-kj_100g"];
+
+        return {
+          name: p.product_name_en || p.product_name,
+          brand: p.brands ? p.brands.split(",")[0].trim() : null,
+          calories: Math.round(energyKcal ?? (energyKj ? energyKj / 4.184 : 0)),
+          protein: Math.round((nutriments.proteins_100g || 0) * 10) / 10,
+          carbs: Math.round((nutriments.carbohydrates_100g || 0) * 10) / 10,
+          fat: Math.round((nutriments.fat_100g || 0) * 10) / 10,
+          fiber: Math.round((nutriments.fiber_100g || 0) * 10) / 10,
+          sugar: Math.round((nutriments.sugars_100g || 0) * 10) / 10,
+          sodium: Math.round((nutriments.sodium_100g || 0) * 1000),
+          serving_size: parseFloat(p.serving_size) || 100,
+          serving_unit: "g",
+          serving_label: p.serving_size || null,
+          category: (p.categories_tags && p.categories_tags[0]) || null,
+          barcode: p.code || null,
+          image_url: p.image_front_small_url || p.image_url || null,
+          source: "open_food_facts",
+        };
+      });
 
     // Cache results (ignore errors)
     if (foods.length > 0) {
