@@ -258,8 +258,10 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       toast({ title: `${product.name} logged!` });
 
       // Check streak milestone
+      try {
         const { getLocalDateString } = await import("@/utils/localDate");
         const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDateString() });
+        const newStreak = streakData as unknown as number;
         const msg = getMilestoneMessage(newStreak);
         if (msg) {
           setTimeout(() => {
