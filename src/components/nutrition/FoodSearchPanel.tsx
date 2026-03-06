@@ -53,7 +53,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { results: searchResults, loading, offLoading, query, search: doSearch } = useFoodSearch();
+  const { results: searchResults, loading, query, search: doSearch } = useFoodSearch();
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
