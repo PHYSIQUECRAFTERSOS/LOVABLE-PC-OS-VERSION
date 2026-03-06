@@ -515,9 +515,12 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
           <div className="flex items-center gap-2 mb-3 mt-2">
             <Input
               type="number"
-              step="1"
-              min="1"
+              inputMode="decimal"
+              step="any"
+              min="0"
               value={servings}
+              placeholder="0"
+              onFocus={(e) => e.target.select()}
               onChange={(e) => onServingsChange(e.target.value)}
               className="h-7 w-20 text-xs text-center bg-secondary border-0 rounded-lg"
             />
