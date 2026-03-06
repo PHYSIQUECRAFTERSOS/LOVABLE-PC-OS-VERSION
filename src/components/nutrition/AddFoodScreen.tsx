@@ -307,6 +307,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_display: inputVal,
       quantity_unit: unit,
       logged_at: effectiveDate,
+      tz_corrected: true,
     });
 
     if (error) {
@@ -343,6 +344,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       sugar: meal.sugar || 0,
       sodium: meal.sodium || 0,
       logged_at: effectiveDate,
+      tz_corrected: true,
     });
 
     if (error) {
@@ -366,6 +368,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       carbs: parseInt(quickCarbs) || 0,
       fat: parseInt(quickFat) || 0,
       logged_at: effectiveDate,
+      tz_corrected: true,
     });
 
     if (error) {

@@ -16,6 +16,7 @@ import CoachPriority from "@/components/dashboard/CoachPriority";
 import WeeklyMomentumScore from "@/components/dashboard/WeeklyMomentumScore";
 import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 import { useLoggingStreak } from "@/hooks/useLoggingStreak";
+import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Dashboard = () => {
@@ -46,6 +47,7 @@ const Dashboard = () => {
 const ClientDashboard = () => {
   const { streak: consistencyStreak, last30 } = useConsistencyStreak();
   const { streak: loggingStreak, loading: streakLoading } = useLoggingStreak();
+  const { streak: workoutStreak, loading: workoutStreakLoading } = useWorkoutStreak();
   const [todayItems, setTodayItems] = useState<ActionItem[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -63,8 +65,13 @@ const ClientDashboard = () => {
       {/* Date Navigator */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
-      {/* Logging Streak Widget */}
-      <LoggingStreakWidget streak={loggingStreak} loading={streakLoading} />
+      {/* Streak Widgets */}
+      <StreakWidgets
+        loggingStreak={loggingStreak}
+        loggingLoading={streakLoading}
+        workoutStreak={workoutStreak}
+        workoutLoading={workoutStreakLoading}
+      />
 
       {/* Coach Priority */}
       <CoachPriority actions={todayItems} />
@@ -105,21 +112,28 @@ const ClientDashboard = () => {
   );
 };
 
-const LoggingStreakWidget = ({ streak, loading }: { streak: number; loading: boolean }) => {
-  if (loading) {
+interface StreakWidgetsProps {
+  loggingStreak: number;
+  loggingLoading: boolean;
+  workoutStreak: number;
+  workoutLoading: boolean;
+}
+
+const StreakWidgets = ({ loggingStreak, loggingLoading, workoutStreak, workoutLoading }: StreakWidgetsProps) => {
+  if (loggingLoading || workoutLoading) {
     return <Skeleton className="h-16 w-full rounded-lg" />;
   }
 
-  if (streak > 0) {
+  const hasAnyStreak = loggingStreak > 0 || workoutStreak > 0;
+
+  if (!hasAnyStreak) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-        <span className="text-2xl">🔥</span>
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <span className="text-2xl">🏁</span>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-foreground">
-            {streak} day{streak !== 1 ? "s" : ""} logged
-          </p>
+          <p className="text-sm font-semibold text-foreground">Start your streak today</p>
           <p className="text-xs text-muted-foreground">
-            Keep it up — log today to extend your streak
+            Complete a workout or log a meal to begin
           </p>
         </div>
       </div>
@@ -127,14 +141,33 @@ const LoggingStreakWidget = ({ streak, loading }: { streak: number; loading: boo
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-      <span className="text-2xl">📋</span>
-      <div className="flex-1">
-        <p className="text-sm font-semibold text-foreground">Start your logging streak</p>
-        <p className="text-xs text-muted-foreground">
-          Log your first meal today to begin tracking
-        </p>
-      </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {workoutStreak > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <span className="text-2xl">💪</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              {workoutStreak} day{workoutStreak !== 1 ? "s" : ""} training
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Complete today's session to extend your streak
+            </p>
+          </div>
+        </div>
+      )}
+      {loggingStreak > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <span className="text-2xl">🔥</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">
+              {loggingStreak} day{loggingStreak !== 1 ? "s" : ""} logged
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Keep it up — log today to extend your streak
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

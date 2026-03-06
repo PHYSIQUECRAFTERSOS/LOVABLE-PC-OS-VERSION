@@ -2751,6 +2751,7 @@ export type Database = {
           soluble_fiber: number | null
           sugar: number | null
           trans_fat: number | null
+          tz_corrected: boolean | null
           vitamin_a_mcg: number | null
           vitamin_b1_mg: number | null
           vitamin_b12_mcg: number | null
@@ -2807,6 +2808,7 @@ export type Database = {
           soluble_fiber?: number | null
           sugar?: number | null
           trans_fat?: number | null
+          tz_corrected?: boolean | null
           vitamin_a_mcg?: number | null
           vitamin_b1_mg?: number | null
           vitamin_b12_mcg?: number | null
@@ -2863,6 +2865,7 @@ export type Database = {
           soluble_fiber?: number | null
           sugar?: number | null
           trans_fat?: number | null
+          tz_corrected?: boolean | null
           vitamin_a_mcg?: number | null
           vitamin_b1_mg?: number | null
           vitamin_b12_mcg?: number | null
@@ -3215,6 +3218,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
+          timezone: string | null
           updated_at: string
           user_id: string
         }
@@ -3224,6 +3228,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          timezone?: string | null
           updated_at?: string
           user_id: string
         }
@@ -3233,6 +3238,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
+          timezone?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -4475,10 +4481,12 @@ export type Database = {
           last_seen: string | null
           notes: string | null
           pr_count: number | null
+          session_date: string | null
           sets_completed: number | null
           started_at: string | null
           status: string
           total_volume: number | null
+          tz_corrected: boolean | null
           updated_at: string
           workout_id: string
         }
@@ -4492,10 +4500,12 @@ export type Database = {
           last_seen?: string | null
           notes?: string | null
           pr_count?: number | null
+          session_date?: string | null
           sets_completed?: number | null
           started_at?: string | null
           status?: string
           total_volume?: number | null
+          tz_corrected?: boolean | null
           updated_at?: string
           workout_id: string
         }
@@ -4509,10 +4519,12 @@ export type Database = {
           last_seen?: string | null
           notes?: string | null
           pr_count?: number | null
+          session_date?: string | null
           sets_completed?: number | null
           started_at?: string | null
           status?: string
           total_volume?: number | null
+          tz_corrected?: boolean | null
           updated_at?: string
           workout_id?: string
         }
@@ -4631,17 +4643,32 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      data_quality_tz_summary: {
+        Row: {
+          corrected_rows: number | null
+          legacy_rows: number | null
+          pct_corrected: number | null
+          table_name: string | null
+          total_rows: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_logging_streak: { Args: { p_user_id: string }; Returns: number }
-      get_logging_streak_v2: {
-        Args: { p_today: string; p_user_id: string }
-        Returns: number
-      }
+      get_logging_streak_v2:
+        | { Args: { p_today: string; p_user_id: string }; Returns: number }
+        | {
+            Args: { p_today: string; p_tz_only?: boolean; p_user_id: string }
+            Returns: number
+          }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_workout_streak: {
+        Args: { p_today: string; p_tz_only?: boolean; p_user_id: string }
+        Returns: number
       }
       has_role: {
         Args: {

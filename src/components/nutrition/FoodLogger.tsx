@@ -96,6 +96,7 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
           sugar: Math.round((selected.sugar || 0) * s),
           sodium: Math.round((selected.sodium || 0) * s),
           logged_at: localDate,
+          tz_corrected: true,
         }
       : {
           client_id: user.id,
@@ -110,6 +111,7 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
           sugar: parseInt(customSugar) || 0,
           sodium: parseInt(customSodium) || 0,
           logged_at: localDate,
+          tz_corrected: true,
         };
 
     const { error } = await supabase.from("nutrition_logs").insert(entry);

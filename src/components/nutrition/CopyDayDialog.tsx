@@ -105,6 +105,7 @@ const CopyDayDialog = ({ sourceDate, open, onOpenChange, onCopied }: CopyDayDial
           sodium: log.sodium || 0,
           servings: log.servings,
           logged_at: targetDate,
+          tz_corrected: true,
         }))
       );
 

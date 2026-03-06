@@ -183,6 +183,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
         carbs: item.carbs,
         fat: item.fat,
         logged_at: dateStr,
+        tz_corrected: true,
       }));
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
@@ -212,6 +213,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
         carbs: item.carbs,
         fat: item.fat,
         logged_at: dateStr,
+        tz_corrected: true,
       }));
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
