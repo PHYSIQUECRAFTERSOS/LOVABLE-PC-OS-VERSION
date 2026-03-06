@@ -67,12 +67,8 @@ const ExerciseCard = ({
     <Card className={`transition-colors ${allDone ? "border-primary/30 bg-primary/5" : ""}`}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle
-            className="text-base cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
-            onClick={() => videoId && setShowVideo(!showVideo)}
-          >
+          <CardTitle className="text-base flex items-center gap-2">
             {name}
-            {videoId && <Play className="h-3.5 w-3.5 text-muted-foreground" />}
           </CardTitle>
           {allDone && <Check className="h-5 w-5 text-primary" />}
         </div>
