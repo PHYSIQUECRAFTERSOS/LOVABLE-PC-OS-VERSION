@@ -196,7 +196,8 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
     });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${item.name} logged` });
       onLogged();

@@ -2690,6 +2690,7 @@ export type Database = {
           created_at: string
           custom_name: string | null
           fat: number
+          fiber: number | null
           food_item_id: string | null
           id: string
           insoluble_fiber: number | null
@@ -2743,6 +2744,7 @@ export type Database = {
           created_at?: string
           custom_name?: string | null
           fat?: number
+          fiber?: number | null
           food_item_id?: string | null
           id?: string
           insoluble_fiber?: number | null
@@ -2796,6 +2798,7 @@ export type Database = {
           created_at?: string
           custom_name?: string | null
           fat?: number
+          fiber?: number | null
           food_item_id?: string | null
           id?: string
           insoluble_fiber?: number | null

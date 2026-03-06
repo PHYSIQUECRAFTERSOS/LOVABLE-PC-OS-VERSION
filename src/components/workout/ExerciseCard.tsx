@@ -87,17 +87,19 @@ const ExerciseCard = ({
         )}
       </CardHeader>
 
-      {showVideo && videoId && (
+      {videoId && (
         <div className="px-4 pb-2">
-          <AspectRatio ratio={16 / 9}>
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}?rel=0`}
-              title={name}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full rounded-lg"
-            />
-          </AspectRatio>
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1`}
+            title={name}
+            width="100%"
+            height="200"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            className="rounded-lg"
+          />
         </div>
       )}
 

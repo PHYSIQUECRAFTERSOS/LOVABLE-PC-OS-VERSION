@@ -1,0 +1,1 @@
+ALTER TABLE public.nutrition_logs ADD COLUMN IF NOT EXISTS fiber numeric DEFAULT 0;
