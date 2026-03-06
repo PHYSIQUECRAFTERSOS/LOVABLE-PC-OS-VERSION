@@ -75,6 +75,9 @@ const ClientDashboard = () => {
         <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
       </div>
 
+      {/* Progress Widget Grid */}
+      <ProgressWidgetGrid />
+
       {/* Weekly Score + Momentum */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <WeeklyMomentumScore />
