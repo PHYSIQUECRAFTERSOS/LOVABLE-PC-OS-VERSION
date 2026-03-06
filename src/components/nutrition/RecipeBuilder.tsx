@@ -61,21 +61,24 @@ const RecipeBuilder = () => {
     setSearch(q);
     if (q.length < 2) { setResults([]); return; }
     
-    const { data, error } = await supabase.rpc("search_foods", {
-      search_query: q,
-      result_limit: 15,
-    });
-    
-    if (error) {
-      const { data: fallback } = await supabase
-        .from("food_items")
-        .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size")
-        .ilike("name", `%${q}%`)
-        .order("is_verified", { ascending: false })
-        .limit(10);
-      setResults((fallback as FoodItem[]) || []);
-    } else {
-      setResults((data as FoodItem[]) || []);
+    try {
+      const { searchFoods } = await import("@/services/foodSearchService");
+      const searchResults = await searchFoods(q, 15);
+      setResults(searchResults.map(r => ({
+        id: r.id,
+        name: r.name,
+        brand: r.brand,
+        calories: r.calories,
+        protein: r.protein,
+        carbs: r.carbs,
+        fat: r.fat,
+        fiber: r.fiber ?? 0,
+        sugar: r.sugar ?? 0,
+        serving_size: r.serving_size,
+      })) as FoodItem[]);
+    } catch (err) {
+      console.error("[RecipeBuilder] Search error:", err);
+      setResults([]);
     }
   };
 

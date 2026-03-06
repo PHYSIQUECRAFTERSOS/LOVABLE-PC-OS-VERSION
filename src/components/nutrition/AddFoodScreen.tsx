@@ -154,45 +154,41 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setSearching(true);
 
     debounceRef.current = setTimeout(async () => {
-      let foods: FoodItem[] = [];
-      
-      if (activeTab === "my-foods" && user) {
-        const { data } = await supabase
-          .from("food_items")
-          .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
-          .eq("created_by", user.id)
-          .ilike("name", `%${q}%`)
-          .limit(20);
-        foods = (data || []) as FoodItem[];
-      } else {
-        // Use the shared search service for parallel local + OFF search
-        const { searchFoods } = await import("@/services/foodSearchService");
-        const searchResults = await searchFoods(q);
-        
-        // Split into local and OFF results for existing UI logic
-        const localFoods = searchResults
-          .filter(r => r.source === "local")
-          .map(r => ({ ...r, fiber: r.fiber ?? 0, sugar: r.sugar ?? 0, sodium: r.sodium ?? 0 } as FoodItem));
-        const offFoods = searchResults
-          .filter(r => r.source === "off")
-          .map(r => ({ ...r, fiber: r.fiber ?? 0, sugar: r.sugar ?? 0, sodium: r.sodium ?? 0 } as FoodItem));
-        
-        foods = localFoods;
-        setOffResults(offFoods);
+      try {
+        if (activeTab === "my-foods" && user) {
+          const { data } = await supabase
+            .from("food_items")
+            .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+            .eq("created_by", user.id)
+            .ilike("name", `%${q}%`)
+            .limit(20);
+          setResults((data || []) as FoodItem[]);
+          setOffResults([]);
+        } else {
+          // Use the OFF-first search service
+          const { searchFoods } = await import("@/services/foodSearchService");
+          const searchResults = await searchFoods(q);
+          
+          // Map all results to FoodItem format
+          const allFoods = searchResults.map(r => ({
+            ...r,
+            fiber: r.fiber ?? 0,
+            sugar: r.sugar ?? 0,
+            sodium: r.sodium ?? 0,
+          } as FoodItem));
+          
+          setResults(allFoods);
+          setOffResults([]);
+        }
+      } catch (err) {
+        console.error("[AddFoodScreen] Search error:", err);
+        setResults([]);
+        setOffResults([]);
+      } finally {
+        setSearching(false);
+        setOffSearching(false);
       }
-
-      // Dedup + filter zero-macro orphans
-      const valid = foods.filter(f => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
-      const deduped = valid.filter((food, index, self) =>
-        index === self.findIndex(f =>
-          f.name.toLowerCase().trim() === food.name.toLowerCase().trim() &&
-          (f.brand ?? '').toLowerCase().trim() === (food.brand ?? '').toLowerCase().trim()
-        )
-      );
-      setResults(deduped.map(f => ({ ...f, source: f.source || ("local" as const) })));
-      setSearching(false);
-      setOffSearching(false);
-    }, 300);
+    }, 400);
   }, [activeTab, user]);
 
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
