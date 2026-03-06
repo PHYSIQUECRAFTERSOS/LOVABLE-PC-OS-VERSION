@@ -339,6 +339,14 @@ const DailyNutritionLog = () => {
         onOpenChange={setCopyDialogOpen}
         onCopied={() => { fetchLogs(); refreshSuggestions(); }}
       />
+      {/* Edit Food Modal */}
+      <EditFoodModal
+        open={!!editingLog}
+        onOpenChange={(v) => { if (!v) setEditingLog(null); }}
+        logEntry={editingLog}
+        foodName={editingLog?.food_item_id ? (foodNames[editingLog.food_item_id] || "Food") : (editingLog?.custom_name || "Food")}
+        onUpdated={() => { setEditingLog(null); fetchLogs(); }}
+      />
     </div>
   );
 };
