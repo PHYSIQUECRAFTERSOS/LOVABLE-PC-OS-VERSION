@@ -115,6 +115,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchRoles]);
 
+  const syncTimezone = useCallback(async (userId: string) => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Vancouver";
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("timezone")
+        .eq("user_id", userId)
+        .single();
+      if (profile && profile.timezone !== tz) {
+        await supabase
+          .from("profiles")
+          .update({ timezone: tz } as any)
+          .eq("user_id", userId);
+      }
+    } catch { /* non-critical */ }
+  }, []);
+
   const resolveSession = useCallback(async (incomingSession: Session | null) => {
     if (!mountedRef.current) return;
 
@@ -141,6 +158,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(incomingSession);
     setUser(incomingSession.user);
     setLoading(false);
+
+    // Sync timezone on every session resolution (login, app load, token refresh)
+    syncTimezone(currentUserId);
 
     const cached = getCachedRoles(currentUserId);
     if (cached.length > 0) {
