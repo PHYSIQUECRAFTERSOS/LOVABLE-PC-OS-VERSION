@@ -248,6 +248,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       quantity_display: parseFloat(servingSize) * numServings,
       quantity_unit: "g",
       logged_at: getLocalDateString(),
+      tz_corrected: true,
     });
 
     setLogging(false);

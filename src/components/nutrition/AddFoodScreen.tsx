@@ -368,6 +368,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       carbs: parseInt(quickCarbs) || 0,
       fat: parseInt(quickFat) || 0,
       logged_at: effectiveDate,
+      tz_corrected: true,
     });
 
     if (error) {
