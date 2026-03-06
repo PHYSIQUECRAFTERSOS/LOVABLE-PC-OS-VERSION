@@ -31,3 +31,15 @@ export function getUserTimezoneLabel(): string {
     ? `UTC${sign}${offsetHours}:${String(offsetMins).padStart(2, "0")}`
     : `UTC${sign}${offsetHours}`;
 }
+
+/**
+ * Returns the user's IANA timezone string from their browser.
+ * Example: "America/Vancouver", "America/Toronto", "Europe/London"
+ */
+export function getUserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "America/Vancouver";
+  }
+}
