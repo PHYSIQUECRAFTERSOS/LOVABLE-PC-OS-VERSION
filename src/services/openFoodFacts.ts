@@ -203,6 +203,21 @@ function mapOFFProduct(p: any, barcodeOverride?: string): OFFFood {
   };
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
+}
+
 function parseServingGrams(raw: string): number | null {
   if (!raw) return null;
   const paren = raw.match(/\((\d+(?:\.\d+)?)\s*g\)/i);
