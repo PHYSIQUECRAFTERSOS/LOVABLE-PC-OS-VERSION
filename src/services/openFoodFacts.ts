@@ -1,7 +1,9 @@
 /**
- * Open Food Facts API — direct client-side calls.
- * This is the PRIMARY food data source (3.2M+ products).
+ * Open Food Facts API — uses edge function as primary (no CORS issues),
+ * falls back to direct client-side calls if edge function fails.
  */
+
+import { supabase } from "@/integrations/supabase/client";
 
 export interface OFFFood {
   id: string;
@@ -27,6 +29,60 @@ export interface OFFFood {
 
 /** Search OFF by text query — returns up to 50 results sorted by popularity */
 export async function searchOFF(query: string): Promise<OFFFood[]> {
+  console.log('[OFF API] Searching for:', query);
+
+  // PRIMARY: Use edge function (server-side, no CORS issues on mobile)
+  try {
+    const edgeResult = await searchViaEdgeFunction(query);
+    if (edgeResult.length > 0) {
+      console.log('[OFF API] Edge function returned', edgeResult.length, 'results');
+      return edgeResult;
+    }
+    console.log('[OFF API] Edge function returned 0 results, trying direct...');
+  } catch (err: any) {
+    console.warn('[OFF API] Edge function failed:', err.message, '— trying direct fetch');
+  }
+
+  // FALLBACK: Direct client-side fetch
+  return searchDirectOFF(query);
+}
+
+/** Search via the deployed edge function */
+async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
+  const { data, error } = await supabase.functions.invoke('open-food-facts-search', {
+    body: { query, pageSize: 50 },
+  });
+
+  if (error) throw error;
+
+  const foods = data?.foods ?? [];
+  if (!Array.isArray(foods) || foods.length === 0) return [];
+
+  return foods.map((f: any) => ({
+    id: f.barcode ?? f.code ?? crypto.randomUUID(),
+    name: f.name ?? 'Unknown',
+    brand: f.brand ?? null,
+    calories: f.calories ?? null,
+    protein: f.protein ?? null,
+    carbs: f.carbs ?? null,
+    fat: f.fat ?? null,
+    fiber: f.fiber ?? null,
+    sugar: f.sugar ?? null,
+    sodium: f.sodium ?? null,
+    serving_size: f.serving_size ?? 100,
+    serving_unit: f.serving_unit ?? 'g',
+    serving_label: null,
+    source: 'open_food_facts' as const,
+    category: f.category?.replace('en:', '').replace(/-/g, ' ') ?? null,
+    barcode: f.barcode ?? f.code ?? null,
+    image_url: null,
+    is_verified: false,
+    data_source: 'open_food_facts',
+  }));
+}
+
+/** Direct client-side fetch to OFF API */
+async function searchDirectOFF(query: string): Promise<OFFFood[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
 
@@ -40,49 +96,32 @@ export async function searchOFF(query: string): Promise<OFFFood[]> {
     url.searchParams.set('sort_by', 'unique_scans_n');
     url.searchParams.set('fields', 'code,product_name,product_name_en,brands,nutriments,serving_size,serving_quantity,categories_tags,image_front_small_url,image_url');
 
-    console.log('[OFF API] Fetching:', url.toString());
+    console.log('[OFF API] Direct fetch:', url.toString());
 
     const res = await fetch(url.toString(), {
       signal: controller.signal,
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { 'Accept': 'application/json' },
     });
     clearTimeout(timeout);
 
-    if (!res.ok) {
-      console.error('[OFF API] HTTP error:', res.status, res.statusText);
-      throw new Error(`OFF API error: ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`OFF API error: ${res.status}`);
 
     const data = await res.json();
-    console.log('[OFF API] Raw response — count:', data.count, 'products:', data.products?.length);
 
-    if (!data.products || !Array.isArray(data.products)) {
-      console.warn('[OFF API] No products array in response');
-      return [];
-    }
+    if (!data.products || !Array.isArray(data.products)) return [];
 
     const mapped = data.products
       .filter((p: any) => p.product_name && p.product_name.trim() !== '' && p.product_name !== 'Unknown')
       .map((p: any) => mapOFFProduct(p));
 
-    // Only filter out items that have absolutely zero nutrition data
     const withData = mapped.filter((f: OFFFood) =>
       (f.calories ?? 0) > 0 || (f.protein ?? 0) > 0 || (f.carbs ?? 0) > 0 || (f.fat ?? 0) > 0
     );
 
-    console.log('[OFF API] Mapped:', mapped.length, 'With macros:', withData.length);
-
-    // If the macro filter removes too many, return all mapped (some foods just lack data)
     return withData.length > 0 ? withData : mapped.slice(0, 25);
   } catch (err: any) {
     clearTimeout(timeout);
-    if (err.name === 'AbortError') {
-      console.warn('[OFF API] Search timed out (10s) for:', query);
-    } else {
-      console.error('[OFF API] Search error:', err.message || err);
-    }
+    console.error('[OFF API] Direct fetch error:', err.message || err);
     return [];
   }
 }
@@ -129,7 +168,6 @@ function mapOFFProduct(p: any, barcodeOverride?: string): OFFFood {
   const rawCat = p.categories_tags?.[0] ?? null;
   const category = rawCat ? rawCat.replace('en:', '').replace(/-/g, ' ') : null;
 
-  // Try kcal_100g first, then fall back to energy_100g converted from kJ
   let calories: number | null = null;
   if (n['energy-kcal_100g'] != null) {
     calories = Math.round(n['energy-kcal_100g']);
