@@ -196,6 +196,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fiber: Math.round((item.fiber || 0) * multiplier),
       sugar: Math.round((item.sugar || 0) * multiplier),
       sodium: Math.round((item.sodium || 0) * multiplier),
+      logged_at: effectiveDate,
     });
 
     if (error) {
