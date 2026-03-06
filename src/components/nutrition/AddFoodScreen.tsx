@@ -185,7 +185,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
         const searchResults = await Promise.race([
           searchFoods(q),
-          new Promise<FoodItem[]>((resolve) => setTimeout(() => resolve([]), 4500)),
+          new Promise<FoodItem[]>((resolve) => setTimeout(() => resolve([]), 9000)),
         ]);
 
         if (searchRequestIdRef.current !== requestId) return;
