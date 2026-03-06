@@ -47,6 +47,7 @@ const ProgressWidgetGrid = () => {
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [todayCals, setTodayCals] = useState<number>(0);
   const [calSpark, setCalSpark] = useState<SparkData[]>([]);
+  const [manualSteps, setManualSteps] = useState<number | null>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -100,14 +101,12 @@ const ProgressWidgetGrid = () => {
         .gte("logged_at", sevenAgo)
         .order("logged_at", { ascending: true });
       if (data) {
-        // Group by day
         const dayMap: Record<string, number> = {};
         data.forEach(d => {
           const day = d.logged_at;
           dayMap[day] = (dayMap[day] || 0) + Number(d.calories || 0);
         });
         setTodayCals(dayMap[today] || 0);
-        // Build spark for last 7 days
         const spark: SparkData[] = [];
         for (let i = 6; i >= 0; i--) {
           const d = format(subDays(new Date(), i), "yyyy-MM-dd");
@@ -117,9 +116,21 @@ const ProgressWidgetGrid = () => {
       }
     };
 
+    // Fetch manual steps from daily_health_metrics
+    const fetchManualSteps = async () => {
+      const { data } = await supabase
+        .from("daily_health_metrics")
+        .select("steps")
+        .eq("user_id", user.id)
+        .eq("metric_date", today)
+        .maybeSingle();
+      if (data?.steps) setManualSteps(data.steps);
+    };
+
     fetchWeight();
     fetchPhotos();
     fetchCalories();
+    fetchManualSteps();
   }, [user, today]);
 
   // Steps data from health sync
@@ -131,7 +142,7 @@ const ProgressWidgetGrid = () => {
     <div className="grid grid-cols-2 gap-3">
       {/* Steps */}
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => navigate("/progress?tab=steps")}
         className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
       >
         <div className="flex items-center gap-1.5 mb-1">
@@ -139,9 +150,9 @@ const ProgressWidgetGrid = () => {
           <span className="text-xs text-muted-foreground">Steps</span>
         </div>
         <div className="text-xl font-bold text-foreground tabular-nums">
-          {isConnected && steps !== null ? steps.toLocaleString() : "–"}
+          {isConnected && steps !== null ? steps.toLocaleString() : manualSteps !== null ? manualSteps.toLocaleString() : "–"}
         </div>
-        {isConnected ? (
+        {isConnected || manualSteps !== null ? (
           <MiniSparkline data={stepsSpark} />
         ) : (
           <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
@@ -150,7 +161,7 @@ const ProgressWidgetGrid = () => {
 
       {/* Body Weight */}
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => navigate("/progress?tab=weight")}
         className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
       >
         <div className="flex items-center gap-1.5 mb-1">
@@ -165,7 +176,7 @@ const ProgressWidgetGrid = () => {
 
       {/* Progress Photos */}
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => navigate("/progress?tab=photos")}
         className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
       >
         <div className="flex items-center gap-1.5 mb-1">

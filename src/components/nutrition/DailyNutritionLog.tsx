@@ -28,6 +28,8 @@ interface NutritionLog {
   sodium?: number;
   servings: number;
   food_item_id: string | null;
+  quantity_display?: number | null;
+  quantity_unit?: string | null;
 }
 
 interface Targets {
@@ -302,6 +304,10 @@ const DailyNutritionLog = () => {
                           {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
                         </div>
                         <div className="text-xs text-muted-foreground">
+                          {item.quantity_display != null && item.quantity_display > 0
+                            ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
+                            : ''
+                          }
                           {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
                         </div>
                       </div>

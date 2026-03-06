@@ -2709,6 +2709,8 @@ export type Database = {
           polyunsaturated_fat: number | null
           potassium_mg: number | null
           protein: number
+          quantity_display: number | null
+          quantity_unit: string | null
           saturated_fat: number | null
           selenium_mcg: number | null
           servings: number
@@ -2763,6 +2765,8 @@ export type Database = {
           polyunsaturated_fat?: number | null
           potassium_mg?: number | null
           protein?: number
+          quantity_display?: number | null
+          quantity_unit?: string | null
           saturated_fat?: number | null
           selenium_mcg?: number | null
           servings?: number
@@ -2817,6 +2821,8 @@ export type Database = {
           polyunsaturated_fat?: number | null
           potassium_mg?: number | null
           protein?: number
+          quantity_display?: number | null
+          quantity_unit?: string | null
           saturated_fat?: number | null
           selenium_mcg?: number | null
           servings?: number

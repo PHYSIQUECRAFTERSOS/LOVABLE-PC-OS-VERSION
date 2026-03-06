@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WeeklyCheckinForm from "@/components/checkin/WeeklyCheckinForm";
@@ -14,9 +15,24 @@ import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
 import CheckinFormBuilder from "@/components/checkin/CheckinFormBuilder";
 import CheckinSubmissionForm from "@/components/checkin/CheckinSubmissionForm";
 import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard";
+import StepsScreen from "@/components/biofeedback/StepsScreen";
+
+const TAB_MAP: Record<string, string> = {
+  steps: "steps",
+  weight: "weight",
+  photos: "photos",
+  checkin: "checkin",
+  forms: "forms",
+  dashboard: "dashboard",
+  trends: "trends",
+};
 
 const Progress = () => {
   const { role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const defaultTab = TAB_MAP[tabParam || ""] || "checkin";
+
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
   const isCoach = role === "coach" || role === "admin";
@@ -26,13 +42,14 @@ const Progress = () => {
       <div className="animate-fade-in space-y-6">
         <h1 className="font-display text-2xl font-bold text-foreground">Progress</h1>
 
-        <Tabs defaultValue="checkin" className="w-full">
-          <TabsList className="w-full grid grid-cols-6">
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className="w-full grid grid-cols-7">
             <TabsTrigger value="checkin">Check-In</TabsTrigger>
             <TabsTrigger value="forms">Forms</TabsTrigger>
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="weight">Weight</TabsTrigger>
             <TabsTrigger value="photos">Photos</TabsTrigger>
+            <TabsTrigger value="steps">Steps</TabsTrigger>
             <TabsTrigger value="trends">Trends</TabsTrigger>
           </TabsList>
 
@@ -81,6 +98,10 @@ const Progress = () => {
                 <BodyFatEstimation key={refreshKey} />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="steps" className="mt-4">
+            <StepsScreen />
           </TabsContent>
 
           <TabsContent value="trends" className="mt-4">

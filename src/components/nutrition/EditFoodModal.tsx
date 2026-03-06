@@ -108,6 +108,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated }: Ed
   const handleSave = async () => {
     if (!logEntry) return;
     setSaving(true);
+    const qtyDisplay = parseFloat(quantity) || 0;
     const { error } = await supabase
       .from("nutrition_logs")
       .update({
@@ -119,6 +120,8 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated }: Ed
         fiber: liveFiber,
         sugar: liveSugar,
         sodium: liveSodium,
+        quantity_display: qtyDisplay,
+        quantity_unit: logEntry.food_item_id ? unit : "serving",
       })
       .eq("id", logEntry.id);
     setSaving(false);
