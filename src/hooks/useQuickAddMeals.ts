@@ -132,6 +132,7 @@ export function useQuickAddMeals(userId: string | undefined, selectedDate: Date)
       sugar: item.sugar || 0,
       sodium: item.sodium || 0,
       logged_at: dateStr,
+      tz_corrected: true,
     }));
 
     const { error } = await supabase.from("nutrition_logs").insert(inserts);

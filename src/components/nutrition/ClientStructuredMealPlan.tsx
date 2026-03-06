@@ -157,6 +157,7 @@ const ClientStructuredMealPlan = ({
       carbs: item.carbs,
       fat: item.fat,
       logged_at: dateStr,
+      tz_corrected: true,
     });
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
