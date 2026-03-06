@@ -234,17 +234,12 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       setLoading(false);
 
       // Always search Open Food Facts in background for more branded results
-      {
-        setOffLoading(true);
-        const off = await searchOFF(q);
-        // Filter out OFF results that match local results
-        const localNames = new Set(local.map(l => l.name.toLowerCase()));
-        const filtered = off.filter(o => !localNames.has(o.name.toLowerCase()));
-        setOffResults(filtered);
-        setOffLoading(false);
-      } else {
-        setOffResults([]);
-      }
+      setOffLoading(true);
+      const off = await searchOFF(q);
+      const localNames = new Set(local.map(l => l.name.toLowerCase()));
+      const filtered = off.filter(o => !localNames.has(o.name.toLowerCase()));
+      setOffResults(filtered);
+      setOffLoading(false);
     }, 300); // 300ms debounce
   }, []);
 
