@@ -252,137 +252,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     return deduplicateAndFilter(combined);
   };
 
-  const handleSelect = async (food: FoodResult) => {
-    if (food.source === "off") {
-      // Import from Open Food Facts into local DB
-      try {
-        const foodItem = {
-          name: food.name,
-          brand: food.brand || null,
-          serving_size: food.serving_size || 100,
-          serving_unit: food.serving_unit || "g",
-          calories: Math.round(food.calories || 0),
-          protein: Math.round(food.protein || 0),
-          carbs: Math.round(food.carbs || 0),
-          fat: Math.round(food.fat || 0),
-          fiber: Math.round(food.fiber || 0),
-          sugar: Math.round(food.sugar || 0),
-          sodium: Math.round((food as any).sodium || 0),
-          category: food.category || null,
-          data_source: "open_food_facts",
-          created_by: user!.id,
-          is_verified: false,
-        };
-
-        const { data: inserted, error: insertErr } = await supabase
-          .from("food_items")
-          .insert(foodItem)
-          .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
-          .single();
-
-        if (insertErr) throw insertErr;
-        const result = { ...inserted, source: "local" as const };
-        await trackUsage(result.id, result.name);
-        onSelect(result);
-      } catch (err: any) {
-        toast({ title: "Import failed", description: err.message, variant: "destructive" });
-      }
-    } else if (food.source === "usda" && food.fdcId) {
-      // Existing USDA import logic
-      try {
-        const { data: detail, error } = await supabase.functions.invoke("usda-food-search", {
-          body: { action: "detail", fdcId: food.fdcId },
-        });
-        if (error) throw error;
-
-        const foodItem = {
-          name: detail.description || food.name,
-          brand: detail.brandOwner || food.brand || null,
-          serving_size: detail.servingSize || 100,
-          serving_unit: detail.servingSizeUnit || "g",
-          calories: Math.round(detail.calories || 0),
-          protein: Math.round(detail.protein || 0),
-          carbs: Math.round(detail.carbs || 0),
-          fat: Math.round(detail.fat || 0),
-          fiber: Math.round(detail.fiber || 0),
-          sugar: Math.round(detail.total_sugars || 0),
-          sodium: Math.round(detail.sodium || 0),
-          usda_fdc_id: String(food.fdcId),
-          data_source: "usda",
-          created_by: user!.id,
-          is_verified: true,
-        };
-
-        const { data: inserted, error: insertErr } = await supabase
-          .from("food_items")
-          .insert(foodItem)
-          .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
-          .single();
-
-        if (insertErr) throw insertErr;
-        const result = { ...inserted, source: "local" as const };
-        await trackUsage(result.id, result.name);
-        onSelect(result);
-      } catch (err: any) {
-        toast({ title: "Import failed", description: err.message, variant: "destructive" });
-      }
-    } else {
-      await trackUsage(food.id, food.name);
-      onSelect(food);
-    }
-  };
-
-  const onCustomFoodCreated = (food: any) => {
-    setShowCustomFood(false);
-    onSelect({ ...food, source: "local" });
-  };
-
-  // Dedup + filter zero-macro orphans
-  const deduplicateAndFilter = (foods: FoodResult[]): FoodResult[] => {
-    const valid = foods.filter(f => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
-    return valid.filter((food, index, self) =>
-      index === self.findIndex(f =>
-        f.name.toLowerCase().trim() === food.name.toLowerCase().trim() &&
-        (f.brand ?? '').toLowerCase().trim() === (food.brand ?? '').toLowerCase().trim()
-      )
-    );
-  };
-
-  const getDisplayList = (): FoodResult[] => {
-    if (query.length < 2) {
-      if (activeFilter === "favorites") return deduplicateAndFilter(recentFoods.filter(f => favorites.has(f.id)));
-      if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
-      const favFoods = recentFoods.filter(f => favorites.has(f.id));
-      const nonFavRecents = recentFoods.filter(f => !favorites.has(f.id));
-      return deduplicateAndFilter([...favFoods, ...nonFavRecents]);
-    }
-
-    let combined = [...localResults];
-
-    if (activeFilter === "favorites") combined = combined.filter(f => favorites.has(f.id));
-    else if (activeFilter === "branded") combined = combined.filter(f => f.brand);
-    else if (activeFilter === "generic") combined = combined.filter(f => !f.brand);
-
-    // Favorites to top within same relevance
-    combined.sort((a, b) => {
-      const aFav = favorites.has(a.id) ? 1 : 0;
-      const bFav = favorites.has(b.id) ? 1 : 0;
-      if (aFav !== bFav) return bFav - aFav;
-      return 0;
-    });
-
-    if (sortBy === "calories") combined.sort((a, b) => a.calories - b.calories);
-    else if (sortBy === "protein") combined.sort((a, b) => b.protein - a.protein);
-    else if (sortBy === "alpha") combined.sort((a, b) => a.name.localeCompare(b.name));
-
-    // Append OFF results at end (for "all" or "branded" tabs)
-    if (activeFilter === "all" || activeFilter === "branded") {
-      combined = [...combined, ...offResults];
-    }
-
-    return deduplicateAndFilter(combined);
-  };
-
   const displayList = getDisplayList();
   const showingRecents = query.length < 2;
 
@@ -390,7 +259,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (food.source === "off" || food.data_source === "open_food_facts") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
     }
-    if (food.source === "usda" || food.data_source === "usda") {
+    if (food.data_source === "usda") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">USDA</Badge>;
     }
     if (food.brand) {
@@ -420,7 +289,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
             ref={inputRef}
             placeholder="Search 200k+ foods..."
             value={query}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => doSearch(e.target.value)}
             className="h-9 pl-8 text-xs"
           />
           {loading && (
