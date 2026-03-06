@@ -344,6 +344,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       sugar: meal.sugar || 0,
       sodium: meal.sodium || 0,
       logged_at: effectiveDate,
+      tz_corrected: true,
     });
 
     if (error) {
