@@ -74,26 +74,35 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   }, []);
 
   const handleBarcodeLookup = async (barcode: string) => {
+    console.log('[BARCODE] Looking up barcode:', barcode);
     setLooking(true);
     setNotFound(false);
     setProduct(null);
     setMacroEntryMode("auto");
 
-    const result = await lookupBarcodeService(barcode);
+    try {
+      const result = await lookupBarcodeService(barcode);
+      console.log('[BARCODE] Lookup result:', result ? result.name : 'not found');
 
-    if (result) {
-      setProduct(result);
-      // Default to product's declared serving size
-      setServingSize(String(result.serving_size));
-      setNumServings(1);
-      if (!result.has_macros) {
-        setMacroEntryMode("manual");
+      if (result) {
+        setProduct(result);
+        setServingSize(String(result.serving_size));
+        setNumServings(1);
+        if (!result.has_macros) {
+          setMacroEntryMode("manual");
+        }
+      } else {
+        setNotFound(true);
+        setNotFoundBarcode(barcode);
       }
-    } else {
+    } catch (err) {
+      console.error('[BARCODE] Lookup error:', err);
       setNotFound(true);
       setNotFoundBarcode(barcode);
+      toast({ title: "Barcode lookup failed", description: "Could not look up product. Check your connection.", variant: "destructive" });
+    } finally {
+      setLooking(false);
     }
-    setLooking(false);
   };
 
   const startScanner = async () => {
