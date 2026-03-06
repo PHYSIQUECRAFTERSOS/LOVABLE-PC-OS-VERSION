@@ -27,24 +27,25 @@ export interface OFFFood {
   data_source: string;
 }
 
-/** Search OFF by text query — returns up to 50 results sorted by popularity */
 export async function searchOFF(query: string): Promise<OFFFood[]> {
   console.log('[OFF API] Searching for:', query);
 
-  // PRIMARY: Use edge function (server-side, no CORS issues on mobile)
-  try {
-    const edgeResult = await searchViaEdgeFunction(query);
-    if (edgeResult.length > 0) {
-      console.log('[OFF API] Edge function returned', edgeResult.length, 'results');
-      return edgeResult;
-    }
-    console.log('[OFF API] Edge function returned 0 results, trying direct...');
-  } catch (err: any) {
-    console.warn('[OFF API] Edge function failed:', err.message, '— trying direct fetch');
+  const edgePromise = withTimeout(searchViaEdgeFunction(query), 4500, [] as OFFFood[]);
+  const directPromise = withTimeout(searchDirectOFF(query), 4500, [] as OFFFood[]);
+
+  const [edgeResult, directResult] = await Promise.all([edgePromise, directPromise]);
+
+  if (edgeResult.length > 0) {
+    console.log('[OFF API] Using edge results:', edgeResult.length);
+    return edgeResult;
   }
 
-  // FALLBACK: Direct client-side fetch
-  return searchDirectOFF(query);
+  if (directResult.length > 0) {
+    console.log('[OFF API] Using direct results:', directResult.length);
+    return directResult;
+  }
+
+  return [];
 }
 
 /** Search via the deployed edge function */
