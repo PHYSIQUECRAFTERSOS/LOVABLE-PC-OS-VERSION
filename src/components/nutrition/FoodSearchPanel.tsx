@@ -53,7 +53,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { results: searchResults, loading, offLoading, query, search: doSearch } = useFoodSearch();
+  const { results: searchResults, loading, query, search: doSearch } = useFoodSearch();
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
@@ -344,7 +344,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
       {/* Results */}
       <div className="max-h-52 overflow-y-auto space-y-0.5 rounded border border-border p-1">
-        {displayList.length === 0 && !loading && !offLoading ? (
+        {displayList.length === 0 && !loading ? (
           <div className="text-center py-6">
             <p className="text-[11px] text-muted-foreground">
               {query.length >= 2
@@ -406,12 +406,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
               </button>
             </button>
           ))
-        )}
-        {offLoading && (
-          <div className="flex items-center justify-center gap-2 py-3 text-[10px] text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Searching branded foods...
-          </div>
         )}
       </div>
 

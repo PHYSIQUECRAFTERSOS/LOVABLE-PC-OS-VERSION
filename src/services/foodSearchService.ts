@@ -1,4 +1,17 @@
+/**
+ * Unified Food Search Service — OFF-first architecture.
+ *
+ * Search waterfall:
+ *   1. Check Supabase food_search_cache (instant, 24hr TTL)
+ *   2. Call Open Food Facts API (primary source, 1-2s)
+ *   3. Query local food_items table (legacy/personal foods)
+ *   4. Merge, rank, cache results
+ *
+ * Used by BOTH coach template builder AND client food logging.
+ */
+
 import { supabase } from "@/integrations/supabase/client";
+import { searchOFF, type OFFFood } from "./openFoodFacts";
 
 export interface FoodResult {
   id: string;
@@ -22,33 +35,76 @@ export interface FoodResult {
   source?: "local" | "off";
 }
 
-/**
- * 3-tier food search pipeline used by ALL search components.
- * Tier 1: Local food_items via search_foods RPC (<200ms)
- * Tier 2: Open Food Facts API direct call (5s timeout)
- * Results from OFF are persisted to food_items for future local hits.
- */
-export async function searchFoods(query: string, limit = 25): Promise<FoodResult[]> {
+export async function searchFoods(query: string, limit = 50): Promise<FoodResult[]> {
   const q = query.trim();
   if (q.length < 2) return [];
 
-  // Launch both tiers in parallel
-  const [localResults, offResults] = await Promise.all([
-    searchLocal(q, limit),
-    searchOFF(q),
+  const cacheKey = q.toLowerCase();
+
+  // Launch cache check + local search + OFF search in parallel
+  const [cachedResults, localResults, offResults] = await Promise.all([
+    getCachedResults(cacheKey),
+    searchLocal(q, 15),
+    null as Promise<FoodResult[]> | null, // placeholder — we check cache first
   ]);
 
-  // If local has 5+ strong results, prefer them but still merge OFF
-  const merged = mergeAndDedup(localResults, offResults, q);
-  return merged.slice(0, limit);
+  // If cache hit, merge with local and return
+  if (cachedResults.length > 0) {
+    return rankAndMerge(localResults, cachedResults, q).slice(0, limit);
+  }
+
+  // No cache — call OFF API
+  console.log('[FoodSearch] Cache miss, calling OFF API for:', q);
+  const liveOffResults = await searchOFF(q);
+  const mappedOff = liveOffResults.map(offToFoodResult);
+
+  // Cache in background
+  if (mappedOff.length > 0) {
+    cacheResults(cacheKey, mappedOff).catch(console.warn);
+  }
+
+  return rankAndMerge(localResults, mappedOff, q).slice(0, limit);
 }
 
-/** Search local only (for "my foods" tab etc.) */
+/** Search local food_items only (for "my foods" tab) */
 export async function searchLocalOnly(query: string, limit = 25): Promise<FoodResult[]> {
   return searchLocal(query.trim(), limit);
 }
 
-// ── Tier 1: Local DB via RPC ──────────────────────────────────
+// ── Cache layer ───────────────────────────────────────────────────────────
+
+async function getCachedResults(queryKey: string): Promise<FoodResult[]> {
+  try {
+    const { data } = await supabase
+      .from("food_search_cache")
+      .select("results")
+      .eq("query_key", queryKey)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
+
+    return (data?.results as unknown as FoodResult[]) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function cacheResults(queryKey: string, results: FoodResult[]): Promise<void> {
+  await supabase
+    .from("food_search_cache")
+    .upsert({
+      query_key: queryKey,
+      results: results as any,
+      result_count: results.length,
+      cached_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    }, { onConflict: "query_key" })
+    .then(({ error }) => {
+      if (error) console.warn("[FoodSearch] Cache write warning:", error.message);
+    });
+}
+
+// ── Local DB search (secondary source) ────────────────────────────────────
+
 async function searchLocal(q: string, limit: number): Promise<FoodResult[]> {
   try {
     const { data, error } = await supabase.rpc("search_foods", {
@@ -57,8 +113,7 @@ async function searchLocal(q: string, limit: number): Promise<FoodResult[]> {
     });
 
     if (error) {
-      console.error("[FoodSearch] RPC error, falling back to ilike:", error.message);
-      // Fallback to basic ilike
+      console.warn("[FoodSearch] RPC error, trying ilike fallback:", error.message);
       const { data: fallback } = await supabase
         .from("food_items")
         .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit, serving_label, category, data_source, is_verified, barcode")
@@ -70,99 +125,41 @@ async function searchLocal(q: string, limit: number): Promise<FoodResult[]> {
 
     return ((data || []) as any[]).map(f => ({ ...f, source: "local" as const }));
   } catch (err) {
-    console.error("[FoodSearch] Tier 1 failed:", err);
+    console.error("[FoodSearch] Local search failed:", err);
     return [];
   }
 }
 
-// ── Tier 2: Open Food Facts direct API call ───────────────────
-async function searchOFF(q: string): Promise<FoodResult[]> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+// ── Merge + rank ──────────────────────────────────────────────────────────
 
-    const response = await fetch(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&sort_by=unique_scans_n`,
-      {
-        signal: controller.signal,
-        headers: { "User-Agent": "PhysiqueCraftersOS/1.0" },
-      }
-    );
-    clearTimeout(timeout);
-
-    if (!response.ok) return [];
-
-    const data = await response.json();
-    const products = (data.products || []) as any[];
-
-    const results: FoodResult[] = products
-      .filter((p: any) => p.product_name && p.product_name.trim() !== "")
-      .map((p: any, i: number) => {
-        const n = p.nutriments ?? {};
-        return {
-          id: `off-${i}-${p.code || p.product_name}`,
-          name: p.product_name_en || p.product_name,
-          brand: p.brands || null,
-          calories: Math.round(n["energy-kcal_100g"] || n["energy-kcal"] || 0),
-          protein: Math.round((n.proteins_100g || 0) * 10) / 10,
-          carbs: Math.round((n.carbohydrates_100g || 0) * 10) / 10,
-          fat: Math.round((n.fat_100g || 0) * 10) / 10,
-          fiber: Math.round((n.fiber_100g || 0) * 10) / 10,
-          sugar: Math.round((n.sugars_100g || 0) * 10) / 10,
-          sodium: Math.round((n.sodium_100g || 0) * 1000),
-          serving_size: parseServingGrams(p.serving_size) ?? 100,
-          serving_unit: "g",
-          serving_label: p.serving_size || null,
-          category: p.categories_tags?.[0]?.replace("en:", "") ?? null,
-          data_source: "open_food_facts",
-          is_verified: false,
-          barcode: p.code || null,
-          source: "off" as const,
-        };
-      })
-      .filter((f: FoodResult) => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
-
-    // Persist to food_items in background (non-blocking)
-    if (results.length > 0) {
-      persistToFoodItems(results).catch(() => {});
-    }
-
-    return results;
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      console.warn("[FoodSearch] OFF timed out after 5s");
-    } else {
-      console.error("[FoodSearch] OFF failed:", err);
-    }
-    return [];
-  }
-}
-
-// ── Merge local + OFF, deduplicate, re-rank ───────────────────
-function mergeAndDedup(local: FoodResult[], off: FoodResult[], query: string): FoodResult[] {
+function rankAndMerge(local: FoodResult[], external: FoodResult[], query: string): FoodResult[] {
   const q = query.toLowerCase();
   const tokens = q.split(" ").filter(Boolean);
 
-  // Build a set of local names for dedup
-  const localKeys = new Set(
-    local.map(f => `${f.name.toLowerCase()}|${(f.brand ?? "").toLowerCase()}`)
-  );
+  // Deduplicate: local takes priority over OFF for same name+brand
+  const seen = new Set<string>();
+  const all: FoodResult[] = [];
 
-  // Only add OFF results that aren't already in local
-  const uniqueOff = off.filter(f => {
+  for (const f of local) {
     const key = `${f.name.toLowerCase()}|${(f.brand ?? "").toLowerCase()}`;
-    return !localKeys.has(key);
-  });
+    if (!seen.has(key)) {
+      seen.add(key);
+      all.push(f);
+    }
+  }
 
-  const all = [...local, ...uniqueOff];
+  for (const f of external) {
+    const key = `${f.name.toLowerCase()}|${(f.brand ?? "").toLowerCase()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      all.push(f);
+    }
+  }
 
-  // Re-score everything client-side
   return all
     .map(f => ({
       ...f,
-      relevance_score: f.source === "local" && f.relevance_score
-        ? f.relevance_score
-        : scoreFood(f, q, tokens),
+      relevance_score: scoreFood(f, q, tokens),
     }))
     .sort((a, b) => (b.relevance_score ?? 0) - (a.relevance_score ?? 0));
 }
@@ -171,62 +168,43 @@ function scoreFood(food: FoodResult, query: string, tokens: string[]): number {
   const name = food.name.toLowerCase();
   const brand = (food.brand ?? "").toLowerCase();
 
-  if (brand === query) return 100;
-  if (brand.includes(query)) return 90;
-  if (tokens.length > 1 && brand.includes(tokens[0])) return 75;
-  if (name.includes(query)) return 70;
-  if (tokens.every(t => name.includes(t))) return 60;
-  if (tokens.some(t => name.includes(t))) return 45;
-  if (tokens.some(t => brand.includes(t))) return 40;
-  return 10;
+  // Local/verified foods get a small boost
+  const localBoost = food.source === "local" ? 5 : 0;
+
+  if (brand === query) return 100 + localBoost;
+  if (brand.includes(query)) return 90 + localBoost;
+  if (tokens.length > 1 && tokens.every(t => brand.includes(t))) return 85 + localBoost;
+  if (tokens[0] && brand.includes(tokens[0])) return 75 + localBoost;
+  if (name === query) return 70 + localBoost;
+  if (name.startsWith(query)) return 65 + localBoost;
+  if (name.includes(query)) return 60 + localBoost;
+  if (tokens.every(t => name.includes(t))) return 55 + localBoost;
+  if (tokens.some(t => name.includes(t))) return 40 + localBoost;
+  if (tokens.some(t => brand.includes(t))) return 35 + localBoost;
+  return 10 + localBoost;
 }
 
-// ── Persist OFF results to food_items for future local hits ───
-async function persistToFoodItems(foods: FoodResult[]): Promise<void> {
-  const rows = foods
-    .filter(f => f.name && f.name !== "Unknown")
-    .map(f => ({
-      name: f.name,
-      brand: f.brand,
-      calories: f.calories,
-      protein: f.protein,
-      carbs: f.carbs,
-      fat: f.fat,
-      fiber: f.fiber,
-      sugar: f.sugar,
-      sodium: f.sodium,
-      serving_size: f.serving_size,
-      serving_unit: f.serving_unit,
-      serving_label: f.serving_label,
-      category: f.category ?? null,
-      data_source: "open_food_facts",
-      barcode: f.barcode ?? null,
-      is_verified: false,
-    }));
+// ── OFF → FoodResult mapper ──────────────────────────────────────────────
 
-  if (rows.length === 0) return;
-
-  // Insert one by one to skip duplicates without failing
-  for (const row of rows) {
-    await supabase
-      .from("food_items")
-      .upsert(row, { onConflict: "id", ignoreDuplicates: true })
-      .then(({ error }) => {
-        // Ignore duplicate/conflict errors silently
-        if (error && !error.message.includes("duplicate")) {
-          console.warn("[FoodSearch] Persist warning:", error.message);
-        }
-      });
-  }
-}
-
-function parseServingGrams(raw: string | undefined | null): number | null {
-  if (!raw) return null;
-  const paren = raw.match(/\((\d+(?:\.\d+)?)\s*g\)/i);
-  if (paren) return parseFloat(paren[1]);
-  const plain = raw.match(/^(\d+(?:\.\d+)?)\s*g$/i);
-  if (plain) return parseFloat(plain[1]);
-  const ml = raw.match(/^(\d+(?:\.\d+)?)\s*ml$/i);
-  if (ml) return parseFloat(ml[1]);
-  return null;
+function offToFoodResult(off: OFFFood): FoodResult {
+  return {
+    id: off.id,
+    name: off.name,
+    brand: off.brand,
+    calories: off.calories ?? 0,
+    protein: off.protein ?? 0,
+    carbs: off.carbs ?? 0,
+    fat: off.fat ?? 0,
+    fiber: off.fiber ?? 0,
+    sugar: off.sugar ?? 0,
+    sodium: off.sodium ?? 0,
+    serving_size: off.serving_size,
+    serving_unit: off.serving_unit,
+    serving_label: off.serving_label,
+    category: off.category,
+    data_source: "open_food_facts",
+    is_verified: false,
+    barcode: off.barcode,
+    source: "off",
+  };
 }
