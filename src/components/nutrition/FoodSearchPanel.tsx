@@ -407,12 +407,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
             </button>
           ))
         )}
-        {offLoading && (
-          <div className="flex items-center justify-center gap-2 py-3 text-[10px] text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Searching branded foods...
-          </div>
-        )}
       </div>
 
       {showCustomFood && (
