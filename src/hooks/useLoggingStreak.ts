@@ -11,11 +11,16 @@ export function useLoggingStreak() {
 
   const fetchStreak = async () => {
     if (!user) return;
-    const { data, error } = await supabase.rpc("get_logging_streak", {
-      p_user_id: user.id,
-    });
-    if (!error && data !== null) {
-      setStreak(data as number);
+    try {
+      const { data, error } = await supabase.rpc(
+        "get_logging_streak" as any,
+        { p_user_id: user.id }
+      );
+      if (!error && data !== null) {
+        setStreak(data as unknown as number);
+      }
+    } catch {
+      // Function may not exist yet
     }
     setLoading(false);
   };
