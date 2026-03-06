@@ -1810,6 +1810,33 @@ export type Database = {
         }
         Relationships: []
       }
+      food_cache: {
+        Row: {
+          cached_at: string | null
+          expires_at: string | null
+          id: string
+          query_key: string
+          results: Json
+          source: string
+        }
+        Insert: {
+          cached_at?: string | null
+          expires_at?: string | null
+          id?: string
+          query_key: string
+          results: Json
+          source?: string
+        }
+        Update: {
+          cached_at?: string | null
+          expires_at?: string | null
+          id?: string
+          query_key?: string
+          results?: Json
+          source?: string
+        }
+        Relationships: []
+      }
       food_items: {
         Row: {
           added_sugars: number | null
@@ -1819,6 +1846,7 @@ export type Database = {
           calcium_mg: number | null
           calories: number
           carbs: number
+          category: string | null
           cholesterol: number | null
           chromium_mcg: number | null
           copper_mg: number | null
@@ -1878,6 +1906,7 @@ export type Database = {
           calcium_mg?: number | null
           calories?: number
           carbs?: number
+          category?: string | null
           cholesterol?: number | null
           chromium_mcg?: number | null
           copper_mg?: number | null
@@ -1937,6 +1966,7 @@ export type Database = {
           calcium_mg?: number | null
           calories?: number
           carbs?: number
+          category?: string | null
           cholesterol?: number | null
           chromium_mcg?: number | null
           copper_mg?: number | null
@@ -4072,6 +4102,41 @@ export type Database = {
           },
         ]
       }
+      user_recent_foods: {
+        Row: {
+          food_data: Json | null
+          food_id: string | null
+          food_name: string | null
+          id: string
+          selected_at: string | null
+          user_id: string
+        }
+        Insert: {
+          food_data?: Json | null
+          food_id?: string | null
+          food_name?: string | null
+          id?: string
+          selected_at?: string | null
+          user_id: string
+        }
+        Update: {
+          food_data?: Json | null
+          food_id?: string | null
+          food_name?: string | null
+          id?: string
+          selected_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_recent_foods_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -4584,6 +4649,27 @@ export type Database = {
       recalc_engagement_score: {
         Args: { _user_id: string }
         Returns: undefined
+      }
+      search_foods: {
+        Args: { result_limit?: number; search_query: string }
+        Returns: {
+          brand: string
+          calories: number
+          carbs: number
+          category: string
+          data_source: string
+          fat: number
+          fiber: number
+          id: string
+          is_verified: boolean
+          name: string
+          protein: number
+          relevance_score: number
+          serving_size: number
+          serving_unit: string
+          sodium: number
+          sugar: number
+        }[]
       }
       update_personal_record: {
         Args: {
