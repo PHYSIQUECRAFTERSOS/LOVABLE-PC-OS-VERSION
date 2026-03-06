@@ -47,6 +47,7 @@ const ProgressWidgetGrid = () => {
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [todayCals, setTodayCals] = useState<number>(0);
   const [calSpark, setCalSpark] = useState<SparkData[]>([]);
+  const [manualSteps, setManualSteps] = useState<number | null>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -100,14 +101,12 @@ const ProgressWidgetGrid = () => {
         .gte("logged_at", sevenAgo)
         .order("logged_at", { ascending: true });
       if (data) {
-        // Group by day
         const dayMap: Record<string, number> = {};
         data.forEach(d => {
           const day = d.logged_at;
           dayMap[day] = (dayMap[day] || 0) + Number(d.calories || 0);
         });
         setTodayCals(dayMap[today] || 0);
-        // Build spark for last 7 days
         const spark: SparkData[] = [];
         for (let i = 6; i >= 0; i--) {
           const d = format(subDays(new Date(), i), "yyyy-MM-dd");
@@ -117,9 +116,21 @@ const ProgressWidgetGrid = () => {
       }
     };
 
+    // Fetch manual steps from daily_health_metrics
+    const fetchManualSteps = async () => {
+      const { data } = await supabase
+        .from("daily_health_metrics")
+        .select("steps")
+        .eq("user_id", user.id)
+        .eq("metric_date", today)
+        .maybeSingle();
+      if (data?.steps) setManualSteps(data.steps);
+    };
+
     fetchWeight();
     fetchPhotos();
     fetchCalories();
+    fetchManualSteps();
   }, [user, today]);
 
   // Steps data from health sync
