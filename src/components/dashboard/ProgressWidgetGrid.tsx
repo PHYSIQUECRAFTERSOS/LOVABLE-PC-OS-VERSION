@@ -131,7 +131,7 @@ const ProgressWidgetGrid = () => {
     <div className="grid grid-cols-2 gap-3">
       {/* Steps */}
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => navigate("/progress?tab=steps")}
         className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
       >
         <div className="flex items-center gap-1.5 mb-1">
@@ -139,9 +139,9 @@ const ProgressWidgetGrid = () => {
           <span className="text-xs text-muted-foreground">Steps</span>
         </div>
         <div className="text-xl font-bold text-foreground tabular-nums">
-          {isConnected && steps !== null ? steps.toLocaleString() : "–"}
+          {isConnected && steps !== null ? steps.toLocaleString() : manualSteps !== null ? manualSteps.toLocaleString() : "–"}
         </div>
-        {isConnected ? (
+        {isConnected || manualSteps !== null ? (
           <MiniSparkline data={stepsSpark} />
         ) : (
           <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
