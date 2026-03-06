@@ -4671,6 +4671,8 @@ export type Database = {
           sugar: number
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       update_personal_record: {
         Args: {
           _client_id: string
