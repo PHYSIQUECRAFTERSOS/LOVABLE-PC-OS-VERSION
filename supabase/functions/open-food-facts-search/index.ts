@@ -63,8 +63,8 @@ serve(async (req) => {
     const foods = products
       .filter((p: any) => p.product_name && p.nutriments)
       .map((p: any) => ({
-        name: p.product_name,
-        brand: p.brands || null,
+        name: p.product_name_en || p.product_name,
+        brand: p.brands ? p.brands.split(',')[0].trim() : null,
         calories: Math.round(p.nutriments["energy-kcal_100g"] || p.nutriments["energy-kcal"] || 0),
         protein: Math.round((p.nutriments.proteins_100g || 0) * 10) / 10,
         carbs: Math.round((p.nutriments.carbohydrates_100g || 0) * 10) / 10,
@@ -80,13 +80,15 @@ serve(async (req) => {
       }))
       .filter((f: any) => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
 
-    // Cache results
+    // Cache results (ignore errors)
     if (foods.length > 0) {
-      await supabase.from("food_cache").insert({
+      await supabase.from("food_cache").upsert({
         query_key: cacheKey,
         source: "open_food_facts",
         results: foods,
-      });
+        cached_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      }, { onConflict: "query_key,source" }).catch(() => {});
     }
 
     return new Response(JSON.stringify({ foods, fromCache: false }), {
