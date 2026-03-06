@@ -25,43 +25,65 @@ export interface BarcodeProduct {
 }
 
 export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | null> {
+  console.log('[BarcodeService] Looking up barcode:', barcode);
+
   // STEP 1: Open Food Facts (primary, free, global)
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     const res = await fetch(
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,product_name_en,brands,nutriments,serving_size,serving_quantity,categories_tags,image_front_small_url`,
+      `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(barcode)}.json`,
       {
-        signal: AbortSignal.timeout(4000),
-        headers: { "User-Agent": "PhysiqueCrafters/1.0" },
+        signal: controller.signal,
+        headers: { "Accept": "application/json" },
       }
     );
+    clearTimeout(timeoutId);
+
     const data = await res.json();
+    console.log('[BarcodeService] OFF response status:', data.status);
 
     if (data.status === 1 && data.product?.product_name) {
-      console.log("[BarcodeService] Found via Open Food Facts");
+      console.log("[BarcodeService] Found via Open Food Facts:", data.product.product_name);
       return mapOFFProduct(data.product, barcode);
     }
-  } catch (err) {
-    console.warn("[BarcodeService] OFF lookup failed:", err);
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      console.warn("[BarcodeService] OFF lookup timed out (8s)");
+    } else {
+      console.warn("[BarcodeService] OFF lookup failed:", err.message || err);
+    }
   }
 
   // STEP 2: UPC Item DB (fallback for Canadian/NA products)
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
     const res = await fetch(
       `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`,
-      { signal: AbortSignal.timeout(4000) }
+      { signal: controller.signal }
     );
+    clearTimeout(timeoutId);
+
     const data = await res.json();
+    console.log('[BarcodeService] UPC DB response code:', data.code);
 
     if (data.code === "OK" && data.items?.length > 0) {
-      console.log("[BarcodeService] Found via UPC Item DB");
+      console.log("[BarcodeService] Found via UPC Item DB:", data.items[0].title);
       return mapUPCItem(data.items[0], barcode);
     }
-  } catch (err) {
-    console.warn("[BarcodeService] UPC Item DB lookup failed:", err);
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      console.warn("[BarcodeService] UPC Item DB timed out (6s)");
+    } else {
+      console.warn("[BarcodeService] UPC Item DB lookup failed:", err.message || err);
+    }
   }
 
   // STEP 3: Not found
-  console.log("[BarcodeService] Not found in any source");
+  console.log("[BarcodeService] Not found in any source for barcode:", barcode);
   return null;
 }
 
@@ -75,7 +97,7 @@ function mapOFFProduct(product: any, barcode: string): BarcodeProduct {
 
   return {
     name: product.product_name_en || product.product_name || "Unknown Product",
-    brand: product.brands ?? null,
+    brand: product.brands ? product.brands.split(',')[0].trim() : null,
     calories_per_100g: cal != null ? Math.round(cal) : null,
     protein_per_100g: n.proteins_100g != null ? Math.round(n.proteins_100g * 10) / 10 : null,
     carbs_per_100g: n.carbohydrates_100g != null ? Math.round(n.carbohydrates_100g * 10) / 10 : null,
