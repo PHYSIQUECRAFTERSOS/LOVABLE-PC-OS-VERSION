@@ -82,7 +82,7 @@ async function getCachedResults(queryKey: string): Promise<FoodResult[]> {
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
 
-    return (data?.results as FoodResult[]) ?? [];
+    return (data?.results as unknown as FoodResult[]) ?? [];
   } catch {
     return [];
   }
