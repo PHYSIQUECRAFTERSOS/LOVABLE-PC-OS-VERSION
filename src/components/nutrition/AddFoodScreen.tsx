@@ -162,7 +162,16 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
 
     const { data } = await query;
-    setResults((data as FoodItem[]) || []);
+    // Dedup + filter zero-macro orphans
+    const raw = (data as FoodItem[]) || [];
+    const valid = raw.filter(f => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
+    const deduped = valid.filter((food, index, self) =>
+      index === self.findIndex(f =>
+        f.name.toLowerCase().trim() === food.name.toLowerCase().trim() &&
+        (f.brand ?? '').toLowerCase().trim() === (food.brand ?? '').toLowerCase().trim()
+      )
+    );
+    setResults(deduped);
     setSearching(false);
   };
 
