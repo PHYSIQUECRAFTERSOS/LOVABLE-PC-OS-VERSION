@@ -307,6 +307,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_display: inputVal,
       quantity_unit: unit,
       logged_at: effectiveDate,
+      tz_corrected: true,
     });
 
     if (error) {
