@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
 import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MacroRing from "./MacroRing";
