@@ -39,16 +39,24 @@ export async function searchFoods(query: string, limit = 50): Promise<FoodResult
   const cacheKey = q.toLowerCase();
 
   // ALWAYS call OFF API + local DB in parallel — never skip OFF
-  console.log(`[OFF API] Searching for: "${q}" via OpenFoodFacts`);
+  console.log(`[FoodSearch] Searching for: "${q}" — calling OFF API + local DB in parallel`);
 
   const [localResults, offResults, cachedResults] = await Promise.all([
-    searchLocal(q, 15),
-    searchOFF(q).then(items => items.map(offToFoodResult)).catch(err => {
-      console.warn("[FoodSearch] OFF API failed, using cache/local:", err);
+    searchLocal(q, 15).catch(err => {
+      console.warn("[FoodSearch] Local search failed:", err);
       return [] as FoodResult[];
     }),
-    getCachedResults(cacheKey),
+    searchOFF(q).then(items => {
+      console.log(`[FoodSearch] OFF API returned ${items.length} items`);
+      return items.map(offToFoodResult);
+    }).catch(err => {
+      console.warn("[FoodSearch] OFF API failed:", err);
+      return [] as FoodResult[];
+    }),
+    getCachedResults(cacheKey).catch(() => [] as FoodResult[]),
   ]);
+
+  console.log(`[FoodSearch] Results — local: ${localResults.length}, OFF: ${offResults.length}, cache: ${cachedResults.length}`);
 
   // Use OFF results if available, otherwise fall back to cache
   const externalResults = offResults.length > 0 ? offResults : cachedResults;
@@ -58,7 +66,17 @@ export async function searchFoods(query: string, limit = 50): Promise<FoodResult
     cacheResults(cacheKey, offResults).catch(console.warn);
   }
 
-  return rankAndMerge(localResults, externalResults, q).slice(0, limit);
+  const merged = rankAndMerge(localResults, externalResults, q);
+
+  // If we only have local results (OFF failed), filter out very low relevance matches
+  // This prevents "Banana" showing for "bagel" from fuzzy matching
+  if (offResults.length === 0 && cachedResults.length === 0) {
+    const filtered = merged.filter(f => (f.relevance_score ?? 0) >= 40);
+    console.log(`[FoodSearch] OFF unavailable, filtered local: ${filtered.length}/${merged.length}`);
+    return filtered.slice(0, limit);
+  }
+
+  return merged.slice(0, limit);
 }
 
 /** Search local food_items only (for "my foods" tab) */
