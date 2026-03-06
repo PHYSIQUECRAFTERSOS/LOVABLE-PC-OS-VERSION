@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.confirm-account-deletion]
 verify_jwt = false
+
+[functions.open-food-facts-search]
+verify_jwt = false
