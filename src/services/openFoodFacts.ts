@@ -48,13 +48,15 @@ export async function searchOFF(query: string): Promise<OFFFood[]> {
   return [];
 }
 
-/** Search via the deployed edge function */
 async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
   const { data, error } = await supabase.functions.invoke('open-food-facts-search', {
-    body: { query, pageSize: 50 },
+    body: { query, pageSize: 40 },
   });
 
   if (error) throw error;
+  if (data?.error) {
+    throw new Error(data.error);
+  }
 
   const foods = data?.foods ?? [];
   if (!Array.isArray(foods) || foods.length === 0) return [];
@@ -72,11 +74,11 @@ async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
     sodium: f.sodium ?? null,
     serving_size: f.serving_size ?? 100,
     serving_unit: f.serving_unit ?? 'g',
-    serving_label: null,
+    serving_label: f.serving_label ?? null,
     source: 'open_food_facts' as const,
     category: f.category?.replace('en:', '').replace(/-/g, ' ') ?? null,
     barcode: f.barcode ?? f.code ?? null,
-    image_url: null,
+    image_url: f.image_url ?? null,
     is_verified: false,
     data_source: 'open_food_facts',
   }));
