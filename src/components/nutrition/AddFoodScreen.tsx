@@ -147,18 +147,16 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   useEffect(() => { fetchHistory(); }, [historySort]);
 
-  const handleSearch = useCallback((q: string) => {
+  const handleSearch = useCallback(async (q: string) => {
     setSearch(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (q.length < 2) { setResults([]); setOffResults([]); return; }
     setSearching(true);
 
     debounceRef.current = setTimeout(async () => {
-      // Use search_foods RPC for brand-first ranking
       let foods: FoodItem[] = [];
       
       if (activeTab === "my-foods" && user) {
-        // My foods tab: filter by created_by
         const { data } = await supabase
           .from("food_items")
           .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
@@ -167,23 +165,20 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           .limit(20);
         foods = (data || []) as FoodItem[];
       } else {
-        // Use RPC for smart ranked search
-        const { data, error } = await supabase.rpc("search_foods", {
-          search_query: q,
-          result_limit: 25,
-        });
-        if (error) {
-          console.error("[AddFood] RPC error:", error);
-          const { data: fallback } = await supabase
-            .from("food_items")
-            .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
-            .ilike("name", `%${q}%`)
-            .order("is_verified", { ascending: false })
-            .limit(20);
-          foods = (fallback || []) as FoodItem[];
-        } else {
-          foods = (data || []) as FoodItem[];
-        }
+        // Use the shared search service for parallel local + OFF search
+        const { searchFoods } = await import("@/services/foodSearchService");
+        const searchResults = await searchFoods(q);
+        
+        // Split into local and OFF results for existing UI logic
+        const localFoods = searchResults
+          .filter(r => r.source === "local")
+          .map(r => ({ ...r, fiber: r.fiber ?? 0, sugar: r.sugar ?? 0, sodium: r.sodium ?? 0 } as FoodItem));
+        const offFoods = searchResults
+          .filter(r => r.source === "off")
+          .map(r => ({ ...r, fiber: r.fiber ?? 0, sugar: r.sugar ?? 0, sodium: r.sodium ?? 0 } as FoodItem));
+        
+        foods = localFoods;
+        setOffResults(offFoods);
       }
 
       // Dedup + filter zero-macro orphans
@@ -194,37 +189,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           (f.brand ?? '').toLowerCase().trim() === (food.brand ?? '').toLowerCase().trim()
         )
       );
-      setResults(deduped.map(f => ({ ...f, source: "local" as const })));
+      setResults(deduped.map(f => ({ ...f, source: f.source || ("local" as const) })));
       setSearching(false);
-
-      // Always search Open Food Facts in background for more branded results
-      setOffSearching(true);
-      try {
-        const { data: offData } = await supabase.functions.invoke("open-food-facts-search", {
-          body: { query: q, pageSize: 10 },
-        });
-        const offFoods = ((offData?.foods || []) as any[]).map((f: any, i: number) => ({
-          id: `off-${i}-${f.barcode || f.name}`,
-          name: f.name,
-          brand: f.brand,
-          calories: f.calories || 0,
-          protein: f.protein || 0,
-          carbs: f.carbs || 0,
-          fat: f.fat || 0,
-          fiber: f.fiber || 0,
-          sugar: f.sugar || 0,
-          sodium: f.sodium || 0,
-          serving_size: f.serving_size || 100,
-          serving_unit: f.serving_unit || "g",
-          is_verified: false,
-          data_source: "open_food_facts",
-          category: f.category,
-          source: "off" as const,
-        }));
-        // Filter out dupes
-        const localNames = new Set(deduped.map(l => l.name.toLowerCase()));
-        setOffResults(offFoods.filter((o: FoodItem) => !localNames.has(o.name.toLowerCase())));
-      } catch { setOffResults([]); }
       setOffSearching(false);
     }, 300);
   }, [activeTab, user]);

@@ -4688,6 +4688,7 @@ export type Database = {
       search_foods: {
         Args: { result_limit?: number; search_query: string }
         Returns: {
+          barcode: string
           brand: string
           calories: number
           carbs: number
@@ -4700,6 +4701,7 @@ export type Database = {
           name: string
           protein: number
           relevance_score: number
+          serving_label: string
           serving_size: number
           serving_unit: string
           sodium: number

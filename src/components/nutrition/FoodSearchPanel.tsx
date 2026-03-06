@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
+import { useFoodSearch, FoodResult as SearchFoodResult } from "@/hooks/useFoodSearch";
 import CustomFoodCreator from "./CustomFoodCreator";
 import {
   Search,
@@ -33,7 +34,7 @@ export interface FoodResult {
   is_verified?: boolean;
   data_source?: string;
   category?: string;
-  source?: "local" | "usda" | "off";
+  source?: "local" | "off";
   fdcId?: number;
   isFavorite?: boolean;
   relevance_score?: number;
@@ -51,13 +52,9 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [query, setQuery] = useState("");
-  const [localResults, setLocalResults] = useState<FoodResult[]>([]);
-  const [offResults, setOffResults] = useState<FoodResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [offLoading, setOffLoading] = useState(false);
+  const { results: searchResults, loading, offLoading, query, search: doSearch } = useFoodSearch();
+
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
@@ -82,7 +79,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const loadRecents = async () => {
     if (!user) return;
-    // Try user_recent_foods first, fall back to coach_recent_foods
     const { data: userRecents } = await supabase
       .from("user_recent_foods")
       .select("food_id, food_name, food_data")
@@ -107,7 +103,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       }
     }
 
-    // Fallback to coach_recent_foods
     const { data: recents } = await supabase
       .from("coach_recent_foods")
       .select("food_item_id")
@@ -144,7 +139,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const trackUsage = async (foodId: string, foodName: string) => {
     if (!user) return;
-    // Track in user_recent_foods
     try {
       await supabase.from("user_recent_foods").upsert(
         { user_id: user.id, food_id: foodId, food_name: foodName, selected_at: new Date().toISOString() },
@@ -152,7 +146,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       );
     } catch { /* ignore */ }
     
-    // Also track in coach_recent_foods for backward compat
     const { data: existing } = await supabase
       .from("coach_recent_foods")
       .select("id, use_count")
@@ -166,82 +159,13 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     }
   };
 
-  // Use search_foods RPC for brand-first ranked results
-  const searchLocal = async (q: string): Promise<FoodResult[]> => {
-    const { data, error } = await supabase.rpc("search_foods", {
-      search_query: q,
-      result_limit: 25,
-    });
-    if (error) {
-      console.error("[FoodSearch] RPC error, falling back to ilike:", error);
-      // Fallback to basic ilike
-      const { data: fallback } = await supabase
-        .from("food_items")
-        .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
-        .ilike("name", `%${q}%`)
-        .order("is_verified", { ascending: false })
-        .limit(25);
-      return ((fallback || []) as any[]).map((f) => ({ ...f, source: "local" as const }));
-    }
-    return ((data || []) as any[]).map((f) => ({ ...f, source: "local" as const }));
-  };
-
-  // Search Open Food Facts for branded products
-  const searchOFF = async (q: string): Promise<FoodResult[]> => {
-    try {
-      const { data, error } = await supabase.functions.invoke("open-food-facts-search", {
-        body: { query: q, pageSize: 15 },
-      });
-      if (error) throw error;
-      return ((data?.foods || []) as any[]).map((f: any, i: number) => ({
-        id: `off-${i}-${f.barcode || f.name}`,
-        name: f.name,
-        brand: f.brand,
-        calories: f.calories || 0,
-        protein: f.protein || 0,
-        carbs: f.carbs || 0,
-        fat: f.fat || 0,
-        fiber: f.fiber || 0,
-        sugar: f.sugar || 0,
-        serving_size: f.serving_size || 100,
-        serving_unit: f.serving_unit || "g",
-        is_verified: false,
-        data_source: "open_food_facts",
-        category: f.category,
-        source: "off" as const,
-        barcode: f.barcode,
-      }));
-    } catch {
-      return [];
-    }
-  };
-
-  const handleSearch = useCallback((q: string) => {
-    setQuery(q);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (q.length < 2) {
-      setLocalResults([]);
-      setOffResults([]);
-      return;
-    }
-
-    setLoading(true);
-    debounceRef.current = setTimeout(async () => {
-      // Search local DB with brand-first ranking
-      const local = await searchLocal(q);
-      setLocalResults(local);
-      setLoading(false);
-
-      // Always search Open Food Facts in background for more branded results
-      setOffLoading(true);
-      const off = await searchOFF(q);
-      const localNames = new Set(local.map(l => l.name.toLowerCase()));
-      const filtered = off.filter(o => !localNames.has(o.name.toLowerCase()));
-      setOffResults(filtered);
-      setOffLoading(false);
-    }, 300); // 300ms debounce
-  }, []);
+  // Convert search results to FoodResult format
+  const localResults: FoodResult[] = searchResults.map(r => ({
+    ...r,
+    fiber: r.fiber ?? 0,
+    sugar: r.sugar ?? 0,
+    source: r.source,
+  }));
 
   const handleSelect = async (food: FoodResult) => {
     if (food.source === "off") {
@@ -258,50 +182,11 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
           fat: Math.round(food.fat || 0),
           fiber: Math.round(food.fiber || 0),
           sugar: Math.round(food.sugar || 0),
-          sodium: Math.round((food as any).sodium || 0),
+          sodium: 0,
           category: food.category || null,
           data_source: "open_food_facts",
           created_by: user!.id,
           is_verified: false,
-        };
-
-        const { data: inserted, error: insertErr } = await supabase
-          .from("food_items")
-          .insert(foodItem)
-          .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
-          .single();
-
-        if (insertErr) throw insertErr;
-        const result = { ...inserted, source: "local" as const };
-        await trackUsage(result.id, result.name);
-        onSelect(result);
-      } catch (err: any) {
-        toast({ title: "Import failed", description: err.message, variant: "destructive" });
-      }
-    } else if (food.source === "usda" && food.fdcId) {
-      // Existing USDA import logic
-      try {
-        const { data: detail, error } = await supabase.functions.invoke("usda-food-search", {
-          body: { action: "detail", fdcId: food.fdcId },
-        });
-        if (error) throw error;
-
-        const foodItem = {
-          name: detail.description || food.name,
-          brand: detail.brandOwner || food.brand || null,
-          serving_size: detail.servingSize || 100,
-          serving_unit: detail.servingSizeUnit || "g",
-          calories: Math.round(detail.calories || 0),
-          protein: Math.round(detail.protein || 0),
-          carbs: Math.round(detail.carbs || 0),
-          fat: Math.round(detail.fat || 0),
-          fiber: Math.round(detail.fiber || 0),
-          sugar: Math.round(detail.total_sugars || 0),
-          sodium: Math.round(detail.sodium || 0),
-          usda_fdc_id: String(food.fdcId),
-          data_source: "usda",
-          created_by: user!.id,
-          is_verified: true,
         };
 
         const { data: inserted, error: insertErr } = await supabase
@@ -328,7 +213,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     onSelect({ ...food, source: "local" });
   };
 
-  // Dedup + filter zero-macro orphans
   const deduplicateAndFilter = (foods: FoodResult[]): FoodResult[] => {
     const valid = foods.filter(f => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
     return valid.filter((food, index, self) =>
@@ -354,7 +238,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     else if (activeFilter === "branded") combined = combined.filter(f => f.brand);
     else if (activeFilter === "generic") combined = combined.filter(f => !f.brand);
 
-    // Favorites to top within same relevance
     combined.sort((a, b) => {
       const aFav = favorites.has(a.id) ? 1 : 0;
       const bFav = favorites.has(b.id) ? 1 : 0;
@@ -366,11 +249,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     else if (sortBy === "protein") combined.sort((a, b) => b.protein - a.protein);
     else if (sortBy === "alpha") combined.sort((a, b) => a.name.localeCompare(b.name));
 
-    // Append OFF results at end (for "all" or "branded" tabs)
-    if (activeFilter === "all" || activeFilter === "branded") {
-      combined = [...combined, ...offResults];
-    }
-
     return deduplicateAndFilter(combined);
   };
 
@@ -381,7 +259,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (food.source === "off" || food.data_source === "open_food_facts") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
     }
-    if (food.source === "usda" || food.data_source === "usda") {
+    if (food.data_source === "usda") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">USDA</Badge>;
     }
     if (food.brand) {
@@ -411,7 +289,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
             ref={inputRef}
             placeholder="Search 200k+ foods..."
             value={query}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => doSearch(e.target.value)}
             className="h-9 pl-8 text-xs"
           />
           {loading && (

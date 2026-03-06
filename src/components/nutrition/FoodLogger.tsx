@@ -66,13 +66,25 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
   const handleSearch = async (q: string) => {
     setSearch(q);
     if (q.length < 2) { setResults([]); return; }
-    const { data } = await supabase
-      .from("food_items")
-      .select("*")
-      .ilike("name", `%${q}%`)
-      .order("is_verified", { ascending: false })
-      .limit(10);
-    setResults((data as FoodItem[]) || []);
+    
+    // Use RPC for ranked search with fuzzy matching
+    const { data, error } = await supabase.rpc("search_foods", {
+      search_query: q,
+      result_limit: 15,
+    });
+    
+    if (error) {
+      // Fallback to basic ilike
+      const { data: fallback } = await supabase
+        .from("food_items")
+        .select("*")
+        .ilike("name", `%${q}%`)
+        .order("is_verified", { ascending: false })
+        .limit(10);
+      setResults((fallback as FoodItem[]) || []);
+    } else {
+      setResults((data as FoodItem[]) || []);
+    }
   };
 
   const handleLog = async () => {
