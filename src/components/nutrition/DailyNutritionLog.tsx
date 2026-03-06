@@ -298,8 +298,12 @@ const DailyNutritionLog = () => {
                     <button
                       key={item.id}
                       onClick={() => setEditingLog(item)}
-                      className="flex items-center justify-between px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
                     >
+                      {/* Emoji Icon */}
+                      <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
+                        {getFoodEmoji({ name: item.food_item_id ? foodNames[item.food_item_id] || "" : item.custom_name || "" })}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">
                           {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
