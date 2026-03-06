@@ -60,7 +60,6 @@ const ExerciseCard = ({
   onCompleteSet,
   onAddSet,
 }: ExerciseCardProps) => {
-  const [showVideo, setShowVideo] = useState(false);
   const allDone = logs.every(l => l.completed);
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
 
