@@ -22,7 +22,7 @@ serve(async (req) => {
     }
 
     // Query Open Food Facts API with timeout
-    const offUrl = `https://world.openfoodfacts.net/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,nutriments,serving_size,serving_quantity,product_quantity`;
+    const offUrl = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,nutriments,serving_size,serving_quantity,product_quantity`;
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);

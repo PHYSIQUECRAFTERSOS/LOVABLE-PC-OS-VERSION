@@ -196,9 +196,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setResults(deduped.map(f => ({ ...f, source: "local" as const })));
       setSearching(false);
 
-      // Search Open Food Facts in background for more branded results
-      const hasBrandMatch = deduped.some(f => f.brand && f.relevance_score && f.relevance_score >= 4);
-      if (deduped.length < 5 || !hasBrandMatch) {
+      // Always search Open Food Facts in background for more branded results
+      {
         setOffSearching(true);
         try {
           const { data: offData } = await supabase.functions.invoke("open-food-facts-search", {

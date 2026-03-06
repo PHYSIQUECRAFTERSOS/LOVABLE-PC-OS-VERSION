@@ -233,11 +233,8 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       setLocalResults(local);
       setLoading(false);
 
-      // Check if we have enough branded results locally
-      const hasBrandMatch = local.some(f => f.brand && f.relevance_score && f.relevance_score >= 4);
-      
-      // Search Open Food Facts in background (especially useful for branded products)
-      if (local.length < 5 || !hasBrandMatch) {
+      // Always search Open Food Facts in background for more branded results
+      {
         setOffLoading(true);
         const off = await searchOFF(q);
         // Filter out OFF results that match local results
