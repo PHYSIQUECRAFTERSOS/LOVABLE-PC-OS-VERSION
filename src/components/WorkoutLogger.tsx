@@ -157,6 +157,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         setSessionId(resumeSessionId);
       } else {
         // Create new in_progress session
+        const { getLocalDateString } = await import("@/utils/localDate");
         const { data, error } = await supabase
           .from("workout_sessions")
           .insert({
@@ -165,7 +166,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             status: "in_progress",
             started_at: new Date().toISOString(),
             last_heartbeat: new Date().toISOString(),
-          })
+            session_date: getLocalDateString(),
+            tz_corrected: true,
+          } as any)
           .select("id")
           .single();
         if (!error && data) {
