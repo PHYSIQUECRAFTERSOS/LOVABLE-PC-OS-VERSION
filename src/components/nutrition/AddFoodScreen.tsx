@@ -177,20 +177,25 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const logFood = async (item: FoodItem) => {
     if (!user) return;
-    const unit = servingUnits[item.id] || "serving";
-    const inputVal = parseFloat(servings[item.id] || "1") || 0;
+    // Default unit matches FoodRow default: "g"
+    const unit = servingUnits[item.id] || "g";
+    const inputVal = parseFloat(servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")) || 0;
     
-    // Calculate multiplier based on unit
+    // Calculate quantity in grams and multiplier based on unit
+    let quantityGrams: number;
     let multiplier: number;
+    const baseSizeG = item.serving_unit === "oz" ? item.serving_size * 28.3495 : item.serving_size;
+
     if (unit === "g") {
-      // inputVal is grams, item macros are per serving_size (in serving_unit)
-      const baseSizeG = item.serving_unit === "oz" ? item.serving_size * 28.3495 : item.serving_size;
+      quantityGrams = inputVal;
       multiplier = inputVal / baseSizeG;
     } else if (unit === "oz") {
-      const baseSizeOz = item.serving_unit === "g" ? item.serving_size / 28.3495 : item.serving_size;
-      multiplier = inputVal / baseSizeOz;
+      quantityGrams = inputVal * 28.3495;
+      multiplier = quantityGrams / baseSizeG;
     } else {
-      multiplier = inputVal; // servings
+      // "serving" — inputVal is number of servings
+      quantityGrams = inputVal * baseSizeG;
+      multiplier = inputVal;
     }
 
     const { error } = await supabase.from("nutrition_logs").insert({
@@ -205,6 +210,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fiber: Math.round((item.fiber || 0) * multiplier),
       sugar: Math.round((item.sugar || 0) * multiplier),
       sodium: Math.round((item.sodium || 0) * multiplier),
+      quantity_display: inputVal,
+      quantity_unit: unit,
       logged_at: effectiveDate,
     });
 

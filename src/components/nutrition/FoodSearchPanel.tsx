@@ -280,17 +280,32 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     onSelect(result);
   };
 
+  // Dedup + filter zero-macro orphans
+  const deduplicateAndFilter = (foods: FoodResult[]): FoodResult[] => {
+    // Remove zero-macro orphan entries
+    const valid = foods.filter(f =>
+      (f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0)
+    );
+    // Deduplicate by name+brand
+    return valid.filter((food, index, self) =>
+      index === self.findIndex(f =>
+        f.name.toLowerCase().trim() === food.name.toLowerCase().trim() &&
+        (f.brand ?? '').toLowerCase().trim() === (food.brand ?? '').toLowerCase().trim()
+      )
+    );
+  };
+
   // Build display list
   const getDisplayList = (): FoodResult[] => {
     if (query.length < 2) {
       if (activeFilter === "favorites") {
-        return recentFoods.filter((f) => favorites.has(f.id));
+        return deduplicateAndFilter(recentFoods.filter((f) => favorites.has(f.id)));
       }
-      if (activeFilter === "recent") return recentFoods;
+      if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
       // Default: show favorites first, then recents
       const favFoods = recentFoods.filter((f) => favorites.has(f.id));
       const nonFavRecents = recentFoods.filter((f) => !favorites.has(f.id));
-      return [...favFoods, ...nonFavRecents];
+      return deduplicateAndFilter([...favFoods, ...nonFavRecents]);
     }
 
     let combined = [...localResults];
@@ -322,7 +337,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       combined = [...combined, ...usdaResults];
     }
 
-    return combined;
+    return deduplicateAndFilter(combined);
   };
 
   const displayList = getDisplayList();
