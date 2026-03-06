@@ -6,7 +6,6 @@ export type { FoodResult } from "@/services/foodSearchService";
 export function useFoodSearch() {
   const [results, setResults] = useState<FoodResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [offLoading, setOffLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -18,12 +17,11 @@ export function useFoodSearch() {
     if (q.length < 2) {
       setResults([]);
       setLoading(false);
-      setOffLoading(false);
+      clearTimeout(debounceRef.current);
       return;
     }
 
     setLoading(true);
-    setOffLoading(true);
     clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(async () => {
@@ -37,9 +35,8 @@ export function useFoodSearch() {
         setResults([]);
       } finally {
         setLoading(false);
-        setOffLoading(false);
       }
-    }, 300);
+    }, 400);
   }, []);
 
   const clearSearch = useCallback(() => {
@@ -47,9 +44,8 @@ export function useFoodSearch() {
     setResults([]);
     setError(null);
     setLoading(false);
-    setOffLoading(false);
     clearTimeout(debounceRef.current);
   }, []);
 
-  return { results, loading, offLoading, error, query, search, clearSearch };
+  return { results, loading, error, query, search, clearSearch };
 }
