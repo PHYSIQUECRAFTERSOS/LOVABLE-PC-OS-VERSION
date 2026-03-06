@@ -60,13 +60,23 @@ const RecipeBuilder = () => {
   const handleSearch = async (q: string) => {
     setSearch(q);
     if (q.length < 2) { setResults([]); return; }
-    const { data } = await supabase
-      .from("food_items")
-      .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size")
-      .ilike("name", `%${q}%`)
-      .order("is_verified", { ascending: false })
-      .limit(10);
-    setResults((data as FoodItem[]) || []);
+    
+    const { data, error } = await supabase.rpc("search_foods", {
+      search_query: q,
+      result_limit: 15,
+    });
+    
+    if (error) {
+      const { data: fallback } = await supabase
+        .from("food_items")
+        .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size")
+        .ilike("name", `%${q}%`)
+        .order("is_verified", { ascending: false })
+        .limit(10);
+      setResults((fallback as FoodItem[]) || []);
+    } else {
+      setResults((data as FoodItem[]) || []);
+    }
   };
 
   const addIngredient = (food: FoodItem) => {
