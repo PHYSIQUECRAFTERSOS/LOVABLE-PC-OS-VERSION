@@ -292,9 +292,10 @@ const DailyNutritionLog = () => {
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
                   {items.map((item) => (
-                    <div
+                    <button
                       key={item.id}
-                      className="flex items-center justify-between px-4 py-2.5"
+                      onClick={() => setEditingLog(item)}
+                      className="flex items-center justify-between px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">
@@ -304,15 +305,8 @@ const DailyNutritionLog = () => {
                           {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => deleteLog(item.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
+                      <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
+                    </button>
                   ))}
                 </div>
               )}
