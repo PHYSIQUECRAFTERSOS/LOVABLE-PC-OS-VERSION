@@ -166,7 +166,7 @@ const AddFoodScreen = ({ mealType, mealLabel, open, onClose, onLogged }: AddFood
   const logFood = async (item: FoodItem) => {
     if (!user) return;
     const unit = servingUnits[item.id] || "serving";
-    const inputVal = parseFloat(servings[item.id] || "1") || 1;
+    const inputVal = parseFloat(servings[item.id] || "1") || 0;
     
     // Calculate multiplier based on unit
     let multiplier: number;
