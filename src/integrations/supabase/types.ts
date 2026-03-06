@@ -2050,6 +2050,66 @@ export type Database = {
         }
         Relationships: []
       }
+      frequent_meal_templates: {
+        Row: {
+          combo_key: string
+          created_at: string | null
+          food_count: number
+          foods: Json
+          id: string
+          is_dismissed: boolean | null
+          is_pinned: boolean | null
+          last_logged_at: string | null
+          meal_name: string
+          occurrence_count: number
+          template_name: string
+          total_cal: number | null
+          total_carbs: number | null
+          total_fat: number | null
+          total_protein: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          combo_key: string
+          created_at?: string | null
+          food_count: number
+          foods: Json
+          id?: string
+          is_dismissed?: boolean | null
+          is_pinned?: boolean | null
+          last_logged_at?: string | null
+          meal_name: string
+          occurrence_count?: number
+          template_name: string
+          total_cal?: number | null
+          total_carbs?: number | null
+          total_fat?: number | null
+          total_protein?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          combo_key?: string
+          created_at?: string | null
+          food_count?: number
+          foods?: Json
+          id?: string
+          is_dismissed?: boolean | null
+          is_pinned?: boolean | null
+          last_logged_at?: string | null
+          meal_name?: string
+          occurrence_count?: number
+          template_name?: string
+          total_cal?: number | null
+          total_carbs?: number | null
+          total_fat?: number | null
+          total_protein?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       health_connections: {
         Row: {
           connected_at: string | null
@@ -2354,6 +2414,51 @@ export type Database = {
           instructions?: string | null
           updated_at?: string
           workout_name?: string
+        }
+        Relationships: []
+      }
+      meal_log_snapshots: {
+        Row: {
+          combo_key: string
+          created_at: string | null
+          food_count: number
+          foods: Json
+          id: string
+          logged_date: string
+          meal_name: string
+          total_cal: number | null
+          total_carbs: number | null
+          total_fat: number | null
+          total_protein: number | null
+          user_id: string
+        }
+        Insert: {
+          combo_key: string
+          created_at?: string | null
+          food_count?: number
+          foods: Json
+          id?: string
+          logged_date: string
+          meal_name: string
+          total_cal?: number | null
+          total_carbs?: number | null
+          total_fat?: number | null
+          total_protein?: number | null
+          user_id: string
+        }
+        Update: {
+          combo_key?: string
+          created_at?: string | null
+          food_count?: number
+          foods?: Json
+          id?: string
+          logged_date?: string
+          meal_name?: string
+          total_cal?: number | null
+          total_carbs?: number | null
+          total_fat?: number | null
+          total_protein?: number | null
+          user_id?: string
         }
         Relationships: []
       }

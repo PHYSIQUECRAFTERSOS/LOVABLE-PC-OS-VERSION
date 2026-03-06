@@ -1,11 +1,8 @@
 /**
  * Unified Food Search Service — OFF-first architecture.
  *
- * Search waterfall:
- *   1. Check Supabase food_search_cache (instant, 24hr TTL)
- *   2. Call Open Food Facts API (primary source, 1-2s)
- *   3. Query local food_items table (legacy/personal foods)
- *   4. Merge, rank, cache results
+ * Every search calls Open Food Facts API in parallel with local DB.
+ * Results are merged, ranked, and cached.
  *
  * Used by BOTH coach template builder AND client food logging.
  */
@@ -41,29 +38,27 @@ export async function searchFoods(query: string, limit = 50): Promise<FoodResult
 
   const cacheKey = q.toLowerCase();
 
-  // Launch cache check + local search + OFF search in parallel
-  const [cachedResults, localResults, offResults] = await Promise.all([
-    getCachedResults(cacheKey),
+  // ALWAYS call OFF API + local DB in parallel — never skip OFF
+  console.log(`[OFF API] Searching for: "${q}" via OpenFoodFacts`);
+
+  const [localResults, offResults, cachedResults] = await Promise.all([
     searchLocal(q, 15),
-    null as Promise<FoodResult[]> | null, // placeholder — we check cache first
+    searchOFF(q).then(items => items.map(offToFoodResult)).catch(err => {
+      console.warn("[FoodSearch] OFF API failed, using cache/local:", err);
+      return [] as FoodResult[];
+    }),
+    getCachedResults(cacheKey),
   ]);
 
-  // If cache hit, merge with local and return
-  if (cachedResults.length > 0) {
-    return rankAndMerge(localResults, cachedResults, q).slice(0, limit);
+  // Use OFF results if available, otherwise fall back to cache
+  const externalResults = offResults.length > 0 ? offResults : cachedResults;
+
+  // Cache fresh OFF results in background
+  if (offResults.length > 0) {
+    cacheResults(cacheKey, offResults).catch(console.warn);
   }
 
-  // No cache — call OFF API
-  console.log('[FoodSearch] Cache miss, calling OFF API for:', q);
-  const liveOffResults = await searchOFF(q);
-  const mappedOff = liveOffResults.map(offToFoodResult);
-
-  // Cache in background
-  if (mappedOff.length > 0) {
-    cacheResults(cacheKey, mappedOff).catch(console.warn);
-  }
-
-  return rankAndMerge(localResults, mappedOff, q).slice(0, limit);
+  return rankAndMerge(localResults, externalResults, q).slice(0, limit);
 }
 
 /** Search local food_items only (for "my foods" tab) */
@@ -136,10 +131,10 @@ function rankAndMerge(local: FoodResult[], external: FoodResult[], query: string
   const q = query.toLowerCase();
   const tokens = q.split(" ").filter(Boolean);
 
-  // Deduplicate: local takes priority over OFF for same name+brand
   const seen = new Set<string>();
   const all: FoodResult[] = [];
 
+  // Local foods first (they have priority in dedup)
   for (const f of local) {
     const key = `${f.name.toLowerCase()}|${(f.brand ?? "").toLowerCase()}`;
     if (!seen.has(key)) {
@@ -167,8 +162,6 @@ function rankAndMerge(local: FoodResult[], external: FoodResult[], query: string
 function scoreFood(food: FoodResult, query: string, tokens: string[]): number {
   const name = food.name.toLowerCase();
   const brand = (food.brand ?? "").toLowerCase();
-
-  // Local/verified foods get a small boost
   const localBoost = food.source === "local" ? 5 : 0;
 
   if (brand === query) return 100 + localBoost;
