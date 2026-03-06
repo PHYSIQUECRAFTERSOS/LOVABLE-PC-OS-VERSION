@@ -472,7 +472,7 @@ interface FoodRowProps {
 
 const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange }: FoodRowProps) => {
   // Calculate multiplier based on unit
-  const inputVal = parseFloat(servings) || 1;
+  const inputVal = parseFloat(servings) || 0;
   let multiplier: number;
   if (servingUnit === "g") {
     const baseSizeG = item.serving_unit === "oz" ? item.serving_size * 28.3495 : item.serving_size;
