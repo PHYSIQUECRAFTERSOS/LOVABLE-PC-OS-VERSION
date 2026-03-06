@@ -344,7 +344,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
       {/* Results */}
       <div className="max-h-52 overflow-y-auto space-y-0.5 rounded border border-border p-1">
-        {displayList.length === 0 && !loading && !offLoading ? (
+        {displayList.length === 0 && !loading ? (
           <div className="text-center py-6">
             <p className="text-[11px] text-muted-foreground">
               {query.length >= 2
