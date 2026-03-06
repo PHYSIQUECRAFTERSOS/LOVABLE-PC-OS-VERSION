@@ -27,33 +27,35 @@ export interface OFFFood {
   data_source: string;
 }
 
-/** Search OFF by text query — returns up to 50 results sorted by popularity */
 export async function searchOFF(query: string): Promise<OFFFood[]> {
   console.log('[OFF API] Searching for:', query);
 
-  // PRIMARY: Use edge function (server-side, no CORS issues on mobile)
-  try {
-    const edgeResult = await searchViaEdgeFunction(query);
-    if (edgeResult.length > 0) {
-      console.log('[OFF API] Edge function returned', edgeResult.length, 'results');
-      return edgeResult;
-    }
-    console.log('[OFF API] Edge function returned 0 results, trying direct...');
-  } catch (err: any) {
-    console.warn('[OFF API] Edge function failed:', err.message, '— trying direct fetch');
+  // Try direct first for fastest perceived response
+  const directFast = await withTimeout(searchDirectOFF(query), 2500, [] as OFFFood[]);
+  if (directFast.length > 0) {
+    console.log('[OFF API] Using direct-fast results:', directFast.length);
+    return directFast;
   }
 
-  // FALLBACK: Direct client-side fetch
-  return searchDirectOFF(query);
+  // Fall back to edge proxy for environments with direct fetch restrictions
+  const edgeResult = await withTimeout(searchViaEdgeFunction(query), 8000, [] as OFFFood[]);
+  if (edgeResult.length > 0) {
+    console.log('[OFF API] Using edge results:', edgeResult.length);
+    return edgeResult;
+  }
+
+  return [];
 }
 
-/** Search via the deployed edge function */
 async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
   const { data, error } = await supabase.functions.invoke('open-food-facts-search', {
-    body: { query, pageSize: 50 },
+    body: { query, pageSize: 40 },
   });
 
   if (error) throw error;
+  if (data?.error) {
+    throw new Error(data.error);
+  }
 
   const foods = data?.foods ?? [];
   if (!Array.isArray(foods) || foods.length === 0) return [];
@@ -71,11 +73,11 @@ async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
     sodium: f.sodium ?? null,
     serving_size: f.serving_size ?? 100,
     serving_unit: f.serving_unit ?? 'g',
-    serving_label: null,
+    serving_label: f.serving_label ?? null,
     source: 'open_food_facts' as const,
     category: f.category?.replace('en:', '').replace(/-/g, ' ') ?? null,
     barcode: f.barcode ?? f.code ?? null,
-    image_url: null,
+    image_url: f.image_url ?? null,
     is_verified: false,
     data_source: 'open_food_facts',
   }));
@@ -84,7 +86,7 @@ async function searchViaEdgeFunction(query: string): Promise<OFFFood[]> {
 /** Direct client-side fetch to OFF API */
 async function searchDirectOFF(query: string): Promise<OFFFood[]> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
     const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
@@ -198,6 +200,21 @@ function mapOFFProduct(p: any, barcodeOverride?: string): OFFFood {
     is_verified: false,
     data_source: 'open_food_facts',
   };
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
 }
 
 function parseServingGrams(raw: string): number | null {

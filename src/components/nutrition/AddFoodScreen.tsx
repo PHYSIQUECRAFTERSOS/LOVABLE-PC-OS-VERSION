@@ -27,6 +27,7 @@ import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Badge } from "@/components/ui/badge";
 import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
 import MealScanCapture from "@/components/nutrition/MealScanCapture";
+import { searchFoods } from "@/services/foodSearchService";
 
 interface FoodItem {
   id: string;
@@ -73,7 +74,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const { user } = useAuth();
   const { toast } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRequestIdRef = useRef(0);
 
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
@@ -152,7 +154,17 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const handleSearch = useCallback(async (q: string) => {
     setSearch(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (q.length < 2) { setResults([]); setOffResults([]); return; }
+
+    const requestId = ++searchRequestIdRef.current;
+
+    if (q.length < 2) {
+      setSearching(false);
+      setOffSearching(false);
+      setResults([]);
+      setOffResults([]);
+      return;
+    }
+
     setSearching(true);
 
     debounceRef.current = setTimeout(async () => {
@@ -162,35 +174,43 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             .from("food_items")
             .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
             .eq("created_by", user.id)
-            .ilike("name", `%${q}%`)
+            .or(`name.ilike.%${q}%,brand.ilike.%${q}%`)
             .limit(20);
+
+          if (searchRequestIdRef.current !== requestId) return;
           setResults((data || []) as FoodItem[]);
           setOffResults([]);
-        } else {
-          // Use the OFF-first search service
-          const { searchFoods } = await import("@/services/foodSearchService");
-          const searchResults = await searchFoods(q);
-          
-          // Map all results to FoodItem format
-          const allFoods = searchResults.map(r => ({
-            ...r,
-            fiber: r.fiber ?? 0,
-            sugar: r.sugar ?? 0,
-            sodium: r.sodium ?? 0,
-          } as FoodItem));
-          
-          setResults(allFoods);
-          setOffResults([]);
+          return;
         }
+
+        const searchResults = await Promise.race([
+          searchFoods(q),
+          new Promise<FoodItem[]>((resolve) => setTimeout(() => resolve([]), 9000)),
+        ]);
+
+        if (searchRequestIdRef.current !== requestId) return;
+
+        const allFoods = searchResults.map((r: any) => ({
+          ...r,
+          fiber: r.fiber ?? 0,
+          sugar: r.sugar ?? 0,
+          sodium: r.sodium ?? 0,
+        } as FoodItem));
+
+        setResults(allFoods);
+        setOffResults([]);
       } catch (err) {
         console.error("[AddFoodScreen] Search error:", err);
+        if (searchRequestIdRef.current !== requestId) return;
         setResults([]);
         setOffResults([]);
       } finally {
-        setSearching(false);
-        setOffSearching(false);
+        if (searchRequestIdRef.current === requestId) {
+          setSearching(false);
+          setOffSearching(false);
+        }
       }
-    }, 400);
+    }, 250);
   }, [activeTab, user]);
 
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
