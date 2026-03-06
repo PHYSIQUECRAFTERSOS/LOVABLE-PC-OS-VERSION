@@ -38,34 +38,40 @@ export async function searchFoods(query: string, limit = 50): Promise<FoodResult
   if (q.length < 2) return [];
 
   const cacheKey = q.toLowerCase();
+  console.log(`[FoodSearch] Searching for: "${q}"`);
 
-  // Check cache first, call OFF API in parallel
-  console.log(`[FoodSearch] Searching for: "${q}" — calling OFF API`);
+  const offPromise = withTimeout(
+    searchOFF(q)
+      .then((items) => {
+        console.log(`[FoodSearch] OFF API returned ${items.length} items`);
+        return items.map(offToFoodResult);
+      })
+      .catch((err) => {
+        console.warn("[FoodSearch] OFF API failed:", err);
+        return [] as FoodResult[];
+      }),
+    4500,
+    [] as FoodResult[]
+  );
 
-  const [offResults, cachedResults] = await Promise.all([
-    searchOFF(q).then(items => {
-      console.log(`[FoodSearch] OFF API returned ${items.length} items`);
-      return items.map(offToFoodResult);
-    }).catch(err => {
-      console.warn("[FoodSearch] OFF API failed:", err);
-      return [] as FoodResult[];
-    }),
-    getCachedResults(cacheKey).catch(() => [] as FoodResult[]),
-  ]);
+  const cachedResults = await withTimeout(getCachedResults(cacheKey), 350, [] as FoodResult[]);
+  if (cachedResults.length > 0) {
+    void offPromise.then((fresh) => {
+      if (fresh.length > 0) {
+        cacheResults(cacheKey, fresh).catch(console.warn);
+      }
+    });
 
-  console.log(`[FoodSearch] Results — OFF: ${offResults.length}, cache: ${cachedResults.length}`);
-
-  // Use OFF results if available, otherwise fall back to cache
-  const results = offResults.length > 0 ? offResults : cachedResults;
-
-  // Cache fresh OFF results in background
-  if (offResults.length > 0) {
-    cacheResults(cacheKey, offResults).catch(console.warn);
+    console.log(`[FoodSearch] Returning ${cachedResults.length} cached results instantly`);
+    return rankResults(cachedResults, q).slice(0, limit);
   }
 
-  // Rank results by relevance to the query
-  const ranked = rankResults(results, q);
-  return ranked.slice(0, limit);
+  const offResults = await offPromise;
+  if (offResults.length > 0) {
+    void cacheResults(cacheKey, offResults).catch(console.warn);
+  }
+
+  return rankResults(offResults, q).slice(0, limit);
 }
 
 /** Search local food_items only (for "my foods" tab) */
