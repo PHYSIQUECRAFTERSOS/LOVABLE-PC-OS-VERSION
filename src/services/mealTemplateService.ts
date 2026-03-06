@@ -56,17 +56,17 @@ export async function recordMealSnapshot(
   const today = getLocalDateString();
 
   try {
-    await supabase.from("meal_log_snapshots").insert({
+    await (supabase as any).from("meal_log_snapshots").insert({
       user_id: userId,
       meal_name: mealName,
-      foods: foods as any,
+      foods: foods,
       food_count: foods.length,
       combo_key: comboKey,
       logged_date: today,
       ...totals,
     });
 
-    const { count } = await supabase
+    const { count } = await (supabase as any)
       .from("meal_log_snapshots")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
@@ -78,12 +78,12 @@ export async function recordMealSnapshot(
     if (occurrences >= 3) {
       const templateName = generateTemplateName(foods, mealName);
 
-      await supabase.from("frequent_meal_templates").upsert(
+      await (supabase as any).from("frequent_meal_templates").upsert(
         {
           user_id: userId,
           meal_name: mealName,
           template_name: templateName,
-          foods: foods as any,
+          foods: foods,
           food_count: foods.length,
           combo_key: comboKey,
           occurrence_count: occurrences,
@@ -104,7 +104,7 @@ export async function getFrequentMeals(
   mealName: string
 ): Promise<FrequentMealTemplate[]> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("frequent_meal_templates")
       .select("*")
       .eq("user_id", userId)
@@ -115,9 +115,9 @@ export async function getFrequentMeals(
       .limit(3);
 
     if (error) throw error;
-    return (data ?? []).map(d => ({
+    return (data ?? []).map((d: any) => ({
       ...d,
-      foods: (d.foods as any) as MealFood[],
+      foods: d.foods as MealFood[],
     })) as FrequentMealTemplate[];
   } catch (err) {
     console.warn("[MealTemplates] getFrequentMeals failed:", err);
@@ -126,7 +126,7 @@ export async function getFrequentMeals(
 }
 
 export async function dismissFrequentMeal(templateId: string): Promise<void> {
-  await supabase
+  await (supabase as any)
     .from("frequent_meal_templates")
     .update({ is_dismissed: true })
     .eq("id", templateId);
@@ -136,7 +136,7 @@ export async function pinFrequentMeal(
   templateId: string,
   isPinned: boolean
 ): Promise<void> {
-  await supabase
+  await (supabase as any)
     .from("frequent_meal_templates")
     .update({ is_pinned: isPinned })
     .eq("id", templateId);
