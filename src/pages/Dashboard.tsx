@@ -10,7 +10,7 @@ import ProgressMomentum from "@/components/dashboard/ProgressMomentum";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
-import RecommitFlow from "@/components/retention/RecommitFlow";
+
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import CoachPriority from "@/components/dashboard/CoachPriority";
