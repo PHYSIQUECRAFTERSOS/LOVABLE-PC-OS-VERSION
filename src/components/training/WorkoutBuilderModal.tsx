@@ -182,7 +182,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     if (!open) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
-      setUseRpe(false); setUseTempo(false); setSelectionMode(false);
+      setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
       setPreviewExerciseIdx(null);
     }
   }, [open]);
