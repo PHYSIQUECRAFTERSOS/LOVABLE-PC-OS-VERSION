@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ReSignPrompt from "@/components/signing/ReSignPrompt";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -141,6 +142,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (needsOnboarding && role === "client" && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  // For clients, wrap content with ReSignPrompt to check for updated documents
+  if (role === "client") {
+    return <ReSignPrompt>{children}</ReSignPrompt>;
   }
 
   return <>{children}</>;

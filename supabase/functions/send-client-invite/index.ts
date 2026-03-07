@@ -52,7 +52,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, first_name, last_name, phone, client_type, tags, invite_id } = body;
+    const { email, first_name, last_name, phone, client_type, tags, invite_id, tier_id, tier_name } = body;
 
     if (!email || !first_name || !last_name) {
       return new Response(
@@ -110,6 +110,8 @@ serve(async (req) => {
         invite_status: "pending",
         expires_at: expiresAt,
         tags: tags || [],
+        tier_id: tier_id || null,
+        tier_name: tier_name || null,
       })
       .select()
       .single();

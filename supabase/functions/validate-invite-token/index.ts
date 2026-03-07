@@ -235,6 +235,7 @@ serve(async (req) => {
           last_name: invite.last_name,
           email: invite.email,
           coach_name: coachProfile?.full_name || "Your Coach",
+          tier_name: invite.tier_name || "Monthly",
         },
       }, 200);
     }

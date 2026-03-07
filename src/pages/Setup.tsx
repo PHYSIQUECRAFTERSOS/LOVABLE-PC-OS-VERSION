@@ -5,26 +5,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ShieldCheck, Clock, AlertTriangle } from "lucide-react";
-import LegalDocumentModal from "@/components/legal/LegalDocumentModal";
+import DocumentSigningFlow from "@/components/signing/DocumentSigningFlow";
 import { TIMEOUTS } from "@/lib/performance";
 
-type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "complete" | "error";
+type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "signing" | "complete" | "error";
 
 interface InviteInfo {
   first_name: string;
   last_name: string;
   email: string;
   coach_name: string;
-}
-
-interface LegalDoc {
-  id: string;
-  document_type: string;
-  title: string;
-  content: string;
-  version_number: number;
+  tier_name: string;
 }
 
 const ClientSetup = () => {
@@ -37,19 +29,12 @@ const ClientSetup = () => {
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [legalDocs, setLegalDocs] = useState<LegalDoc[]>([]);
-  const [activeModal, setActiveModal] = useState<"terms_of_service" | "privacy_policy" | null>(null);
-
-  // 3s timeout on initial loading
   useEffect(() => {
     if (step !== "loading") return;
     const timeout = setTimeout(() => {
-      console.error("[Setup] Validation timed out after 3s");
       setErrorMessage("Validation is taking too long. Please try again.");
       setStep("error");
     }, TIMEOUTS.SPINNER_MAX);
@@ -59,54 +44,29 @@ const ClientSetup = () => {
   useEffect(() => {
     if (!token) { setStep("invalid"); return; }
     validateToken();
-    fetchLegalDocs();
   }, [token]);
 
-  const fetchLegalDocs = async () => {
-    const { data } = await supabase
-      .from("legal_documents")
-      .select("id, document_type, title, content, version_number")
-      .eq("is_current", true);
-    if (data) setLegalDocs(data);
-  };
-
-  const getDoc = (type: string) => legalDocs.find((d) => d.document_type === type);
-
   const callEdgeFunction = async (payload: Record<string, unknown>) => {
-    console.log("[Setup] Calling validate-invite-token with:", { ...payload, password: payload.password ? "***" : undefined });
-
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TIMEOUTS.STANDARD_API);
-
     try {
-      const { data, error } = await supabase.functions.invoke("validate-invite-token", {
-        body: payload,
-      });
-
+      const { data, error } = await supabase.functions.invoke("validate-invite-token", { body: payload });
       clearTimeout(timeout);
-
       if (error) {
-        console.error("[Setup] Edge function error:", error);
         let parsed: Record<string, unknown> | null = null;
         try {
           if (error && typeof error === "object" && "context" in error) {
             const ctx = (error as any).context;
-            if (ctx && typeof ctx.json === "function") {
-              parsed = await ctx.json();
-            }
+            if (ctx && typeof ctx.json === "function") parsed = await ctx.json();
           }
-        } catch { /* ignore */ }
-
+        } catch {}
         if (parsed) return parsed;
-        return { success: false, message: "Unable to reach the server. Please try again.", errorCode: "NETWORK_ERROR" };
+        return { success: false, message: "Unable to reach the server.", errorCode: "NETWORK_ERROR" };
       }
-
       return data;
     } catch (err: any) {
       clearTimeout(timeout);
-      if (err.name === "AbortError") {
-        return { success: false, message: "Request timed out. Please try again.", errorCode: "TIMEOUT" };
-      }
+      if (err.name === "AbortError") return { success: false, message: "Request timed out.", errorCode: "TIMEOUT" };
       throw err;
     }
   };
@@ -114,23 +74,24 @@ const ClientSetup = () => {
   const validateToken = async () => {
     try {
       const result = await callEdgeFunction({ token, action: "validate" });
-
       if (result?.success && result?.valid) {
-        setInviteInfo(result.invite as InviteInfo);
+        const invite = result.invite as any;
+        setInviteInfo({
+          first_name: invite.first_name,
+          last_name: invite.last_name,
+          email: invite.email,
+          coach_name: invite.coach_name || "Your Coach",
+          tier_name: invite.tier_name || "Monthly",
+        });
         setStep("create_password");
       } else {
         const code = result?.errorCode;
         if (code === "EXPIRED") setStep("expired");
         else if (code === "ALREADY_USED") setStep("already_used");
         else if (code === "INVALID_TOKEN" || code === "INVALIDATED") setStep("invalid");
-        else {
-          setErrorMessage(result?.message || "Something went wrong.");
-          setStep("error");
-        }
+        else { setErrorMessage(result?.message || "Something went wrong."); setStep("error"); }
       }
-    } catch {
-      setStep("invalid");
-    }
+    } catch { setStep("invalid"); }
   };
 
   const handleCreateAccount = async () => {
@@ -146,79 +107,54 @@ const ClientSetup = () => {
     setLoading(true);
     const hardTimeout = setTimeout(() => {
       setLoading(false);
-      setErrorMessage("Account creation is taking too long. Please try again.");
+      setErrorMessage("Account creation is taking too long.");
       setStep("error");
     }, TIMEOUTS.STANDARD_API);
 
     try {
-      const termsDoc = getDoc("terms_of_service");
-      const privacyDoc = getDoc("privacy_policy");
-      const legalAcceptances = [
-        termsDoc && { document_id: termsDoc.id, document_type: "terms_of_service", document_version: termsDoc.version_number },
-        privacyDoc && { document_id: privacyDoc.id, document_type: "privacy_policy", document_version: privacyDoc.version_number },
-      ].filter(Boolean);
-
-      const result = await callEdgeFunction({
-        token,
-        password,
-        action: "setup",
-        legal_acceptances: legalAcceptances,
-      });
-
+      const result = await callEdgeFunction({ token, password, action: "setup" });
       clearTimeout(hardTimeout);
 
       if (result?.success) {
-        console.log("[Setup] Account created, signing in as:", result.email);
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: result.email as string,
           password,
         });
 
         if (signInError) {
-          console.error("[Setup] Sign-in error:", signInError.message);
           toast({ title: "Account created! Please sign in.", description: signInError.message });
           navigate("/auth");
           return;
         }
 
-        setStep("complete");
-
-        // Poll for session, redirect within 3s max
-        const startTime = Date.now();
-        const checkSession = async () => {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session) {
-            navigate("/onboarding", { replace: true });
-            return;
-          }
-          if (Date.now() - startTime < TIMEOUTS.SPINNER_MAX) {
-            setTimeout(checkSession, 300);
-          } else {
-            navigate("/onboarding", { replace: true });
-          }
-        };
-        checkSession();
+        // Move to signing step instead of directly to onboarding
+        setStep("signing");
       } else {
         const msg = result?.message || "Something went wrong.";
-        console.error("[Setup] Setup failed:", result?.errorCode, msg);
         toast({ title: "Error", description: msg, variant: "destructive" });
       }
     } catch (err: any) {
       clearTimeout(hardTimeout);
-      console.error("[Setup] Unexpected error:", err);
-      toast({
-        title: "Something went wrong",
-        description: "Please try again or contact support.",
-        variant: "destructive",
-      });
+      toast({ title: "Something went wrong", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  const termsDoc = getDoc("terms_of_service");
-  const privacyDoc = getDoc("privacy_policy");
-  const activeDoc = activeModal ? getDoc(activeModal) : null;
+  const handleSigningComplete = () => {
+    setStep("complete");
+    // Poll for session, redirect to onboarding
+    const startTime = Date.now();
+    const checkSession = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session || Date.now() - startTime >= TIMEOUTS.SPINNER_MAX) {
+        navigate("/onboarding", { replace: true });
+        return;
+      }
+      setTimeout(checkSession, 300);
+    };
+    checkSession();
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -289,40 +225,26 @@ const ClientSetup = () => {
                 <Input id="confirm_password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm password" required />
               </div>
 
-              <div className="space-y-3 pt-2">
-                <div className="flex items-start gap-2">
-                  <Checkbox id="terms" checked={termsAccepted} disabled={true} onCheckedChange={() => {}} />
-                  <Label htmlFor="terms" className="text-xs text-muted-foreground leading-tight">
-                    I agree to the{" "}
-                    <button type="button" onClick={() => setActiveModal("terms_of_service")} className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium">
-                      Terms of Service
-                    </button>
-                  </Label>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Checkbox id="privacy" checked={privacyAccepted} disabled={true} onCheckedChange={() => {}} />
-                  <Label htmlFor="privacy" className="text-xs text-muted-foreground leading-tight">
-                    I agree to the{" "}
-                    <button type="button" onClick={() => setActiveModal("privacy_policy")} className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors font-medium">
-                      Privacy Policy
-                    </button>
-                  </Label>
-                </div>
-              </div>
-
-              <Button onClick={handleCreateAccount} className="w-full" disabled={loading || !termsAccepted || !privacyAccepted || !password || !confirmPassword}>
+              <Button onClick={handleCreateAccount} className="w-full" disabled={loading || !password || !confirmPassword}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Confirm Account
+                Continue
               </Button>
             </div>
           </div>
         )}
 
+        {step === "signing" && inviteInfo && (
+          <DocumentSigningFlow
+            tierName={inviteInfo.tier_name}
+            onComplete={handleSigningComplete}
+          />
+        )}
+
         {step === "complete" && (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <ShieldCheck className="h-12 w-12 text-primary mx-auto mb-4" />
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Account Created</h2>
-            <p className="text-sm text-muted-foreground">Redirecting…</p>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">All Set!</h2>
+            <p className="text-sm text-muted-foreground">Redirecting to your profile setup…</p>
             <Loader2 className="h-5 w-5 animate-spin text-primary mx-auto mt-4" />
           </div>
         )}
@@ -339,18 +261,6 @@ const ClientSetup = () => {
           </div>
         )}
       </div>
-
-      <LegalDocumentModal
-        open={!!activeModal && !!activeDoc}
-        onClose={() => setActiveModal(null)}
-        onAccept={() => {
-          if (activeModal === "terms_of_service") setTermsAccepted(true);
-          if (activeModal === "privacy_policy") setPrivacyAccepted(true);
-          setActiveModal(null);
-        }}
-        title={activeDoc?.title || ""}
-        content={activeDoc?.content || ""}
-      />
     </div>
   );
 };
