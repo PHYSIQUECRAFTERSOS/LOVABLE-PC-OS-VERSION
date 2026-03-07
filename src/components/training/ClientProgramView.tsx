@@ -213,7 +213,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     const phaseIds = phases.map(p => p.id);
     const { data: pwRows } = await supabase
       .from("program_workouts")
-      .select("id, phase_id, workout_id, day_of_week, day_label, sort_order")
+      .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
       .in("phase_id", phaseIds)
       .order("sort_order");
 
