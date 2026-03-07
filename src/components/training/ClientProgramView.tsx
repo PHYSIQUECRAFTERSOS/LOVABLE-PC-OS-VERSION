@@ -252,7 +252,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         })
         // Deduplicate by workout_id within a phase
         .filter((pw, idx, arr) => arr.findIndex(x => x.workout_id === pw.workout_id) === idx)
-        .sort((a, b) => (a.day_of_week ?? a.sort_order ?? 0) - (b.day_of_week ?? b.sort_order ?? 0))
+        .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
         .map(pw => ({
           id: pw.id,
           workout_id: pw.workout_id,
