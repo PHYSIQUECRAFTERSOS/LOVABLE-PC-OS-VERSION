@@ -46,6 +46,8 @@ interface FoodItem {
   category?: string;
   relevance_score?: number;
   source?: "local" | "off";
+  is_branded?: boolean;
+  image_url?: string | null;
 }
 
 interface AddFoodScreenProps {
