@@ -90,54 +90,6 @@ export async function searchLocalOnly(query: string, limit = 25): Promise<FoodRe
   }
 }
 
-// ── Cache layer ───────────────────────────────────────────────────────────
-
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(() => {
-        clearTimeout(timer);
-        resolve(fallback);
-      });
-  });
-}
-
-
-async function getCachedResults(queryKey: string): Promise<FoodResult[]> {
-  try {
-    const { data } = await supabase
-      .from("food_search_cache")
-      .select("results")
-      .eq("query_key", queryKey)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-
-    return (data?.results as unknown as FoodResult[]) ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function cacheResults(queryKey: string, results: FoodResult[]): Promise<void> {
-  await supabase
-    .from("food_search_cache")
-    .upsert({
-      query_key: queryKey,
-      results: results as any,
-      result_count: results.length,
-      cached_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    }, { onConflict: "query_key" })
-    .then(({ error }) => {
-      if (error) console.warn("[FoodSearch] Cache write warning:", error.message);
-    });
-}
-
 // ── Rank results ──────────────────────────────────────────────────────────
 
 function rankResults(results: FoodResult[], query: string): FoodResult[] {
@@ -167,29 +119,4 @@ function scoreFood(food: FoodResult, query: string, tokens: string[]): number {
   if (tokens.some(t => name.includes(t))) return 40;
   if (tokens.some(t => brand.includes(t))) return 35;
   return 10;
-}
-
-// ── OFF → FoodResult mapper ──────────────────────────────────────────────
-
-function offToFoodResult(off: OFFFood): FoodResult {
-  return {
-    id: off.id,
-    name: off.name,
-    brand: off.brand,
-    calories: off.calories ?? 0,
-    protein: off.protein ?? 0,
-    carbs: off.carbs ?? 0,
-    fat: off.fat ?? 0,
-    fiber: off.fiber ?? 0,
-    sugar: off.sugar ?? 0,
-    sodium: off.sodium ?? 0,
-    serving_size: off.serving_size,
-    serving_unit: off.serving_unit,
-    serving_label: off.serving_label,
-    category: off.category,
-    data_source: "open_food_facts",
-    is_verified: false,
-    barcode: off.barcode,
-    source: "off",
-  };
 }
