@@ -36,6 +36,8 @@ interface FoodItem {
   brand: string | null;
   serving_size: number;
   serving_unit: string;
+  serving_description?: string | null;
+  additional_serving_sizes?: Array<{ description: string; size_g: number }> | null;
   calories: number;
   protein: number;
   carbs: number;
@@ -50,6 +52,13 @@ interface FoodItem {
   source?: "local" | "off" | "usda";
   is_branded?: boolean;
   image_url?: string | null;
+  calories_per_100g?: number;
+  protein_per_100g?: number;
+  carbs_per_100g?: number;
+  fat_per_100g?: number;
+  fiber_per_100g?: number;
+  sugar_per_100g?: number;
+  sodium_per_100g?: number;
 }
 
 interface AddFoodScreenProps {
