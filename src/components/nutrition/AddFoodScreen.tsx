@@ -240,6 +240,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
     if (!user) return null;
     try {
+      // The food is already cached in the `foods` table by the edge function.
+      // We need to insert into `food_items` for nutrition_logs compatibility.
       const foodItem = {
         name: food.name,
         brand: food.brand || null,
@@ -264,7 +266,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
         .single();
       if (error) throw error;
-      return inserted as FoodItem;
+      return { ...inserted, source: "local" as const } as FoodItem;
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
       return null;
