@@ -1,3 +1,4 @@
+import { useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
@@ -9,6 +10,10 @@ import RetentionPanel from "@/components/admin/RetentionPanel";
 import DocumentManagement from "@/components/admin/DocumentManagement";
 import InviteDashboard from "@/components/clients/InviteDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Database, Loader2 } from "lucide-react";
 
 const Admin = () => {
   const { role, loading } = useAuth();
