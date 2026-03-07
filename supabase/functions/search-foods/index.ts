@@ -308,7 +308,7 @@ serve(async (req) => {
           `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=20&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url,lang,language,countries_tags&tagtype_0=countries&tag_contains_0=contains&tag_0=canada`,
           {
             headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-            signal: AbortSignal.timeout(4000),
+            signal: AbortSignal.timeout(7000),
           }
         );
         if (offCaRes.ok) {
