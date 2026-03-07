@@ -369,7 +369,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const allWorkouts = phases.flatMap(p => p.directWorkouts);
 
   // ── Workout card ──
-  const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string) => (
+  const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string, displayDayNumber?: number) => (
     <div key={pw.id} className="flex items-center gap-2 p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors group">
       {selectionMode && (
         <Checkbox checked={selectedWorkouts.has(pw.id)} onCheckedChange={() => toggleWorkoutSelection(pw.id)} className="shrink-0" />
@@ -378,7 +378,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         <Dumbbell className="h-4 w-4 text-primary" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+        <div className="flex items-center gap-1.5">
+          {displayDayNumber != null && (
+            <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {displayDayNumber}</Badge>
+          )}
+          <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+        </div>
         <p className="text-[10px] text-muted-foreground">{pw.day_label}</p>
       </div>
       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -526,7 +531,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
             {isExpanded && (
               <CardContent className="pt-0 space-y-2 pb-4">
-                {phase.directWorkouts.map(pw => renderWorkoutCard(pw, phase.id))}
+                {phase.directWorkouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
 
                 {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">No workouts in this phase.</p>
@@ -542,7 +547,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                     <CollapsibleContent className="pl-4 space-y-2 mt-1">
                       {week.workouts.length === 0 ? (
                         <p className="text-xs text-muted-foreground py-2">No workouts this week.</p>
-                      ) : week.workouts.map(pw => renderWorkoutCard(pw, phase.id))}
+                      ) : week.workouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
                     </CollapsibleContent>
                   </Collapsible>
                 ))}

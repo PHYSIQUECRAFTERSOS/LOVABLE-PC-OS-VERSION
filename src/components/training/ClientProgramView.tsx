@@ -160,7 +160,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           phase_order: w.week_number,
           workouts: (pwRows || [])
             .filter(pw => pw.week_id === w.id)
-            .sort((a, b) => (a.day_of_week ?? a.sort_order ?? 0) - (b.day_of_week ?? b.sort_order ?? 0))
+            .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
             .map(pw => ({
               id: pw.id,
               workout_id: pw.workout_id,
@@ -252,7 +252,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         })
         // Deduplicate by workout_id within a phase
         .filter((pw, idx, arr) => arr.findIndex(x => x.workout_id === pw.workout_id) === idx)
-        .sort((a, b) => (a.day_of_week ?? a.sort_order ?? 0) - (b.day_of_week ?? b.sort_order ?? 0))
+        .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
         .map(pw => ({
           id: pw.id,
           workout_id: pw.workout_id,
@@ -340,15 +340,16 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                       <p className="text-xs text-muted-foreground pl-2">No workouts in this phase</p>
                     ) : (
                       <div className="space-y-2">
-                        {phase.workouts.map((pw) => (
+                        {phase.workouts.map((pw, idx) => (
                           <div key={pw.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
                             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                               <Dumbbell className="h-4 w-4 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {pw.day_label ? `${pw.day_label} – ` : ""}{pw.workout_name}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {idx + 1}</Badge>
+                                <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+                              </div>
                             </div>
                             <Button
                               size="sm"
