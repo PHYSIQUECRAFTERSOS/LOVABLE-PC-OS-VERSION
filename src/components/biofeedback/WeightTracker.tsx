@@ -93,7 +93,7 @@ const WeightTracker = () => {
               <div>
                 <span className="text-muted-foreground">Change: </span>
                 <span className={`font-bold ${parseFloat(change) < 0 ? "text-green-400" : "text-red-400"}`}>
-                  {parseFloat(change) > 0 ? "+" : ""}{change}
+                  {parseFloat(change) > 0 ? "+" : ""}{change} lbs
                 </span>
               </div>
             )}

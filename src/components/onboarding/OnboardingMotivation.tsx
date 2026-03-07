@@ -32,14 +32,9 @@ const OnboardingMotivation = ({ data, updateField, validationErrors }: Props) =>
           rows={4}
           className={cn(validationErrors.motivation_text && "border-destructive")}
         />
-        <div className="flex justify-between">
-          {validationErrors.motivation_text && (
-            <p className="text-xs text-destructive">{validationErrors.motivation_text}</p>
-          )}
-          <p className="text-[10px] text-muted-foreground ml-auto">
-            {(data.motivation_text || "").length}/20 min characters
-          </p>
-        </div>
+        {validationErrors.motivation_text && (
+          <p className="text-xs text-destructive">{validationErrors.motivation_text}</p>
+        )}
       </div>
 
       <div className="space-y-2">
