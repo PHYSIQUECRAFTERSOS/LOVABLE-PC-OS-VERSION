@@ -266,6 +266,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
                     <SelectItem key={w.id} value={w.id}>
                       {w.dayNumber ? `Day ${w.dayNumber} – ` : ""}{w.name}
                     </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
