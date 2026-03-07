@@ -66,7 +66,7 @@ const ClientWorkspaceExercise = ({ clientId }: { clientId: string }) => {
                   </p>
                 </div>
                 <Badge variant="secondary" className="text-xs">
-                  {pr.weight}kg × {pr.reps}
+                  {pr.weight} lbs × {pr.reps}
                 </Badge>
               </div>
             ))}

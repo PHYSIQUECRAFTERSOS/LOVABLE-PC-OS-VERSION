@@ -146,7 +146,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
               <div>
                 <p className="text-xs text-muted-foreground font-medium">Current Weight</p>
                 <p className="text-2xl font-bold text-foreground mt-1">
-                  {data.currentWeight ? `${data.currentWeight} kg` : "—"}
+                  {data.currentWeight ? `${data.currentWeight} lbs` : "—"}
                 </p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">

@@ -320,6 +320,9 @@ const MealPlanTemplateLibrary = () => {
                           <DropdownMenuItem onClick={() => duplicateTemplate(template)}>
                             <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openCopyToClient(template)}>
+                            <Copy className="h-3.5 w-3.5 mr-2" /> Copy to Client
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {CATEGORIES.map(cat => (
                             <DropdownMenuItem key={cat} onClick={() => updateCategory(template.id, cat)} className="text-xs">
