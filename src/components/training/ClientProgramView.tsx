@@ -40,6 +40,8 @@ interface PhaseDetail {
     sort_order: number | null;
     day_of_week: number | null;
     workout_name: string;
+    exclude_from_numbering?: boolean;
+    custom_tag?: string | null;
   }[];
 }
 
