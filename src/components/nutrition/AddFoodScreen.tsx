@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FrequentMealsSection } from "@/components/nutrition/FrequentMealsSection";
 import type { MealFood } from "@/services/mealTemplateService";
+import FoodDetailScreen from "@/components/nutrition/FoodDetailScreen";
+import type { FoodDetailFood, FoodDetailEntry } from "@/components/nutrition/FoodDetailScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
