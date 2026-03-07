@@ -2112,14 +2112,18 @@ export type Database = {
           brand: string | null
           calories_per_100g: number | null
           carbs_per_100g: number | null
+          country_code: string | null
           created_at: string | null
+          data_quality_score: number | null
           fat_per_100g: number | null
           fiber_per_100g: number | null
+          has_complete_macros: boolean | null
           id: string
           image_url: string | null
           is_branded: boolean | null
           is_custom: boolean | null
           is_verified: boolean | null
+          language_code: string | null
           name: string
           off_id: string | null
           popularity_score: number | null
@@ -2131,20 +2135,26 @@ export type Database = {
           source: string | null
           sugar_per_100g: number | null
           updated_at: string | null
+          usda_data_type: string | null
+          usda_fdc_id: string | null
         }
         Insert: {
           barcode?: string | null
           brand?: string | null
           calories_per_100g?: number | null
           carbs_per_100g?: number | null
+          country_code?: string | null
           created_at?: string | null
+          data_quality_score?: number | null
           fat_per_100g?: number | null
           fiber_per_100g?: number | null
+          has_complete_macros?: boolean | null
           id?: string
           image_url?: string | null
           is_branded?: boolean | null
           is_custom?: boolean | null
           is_verified?: boolean | null
+          language_code?: string | null
           name: string
           off_id?: string | null
           popularity_score?: number | null
@@ -2156,20 +2166,26 @@ export type Database = {
           source?: string | null
           sugar_per_100g?: number | null
           updated_at?: string | null
+          usda_data_type?: string | null
+          usda_fdc_id?: string | null
         }
         Update: {
           barcode?: string | null
           brand?: string | null
           calories_per_100g?: number | null
           carbs_per_100g?: number | null
+          country_code?: string | null
           created_at?: string | null
+          data_quality_score?: number | null
           fat_per_100g?: number | null
           fiber_per_100g?: number | null
+          has_complete_macros?: boolean | null
           id?: string
           image_url?: string | null
           is_branded?: boolean | null
           is_custom?: boolean | null
           is_verified?: boolean | null
+          language_code?: string | null
           name?: string
           off_id?: string | null
           popularity_score?: number | null
@@ -2181,6 +2197,8 @@ export type Database = {
           source?: string | null
           sugar_per_100g?: number | null
           updated_at?: string | null
+          usda_data_type?: string | null
+          usda_fdc_id?: string | null
         }
         Relationships: []
       }
