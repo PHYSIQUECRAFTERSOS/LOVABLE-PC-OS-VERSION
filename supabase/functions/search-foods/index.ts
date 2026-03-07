@@ -219,7 +219,7 @@ serve(async (req) => {
       .from("foods")
       .select("*")
       .or(`name.ilike.%${query}%,brand.ilike.%${query}%`)
-      .eq("has_complete_macros", true)
+      .not("calories_per_100g", "is", null)
       .order("data_quality_score", { ascending: false })
       .order("popularity_score", { ascending: false })
       .limit(limit);
@@ -243,25 +243,18 @@ serve(async (req) => {
       f.brand?.toLowerCase().includes(queryWords[0].toLowerCase())
     );
 
-    // If strong local results, return immediately without waiting for external APIs
-    if (!likelyBrandSearch && localFoods.length >= 5) {
+    // Only short-circuit on very strong local results to avoid slow external calls
+    if (!likelyBrandSearch && localFoods.length >= 8) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (likelyBrandSearch && localBrandMatches.length >= 3) {
+    if (likelyBrandSearch && localBrandMatches.length >= 5) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // If we have ANY local results, return them immediately and skip external APIs
-    // to avoid timeout errors. External APIs will be used only when local cache is empty.
-    if (localFoods.length > 0) {
-      return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // For sparse local results, fall through to external APIs
 
     // Step 2: Search USDA and OFF SIMULTANEOUSLY
     const offCountryFilter = likelyBrandSearch
@@ -271,14 +264,14 @@ serve(async (req) => {
     const [usdaResult, offResult] = await Promise.allSettled([
       usdaApiKey ? fetch(
         `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=20&api_key=${usdaApiKey}`,
-        { signal: AbortSignal.timeout(8000) }
+        { signal: AbortSignal.timeout(12000) }
       ) : Promise.reject("No USDA key"),
 
       fetch(
         `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url,lang,language,countries_tags${offCountryFilter}`,
         {
           headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(12000),
         }
       ),
     ]);

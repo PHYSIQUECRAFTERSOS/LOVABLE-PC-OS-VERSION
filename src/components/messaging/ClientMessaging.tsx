@@ -34,16 +34,30 @@ const ClientMessaging = () => {
 
       const coachId = assignment.coach_id;
 
-      // Get coach name
-      const { data: profile } = await supabase
+      // Get coach profile — try user_id first, then id (handles both schema patterns)
+      let coachProfile: { full_name: string | null; avatar_url: string | null } | null = null;
+
+      const { data: profileByUserId } = await supabase
         .from("profiles")
         .select("full_name, avatar_url")
         .eq("user_id", coachId)
-        .single();
-      // Use actual coach name — only fall back to team name if profile is truly missing
-      const coachDisplayName = profile?.full_name?.trim();
-      setCoachName(coachDisplayName || "Your Coach");
-      setCoachAvatar(profile?.avatar_url || null);
+        .maybeSingle();
+
+      if (profileByUserId?.full_name?.trim()) {
+        coachProfile = profileByUserId;
+      } else {
+        const { data: profileById } = await supabase
+          .from("profiles")
+          .select("full_name, avatar_url")
+          .eq("id", coachId)
+          .maybeSingle();
+        if (profileById?.full_name?.trim()) {
+          coachProfile = profileById;
+        }
+      }
+
+      setCoachName(coachProfile?.full_name?.trim() || "Your Coach");
+      setCoachAvatar(coachProfile?.avatar_url || null);
 
       // Find or create thread
       const { data: existingThread } = await supabase
