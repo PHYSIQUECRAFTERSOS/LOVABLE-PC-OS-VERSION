@@ -52,7 +52,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, first_name, last_name, phone, client_type, tags, invite_id } = body;
+    const { email, first_name, last_name, phone, client_type, tags, invite_id, tier_id, tier_name } = body;
 
     if (!email || !first_name || !last_name) {
       return new Response(
