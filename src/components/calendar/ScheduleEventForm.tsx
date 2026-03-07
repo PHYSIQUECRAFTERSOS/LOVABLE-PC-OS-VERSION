@@ -82,11 +82,41 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
         setClients(profiles?.map((p) => ({ id: p.user_id, full_name: p.full_name || "Unnamed" })) || []);
       }
 
+      // Load workouts with sort_order-based day numbering
       const { data: wk } = await supabase
         .from("workouts")
         .select("id, name")
         .eq("coach_id", user.id);
-      setWorkouts(wk || []);
+
+      // Load program_workouts to get sort_order for day numbering
+      const workoutIds = (wk || []).map(w => w.id);
+      let dayNumberMap: Record<string, number> = {};
+      if (workoutIds.length > 0) {
+        const { data: pwRows } = await supabase
+          .from("program_workouts")
+          .select("workout_id, phase_id, sort_order")
+          .in("workout_id", workoutIds)
+          .order("sort_order");
+        
+        // Group by phase_id, sort by sort_order, assign sequential day numbers
+        const phaseGroups: Record<string, { workout_id: string; sort_order: number }[]> = {};
+        (pwRows || []).forEach(pw => {
+          const key = pw.phase_id || "none";
+          if (!phaseGroups[key]) phaseGroups[key] = [];
+          phaseGroups[key].push({ workout_id: pw.workout_id, sort_order: pw.sort_order ?? 999 });
+        });
+        Object.values(phaseGroups).forEach(group => {
+          group.sort((a, b) => a.sort_order - b.sort_order);
+          group.forEach((item, idx) => {
+            dayNumberMap[item.workout_id] = idx + 1;
+          });
+        });
+      }
+
+      setWorkouts((wk || []).map(w => ({
+        ...w,
+        dayNumber: dayNumberMap[w.id],
+      })));
     };
     loadCoachData();
   }, [isCoach, user]);
