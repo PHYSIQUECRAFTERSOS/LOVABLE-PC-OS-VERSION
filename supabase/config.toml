@@ -47,3 +47,9 @@ verify_jwt = false
 
 [functions.open-food-facts-search]
 verify_jwt = false
+
+[functions.search-foods]
+verify_jwt = false
+
+[functions.seed-foods]
+verify_jwt = false

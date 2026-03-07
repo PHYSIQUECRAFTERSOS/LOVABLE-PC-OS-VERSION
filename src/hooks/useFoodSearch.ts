@@ -1,51 +1,103 @@
-import { useState, useCallback, useRef } from "react";
-import { searchFoods, FoodResult } from "@/services/foodSearchService";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-export type { FoodResult } from "@/services/foodSearchService";
+export interface Food {
+  id?: string;
+  off_id?: string;
+  name: string;
+  brand?: string | null;
+  calories_per_100g?: number | null;
+  protein_per_100g?: number | null;
+  carbs_per_100g?: number | null;
+  fat_per_100g?: number | null;
+  fiber_per_100g?: number | null;
+  sugar_per_100g?: number | null;
+  sodium_per_100g?: number | null;
+  serving_size_g?: number | null;
+  serving_unit?: string | null;
+  image_url?: string | null;
+  barcode?: string | null;
+  is_branded?: boolean;
+  is_verified?: boolean;
+  is_custom?: boolean;
+  popularity_score?: number;
+  source?: string;
+}
 
 export function useFoodSearch() {
-  const [results, setResults] = useState<FoodResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const [results, setResults] = useState<Food[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortController = useRef<AbortController | null>(null);
 
-  const search = useCallback((rawQuery: string) => {
-    const q = rawQuery.trim();
-    setQuery(q);
-
-    if (q.length < 2) {
+  const search = useCallback(async (searchQuery: string) => {
+    if (searchQuery.length < 2) {
       setResults([]);
-      setLoading(false);
-      clearTimeout(debounceRef.current);
+      setIsLoading(false);
       return;
     }
 
-    setLoading(true);
-    clearTimeout(debounceRef.current);
+    if (abortController.current) {
+      abortController.current.abort();
+    }
+    abortController.current = new AbortController();
 
-    debounceRef.current = setTimeout(async () => {
-      setError(null);
-      try {
-        const data = await searchFoods(q);
-        setResults(data);
-      } catch (err) {
-        console.error("[useFoodSearch] Error:", err);
-        setError("Search failed. Please try again.");
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 400);
-  }, []);
-
-  const clearSearch = useCallback(() => {
-    setQuery("");
-    setResults([]);
+    setIsLoading(true);
     setError(null);
-    setLoading(false);
-    clearTimeout(debounceRef.current);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id ?? null;
+
+      const { data, error: fnError } = await supabase.functions.invoke("search-foods", {
+        body: { query: searchQuery, limit: 25, user_id: userId },
+      });
+
+      if (fnError) throw fnError;
+      setResults(data?.foods ?? []);
+    } catch (err: any) {
+      if (err.name === "AbortError") return;
+      console.error("[useFoodSearch] Error:", err);
+      setError("Search failed. Please try again.");
+      setResults([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  return { results, loading, error, query, search, clearSearch };
+  useEffect(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    if (!query || query.length < 2) {
+      setResults([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+
+    debounceTimer.current = setTimeout(() => {
+      search(query);
+    }, 300);
+
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, [query, search]);
+
+  const logSelection = useCallback(async (foodId: string, mealType?: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
+      await supabase.from("food_selection_log" as any).insert({
+        food_id: foodId,
+        user_id: session.user.id,
+        meal_type: mealType ?? null,
+      });
+    } catch { /* ignore */ }
+  }, []);
+
+  return { query, setQuery, results, isLoading, error, logSelection };
 }
