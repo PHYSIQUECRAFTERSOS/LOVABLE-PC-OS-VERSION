@@ -372,7 +372,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const allWorkouts = phases.flatMap(p => p.directWorkouts);
 
   // ── Workout card ──
-  const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string, displayDayNumber?: number) => (
+  const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string, displayDayNumber?: number | null, customTag?: string | null) => (
     <div key={pw.id} className="flex items-center gap-2 p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors group">
       {selectionMode && (
         <Checkbox checked={selectedWorkouts.has(pw.id)} onCheckedChange={() => toggleWorkoutSelection(pw.id)} className="shrink-0" />
@@ -382,12 +382,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          {displayDayNumber != null && (
+          {customTag ? (
+            <Badge className="text-[9px] h-4 shrink-0 bg-slate-600/30 text-slate-300 border-slate-500/30">{customTag}</Badge>
+          ) : displayDayNumber != null ? (
             <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {displayDayNumber}</Badge>
-          )}
+          ) : null}
           <p className="text-sm font-medium truncate">{pw.workout_name}</p>
         </div>
-        <p className="text-[10px] text-muted-foreground">{pw.day_label}</p>
       </div>
       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openWorkoutEditor(pw)} title="Edit workout">
