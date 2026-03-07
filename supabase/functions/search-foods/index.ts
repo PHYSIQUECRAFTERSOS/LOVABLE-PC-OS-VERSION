@@ -243,25 +243,18 @@ serve(async (req) => {
       f.brand?.toLowerCase().includes(queryWords[0].toLowerCase())
     );
 
-    // If strong local results, return immediately without waiting for external APIs
-    if (!likelyBrandSearch && localFoods.length >= 5) {
+    // Only short-circuit on very strong local results to avoid slow external calls
+    if (!likelyBrandSearch && localFoods.length >= 8) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (likelyBrandSearch && localBrandMatches.length >= 3) {
+    if (likelyBrandSearch && localBrandMatches.length >= 5) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // If we have ANY local results, return them immediately and skip external APIs
-    // to avoid timeout errors. External APIs will be used only when local cache is empty.
-    if (localFoods.length > 0) {
-      return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // For sparse local results, fall through to external APIs
 
     // Step 2: Search USDA and OFF SIMULTANEOUSLY
     const offCountryFilter = likelyBrandSearch
