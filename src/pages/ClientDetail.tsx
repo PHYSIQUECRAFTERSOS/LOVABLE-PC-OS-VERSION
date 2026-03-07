@@ -20,6 +20,7 @@ import CalendarTab from "@/components/clients/workspace/CalendarTab";
 import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
 import MessagingTab from "@/components/clients/workspace/MessagingTab";
 import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
+import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
 
 interface ClientProfile {
   user_id: string;
