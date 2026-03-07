@@ -76,6 +76,123 @@ const MealPlanTemplateLibrary = () => {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
+  // Copy to Client state
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [copyTemplate, setCopyTemplate] = useState<Template | null>(null);
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [copyPlanType, setCopyPlanType] = useState("training_day");
+  const [copying, setCopying] = useState(false);
+  const [loadingClients, setLoadingClients] = useState(false);
+
+  const openCopyToClient = async (template: Template) => {
+    setCopyTemplate(template);
+    setSelectedClientId(null);
+    setClientSearch("");
+    setCopyPlanType("training_day");
+    setCopyModalOpen(true);
+    setLoadingClients(true);
+    if (user) {
+      const { data } = await supabase
+        .from("coach_clients")
+        .select("client_id, profiles!coach_clients_client_id_fkey(user_id, full_name, avatar_url)")
+        .eq("coach_id", user.id)
+        .eq("status", "active");
+      setClients((data || []).map((c: any) => ({
+        id: c.client_id,
+        full_name: c.profiles?.full_name || "Client",
+        avatar_url: c.profiles?.avatar_url,
+      })));
+    }
+    setLoadingClients(false);
+  };
+
+  const handleCopyToClient = async () => {
+    if (!copyTemplate || !selectedClientId || !user) return;
+    setCopying(true);
+    try {
+      // Get full template data
+      const { data: days } = await supabase
+        .from("meal_plan_days")
+        .select("*")
+        .eq("meal_plan_id", copyTemplate.id)
+        .order("day_order");
+
+      const { data: items } = await supabase
+        .from("meal_plan_items")
+        .select("*")
+        .eq("meal_plan_id", copyTemplate.id)
+        .order("meal_order")
+        .order("item_order");
+
+      // Create client meal plan
+      const { data: newPlan, error } = await supabase
+        .from("meal_plans")
+        .insert({
+          coach_id: user.id,
+          client_id: selectedClientId,
+          name: copyTemplate.name,
+          is_template: false,
+          category: copyTemplate.category,
+          target_calories: copyTemplate.target_calories,
+          target_protein: copyTemplate.target_protein,
+          target_carbs: copyTemplate.target_carbs,
+          target_fat: copyTemplate.target_fat,
+          flexibility_mode: false,
+        } as any)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      // Copy days and items
+      for (const day of (days || [])) {
+        const { data: newDay } = await supabase
+          .from("meal_plan_days")
+          .insert({ meal_plan_id: newPlan.id, day_type: day.day_type, day_order: day.day_order })
+          .select("id")
+          .single();
+
+        if (newDay) {
+          const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
+          if (dayItems.length > 0) {
+            await supabase.from("meal_plan_items").insert(
+              dayItems.map((item: any) => ({
+                meal_plan_id: newPlan.id,
+                day_id: newDay.id,
+                food_item_id: item.food_item_id,
+                custom_name: item.custom_name,
+                meal_name: item.meal_name,
+                meal_type: item.meal_type,
+                gram_amount: item.gram_amount,
+                servings: item.servings,
+                calories: item.calories,
+                protein: item.protein,
+                carbs: item.carbs,
+                fat: item.fat,
+                item_order: item.item_order,
+                meal_order: item.meal_order,
+              }))
+            );
+          }
+        }
+      }
+
+      const clientName = clients.find(c => c.id === selectedClientId)?.full_name || "client";
+      toast({ title: `Meal plan copied to ${clientName} successfully` });
+      setCopyModalOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to copy meal plan", description: err.message, variant: "destructive" });
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  const filteredClients = clients.filter(c =>
+    !clientSearch || c.full_name?.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
   const loadTemplates = async () => {
     if (!user) return;
     setLoading(true);
