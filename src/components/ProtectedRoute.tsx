@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ReSignPrompt from "@/components/signing/ReSignPrompt";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, Send, RefreshCw } from "lucide-react";
+
+interface Tier {
+  id: string;
+  name: string;
+  requires_contract: boolean;
+}
 
 interface AddClientDialogProps {
   open: boolean;
@@ -32,11 +38,14 @@ interface AddClientDialogProps {
 const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [tiers, setTiers] = useState<Tier[]>([]);
   const [form, setForm] = useState({
     email: "",
     first_name: "",
     last_name: "",
     phone: "",
+    tier_id: "",
+    tier_name: "",
     client_type: "full_access",
     tags: "",
   });
@@ -53,9 +62,37 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
 
   const isLoading = phase === "loading" || phase === "slow";
 
+  // Load tiers on mount
+  useEffect(() => {
+    if (open) {
+      supabase
+        .from("client_tiers")
+        .select("id, name, requires_contract")
+        .order("name")
+        .then(({ data }) => {
+          if (data) setTiers(data as Tier[]);
+        });
+    }
+  }, [open]);
+
+  const handleTierChange = (tierId: string) => {
+    const tier = tiers.find((t) => t.id === tierId);
+    setForm({
+      ...form,
+      tier_id: tierId,
+      tier_name: tier?.name || "",
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (!form.tier_id) {
+      toast({ title: "Please select a tier", variant: "destructive" });
+      return;
+    }
+
     start();
 
     try {
@@ -67,6 +104,8 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
             last_name: form.last_name.trim(),
             phone: form.phone.trim() || undefined,
             client_type: form.client_type,
+            tier_id: form.tier_id,
+            tier_name: form.tier_name,
             tags: form.tags
               ? form.tags.split(",").map((t) => t.trim()).filter(Boolean)
               : [],
@@ -94,7 +133,7 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
         await navigator.clipboard.writeText(setupUrl).catch(() => {});
         toast({
           title: "Invite Created — Link Copied",
-          description: `Email delivery failed. The setup link has been copied to your clipboard. Share it with ${form.first_name} manually.`,
+          description: `Email delivery failed. The setup link has been copied to your clipboard.`,
         });
       }
 
@@ -103,6 +142,8 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
         first_name: "",
         last_name: "",
         phone: "",
+        tier_id: "",
+        tier_name: "",
         client_type: "full_access",
         tags: "",
       });
@@ -117,6 +158,8 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
       });
     }
   };
+
+  const selectedTier = tiers.find((t) => t.id === form.tier_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -176,20 +219,27 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="client_type">Client Type</Label>
-            <Select
-              value={form.client_type}
-              onValueChange={(v) => setForm({ ...form, client_type: v })}
-            >
+            <Label htmlFor="tier">Client Tier *</Label>
+            <Select value={form.tier_id} onValueChange={handleTierChange}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select a tier…" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="full_access">Full Access</SelectItem>
-                <SelectItem value="read_only">Read-Only</SelectItem>
-                <SelectItem value="program_only">Program Only</SelectItem>
+                {tiers.map((tier) => (
+                  <SelectItem key={tier.id} value={tier.id}>
+                    {tier.name}
+                    {tier.requires_contract && " (Contract)"}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {selectedTier && (
+              <p className="text-xs text-muted-foreground">
+                {selectedTier.requires_contract
+                  ? "Client will sign a contract + Terms of Service during setup."
+                  : "Client will sign Terms of Service only (no contract)."}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -208,7 +258,7 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
               Retry
             </Button>
           ) : (
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || !form.tier_id}>
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
