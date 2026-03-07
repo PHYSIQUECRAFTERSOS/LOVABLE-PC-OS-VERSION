@@ -1,15 +1,12 @@
 /**
- * Unified Food Search Service — OFF-only architecture.
+ * Unified Food Search Service — Edge Function proxy architecture.
  *
- * Every search calls Open Food Facts API as the sole source.
- * Results are cached in Supabase for repeat queries.
- * Local food_items table is NEVER used for search results.
- *
- * Used by BOTH coach template builder AND client food logging.
+ * All searches route through the server-side `search-foods` edge function
+ * which queries USDA + Open Food Facts + local DB in parallel.
+ * The browser NEVER calls external food APIs directly (no CORS issues).
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { searchOFF, type OFFFood } from "./openFoodFacts";
 
 export interface FoodResult {
   id: string;
