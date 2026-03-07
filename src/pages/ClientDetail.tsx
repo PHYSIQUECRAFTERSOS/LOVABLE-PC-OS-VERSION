@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
-  LayoutDashboard, Target, ClipboardList, BarChart3,
+  LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
