@@ -7,20 +7,30 @@ const corsHeaders = {
 };
 
 const SEED_QUERIES = [
-  "chicken breast", "ground beef", "salmon", "tuna", "eggs",
-  "oats", "white rice", "sweet potato", "broccoli", "spinach",
-  "greek yogurt", "cottage cheese", "whey protein", "whole milk",
+  "chicken breast", "ground beef 93 lean", "salmon fillet", "canned tuna",
+  "large eggs", "egg whites", "oats", "white rice cooked", "brown rice",
+  "sweet potato", "broccoli", "spinach raw", "greek yogurt plain",
+  "cottage cheese", "whey protein powder", "whole milk", "2% milk",
   "banana", "apple", "orange", "blueberries", "strawberries",
   "avocado", "almonds", "peanut butter", "olive oil",
-  "whole wheat bread", "english muffin", "pasta", "quinoa",
-  "black beans", "lentils", "tofu", "turkey breast",
-  "cheddar cheese", "mozzarella", "cream cheese",
-  "tilapia", "shrimp", "cod", "protein bar", "beef steak",
+  "whole wheat bread", "english muffin", "pasta cooked", "quinoa",
+  "black beans", "lentils", "tofu", "turkey breast", "tilapia",
+  "shrimp", "cod fillet", "cheddar cheese", "mozzarella",
+  "cream cheese", "butter", "beef sirloin", "pork tenderloin",
+  "edamame", "hummus", "protein bar",
 ];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  const usdaApiKey = Deno.env.get("USDA_API_KEY") ?? "";
+  if (!usdaApiKey) {
+    return new Response(JSON.stringify({ error: "USDA_API_KEY not set. Add it in Lovable Cloud secrets." }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabase = createClient(
@@ -32,49 +42,56 @@ serve(async (req) => {
 
   for (const seedQuery of SEED_QUERIES) {
     try {
-      const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(seedQuery)}&search_simple=1&action=process&json=1&page_size=10&sort_by=unique_scans_n&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url`;
-
-      const res = await fetch(offUrl, {
-        headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-      });
-
+      const usdaUrl = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(seedQuery)}&pageSize=10&api_key=${usdaApiKey}`;
+      const res = await fetch(usdaUrl, { signal: AbortSignal.timeout(6000) });
       if (!res.ok) continue;
 
       const data = await res.json();
-      const foods = (data.products ?? [])
-        .filter((p: any) => p.product_name && p.nutriments?.["energy-kcal_100g"] && p.code)
-        .map((p: any) => ({
-          off_id: p.code,
-          name: p.product_name?.trim(),
-          brand: p.brands?.split(",")[0]?.trim() ?? null,
-          calories_per_100g: p.nutriments["energy-kcal_100g"],
-          protein_per_100g: p.nutriments["proteins_100g"] ?? null,
-          carbs_per_100g: p.nutriments["carbohydrates_100g"] ?? null,
-          fat_per_100g: p.nutriments["fat_100g"] ?? null,
-          fiber_per_100g: p.nutriments["fiber_100g"] ?? null,
-          sugar_per_100g: p.nutriments["sugars_100g"] ?? null,
-          sodium_per_100g: p.nutriments["sodium_100g"] ? p.nutriments["sodium_100g"] * 1000 : null,
-          serving_size_g: parseFloat(p.serving_size) || 100,
-          serving_unit: "g",
-          image_url: p.image_front_small_url ?? null,
-          barcode: p.code ?? null,
-          is_branded: !!(p.brands),
+      const foods = (data.foods ?? []).map((item: any) => {
+        const nutrients = item.foodNutrients ?? [];
+        const get = (name: string) => nutrients.find((n: any) => n.nutrientName === name)?.value ?? null;
+
+        const protein = get("Protein");
+        const carbs = get("Carbohydrate, by difference");
+        const fat = get("Total lipid (fat)");
+        if ((protein ?? 0) + (carbs ?? 0) + (fat ?? 0) === 0) return null;
+
+        return {
+          usda_fdc_id: String(item.fdcId),
+          name: item.description?.trim(),
+          brand: item.brandOwner?.trim() ?? item.brandName?.trim() ?? null,
+          calories_per_100g: get("Energy"),
+          protein_per_100g: protein,
+          carbs_per_100g: carbs,
+          fat_per_100g: fat,
+          fiber_per_100g: get("Fiber, total dietary"),
+          sugar_per_100g: get("Sugars, total including NLEA"),
+          sodium_per_100g: get("Sodium, Na"),
+          serving_size_g: item.servingSize ?? 100,
+          serving_unit: item.servingSizeUnit ?? "g",
+          image_url: null,
+          barcode: item.gtinUpc ?? null,
+          is_branded: !!(item.brandOwner || item.brandName),
           is_verified: true,
           is_custom: false,
-          source: "open_food_facts",
+          source: "usda",
+          language_code: "en",
+          country_code: "US",
+          has_complete_macros: true,
+          data_quality_score: 100,
           popularity_score: 10,
-        }));
+        };
+      }).filter(Boolean);
 
       if (foods.length > 0) {
         await supabase.from("foods").upsert(foods, {
-          onConflict: "off_id",
+          onConflict: "usda_fdc_id",
           ignoreDuplicates: true,
         });
         total += foods.length;
       }
 
-      // Rate limit
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 250));
     } catch (e) {
       console.error(`Seed failed for ${seedQuery}:`, e);
     }
