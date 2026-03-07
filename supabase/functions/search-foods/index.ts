@@ -56,51 +56,60 @@ serve(async (req) => {
     // Step 3: Hit Open Food Facts API
     const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=25&sort_by=unique_scans_n&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url`;
 
-    const offResponse = await fetch(offUrl, {
-      headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-      signal: AbortSignal.timeout(5000),
-    });
-
     let offFoods: any[] = [];
 
-    if (offResponse.ok) {
-      const offData = await offResponse.json();
-      const products = offData.products ?? [];
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
 
-      offFoods = products
-        .filter((p: any) => p.product_name && p.nutriments)
-        .map((p: any) => {
-          const n = p.nutriments;
-          return {
-            off_id: p.code ?? null,
-            name: p.product_name?.trim() ?? "Unknown",
-            brand: p.brands?.split(",")[0]?.trim() ?? null,
-            calories_per_100g: n["energy-kcal_100g"] ?? n["energy-kcal"] ?? null,
-            protein_per_100g: n["proteins_100g"] ?? null,
-            carbs_per_100g: n["carbohydrates_100g"] ?? null,
-            fat_per_100g: n["fat_100g"] ?? null,
-            fiber_per_100g: n["fiber_100g"] ?? null,
-            sugar_per_100g: n["sugars_100g"] ?? null,
-            sodium_per_100g: n["sodium_100g"] ? n["sodium_100g"] * 1000 : null,
-            serving_size_g: parseFloat(p.serving_size) || 100,
-            serving_unit: "g",
-            image_url: p.image_front_small_url ?? null,
-            barcode: p.code ?? null,
-            is_branded: !!(p.brands),
-            is_verified: false,
-            is_custom: false,
-            source: "open_food_facts",
-            popularity_score: 0,
-          };
-        })
-        .filter((f: any) => f.calories_per_100g !== null && f.off_id);
+      const offResponse = await fetch(offUrl, {
+        headers: { "User-Agent": "PhysiqueCraftersOS/1.0" },
+        signal: controller.signal,
+      });
 
-      // Step 4: Cache new foods (upsert by off_id)
-      if (offFoods.length > 0) {
-        await supabase
-          .from("foods")
-          .upsert(offFoods, { onConflict: "off_id", ignoreDuplicates: true });
+      clearTimeout(timer);
+
+      if (offResponse.ok) {
+        const offData = await offResponse.json();
+        const products = offData.products ?? [];
+
+        offFoods = products
+          .filter((p: any) => p.product_name && p.nutriments)
+          .map((p: any) => {
+            const n = p.nutriments;
+            return {
+              off_id: p.code ?? null,
+              name: p.product_name?.trim() ?? "Unknown",
+              brand: p.brands?.split(",")[0]?.trim() ?? null,
+              calories_per_100g: n["energy-kcal_100g"] ?? n["energy-kcal"] ?? null,
+              protein_per_100g: n["proteins_100g"] ?? null,
+              carbs_per_100g: n["carbohydrates_100g"] ?? null,
+              fat_per_100g: n["fat_100g"] ?? null,
+              fiber_per_100g: n["fiber_100g"] ?? null,
+              sugar_per_100g: n["sugars_100g"] ?? null,
+              sodium_per_100g: n["sodium_100g"] ? n["sodium_100g"] * 1000 : null,
+              serving_size_g: parseFloat(p.serving_size) || 100,
+              serving_unit: "g",
+              image_url: p.image_front_small_url ?? null,
+              barcode: p.code ?? null,
+              is_branded: !!(p.brands),
+              is_verified: false,
+              is_custom: false,
+              source: "open_food_facts",
+              popularity_score: 0,
+            };
+          })
+          .filter((f: any) => f.calories_per_100g !== null && f.off_id);
+
+        // Step 4: Cache new foods (upsert by off_id)
+        if (offFoods.length > 0) {
+          await supabase
+            .from("foods")
+            .upsert(offFoods, { onConflict: "off_id", ignoreDuplicates: true });
+        }
       }
+    } catch (offErr) {
+      console.warn("OFF API failed, returning local only:", offErr);
     }
 
     // Step 5: Merge local + OFF, deduplicate
