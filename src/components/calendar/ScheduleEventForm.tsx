@@ -285,7 +285,9 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
                 <SelectContent>
                   {workouts.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
-                      {w.dayNumber ? `Day ${w.dayNumber} – ` : ""}{w.name}
+                      {w.excludeFromNumbering && w.customTag
+                        ? `${w.customTag} – ${w.name}`
+                        : w.dayNumber ? `Day ${w.dayNumber} – ${w.name}` : w.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
