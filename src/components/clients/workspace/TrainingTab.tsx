@@ -111,7 +111,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     let phaseDirectMap: Record<string, ProgramWorkout[]> = {};
     if (phaseIds.length > 0) {
       const { data: directPWs } = await supabase.from("program_workouts")
-        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
+        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
         .in("phase_id", phaseIds).order("sort_order");
       for (const pw of (directPWs || [])) {
         const pid = (pw as any).phase_id;
@@ -120,6 +120,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           id: pw.id, workout_id: pw.workout_id,
           workout_name: (pw.workouts as any)?.name || "Workout",
           day_of_week: pw.day_of_week ?? 0, day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+          sort_order: pw.sort_order, exclude_from_numbering: (pw as any).exclude_from_numbering || false,
+          custom_tag: (pw as any).custom_tag || null,
         });
       }
     }
