@@ -87,14 +87,9 @@ const OnboardingSchedule = ({ data, updateField, validationErrors }: Props) => {
           rows={2}
           className={cn(validationErrors.occupation && "border-destructive")}
         />
-        <div className="flex justify-between">
-          {validationErrors.occupation && (
-            <p className="text-xs text-destructive">{validationErrors.occupation}</p>
-          )}
-          <p className="text-[10px] text-muted-foreground ml-auto">
-            {(data.occupation || "").length}/10 min characters
-          </p>
-        </div>
+        {validationErrors.occupation && (
+          <p className="text-xs text-destructive">{validationErrors.occupation}</p>
+        )}
       </div>
     </div>
   );

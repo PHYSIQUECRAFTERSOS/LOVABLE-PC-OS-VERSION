@@ -129,14 +129,9 @@ const OnboardingTrainingEnv = ({ data, updateField, validationErrors }: Props) =
               rows={4}
               className={cn(validationErrors.home_equipment_list && "border-destructive")}
             />
-            <div className="flex justify-between">
-              {validationErrors.home_equipment_list && (
-                <p className="text-xs text-destructive">{validationErrors.home_equipment_list}</p>
-              )}
-              <p className="text-[10px] text-muted-foreground ml-auto">
-                {(data.home_equipment_list || "").length}/20 min characters
-              </p>
-            </div>
+            {validationErrors.home_equipment_list && (
+              <p className="text-xs text-destructive">{validationErrors.home_equipment_list}</p>
+            )}
           </div>
 
           {/* Equipment photos */}

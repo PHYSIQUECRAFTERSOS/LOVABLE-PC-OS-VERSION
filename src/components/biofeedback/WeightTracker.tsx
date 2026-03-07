@@ -75,7 +75,7 @@ const WeightTracker = () => {
             step="0.1"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder="Today's weight"
+            placeholder="Today's weight (lbs)"
             className="flex-1"
           />
           <Button onClick={handleLog} disabled={loading || !weight}>
@@ -87,13 +87,13 @@ const WeightTracker = () => {
           <div className="flex items-center gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Current: </span>
-              <span className="font-bold text-foreground">{latestWeight}</span>
+              <span className="font-bold text-foreground">{latestWeight} lbs</span>
             </div>
             {change && (
               <div>
                 <span className="text-muted-foreground">Change: </span>
                 <span className={`font-bold ${parseFloat(change) < 0 ? "text-green-400" : "text-red-400"}`}>
-                  {parseFloat(change) > 0 ? "+" : ""}{change}
+                  {parseFloat(change) > 0 ? "+" : ""}{change} lbs
                 </span>
               </div>
             )}

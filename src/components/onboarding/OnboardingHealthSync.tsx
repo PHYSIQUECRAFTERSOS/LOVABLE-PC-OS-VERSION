@@ -1,7 +1,7 @@
+import { useState } from "react";
 import type { OnboardingData } from "@/pages/Onboarding";
-import { Apple, Activity, SkipForward } from "lucide-react";
+import { Footprints, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useHealthSync } from "@/hooks/useHealthSync";
 
 interface Props {
   data: OnboardingData;
@@ -9,65 +9,99 @@ interface Props {
 }
 
 const OnboardingHealthSync = ({ data, updateField }: Props) => {
-  const { isNative, platform, connect, connection } = useHealthSync();
-  const isConnected = connection?.is_connected || data.health_sync_status === "connected";
+  const [permissionState, setPermissionState] = useState<"idle" | "granted" | "denied">(
+    data.health_sync_status === "connected" ? "granted" : "idle"
+  );
+  const [requesting, setRequesting] = useState(false);
 
-  const handleConnect = async () => {
-    await connect();
-    updateField("health_sync_status", "connected");
+  const requestMotionPermission = async () => {
+    setRequesting(true);
+    try {
+      if (
+        typeof DeviceMotionEvent !== "undefined" &&
+        typeof (DeviceMotionEvent as any).requestPermission === "function"
+      ) {
+        const permission = await (DeviceMotionEvent as any).requestPermission();
+        if (permission === "granted") {
+          setPermissionState("granted");
+          updateField("health_sync_status", "connected");
+        } else {
+          setPermissionState("denied");
+          updateField("health_sync_status", "skipped");
+        }
+      } else {
+        // Non-iOS or older browser — motion events don't require permission
+        setPermissionState("granted");
+        updateField("health_sync_status", "connected");
+      }
+    } catch {
+      setPermissionState("denied");
+      updateField("health_sync_status", "skipped");
+    } finally {
+      setRequesting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl font-bold text-foreground">Connect Your Health Data</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground">Step Tracking</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your program accuracy improves significantly when step and energy data are synced.
+          Physique Crafters tracks your daily steps to help your coach monitor your activity.
+          We'll use your phone's motion sensor to count steps automatically.
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Activity className="h-6 w-6 text-primary" />
+            <Footprints className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">Improve Accuracy</p>
-            <p className="text-xs text-muted-foreground">Steps • Active calories • Resting HR • Weight</p>
+            <p className="text-sm font-semibold text-foreground">Automatic Step Counting</p>
+            <p className="text-xs text-muted-foreground">Uses your device's motion sensor</p>
           </div>
         </div>
 
-        {isConnected ? (
-          <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 text-center">
-            <p className="text-sm font-medium text-primary">✓ Health data connected</p>
+        {permissionState === "granted" ? (
+          <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 flex items-center gap-2">
+            <Check className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium text-primary">Step tracking enabled</p>
+          </div>
+        ) : permissionState === "denied" ? (
+          <div className="space-y-3">
+            <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-primary" />
+              <p className="text-sm text-primary">Automatic tracking unavailable on this device</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              You can enter your steps manually each day from your dashboard.
+              Your coach will still be able to see your progress.
+            </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {(isNative || true) && (
-              <>
-                {(platform === "ios" || !isNative) && (
-                  <Button onClick={handleConnect} className="w-full" size="lg">
-                    <Apple className="h-5 w-5 mr-2" />
-                    Connect Apple Health
-                  </Button>
-                )}
-                {(platform === "android" || !isNative) && (
-                  <Button onClick={handleConnect} variant="outline" className="w-full" size="lg">
-                    <Activity className="h-5 w-5 mr-2" />
-                    Connect Google Fit
-                  </Button>
-                )}
-              </>
-            )}
-            <Button
-              variant="ghost"
-              className="w-full text-xs text-muted-foreground"
-              onClick={() => updateField("health_sync_status", "skipped")}
-            >
-              <SkipForward className="h-3 w-3 mr-1" />
-              Skip for now
-            </Button>
-          </div>
+          <Button
+            onClick={requestMotionPermission}
+            className="w-full"
+            size="lg"
+            disabled={requesting}
+          >
+            <Footprints className="h-5 w-5 mr-2" />
+            Enable Step Tracking
+          </Button>
+        )}
+
+        {permissionState === "idle" && (
+          <Button
+            variant="ghost"
+            className="w-full text-xs text-muted-foreground"
+            onClick={() => {
+              setPermissionState("denied");
+              updateField("health_sync_status", "skipped");
+            }}
+          >
+            Skip for now — I'll enter steps manually
+          </Button>
         )}
       </div>
     </div>

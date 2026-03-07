@@ -127,10 +127,10 @@ const InviteDashboard = ({ isAdmin = false }: Props) => {
 
   // Per-tier breakdown
   const allTiers = [
-    "1-Year Portal — Paid in Full",
-    "1-Year Portal — Monthly Payments",
-    "6-Month Portal — Paid in Full",
-    "6-Month Portal — Monthly Payments",
+    "1-Year Program — Paid in Full",
+    "1-Year Program — Monthly Payments",
+    "6-Month Program — Paid in Full",
+    "6-Month Program — Monthly Payments",
     "Monthly",
     "6-Week Program",
     "Transfer Client — No New Agreement Required",

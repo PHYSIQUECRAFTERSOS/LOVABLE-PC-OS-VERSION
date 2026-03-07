@@ -27,7 +27,7 @@ const OnboardingSummary = ({ data }: Props) => {
     : "—";
 
   const weightDisplay = data.weight_lb != null
-    ? `${data.weight_lb} lb (${data.current_weight_kg} kg)`
+    ? `${data.weight_lb} lbs`
     : "—";
 
   const bodyFatDisplay = data.estimated_body_fat_pct != null

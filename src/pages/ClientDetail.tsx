@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
-  LayoutDashboard, Target, ClipboardList, BarChart3,
+  LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
@@ -20,6 +20,7 @@ import CalendarTab from "@/components/clients/workspace/CalendarTab";
 import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
 import MessagingTab from "@/components/clients/workspace/MessagingTab";
 import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
+import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
 
 interface ClientProfile {
   user_id: string;
@@ -94,6 +95,7 @@ const ClientDetail = () => {
   const tabItems = [
     { value: "dash", label: "Dash", icon: LayoutDashboard },
     { value: "checkins", label: "Check-Ins", icon: ClipboardList },
+    { value: "onboarding", label: "Onboarding", icon: BookOpen },
     { value: "calendar", label: "Calendar", icon: CalendarDays },
     { value: "training", label: "Training", icon: Dumbbell },
     { value: "nutrition", label: "Nutrition", icon: Target },
@@ -163,6 +165,9 @@ const ClientDetail = () => {
           </TabsContent>
           <TabsContent value="checkins">
             <ClientCheckinHistory clientId={clientId!} />
+          </TabsContent>
+          <TabsContent value="onboarding">
+            <OnboardingTab clientId={clientId!} />
           </TabsContent>
           <TabsContent value="calendar">
             <CalendarTab clientId={clientId!} />
