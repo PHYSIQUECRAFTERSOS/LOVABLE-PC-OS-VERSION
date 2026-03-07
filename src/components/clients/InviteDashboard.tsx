@@ -192,7 +192,7 @@ const InviteDashboard = ({ isAdmin = false }: Props) => {
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <CheckCircle2 className="h-5 w-5 text-primary" />
             <div>
               <p className="text-2xl font-bold text-foreground">{completed}</p>
               <p className="text-xs text-muted-foreground">Completed</p>
