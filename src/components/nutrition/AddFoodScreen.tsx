@@ -417,7 +417,90 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const openFoodDetail = (item: FoodItem) => {
+    setDetailFood(item);
+  };
+
+  const handleDetailConfirm = async (entry: FoodDetailEntry) => {
+    if (!user) return;
+
+    // Import if needed
+    let foodItemId = detailFood?.id;
+    if (detailFood?.source === "off") {
+      const imported = await importOFFFood(detailFood);
+      if (!imported) return;
+      foodItemId = imported.id;
+    }
+
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      food_item_id: foodItemId,
+      meal_type: mealType,
+      servings: entry.quantity,
+      calories: Math.round(entry.calories),
+      protein: Math.round(entry.protein),
+      carbs: Math.round(entry.carbs),
+      fat: Math.round(entry.fat),
+      fiber: Math.round(entry.fiber),
+      sugar: Math.round(entry.sugar),
+      sodium: Math.round(entry.sodium),
+      quantity_display: entry.quantity,
+      quantity_unit: "serving",
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+
+    if (error) {
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
+    } else {
+      toast({ title: `${entry.food.name} logged` });
+      setDetailFood(null);
+      try {
+        const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
+        const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
+        const newStreak = streakData as unknown as number;
+        const msg = getMilestoneMessage(newStreak);
+        if (msg) {
+          setTimeout(() => toast({ title: `🔥 ${newStreak} day streak!`, description: msg }), 1500);
+        }
+      } catch { /* ignore */ }
+      onLogged();
+    }
+  };
+
   if (!open) return null;
+
+  // Show food detail screen
+  if (detailFood) {
+    return (
+      <FoodDetailScreen
+        food={{
+          id: detailFood.id,
+          name: detailFood.name,
+          brand: detailFood.brand,
+          calories_per_100g: detailFood.calories_per_100g ?? (detailFood.calories / (detailFood.serving_size / 100)),
+          protein_per_100g: detailFood.protein_per_100g ?? (detailFood.protein / (detailFood.serving_size / 100)),
+          carbs_per_100g: detailFood.carbs_per_100g ?? (detailFood.carbs / (detailFood.serving_size / 100)),
+          fat_per_100g: detailFood.fat_per_100g ?? (detailFood.fat / (detailFood.serving_size / 100)),
+          fiber_per_100g: detailFood.fiber_per_100g ?? ((detailFood.fiber ?? 0) / (detailFood.serving_size / 100)),
+          sugar_per_100g: detailFood.sugar_per_100g ?? ((detailFood.sugar ?? 0) / (detailFood.serving_size / 100)),
+          sodium_per_100g: detailFood.sodium_per_100g ?? ((detailFood.sodium ?? 0) / (detailFood.serving_size / 100)),
+          serving_size_g: detailFood.serving_size,
+          serving_unit: detailFood.serving_unit,
+          serving_description: detailFood.serving_description,
+          additional_serving_sizes: detailFood.additional_serving_sizes,
+          source: detailFood.source,
+          is_branded: detailFood.is_branded,
+          image_url: detailFood.image_url,
+        }}
+        mealType={mealType}
+        mealLabel={mealLabel}
+        onConfirm={handleDetailConfirm}
+        onBack={() => setDetailFood(null)}
+      />
+    );
+  }
 
   const allDisplayItems = [
     ...results,
