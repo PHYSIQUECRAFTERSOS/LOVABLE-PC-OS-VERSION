@@ -20,6 +20,8 @@ interface Props {
   onComplete: () => void;
 }
 
+const TRANSFER_TIER = "Transfer Client — No New Agreement Required";
+
 const DocumentSigningFlow = ({ tierName, onComplete }: Props) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -30,13 +32,14 @@ const DocumentSigningFlow = ({ tierName, onComplete }: Props) => {
   const [showSignature, setShowSignature] = useState(false);
   const [signing, setSigning] = useState(false);
 
+  const isTransferClient = tierName === TRANSFER_TIER;
+
   useEffect(() => {
     loadDocuments();
   }, [tierName]);
 
   const loadDocuments = async () => {
     setLoading(true);
-    // Fetch active document templates applicable to this tier
     const { data, error } = await supabase
       .from("document_templates")
       .select("*")
@@ -54,13 +57,23 @@ const DocumentSigningFlow = ({ tierName, onComplete }: Props) => {
       return doc.tier_applicability.includes(tierName);
     });
 
-    // For monthly tier, use tos_monthly instead of universal_tos
+    // Tier-specific document routing
     let filtered = applicable;
     if (tierName === "Monthly") {
-      filtered = applicable.filter((d: any) => d.template_key !== "universal_tos");
+      // Monthly uses tos_monthly, exclude universal_tos and universal_tos_only
+      filtered = applicable.filter((d: any) => 
+        d.template_key !== "universal_tos" && d.template_key !== "universal_tos_only"
+      );
+    } else if (isTransferClient) {
+      // Transfer Client uses universal_tos_only only
+      filtered = applicable.filter((d: any) => 
+        d.template_key === "universal_tos_only"
+      );
     } else {
-      // For non-monthly, use universal_tos and exclude tos_monthly
-      filtered = applicable.filter((d: any) => d.template_key !== "tos_monthly");
+      // All other tiers: use universal_tos, exclude tos_monthly and universal_tos_only
+      filtered = applicable.filter((d: any) => 
+        d.template_key !== "tos_monthly" && d.template_key !== "universal_tos_only"
+      );
     }
 
     // Sort: ToS first, contracts second
@@ -153,6 +166,17 @@ const DocumentSigningFlow = ({ tierName, onComplete }: Props) => {
 
   return (
     <div className="space-y-4">
+      {/* Transfer client amber banner */}
+      {isTransferClient && currentDocIndex === 0 && (
+        <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
+          <p className="text-sm text-primary font-medium">
+            You have been transferred from a previous coaching platform. Your original program
+            agreement remains on file with your coach. Please review and accept our platform
+            Terms of Service to complete your account setup.
+          </p>
+        </div>
+      )}
+
       {/* Progress indicator */}
       <div className="flex items-center justify-between px-1">
         <span className="text-xs text-muted-foreground">

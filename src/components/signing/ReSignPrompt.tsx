@@ -63,8 +63,9 @@ const ReSignPrompt = ({ children }: Props) => {
         if (!t.tier_applicability || t.tier_applicability.length === 0) return true;
         return t.tier_applicability.includes(clientTier);
       }).filter((t: any) => {
-        if (clientTier === "Monthly") return t.template_key !== "universal_tos";
-        return t.template_key !== "tos_monthly";
+        if (clientTier === "Monthly") return t.template_key !== "universal_tos" && t.template_key !== "universal_tos_only";
+        if (clientTier === "Transfer Client — No New Agreement Required") return t.template_key === "universal_tos_only";
+        return t.template_key !== "tos_monthly" && t.template_key !== "universal_tos_only";
       });
 
       // Check if all applicable documents have been signed at their current version
