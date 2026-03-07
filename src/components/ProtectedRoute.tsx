@@ -143,6 +143,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/onboarding" replace />;
   }
 
+  // For clients, wrap content with ReSignPrompt to check for updated documents
+  if (role === "client") {
+    return <ReSignPrompt>{children}</ReSignPrompt>;
+  }
+
   return <>{children}</>;
 };
 
