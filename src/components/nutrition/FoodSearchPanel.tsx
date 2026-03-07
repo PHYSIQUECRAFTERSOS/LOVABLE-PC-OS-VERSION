@@ -161,10 +161,21 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   // Convert search results to FoodResult format
   const localResults: FoodResult[] = searchResults.map(r => ({
-    ...r,
-    fiber: r.fiber ?? 0,
-    sugar: r.sugar ?? 0,
-    source: r.source,
+    id: r.id ?? crypto.randomUUID(),
+    name: r.name,
+    brand: r.brand ?? null,
+    calories: Math.round((r.calories_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    protein: Math.round((r.protein_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    carbs: Math.round((r.carbs_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    fat: Math.round((r.fat_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    fiber: Math.round((r.fiber_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    sugar: Math.round((r.sugar_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    serving_size: r.serving_size_g ?? 100,
+    serving_unit: r.serving_unit ?? "g",
+    is_verified: r.is_verified,
+    data_source: r.source ?? "open_food_facts",
+    source: r.source === "open_food_facts" ? "off" as const : "local" as const,
+    is_branded: r.is_branded,
   }));
 
   const handleSelect = async (food: FoodResult) => {
