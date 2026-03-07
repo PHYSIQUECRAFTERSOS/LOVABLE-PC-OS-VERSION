@@ -840,17 +840,26 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                           items={phase.workouts.map((w, i) => w.id || w.workoutId + i)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {phase.workouts.map((pw, pwIdx) => (
-                            <SortableWorkoutCard
-                              key={pw.id || pw.workoutId + pwIdx}
-                              pw={pw}
-                              pwIdx={pwIdx}
-                              phaseIdx={phaseIdx}
-                              meta={workoutMeta[pw.workoutId]}
-                              openWorkoutBuilder={openWorkoutBuilder}
-                              removeWorkoutFromPhase={removeWorkoutFromPhase}
-                            />
-                          ))}
+                          {(() => {
+                            let dayCounter = 1;
+                            return phase.workouts.map((pw, pwIdx) => {
+                              const isExcluded = pw.excludeFromNumbering;
+                              const pos = isExcluded ? null : dayCounter++;
+                              return (
+                                <SortableWorkoutCard
+                                  key={pw.id || pw.workoutId + pwIdx}
+                                  pw={pw}
+                                  pwIdx={pwIdx}
+                                  phaseIdx={phaseIdx}
+                                  displayPosition={pos}
+                                  meta={workoutMeta[pw.workoutId]}
+                                  openWorkoutBuilder={openWorkoutBuilder}
+                                  removeWorkoutFromPhase={removeWorkoutFromPhase}
+                                  onToggleCustomTag={handleToggleCustomTag}
+                                />
+                              );
+                            });
+                          })()}
                         </SortableContext>
                       </DndContext>
                     )}
