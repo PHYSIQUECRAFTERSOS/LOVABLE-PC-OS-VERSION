@@ -1,15 +1,12 @@
 /**
- * Unified Food Search Service — OFF-only architecture.
+ * Unified Food Search Service — Edge Function proxy architecture.
  *
- * Every search calls Open Food Facts API as the sole source.
- * Results are cached in Supabase for repeat queries.
- * Local food_items table is NEVER used for search results.
- *
- * Used by BOTH coach template builder AND client food logging.
+ * All searches route through the server-side `search-foods` edge function
+ * which queries USDA + Open Food Facts + local DB in parallel.
+ * The browser NEVER calls external food APIs directly (no CORS issues).
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { searchOFF, type OFFFood } from "./openFoodFacts";
 
 export interface FoodResult {
   id: string;
@@ -37,41 +34,43 @@ export async function searchFoods(query: string, limit = 50): Promise<FoodResult
   const q = query.trim();
   if (q.length < 2) return [];
 
-  const cacheKey = q.toLowerCase();
-  console.log(`[FoodSearch] Searching for: "${q}"`);
+  console.log(`[FoodSearch] Searching via edge function for: "${q}"`);
 
-  const offPromise = withTimeout(
-    searchOFF(q)
-      .then((items) => {
-        console.log(`[FoodSearch] OFF API returned ${items.length} items`);
-        return items.map(offToFoodResult);
-      })
-      .catch((err) => {
-        console.warn("[FoodSearch] OFF API failed:", err);
-        return [] as FoodResult[];
-      }),
-    4500,
-    [] as FoodResult[]
-  );
-
-  const cachedResults = await withTimeout(getCachedResults(cacheKey), 350, [] as FoodResult[]);
-  if (cachedResults.length > 0) {
-    void offPromise.then((fresh) => {
-      if (fresh.length > 0) {
-        cacheResults(cacheKey, fresh).catch(console.warn);
-      }
+  try {
+    // Route ALL searches through the server-side edge function proxy
+    // This avoids CORS issues from direct browser calls to OFF/USDA
+    const { data, error } = await supabase.functions.invoke("search-foods", {
+      body: { query: q, limit },
     });
 
-    console.log(`[FoodSearch] Returning ${cachedResults.length} cached results instantly`);
-    return rankResults(cachedResults, q).slice(0, limit);
-  }
+    if (error) throw error;
 
-  const offResults = await offPromise;
-  if (offResults.length > 0) {
-    void cacheResults(cacheKey, offResults).catch(console.warn);
-  }
+    const foods = (data?.foods ?? []).map((f: any): FoodResult => ({
+      id: f.id ?? crypto.randomUUID(),
+      name: f.name,
+      brand: f.brand ?? null,
+      calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      fat: Math.round((f.fat_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      fiber: Math.round((f.fiber_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      sugar: Math.round((f.sugar_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      sodium: Math.round((f.sodium_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      serving_size: f.serving_size_g ?? 100,
+      serving_unit: f.serving_unit ?? "g",
+      serving_label: f.serving_description ?? null,
+      category: null,
+      data_source: f.source ?? "open_food_facts",
+      is_verified: f.is_verified ?? false,
+      barcode: f.barcode ?? null,
+      source: f.source === "open_food_facts" ? "off" : "local",
+    }));
 
-  return rankResults(offResults, q).slice(0, limit);
+    return rankResults(foods, q).slice(0, limit);
+  } catch (err) {
+    console.error("[FoodSearch] Edge function search failed:", err);
+    return [];
+  }
 }
 
 /** Search local food_items only (for "my foods" tab) */
@@ -89,54 +88,6 @@ export async function searchLocalOnly(query: string, limit = 25): Promise<FoodRe
   } catch {
     return [];
   }
-}
-
-// ── Cache layer ───────────────────────────────────────────────────────────
-
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(() => {
-        clearTimeout(timer);
-        resolve(fallback);
-      });
-  });
-}
-
-
-async function getCachedResults(queryKey: string): Promise<FoodResult[]> {
-  try {
-    const { data } = await supabase
-      .from("food_search_cache")
-      .select("results")
-      .eq("query_key", queryKey)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-
-    return (data?.results as unknown as FoodResult[]) ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function cacheResults(queryKey: string, results: FoodResult[]): Promise<void> {
-  await supabase
-    .from("food_search_cache")
-    .upsert({
-      query_key: queryKey,
-      results: results as any,
-      result_count: results.length,
-      cached_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    }, { onConflict: "query_key" })
-    .then(({ error }) => {
-      if (error) console.warn("[FoodSearch] Cache write warning:", error.message);
-    });
 }
 
 // ── Rank results ──────────────────────────────────────────────────────────
@@ -168,29 +119,4 @@ function scoreFood(food: FoodResult, query: string, tokens: string[]): number {
   if (tokens.some(t => name.includes(t))) return 40;
   if (tokens.some(t => brand.includes(t))) return 35;
   return 10;
-}
-
-// ── OFF → FoodResult mapper ──────────────────────────────────────────────
-
-function offToFoodResult(off: OFFFood): FoodResult {
-  return {
-    id: off.id,
-    name: off.name,
-    brand: off.brand,
-    calories: off.calories ?? 0,
-    protein: off.protein ?? 0,
-    carbs: off.carbs ?? 0,
-    fat: off.fat ?? 0,
-    fiber: off.fiber ?? 0,
-    sugar: off.sugar ?? 0,
-    sodium: off.sodium ?? 0,
-    serving_size: off.serving_size,
-    serving_unit: off.serving_unit,
-    serving_label: off.serving_label,
-    category: off.category,
-    data_source: "open_food_facts",
-    is_verified: false,
-    barcode: off.barcode,
-    source: "off",
-  };
 }

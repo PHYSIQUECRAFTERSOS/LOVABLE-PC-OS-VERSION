@@ -28,19 +28,12 @@ export interface OFFFood {
 }
 
 export async function searchOFF(query: string): Promise<OFFFood[]> {
-  console.log('[OFF API] Searching for:', query);
+  console.log('[OFF API] Searching via edge function for:', query);
 
-  // Try direct first for fastest perceived response
-  const directFast = await withTimeout(searchDirectOFF(query), 2500, [] as OFFFood[]);
-  if (directFast.length > 0) {
-    console.log('[OFF API] Using direct-fast results:', directFast.length);
-    return directFast;
-  }
-
-  // Fall back to edge proxy for environments with direct fetch restrictions
+  // Always route through edge function — never call OFF directly from browser
   const edgeResult = await withTimeout(searchViaEdgeFunction(query), 8000, [] as OFFFood[]);
   if (edgeResult.length > 0) {
-    console.log('[OFF API] Using edge results:', edgeResult.length);
+    console.log('[OFF API] Edge results:', edgeResult.length);
     return edgeResult;
   }
 
