@@ -95,6 +95,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
   const [useTempo, setUseTempo] = useState(false);
+  const [useRir, setUseRir] = useState(true);
 
   // Exercise library state
   const [libraryExercises, setLibraryExercises] = useState<Exercise[]>([]);
