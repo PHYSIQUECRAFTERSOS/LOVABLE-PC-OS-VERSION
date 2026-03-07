@@ -264,6 +264,8 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           sort_order: pw.sort_order,
           day_of_week: pw.day_of_week,
           workout_name: wMap.get(pw.workout_id) || "Workout",
+          exclude_from_numbering: (pw as any).exclude_from_numbering || false,
+          custom_tag: (pw as any).custom_tag || null,
         }));
 
       return { ...phase, workouts: phaseWorkouts };
