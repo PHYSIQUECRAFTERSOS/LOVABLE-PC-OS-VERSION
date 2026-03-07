@@ -27,7 +27,6 @@ import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Badge } from "@/components/ui/badge";
 import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
 import MealScanCapture from "@/components/nutrition/MealScanCapture";
-import { searchFoods } from "@/services/foodSearchService";
 
 interface FoodItem {
   id: string;
@@ -47,6 +46,8 @@ interface FoodItem {
   category?: string;
   relevance_score?: number;
   source?: "local" | "off";
+  is_branded?: boolean;
+  image_url?: string | null;
 }
 
 interface AddFoodScreenProps {
@@ -180,24 +181,47 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           if (searchRequestIdRef.current !== requestId) return;
           setResults((data || []) as FoodItem[]);
           setOffResults([]);
+          setSearching(false);
+          setOffSearching(false);
           return;
         }
 
-        const searchResults = await Promise.race([
-          searchFoods(q),
-          new Promise<FoodItem[]>((resolve) => setTimeout(() => resolve([]), 9000)),
-        ]);
+        // Use the new search-foods edge function
+        const { data, error } = await supabase.functions.invoke("search-foods", {
+          body: { query: q, limit: 25, user_id: user?.id ?? null },
+        });
 
         if (searchRequestIdRef.current !== requestId) return;
 
-        const allFoods = searchResults.map((r: any) => ({
-          ...r,
-          fiber: r.fiber ?? 0,
-          sugar: r.sugar ?? 0,
-          sodium: r.sodium ?? 0,
+        if (error) {
+          console.error("[AddFoodScreen] Edge function error:", error);
+          setResults([]);
+          setOffResults([]);
+          return;
+        }
+
+        const foods = (data?.foods ?? []).map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          brand: f.brand || null,
+          serving_size: f.serving_size_g ?? 100,
+          serving_unit: f.serving_unit ?? "g",
+          calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          fat: Math.round((f.fat_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          fiber: Math.round((f.fiber_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          sugar: Math.round((f.sugar_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          sodium: Math.round((f.sodium_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          is_verified: f.is_verified,
+          data_source: f.source ?? "open_food_facts",
+          category: null,
+          source: f.source === "open_food_facts" ? "off" as const : "local" as const,
+          is_branded: f.is_branded,
+          image_url: f.image_url,
         } as FoodItem));
 
-        setResults(allFoods);
+        setResults(foods);
         setOffResults([]);
       } catch (err) {
         console.error("[AddFoodScreen] Search error:", err);
@@ -210,12 +234,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           setOffSearching(false);
         }
       }
-    }, 250);
+    }, 300);
   }, [activeTab, user]);
 
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
     if (!user) return null;
     try {
+      // The food is already cached in the `foods` table by the edge function.
+      // We need to insert into `food_items` for nutrition_logs compatibility.
       const foodItem = {
         name: food.name,
         brand: food.brand || null,
@@ -240,7 +266,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
         .single();
       if (error) throw error;
-      return inserted as FoodItem;
+      return { ...inserted, source: "local" as const } as FoodItem;
     } catch (err: any) {
       toast({ title: "Import failed", description: err.message, variant: "destructive" });
       return null;

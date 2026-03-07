@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
-import { useFoodSearch, FoodResult as SearchFoodResult } from "@/hooks/useFoodSearch";
+import { useFoodSearch, Food } from "@/hooks/useFoodSearch";
 import CustomFoodCreator from "./CustomFoodCreator";
 import {
   Search,
@@ -53,7 +53,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { results: searchResults, loading, query, search: doSearch } = useFoodSearch();
+  const { results: searchResults, isLoading: loading, query, setQuery: doSearchSetQuery } = useFoodSearch();
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
@@ -161,10 +161,21 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   // Convert search results to FoodResult format
   const localResults: FoodResult[] = searchResults.map(r => ({
-    ...r,
-    fiber: r.fiber ?? 0,
-    sugar: r.sugar ?? 0,
-    source: r.source,
+    id: r.id ?? crypto.randomUUID(),
+    name: r.name,
+    brand: r.brand ?? null,
+    calories: Math.round((r.calories_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    protein: Math.round((r.protein_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    carbs: Math.round((r.carbs_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    fat: Math.round((r.fat_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    fiber: Math.round((r.fiber_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    sugar: Math.round((r.sugar_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    serving_size: r.serving_size_g ?? 100,
+    serving_unit: r.serving_unit ?? "g",
+    is_verified: r.is_verified,
+    data_source: r.source ?? "open_food_facts",
+    source: r.source === "open_food_facts" ? "off" as const : "local" as const,
+    is_branded: r.is_branded,
   }));
 
   const handleSelect = async (food: FoodResult) => {
@@ -289,7 +300,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
             ref={inputRef}
             placeholder="Search 200k+ foods..."
             value={query}
-            onChange={(e) => doSearch(e.target.value)}
+            onChange={(e) => doSearchSetQuery(e.target.value)}
             className="h-9 pl-8 text-xs"
           />
           {loading && (
