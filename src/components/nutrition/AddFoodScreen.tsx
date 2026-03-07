@@ -45,7 +45,7 @@ interface FoodItem {
   data_source?: string;
   category?: string;
   relevance_score?: number;
-  source?: "local" | "off";
+  source?: "local" | "off" | "usda";
   is_branded?: boolean;
   image_url?: string | null;
 }
