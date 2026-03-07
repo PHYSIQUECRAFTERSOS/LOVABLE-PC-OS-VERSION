@@ -18,6 +18,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 
+/** Rest (s) input that uses local string state to avoid stuck-zero bug */
+const RestSecondsInput = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
+  const [localVal, setLocalVal] = useState(String(value ?? 0));
+  // Sync external value changes (e.g. loading workout)
+  useEffect(() => { setLocalVal(String(value ?? 0)); }, [value]);
+  return (
+    <div className="space-y-0.5">
+      <Label className="text-[9px] text-muted-foreground">Rest (s)</Label>
+      <Input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={localVal}
+        onChange={(e) => setLocalVal(e.target.value.replace(/[^0-9]/g, ""))}
+        onBlur={() => {
+          const parsed = parseInt(localVal, 10);
+          const final = isNaN(parsed) ? 0 : parsed;
+          setLocalVal(String(final));
+          onChange(final);
+        }}
+        className="h-7 text-xs text-center"
+        placeholder="0"
+      />
+    </div>
+  );
+};
+
 const MUSCLE_GROUPS = [
   "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Forearms",
   "Quads", "Hamstrings", "Glutes", "Calves", "Abs", "Obliques",
@@ -95,6 +122,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
   const [useTempo, setUseTempo] = useState(false);
+  const [useRir, setUseRir] = useState(true);
 
   // Exercise library state
   const [libraryExercises, setLibraryExercises] = useState<Exercise[]>([]);
@@ -167,6 +195,9 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         setExercises(loaded);
         if (loaded.some((e: WorkoutExercise) => e.rpe)) setUseRpe(true);
         if (loaded.some((e: WorkoutExercise) => e.tempo)) setUseTempo(true);
+        // RIR defaults to ON; only turn off if no exercise has a RIR value
+        if (!loaded.some((e: WorkoutExercise) => e.rir)) setUseRir(false);
+        else setUseRir(true);
       }
       setLoading(false);
     };
@@ -178,7 +209,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     if (!open) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
-      setUseRpe(false); setUseTempo(false); setSelectionMode(false);
+      setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
       setPreviewExerciseIdx(null);
     }
   }, [open]);
@@ -366,7 +397,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             reps: ex.reps || null,
             tempo: useTempo ? (ex.tempo || null) : null,
             rest_seconds: ex.restSeconds || null,
-            rir: ex.rir ? parseInt(ex.rir) : null,
+            rir: useRir ? (ex.rir ? parseInt(ex.rir) : null) : null,
             rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
             notes: ex.notes || null,
             superset_group: null,
@@ -428,6 +459,16 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Switch checked={useTempo} onCheckedChange={setUseTempo} className="scale-75" />
                 <span>Tempo</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Switch checked={useRir} onCheckedChange={(checked) => {
+                  setUseRir(checked);
+                  if (!checked) {
+                    // Clear all RIR values when toggled off
+                    setExercises(prev => prev.map(e => ({ ...e, rir: "" })));
+                  }
+                }} className="scale-75" />
+                <span>RIR</span>
               </div>
               <Button onClick={handleSave} disabled={saving || !workoutName.trim()} size="sm">
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
@@ -579,7 +620,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                             )}
 
                             {/* Set controls */}
-                            <div className={`grid gap-1.5 ${useRpe && useTempo ? "grid-cols-6" : useRpe || useTempo ? "grid-cols-5" : "grid-cols-4"}`}>
+                            <div className={`grid gap-1.5`} style={{ gridTemplateColumns: `repeat(${3 + (useRpe ? 1 : 0) + (useTempo ? 1 : 0) + (useRir ? 1 : 0)}, minmax(0, 1fr))` }}>
                               <div className="space-y-0.5">
                                 <Label className="text-[9px] text-muted-foreground">Sets</Label>
                                 <Input type="number" value={ex.sets} onChange={(e) => updateExercise(idx, "sets", parseInt(e.target.value) || 0)} className="h-7 text-xs text-center" />
@@ -600,14 +641,16 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                                   <Input value={ex.tempo} onChange={(e) => updateExercise(idx, "tempo", e.target.value)} className="h-7 text-xs text-center" placeholder="3010" />
                                 </div>
                               )}
-                              <div className="space-y-0.5">
-                                <Label className="text-[9px] text-muted-foreground">Rest (s)</Label>
-                                <Input type="number" value={ex.restSeconds} onChange={(e) => updateExercise(idx, "restSeconds", parseInt(e.target.value) || 0)} className="h-7 text-xs text-center" />
-                              </div>
-                              <div className="space-y-0.5">
-                                <Label className="text-[9px] text-muted-foreground">RIR</Label>
-                                <Input value={ex.rir} onChange={(e) => updateExercise(idx, "rir", e.target.value)} className="h-7 text-xs text-center" placeholder="2" />
-                              </div>
+                              <RestSecondsInput
+                                value={ex.restSeconds}
+                                onChange={(val) => updateExercise(idx, "restSeconds", val)}
+                              />
+                              {useRir && (
+                                <div className="space-y-0.5">
+                                  <Label className="text-[9px] text-muted-foreground">RIR</Label>
+                                  <Input value={ex.rir} onChange={(e) => updateExercise(idx, "rir", e.target.value)} className="h-7 text-xs text-center" placeholder="2" />
+                                </div>
+                              )}
                             </div>
 
                             <div className="space-y-0.5">

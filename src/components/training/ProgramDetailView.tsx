@@ -17,6 +17,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const TRAINING_STYLES = [
   { label: "Hypertrophy", value: "hypertrophy" },
@@ -99,6 +107,94 @@ function estimateWorkoutMinutes(exercises: { sets: number; rest_seconds: number 
   return Math.round(totalSeconds / 60);
 }
 
+// ── Sortable Workout Card ──
+interface SortableWorkoutCardProps {
+  pw: ProgramWorkout;
+  pwIdx: number;
+  phaseIdx: number;
+  meta: WorkoutMeta | undefined;
+  openWorkoutBuilder: (phaseIdx: number, workout?: ProgramWorkout) => void;
+  removeWorkoutFromPhase: (phaseIdx: number, workoutIdx: number) => void;
+}
+
+const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, meta, openWorkoutBuilder, removeWorkoutFromPhase }: SortableWorkoutCardProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pw.id || pw.workoutId + pwIdx });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-start gap-3 p-3 border rounded-lg bg-background group hover:ring-1 hover:ring-primary/20 transition-all">
+      <div {...attributes} {...listeners} className="touch-none">
+        <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 cursor-grab active:cursor-grabbing mt-1" />
+      </div>
+
+      {/* Thumbnail */}
+      <div className="w-20 h-14 rounded-md overflow-hidden bg-muted flex-shrink-0">
+        {meta?.thumbnailUrl ? (
+          <div className="relative w-full h-full group/thumb">
+            <img src={meta.thumbnailUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+              <Play className="h-5 w-5 text-white" />
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Dumbbell className="h-5 w-5 text-muted-foreground/30" />
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <Badge variant="secondary" className="text-[10px] px-1.5">
+            {DAY_LABELS[Math.min(pwIdx, 6)]}
+          </Badge>
+        </div>
+        <button
+          className="text-sm font-semibold truncate text-left hover:text-primary transition-colors block w-full"
+          onClick={() => openWorkoutBuilder(phaseIdx, pw)}
+        >
+          {pw.workoutName}
+        </button>
+        <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+          {meta && meta.exerciseCount > 0 && (
+            <>
+              <span className="flex items-center gap-1">
+                <Dumbbell className="h-3 w-3" />
+                {meta.exerciseCount} exercise{meta.exerciseCount !== 1 ? "s" : ""}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Est. {meta.estimatedMinutes} min
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
 interface ProgramDetailViewProps {
   programId: string;
   programName: string;
@@ -130,6 +226,49 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [importTargetPhase, setImportTargetPhase] = useState(0);
   const [importableWorkouts, setImportableWorkouts] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragEnd = useCallback((phaseIdx: number) => (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setPhases(prev => {
+      const newPhases = [...prev];
+      const phase = { ...newPhases[phaseIdx] };
+      const workouts = [...phase.workouts];
+      const oldIndex = workouts.findIndex(w => (w.id || w.workoutId + workouts.indexOf(w)) === active.id);
+      const newIndex = workouts.findIndex(w => (w.id || w.workoutId + workouts.indexOf(w)) === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+
+      const reordered = arrayMove(workouts, oldIndex, newIndex).map((w, i) => ({ ...w, sortOrder: i }));
+      phase.workouts = reordered;
+      newPhases[phaseIdx] = phase;
+
+      // Persist to DB if phase has an ID
+      if (phase.id) {
+        const updates = reordered.filter(w => w.id).map(w => 
+          supabase.from("program_workouts").update({ sort_order: w.sortOrder }).eq("id", w.id!)
+        );
+        Promise.all(updates).catch(() => {
+          toast({ title: "Failed to save new order", description: "Please try again.", variant: "destructive" });
+          // Revert
+          setPhases(p => {
+            const reverted = [...p];
+            reverted[phaseIdx] = { ...reverted[phaseIdx], workouts: arrayMove(reordered, newIndex, oldIndex) };
+            return reverted;
+          });
+        });
+      }
+
+      return newPhases;
+    });
+  }, [toast]);
 
   const loadProgram = useCallback(async () => {
     if (!user) return;
@@ -611,73 +750,24 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                         <p className="text-[10px] text-muted-foreground/70 mt-0.5">Click "Build Workout" to create one.</p>
                       </div>
                     ) : (
-                      phase.workouts.map((pw, pwIdx) => {
-                        const meta = workoutMeta[pw.workoutId];
-                        return (
-                          <div key={pwIdx} className="flex items-start gap-3 p-3 border rounded-lg bg-background group hover:ring-1 hover:ring-primary/20 transition-all">
-                            <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 cursor-grab mt-1" />
-                            
-                            {/* Thumbnail */}
-                            <div className="w-20 h-14 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                              {meta?.thumbnailUrl ? (
-                                <div className="relative w-full h-full group/thumb">
-                                  <img src={meta.thumbnailUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                                    <Play className="h-5 w-5 text-white" />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <Dumbbell className="h-5 w-5 text-muted-foreground/30" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 mb-0.5">
-                                <Badge variant="secondary" className="text-[10px] px-1.5">
-                                  {DAY_LABELS[Math.min(pwIdx, 6)]}
-                                </Badge>
-                              </div>
-                              <button
-                                className="text-sm font-semibold truncate text-left hover:text-primary transition-colors block w-full"
-                                onClick={() => openWorkoutBuilder(phaseIdx, pw)}
-                              >
-                                {pw.workoutName}
-                              </button>
-                              <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
-                                {meta && meta.exerciseCount > 0 && (
-                                  <>
-                                    <span className="flex items-center gap-1">
-                                      <Dumbbell className="h-3 w-3" />
-                                      {meta.exerciseCount} exercise{meta.exerciseCount !== 1 ? "s" : ""}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3" />
-                                      Est. {meta.estimatedMinutes} min
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Actions */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                  <MoreHorizontal className="h-3.5 w-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        );
-                      })
+                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd(phaseIdx)}>
+                        <SortableContext
+                          items={phase.workouts.map((w, i) => w.id || w.workoutId + i)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {phase.workouts.map((pw, pwIdx) => (
+                            <SortableWorkoutCard
+                              key={pw.id || pw.workoutId + pwIdx}
+                              pw={pw}
+                              pwIdx={pwIdx}
+                              phaseIdx={phaseIdx}
+                              meta={workoutMeta[pw.workoutId]}
+                              openWorkoutBuilder={openWorkoutBuilder}
+                              removeWorkoutFromPhase={removeWorkoutFromPhase}
+                            />
+                          ))}
+                        </SortableContext>
+                      </DndContext>
                     )}
 
                     <div className="flex gap-2">
