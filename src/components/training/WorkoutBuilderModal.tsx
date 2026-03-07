@@ -168,6 +168,9 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         setExercises(loaded);
         if (loaded.some((e: WorkoutExercise) => e.rpe)) setUseRpe(true);
         if (loaded.some((e: WorkoutExercise) => e.tempo)) setUseTempo(true);
+        // RIR defaults to ON; only turn off if no exercise has a RIR value
+        if (!loaded.some((e: WorkoutExercise) => e.rir)) setUseRir(false);
+        else setUseRir(true);
       }
       setLoading(false);
     };
