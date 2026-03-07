@@ -166,6 +166,9 @@ const ClientDetail = () => {
           <TabsContent value="checkins">
             <ClientCheckinHistory clientId={clientId!} />
           </TabsContent>
+          <TabsContent value="onboarding">
+            <OnboardingTab clientId={clientId!} />
+          </TabsContent>
           <TabsContent value="calendar">
             <CalendarTab clientId={clientId!} />
           </TabsContent>

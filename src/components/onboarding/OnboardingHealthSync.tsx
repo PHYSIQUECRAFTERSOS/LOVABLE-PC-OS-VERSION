@@ -64,9 +64,9 @@ const OnboardingHealthSync = ({ data, updateField }: Props) => {
         </div>
 
         {permissionState === "granted" ? (
-          <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 flex items-center gap-2">
-            <Check className="h-4 w-4 text-green-500" />
-            <p className="text-sm font-medium text-green-500">Step tracking enabled</p>
+          <div className="rounded-lg bg-primary/10 border border-primary/20 p-3 flex items-center gap-2">
+            <Check className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium text-primary">Step tracking enabled</p>
           </div>
         ) : permissionState === "denied" ? (
           <div className="space-y-3">
