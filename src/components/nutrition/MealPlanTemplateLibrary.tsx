@@ -568,6 +568,74 @@ const MealPlanTemplateLibrary = () => {
           )}
         </div>
       </div>
+
+      {/* Copy to Client Modal */}
+      <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Copy Meal Plan to Client</DialogTitle>
+            <p className="text-sm text-muted-foreground">Select a client to assign this meal plan to</p>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Input
+              placeholder="Search clients..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+            />
+
+            <ScrollArea className="h-[250px]">
+              {loadingClients ? (
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
+              ) : filteredClients.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No clients found</p>
+              ) : (
+                <div className="space-y-1">
+                  {filteredClients.map(client => (
+                    <button
+                      key={client.id}
+                      onClick={() => setSelectedClientId(client.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors",
+                        selectedClientId === client.id
+                          ? "border-2 border-primary bg-primary/5"
+                          : "border border-border hover:bg-secondary/30"
+                      )}
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={client.avatar_url || undefined} />
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                          {(client.full_name || "C").charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium text-foreground">{client.full_name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+
+            <Select value={copyPlanType} onValueChange={setCopyPlanType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Plan Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="training_day">Training Day Plan</SelectItem>
+                <SelectItem value="rest_day">Rest Day Plan</SelectItem>
+                <SelectItem value="both">Both</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              className="w-full"
+              onClick={handleCopyToClient}
+              disabled={!selectedClientId || copying}
+            >
+              {copying ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Copying...</> : "Copy Plan"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
