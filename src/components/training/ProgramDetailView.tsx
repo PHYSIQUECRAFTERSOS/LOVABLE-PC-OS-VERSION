@@ -70,6 +70,8 @@ interface ProgramWorkout {
   dayOfWeek: number;
   dayLabel: string;
   sortOrder: number;
+  excludeFromNumbering?: boolean;
+  customTag?: string | null;
 }
 
 interface ProgramPhase {
