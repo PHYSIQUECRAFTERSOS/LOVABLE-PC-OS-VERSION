@@ -370,7 +370,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             reps: ex.reps || null,
             tempo: useTempo ? (ex.tempo || null) : null,
             rest_seconds: ex.restSeconds || null,
-            rir: ex.rir ? parseInt(ex.rir) : null,
+            rir: useRir ? (ex.rir ? parseInt(ex.rir) : null) : null,
             rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
             notes: ex.notes || null,
             superset_group: null,
