@@ -243,13 +243,21 @@ serve(async (req) => {
       f.brand?.toLowerCase().includes(queryWords[0].toLowerCase())
     );
 
-    // If strong local brand results, return immediately
-    if (!likelyBrandSearch && localFoods.length >= 8) {
+    // If strong local results, return immediately without waiting for external APIs
+    if (!likelyBrandSearch && localFoods.length >= 5) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (likelyBrandSearch && localBrandMatches.length >= 3) {
+      return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // If we have ANY local results, return them immediately and skip external APIs
+    // to avoid timeout errors. External APIs will be used only when local cache is empty.
+    if (localFoods.length > 0) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
