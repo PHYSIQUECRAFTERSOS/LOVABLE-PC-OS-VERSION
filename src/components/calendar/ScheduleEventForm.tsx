@@ -263,8 +263,9 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
                 <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                 <SelectContent>
                   {workouts.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                  ))}
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.dayNumber ? `Day ${w.dayNumber} – ` : ""}{w.name}
+                    </SelectItem>
                 </SelectContent>
               </Select>
             </div>

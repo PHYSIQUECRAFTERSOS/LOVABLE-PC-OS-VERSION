@@ -547,7 +547,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                     <CollapsibleContent className="pl-4 space-y-2 mt-1">
                       {week.workouts.length === 0 ? (
                         <p className="text-xs text-muted-foreground py-2">No workouts this week.</p>
-                      ) : week.workouts.map(pw => renderWorkoutCard(pw, phase.id))}
+                      ) : week.workouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
                     </CollapsibleContent>
                   </Collapsible>
                 ))}
