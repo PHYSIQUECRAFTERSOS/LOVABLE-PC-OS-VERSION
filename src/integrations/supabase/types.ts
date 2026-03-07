@@ -2050,6 +2050,140 @@ export type Database = {
         }
         Relationships: []
       }
+      food_search_log: {
+        Row: {
+          created_at: string | null
+          id: string
+          query: string
+          results_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          query: string
+          results_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          query?: string
+          results_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      food_selection_log: {
+        Row: {
+          created_at: string | null
+          food_id: string | null
+          id: string
+          meal_type: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          food_id?: string | null
+          id?: string
+          meal_type?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          food_id?: string | null
+          id?: string
+          meal_type?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_selection_log_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      foods: {
+        Row: {
+          barcode: string | null
+          brand: string | null
+          calories_per_100g: number | null
+          carbs_per_100g: number | null
+          created_at: string | null
+          fat_per_100g: number | null
+          fiber_per_100g: number | null
+          id: string
+          image_url: string | null
+          is_branded: boolean | null
+          is_custom: boolean | null
+          is_verified: boolean | null
+          name: string
+          off_id: string | null
+          popularity_score: number | null
+          protein_per_100g: number | null
+          search_vector: unknown
+          serving_size_g: number | null
+          serving_unit: string | null
+          sodium_per_100g: number | null
+          source: string | null
+          sugar_per_100g: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          barcode?: string | null
+          brand?: string | null
+          calories_per_100g?: number | null
+          carbs_per_100g?: number | null
+          created_at?: string | null
+          fat_per_100g?: number | null
+          fiber_per_100g?: number | null
+          id?: string
+          image_url?: string | null
+          is_branded?: boolean | null
+          is_custom?: boolean | null
+          is_verified?: boolean | null
+          name: string
+          off_id?: string | null
+          popularity_score?: number | null
+          protein_per_100g?: number | null
+          search_vector?: unknown
+          serving_size_g?: number | null
+          serving_unit?: string | null
+          sodium_per_100g?: number | null
+          source?: string | null
+          sugar_per_100g?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          brand?: string | null
+          calories_per_100g?: number | null
+          carbs_per_100g?: number | null
+          created_at?: string | null
+          fat_per_100g?: number | null
+          fiber_per_100g?: number | null
+          id?: string
+          image_url?: string | null
+          is_branded?: boolean | null
+          is_custom?: boolean | null
+          is_verified?: boolean | null
+          name?: string
+          off_id?: string | null
+          popularity_score?: number | null
+          protein_per_100g?: number | null
+          search_vector?: unknown
+          serving_size_g?: number | null
+          serving_unit?: string | null
+          sodium_per_100g?: number | null
+          source?: string | null
+          sugar_per_100g?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       frequent_meal_templates: {
         Row: {
           combo_key: string
