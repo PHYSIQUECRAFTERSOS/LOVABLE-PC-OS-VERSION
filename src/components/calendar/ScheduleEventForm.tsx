@@ -42,7 +42,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
-  const [workouts, setWorkouts] = useState<{ id: string; name: string }[]>([]);
+  const [workouts, setWorkouts] = useState<{ id: string; name: string; dayNumber?: number }[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
