@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
-import { useFoodSearch, FoodResult as SearchFoodResult } from "@/hooks/useFoodSearch";
+import { useFoodSearch, Food } from "@/hooks/useFoodSearch";
 import CustomFoodCreator from "./CustomFoodCreator";
 import {
   Search,
