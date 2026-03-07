@@ -324,11 +324,10 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
           if (weekRows && weekRows.length > 0) {
             const { data: legacyPws } = await supabase
               .from("program_workouts")
-              .select("id, workout_id, day_of_week, day_label, sort_order, workouts(name)")
+              .select("id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
               .in("week_id", weekRows.map(w => w.id))
               .order("sort_order");
 
-            // Deduplicate by workout_id
             const seen = new Set<string>();
             workouts = (legacyPws || [])
               .filter((pw: any) => { if (seen.has(pw.workout_id)) return false; seen.add(pw.workout_id); return true; })
@@ -339,6 +338,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                 dayOfWeek: pw.day_of_week ?? 0,
                 dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
                 sortOrder: pw.sort_order ?? 0,
+                excludeFromNumbering: pw.exclude_from_numbering || false,
+                customTag: pw.custom_tag || null,
               }));
           }
         }
