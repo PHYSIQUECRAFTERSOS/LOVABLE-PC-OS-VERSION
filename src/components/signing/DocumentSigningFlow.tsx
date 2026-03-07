@@ -166,6 +166,17 @@ const DocumentSigningFlow = ({ tierName, onComplete }: Props) => {
 
   return (
     <div className="space-y-4">
+      {/* Transfer client amber banner */}
+      {isTransferClient && currentDocIndex === 0 && (
+        <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
+          <p className="text-sm text-primary font-medium">
+            You have been transferred from a previous coaching platform. Your original program
+            agreement remains on file with your coach. Please review and accept our platform
+            Terms of Service to complete your account setup.
+          </p>
+        </div>
+      )}
+
       {/* Progress indicator */}
       <div className="flex items-center justify-between px-1">
         <span className="text-xs text-muted-foreground">

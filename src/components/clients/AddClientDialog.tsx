@@ -235,9 +235,11 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
             </Select>
             {selectedTier && (
               <p className="text-xs text-muted-foreground">
-                {selectedTier.requires_contract
-                  ? "Client will sign a contract + Terms of Service during setup."
-                  : "Client will sign Terms of Service only (no contract)."}
+                {selectedTier.name.includes("Transfer Client")
+                  ? "Transfer client — ToS acceptance only. Original agreement on file externally."
+                  : selectedTier.requires_contract
+                    ? "Contract required — client will sign during onboarding."
+                    : "No contract — ToS acceptance only."}
               </p>
             )}
           </div>
