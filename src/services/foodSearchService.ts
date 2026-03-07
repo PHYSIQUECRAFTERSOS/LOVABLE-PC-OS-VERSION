@@ -37,41 +37,43 @@ export async function searchFoods(query: string, limit = 50): Promise<FoodResult
   const q = query.trim();
   if (q.length < 2) return [];
 
-  const cacheKey = q.toLowerCase();
-  console.log(`[FoodSearch] Searching for: "${q}"`);
+  console.log(`[FoodSearch] Searching via edge function for: "${q}"`);
 
-  const offPromise = withTimeout(
-    searchOFF(q)
-      .then((items) => {
-        console.log(`[FoodSearch] OFF API returned ${items.length} items`);
-        return items.map(offToFoodResult);
-      })
-      .catch((err) => {
-        console.warn("[FoodSearch] OFF API failed:", err);
-        return [] as FoodResult[];
-      }),
-    4500,
-    [] as FoodResult[]
-  );
-
-  const cachedResults = await withTimeout(getCachedResults(cacheKey), 350, [] as FoodResult[]);
-  if (cachedResults.length > 0) {
-    void offPromise.then((fresh) => {
-      if (fresh.length > 0) {
-        cacheResults(cacheKey, fresh).catch(console.warn);
-      }
+  try {
+    // Route ALL searches through the server-side edge function proxy
+    // This avoids CORS issues from direct browser calls to OFF/USDA
+    const { data, error } = await supabase.functions.invoke("search-foods", {
+      body: { query: q, limit },
     });
 
-    console.log(`[FoodSearch] Returning ${cachedResults.length} cached results instantly`);
-    return rankResults(cachedResults, q).slice(0, limit);
-  }
+    if (error) throw error;
 
-  const offResults = await offPromise;
-  if (offResults.length > 0) {
-    void cacheResults(cacheKey, offResults).catch(console.warn);
-  }
+    const foods = (data?.foods ?? []).map((f: any): FoodResult => ({
+      id: f.id ?? crypto.randomUUID(),
+      name: f.name,
+      brand: f.brand ?? null,
+      calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      fat: Math.round((f.fat_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      fiber: Math.round((f.fiber_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      sugar: Math.round((f.sugar_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      sodium: Math.round((f.sodium_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+      serving_size: f.serving_size_g ?? 100,
+      serving_unit: f.serving_unit ?? "g",
+      serving_label: f.serving_description ?? null,
+      category: null,
+      data_source: f.source ?? "open_food_facts",
+      is_verified: f.is_verified ?? false,
+      barcode: f.barcode ?? null,
+      source: f.source === "open_food_facts" ? "off" : "local",
+    }));
 
-  return rankResults(offResults, q).slice(0, limit);
+    return rankResults(foods, q).slice(0, limit);
+  } catch (err) {
+    console.error("[FoodSearch] Edge function search failed:", err);
+    return [];
+  }
 }
 
 /** Search local food_items only (for "my foods" tab) */
