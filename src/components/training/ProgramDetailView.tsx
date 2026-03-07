@@ -580,6 +580,22 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setPhases(newPhases);
   };
 
+  const handleToggleCustomTag = useCallback(async (phaseIdx: number, pwIdx: number, exclude: boolean, tag: string | null) => {
+    const newPhases = [...phases];
+    const pw = newPhases[phaseIdx].workouts[pwIdx];
+    pw.excludeFromNumbering = exclude;
+    pw.customTag = tag;
+    setPhases(newPhases);
+
+    // Persist to DB if saved
+    if (pw.id) {
+      await supabase.from("program_workouts").update({
+        exclude_from_numbering: exclude,
+        custom_tag: tag,
+      } as any).eq("id", pw.id);
+    }
+  }, [phases]);
+
   // ── Import ──
   const openImportDialog = async (phaseIdx: number) => {
     setImportTargetPhase(phaseIdx);
