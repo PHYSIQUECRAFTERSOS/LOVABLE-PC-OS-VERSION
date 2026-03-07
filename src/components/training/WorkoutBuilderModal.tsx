@@ -433,6 +433,16 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                 <Switch checked={useTempo} onCheckedChange={setUseTempo} className="scale-75" />
                 <span>Tempo</span>
               </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Switch checked={useRir} onCheckedChange={(checked) => {
+                  setUseRir(checked);
+                  if (!checked) {
+                    // Clear all RIR values when toggled off
+                    setExercises(prev => prev.map(e => ({ ...e, rir: "" })));
+                  }
+                }} className="scale-75" />
+                <span>RIR</span>
+              </div>
               <Button onClick={handleSave} disabled={saving || !workoutName.trim()} size="sm">
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                 Save
