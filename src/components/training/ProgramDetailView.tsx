@@ -298,7 +298,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         // Load workouts directly linked to phase (new structure)
         const { data: pwRows } = await supabase
           .from("program_workouts")
-          .select("id, workout_id, day_of_week, day_label, sort_order, workouts(name)")
+          .select("id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
           .eq("phase_id", phase.id)
           .order("sort_order");
 
@@ -309,6 +309,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
           dayOfWeek: pw.day_of_week ?? 0,
           dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
           sortOrder: pw.sort_order ?? 0,
+          excludeFromNumbering: pw.exclude_from_numbering || false,
+          customTag: pw.custom_tag || null,
         }));
 
         // Fallback: load from weeks if no direct phase workouts found (legacy data)
