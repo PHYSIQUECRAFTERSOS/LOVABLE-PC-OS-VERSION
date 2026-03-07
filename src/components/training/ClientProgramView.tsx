@@ -160,7 +160,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           phase_order: w.week_number,
           workouts: (pwRows || [])
             .filter(pw => pw.week_id === w.id)
-            .sort((a, b) => (a.day_of_week ?? a.sort_order ?? 0) - (b.day_of_week ?? b.sort_order ?? 0))
+            .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
             .map(pw => ({
               id: pw.id,
               workout_id: pw.workout_id,

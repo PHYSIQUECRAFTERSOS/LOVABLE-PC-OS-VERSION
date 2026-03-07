@@ -526,7 +526,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
             {isExpanded && (
               <CardContent className="pt-0 space-y-2 pb-4">
-                {phase.directWorkouts.map(pw => renderWorkoutCard(pw, phase.id))}
+                {phase.directWorkouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
 
                 {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">No workouts in this phase.</p>
