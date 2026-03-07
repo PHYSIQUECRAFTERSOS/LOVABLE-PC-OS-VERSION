@@ -75,7 +75,7 @@ const WeightTracker = () => {
             step="0.1"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder="Today's weight"
+            placeholder="Today's weight (lbs)"
             className="flex-1"
           />
           <Button onClick={handleLog} disabled={loading || !weight}>
