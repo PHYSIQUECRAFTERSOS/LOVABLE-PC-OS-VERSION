@@ -219,7 +219,7 @@ serve(async (req) => {
       .from("foods")
       .select("*")
       .or(`name.ilike.%${query}%,brand.ilike.%${query}%`)
-      .eq("has_complete_macros", true)
+      .not("calories_per_100g", "is", null)
       .order("data_quality_score", { ascending: false })
       .order("popularity_score", { ascending: false })
       .limit(limit);
