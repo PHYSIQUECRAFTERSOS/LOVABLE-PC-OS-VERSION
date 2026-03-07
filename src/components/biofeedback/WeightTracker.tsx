@@ -87,7 +87,7 @@ const WeightTracker = () => {
           <div className="flex items-center gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Current: </span>
-              <span className="font-bold text-foreground">{latestWeight}</span>
+              <span className="font-bold text-foreground">{latestWeight} lbs</span>
             </div>
             {change && (
               <div>
