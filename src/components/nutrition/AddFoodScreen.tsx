@@ -179,24 +179,47 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           if (searchRequestIdRef.current !== requestId) return;
           setResults((data || []) as FoodItem[]);
           setOffResults([]);
+          setSearching(false);
+          setOffSearching(false);
           return;
         }
 
-        const searchResults = await Promise.race([
-          searchFoods(q),
-          new Promise<FoodItem[]>((resolve) => setTimeout(() => resolve([]), 9000)),
-        ]);
+        // Use the new search-foods edge function
+        const { data, error } = await supabase.functions.invoke("search-foods", {
+          body: { query: q, limit: 25, user_id: user?.id ?? null },
+        });
 
         if (searchRequestIdRef.current !== requestId) return;
 
-        const allFoods = searchResults.map((r: any) => ({
-          ...r,
-          fiber: r.fiber ?? 0,
-          sugar: r.sugar ?? 0,
-          sodium: r.sodium ?? 0,
+        if (error) {
+          console.error("[AddFoodScreen] Edge function error:", error);
+          setResults([]);
+          setOffResults([]);
+          return;
+        }
+
+        const foods = (data?.foods ?? []).map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          brand: f.brand || null,
+          serving_size: f.serving_size_g ?? 100,
+          serving_unit: f.serving_unit ?? "g",
+          calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          fat: Math.round((f.fat_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          fiber: Math.round((f.fiber_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          sugar: Math.round((f.sugar_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          sodium: Math.round((f.sodium_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          is_verified: f.is_verified,
+          data_source: f.source ?? "open_food_facts",
+          category: null,
+          source: f.source === "open_food_facts" ? "off" as const : "local" as const,
+          is_branded: f.is_branded,
+          image_url: f.image_url,
         } as FoodItem));
 
-        setResults(allFoods);
+        setResults(foods);
         setOffResults([]);
       } catch (err) {
         console.error("[AddFoodScreen] Search error:", err);
@@ -209,7 +232,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           setOffSearching(false);
         }
       }
-    }, 250);
+    }, 300);
   }, [activeTab, user]);
 
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
