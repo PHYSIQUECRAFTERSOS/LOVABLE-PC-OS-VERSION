@@ -114,9 +114,11 @@ interface SortableWorkoutCardProps {
   pw: ProgramWorkout;
   pwIdx: number;
   phaseIdx: number;
+  displayPosition: number | null;
   meta: WorkoutMeta | undefined;
   openWorkoutBuilder: (phaseIdx: number, workout?: ProgramWorkout) => void;
   removeWorkoutFromPhase: (phaseIdx: number, workoutIdx: number) => void;
+  onToggleCustomTag: (phaseIdx: number, pwIdx: number, exclude: boolean, tag: string | null) => void;
 }
 
 const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, meta, openWorkoutBuilder, removeWorkoutFromPhase }: SortableWorkoutCardProps) => {
