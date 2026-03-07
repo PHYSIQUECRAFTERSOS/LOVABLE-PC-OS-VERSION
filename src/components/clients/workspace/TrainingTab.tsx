@@ -559,7 +559,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                     <CollapsibleContent className="pl-4 space-y-2 mt-1">
                       {week.workouts.length === 0 ? (
                         <p className="text-xs text-muted-foreground py-2">No workouts this week.</p>
-                      ) : week.workouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
+                      ) : (() => {
+                        const sorted = [...week.workouts].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+                        let dayCounter = 1;
+                        return sorted.map(pw => {
+                          const isExcluded = pw.exclude_from_numbering;
+                          const pos = isExcluded ? null : dayCounter++;
+                          return renderWorkoutCard(pw, phase.id, pos, isExcluded ? pw.custom_tag : null);
+                        });
+                      })()}
                     </CollapsibleContent>
                   </Collapsible>
                 ))}
