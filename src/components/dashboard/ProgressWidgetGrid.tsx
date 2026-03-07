@@ -68,27 +68,14 @@ const ProgressWidgetGrid = () => {
         setLatestWeight(Number(data[data.length - 1].weight));
         setWeightSpark(data.map(d => ({ value: Number(d.weight) })));
       } else {
-        // Fallback: check profiles.weight
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("weight")
+        // Fallback: check onboarding_profiles directly
+        const { data: onboard } = await supabase
+          .from("onboarding_profiles")
+          .select("weight_lb")
           .eq("user_id", user.id)
-          .single();
-        if (profile?.weight && Number(profile.weight) > 0) {
-          setLatestWeight(Number(profile.weight));
-        } else {
-          // Last fallback: onboarding_profiles.weight_lb
-          const { data: onboard } = await supabase
-            .from("onboarding_profiles")
-            .select("weight_lb")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          if (onboard?.weight_lb && Number(onboard.weight_lb) > 0) {
-            const w = Number(onboard.weight_lb);
-            setLatestWeight(w);
-            // Sync to profiles for future use
-            await supabase.from("profiles").update({ weight: w, weight_unit: "lbs" }).eq("user_id", user.id);
-          }
+          .maybeSingle();
+        if (onboard?.weight_lb && Number(onboard.weight_lb) > 0) {
+          setLatestWeight(Number(onboard.weight_lb));
         }
       }
     };
