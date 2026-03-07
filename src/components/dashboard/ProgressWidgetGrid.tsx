@@ -54,7 +54,7 @@ const ProgressWidgetGrid = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Fetch weight data (last 30 days)
+    // Fetch weight data - try weight_logs first, fallback to onboarding_profiles
     const fetchWeight = async () => {
       const thirtyAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
       const { data } = await supabase
@@ -67,16 +67,26 @@ const ProgressWidgetGrid = () => {
       if (data && data.length > 0) {
         setLatestWeight(Number(data[data.length - 1].weight));
         setWeightSpark(data.map(d => ({ value: Number(d.weight) })));
+      } else {
+        // Fallback: check onboarding_profiles directly
+        const { data: onboard } = await supabase
+          .from("onboarding_profiles")
+          .select("weight_lb")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (onboard?.weight_lb && Number(onboard.weight_lb) > 0) {
+          setLatestWeight(Number(onboard.weight_lb));
+        }
       }
     };
 
-    // Fetch recent photos
+    // Fetch recent photos - use created_at (correct column name)
     const fetchPhotos = async () => {
       const { data } = await supabase
         .from("progress_photos")
         .select("storage_path")
         .eq("client_id", user.id)
-        .order("taken_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(2);
       if (data && data.length > 0) {
         const urls = await Promise.all(

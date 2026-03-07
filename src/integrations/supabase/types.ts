@@ -3635,6 +3635,7 @@ export type Database = {
           timezone: string | null
           updated_at: string
           user_id: string
+          weight: number | null
           weight_unit: string | null
         }
         Insert: {
@@ -3646,6 +3647,7 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id: string
+          weight?: number | null
           weight_unit?: string | null
         }
         Update: {
@@ -3657,6 +3659,7 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id?: string
+          weight?: number | null
           weight_unit?: string | null
         }
         Relationships: []

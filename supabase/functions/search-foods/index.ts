@@ -243,13 +243,21 @@ serve(async (req) => {
       f.brand?.toLowerCase().includes(queryWords[0].toLowerCase())
     );
 
-    // If strong local brand results, return immediately
-    if (!likelyBrandSearch && localFoods.length >= 8) {
+    // If strong local results, return immediately without waiting for external APIs
+    if (!likelyBrandSearch && localFoods.length >= 5) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (likelyBrandSearch && localBrandMatches.length >= 3) {
+      return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // If we have ANY local results, return them immediately and skip external APIs
+    // to avoid timeout errors. External APIs will be used only when local cache is empty.
+    if (localFoods.length > 0) {
       return new Response(JSON.stringify({ foods: localFoods, source: "cache" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -263,14 +271,14 @@ serve(async (req) => {
     const [usdaResult, offResult] = await Promise.allSettled([
       usdaApiKey ? fetch(
         `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=20&api_key=${usdaApiKey}`,
-        { signal: AbortSignal.timeout(5000) }
+        { signal: AbortSignal.timeout(8000) }
       ) : Promise.reject("No USDA key"),
 
       fetch(
         `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url,lang,language,countries_tags${offCountryFilter}`,
         {
           headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(8000),
         }
       ),
     ]);
@@ -300,7 +308,7 @@ serve(async (req) => {
           `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=20&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url,lang,language,countries_tags&tagtype_0=countries&tag_contains_0=contains&tag_0=canada`,
           {
             headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-            signal: AbortSignal.timeout(4000),
+            signal: AbortSignal.timeout(7000),
           }
         );
         if (offCaRes.ok) {
