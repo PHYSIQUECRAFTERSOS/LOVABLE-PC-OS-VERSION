@@ -6,9 +6,10 @@ import SelectableClientCards, {
 import BulkMessageComposer from "@/components/clients/BulkMessageComposer";
 import AddClientDialog from "@/components/clients/AddClientDialog";
 import InviteList from "@/components/clients/InviteList";
+import InviteDashboard from "@/components/clients/InviteDashboard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Users, Send } from "lucide-react";
+import { Plus, Users, Send, BarChart3 } from "lucide-react";
 
 const Clients = () => {
   const [addOpen, setAddOpen] = useState(false);
@@ -44,6 +45,10 @@ const Clients = () => {
               <Send className="h-3.5 w-3.5" />
               Invites
             </TabsTrigger>
+            <TabsTrigger value="dashboard" className="gap-2">
+              <BarChart3 className="h-3.5 w-3.5" />
+              Invite Dashboard
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="mt-4">
@@ -55,6 +60,10 @@ const Clients = () => {
 
           <TabsContent value="invites" className="mt-4">
             <InviteList refreshKey={refreshKey} />
+          </TabsContent>
+
+          <TabsContent value="dashboard" className="mt-4">
+            <InviteDashboard />
           </TabsContent>
         </Tabs>
 

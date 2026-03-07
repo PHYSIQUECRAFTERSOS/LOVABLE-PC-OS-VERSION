@@ -7,6 +7,8 @@ import BulkNotifications from "@/components/admin/BulkNotifications";
 import ComplianceOverview from "@/components/admin/ComplianceOverview";
 import RetentionPanel from "@/components/admin/RetentionPanel";
 import DocumentManagement from "@/components/admin/DocumentManagement";
+import InviteDashboard from "@/components/clients/InviteDashboard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Admin = () => {
   const { role, loading } = useAuth();
@@ -26,6 +28,16 @@ const Admin = () => {
 
         <PlatformMetrics />
         <RetentionPanel />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-lg">Invite Dashboard (All Coaches)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <InviteDashboard isAdmin />
+          </CardContent>
+        </Card>
+
         <ComplianceOverview />
         <DocumentManagement />
         <UserManagement />
