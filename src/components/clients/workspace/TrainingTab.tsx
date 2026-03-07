@@ -32,6 +32,7 @@ interface Week {
 
 interface ProgramWorkout {
   id: string; workout_id: string; workout_name: string; day_of_week: number; day_label: string; exercises?: any[];
+  sort_order?: number | null; exclude_from_numbering?: boolean; custom_tag?: string | null;
 }
 
 const DAY_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -110,7 +111,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     let phaseDirectMap: Record<string, ProgramWorkout[]> = {};
     if (phaseIds.length > 0) {
       const { data: directPWs } = await supabase.from("program_workouts")
-        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
+        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
         .in("phase_id", phaseIds).order("sort_order");
       for (const pw of (directPWs || [])) {
         const pid = (pw as any).phase_id;
@@ -119,6 +120,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           id: pw.id, workout_id: pw.workout_id,
           workout_name: (pw.workouts as any)?.name || "Workout",
           day_of_week: pw.day_of_week ?? 0, day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+          sort_order: pw.sort_order, exclude_from_numbering: (pw as any).exclude_from_numbering || false,
+          custom_tag: (pw as any).custom_tag || null,
         });
       }
     }
@@ -264,6 +267,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
             await supabase.from("program_workouts").insert({
               phase_id: newPhase!.id, workout_id: clientW.id,
               day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
+              exclude_from_numbering: pw.exclude_from_numbering || false,
+              custom_tag: pw.custom_tag || null,
             });
           }
         } else {
@@ -280,6 +285,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               await supabase.from("program_workouts").insert({
                 week_id: newWeek!.id, workout_id: clientW.id,
                 day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
+                exclude_from_numbering: pw.exclude_from_numbering || false,
+                custom_tag: pw.custom_tag || null,
               });
             }
           }
@@ -369,7 +376,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const allWorkouts = phases.flatMap(p => p.directWorkouts);
 
   // ── Workout card ──
-  const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string, displayDayNumber?: number) => (
+  const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string, displayDayNumber?: number | null, customTag?: string | null) => (
     <div key={pw.id} className="flex items-center gap-2 p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors group">
       {selectionMode && (
         <Checkbox checked={selectedWorkouts.has(pw.id)} onCheckedChange={() => toggleWorkoutSelection(pw.id)} className="shrink-0" />
@@ -379,12 +386,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          {displayDayNumber != null && (
+          {customTag ? (
+            <Badge className="text-[9px] h-4 shrink-0 bg-slate-600/30 text-slate-300 border-slate-500/30">{customTag}</Badge>
+          ) : displayDayNumber != null ? (
             <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {displayDayNumber}</Badge>
-          )}
+          ) : null}
           <p className="text-sm font-medium truncate">{pw.workout_name}</p>
         </div>
-        <p className="text-[10px] text-muted-foreground">{pw.day_label}</p>
       </div>
       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openWorkoutEditor(pw)} title="Edit workout">
@@ -531,7 +539,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
             {isExpanded && (
               <CardContent className="pt-0 space-y-2 pb-4">
-                {phase.directWorkouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
+                {(() => {
+                  const sorted = [...phase.directWorkouts].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+                  let dayCounter = 1;
+                  return sorted.map(pw => {
+                    const isExcluded = pw.exclude_from_numbering;
+                    const pos = isExcluded ? null : dayCounter++;
+                    return renderWorkoutCard(pw, phase.id, pos, isExcluded ? pw.custom_tag : null);
+                  });
+                })()}
 
                 {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">No workouts in this phase.</p>
@@ -547,7 +563,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                     <CollapsibleContent className="pl-4 space-y-2 mt-1">
                       {week.workouts.length === 0 ? (
                         <p className="text-xs text-muted-foreground py-2">No workouts this week.</p>
-                      ) : week.workouts.map((pw, idx) => renderWorkoutCard(pw, phase.id, idx + 1))}
+                      ) : (() => {
+                        const sorted = [...week.workouts].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+                        let dayCounter = 1;
+                        return sorted.map(pw => {
+                          const isExcluded = pw.exclude_from_numbering;
+                          const pos = isExcluded ? null : dayCounter++;
+                          return renderWorkoutCard(pw, phase.id, pos, isExcluded ? pw.custom_tag : null);
+                        });
+                      })()}
                     </CollapsibleContent>
                   </Collapsible>
                 ))}

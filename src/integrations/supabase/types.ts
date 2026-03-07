@@ -3762,8 +3762,10 @@ export type Database = {
       program_workouts: {
         Row: {
           created_at: string
+          custom_tag: string | null
           day_label: string | null
           day_of_week: number | null
+          exclude_from_numbering: boolean | null
           id: string
           phase_id: string | null
           sort_order: number | null
@@ -3772,8 +3774,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_tag?: string | null
           day_label?: string | null
           day_of_week?: number | null
+          exclude_from_numbering?: boolean | null
           id?: string
           phase_id?: string | null
           sort_order?: number | null
@@ -3782,8 +3786,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_tag?: string | null
           day_label?: string | null
           day_of_week?: number | null
+          exclude_from_numbering?: boolean | null
           id?: string
           phase_id?: string | null
           sort_order?: number | null

@@ -42,7 +42,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
-  const [workouts, setWorkouts] = useState<{ id: string; name: string; dayNumber?: number }[]>([]);
+  const [workouts, setWorkouts] = useState<{ id: string; name: string; dayNumber?: number; excludeFromNumbering?: boolean; customTag?: string | null }[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -91,32 +91,53 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
       // Load program_workouts to get sort_order for day numbering
       const workoutIds = (wk || []).map(w => w.id);
       let dayNumberMap: Record<string, number> = {};
+      let excludedMap: Record<string, { excluded: boolean; tag: string | null }> = {};
       if (workoutIds.length > 0) {
         const { data: pwRows } = await supabase
           .from("program_workouts")
-          .select("workout_id, phase_id, sort_order")
+          .select("workout_id, phase_id, sort_order, exclude_from_numbering, custom_tag")
           .in("workout_id", workoutIds)
           .order("sort_order");
         
-        // Group by phase_id, sort by sort_order, assign sequential day numbers
-        const phaseGroups: Record<string, { workout_id: string; sort_order: number }[]> = {};
+        // Group by phase_id, sort by sort_order, assign sequential day numbers (skipping excluded)
+        const phaseGroups: Record<string, { workout_id: string; sort_order: number; exclude_from_numbering: boolean; custom_tag: string | null }[]> = {};
         (pwRows || []).forEach(pw => {
           const key = pw.phase_id || "none";
           if (!phaseGroups[key]) phaseGroups[key] = [];
-          phaseGroups[key].push({ workout_id: pw.workout_id, sort_order: pw.sort_order ?? 999 });
+          phaseGroups[key].push({
+            workout_id: pw.workout_id,
+            sort_order: pw.sort_order ?? 999,
+            exclude_from_numbering: (pw as any).exclude_from_numbering || false,
+            custom_tag: (pw as any).custom_tag || null,
+          });
         });
         Object.values(phaseGroups).forEach(group => {
           group.sort((a, b) => a.sort_order - b.sort_order);
-          group.forEach((item, idx) => {
-            dayNumberMap[item.workout_id] = idx + 1;
+          let counter = 1;
+          group.forEach((item) => {
+            if (item.exclude_from_numbering) {
+              excludedMap[item.workout_id] = { excluded: true, tag: item.custom_tag };
+            } else {
+              dayNumberMap[item.workout_id] = counter++;
+            }
           });
         });
       }
 
-      setWorkouts((wk || []).map(w => ({
+      // Sort: numbered first by dayNumber, then excluded at the bottom
+      const mapped = (wk || []).map(w => ({
         ...w,
         dayNumber: dayNumberMap[w.id],
-      })));
+        excludeFromNumbering: excludedMap[w.id]?.excluded || false,
+        customTag: excludedMap[w.id]?.tag || null,
+      }));
+      mapped.sort((a, b) => {
+        if (a.excludeFromNumbering && !b.excludeFromNumbering) return 1;
+        if (!a.excludeFromNumbering && b.excludeFromNumbering) return -1;
+        if (!a.excludeFromNumbering && !b.excludeFromNumbering) return (a.dayNumber ?? 999) - (b.dayNumber ?? 999);
+        return 0;
+      });
+      setWorkouts(mapped);
     };
     loadCoachData();
   }, [isCoach, user]);
@@ -264,7 +285,9 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
                 <SelectContent>
                   {workouts.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
-                      {w.dayNumber ? `Day ${w.dayNumber} – ` : ""}{w.name}
+                      {w.excludeFromNumbering && w.customTag
+                        ? `${w.customTag} – ${w.name}`
+                        : w.dayNumber ? `Day ${w.dayNumber} – ${w.name}` : w.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
