@@ -593,7 +593,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                             )}
 
                             {/* Set controls */}
-                            <div className={`grid gap-1.5 ${useRpe && useTempo ? "grid-cols-6" : useRpe || useTempo ? "grid-cols-5" : "grid-cols-4"}`}>
+                            <div className={`grid gap-1.5`} style={{ gridTemplateColumns: `repeat(${3 + (useRpe ? 1 : 0) + (useTempo ? 1 : 0) + (useRir ? 1 : 0)}, minmax(0, 1fr))` }}>
                               <div className="space-y-0.5">
                                 <Label className="text-[9px] text-muted-foreground">Sets</Label>
                                 <Input type="number" value={ex.sets} onChange={(e) => updateExercise(idx, "sets", parseInt(e.target.value) || 0)} className="h-7 text-xs text-center" />
@@ -614,14 +614,16 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                                   <Input value={ex.tempo} onChange={(e) => updateExercise(idx, "tempo", e.target.value)} className="h-7 text-xs text-center" placeholder="3010" />
                                 </div>
                               )}
-                              <div className="space-y-0.5">
-                                <Label className="text-[9px] text-muted-foreground">Rest (s)</Label>
-                                <Input type="number" value={ex.restSeconds} onChange={(e) => updateExercise(idx, "restSeconds", parseInt(e.target.value) || 0)} className="h-7 text-xs text-center" />
-                              </div>
-                              <div className="space-y-0.5">
-                                <Label className="text-[9px] text-muted-foreground">RIR</Label>
-                                <Input value={ex.rir} onChange={(e) => updateExercise(idx, "rir", e.target.value)} className="h-7 text-xs text-center" placeholder="2" />
-                              </div>
+                              <RestSecondsInput
+                                value={ex.restSeconds}
+                                onChange={(val) => updateExercise(idx, "restSeconds", val)}
+                              />
+                              {useRir && (
+                                <div className="space-y-0.5">
+                                  <Label className="text-[9px] text-muted-foreground">RIR</Label>
+                                  <Input value={ex.rir} onChange={(e) => updateExercise(idx, "rir", e.target.value)} className="h-7 text-xs text-center" placeholder="2" />
+                                </div>
+                              )}
                             </div>
 
                             <div className="space-y-0.5">
