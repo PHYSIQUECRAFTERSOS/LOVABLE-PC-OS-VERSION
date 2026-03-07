@@ -56,7 +56,22 @@ const ClientMessaging = () => {
         }
       }
 
-      setCoachName(coachProfile?.full_name?.trim() || "Your Coach");
+      // Last resort: find any profile with a name
+      if (!coachProfile?.full_name?.trim()) {
+        const { data: fallbackCoach } = await supabase
+          .from("profiles")
+          .select("full_name, avatar_url")
+          .not("full_name", "is", null)
+          .not("full_name", "eq", "")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        if (fallbackCoach?.full_name?.trim()) {
+          coachProfile = fallbackCoach;
+        }
+      }
+
+      setCoachName(coachProfile?.full_name?.trim() || "Kevin Wu");
       setCoachAvatar(coachProfile?.avatar_url || null);
 
       // Find or create thread
