@@ -125,7 +125,7 @@ const OnboardingMetrics = ({ data, updateField }: Props) => {
 
       {/* Weight - Pounds */}
       <div className="space-y-2">
-        <Label>Current Weight (lb)</Label>
+        <Label>Current Weight (lbs)</Label>
         <Input
           type="number"
           placeholder="e.g. 185"
