@@ -787,10 +787,15 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
             <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
             {getSourceBadge()}
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             <span className="text-xs text-muted-foreground">{item.calories} cal</span>
+            {item.serving_description && (
+              <span className="text-xs text-muted-foreground/60">· {item.serving_description}</span>
+            )}
+            {!item.serving_description && (
+              <span className="text-xs text-muted-foreground/60">· {item.serving_size}{item.serving_unit}</span>
+            )}
             {item.brand && <span className="text-xs text-muted-foreground/60">· {item.brand}</span>}
-            <span className="text-xs text-muted-foreground/60">· {item.serving_size}{item.serving_unit}</span>
           </div>
         </button>
         <button onClick={onToggle} className="p-1 text-muted-foreground">
