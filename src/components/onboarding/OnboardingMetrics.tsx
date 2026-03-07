@@ -132,9 +132,9 @@ const OnboardingMetrics = ({ data, updateField }: Props) => {
           value={data.weight_lb ?? ""}
           onChange={(e) => handleWeightChange(e.target.value ? Number(e.target.value) : null)}
         />
-        {data.weight_lb != null && (
+        {data.weight_lb != null && data.weight_lb > 0 && (
           <p className="text-xs text-muted-foreground">
-            ≈ {data.current_weight_kg} kg
+            {data.weight_lb} lbs
           </p>
         )}
       </div>
