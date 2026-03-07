@@ -16,6 +16,9 @@ export interface Food {
   sodium_per_100g?: number | null;
   serving_size_g?: number | null;
   serving_unit?: string | null;
+  serving_description?: string | null;
+  household_serving_fulltext?: string | null;
+  additional_serving_sizes?: Array<{ description: string; size_g: number }> | null;
   image_url?: string | null;
   barcode?: string | null;
   is_branded?: boolean;
