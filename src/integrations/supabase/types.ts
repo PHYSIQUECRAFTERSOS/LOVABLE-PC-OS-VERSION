@@ -3635,6 +3635,7 @@ export type Database = {
           timezone: string | null
           updated_at: string
           user_id: string
+          weight_unit: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -3645,6 +3646,7 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id: string
+          weight_unit?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -3655,6 +3657,7 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id?: string
+          weight_unit?: string | null
         }
         Relationships: []
       }
@@ -3869,7 +3872,9 @@ export type Database = {
           id: string
           notes: string | null
           photo_date: string
+          photo_type: string | null
           pose: string
+          source: string | null
           storage_path: string
         }
         Insert: {
@@ -3878,7 +3883,9 @@ export type Database = {
           id?: string
           notes?: string | null
           photo_date?: string
+          photo_type?: string | null
           pose?: string
+          source?: string | null
           storage_path: string
         }
         Update: {
@@ -3887,7 +3894,9 @@ export type Database = {
           id?: string
           notes?: string | null
           photo_date?: string
+          photo_type?: string | null
           pose?: string
+          source?: string | null
           storage_path?: string
         }
         Relationships: []
