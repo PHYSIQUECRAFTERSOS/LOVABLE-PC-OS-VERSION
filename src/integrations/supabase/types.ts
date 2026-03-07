@@ -795,6 +795,8 @@ export type Database = {
           last_name: string
           phone: string | null
           tags: string[] | null
+          tier_id: string | null
+          tier_name: string | null
           updated_at: string
         }
         Insert: {
@@ -812,6 +814,8 @@ export type Database = {
           last_name: string
           phone?: string | null
           tags?: string[] | null
+          tier_id?: string | null
+          tier_name?: string | null
           updated_at?: string
         }
         Update: {
@@ -829,9 +833,19 @@ export type Database = {
           last_name?: string
           phone?: string | null
           tags?: string[] | null
+          tier_id?: string | null
+          tier_name?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_invites_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "client_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_notes: {
         Row: {
@@ -969,6 +983,50 @@ export type Database = {
         }
         Relationships: []
       }
+      client_signatures: {
+        Row: {
+          client_id: string
+          document_template_id: string
+          document_version: string
+          id: string
+          ip_address: string | null
+          pdf_storage_path: string | null
+          signed_at: string | null
+          signed_name: string
+          tier_at_signing: string
+        }
+        Insert: {
+          client_id: string
+          document_template_id: string
+          document_version: string
+          id?: string
+          ip_address?: string | null
+          pdf_storage_path?: string | null
+          signed_at?: string | null
+          signed_name: string
+          tier_at_signing: string
+        }
+        Update: {
+          client_id?: string
+          document_template_id?: string
+          document_version?: string
+          id?: string
+          ip_address?: string | null
+          pdf_storage_path?: string | null
+          signed_at?: string | null
+          signed_name?: string
+          tier_at_signing?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_signatures_document_template_id_fkey"
+            columns: ["document_template_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_tags: {
         Row: {
           client_id: string
@@ -990,6 +1048,30 @@ export type Database = {
           created_at?: string
           id?: string
           tag?: string
+        }
+        Relationships: []
+      }
+      client_tiers: {
+        Row: {
+          contract_template_key: string | null
+          created_at: string | null
+          id: string
+          name: string
+          requires_contract: boolean
+        }
+        Insert: {
+          contract_template_key?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          requires_contract?: boolean
+        }
+        Update: {
+          contract_template_key?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          requires_contract?: boolean
         }
         Relationships: []
       }
@@ -1655,6 +1737,45 @@ export type Database = {
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      document_templates: {
+        Row: {
+          body: string
+          created_at: string | null
+          document_type: string
+          id: string
+          is_active: boolean | null
+          template_key: string
+          tier_applicability: string[] | null
+          title: string
+          updated_at: string | null
+          version: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          document_type: string
+          id?: string
+          is_active?: boolean | null
+          template_key: string
+          tier_applicability?: string[] | null
+          title: string
+          updated_at?: string | null
+          version?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          document_type?: string
+          id?: string
+          is_active?: boolean | null
+          template_key?: string
+          tier_applicability?: string[] | null
+          title?: string
+          updated_at?: string | null
+          version?: string
         }
         Relationships: []
       }
