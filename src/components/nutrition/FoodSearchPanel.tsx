@@ -300,7 +300,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
             ref={inputRef}
             placeholder="Search 200k+ foods..."
             value={query}
-            onChange={(e) => doSearch(e.target.value)}
+            onChange={(e) => doSearchSetQuery(e.target.value)}
             className="h-9 pl-8 text-xs"
           />
           {loading && (
