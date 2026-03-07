@@ -656,11 +656,11 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
   }
 
   const getSourceBadge = () => {
+    if (item.source === "usda" || item.data_source === "usda") {
+      return <Badge className="h-3.5 px-1 text-[8px] bg-green-500/20 text-green-400 border-green-500/30">✓ USDA</Badge>;
+    }
     if (item.source === "off" || item.data_source === "open_food_facts") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
-    }
-    if (item.data_source === "usda") {
-      return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">USDA</Badge>;
     }
     if (item.brand) {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
