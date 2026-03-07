@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface Food {
   id?: string;
   off_id?: string;
+  usda_fdc_id?: string;
   name: string;
   brand?: string | null;
   calories_per_100g?: number | null;
@@ -22,6 +23,8 @@ export interface Food {
   is_custom?: boolean;
   popularity_score?: number;
   source?: string;
+  data_quality_score?: number;
+  has_complete_macros?: boolean;
 }
 
 export function useFoodSearch() {
