@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
 import { subDays, format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export interface SelectableClient {
   id: string;
@@ -27,10 +28,31 @@ export interface SelectableClient {
   tags: string[];
 }
 
+interface NutritionCompliance {
+  pct: number | null;
+  status: "on_target" | "close" | "missed" | "no_data";
+}
+
 interface SelectableClientCardsProps {
   onSelectionChange: (selected: SelectableClient[]) => void;
   onSendMessage: () => void;
 }
+
+/* ─── Compliance Badge ─── */
+const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
+  const config = {
+    on_target: { cls: "bg-green-500/15 text-green-400", text: `✓ ${pct}%` },
+    close:     { cls: "bg-primary/15 text-primary", text: `${pct}%` },
+    missed:    { cls: "bg-destructive/15 text-destructive", text: `${pct}%` },
+    no_data:   { cls: "bg-muted text-muted-foreground", text: "—" },
+  };
+  const { cls, text } = config[status];
+  return (
+    <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap", cls)}>
+      {text}
+    </span>
+  );
+};
 
 const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableClientCardsProps) => {
   const { user } = useAuth();
@@ -41,6 +63,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [complianceMap, setComplianceMap] = useState<Record<string, NutritionCompliance>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -116,6 +139,52 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
     fetchClients();
   }, [user]);
 
+  /* ─── Batch load nutrition compliance for all clients ─── */
+  useEffect(() => {
+    if (clients.length === 0) return;
+    const ids = clients.map((c) => c.id);
+    const today = format(new Date(), "yyyy-MM-dd");
+
+    const fetchCompliance = async () => {
+      const [logsRes, targetsRes] = await Promise.all([
+        supabase.from("nutrition_logs").select("client_id, calories").in("client_id", ids).eq("logged_at", today),
+        supabase.from("nutrition_targets").select("client_id, calories").in("client_id", ids),
+      ]);
+
+      const dailyTotals: Record<string, number> = {};
+      (logsRes.data || []).forEach((r) => {
+        dailyTotals[r.client_id] = (dailyTotals[r.client_id] || 0) + Number(r.calories || 0);
+      });
+
+      const calTargets: Record<string, number> = {};
+      (targetsRes.data || []).forEach((r) => {
+        if (r.calories) calTargets[r.client_id] = r.calories;
+      });
+
+      const map: Record<string, NutritionCompliance> = {};
+      ids.forEach((id) => {
+        const logged = dailyTotals[id] || 0;
+        const target = calTargets[id] || null;
+        if (!target || logged === 0) {
+          map[id] = { pct: null, status: "no_data" };
+          return;
+        }
+        const pct = logged / target;
+        map[id] = {
+          pct: Math.round(pct * 100),
+          status: pct >= 0.9 && pct <= 1.1 ? "on_target" : pct >= 0.7 && pct <= 1.3 ? "close" : "missed",
+        };
+      });
+
+      setComplianceMap(map);
+    };
+
+    fetchCompliance();
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchCompliance, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [clients]);
+
   const allTags = useMemo(() => {
     const tags = new Set<string>();
     clients.forEach((c) => c.tags.forEach((t) => tags.add(t)));
@@ -190,14 +259,9 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
             onClick={toggleAll}
             className="gap-2"
           >
-            {allFilteredSelected ? (
-              <CheckSquare className="h-3.5 w-3.5" />
-            ) : (
-              <Square className="h-3.5 w-3.5" />
-            )}
+            {allFilteredSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
             {allFilteredSelected ? "Deselect All" : "Select All"}
           </Button>
-
           {selectedIds.size > 0 && (
             <Button size="sm" onClick={onSendMessage} className="gap-2">
               <MessageSquare className="h-3.5 w-3.5" />
@@ -205,108 +269,84 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
             </Button>
           )}
         </div>
-
         <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-initial sm:w-48">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search clients..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 text-sm"
-            />
+            <Input placeholder="Search clients..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
-
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 w-[140px] text-sm">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
+            <SelectTrigger className="h-9 w-[140px] text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Clients</SelectItem>
               <SelectItem value="high_compliance">High Compliance</SelectItem>
               <SelectItem value="low_compliance">Low Compliance</SelectItem>
             </SelectContent>
           </Select>
-
           {allTags.length > 0 && (
             <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="h-9 w-[140px] text-sm">
-                <SelectValue placeholder="Tag" />
-              </SelectTrigger>
+              <SelectTrigger className="h-9 w-[140px] text-sm"><SelectValue placeholder="Tag" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Tags</SelectItem>
-                {allTags.map((tag) => (
-                  <SelectItem key={tag} value={tag}>
-                    {tag}
-                  </SelectItem>
-                ))}
+                {allTags.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
         </div>
       </div>
 
-      {/* Selection count */}
       {selectedIds.size > 0 && (
-        <div className="text-xs text-muted-foreground">
-          {selectedIds.size} of {clients.length} clients selected
-        </div>
+        <div className="text-xs text-muted-foreground">{selectedIds.size} of {clients.length} clients selected</div>
       )}
+
+      {/* Column header */}
+      <div className="hidden sm:flex items-center px-4 text-[10px] text-muted-foreground uppercase tracking-wider">
+        <span className="flex-1">Client</span>
+        <span className="w-20 text-right">Today's Cals</span>
+      </div>
 
       {/* Client grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {filteredClients.map((client) => {
           const isSelected = selectedIds.has(client.id);
+          const comp = complianceMap[client.id];
           return (
             <Card
               key={client.id}
               className={`cursor-pointer transition-all ${
-                isSelected
-                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-                  : "hover:border-primary/20"
+                isSelected ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : "hover:border-primary/20"
               }`}
               onClick={(e) => {
-                // If clicking checkbox area, toggle selection; otherwise navigate
                 if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
                 navigate(`/clients/${client.id}`);
               }}
             >
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => toggleOne(client.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="shrink-0"
-                  />
+                  <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(client.id)} onClick={(e) => e.stopPropagation()} className="shrink-0" />
                   <Avatar className="h-9 w-9 shrink-0">
                     <AvatarImage src={client.avatar_url} alt={client.name} />
-                    <AvatarFallback className="text-xs">
-                      {client.name.charAt(0)}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-xs">{client.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">
-                      {client.name}
-                    </p>
+                    <p className="font-medium text-foreground text-sm truncate">{client.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-muted-foreground">
-                        {client.compliance}% compliance
-                      </span>
+                      <span className="text-xs text-muted-foreground">{client.compliance}% compliance</span>
                       {client.streak > 0 && (
                         <span className="text-xs text-primary font-medium flex items-center gap-0.5">
-                          <Zap className="h-2.5 w-2.5" />
-                          {client.streak}d
+                          <Zap className="h-2.5 w-2.5" />{client.streak}d
                         </span>
                       )}
                     </div>
                   </div>
-                  {client.tags.length > 0 && (
-                    <Badge variant="secondary" className="text-[10px] shrink-0">
-                      {client.tags[0]}
-                      {client.tags.length > 1 && ` +${client.tags.length - 1}`}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {comp && <ComplianceBadge {...comp} />}
+                    {client.tags.length > 0 && (
+                      <Badge variant="secondary" className="text-[10px] hidden lg:inline-flex">
+                        {client.tags[0]}
+                        {client.tags.length > 1 && ` +${client.tags.length - 1}`}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -315,9 +355,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
       </div>
 
       {filteredClients.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">
-          No clients match your filters.
-        </p>
+        <p className="text-sm text-muted-foreground text-center py-8">No clients match your filters.</p>
       )}
     </div>
   );
