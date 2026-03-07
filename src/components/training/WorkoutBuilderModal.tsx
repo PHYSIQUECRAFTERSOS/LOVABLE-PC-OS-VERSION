@@ -18,6 +18,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 
+/** Rest (s) input that uses local string state to avoid stuck-zero bug */
+const RestSecondsInput = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
+  const [localVal, setLocalVal] = useState(String(value ?? 0));
+  // Sync external value changes (e.g. loading workout)
+  useEffect(() => { setLocalVal(String(value ?? 0)); }, [value]);
+  return (
+    <div className="space-y-0.5">
+      <Label className="text-[9px] text-muted-foreground">Rest (s)</Label>
+      <Input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={localVal}
+        onChange={(e) => setLocalVal(e.target.value.replace(/[^0-9]/g, ""))}
+        onBlur={() => {
+          const parsed = parseInt(localVal, 10);
+          const final = isNaN(parsed) ? 0 : parsed;
+          setLocalVal(String(final));
+          onChange(final);
+        }}
+        className="h-7 text-xs text-center"
+        placeholder="0"
+      />
+    </div>
+  );
+};
+
 const MUSCLE_GROUPS = [
   "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Forearms",
   "Quads", "Hamstrings", "Glutes", "Calves", "Abs", "Obliques",
