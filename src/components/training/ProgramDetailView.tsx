@@ -689,6 +689,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               day_of_week: w.dayOfWeek,
               day_label: w.dayLabel,
               sort_order: i,
+              exclude_from_numbering: w.excludeFromNumbering || false,
+              custom_tag: w.customTag || null,
             }))
           );
           if (pwErr) throw pwErr;
