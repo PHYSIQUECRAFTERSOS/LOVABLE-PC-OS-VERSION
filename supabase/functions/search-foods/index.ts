@@ -264,14 +264,14 @@ serve(async (req) => {
     const [usdaResult, offResult] = await Promise.allSettled([
       usdaApiKey ? fetch(
         `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=20&api_key=${usdaApiKey}`,
-        { signal: AbortSignal.timeout(8000) }
+        { signal: AbortSignal.timeout(12000) }
       ) : Promise.reject("No USDA key"),
 
       fetch(
         `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=30&sort_by=unique_scans_n&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url,lang,language,countries_tags${offCountryFilter}`,
         {
           headers: { "User-Agent": "PhysiqueCraftersOS/1.0 (contact@physiquecrafters.com)" },
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(12000),
         }
       ),
     ]);

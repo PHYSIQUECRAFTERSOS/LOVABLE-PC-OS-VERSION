@@ -62,6 +62,21 @@ const Admin = () => {
         <DocumentManagement />
         <UserManagement />
         <BulkNotifications />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-lg">Database Utilities</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleSeedFoods} disabled={seeding} variant="outline" className="gap-2">
+              {seeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+              {seeding ? "Seeding…" : "Seed Food Database"}
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Populates the local food cache with ~500 staple items from USDA. Only needs to run once.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
