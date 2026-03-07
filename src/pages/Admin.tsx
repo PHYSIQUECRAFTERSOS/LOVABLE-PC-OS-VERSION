@@ -17,9 +17,24 @@ import { Database, Loader2 } from "lucide-react";
 
 const Admin = () => {
   const { role, loading } = useAuth();
+  const { toast } = useToast();
+  const [seeding, setSeeding] = useState(false);
 
   if (loading) return null;
   if (role !== "admin") return <Navigate to="/dashboard" replace />;
+
+  const handleSeedFoods = async () => {
+    setSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("seed-foods", {});
+      if (error) throw error;
+      toast({ title: "Food database seeded", description: `${data?.seeded ?? 0} foods added` });
+    } catch (e: any) {
+      toast({ title: "Seed failed", description: e.message, variant: "destructive" });
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   return (
     <AppLayout>
