@@ -2108,6 +2108,7 @@ export type Database = {
       }
       foods: {
         Row: {
+          additional_serving_sizes: Json | null
           barcode: string | null
           brand: string | null
           calories_per_100g: number | null
@@ -2118,6 +2119,7 @@ export type Database = {
           fat_per_100g: number | null
           fiber_per_100g: number | null
           has_complete_macros: boolean | null
+          household_serving_fulltext: string | null
           id: string
           image_url: string | null
           is_branded: boolean | null
@@ -2129,6 +2131,7 @@ export type Database = {
           popularity_score: number | null
           protein_per_100g: number | null
           search_vector: unknown
+          serving_description: string | null
           serving_size_g: number | null
           serving_unit: string | null
           sodium_per_100g: number | null
@@ -2139,6 +2142,7 @@ export type Database = {
           usda_fdc_id: string | null
         }
         Insert: {
+          additional_serving_sizes?: Json | null
           barcode?: string | null
           brand?: string | null
           calories_per_100g?: number | null
@@ -2149,6 +2153,7 @@ export type Database = {
           fat_per_100g?: number | null
           fiber_per_100g?: number | null
           has_complete_macros?: boolean | null
+          household_serving_fulltext?: string | null
           id?: string
           image_url?: string | null
           is_branded?: boolean | null
@@ -2160,6 +2165,7 @@ export type Database = {
           popularity_score?: number | null
           protein_per_100g?: number | null
           search_vector?: unknown
+          serving_description?: string | null
           serving_size_g?: number | null
           serving_unit?: string | null
           sodium_per_100g?: number | null
@@ -2170,6 +2176,7 @@ export type Database = {
           usda_fdc_id?: string | null
         }
         Update: {
+          additional_serving_sizes?: Json | null
           barcode?: string | null
           brand?: string | null
           calories_per_100g?: number | null
@@ -2180,6 +2187,7 @@ export type Database = {
           fat_per_100g?: number | null
           fiber_per_100g?: number | null
           has_complete_macros?: boolean | null
+          household_serving_fulltext?: string | null
           id?: string
           image_url?: string | null
           is_branded?: boolean | null
@@ -2191,6 +2199,7 @@ export type Database = {
           popularity_score?: number | null
           protein_per_100g?: number | null
           search_vector?: unknown
+          serving_description?: string | null
           serving_size_g?: number | null
           serving_unit?: string | null
           sodium_per_100g?: number | null

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FrequentMealsSection } from "@/components/nutrition/FrequentMealsSection";
 import type { MealFood } from "@/services/mealTemplateService";
+import FoodDetailScreen from "@/components/nutrition/FoodDetailScreen";
+import type { FoodDetailFood, FoodDetailEntry } from "@/components/nutrition/FoodDetailScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,8 @@ interface FoodItem {
   brand: string | null;
   serving_size: number;
   serving_unit: string;
+  serving_description?: string | null;
+  additional_serving_sizes?: Array<{ description: string; size_g: number }> | null;
   calories: number;
   protein: number;
   carbs: number;
@@ -48,6 +52,13 @@ interface FoodItem {
   source?: "local" | "off" | "usda";
   is_branded?: boolean;
   image_url?: string | null;
+  calories_per_100g?: number;
+  protein_per_100g?: number;
+  carbs_per_100g?: number;
+  fat_per_100g?: number;
+  fiber_per_100g?: number;
+  sugar_per_100g?: number;
+  sodium_per_100g?: number;
 }
 
 interface AddFoodScreenProps {
@@ -100,6 +111,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [mealScanOpen, setMealScanOpen] = useState(false);
+  const [detailFood, setDetailFood] = useState<FoodItem | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -206,6 +218,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           brand: f.brand || null,
           serving_size: f.serving_size_g ?? 100,
           serving_unit: f.serving_unit ?? "g",
+          serving_description: f.serving_description ?? null,
+          additional_serving_sizes: f.additional_serving_sizes ?? null,
           calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
           protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
           carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
@@ -213,6 +227,13 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           fiber: Math.round((f.fiber_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
           sugar: Math.round((f.sugar_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
           sodium: Math.round((f.sodium_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          calories_per_100g: f.calories_per_100g ?? 0,
+          protein_per_100g: f.protein_per_100g ?? 0,
+          carbs_per_100g: f.carbs_per_100g ?? 0,
+          fat_per_100g: f.fat_per_100g ?? 0,
+          fiber_per_100g: f.fiber_per_100g ?? 0,
+          sugar_per_100g: f.sugar_per_100g ?? 0,
+          sodium_per_100g: f.sodium_per_100g ?? 0,
           is_verified: f.is_verified,
           data_source: f.source ?? "open_food_facts",
           category: null,
@@ -396,7 +417,90 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const openFoodDetail = (item: FoodItem) => {
+    setDetailFood(item);
+  };
+
+  const handleDetailConfirm = async (entry: FoodDetailEntry) => {
+    if (!user) return;
+
+    // Import if needed
+    let foodItemId = detailFood?.id;
+    if (detailFood?.source === "off") {
+      const imported = await importOFFFood(detailFood);
+      if (!imported) return;
+      foodItemId = imported.id;
+    }
+
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      food_item_id: foodItemId,
+      meal_type: mealType,
+      servings: entry.quantity,
+      calories: Math.round(entry.calories),
+      protein: Math.round(entry.protein),
+      carbs: Math.round(entry.carbs),
+      fat: Math.round(entry.fat),
+      fiber: Math.round(entry.fiber),
+      sugar: Math.round(entry.sugar),
+      sodium: Math.round(entry.sodium),
+      quantity_display: entry.quantity,
+      quantity_unit: "serving",
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+
+    if (error) {
+      console.error("[NutritionLog] Insert error:", error);
+      toast({ title: "Couldn't save this food. Please try again." });
+    } else {
+      toast({ title: `${entry.food.name} logged` });
+      setDetailFood(null);
+      try {
+        const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
+        const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
+        const newStreak = streakData as unknown as number;
+        const msg = getMilestoneMessage(newStreak);
+        if (msg) {
+          setTimeout(() => toast({ title: `🔥 ${newStreak} day streak!`, description: msg }), 1500);
+        }
+      } catch { /* ignore */ }
+      onLogged();
+    }
+  };
+
   if (!open) return null;
+
+  // Show food detail screen
+  if (detailFood) {
+    return (
+      <FoodDetailScreen
+        food={{
+          id: detailFood.id,
+          name: detailFood.name,
+          brand: detailFood.brand,
+          calories_per_100g: detailFood.calories_per_100g ?? (detailFood.calories / (detailFood.serving_size / 100)),
+          protein_per_100g: detailFood.protein_per_100g ?? (detailFood.protein / (detailFood.serving_size / 100)),
+          carbs_per_100g: detailFood.carbs_per_100g ?? (detailFood.carbs / (detailFood.serving_size / 100)),
+          fat_per_100g: detailFood.fat_per_100g ?? (detailFood.fat / (detailFood.serving_size / 100)),
+          fiber_per_100g: detailFood.fiber_per_100g ?? ((detailFood.fiber ?? 0) / (detailFood.serving_size / 100)),
+          sugar_per_100g: detailFood.sugar_per_100g ?? ((detailFood.sugar ?? 0) / (detailFood.serving_size / 100)),
+          sodium_per_100g: detailFood.sodium_per_100g ?? ((detailFood.sodium ?? 0) / (detailFood.serving_size / 100)),
+          serving_size_g: detailFood.serving_size,
+          serving_unit: detailFood.serving_unit,
+          serving_description: detailFood.serving_description,
+          additional_serving_sizes: detailFood.additional_serving_sizes,
+          source: detailFood.source,
+          is_branded: detailFood.is_branded,
+          image_url: detailFood.image_url,
+        }}
+        mealType={mealType}
+        mealLabel={mealLabel}
+        onConfirm={handleDetailConfirm}
+        onBack={() => setDetailFood(null)}
+      />
+    );
+  }
 
   const allDisplayItems = [
     ...results,
@@ -599,8 +703,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   key={item.id}
                   item={item}
                   expanded={expandedId === item.id}
-                  onToggle={() => toggleExpand(item.id)}
-                  onAdd={() => logFood(item)}
+                  onToggle={() => openFoodDetail(item)}
+                  onAdd={() => openFoodDetail(item)}
                   servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
                   onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
                   servingUnit={servingUnits[item.id] || "g"}
@@ -683,10 +787,15 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
             <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
             {getSourceBadge()}
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
             <span className="text-xs text-muted-foreground">{item.calories} cal</span>
+            {item.serving_description && (
+              <span className="text-xs text-muted-foreground/60">· {item.serving_description}</span>
+            )}
+            {!item.serving_description && (
+              <span className="text-xs text-muted-foreground/60">· {item.serving_size}{item.serving_unit}</span>
+            )}
             {item.brand && <span className="text-xs text-muted-foreground/60">· {item.brand}</span>}
-            <span className="text-xs text-muted-foreground/60">· {item.serving_size}{item.serving_unit}</span>
           </div>
         </button>
         <button onClick={onToggle} className="p-1 text-muted-foreground">
