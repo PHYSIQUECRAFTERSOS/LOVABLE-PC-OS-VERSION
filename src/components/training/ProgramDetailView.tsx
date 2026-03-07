@@ -227,6 +227,49 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [importableWorkouts, setImportableWorkouts] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragEnd = useCallback((phaseIdx: number) => (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setPhases(prev => {
+      const newPhases = [...prev];
+      const phase = { ...newPhases[phaseIdx] };
+      const workouts = [...phase.workouts];
+      const oldIndex = workouts.findIndex(w => (w.id || w.workoutId + workouts.indexOf(w)) === active.id);
+      const newIndex = workouts.findIndex(w => (w.id || w.workoutId + workouts.indexOf(w)) === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+
+      const reordered = arrayMove(workouts, oldIndex, newIndex).map((w, i) => ({ ...w, sortOrder: i }));
+      phase.workouts = reordered;
+      newPhases[phaseIdx] = phase;
+
+      // Persist to DB if phase has an ID
+      if (phase.id) {
+        const updates = reordered.filter(w => w.id).map(w => 
+          supabase.from("program_workouts").update({ sort_order: w.sortOrder }).eq("id", w.id!)
+        );
+        Promise.all(updates).catch(() => {
+          toast({ title: "Failed to save new order", description: "Please try again.", variant: "destructive" });
+          // Revert
+          setPhases(p => {
+            const reverted = [...p];
+            reverted[phaseIdx] = { ...reverted[phaseIdx], workouts: arrayMove(reordered, newIndex, oldIndex) };
+            return reverted;
+          });
+        });
+      }
+
+      return newPhases;
+    });
+  }, [toast]);
+
   const loadProgram = useCallback(async () => {
     if (!user) return;
     setLoading(true);
