@@ -285,6 +285,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               await supabase.from("program_workouts").insert({
                 week_id: newWeek!.id, workout_id: clientW.id,
                 day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
+                exclude_from_numbering: pw.exclude_from_numbering || false,
+                custom_tag: pw.custom_tag || null,
               });
             }
           }
