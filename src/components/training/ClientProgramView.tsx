@@ -346,28 +346,39 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                       <p className="text-xs text-muted-foreground pl-2">No workouts in this phase</p>
                     ) : (
                       <div className="space-y-2">
-                        {phase.workouts.map((pw, idx) => (
-                          <div key={pw.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
-                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                              <Dumbbell className="h-4 w-4 text-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {idx + 1}</Badge>
-                                <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+                        {(() => {
+                          let dayCounter = 1;
+                          return phase.workouts.map((pw) => {
+                            const isExcluded = pw.exclude_from_numbering;
+                            const pos = isExcluded ? null : dayCounter++;
+                            return (
+                              <div key={pw.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                  <Dumbbell className="h-4 w-4 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    {isExcluded && pw.custom_tag ? (
+                                      <Badge className="text-[9px] h-4 shrink-0 bg-slate-600/30 text-slate-300 border-slate-500/30">{pw.custom_tag}</Badge>
+                                    ) : pos != null ? (
+                                      <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {pos}</Badge>
+                                    ) : null}
+                                    <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onStartWorkout(pw.workout_id);
+                                  }}
+                                >
+                                  <Play className="h-3.5 w-3.5 mr-1" /> Start
+                                </Button>
                               </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onStartWorkout(pw.workout_id);
-                              }}
-                            >
-                              <Play className="h-3.5 w-3.5 mr-1" /> Start
-                            </Button>
-                          </div>
-                        ))}
+                            );
+                          });
+                        })()}
                       </div>
                     )}
                   </div>
