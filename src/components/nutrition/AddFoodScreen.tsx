@@ -27,7 +27,6 @@ import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Badge } from "@/components/ui/badge";
 import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
 import MealScanCapture from "@/components/nutrition/MealScanCapture";
-import { searchFoods } from "@/services/foodSearchService";
 
 interface FoodItem {
   id: string;
