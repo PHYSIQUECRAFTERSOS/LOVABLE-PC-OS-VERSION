@@ -95,6 +95,7 @@ const ClientDetail = () => {
   const tabItems = [
     { value: "dash", label: "Dash", icon: LayoutDashboard },
     { value: "checkins", label: "Check-Ins", icon: ClipboardList },
+    { value: "onboarding", label: "Onboarding", icon: BookOpen },
     { value: "calendar", label: "Calendar", icon: CalendarDays },
     { value: "training", label: "Training", icon: Dumbbell },
     { value: "nutrition", label: "Nutrition", icon: Target },
