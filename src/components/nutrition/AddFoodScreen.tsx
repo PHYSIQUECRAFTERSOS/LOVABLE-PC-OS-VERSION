@@ -216,7 +216,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           is_verified: f.is_verified,
           data_source: f.source ?? "open_food_facts",
           category: null,
-          source: f.source === "open_food_facts" ? "off" as const : "local" as const,
+          source: f.source === "usda" ? "usda" as const : f.source === "open_food_facts" ? "off" as const : "local" as const,
           is_branded: f.is_branded,
           image_url: f.image_url,
         } as FoodItem));
