@@ -107,6 +107,94 @@ function estimateWorkoutMinutes(exercises: { sets: number; rest_seconds: number 
   return Math.round(totalSeconds / 60);
 }
 
+// ── Sortable Workout Card ──
+interface SortableWorkoutCardProps {
+  pw: ProgramWorkout;
+  pwIdx: number;
+  phaseIdx: number;
+  meta: WorkoutMeta | undefined;
+  openWorkoutBuilder: (phaseIdx: number, workout?: ProgramWorkout) => void;
+  removeWorkoutFromPhase: (phaseIdx: number, workoutIdx: number) => void;
+}
+
+const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, meta, openWorkoutBuilder, removeWorkoutFromPhase }: SortableWorkoutCardProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pw.id || pw.workoutId + pwIdx });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-start gap-3 p-3 border rounded-lg bg-background group hover:ring-1 hover:ring-primary/20 transition-all">
+      <div {...attributes} {...listeners} className="touch-none">
+        <GripVertical className="h-4 w-4 text-muted-foreground/40 flex-shrink-0 cursor-grab active:cursor-grabbing mt-1" />
+      </div>
+
+      {/* Thumbnail */}
+      <div className="w-20 h-14 rounded-md overflow-hidden bg-muted flex-shrink-0">
+        {meta?.thumbnailUrl ? (
+          <div className="relative w-full h-full group/thumb">
+            <img src={meta.thumbnailUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+              <Play className="h-5 w-5 text-white" />
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Dumbbell className="h-5 w-5 text-muted-foreground/30" />
+          </div>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <Badge variant="secondary" className="text-[10px] px-1.5">
+            {DAY_LABELS[Math.min(pwIdx, 6)]}
+          </Badge>
+        </div>
+        <button
+          className="text-sm font-semibold truncate text-left hover:text-primary transition-colors block w-full"
+          onClick={() => openWorkoutBuilder(phaseIdx, pw)}
+        >
+          {pw.workoutName}
+        </button>
+        <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+          {meta && meta.exerciseCount > 0 && (
+            <>
+              <span className="flex items-center gap-1">
+                <Dumbbell className="h-3 w-3" />
+                {meta.exerciseCount} exercise{meta.exerciseCount !== 1 ? "s" : ""}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Est. {meta.estimatedMinutes} min
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};
+
 interface ProgramDetailViewProps {
   programId: string;
   programName: string;
