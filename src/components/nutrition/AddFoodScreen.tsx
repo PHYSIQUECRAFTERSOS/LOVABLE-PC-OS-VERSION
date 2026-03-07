@@ -703,8 +703,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   key={item.id}
                   item={item}
                   expanded={expandedId === item.id}
-                  onToggle={() => toggleExpand(item.id)}
-                  onAdd={() => logFood(item)}
+                  onToggle={() => openFoodDetail(item)}
+                  onAdd={() => openFoodDetail(item)}
                   servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
                   onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
                   servingUnit={servingUnits[item.id] || "g"}
