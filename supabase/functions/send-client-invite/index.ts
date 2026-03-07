@@ -110,6 +110,8 @@ serve(async (req) => {
         invite_status: "pending",
         expires_at: expiresAt,
         tags: tags || [],
+        tier_id: tier_id || null,
+        tier_name: tier_name || null,
       })
       .select()
       .single();
