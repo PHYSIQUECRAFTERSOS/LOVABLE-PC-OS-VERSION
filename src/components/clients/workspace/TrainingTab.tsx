@@ -32,6 +32,7 @@ interface Week {
 
 interface ProgramWorkout {
   id: string; workout_id: string; workout_name: string; day_of_week: number; day_label: string; exercises?: any[];
+  sort_order?: number | null; exclude_from_numbering?: boolean; custom_tag?: string | null;
 }
 
 const DAY_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
