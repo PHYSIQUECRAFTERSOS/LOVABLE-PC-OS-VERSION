@@ -14,6 +14,8 @@ import ScheduleEventForm from "@/components/calendar/ScheduleEventForm";
 import ComplianceStreak from "@/components/calendar/ComplianceStreak";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
+import { withDisplayPositions } from "@/utils/displayPosition";
+import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 
 const Calendar = () => {
   const { user, role } = useAuth();
