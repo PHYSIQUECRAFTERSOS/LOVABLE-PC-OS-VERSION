@@ -110,6 +110,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
+  const [exerciseModifications, setExerciseModifications] = useState<ExerciseModification[]>([]);
+  const [switchingExIdx, setSwitchingExIdx] = useState<number | null>(null);
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
