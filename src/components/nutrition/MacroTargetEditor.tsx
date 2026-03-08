@@ -81,7 +81,7 @@ const MacroTargetEditor = () => {
   const handleSave = async () => {
     if (!user || !selectedClient) return;
     setLoading(true);
-    const { error } = await supabase.from("nutrition_targets").insert({
+    const { error } = await supabase.from("nutrition_targets").upsert({
       client_id: selectedClient,
       coach_id: user.id,
       calories: parseInt(calories) || 2000,
@@ -89,7 +89,7 @@ const MacroTargetEditor = () => {
       carbs: parseInt(carbs) || 200,
       fat: parseInt(fat) || 70,
       is_refeed: isRefeed,
-    });
+    }, { onConflict: "client_id,effective_date" });
     setLoading(false);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

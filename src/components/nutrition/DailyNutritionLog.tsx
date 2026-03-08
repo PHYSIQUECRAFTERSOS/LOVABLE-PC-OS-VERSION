@@ -112,6 +112,7 @@ const DailyNutritionLog = () => {
       .eq("client_id", user.id)
       .lte("effective_date", dateStr)
       .order("effective_date", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(1);
     if (data && data.length > 0) {
       setTargets({

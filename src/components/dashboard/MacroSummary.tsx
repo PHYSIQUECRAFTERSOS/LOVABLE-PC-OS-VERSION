@@ -27,7 +27,7 @@ const MacroSummary = () => {
 
       const [logsRes, tgtRes] = await Promise.all([
         supabase.from("nutrition_logs").select("calories, protein, carbs, fat").eq("client_id", user.id).eq("logged_at", today).abortSignal(signal),
-        supabase.from("nutrition_targets").select("calories, protein, carbs, fat").eq("client_id", user.id).lte("effective_date", today).order("effective_date", { ascending: false }).limit(1).abortSignal(signal),
+        supabase.from("nutrition_targets").select("calories, protein, carbs, fat").eq("client_id", user.id).lte("effective_date", today).order("effective_date", { ascending: false }).order("created_at", { ascending: false }).limit(1).abortSignal(signal),
       ]);
 
       const logs = logsRes.data || [];
