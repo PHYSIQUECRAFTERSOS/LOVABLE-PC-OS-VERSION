@@ -103,7 +103,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           .eq("food_id", food.id)
           .maybeSingle();
         if (cancelled || !data) return;
-        const mem = data as { serving_size: number; serving_unit: string };
+        const mem = data as unknown as { serving_size: number; serving_unit: string };
         if (mem.serving_unit === "g" || mem.serving_unit === "grams") {
           setUseGrams(true);
           setCustomGrams(mem.serving_size);
