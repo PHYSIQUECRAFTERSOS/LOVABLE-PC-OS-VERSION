@@ -303,6 +303,11 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
                   <div className="space-y-1.5">
                     <Label className="text-xs">Workout Name</Label>
                     <Input value={workoutName} onChange={(e) => setWorkoutName(e.target.value)} placeholder="e.g. DAY 1: Chest Back Arms" className="h-9 font-semibold" autoFocus />
+                    {scheduledCount > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        This workout is scheduled on {scheduledCount} upcoming calendar date{scheduledCount !== 1 ? "s" : ""}. Calendar labels will update automatically.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Workout Instructions</Label>
