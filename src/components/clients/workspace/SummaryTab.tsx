@@ -385,6 +385,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       const protTarget = targetsRes.data?.protein || 0;
       const carbTarget = targetsRes.data?.carbs || 0;
       const fatTarget = targetsRes.data?.fat || 0;
+      const dbStepGoal = (targetsRes.data as any)?.daily_step_goal;
+      if (dbStepGoal && dbStepGoal > 0) setStepGoal(dbStepGoal);
       if (targetsRes.data) {
         setTargets({ calories: calTarget, protein: protTarget, carbs: carbTarget, fat: fatTarget });
       }
