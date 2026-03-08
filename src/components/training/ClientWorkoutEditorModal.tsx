@@ -69,6 +69,19 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [scheduledCount, setScheduledCount] = useState(0);
+
+  // Check future scheduled calendar events for this workout
+  useEffect(() => {
+    if (!workoutId || !open) { setScheduledCount(0); return; }
+    supabase
+      .from("calendar_events")
+      .select("id", { count: "exact", head: true })
+      .eq("linked_workout_id", workoutId)
+      .eq("event_type", "workout")
+      .gte("event_date", new Date().toISOString().slice(0, 10))
+      .then(({ count }) => setScheduledCount(count ?? 0));
+  }, [workoutId, open]);
   const [hasChanges, setHasChanges] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const initialStateRef = useRef<string>("");
