@@ -93,6 +93,7 @@ interface WorkoutLoggerProps {
   exercises: ExerciseLogForm[];
   onComplete?: () => void;
   resumeSessionId?: string | null;
+  calendarEventId?: string | null;
 }
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
