@@ -455,6 +455,21 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${entry.food.name} logged` });
+      // Upsert serving memory silently
+      if (foodItemId) {
+        const servingUnit = entry.servingDescription;
+        const servingSize = entry.quantity;
+        supabase.from("user_food_serving_memory" as any).upsert({
+          user_id: user.id,
+          food_id: foodItemId,
+          serving_size: servingSize,
+          serving_unit: servingUnit,
+          last_logged_at: new Date().toISOString(),
+          log_count: 1,
+        } as any, { onConflict: "user_id,food_id" }).then(({ error: memErr }) => {
+          if (memErr) console.warn("[ServingMemory] upsert failed:", memErr);
+        });
+      }
       setDetailFood(null);
       try {
         const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
