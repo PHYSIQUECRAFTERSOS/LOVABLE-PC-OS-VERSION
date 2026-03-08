@@ -111,6 +111,13 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
     const carbsG = goalType === "full_macros" ? grams.carbs : 0;
     const fatG = goalType === "full_macros" ? grams.fat : 0;
 
+    // Validate step goal
+    if (dailyStepGoal < 1000 || dailyStepGoal > 100000) {
+      setStepGoalError("Must be between 1,000 and 100,000");
+      setSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from("nutrition_targets").insert({
       client_id: clientId,
       coach_id: user.id,
@@ -118,7 +125,8 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       protein: proteinG,
       carbs: carbsG,
       fat: fatG,
-    });
+      daily_step_goal: dailyStepGoal,
+    } as any);
 
     setSaving(false);
     if (error) {
