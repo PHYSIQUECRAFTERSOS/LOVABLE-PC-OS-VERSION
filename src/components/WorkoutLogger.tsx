@@ -407,7 +407,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           session_id: sessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
-          weight: log.weight || null,
+          weight: log.weight ?? null,
           reps: log.reps || null,
           tempo: log.tempo || null,
           rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
