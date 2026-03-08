@@ -312,7 +312,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(newEx);
 
     if (ex.restSeconds > 0) {
-      setRestTimer({ seconds: ex.restSeconds });
+      setRestTimer({ seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
 
