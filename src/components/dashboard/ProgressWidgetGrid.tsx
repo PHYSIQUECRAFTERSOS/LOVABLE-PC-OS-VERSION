@@ -114,7 +114,6 @@ const ProgressWidgetGrid = () => {
       if (data?.steps) setManualSteps(data.steps);
     };
 
-    fetchWeight();
     fetchPhotos();
     fetchCalories();
     fetchManualSteps();
