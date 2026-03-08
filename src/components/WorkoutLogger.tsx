@@ -664,7 +664,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         exerciseCount={exercises.filter(e => e.logs.some(l => l.completed)).length}
         prs={prAlerts}
         isFirstSession={isFirstSession}
-        onDone={() => onComplete?.()}
+        onDone={() => {
+          // Clear session storage and navigate to dashboard
+          clearRetryQueue();
+          onComplete?.();
+          navigate("/");
+        }}
       />
     );
   }
