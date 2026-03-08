@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -59,17 +59,16 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   const [manualProtein, setManualProtein] = useState("");
   const [manualCarbs, setManualCarbs] = useState("");
   const [manualFat, setManualFat] = useState("");
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const scannerContainerId = "barcode-reader";
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasDetectedRef = useRef(false);
 
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try {
-        const state = scannerRef.current.getState();
-        if (state === 2) await scannerRef.current.stop();
-      } catch { /* ignore */ }
-      scannerRef.current = null;
+  const stopScanner = useCallback(() => {
+    if (readerRef.current) {
+      try { readerRef.current.reset(); } catch { /* ignore */ }
+      readerRef.current = null;
     }
+    hasDetectedRef.current = false;
     setScanning(false);
   }, []);
 
@@ -109,18 +108,35 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
     setScanning(true);
     setProduct(null);
     setNotFound(false);
-    await new Promise((r) => setTimeout(r, 300));
+    hasDetectedRef.current = false;
+
     try {
-      const scanner = new Html5Qrcode(scannerContainerId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 15, qrbox: { width: 300, height: 150 }, aspectRatio: 1.7778 },
-        async (decodedText) => {
-          await stopScanner();
-          handleBarcodeLookup(decodedText);
-        },
-        () => {}
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
+
+      const devices = await reader.listVideoInputDevices();
+      const rearCamera = devices.find(d =>
+        d.label.toLowerCase().includes('back') ||
+        d.label.toLowerCase().includes('rear') ||
+        d.label.toLowerCase().includes('environment')
+      ) || devices[devices.length - 1];
+
+      await reader.decodeFromVideoDevice(
+        rearCamera?.deviceId || null,
+        videoRef.current!,
+        (result, err) => {
+          if (result && !hasDetectedRef.current) {
+            hasDetectedRef.current = true;
+            if (navigator.vibrate) navigator.vibrate(100);
+            reader.reset();
+            readerRef.current = null;
+            setScanning(false);
+            handleBarcodeLookup(result.getText());
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn('[BARCODE] Scanner error:', err);
+          }
+        }
       );
     } catch {
       setScanning(false);
@@ -319,7 +335,23 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
             <>
               {scanning ? (
                 <div className="space-y-3">
-                  <div id={scannerContainerId} className="w-full rounded-lg overflow-hidden bg-black" />
+                  <div className="relative w-full rounded-lg overflow-hidden bg-black">
+                    <video
+                      ref={videoRef}
+                      className="w-full max-h-[50vh] object-cover"
+                      playsInline
+                      muted
+                      autoPlay
+                    />
+                    {/* Targeting overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-[260px] h-[140px] border-2 border-primary rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+                    </div>
+                    {/* Animated scan line */}
+                    <div className="absolute left-1/2 -translate-x-1/2 w-[260px] h-0.5 bg-primary animate-[scanLine_1.5s_ease-in-out_infinite_alternate]" style={{ top: 'calc(50% - 60px)' }} />
+                    <style>{`@keyframes scanLine { from { top: calc(50% - 60px); } to { top: calc(50% + 60px); } }`}</style>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">Point camera at barcode — it scans instantly</p>
                   <Button variant="outline" onClick={stopScanner} className="w-full gap-2">
                     <X className="h-4 w-4" /> Stop Scanner
                   </Button>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { supabase } from "@/integrations/supabase/client";
 import imageCompression from "browser-image-compression";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,47 +55,58 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const [confidence, setConfidence] = useState<"high" | "medium" | "low" | null>(null);
   const [wasAiExtracted, setWasAiExtracted] = useState(false);
 
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasDetectedRef = useRef(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const containerId = "supp-scan-reader";
 
-  const stopScanner = useCallback(async () => {
+  const stopScanner = useCallback(() => {
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
     }
-    if (scannerRef.current) {
-      try {
-        const s = scannerRef.current.getState();
-        if (s === 2) await scannerRef.current.stop();
-      } catch {}
-      scannerRef.current = null;
+    if (readerRef.current) {
+      try { readerRef.current.reset(); } catch {}
+      readerRef.current = null;
     }
+    hasDetectedRef.current = false;
     setScanning(false);
   }, []);
 
   const startScanner = async () => {
     setScanning(true);
     setShowPhotoFallback(false);
-    await new Promise((r) => setTimeout(r, 300));
+    hasDetectedRef.current = false;
 
-    // Show photo fallback after 5 seconds
     fallbackTimerRef.current = setTimeout(() => {
       setShowPhotoFallback(true);
     }, 5000);
 
     try {
-      const scanner = new Html5Qrcode(containerId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 120 }, aspectRatio: 1.5 },
-        async (code) => {
-          await stopScanner();
-          lookupBarcode(code);
-        },
-        () => {}
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
+      const devices = await reader.listVideoInputDevices();
+      const rearCamera = devices.find(d =>
+        d.label.toLowerCase().includes('back') ||
+        d.label.toLowerCase().includes('rear') ||
+        d.label.toLowerCase().includes('environment')
+      ) || devices[devices.length - 1];
+
+      await reader.decodeFromVideoDevice(
+        rearCamera?.deviceId || null,
+        videoRef.current!,
+        (result, err) => {
+          if (result && !hasDetectedRef.current) {
+            hasDetectedRef.current = true;
+            if (navigator.vibrate) navigator.vibrate(100);
+            stopScanner();
+            lookupBarcode(result.getText());
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn('[SuppScan] Scanner error:', err);
+          }
+        }
       );
     } catch {
       setScanning(false);
@@ -278,7 +289,12 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
           <div className="space-y-4">
             {scanning ? (
               <div className="space-y-3">
-                <div id={containerId} className="w-full rounded-lg overflow-hidden bg-background" />
+                <div className="relative w-full rounded-lg overflow-hidden bg-background">
+                  <video ref={videoRef} className="w-full max-h-[50vh] object-cover" playsInline muted autoPlay />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[250px] h-[120px] border-2 border-primary rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+                  </div>
+                </div>
                 <Button variant="outline" onClick={stopScanner} className="w-full gap-2">
                   <X className="h-4 w-4" /> Stop Scanner
                 </Button>
