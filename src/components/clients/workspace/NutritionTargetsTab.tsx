@@ -156,6 +156,16 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                   );
                 })}
               </div>
+
+              {/* Step Goal */}
+              {targets.daily_step_goal && targets.daily_step_goal > 0 && (
+                <div className="pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">Daily Step Goal</span>
+                    <span className="text-sm font-semibold text-foreground">{targets.daily_step_goal.toLocaleString()} steps/day</span>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
