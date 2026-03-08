@@ -279,6 +279,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [stepsProvider, setStepsProvider] = useState<string | null>(null);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [clientNameForSteps, setClientNameForSteps] = useState("");
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
