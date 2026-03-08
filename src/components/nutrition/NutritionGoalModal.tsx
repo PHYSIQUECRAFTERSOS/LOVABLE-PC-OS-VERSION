@@ -28,6 +28,8 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
   const [saving, setSaving] = useState(false);
   const [goalType, setGoalType] = useState<GoalType>("full_macros");
   const [calories, setCalories] = useState(initialTargets?.calories || 2150);
+  const [dailyStepGoal, setDailyStepGoal] = useState(initialTargets?.daily_step_goal ?? 10000);
+  const [stepGoalError, setStepGoalError] = useState("");
 
   // Store percentages as the source of truth for sliders
   const initPcts = useMemo(() => {
