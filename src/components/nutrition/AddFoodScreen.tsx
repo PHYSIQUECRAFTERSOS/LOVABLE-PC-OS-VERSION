@@ -574,8 +574,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     ...offResults.filter(o => !results.some(r => r.name.toLowerCase() === o.name.toLowerCase())),
   ];
   const displayItems = search.length >= 2 ? allDisplayItems : [];
-  const showHistory = search.length < 2 && activeTab !== "my-meals";
+  const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
+  const showRecipes = activeTab === "my-recipes";
+  const showMyFoods = activeTab === "my-foods";
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
