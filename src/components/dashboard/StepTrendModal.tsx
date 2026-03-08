@@ -32,7 +32,7 @@ interface StepDay {
   steps: number | null;
 }
 
-const StepTrendModal = ({ open, onClose, clientId, clientName }: StepTrendModalProps) => {
+const StepTrendModal = ({ open, onClose, clientId, clientName, externalStepGoal }: StepTrendModalProps) => {
   const [rangeIdx, setRangeIdx] = useState(1); // default 30D
   const [data, setData] = useState<StepDay[]>([]);
   const [loading, setLoading] = useState(true);
