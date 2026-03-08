@@ -14,6 +14,7 @@ interface Targets {
   protein: number;
   carbs: number;
   fat: number;
+  daily_step_goal?: number;
 }
 
 const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
