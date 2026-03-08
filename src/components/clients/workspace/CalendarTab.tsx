@@ -22,6 +22,8 @@ import {
   eachDayOfInterval, isSameDay, isSameMonth, isToday, addMonths, subMonths,
   addDays, addWeeks
 } from "date-fns";
+import { withDisplayPositions } from "@/utils/displayPosition";
+import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
