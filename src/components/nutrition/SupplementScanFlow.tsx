@@ -289,7 +289,12 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
           <div className="space-y-4">
             {scanning ? (
               <div className="space-y-3">
-                <div id={containerId} className="w-full rounded-lg overflow-hidden bg-background" />
+                <div className="relative w-full rounded-lg overflow-hidden bg-background">
+                  <video ref={videoRef} className="w-full max-h-[50vh] object-cover" playsInline muted autoPlay />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[250px] h-[120px] border-2 border-primary rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+                  </div>
+                </div>
                 <Button variant="outline" onClick={stopScanner} className="w-full gap-2">
                   <X className="h-4 w-4" /> Stop Scanner
                 </Button>
