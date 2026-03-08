@@ -23,6 +23,7 @@ import {
   Camera,
   Scale,
   Flame,
+  Footprints,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -30,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import StepTrendModal from "@/components/dashboard/StepTrendModal";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 
