@@ -118,6 +118,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [scheduledCount, setScheduledCount] = useState(0);
 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
@@ -128,6 +129,18 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const [libraryExercises, setLibraryExercises] = useState<Exercise[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Check if this workout has future scheduled calendar events
+  useEffect(() => {
+    if (!editWorkoutId || !open) { setScheduledCount(0); return; }
+    supabase
+      .from("calendar_events")
+      .select("id", { count: "exact", head: true })
+      .eq("linked_workout_id", editWorkoutId)
+      .eq("event_type", "workout")
+      .gte("event_date", new Date().toISOString().slice(0, 10))
+      .then(({ count }) => setScheduledCount(count ?? 0));
+  }, [editWorkoutId, open]);
   const [filterMuscle, setFilterMuscle] = useState("all");
   const [filterEquipment, setFilterEquipment] = useState("all");
 
@@ -490,6 +503,11 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                 <div className="space-y-1.5">
                   <Label className="text-xs">Workout Name</Label>
                   <Input value={workoutName} onChange={(e) => setWorkoutName(e.target.value)} placeholder="e.g. Upper Body Push A" className="h-9" autoFocus />
+                  {scheduledCount > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      This workout is scheduled on {scheduledCount} upcoming calendar date{scheduledCount !== 1 ? "s" : ""}. Calendar labels will update automatically.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Instructions (optional)</Label>
