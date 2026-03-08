@@ -125,6 +125,7 @@ function clearRetryQueue() {
 const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState(initialExercises);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
