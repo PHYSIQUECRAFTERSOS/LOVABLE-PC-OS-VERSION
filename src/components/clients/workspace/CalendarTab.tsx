@@ -196,8 +196,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   useEffect(() => { loadMonth(); }, [loadMonth]);
 
-  const normalizeWorkoutName = (name: string) =>
-    name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
+  function normalizeWorkoutName(name: string) {
+    return name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
+  }
 
   const loadClientWorkouts = async () => {
     const { data: assignment } = await supabase
