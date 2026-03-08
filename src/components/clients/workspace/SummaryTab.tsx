@@ -270,6 +270,13 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [compliance7d, setCompliance7d] = useState<ComplianceDay[]>([]);
   const [macroAvg, setMacroAvg] = useState<MacroAverages | null>(null);
 
+  // Steps data for the new Steps tile
+  const [todaySteps, setTodaySteps] = useState<number | null>(null);
+  const [stepGoal, setStepGoal] = useState(10000);
+  const [stepsLastSynced, setStepsLastSynced] = useState<string | null>(null);
+  const [stepTrendOpen, setStepTrendOpen] = useState(false);
+  const [clientNameForSteps, setClientNameForSteps] = useState("");
+
   const today = format(new Date(), "yyyy-MM-dd");
 
   /* ─── Load summary cards ─── */
