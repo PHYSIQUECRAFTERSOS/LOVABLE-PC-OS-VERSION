@@ -14,6 +14,7 @@ interface StepTrendModalProps {
   onClose: () => void;
   clientId?: string;
   clientName?: string;
+  externalStepGoal?: number;
 }
 
 const RANGES = [
