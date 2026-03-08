@@ -112,6 +112,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
   const [exerciseModifications, setExerciseModifications] = useState<ExerciseModification[]>([]);
   const [switchingExIdx, setSwitchingExIdx] = useState<number | null>(null);
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
@@ -393,7 +395,19 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     toast({ title: `Switched to ${exercise.name}` });
   };
 
-  const finishWorkout = async () => {
+  const hasIncompleteSets = () => {
+    return exercises.some(ex => ex.logs.some(log => !log.completed));
+  };
+
+  const handleFinishTap = () => {
+    if (hasIncompleteSets()) {
+      setShowFinishModal(true);
+    } else {
+      finishWorkout(false);
+    }
+  };
+
+  const finishWorkout = async (hadUnlogged: boolean = false) => {
     if (!user || !sessionId) return;
     setLoading(true);
     try {
@@ -430,6 +444,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           sets_completed: completedSets,
           pr_count: prAlerts.length,
           status: "completed",
+          had_unlogged_sets: hadUnlogged,
           exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
         } as any)
         .eq("id", sessionId);
@@ -464,6 +479,23 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     onComplete?.();
   };
 
+  const discardWorkout = async () => {
+    if (sessionId) {
+      // Delete all exercise logs for this session
+      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
+      // Delete the session itself
+      await supabase.from("workout_sessions").delete().eq("id", sessionId);
+    }
+    setShowFinishModal(false);
+    setShowDiscardConfirm(false);
+    onComplete?.();
+  };
+
+  const finishAnyway = async () => {
+    setShowFinishModal(false);
+    await finishWorkout(true);
+  };
+
   if (showSummary) {
     return (
       <WorkoutSummary
@@ -496,8 +528,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <span className="text-lg font-bold tabular-nums text-foreground">{elapsed}</span>
           <Button
             size="sm"
-            onClick={finishWorkout}
-            disabled={loading || completedSets === 0}
+            onClick={handleFinishTap}
+            disabled={loading}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-5"
           >
             {loading && <Loader2 className="animate-spin mr-1 h-3.5 w-3.5" />}
@@ -580,8 +612,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
         <Button
-          onClick={finishWorkout}
-          disabled={loading || completedSets === 0}
+          onClick={handleFinishTap}
+          disabled={loading}
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           size="lg"
         >
@@ -628,6 +660,66 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             onSelectExercise={switchingExIdx !== null ? handleSwitchExercise : handleAddExercise}
             selectionMode
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Finish Workout Modal — 3-option Strong-style */}
+      <Dialog open={showFinishModal} onOpenChange={(open) => { setShowFinishModal(open); if (!open) setShowDiscardConfirm(false); }}>
+        <DialogContent className="max-w-sm border-primary/30">
+          <div className="flex flex-col items-center text-center space-y-4 py-2">
+            <span className="text-4xl">🎉</span>
+            <div>
+              <h3 className="text-lg font-bold text-foreground">Finish Workout?</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                There are sets in this workout that have not been logged yet.
+              </p>
+            </div>
+
+            <div className="w-full space-y-3 pt-2">
+              <Button
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+                size="lg"
+                onClick={finishAnyway}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+                Finish Anyway
+              </Button>
+
+              <div className="w-full">
+                <Button
+                  variant="outline"
+                  className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 font-semibold"
+                  size="lg"
+                  onClick={() => setShowDiscardConfirm(true)}
+                >
+                  Discard Workout
+                </Button>
+                {showDiscardConfirm && (
+                  <div className="mt-2 text-center">
+                    <p className="text-xs text-muted-foreground mb-2">Are you sure? This will delete all logged sets.</p>
+                    <div className="flex justify-center gap-3">
+                      <button className="text-xs font-semibold text-destructive" onClick={discardWorkout}>
+                        Yes, Discard
+                      </button>
+                      <button className="text-xs text-muted-foreground" onClick={() => setShowDiscardConfirm(false)}>
+                        Go Back
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                variant="secondary"
+                className="w-full"
+                size="lg"
+                onClick={() => { setShowFinishModal(false); setShowDiscardConfirm(false); }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -5067,6 +5067,7 @@ export type Database = {
           created_at: string
           duration_seconds: number | null
           exercise_modifications: Json | null
+          had_unlogged_sets: boolean | null
           id: string
           last_heartbeat: string | null
           last_seen: string | null
@@ -5087,6 +5088,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           exercise_modifications?: Json | null
+          had_unlogged_sets?: boolean | null
           id?: string
           last_heartbeat?: string | null
           last_seen?: string | null
@@ -5107,6 +5109,7 @@ export type Database = {
           created_at?: string
           duration_seconds?: number | null
           exercise_modifications?: Json | null
+          had_unlogged_sets?: boolean | null
           id?: string
           last_heartbeat?: string | null
           last_seen?: string | null

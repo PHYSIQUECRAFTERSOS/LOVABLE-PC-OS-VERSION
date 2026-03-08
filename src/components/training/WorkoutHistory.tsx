@@ -20,6 +20,7 @@ interface SessionRow {
   workoutPhase: string | null;
   exerciseLogs: ExerciseLogRow[];
   exerciseModifications: any[];
+  hadUnloggedSets: boolean;
 }
 
 interface ExerciseLogRow {
@@ -74,7 +75,7 @@ const WorkoutHistory = () => {
       // Load completed sessions
       const { data: sessionsData } = await supabase
         .from("workout_sessions")
-        .select("id, workout_id, completed_at, created_at, notes, exercise_modifications")
+        .select("id, workout_id, completed_at, created_at, notes, exercise_modifications, had_unlogged_sets")
         .eq("client_id", user.id)
         .not("completed_at", "is", null)
         .order("completed_at", { ascending: false })
@@ -128,6 +129,7 @@ const WorkoutHistory = () => {
           workoutPhase: workout?.phase || null,
           exerciseLogs: sessionLogs,
           exerciseModifications: Array.isArray((s as any).exercise_modifications) ? (s as any).exercise_modifications : [],
+          hadUnloggedSets: !!(s as any).had_unlogged_sets,
         };
       });
 
@@ -375,6 +377,11 @@ const WorkoutHistory = () => {
                             ⚠ {session.exerciseModifications.length} modification{session.exerciseModifications.length !== 1 ? "s" : ""}
                           </Badge>
                         )}
+                        {session.hadUnloggedSets && (
+                          <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                            ⚡ Finished early
+                          </Badge>
+                        )}
                         {session.workoutPhase && (
                           <Badge variant="secondary" className="text-[10px]">
                             {session.workoutPhase}
@@ -452,6 +459,14 @@ const WorkoutHistory = () => {
                     )}
                     {session.notes && (
                       <p className="text-xs text-muted-foreground italic mt-2">{session.notes}</p>
+                    )}
+                    {/* TODO: implement full session edit flow */}
+                    {session.hadUnloggedSets && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <Button variant="outline" size="sm" className="text-xs" disabled>
+                          ✏️ Edit Session (coming soon)
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
