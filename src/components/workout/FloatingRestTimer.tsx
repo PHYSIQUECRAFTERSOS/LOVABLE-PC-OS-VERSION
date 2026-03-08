@@ -8,9 +8,12 @@ interface FloatingRestTimerProps {
 }
 
 const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRestTimerProps) => {
-  const [seconds, setSeconds] = useState(initialSeconds);
-  const [pulsing, setPulsing] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(initialSeconds);
+  const [showComplete, setShowComplete] = useState(false);
+  const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const completedRef = useRef(false);
 
   const playSound = useCallback(() => {
     try {
@@ -34,45 +37,69 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
     } catch { /* Audio not available */ }
   }, []);
 
+  // Date-based countdown — resilient to backgrounding on iOS
   useEffect(() => {
-    if (seconds <= 0) {
-      setPulsing(true);
-      playSound();
-      const t = setTimeout(onComplete, 3000);
-      return () => clearTimeout(t);
-    }
-    const interval = setInterval(() => setSeconds(s => s - 1), 1000);
-    return () => clearInterval(interval);
-  }, [seconds, onComplete, playSound]);
+    endTimeRef.current = Date.now() + initialSeconds * 1000;
+    completedRef.current = false;
 
+    intervalRef.current = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
+      setTimeRemaining(remaining);
+
+      if (remaining <= 0 && !completedRef.current) {
+        completedRef.current = true;
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        playSound();
+        setShowComplete(true);
+      }
+    }, 500);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [initialSeconds, playSound]);
+
+  // Auto-dismiss after completion flash
+  useEffect(() => {
+    if (!showComplete) return;
+    const t = setTimeout(onComplete, 1500);
+    return () => clearTimeout(t);
+  }, [showComplete, onComplete]);
+
+  // Cleanup audio
   useEffect(() => {
     return () => { audioRef.current?.close(); };
   }, []);
 
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  const progress = initialSeconds > 0 ? ((initialSeconds - seconds) / initialSeconds) * 100 : 100;
+  const handleSkip = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    onComplete();
+  }, [onComplete]);
+
+  const mins = Math.floor(timeRemaining / 60);
+  const secs = timeRemaining % 60;
+  const progress = initialSeconds > 0 ? ((initialSeconds - timeRemaining) / initialSeconds) * 100 : 100;
 
   return (
     <div className={`fixed bottom-20 left-4 right-4 z-30 rounded-xl border p-3 backdrop-blur-md transition-all ${
-      pulsing ? "bg-primary/20 border-primary animate-pulse" : "bg-card/95 border-border"
+      showComplete ? "bg-primary/20 border-primary" : "bg-card/95 border-border"
     }`}>
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Rest Timer</span>
-            <span className="text-lg font-bold tabular-nums text-foreground">
-              {pulsing ? "GO!" : `${mins}:${secs.toString().padStart(2, "0")}`}
+            <span className={`text-lg font-bold tabular-nums ${showComplete ? "text-primary" : "text-foreground"}`}>
+              {showComplete ? "Rest complete! ✓" : `${mins}:${secs.toString().padStart(2, "0")}`}
             </span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
             <div
-              className="h-full bg-primary rounded-full transition-all duration-1000 ease-linear"
+              className="h-full bg-primary rounded-full transition-all duration-500 ease-linear"
               style={{ width: `${Math.min(progress, 100)}%` }}
             />
           </div>
         </div>
-        <Button variant="outline" size="sm" className="h-9" onClick={onComplete}>
+        <Button variant="outline" size="sm" className="h-9" onClick={handleSkip}>
           <SkipForward className="h-4 w-4" />
         </Button>
       </div>

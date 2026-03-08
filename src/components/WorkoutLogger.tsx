@@ -596,7 +596,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       {/* Floating Rest Timer */}
       {restTimer && (
         <FloatingRestTimer
-          key={restTimer.seconds + Date.now()}
+          key={restTimer.startedAt}
           seconds={restTimer.seconds}
           onComplete={() => setRestTimer(null)}
         />
