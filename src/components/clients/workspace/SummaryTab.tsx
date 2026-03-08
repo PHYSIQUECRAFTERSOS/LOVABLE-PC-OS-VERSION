@@ -618,7 +618,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             <Progress value={data.workoutCompliance} className="mt-3 h-1.5" />
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setWeightHistoryOpen(true)}>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center justify-between">
               <div>
