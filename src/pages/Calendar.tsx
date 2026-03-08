@@ -145,9 +145,11 @@ const Calendar = () => {
         let title = e.title;
         let description = e.description;
 
-        // Use linked workout name if available
-        if (e.event_type === "workout" && e.workouts?.name) {
-          title = e.workouts.name;
+        // Canonical workout label source (never use stale stored title/day_label)
+        if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
+          title = workoutLabelMap.get(e.linked_workout_id)!;
+        } else if (e.event_type === "workout" && e.workouts?.name) {
+          title = normalizeWorkoutName(e.workouts.name);
         }
 
         // Enrich cardio with full prescription
