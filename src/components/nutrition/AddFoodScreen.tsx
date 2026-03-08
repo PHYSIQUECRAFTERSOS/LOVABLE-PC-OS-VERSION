@@ -120,6 +120,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setTimeout(() => searchRef.current?.focus(), 100);
       fetchHistory();
       fetchSavedMeals();
+      fetchUserRecipes();
+      fetchCustomFoods();
     }
   }, [open]);
 
