@@ -306,7 +306,17 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
           {isCoach && eventType === "workout" && workouts.length > 0 && (
             <div className="space-y-1.5">
               <Label>Link Workout</Label>
-              <Select value={linkedWorkoutId} onValueChange={setLinkedWorkoutId}>
+              <Select value={linkedWorkoutId} onValueChange={(val) => {
+                setLinkedWorkoutId(val);
+                // Auto-fill title with correct workout label
+                const w = workouts.find(wk => wk.id === val);
+                if (w) {
+                  const label = w.excludeFromNumbering && w.customTag
+                    ? `${w.customTag}: ${w.name}`
+                    : w.dayNumber ? `Day ${w.dayNumber}: ${w.name}` : w.name;
+                  setTitle(label);
+                }
+              }}>
                 <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                 <SelectContent>
                   {workouts.map((w) => (
