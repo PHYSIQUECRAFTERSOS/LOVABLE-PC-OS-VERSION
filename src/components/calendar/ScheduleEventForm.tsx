@@ -280,13 +280,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
             </Select>
           </div>
 
-          {/* Title */}
-          <div className="space-y-1.5">
-            <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" />
-          </div>
-
-          {/* Client (coach only) */}
+          {/* Client (coach only) — before title so workouts load for selected client */}
           {isCoach && clients.length > 0 && (
             <div className="space-y-1.5">
               <Label>Assign to Client</Label>
@@ -301,6 +295,13 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
               </Select>
             </div>
           )}
+
+          {/* Title */}
+          <div className="space-y-1.5">
+            <Label>Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" />
+          </div>
+
 
           {/* Linked Workout */}
           {isCoach && eventType === "workout" && workouts.length > 0 && (
