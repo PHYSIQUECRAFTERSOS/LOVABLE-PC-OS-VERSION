@@ -437,6 +437,19 @@ const WorkoutHistory = () => {
                         </div>
                       </div>
                     ))}
+                    {/* Modification details */}
+                    {session.exerciseModifications.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border space-y-1.5">
+                        <p className="text-xs font-medium text-yellow-500">⚠ Exercise Modifications</p>
+                        {session.exerciseModifications.map((mod: any, i: number) => (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            {mod.type === "switch"
+                              ? `🔄 Switched "${mod.original_exercise_name}" → "${mod.replacement_exercise_name}"`
+                              : `🗑️ Removed "${mod.exercise_name}"`}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {session.notes && (
                       <p className="text-xs text-muted-foreground italic mt-2">{session.notes}</p>
                     )}
