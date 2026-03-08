@@ -767,6 +767,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             weight: personalRecords.find(pr => pr.exercise_id === exercise.id)!.weight,
             reps: personalRecords.find(pr => pr.exercise_id === exercise.id)!.reps,
           } : null}
+          activeTimerAfterSetIndex={restTimer?.exIdx === exIdx ? restTimer.setIdx : null}
+          timerSeconds={restTimer?.seconds ?? 0}
+          onTimerComplete={() => setRestTimer(null)}
+          onTimerSkip={() => setRestTimer(null)}
           onUpdateLog={(setIdx, field, value) => updateLog(exIdx, setIdx, field, value)}
           onCompleteSet={(setIdx) => completeSet(exIdx, setIdx)}
           onAddSet={() => addSet(exIdx)}
@@ -774,15 +778,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
         />
       ))}
-
-      {/* Floating Rest Timer */}
-      {restTimer && (
-        <FloatingRestTimer
-          key={restTimer.startedAt}
-          seconds={restTimer.seconds}
-          onComplete={() => setRestTimer(null)}
-        />
-      )}
 
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 space-y-2 safe-area-bottom">
