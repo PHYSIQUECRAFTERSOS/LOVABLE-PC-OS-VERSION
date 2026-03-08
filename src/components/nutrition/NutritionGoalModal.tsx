@@ -18,7 +18,7 @@ interface NutritionGoalModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientId: string;
-  initialTargets?: { calories: number; protein: number; carbs: number; fat: number } | null;
+  initialTargets?: { calories: number; protein: number; carbs: number; fat: number; daily_step_goal?: number } | null;
   onSaved: () => void;
 }
 
@@ -28,6 +28,8 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
   const [saving, setSaving] = useState(false);
   const [goalType, setGoalType] = useState<GoalType>("full_macros");
   const [calories, setCalories] = useState(initialTargets?.calories || 2150);
+  const [dailyStepGoal, setDailyStepGoal] = useState(initialTargets?.daily_step_goal ?? 10000);
+  const [stepGoalError, setStepGoalError] = useState("");
 
   // Store percentages as the source of truth for sliders
   const initPcts = useMemo(() => {
@@ -109,6 +111,13 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
     const carbsG = goalType === "full_macros" ? grams.carbs : 0;
     const fatG = goalType === "full_macros" ? grams.fat : 0;
 
+    // Validate step goal
+    if (dailyStepGoal < 1000 || dailyStepGoal > 100000) {
+      setStepGoalError("Must be between 1,000 and 100,000");
+      setSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from("nutrition_targets").insert({
       client_id: clientId,
       coach_id: user.id,
@@ -116,7 +125,8 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       protein: proteinG,
       carbs: carbsG,
       fat: fatG,
-    });
+      daily_step_goal: dailyStepGoal,
+    } as any);
 
     setSaving(false);
     if (error) {
@@ -277,6 +287,26 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
               </div>
             </div>
           )}
+        </div>
+
+        {/* Step Goal */}
+        <div className="pt-4 border-t border-border space-y-2">
+          <Label className="text-sm font-semibold">Daily Step Goal</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              inputMode="numeric"
+              value={dailyStepGoal.toLocaleString()}
+              onChange={e => {
+                const raw = e.target.value.replace(/,/g, "");
+                const num = parseInt(raw) || 0;
+                setDailyStepGoal(num);
+                setStepGoalError(num < 1000 || num > 100000 ? "Must be between 1,000 and 100,000" : "");
+              }}
+              className="max-w-[160px]"
+            />
+            <span className="text-sm text-muted-foreground">steps/day</span>
+          </div>
+          {stepGoalError && <p className="text-xs text-destructive">{stepGoalError}</p>}
         </div>
 
         <DialogFooter>

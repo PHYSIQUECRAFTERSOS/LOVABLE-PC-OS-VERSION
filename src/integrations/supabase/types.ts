@@ -3378,6 +3378,7 @@ export type Database = {
           client_id: string
           coach_id: string
           created_at: string
+          daily_step_goal: number | null
           effective_date: string
           fat: number
           id: string
@@ -3392,6 +3393,7 @@ export type Database = {
           client_id: string
           coach_id: string
           created_at?: string
+          daily_step_goal?: number | null
           effective_date?: string
           fat?: number
           id?: string
@@ -3406,6 +3408,7 @@ export type Database = {
           client_id?: string
           coach_id?: string
           created_at?: string
+          daily_step_goal?: number | null
           effective_date?: string
           fat?: number
           id?: string

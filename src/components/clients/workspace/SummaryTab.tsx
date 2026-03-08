@@ -274,6 +274,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [todaySteps, setTodaySteps] = useState<number | null>(null);
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepsLastSynced, setStepsLastSynced] = useState<string | null>(null);
+  const [stepsProvider, setStepsProvider] = useState<string | null>(null);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [clientNameForSteps, setClientNameForSteps] = useState("");
 
@@ -348,7 +349,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", today),
           supabase.from("progress_photos").select("id, storage_path, created_at")
             .eq("client_id", clientId).order("created_at", { ascending: false }).limit(3),
-          supabase.from("nutrition_targets").select("calories, protein, carbs, fat")
+          supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
             .eq("client_id", clientId).order("effective_date", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
             .eq("client_id", clientId).eq("logged_at", today),
@@ -385,6 +386,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       const protTarget = targetsRes.data?.protein || 0;
       const carbTarget = targetsRes.data?.carbs || 0;
       const fatTarget = targetsRes.data?.fat || 0;
+      const dbStepGoal = (targetsRes.data as any)?.daily_step_goal;
+      if (dbStepGoal && dbStepGoal > 0) setStepGoal(dbStepGoal);
       if (targetsRes.data) {
         setTargets({ calories: calTarget, protein: protTarget, carbs: carbTarget, fat: fatTarget });
       }
@@ -480,6 +483,22 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         if (metrics.step_goal) setStepGoal(metrics.step_goal);
         setStepsLastSynced(metrics.synced_at ?? null);
       }
+      // Fetch wearable connection info for provider name + last synced
+      const { data: wearConn } = await supabase
+        .from("wearable_connections")
+        .select("provider, last_synced_at, sync_status")
+        .eq("client_id", clientId)
+        .eq("sync_status", "connected")
+        .order("last_synced_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (wearConn) {
+        const providerLabels: Record<string, string> = {
+          fitbit: "Fitbit", google_fit: "Google Fit", apple_health: "Apple Health", whoop: "Whoop"
+        };
+        setStepsProvider(providerLabels[wearConn.provider] || wearConn.provider);
+        if (wearConn.last_synced_at) setStepsLastSynced(wearConn.last_synced_at);
+      }
       // Get client name for modal header
       const { data: profile } = await supabase
         .from("profiles")
@@ -490,6 +509,16 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     };
     loadSteps();
   }, [clientId]);
+
+  const formatRelativeTime = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return format(new Date(dateStr), "MMM d, h:mm a");
+  };
 
   /* ─── Food log per date ─── */
   useEffect(() => {
@@ -707,7 +736,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             )}
             <p className="text-[10px] text-muted-foreground mt-1.5">
               {stepsLastSynced
-                ? `Last synced: ${format(new Date(stepsLastSynced), "h:mm a")}`
+                ? `Last synced: ${formatRelativeTime(stepsLastSynced)}${stepsProvider ? ` · via ${stepsProvider}` : ""}`
                 : todaySteps !== null ? "Manually logged" : "Not connected"}
             </p>
           </CardContent>
@@ -909,6 +938,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         onClose={() => setStepTrendOpen(false)}
         clientId={clientId}
         clientName={clientNameForSteps}
+        externalStepGoal={stepGoal}
       />
     </div>
   );

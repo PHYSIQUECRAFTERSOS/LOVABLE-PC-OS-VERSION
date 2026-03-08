@@ -14,6 +14,7 @@ interface Targets {
   protein: number;
   carbs: number;
   fat: number;
+  daily_step_goal?: number;
 }
 
 const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
@@ -29,7 +30,7 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
     setLoading(true);
     const today = format(new Date(), "yyyy-MM-dd");
     const [targetsRes, logsRes] = await Promise.all([
-      supabase.from("nutrition_targets").select("calories, protein, carbs, fat")
+      supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
         .eq("client_id", clientId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
         .eq("client_id", clientId).gte("logged_at", `${today}T00:00:00`).lte("logged_at", `${today}T23:59:59`),
@@ -155,6 +156,16 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                   );
                 })}
               </div>
+
+              {/* Step Goal */}
+              {targets.daily_step_goal && targets.daily_step_goal > 0 && (
+                <div className="pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">Daily Step Goal</span>
+                    <span className="text-sm font-semibold text-foreground">{targets.daily_step_goal.toLocaleString()} steps/day</span>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
