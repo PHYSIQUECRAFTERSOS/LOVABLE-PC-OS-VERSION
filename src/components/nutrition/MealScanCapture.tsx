@@ -126,6 +126,11 @@ const MealScanCapture = ({ open, onClose, mealType, onLogged }: MealScanCaptureP
     }
   };
 
+  const safeRound = (v: unknown): number => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n) : 0;
+  };
+
   const logAllItems = async () => {
     if (!user || !result?.items.length) return;
     setLogging(true);
@@ -135,25 +140,30 @@ const MealScanCapture = ({ open, onClose, mealType, onLogged }: MealScanCaptureP
       const localDate = getLocalDateString();
       const inserts = result.items.map((item) => ({
         client_id: user.id,
-        custom_name: `${item.name} (${item.portion})`,
-        meal_type: selectedMealType,
+        custom_name: `${item.name} (${item.portion})`.slice(0, 200),
+        meal_type: selectedMealType || "snack",
         servings: 1,
-        calories: Math.round(item.calories),
-        protein: Math.round(item.protein),
-        carbs: Math.round(item.carbs),
-        fat: Math.round(item.fat),
+        calories: safeRound(item.calories),
+        protein: safeRound(item.protein),
+        carbs: safeRound(item.carbs),
+        fat: safeRound(item.fat),
         logged_at: localDate,
         tz_corrected: true,
       }));
 
+      console.log("[MealScan] Logging items:", inserts.length, inserts);
       const { error: logError } = await supabase.from("nutrition_logs").insert(inserts);
-      if (logError) throw logError;
+      if (logError) {
+        console.error("[MealScan] Insert error:", logError);
+        throw logError;
+      }
 
       toast({ title: `${result.items.length} item(s) logged!` });
       handleReset();
       onLogged();
       onClose();
     } catch (err: any) {
+      console.error("[MealScan] Log error:", err);
       toast({ title: "Error logging food", description: err.message, variant: "destructive" });
     } finally {
       setLogging(false);
