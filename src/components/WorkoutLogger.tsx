@@ -546,6 +546,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           rir={exercise.rir}
           notes={exercise.notes}
           videoUrl={exercise.videoUrl}
+          equipment={exercise.equipment}
           logs={exercise.logs}
           previousSets={previousPerformance[exercise.id] || []}
           allTimePR={personalRecords.find(pr => pr.exercise_id === exercise.id) ? {
@@ -555,6 +556,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onUpdateLog={(setIdx, field, value) => updateLog(exIdx, setIdx, field, value)}
           onCompleteSet={(setIdx) => completeSet(exIdx, setIdx)}
           onAddSet={() => addSet(exIdx)}
+          onDeleteExercise={() => deleteExercise(exIdx)}
+          onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
         />
       ))}
 
