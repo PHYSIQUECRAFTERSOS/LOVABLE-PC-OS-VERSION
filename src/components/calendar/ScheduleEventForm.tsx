@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { withDisplayPositions } from "@/utils/displayPosition";
+import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout" },
