@@ -348,7 +348,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", today),
           supabase.from("progress_photos").select("id, storage_path, created_at")
             .eq("client_id", clientId).order("created_at", { ascending: false }).limit(3),
-          supabase.from("nutrition_targets").select("calories, protein, carbs, fat")
+          supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
             .eq("client_id", clientId).order("effective_date", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
             .eq("client_id", clientId).eq("logged_at", today),
