@@ -430,7 +430,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           sets_completed: completedSets,
           pr_count: prAlerts.length,
           status: "completed",
-        })
+          exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
+        } as any)
         .eq("id", sessionId);
       if (sessionError) throw sessionError;
 
