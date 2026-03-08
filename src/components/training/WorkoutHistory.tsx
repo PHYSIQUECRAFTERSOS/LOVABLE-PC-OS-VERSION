@@ -129,6 +129,7 @@ const WorkoutHistory = () => {
           workoutPhase: workout?.phase || null,
           exerciseLogs: sessionLogs,
           exerciseModifications: Array.isArray((s as any).exercise_modifications) ? (s as any).exercise_modifications : [],
+          hadUnloggedSets: !!(s as any).had_unlogged_sets,
         };
       });
 
