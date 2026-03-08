@@ -219,66 +219,78 @@ const ExerciseCard = ({
             : "—";
 
           return (
-            <div
-              key={setIdx}
-              className={`grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 items-center p-1.5 rounded-lg transition-colors ${
-                log.completed ? "bg-primary/5 border border-primary/20" : "bg-card border border-border"
-              }`}
-            >
-              <div className="flex items-center justify-center">
-                {log.completed ? (
-                  <Check className="h-4 w-4 text-primary" />
-                ) : (
-                  <span className="text-sm font-medium text-center">{log.setNumber}</span>
-                )}
-              </div>
+            <div key={setIdx}>
+              <div
+                className={`grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 items-center p-1.5 rounded-lg transition-colors ${
+                  log.completed ? "bg-primary/5 border border-primary/20" : "bg-card border border-border"
+                }`}
+              >
+                <div className="flex items-center justify-center">
+                  {log.completed ? (
+                    <Check className="h-4 w-4 text-primary" />
+                  ) : (
+                    <span className="text-sm font-medium text-center">{log.setNumber}</span>
+                  )}
+                </div>
 
-              <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
+                <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
-              <div className="relative">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={log.weight !== undefined && log.weight !== null ? String(log.weight) : ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || val === "0") {
+                        onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
+                      } else {
+                        const num = parseFloat(val);
+                        if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
+                      }
+                    }}
+                    placeholder={isBW ? "BW" : "0"}
+                    className="text-sm h-8"
+                    disabled={log.completed}
+                  />
+                  {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
+                    <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
+                  )}
+                </div>
+
                 <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={log.weight !== undefined && log.weight !== null ? String(log.weight) : ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || val === "0") {
-                      onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
-                    } else {
-                      const num = parseFloat(val);
-                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
-                    }
-                  }}
-                  placeholder={isBW ? "BW" : "0"}
+                  type="number"
+                  value={log.reps ?? ""}
+                  onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
+                  placeholder="0"
                   className="text-sm h-8"
                   disabled={log.completed}
                 />
-                {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
-                  <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
-                )}
+
+                <div className="flex items-center gap-1">
+                  {log.isPR && <Trophy className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
+                  <Button
+                    size="sm"
+                    className="h-8 px-3"
+                    variant={log.completed ? "secondary" : "default"}
+                    disabled={log.completed || !canLogSet(log)}
+                    onClick={() => onCompleteSet(setIdx)}
+                  >
+                    {log.completed ? <Check className="h-3.5 w-3.5" /> : "Log"}
+                  </Button>
+                </div>
               </div>
 
-              <Input
-                type="number"
-                value={log.reps ?? ""}
-                onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
-                placeholder="0"
-                className="text-sm h-8"
-                disabled={log.completed}
-              />
-
-              <div className="flex items-center gap-1">
-                {log.isPR && <Trophy className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
-                <Button
-                  size="sm"
-                  className="h-8 px-3"
-                  variant={log.completed ? "secondary" : "default"}
-                  disabled={log.completed || !canLogSet(log)}
-                  onClick={() => onCompleteSet(setIdx)}
-                >
-                  {log.completed ? <Check className="h-3.5 w-3.5" /> : "Log"}
-                </Button>
-              </div>
+              {/* Inline rest timer between sets */}
+              {activeTimerAfterSetIndex === setIdx && (
+                <div className="my-1.5">
+                  <InlineRestTimer
+                    seconds={timerSeconds}
+                    onComplete={onTimerComplete}
+                    onSkip={onTimerSkip}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
