@@ -464,6 +464,33 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     loadExtended();
   }, [clientId, user, today]);
 
+  /* ─── Load steps data for client ─── */
+  useEffect(() => {
+    if (!clientId) return;
+    const loadSteps = async () => {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const { data: metrics } = await supabase
+        .from("daily_health_metrics")
+        .select("steps, step_goal, synced_at")
+        .eq("user_id", clientId)
+        .eq("metric_date", todayStr)
+        .maybeSingle();
+      if (metrics) {
+        setTodaySteps(metrics.steps ?? null);
+        if (metrics.step_goal) setStepGoal(metrics.step_goal);
+        setStepsLastSynced(metrics.synced_at ?? null);
+      }
+      // Get client name for modal header
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", clientId)
+        .maybeSingle();
+      setClientNameForSteps(profile?.full_name || "Client");
+    };
+    loadSteps();
+  }, [clientId]);
+
   /* ─── Food log per date ─── */
   useEffect(() => {
     if (!clientId) return;
