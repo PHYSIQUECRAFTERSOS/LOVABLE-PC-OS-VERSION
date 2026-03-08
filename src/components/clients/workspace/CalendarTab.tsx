@@ -92,7 +92,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [repeatForWeeks, setRepeatForWeeks] = useState(4);
 
   // Client workouts for linking
-  const [clientWorkouts, setClientWorkouts] = useState<any[]>([]);
+  const [clientWorkouts, setClientWorkouts] = useState<{ id: string; label: string }[]>([]);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState("");
 
   // Cardio config
