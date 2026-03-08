@@ -166,6 +166,54 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setSavedMeals(data || []);
   };
 
+  const fetchUserRecipes = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("recipes")
+      .select("*")
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false });
+    setUserRecipes(data || []);
+  };
+
+  const fetchCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("food_items")
+      .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+      .eq("created_by", user.id)
+      .in("data_source", ["custom", "recipe"])
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setCustomFoods((data || []) as FoodItem[]);
+  };
+
+  const logRecipe = async (recipe: any) => {
+    if (!user) return;
+    // Log 100g serving of the recipe
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: `🍳 ${recipe.name} (100g)`,
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(recipe.calories_per_100g || 0),
+      protein: Math.round(recipe.protein_per_100g || 0),
+      carbs: Math.round(recipe.carbs_per_100g || 0),
+      fat: Math.round(recipe.fat_per_100g || 0),
+      fiber: Math.round(recipe.fiber_per_100g || 0),
+      sugar: Math.round(recipe.sugar_per_100g || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+
+    if (error) {
+      toast({ title: "Couldn't log recipe. Please try again." });
+    } else {
+      toast({ title: `${recipe.name} logged` });
+      onLogged();
+    }
+  };
+
   useEffect(() => { fetchHistory(); }, [historySort]);
 
   const handleSearch = useCallback(async (q: string) => {
