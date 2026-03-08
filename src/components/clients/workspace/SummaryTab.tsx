@@ -701,7 +701,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       {/* ── Client Stats Row ── */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setPhotosModalOpen(true)}>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-1.5 mb-2">
               <Camera className="h-3.5 w-3.5 text-muted-foreground" />
