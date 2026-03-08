@@ -99,6 +99,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [historySort, setHistorySort] = useState<HistorySort>("recent");
   const [history, setHistory] = useState<FoodItem[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
+  const [userRecipes, setUserRecipes] = useState<any[]>([]);
+  const [customFoods, setCustomFoods] = useState<FoodItem[]>([]);
   const [servings, setServings] = useState<Record<string, string>>({});
   const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
