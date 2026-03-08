@@ -22,6 +22,8 @@ import {
   eachDayOfInterval, isSameDay, isSameMonth, isToday, addMonths, subMonths,
   addDays, addWeeks
 } from "date-fns";
+import { withDisplayPositions } from "@/utils/displayPosition";
+import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
@@ -90,7 +92,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [repeatForWeeks, setRepeatForWeeks] = useState(4);
 
   // Client workouts for linking
-  const [clientWorkouts, setClientWorkouts] = useState<any[]>([]);
+  const [clientWorkouts, setClientWorkouts] = useState<{ id: string; label: string }[]>([]);
   const [selectedWorkoutId, setSelectedWorkoutId] = useState("");
 
   // Cardio config
@@ -112,34 +114,154 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     const start = format(calStart, "yyyy-MM-dd");
     const end = format(calEnd, "yyyy-MM-dd");
 
+    const workoutLabelMap = new Map<string, string>();
+
+    const { data: assignment } = await supabase
+      .from("client_program_assignments")
+      .select("program_id, current_phase_id")
+      .eq("client_id", clientId)
+      .in("status", ["active", "subscribed"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (assignment?.program_id) {
+      let phaseId = assignment.current_phase_id;
+      if (!phaseId) {
+        const { data: firstPhase } = await supabase
+          .from("program_phases")
+          .select("id")
+          .eq("program_id", assignment.program_id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        phaseId = firstPhase?.id ?? null;
+      }
+
+      if (phaseId) {
+        const { data: pws } = await supabase
+          .from("program_workouts")
+          .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+          .eq("phase_id", phaseId)
+          .order("sort_order", { ascending: true });
+
+        const positioned = withDisplayPositions(
+          (pws || []).map((pw: any) => ({
+            id: pw.workout_id,
+            sort_order: pw.sort_order,
+            exclude_from_numbering: pw.exclude_from_numbering || false,
+            custom_tag: pw.custom_tag || null,
+            name: (pw.workouts as any)?.name || "Workout",
+          }))
+        );
+
+        positioned.forEach((w: any) => {
+          const cleanName = normalizeWorkoutName(w.name);
+          const label = w.exclude_from_numbering && w.custom_tag
+            ? `${w.custom_tag}: ${cleanName}`
+            : w.displayPosition != null
+              ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+              : cleanName;
+          workoutLabelMap.set(w.id, label);
+        });
+      }
+    }
+
     const [eventsRes, sessionsRes] = await Promise.all([
       supabase.from("calendar_events")
-        .select("id, title, event_date, event_type, is_completed, color, event_time")
+        .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id")
         .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
       supabase.from("workout_sessions")
-        .select("id, created_at, completed_at, workouts(name)")
+        .select("id, workout_id, created_at, completed_at, workouts(name)")
         .eq("client_id", clientId)
         .gte("created_at", `${start}T00:00:00`).lte("created_at", `${end}T23:59:59`),
     ]);
 
-    setEvents(eventsRes.data || []);
-    setSessions(sessionsRes.data || []);
+    const normalizedEvents = (eventsRes.data || []).map((e: any) => {
+      if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
+        return { ...e, title: workoutLabelMap.get(e.linked_workout_id) };
+      }
+      return e;
+    });
+
+    setEvents(normalizedEvents || []);
+    setSessions((sessionsRes.data || []).map((s: any) => ({
+      ...s,
+      workouts: {
+        name: workoutLabelMap.get(s.workout_id) || (s.workouts as any)?.name || "Workout",
+      },
+    })));
     setLoading(false);
   }, [clientId, currentMonth]);
 
   useEffect(() => { loadMonth(); }, [loadMonth]);
 
+  function normalizeWorkoutName(name: string) {
+    return name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
+  }
+
   const loadClientWorkouts = async () => {
-    const { data: assignData } = await supabase.from("client_program_assignments")
-      .select("program_id").eq("client_id", clientId).eq("status", "active").limit(1).maybeSingle();
-    if (!assignData) return;
-    const { data: phases } = await supabase.from("program_phases").select("id").eq("program_id", assignData.program_id);
-    if (!phases?.length) return;
-    const { data: pws } = await supabase.from("program_workouts")
-      .select("workout_id, day_label, workouts(id, name)").in("phase_id", phases.map(p => p.id));
-    setClientWorkouts((pws || []).map((pw: any) => ({
-      id: pw.workout_id, name: (pw.workouts as any)?.name || "Workout", day_label: pw.day_label,
-    })));
+    const { data: assignment } = await supabase
+      .from("client_program_assignments")
+      .select("program_id, current_phase_id")
+      .eq("client_id", clientId)
+      .in("status", ["active", "subscribed"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!assignment?.program_id) {
+      setClientWorkouts([]);
+      return;
+    }
+
+    let phaseId = assignment.current_phase_id;
+    if (!phaseId) {
+      const { data: firstPhase } = await supabase
+        .from("program_phases")
+        .select("id")
+        .eq("program_id", assignment.program_id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      phaseId = firstPhase?.id ?? null;
+    }
+
+    if (!phaseId) {
+      setClientWorkouts([]);
+      return;
+    }
+
+    const { data: pws } = await supabase
+      .from("program_workouts")
+      .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+      .eq("phase_id", phaseId)
+      .order("sort_order", { ascending: true });
+
+    const positioned = withDisplayPositions(
+      (pws || []).map((pw: any) => ({
+        id: pw.workout_id,
+        sort_order: pw.sort_order,
+        exclude_from_numbering: pw.exclude_from_numbering || false,
+        custom_tag: pw.custom_tag || null,
+        name: (pw.workouts as any)?.name || "Workout",
+      }))
+    );
+
+    // Root cause note:
+    // The old code used `program_workouts.day_label` directly, which had stale values (e.g. Day 6/7), causing phantom prefixes.
+    // We now derive label from ordered display position + workout name only.
+    const mapped = positioned.map((w: any) => {
+      const cleanName = normalizeWorkoutName(w.name);
+      const label = w.exclude_from_numbering && w.custom_tag
+        ? `${w.custom_tag}: ${cleanName}`
+        : w.displayPosition != null
+          ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+          : cleanName;
+      return { id: w.id, label };
+    });
+
+    setClientWorkouts(mapped);
   };
 
   const monthStart = startOfMonth(currentMonth);
@@ -234,8 +356,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         // Determine title
         let title = "";
         if (type === "workout" && selectedWorkoutId) {
-          const w = clientWorkouts.find(w => w.id === selectedWorkoutId);
-          title = w ? `${w.day_label} – ${w.name}` : "Workout";
+          const w = clientWorkouts.find((cw) => cw.id === selectedWorkoutId);
+          title = w?.label || "Workout";
         } else if (type === "cardio") {
           const targetStr = cardioTargetType !== "none" && cardioTargetValue
             ? ` — ${cardioTargetValue} ${cardioTargetUnit}`
@@ -433,8 +555,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 <Select value={selectedWorkoutId} onValueChange={setSelectedWorkoutId}>
                   <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                   <SelectContent>
-                    {clientWorkouts.map(w => (
-                      <SelectItem key={w.id} value={w.id}>{w.day_label} – {w.name}</SelectItem>
+                    {clientWorkouts.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>{w.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

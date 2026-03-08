@@ -14,6 +14,8 @@ import ScheduleEventForm from "@/components/calendar/ScheduleEventForm";
 import ComplianceStreak from "@/components/calendar/ComplianceStreak";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
+import { withDisplayPositions } from "@/utils/displayPosition";
+import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 
 const Calendar = () => {
   const { user, role } = useAuth();
@@ -52,8 +54,60 @@ const Calendar = () => {
     queryFn: async (signal) => {
       if (!user) return [];
 
-      // Run all queries in parallel
-      // Fetch calendar events with linked workout names
+      const normalizeWorkoutName = (name: string) => name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
+      const workoutLabelMap = new Map<string, string>();
+
+      const { data: assignment } = await supabase
+        .from("client_program_assignments")
+        .select("program_id, current_phase_id")
+        .eq("client_id", user.id)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (assignment?.program_id) {
+        let phaseId = assignment.current_phase_id;
+        if (!phaseId) {
+          const { data: firstPhase } = await supabase
+            .from("program_phases")
+            .select("id")
+            .eq("program_id", assignment.program_id)
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          phaseId = firstPhase?.id ?? null;
+        }
+
+        if (phaseId) {
+          const { data: pws } = await supabase
+            .from("program_workouts")
+            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+            .eq("phase_id", phaseId)
+            .order("sort_order", { ascending: true });
+
+          const positioned = withDisplayPositions(
+            (pws || []).map((pw: any) => ({
+              id: pw.workout_id,
+              sort_order: pw.sort_order,
+              exclude_from_numbering: pw.exclude_from_numbering || false,
+              custom_tag: pw.custom_tag || null,
+              name: (pw.workouts as any)?.name || "Workout",
+            }))
+          );
+
+          positioned.forEach((w: any) => {
+            const cleanName = normalizeWorkoutName(w.name);
+            const label = w.exclude_from_numbering && w.custom_tag
+              ? `${w.custom_tag}: ${cleanName}`
+              : w.displayPosition != null
+                ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+                : cleanName;
+            workoutLabelMap.set(w.id, label);
+          });
+        }
+      }
+
       const calendarPromise = supabase
         .from("calendar_events")
         .select("*, workouts:linked_workout_id(name), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
@@ -91,9 +145,11 @@ const Calendar = () => {
         let title = e.title;
         let description = e.description;
 
-        // Use linked workout name if available
-        if (e.event_type === "workout" && e.workouts?.name) {
-          title = e.workouts.name;
+        // Canonical workout label source (never use stale stored title/day_label)
+        if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
+          title = workoutLabelMap.get(e.linked_workout_id)!;
+        } else if (e.event_type === "workout" && e.workouts?.name) {
+          title = normalizeWorkoutName(e.workouts.name);
         }
 
         // Enrich cardio with full prescription
@@ -120,10 +176,11 @@ const Calendar = () => {
       // Merge workout sessions — use actual workout name, never generic "Workout"
       sessRes.data?.forEach((s: any) => {
         const eventDate = format(new Date(s.created_at), "yyyy-MM-dd");
-        const workoutName = s.workouts?.name;
+        const mappedLabel = workoutLabelMap.get(s.workout_id);
+        const workoutName = mappedLabel || normalizeWorkoutName(s.workouts?.name || "Unnamed Workout");
         if (!allEvents.find((e) => e.linked_workout_id === s.workout_id && e.event_date === eventDate)) {
           allEvents.push({
-            id: `ws-${s.id}`, title: workoutName || "Unnamed Workout", event_type: "workout",
+            id: `ws-${s.id}`, title: workoutName, event_type: "workout",
             event_date: eventDate, is_completed: !!s.completed_at, completed_at: s.completed_at,
             is_recurring: false, user_id: user.id, description: null,
             event_time: format(new Date(s.created_at), "HH:mm"), end_time: null, color: null,
