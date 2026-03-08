@@ -118,6 +118,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [scheduledCount, setScheduledCount] = useState(0);
 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
@@ -128,6 +129,18 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const [libraryExercises, setLibraryExercises] = useState<Exercise[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Check if this workout has future scheduled calendar events
+  useEffect(() => {
+    if (!editWorkoutId || !open) { setScheduledCount(0); return; }
+    supabase
+      .from("calendar_events")
+      .select("id", { count: "exact", head: true })
+      .eq("linked_workout_id", editWorkoutId)
+      .eq("event_type", "workout")
+      .gte("event_date", new Date().toISOString().slice(0, 10))
+      .then(({ count }) => setScheduledCount(count ?? 0));
+  }, [editWorkoutId, open]);
   const [filterMuscle, setFilterMuscle] = useState("all");
   const [filterEquipment, setFilterEquipment] = useState("all");
 
