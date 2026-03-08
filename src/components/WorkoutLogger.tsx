@@ -595,8 +595,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
         <Button
-          onClick={finishWorkout}
-          disabled={loading || completedSets === 0}
+          onClick={handleFinishTap}
+          disabled={loading}
           className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
           size="lg"
         >
