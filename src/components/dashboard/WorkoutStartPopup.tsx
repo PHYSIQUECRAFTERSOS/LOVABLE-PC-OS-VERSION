@@ -39,7 +39,7 @@ interface ExercisePreview {
   video_url: string | null;
 }
 
-const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, onStartWorkout }: WorkoutStartPopupProps) => {
+const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEventId, onStartWorkout }: WorkoutStartPopupProps) => {
   const { user } = useAuth();
   const [exercises, setExercises] = useState<ExercisePreview[]>([]);
   const [loading, setLoading] = useState(true);
