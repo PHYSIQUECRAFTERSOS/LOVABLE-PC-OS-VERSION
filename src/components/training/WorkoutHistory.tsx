@@ -423,7 +423,7 @@ const WorkoutHistory = () => {
                               >
                                 <span className="text-muted-foreground w-10">Set {set.set_number}</span>
                                 <span className="font-medium text-foreground">
-                                  {set.weight || 0} lbs
+                                  {set.weight === 0 ? "BW" : `${set.weight || 0} lbs`}
                                 </span>
                                 <span className="text-muted-foreground">×</span>
                                 <span className="font-medium text-foreground">{set.reps || 0} reps</span>
