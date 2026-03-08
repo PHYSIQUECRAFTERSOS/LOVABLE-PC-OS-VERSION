@@ -4543,6 +4543,47 @@ export type Database = {
           },
         ]
       }
+      user_food_serving_memory: {
+        Row: {
+          food_id: string
+          id: string
+          last_logged_at: string
+          log_count: number
+          serving_size: number
+          serving_unit: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          food_id: string
+          id?: string
+          last_logged_at?: string
+          log_count?: number
+          serving_size: number
+          serving_unit: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          food_id?: string
+          id?: string
+          last_logged_at?: string
+          log_count?: number
+          serving_size?: number
+          serving_unit?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_food_serving_memory_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_recent_foods: {
         Row: {
           food_data: Json | null
