@@ -14,7 +14,7 @@ import {
   Plus, Pill, Trash2, Check, ScanBarcode, ChevronDown, ChevronUp,
   Shield, Star, Minus, Loader2, AlertTriangle, Sparkles
 } from "lucide-react";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
+import { useToast } from "@/hooks/use-toast";
 import { useToast } from "@/hooks/use-toast";
 import { MICRONUTRIENTS, BIOAVAILABILITY_FORMS, NutrientInfo } from "@/lib/micronutrients";
 import { cn } from "@/lib/utils";
