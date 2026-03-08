@@ -100,7 +100,7 @@ const Training = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
-  const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string) => {
+  const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string, calendarEventId?: string) => {
     const { data } = await supabase
       .from("workout_exercises")
       .select(`id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, exercises (id, name, youtube_url, video_url, equipment)`)
