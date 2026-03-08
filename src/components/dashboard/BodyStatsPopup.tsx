@@ -61,14 +61,14 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
       // Save measurements (non-empty only)
       const filled = Object.entries(measurements).filter(([_, v]) => v && parseFloat(v) > 0);
       if (filled.length > 0) {
-        const measurementData: Record<string, any> = {
+        const measurementInsert: any = {
           client_id: user.id,
           measured_at: today,
         };
         filled.forEach(([key, val]) => {
-          measurementData[key] = parseFloat(val);
+          measurementInsert[key] = parseFloat(val);
         });
-        const { error } = await supabase.from("body_measurements").insert(measurementData);
+        const { error } = await supabase.from("body_measurements").insert(measurementInsert as any);
         if (error) throw error;
       }
 
