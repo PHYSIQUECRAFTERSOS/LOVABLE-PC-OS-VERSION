@@ -511,8 +511,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <span className="text-lg font-bold tabular-nums text-foreground">{elapsed}</span>
           <Button
             size="sm"
-            onClick={finishWorkout}
-            disabled={loading || completedSets === 0}
+            onClick={handleFinishTap}
+            disabled={loading}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-5"
           >
             {loading && <Loader2 className="animate-spin mr-1 h-3.5 w-3.5" />}
