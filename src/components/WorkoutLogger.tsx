@@ -293,7 +293,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const completeSet = (exIdx: number, setIdx: number) => {
     const ex = exercises[exIdx];
     const log = ex.logs[setIdx];
-    if (!log.weight || !log.reps) return;
+    if ((log.weight === undefined || log.weight === null || log.weight < 0) || !log.reps) return;
 
     const isPR = checkPR(ex.id, ex.name, log.weight, log.reps);
 
