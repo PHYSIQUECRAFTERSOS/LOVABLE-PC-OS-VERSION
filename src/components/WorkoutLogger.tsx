@@ -24,7 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ExerciseCard from "@/components/workout/ExerciseCard";
-import FloatingRestTimer from "@/components/workout/FloatingRestTimer";
+import WorkoutSummary from "@/components/workout/WorkoutSummary";
+import ExerciseLibrary from "@/components/training/ExerciseLibrary";
+import { useNavigate } from "react-router-dom";
 import WorkoutSummary from "@/components/workout/WorkoutSummary";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 
