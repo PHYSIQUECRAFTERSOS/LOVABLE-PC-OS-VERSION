@@ -4823,6 +4823,8 @@ export type Database = {
           created_at: string
           id: string
           logged_at: string
+          notes: string | null
+          source: string | null
           weight: number
         }
         Insert: {
@@ -4830,6 +4832,8 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+          notes?: string | null
+          source?: string | null
           weight: number
         }
         Update: {
@@ -4837,6 +4841,8 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+          notes?: string | null
+          source?: string | null
           weight?: number
         }
         Relationships: []

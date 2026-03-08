@@ -79,7 +79,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     queryFn: async (signal) => {
       if (!user) return [];
 
-      const [calRes, sessRes, cardioRes, nutritionRes] = await Promise.all([
+      const [calRes, sessRes, cardioRes, nutritionRes, linkedWorkoutsRes] = await Promise.all([
         supabase
           .from("calendar_events")
           .select("id, title, event_type, is_completed, linked_workout_id")
@@ -107,10 +107,21 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           .eq("logged_at", targetDate)
           .limit(1)
           .abortSignal(signal),
+        // Fetch workout names for linked workouts
+        supabase
+          .from("workouts")
+          .select("id, name")
+          .abortSignal(signal),
       ]);
 
       const items: ActionItem[] = [];
       const linkedWorkoutIds = new Set<string>();
+
+      // Build a lookup map for workout names
+      const workoutNameMap = new Map<string, string>();
+      (linkedWorkoutsRes.data || []).forEach((w: any) => {
+        workoutNameMap.set(w.id, w.name);
+      });
 
       (calRes.data || []).forEach((e) => {
         if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
@@ -121,8 +132,10 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
-          // Use real workout name instead of generic "Workout"
-          const workoutName = (session as any)?.workouts?.name;
+          // Use workout name from session join or workouts table directly
+          const sessionName = (session as any)?.workouts?.name;
+          const directName = workoutNameMap.get(e.linked_workout_id);
+          const workoutName = sessionName || directName;
           if (workoutName) title = workoutName;
         }
         if (e.event_type === "cardio") {
