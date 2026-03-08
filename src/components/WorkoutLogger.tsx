@@ -121,7 +121,7 @@ function clearRetryQueue() {
   sessionStorage.removeItem(RETRY_KEY);
 }
 
-const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
+const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId, calendarEventId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
