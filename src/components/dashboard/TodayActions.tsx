@@ -79,7 +79,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     queryFn: async (signal) => {
       if (!user) return [];
 
-      const [calRes, sessRes, cardioRes, nutritionRes] = await Promise.all([
+      const [calRes, sessRes, cardioRes, nutritionRes, linkedWorkoutsRes] = await Promise.all([
         supabase
           .from("calendar_events")
           .select("id, title, event_type, is_completed, linked_workout_id")
@@ -106,6 +106,11 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           .eq("client_id", user.id)
           .eq("logged_at", targetDate)
           .limit(1)
+          .abortSignal(signal),
+        // Fetch workout names for linked workouts
+        supabase
+          .from("workouts")
+          .select("id, name")
           .abortSignal(signal),
       ]);
 
