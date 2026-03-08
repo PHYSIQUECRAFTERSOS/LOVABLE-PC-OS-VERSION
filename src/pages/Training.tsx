@@ -103,7 +103,7 @@ const Training = () => {
   const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string) => {
     const { data } = await supabase
       .from("workout_exercises")
-      .select(`id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, exercises (id, name, youtube_url, video_url)`)
+      .select(`id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, exercises (id, name, youtube_url, video_url, equipment)`)
       .eq("workout_id", workoutId)
       .order("exercise_order");
 
@@ -112,14 +112,18 @@ const Training = () => {
         id: we.exercises.id, name: we.exercises.name, sets: we.sets, reps: we.reps,
         tempo: we.tempo, restSeconds: we.rest_seconds, rir: we.rir, notes: we.notes,
         videoUrl: we.video_override || we.exercises.youtube_url || we.exercises.video_url || null,
+        equipment: we.exercises.equipment || null,
         progression: {
           progressionType: we.progression_type || "double", weightIncrement: we.weight_increment || 5,
           incrementType: we.increment_type || "fixed", rpeThreshold: we.rpe_threshold || 8,
           progressionMode: we.progression_mode || "moderate",
         },
-        logs: Array.from({ length: we.sets }, (_, idx) => ({
-          setNumber: idx + 1, weight: undefined, reps: undefined, tempo: undefined, rir: undefined, notes: undefined,
-        })),
+        logs: Array.from({ length: we.sets }, (_, idx) => {
+          const isBW = we.exercises.equipment && ["bodyweight", "none", "body weight"].includes(we.exercises.equipment.toLowerCase());
+          return {
+            setNumber: idx + 1, weight: isBW ? 0 : undefined, reps: undefined, tempo: undefined, rir: undefined, notes: undefined,
+          };
+        }),
       }));
       let workout = workouts.find(w => w.id === workoutId);
       if (!workout) {

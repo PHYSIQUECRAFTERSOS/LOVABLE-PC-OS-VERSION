@@ -5066,6 +5066,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           duration_seconds: number | null
+          exercise_modifications: Json | null
           id: string
           last_heartbeat: string | null
           last_seen: string | null
@@ -5085,6 +5086,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           duration_seconds?: number | null
+          exercise_modifications?: Json | null
           id?: string
           last_heartbeat?: string | null
           last_seen?: string | null
@@ -5104,6 +5106,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           duration_seconds?: number | null
+          exercise_modifications?: Json | null
           id?: string
           last_heartbeat?: string | null
           last_seen?: string | null

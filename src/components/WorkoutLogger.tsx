@@ -46,6 +46,7 @@ interface ExerciseLogForm {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  equipment?: string | null;
   progression?: ProgressionSettings;
   logs: {
     setNumber: number;
@@ -58,6 +59,18 @@ interface ExerciseLogForm {
     completed?: boolean;
     isPR?: boolean;
   }[];
+}
+
+interface ExerciseModification {
+  type: "switch" | "delete";
+  original_exercise_id?: string;
+  original_exercise_name?: string;
+  replacement_exercise_id?: string;
+  replacement_exercise_name?: string;
+  exercise_id?: string;
+  exercise_name?: string;
+  switched_at?: string;
+  deleted_at?: string;
 }
 
 interface PersonalRecord {
@@ -97,6 +110,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
+  const [exerciseModifications, setExerciseModifications] = useState<ExerciseModification[]>([]);
+  const [switchingExIdx, setSwitchingExIdx] = useState<number | null>(null);
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
@@ -278,7 +293,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const completeSet = (exIdx: number, setIdx: number) => {
     const ex = exercises[exIdx];
     const log = ex.logs[setIdx];
-    if (!log.weight || !log.reps) return;
+    if ((log.weight === undefined || log.weight === null || log.weight < 0) || !log.reps) return;
 
     const isPR = checkPR(ex.id, ex.name, log.weight, log.reps);
 
@@ -321,6 +336,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       restSeconds: 90,
       notes: "",
       videoUrl: exercise.youtube_url || exercise.video_url || null,
+      equipment: exercise.equipment || null,
       logs: Array.from({ length: 3 }, (_, idx) => ({
         setNumber: idx + 1,
         weight: undefined,
@@ -331,6 +347,50 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(prev => [...prev, newExercise]);
     setShowAddExercise(false);
     toast({ title: `${exercise.name} added to workout` });
+  };
+
+  const deleteExercise = (exIdx: number) => {
+    const ex = exercises[exIdx];
+    setExerciseModifications(prev => [...prev, {
+      type: "delete",
+      exercise_id: ex.id,
+      exercise_name: ex.name,
+      deleted_at: new Date().toISOString(),
+    }]);
+    setExercises(prev => prev.filter((_, i) => i !== exIdx));
+    toast({ title: `${ex.name} removed from session` });
+  };
+
+  const handleSwitchExercise = (exercise: any) => {
+    if (switchingExIdx === null) return;
+    const original = exercises[switchingExIdx];
+    
+    setExerciseModifications(prev => [...prev, {
+      type: "switch",
+      original_exercise_id: original.id,
+      original_exercise_name: original.name,
+      replacement_exercise_id: exercise.id,
+      replacement_exercise_name: exercise.name,
+      switched_at: new Date().toISOString(),
+    }]);
+
+    const newEx = [...exercises];
+    newEx[switchingExIdx] = {
+      ...newEx[switchingExIdx],
+      id: exercise.id,
+      name: exercise.name,
+      videoUrl: exercise.youtube_url || exercise.video_url || null,
+      equipment: exercise.equipment || null,
+      logs: newEx[switchingExIdx].logs.map(l => ({
+        ...l,
+        weight: 0,
+        completed: false,
+        isPR: false,
+      })),
+    };
+    setExercises(newEx);
+    setSwitchingExIdx(null);
+    toast({ title: `Switched to ${exercise.name}` });
   };
 
   const finishWorkout = async () => {
@@ -347,7 +407,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           session_id: sessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
-          weight: log.weight || null,
+          weight: log.weight ?? null,
           reps: log.reps || null,
           tempo: log.tempo || null,
           rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
@@ -370,7 +430,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           sets_completed: completedSets,
           pr_count: prAlerts.length,
           status: "completed",
-        })
+          exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
+        } as any)
         .eq("id", sessionId);
       if (sessionError) throw sessionError;
 
@@ -485,6 +546,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           rir={exercise.rir}
           notes={exercise.notes}
           videoUrl={exercise.videoUrl}
+          equipment={exercise.equipment}
           logs={exercise.logs}
           previousSets={previousPerformance[exercise.id] || []}
           allTimePR={personalRecords.find(pr => pr.exercise_id === exercise.id) ? {
@@ -494,6 +556,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onUpdateLog={(setIdx, field, value) => updateLog(exIdx, setIdx, field, value)}
           onCompleteSet={(setIdx) => completeSet(exIdx, setIdx)}
           onAddSet={() => addSet(exIdx)}
+          onDeleteExercise={() => deleteExercise(exIdx)}
+          onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
         />
       ))}
 
@@ -554,13 +618,16 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Exercise Dialog */}
-      <Dialog open={showAddExercise} onOpenChange={setShowAddExercise}>
+      {/* Add / Switch Exercise Dialog */}
+      <Dialog open={showAddExercise} onOpenChange={(open) => { setShowAddExercise(open); if (!open) setSwitchingExIdx(null); }}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Exercise</DialogTitle>
+            <DialogTitle>{switchingExIdx !== null ? "Switch Exercise" : "Add Exercise"}</DialogTitle>
           </DialogHeader>
-          <ExerciseLibrary onSelectExercise={handleAddExercise} selectionMode />
+          <ExerciseLibrary
+            onSelectExercise={switchingExIdx !== null ? handleSwitchExercise : handleAddExercise}
+            selectionMode
+          />
         </DialogContent>
       </Dialog>
     </div>

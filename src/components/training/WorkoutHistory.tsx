@@ -19,6 +19,7 @@ interface SessionRow {
   workoutName: string;
   workoutPhase: string | null;
   exerciseLogs: ExerciseLogRow[];
+  exerciseModifications: any[];
 }
 
 interface ExerciseLogRow {
@@ -73,7 +74,7 @@ const WorkoutHistory = () => {
       // Load completed sessions
       const { data: sessionsData } = await supabase
         .from("workout_sessions")
-        .select("id, workout_id, completed_at, created_at, notes")
+        .select("id, workout_id, completed_at, created_at, notes, exercise_modifications")
         .eq("client_id", user.id)
         .not("completed_at", "is", null)
         .order("completed_at", { ascending: false })
@@ -126,6 +127,7 @@ const WorkoutHistory = () => {
           workoutName: workout?.name || "Workout",
           workoutPhase: workout?.phase || null,
           exerciseLogs: sessionLogs,
+          exerciseModifications: Array.isArray((s as any).exercise_modifications) ? (s as any).exercise_modifications : [],
         };
       });
 
@@ -368,6 +370,11 @@ const WorkoutHistory = () => {
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(session.completed_at!), "MMM d, yyyy · h:mm a")}
                         </span>
+                        {session.exerciseModifications.length > 0 && (
+                          <Badge variant="outline" className="text-[10px] border-yellow-500/30 text-yellow-500">
+                            ⚠ {session.exerciseModifications.length} modification{session.exerciseModifications.length !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
                         {session.workoutPhase && (
                           <Badge variant="secondary" className="text-[10px]">
                             {session.workoutPhase}
@@ -416,7 +423,7 @@ const WorkoutHistory = () => {
                               >
                                 <span className="text-muted-foreground w-10">Set {set.set_number}</span>
                                 <span className="font-medium text-foreground">
-                                  {set.weight || 0} lbs
+                                  {set.weight === 0 ? "BW" : `${set.weight || 0} lbs`}
                                 </span>
                                 <span className="text-muted-foreground">×</span>
                                 <span className="font-medium text-foreground">{set.reps || 0} reps</span>
@@ -430,6 +437,19 @@ const WorkoutHistory = () => {
                         </div>
                       </div>
                     ))}
+                    {/* Modification details */}
+                    {session.exerciseModifications.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border space-y-1.5">
+                        <p className="text-xs font-medium text-yellow-500">⚠ Exercise Modifications</p>
+                        {session.exerciseModifications.map((mod: any, i: number) => (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            {mod.type === "switch"
+                              ? `🔄 Switched "${mod.original_exercise_name}" → "${mod.replacement_exercise_name}"`
+                              : `🗑️ Removed "${mod.exercise_name}"`}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {session.notes && (
                       <p className="text-xs text-muted-foreground italic mt-2">{session.notes}</p>
                     )}
