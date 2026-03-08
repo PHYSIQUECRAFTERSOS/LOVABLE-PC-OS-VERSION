@@ -618,13 +618,16 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Exercise Dialog */}
-      <Dialog open={showAddExercise} onOpenChange={setShowAddExercise}>
+      {/* Add / Switch Exercise Dialog */}
+      <Dialog open={showAddExercise} onOpenChange={(open) => { setShowAddExercise(open); if (!open) setSwitchingExIdx(null); }}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Exercise</DialogTitle>
+            <DialogTitle>{switchingExIdx !== null ? "Switch Exercise" : "Add Exercise"}</DialogTitle>
           </DialogHeader>
-          <ExerciseLibrary onSelectExercise={handleAddExercise} selectionMode />
+          <ExerciseLibrary
+            onSelectExercise={switchingExIdx !== null ? handleSwitchExercise : handleAddExercise}
+            selectionMode
+          />
         </DialogContent>
       </Dialog>
     </div>
