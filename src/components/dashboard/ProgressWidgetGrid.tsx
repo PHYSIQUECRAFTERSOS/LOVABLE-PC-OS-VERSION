@@ -43,6 +43,7 @@ const MiniSparkline = ({ data, color = "hsl(var(--gold))" }: { data: SparkData[]
 
 const ProgressWidgetGrid = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { todayMetrics, weekMetrics, isNative, connection } = useHealthSync();
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
