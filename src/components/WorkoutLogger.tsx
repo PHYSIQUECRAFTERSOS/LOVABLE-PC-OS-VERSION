@@ -395,7 +395,19 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     toast({ title: `Switched to ${exercise.name}` });
   };
 
-  const finishWorkout = async () => {
+  const hasIncompleteSets = () => {
+    return exercises.some(ex => ex.logs.some(log => !log.completed));
+  };
+
+  const handleFinishTap = () => {
+    if (hasIncompleteSets()) {
+      setShowFinishModal(true);
+    } else {
+      finishWorkout(false);
+    }
+  };
+
+  const finishWorkout = async (hadUnlogged: boolean = false) => {
     if (!user || !sessionId) return;
     setLoading(true);
     try {
