@@ -460,6 +460,14 @@ const WorkoutHistory = () => {
                     {session.notes && (
                       <p className="text-xs text-muted-foreground italic mt-2">{session.notes}</p>
                     )}
+                    {/* TODO: implement full session edit flow */}
+                    {session.hadUnloggedSets && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <Button variant="outline" size="sm" className="text-xs" disabled>
+                          ✏️ Edit Session (coming soon)
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               )}
