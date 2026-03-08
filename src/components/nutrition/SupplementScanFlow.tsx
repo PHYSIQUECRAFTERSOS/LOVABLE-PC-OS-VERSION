@@ -55,23 +55,22 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const [confidence, setConfidence] = useState<"high" | "medium" | "low" | null>(null);
   const [wasAiExtracted, setWasAiExtracted] = useState(false);
 
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasDetectedRef = useRef(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const containerId = "supp-scan-reader";
 
-  const stopScanner = useCallback(async () => {
+  const stopScanner = useCallback(() => {
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
     }
-    if (scannerRef.current) {
-      try {
-        const s = scannerRef.current.getState();
-        if (s === 2) await scannerRef.current.stop();
-      } catch {}
-      scannerRef.current = null;
+    if (readerRef.current) {
+      try { readerRef.current.reset(); } catch {}
+      readerRef.current = null;
     }
+    hasDetectedRef.current = false;
     setScanning(false);
   }, []);
 
