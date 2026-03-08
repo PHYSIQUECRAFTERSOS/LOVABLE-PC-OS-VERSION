@@ -44,12 +44,11 @@ const ProgressWidgetGrid = () => {
   const navigate = useNavigate();
   const { todayMetrics, weekMetrics, isNative, connection } = useHealthSync();
 
-  const [latestWeight, setLatestWeight] = useState<number | null>(null);
-  const [weightSpark, setWeightSpark] = useState<SparkData[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [todayCals, setTodayCals] = useState<number>(0);
   const [calSpark, setCalSpark] = useState<SparkData[]>([]);
   const [manualSteps, setManualSteps] = useState<number | null>(null);
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
