@@ -30,7 +30,7 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
     setLoading(true);
     const today = format(new Date(), "yyyy-MM-dd");
     const [targetsRes, logsRes] = await Promise.all([
-      supabase.from("nutrition_targets").select("calories, protein, carbs, fat")
+      supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
         .eq("client_id", clientId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
         .eq("client_id", clientId).gte("logged_at", `${today}T00:00:00`).lte("logged_at", `${today}T23:59:59`),
