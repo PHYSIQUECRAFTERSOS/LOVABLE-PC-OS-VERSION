@@ -130,7 +130,7 @@ const Training = () => {
         const { data: w } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).maybeSingle();
         workout = w;
       }
-      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs, resumeSessionId: resumeSessionId || null });
+      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs, resumeSessionId: resumeSessionId || null, calendarEventId: calendarEventId || null });
       setShowLogger(true);
     }
   };
