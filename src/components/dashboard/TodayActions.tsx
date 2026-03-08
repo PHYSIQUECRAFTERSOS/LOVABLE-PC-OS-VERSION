@@ -238,8 +238,8 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     if (route) navigate(route);
   };
 
-  const handleStartWorkout = (workoutId: string) => {
-    navigate("/training", { state: { startWorkoutId: workoutId } });
+  const handleStartWorkout = (workoutId: string, calendarEventId?: string) => {
+    navigate("/training", { state: { startWorkoutId: workoutId, calendarEventId } });
   };
 
   const handleCardioCompleted = () => {
