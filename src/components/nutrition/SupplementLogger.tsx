@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
@@ -14,7 +14,6 @@ import {
   Plus, Pill, Trash2, Check, ScanBarcode, ChevronDown, ChevronUp,
   Shield, Star, Minus, Loader2, AlertTriangle, Sparkles
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useToast } from "@/hooks/use-toast";
 import { MICRONUTRIENTS, BIOAVAILABILITY_FORMS, NutrientInfo } from "@/lib/micronutrients";
 import { cn } from "@/lib/utils";
@@ -32,12 +31,8 @@ const SupplementLogger = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showScanFlow, setShowScanFlow] = useState(false);
 
-  // Barcode scanning
-  const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
-  const scannerRef = useRef<{ reader: BrowserMultiFormatReader; stop?: () => void } | null>(null);
-  const scanContainerId = "supp-barcode-reader";
 
   // Add form state
   const [name, setName] = useState("");
@@ -64,16 +59,6 @@ const SupplementLogger = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  // Barcode scanning
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try { scannerRef.current.stop?.(); } catch {}
-      try { scannerRef.current.reader.reset(); } catch {}
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  }, []);
-
   const lookupBarcode = async (barcode: string) => {
     setLookingUp(true);
     try {
@@ -94,34 +79,6 @@ const SupplementLogger = () => {
       setLookingUp(false);
     }
   };
-
-  const startScanner = async () => {
-    setScanning(true);
-    await new Promise(r => setTimeout(r, 300));
-
-    try {
-      const reader = new BrowserMultiFormatReader();
-      scannerRef.current = { reader };
-
-      await reader.decodeFromVideoDevice(undefined, scanContainerId, (result, err) => {
-        if (result) {
-          const code = result.getText();
-          void stopScanner();
-          void lookupBarcode(code);
-          return;
-        }
-
-        if (err && !(err instanceof NotFoundException)) {
-          console.warn("Barcode scan warning:", err);
-        }
-      });
-    } catch {
-      setScanning(false);
-      toast({ title: "Camera access denied", variant: "destructive" });
-    }
-  };
-
-  useEffect(() => () => { stopScanner(); }, [stopScanner]);
 
   const handleAddSupplement = async () => {
     if (!user || !name.trim()) return;
