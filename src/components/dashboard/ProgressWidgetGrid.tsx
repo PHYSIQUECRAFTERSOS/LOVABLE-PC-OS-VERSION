@@ -42,7 +42,6 @@ const MiniSparkline = ({ data, color = "hsl(var(--gold))" }: { data: SparkData[]
 
 const ProgressWidgetGrid = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { todayMetrics, weekMetrics, isNative, connection } = useHealthSync();
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -51,6 +50,7 @@ const ProgressWidgetGrid = () => {
   const [manualSteps, setManualSteps] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
