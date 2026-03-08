@@ -74,7 +74,7 @@ const WorkoutHistory = () => {
       // Load completed sessions
       const { data: sessionsData } = await supabase
         .from("workout_sessions")
-        .select("id, workout_id, completed_at, created_at, notes")
+        .select("id, workout_id, completed_at, created_at, notes, exercise_modifications")
         .eq("client_id", user.id)
         .not("completed_at", "is", null)
         .order("completed_at", { ascending: false })
