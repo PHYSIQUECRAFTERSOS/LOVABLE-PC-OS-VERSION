@@ -77,7 +77,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
 
   // Popup state
-  const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string } | null>(null);
+  const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
   const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
   const [bodyStatsPopup, setBodyStatsPopup] = useState<{ eventId: string } | null>(null);
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
@@ -215,7 +215,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const handleActionClick = (action: ActionItem) => {
     // Workout: open popup if there's a linked workout
     if (action.type === "workout" && action.linkedWorkoutId && !action.completed) {
-      setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title });
+      setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title, calendarEventId: action.id });
       return;
     }
     // Cardio: open popup if not completed
@@ -238,8 +238,8 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     if (route) navigate(route);
   };
 
-  const handleStartWorkout = (workoutId: string) => {
-    navigate("/training", { state: { startWorkoutId: workoutId } });
+  const handleStartWorkout = (workoutId: string, calendarEventId?: string) => {
+    navigate("/training", { state: { startWorkoutId: workoutId, calendarEventId } });
   };
 
   const handleCardioCompleted = () => {
@@ -326,6 +326,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           onClose={() => setWorkoutPopup(null)}
           workoutId={workoutPopup.workoutId}
           workoutName={workoutPopup.workoutName}
+          calendarEventId={workoutPopup.calendarEventId}
           onStartWorkout={handleStartWorkout}
         />
       )}

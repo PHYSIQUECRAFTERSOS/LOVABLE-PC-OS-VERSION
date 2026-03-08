@@ -93,14 +93,14 @@ const Training = () => {
 
   // Auto-start workout from navigation state (e.g., from calendar or resume banner)
   useEffect(() => {
-    const state = location.state as { startWorkoutId?: string; resumeSessionId?: string } | null;
+    const state = location.state as { startWorkoutId?: string; resumeSessionId?: string; calendarEventId?: string } | null;
     if (state?.startWorkoutId && !showLogger) {
-      loadWorkoutExercises(state.startWorkoutId, state.resumeSessionId);
+      loadWorkoutExercises(state.startWorkoutId, state.resumeSessionId, state.calendarEventId);
       // Clear state to prevent re-triggering
       window.history.replaceState({}, document.title);
     }
   }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
-  const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string) => {
+  const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string, calendarEventId?: string) => {
     const { data } = await supabase
       .from("workout_exercises")
       .select(`id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, exercises (id, name, youtube_url, video_url, equipment)`)
@@ -130,7 +130,7 @@ const Training = () => {
         const { data: w } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).maybeSingle();
         workout = w;
       }
-      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs, resumeSessionId: resumeSessionId || null });
+      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs, resumeSessionId: resumeSessionId || null, calendarEventId: calendarEventId || null });
       setShowLogger(true);
     }
   };
@@ -153,7 +153,7 @@ const Training = () => {
     return (
       <AppLayout>
         <div className="animate-fade-in">
-          <WorkoutLogger workoutId={selectedWorkout.id} workoutName={selectedWorkout.name} workoutInstructions={selectedWorkout.instructions} exercises={selectedWorkout.exercises} resumeSessionId={selectedWorkout.resumeSessionId} onComplete={() => { setShowLogger(false); setSelectedWorkout(null); reloadWorkouts(); }} />
+          <WorkoutLogger workoutId={selectedWorkout.id} workoutName={selectedWorkout.name} workoutInstructions={selectedWorkout.instructions} exercises={selectedWorkout.exercises} resumeSessionId={selectedWorkout.resumeSessionId} calendarEventId={selectedWorkout.calendarEventId} onComplete={() => { setShowLogger(false); setSelectedWorkout(null); reloadWorkouts(); }} />
         </div>
       </AppLayout>
     );

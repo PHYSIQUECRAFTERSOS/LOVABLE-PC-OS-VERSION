@@ -93,6 +93,7 @@ interface WorkoutLoggerProps {
   exercises: ExerciseLogForm[];
   onComplete?: () => void;
   resumeSessionId?: string | null;
+  calendarEventId?: string | null;
 }
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -120,7 +121,7 @@ function clearRetryQueue() {
   sessionStorage.removeItem(RETRY_KEY);
 }
 
-const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
+const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId, calendarEventId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -611,6 +612,14 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             _client_id: user.id, _exercise_id: ex.id, _weight: alert.weight, _reps: alert.reps,
           });
         }
+      }
+
+      // Mark calendar event as completed
+      if (calendarEventId) {
+        await supabase
+          .from("calendar_events")
+          .update({ is_completed: true, completed_at: new Date().toISOString() })
+          .eq("id", calendarEventId);
       }
 
       // Clear retry queue

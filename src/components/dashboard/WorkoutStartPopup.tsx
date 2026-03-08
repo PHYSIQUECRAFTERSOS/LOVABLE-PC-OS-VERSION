@@ -24,7 +24,8 @@ interface WorkoutStartPopupProps {
   onClose: () => void;
   workoutId: string;
   workoutName: string;
-  onStartWorkout: (workoutId: string) => void;
+  calendarEventId?: string;
+  onStartWorkout: (workoutId: string, calendarEventId?: string) => void;
 }
 
 interface ExercisePreview {
@@ -38,7 +39,7 @@ interface ExercisePreview {
   video_url: string | null;
 }
 
-const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, onStartWorkout }: WorkoutStartPopupProps) => {
+const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEventId, onStartWorkout }: WorkoutStartPopupProps) => {
   const { user } = useAuth();
   const [exercises, setExercises] = useState<ExercisePreview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +158,7 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, onStartWorko
             </DrawerClose>
             <Button
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-              onClick={() => { onStartWorkout(workoutId); onClose(); }}
+              onClick={() => { onStartWorkout(workoutId, calendarEventId); onClose(); }}
               disabled={loading}
             >
               <Play className="h-4 w-4 mr-1" /> Start Workout
