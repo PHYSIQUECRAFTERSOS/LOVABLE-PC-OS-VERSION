@@ -67,7 +67,8 @@ const SupplementLogger = () => {
   // Barcode scanning
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
-      try { const s = scannerRef.current.getState(); if (s === 2) await scannerRef.current.stop(); } catch {}
+      try { scannerRef.current.stop?.(); } catch {}
+      try { scannerRef.current.reader.reset(); } catch {}
       scannerRef.current = null;
     }
     setScanning(false);
@@ -97,15 +98,22 @@ const SupplementLogger = () => {
   const startScanner = async () => {
     setScanning(true);
     await new Promise(r => setTimeout(r, 300));
+
     try {
-      const scanner = new Html5Qrcode(scanContainerId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 120 }, aspectRatio: 1.5 },
-        async (code) => { await stopScanner(); lookupBarcode(code); },
-        () => {}
-      );
+      const reader = new BrowserMultiFormatReader();
+      const controls = await reader.decodeFromVideoDevice(undefined, scanContainerId, async (result, err) => {
+        if (result) {
+          const code = result.getText();
+          await stopScanner();
+          lookupBarcode(code);
+          return;
+        }
+        if (err && !(err instanceof NotFoundException)) {
+          console.warn("Barcode scan warning:", err);
+        }
+      });
+
+      scannerRef.current = { reader, stop: () => controls.stop() };
     } catch {
       setScanning(false);
       toast({ title: "Camera access denied", variant: "destructive" });
