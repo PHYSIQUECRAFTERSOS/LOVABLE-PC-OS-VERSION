@@ -34,44 +34,14 @@ const ClientMessaging = () => {
 
       const coachId = assignment.coach_id;
 
-      // Get coach profile — try user_id first, then id (handles both schema patterns)
-      let coachProfile: { full_name: string | null; avatar_url: string | null } | null = null;
-
-      const { data: profileByUserId } = await supabase
+      // Fetch coach profile using user_id (coach_clients.coach_id = auth user id = profiles.user_id)
+      const { data: coachProfile } = await supabase
         .from("profiles")
         .select("full_name, avatar_url")
         .eq("user_id", coachId)
         .maybeSingle();
 
-      if (profileByUserId?.full_name?.trim()) {
-        coachProfile = profileByUserId;
-      } else {
-        const { data: profileById } = await supabase
-          .from("profiles")
-          .select("full_name, avatar_url")
-          .eq("id", coachId)
-          .maybeSingle();
-        if (profileById?.full_name?.trim()) {
-          coachProfile = profileById;
-        }
-      }
-
-      // Last resort: find any profile with a name
-      if (!coachProfile?.full_name?.trim()) {
-        const { data: fallbackCoach } = await supabase
-          .from("profiles")
-          .select("full_name, avatar_url")
-          .not("full_name", "is", null)
-          .not("full_name", "eq", "")
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        if (fallbackCoach?.full_name?.trim()) {
-          coachProfile = fallbackCoach;
-        }
-      }
-
-      setCoachName(coachProfile?.full_name?.trim() || "Kevin Wu");
+      setCoachName(coachProfile?.full_name?.trim() || "Your Coach");
       setCoachAvatar(coachProfile?.avatar_url || null);
 
       // Find or create thread
