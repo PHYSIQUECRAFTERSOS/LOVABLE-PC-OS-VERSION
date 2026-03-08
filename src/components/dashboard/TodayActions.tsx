@@ -1,12 +1,15 @@
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck } from "lucide-react";
 import { format } from "date-fns";
-import { useDataFetch } from "@/hooks/useDataFetch";
+import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
+import CardioPopup from "@/components/dashboard/CardioPopup";
 
 export interface ActionItem {
   id: string;
@@ -14,6 +17,7 @@ export interface ActionItem {
   type: string;
   completed: boolean;
   detail?: string;
+  description?: string | null;
   linkedWorkoutId?: string | null;
 }
 
@@ -70,8 +74,14 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
 
+  // Popup state
+  const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string } | null>(null);
+  const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
+
+  const cacheKey = `today-actions-${user?.id}-${targetDate}`;
+
   const { data: actions = [], loading } = useDataFetch<ActionItem[]>({
-    queryKey: `today-actions-${user?.id}-${targetDate}`,
+    queryKey: cacheKey,
     enabled: !!user,
     staleTime: 60 * 1000,
     timeout: 5000,
@@ -82,7 +92,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       const [calRes, sessRes, cardioRes, nutritionRes, linkedWorkoutsRes] = await Promise.all([
         supabase
           .from("calendar_events")
-          .select("id, title, event_type, is_completed, linked_workout_id")
+          .select("id, title, event_type, is_completed, linked_workout_id, description")
           .eq("user_id", user.id)
           .eq("event_date", targetDate)
           .order("event_time", { ascending: true })
@@ -107,7 +117,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           .eq("logged_at", targetDate)
           .limit(1)
           .abortSignal(signal),
-        // Fetch workout names for linked workouts
         supabase
           .from("workouts")
           .select("id, name")
@@ -117,7 +126,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       const items: ActionItem[] = [];
       const linkedWorkoutIds = new Set<string>();
 
-      // Build a lookup map for workout names
       const workoutNameMap = new Map<string, string>();
       (linkedWorkoutsRes.data || []).forEach((w: any) => {
         workoutNameMap.set(w.id, w.name);
@@ -132,7 +140,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
-          // Use workout name from session join or workouts table directly
           const sessionName = (session as any)?.workouts?.name;
           const directName = workoutNameMap.get(e.linked_workout_id);
           const workoutName = sessionName || directName;
@@ -148,6 +155,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           title,
           type: e.event_type,
           completed,
+          description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
         });
       });
@@ -175,12 +183,10 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         }
       });
 
-      // Deduplicate: keep max 1 workout-type item (prefer named over generic)
+      // Deduplicate workout items
       const workoutItems = items.filter(i => i.type === "workout");
       if (workoutItems.length > 1) {
-        // Prefer named workouts (not "Workout")
         const named = workoutItems.find(w => w.title !== "Workout") || workoutItems[0];
-        // Remove all workout items except the preferred one
         const duplicateIds = new Set(workoutItems.filter(w => w.id !== named.id).map(w => w.id));
         const filtered = items.filter(i => !duplicateIds.has(i.id));
         items.length = 0;
@@ -203,8 +209,27 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   });
 
   const handleActionClick = (action: ActionItem) => {
+    // Workout: open popup if there's a linked workout
+    if (action.type === "workout" && action.linkedWorkoutId && !action.completed) {
+      setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title });
+      return;
+    }
+    // Cardio: open popup if not completed
+    if (action.type === "cardio" && !action.completed) {
+      setCardioPopup({ eventId: action.id, title: action.title, description: action.description });
+      return;
+    }
+    // Default: navigate
     const route = ACTION_ROUTES[action.type];
     if (route) navigate(route);
+  };
+
+  const handleStartWorkout = (workoutId: string) => {
+    navigate("/training", { state: { startWorkoutId: workoutId } });
+  };
+
+  const handleCardioCompleted = () => {
+    invalidateCache(cacheKey);
   };
 
   if (loading) return <CardSkeleton lines={5} />;
@@ -213,63 +238,88 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const totalCount = actions.length;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-bold">Today's Actions</CardTitle>
-          <span className="text-sm font-semibold text-primary">
-            {completedCount}/{totalCount}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {actions.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">No actions scheduled today. Enjoy your rest!</p>
-        ) : (
-          actions.map((action) => (
-            <button
-              key={action.id}
-              onClick={() => handleActionClick(action)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors w-full text-left border-l-[3px]",
-                TYPE_COLORS[action.type] || "border-l-muted",
-                action.completed
-                  ? "bg-primary/5 opacity-70"
-                  : "hover:bg-secondary/50"
-              )}
-            >
-              {action.completed ? (
-                <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-              ) : (
-                <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
-              )}
-              <div className="flex flex-col min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground shrink-0">
-                    {TYPE_ICONS[action.type] || TYPE_ICONS.custom}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm font-medium truncate",
-                      action.completed
-                        ? "text-muted-foreground line-through"
-                        : "text-foreground"
-                    )}
-                  >
-                    {action.title}
-                  </span>
-                </div>
-                {!action.completed && (
-                  <span className="text-[10px] text-muted-foreground ml-6 truncate">
-                    {TYPE_DESCRIPTIONS[action.type] || "Scheduled task"}
-                  </span>
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg font-bold">Today's Actions</CardTitle>
+            <span className="text-sm font-semibold text-primary">
+              {completedCount}/{totalCount}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {actions.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">No actions scheduled today. Enjoy your rest!</p>
+          ) : (
+            actions.map((action) => (
+              <button
+                key={action.id}
+                onClick={() => handleActionClick(action)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors w-full text-left border-l-[3px]",
+                  TYPE_COLORS[action.type] || "border-l-muted",
+                  action.completed
+                    ? "bg-primary/5 opacity-70"
+                    : "hover:bg-secondary/50"
                 )}
-              </div>
-            </button>
-          ))
-        )}
-      </CardContent>
-    </Card>
+              >
+                {action.completed ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                ) : (
+                  <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
+                )}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">
+                      {TYPE_ICONS[action.type] || TYPE_ICONS.custom}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-sm font-medium truncate",
+                        action.completed
+                          ? "text-muted-foreground line-through"
+                          : "text-foreground"
+                      )}
+                    >
+                      {action.title}
+                    </span>
+                  </div>
+                  {!action.completed && (
+                    <span className="text-[10px] text-muted-foreground ml-6 truncate">
+                      {TYPE_DESCRIPTIONS[action.type] || "Scheduled task"}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Workout Start Popup */}
+      {workoutPopup && (
+        <WorkoutStartPopup
+          open={true}
+          onClose={() => setWorkoutPopup(null)}
+          workoutId={workoutPopup.workoutId}
+          workoutName={workoutPopup.workoutName}
+          onStartWorkout={handleStartWorkout}
+        />
+      )}
+
+      {/* Cardio Popup */}
+      {cardioPopup && (
+        <CardioPopup
+          open={true}
+          onClose={() => setCardioPopup(null)}
+          eventId={cardioPopup.eventId}
+          title={cardioPopup.title}
+          description={cardioPopup.description}
+          onCompleted={handleCardioCompleted}
+        />
+      )}
+    </>
   );
 };
 
