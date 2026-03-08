@@ -24,9 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import ExerciseCard from "@/components/workout/ExerciseCard";
-import FloatingRestTimer from "@/components/workout/FloatingRestTimer";
 import WorkoutSummary from "@/components/workout/WorkoutSummary";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
+import { useNavigate } from "react-router-dom";
 
 interface ProgressionSettings {
   progressionType: string;
@@ -123,6 +123,7 @@ function clearRetryQueue() {
 const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState(initialExercises);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
@@ -140,8 +141,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // Floating rest timer
-  const [restTimer, setRestTimer] = useState<{ seconds: number; startedAt: number } | null>(null);
+  // Inline rest timer state: which exercise index + which set index the timer appears after
+  const [restTimer, setRestTimer] = useState<{ exIdx: number; setIdx: number; seconds: number; startedAt: number } | null>(null);
 
   // Save status
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -464,7 +465,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      setRestTimer({ seconds: ex.restSeconds, startedAt: Date.now() });
+      setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
 
@@ -663,7 +664,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         exerciseCount={exercises.filter(e => e.logs.some(l => l.completed)).length}
         prs={prAlerts}
         isFirstSession={isFirstSession}
-        onDone={() => onComplete?.()}
+        onDone={() => {
+          // Clear session storage and navigate to dashboard
+          clearRetryQueue();
+          onComplete?.();
+          navigate("/");
+        }}
       />
     );
   }
@@ -761,6 +767,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             weight: personalRecords.find(pr => pr.exercise_id === exercise.id)!.weight,
             reps: personalRecords.find(pr => pr.exercise_id === exercise.id)!.reps,
           } : null}
+          activeTimerAfterSetIndex={restTimer?.exIdx === exIdx ? restTimer.setIdx : null}
+          timerSeconds={restTimer?.seconds ?? 0}
+          onTimerComplete={() => setRestTimer(null)}
+          onTimerSkip={() => setRestTimer(null)}
           onUpdateLog={(setIdx, field, value) => updateLog(exIdx, setIdx, field, value)}
           onCompleteSet={(setIdx) => completeSet(exIdx, setIdx)}
           onAddSet={() => addSet(exIdx)}
@@ -768,15 +778,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
         />
       ))}
-
-      {/* Floating Rest Timer */}
-      {restTimer && (
-        <FloatingRestTimer
-          key={restTimer.startedAt}
-          seconds={restTimer.seconds}
-          onComplete={() => setRestTimer(null)}
-        />
-      )}
 
       {/* Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 space-y-2 safe-area-bottom">
