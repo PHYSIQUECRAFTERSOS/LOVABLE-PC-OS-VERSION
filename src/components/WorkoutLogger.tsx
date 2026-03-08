@@ -46,6 +46,7 @@ interface ExerciseLogForm {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  equipment?: string | null;
   progression?: ProgressionSettings;
   logs: {
     setNumber: number;
@@ -58,6 +59,18 @@ interface ExerciseLogForm {
     completed?: boolean;
     isPR?: boolean;
   }[];
+}
+
+interface ExerciseModification {
+  type: "switch" | "delete";
+  original_exercise_id?: string;
+  original_exercise_name?: string;
+  replacement_exercise_id?: string;
+  replacement_exercise_name?: string;
+  exercise_id?: string;
+  exercise_name?: string;
+  switched_at?: string;
+  deleted_at?: string;
 }
 
 interface PersonalRecord {
