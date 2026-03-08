@@ -24,7 +24,8 @@ interface WorkoutStartPopupProps {
   onClose: () => void;
   workoutId: string;
   workoutName: string;
-  onStartWorkout: (workoutId: string) => void;
+  calendarEventId?: string;
+  onStartWorkout: (workoutId: string, calendarEventId?: string) => void;
 }
 
 interface ExercisePreview {
