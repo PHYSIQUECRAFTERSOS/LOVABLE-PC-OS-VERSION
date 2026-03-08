@@ -114,7 +114,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       const reader = new BrowserMultiFormatReader();
       readerRef.current = reader;
 
-      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+      const devices = await reader.listVideoInputDevices();
       const rearCamera = devices.find(d =>
         d.label.toLowerCase().includes('back') ||
         d.label.toLowerCase().includes('rear') ||
