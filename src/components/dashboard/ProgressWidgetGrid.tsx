@@ -7,6 +7,7 @@ import { format, subDays } from "date-fns";
 import { Footprints, Camera, Flame } from "lucide-react";
 import CurrentWeightCard from "./CurrentWeightCard";
 import WeightHistoryScreen from "./WeightHistoryScreen";
+import StepTrendModal from "./StepTrendModal";
 
 interface SparkData {
   value: number;
