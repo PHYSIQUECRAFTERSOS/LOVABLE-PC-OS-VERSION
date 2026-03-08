@@ -64,6 +64,8 @@ const Admin = () => {
         <UserManagement />
         <BulkNotifications />
 
+        <LabelRepairTool />
+
         <Card>
           <CardHeader>
             <CardTitle className="font-display text-lg">Database Utilities</CardTitle>
