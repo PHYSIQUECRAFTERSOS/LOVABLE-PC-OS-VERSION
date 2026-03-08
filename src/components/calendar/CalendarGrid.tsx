@@ -1,9 +1,15 @@
 import { useState } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export type CalendarEvent = {
   id: string;
@@ -73,6 +79,8 @@ const CalendarGrid = ({
   onPrev,
   onNext,
 }: CalendarGridProps) => {
+  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
+
   const days = view === "week"
     ? eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) })
     : (() => {
@@ -87,6 +95,10 @@ const CalendarGrid = ({
     events.filter((e) => isSameDay(new Date(e.event_date), day));
 
   const weekDayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const maxVisible = view === "week" ? 5 : 3;
+
+  const expandedDayEvents = expandedDay ? getEventsForDay(expandedDay) : [];
 
   return (
     <div className="space-y-2">
@@ -125,6 +137,7 @@ const CalendarGrid = ({
           const dayEvents = getEventsForDay(day);
           const inMonth = isSameMonth(day, currentDate);
           const today = isToday(day);
+          const overflowCount = dayEvents.length - maxVisible;
 
           return (
             <div
@@ -144,7 +157,7 @@ const CalendarGrid = ({
               </div>
 
               <div className="space-y-0.5">
-                {dayEvents.slice(0, view === "week" ? 5 : 3).map((event) => (
+                {dayEvents.slice(0, maxVisible).map((event) => (
                   <button
                     key={event.id}
                     onClick={(e) => {
@@ -161,10 +174,16 @@ const CalendarGrid = ({
                     <span className="truncate">{event.title}</span>
                   </button>
                 ))}
-                {dayEvents.length > (view === "week" ? 5 : 3) && (
-                  <div className="text-[10px] text-muted-foreground px-1">
-                    +{dayEvents.length - (view === "week" ? 5 : 3)} more
-                  </div>
+                {overflowCount > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedDay(day);
+                    }}
+                    className="w-full text-left text-[10px] text-primary font-medium px-1 hover:underline"
+                  >
+                    +{overflowCount} more
+                  </button>
                 )}
               </div>
             </div>
@@ -181,6 +200,48 @@ const CalendarGrid = ({
           </div>
         ))}
       </div>
+
+      {/* Expanded Day Modal */}
+      <Dialog open={!!expandedDay} onOpenChange={(open) => !open && setExpandedDay(null)}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {expandedDay ? format(expandedDay, "EEEE, MMMM d") : "Events"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 pt-1">
+            {expandedDayEvents.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No events</p>
+            ) : (
+              expandedDayEvents.map((event) => (
+                <button
+                  key={event.id}
+                  onClick={() => {
+                    setExpandedDay(null);
+                    onEventClick(event);
+                  }}
+                  className={cn(
+                    "w-full text-left text-sm px-3 py-2.5 rounded-lg border flex items-center gap-2 transition-colors hover:bg-secondary/50",
+                    EVENT_COLORS[event.event_type] || EVENT_COLORS.custom,
+                    event.is_completed && "line-through opacity-60"
+                  )}
+                >
+                  {event.is_completed && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate block">{event.title}</span>
+                    {event.event_time && (
+                      <span className="text-xs opacity-80">
+                        {event.event_time.slice(0, 5)}
+                        {event.end_time && ` — ${event.end_time.slice(0, 5)}`}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
