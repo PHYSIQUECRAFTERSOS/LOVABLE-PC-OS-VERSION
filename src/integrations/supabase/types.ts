@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_tool_runs: {
+        Row: {
+          already_correct_count: number | null
+          id: string
+          notes: string | null
+          ran_at: string | null
+          ran_by: string | null
+          repaired_count: number | null
+          tool_name: string
+        }
+        Insert: {
+          already_correct_count?: number | null
+          id?: string
+          notes?: string | null
+          ran_at?: string | null
+          ran_by?: string | null
+          repaired_count?: number | null
+          tool_name: string
+        }
+        Update: {
+          already_correct_count?: number | null
+          id?: string
+          notes?: string | null
+          ran_at?: string | null
+          ran_by?: string | null
+          repaired_count?: number | null
+          tool_name?: string
+        }
+        Relationships: []
+      }
       ai_body_fat_estimates: {
         Row: {
           ai_notes: string | null
@@ -5134,6 +5164,7 @@ export type Database = {
       }
     }
     Functions: {
+      admin_repair_workout_labels: { Args: never; Returns: Json }
       get_logging_streak: { Args: { p_user_id: string }; Returns: number }
       get_logging_streak_v2:
         | { Args: { p_today: string; p_user_id: string }; Returns: number }

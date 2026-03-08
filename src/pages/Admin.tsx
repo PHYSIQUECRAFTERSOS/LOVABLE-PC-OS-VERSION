@@ -9,6 +9,7 @@ import ComplianceOverview from "@/components/admin/ComplianceOverview";
 import RetentionPanel from "@/components/admin/RetentionPanel";
 import DocumentManagement from "@/components/admin/DocumentManagement";
 import InviteDashboard from "@/components/clients/InviteDashboard";
+import LabelRepairTool from "@/components/admin/LabelRepairTool";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,6 +63,8 @@ const Admin = () => {
         <DocumentManagement />
         <UserManagement />
         <BulkNotifications />
+
+        <LabelRepairTool />
 
         <Card>
           <CardHeader>
