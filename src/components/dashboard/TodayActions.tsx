@@ -117,6 +117,12 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       const items: ActionItem[] = [];
       const linkedWorkoutIds = new Set<string>();
 
+      // Build a lookup map for workout names
+      const workoutNameMap = new Map<string, string>();
+      (linkedWorkoutsRes.data || []).forEach((w: any) => {
+        workoutNameMap.set(w.id, w.name);
+      });
+
       (calRes.data || []).forEach((e) => {
         if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
 
@@ -126,8 +132,10 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
-          // Use real workout name instead of generic "Workout"
-          const workoutName = (session as any)?.workouts?.name;
+          // Use workout name from session join or workouts table directly
+          const sessionName = (session as any)?.workouts?.name;
+          const directName = workoutNameMap.get(e.linked_workout_id);
+          const workoutName = sessionName || directName;
           if (workoutName) title = workoutName;
         }
         if (e.event_type === "cardio") {
