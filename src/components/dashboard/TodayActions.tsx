@@ -326,6 +326,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           onClose={() => setWorkoutPopup(null)}
           workoutId={workoutPopup.workoutId}
           workoutName={workoutPopup.workoutName}
+          calendarEventId={workoutPopup.calendarEventId}
           onStartWorkout={handleStartWorkout}
         />
       )}
