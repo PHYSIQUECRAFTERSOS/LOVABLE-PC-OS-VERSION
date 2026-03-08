@@ -39,12 +39,23 @@ interface ScheduleEventFormProps {
   isCoach: boolean;
 }
 
+const normalizeWorkoutName = (name: string) =>
+  name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
+
 const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: ScheduleEventFormProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<{ id: string; full_name: string }[]>([]);
-  const [workouts, setWorkouts] = useState<{ id: string; name: string; dayNumber?: number; excludeFromNumbering?: boolean; customTag?: string | null }[]>([]);
+  const [workouts, setWorkouts] = useState<{
+    id: string;
+    name: string;
+    label: string;
+    dayNumber?: number;
+    excludeFromNumbering?: boolean;
+    customTag?: string | null;
+    sortOrder?: number | null;
+  }[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
