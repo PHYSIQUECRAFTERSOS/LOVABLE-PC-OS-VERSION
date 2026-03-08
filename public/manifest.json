@@ -1,7 +1,7 @@
 {
   "id": "com.physiquecrafters.app",
   "name": "Physique Crafters",
-  "short_name": "Physique",
+  "short_name": "Physique Crafters",
   "description": "Physique Crafters is a premium coaching platform for physique transformation. Train smarter, track your nutrition, and stay accountable with your coach.",
   "start_url": "/",
   "display": "standalone",
@@ -10,28 +10,19 @@
   "orientation": "portrait",
   "categories": ["health", "fitness", "lifestyle"],
   "prefer_related_applications": false,
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "related_applications": [],
+  "display_override": ["standalone", "window-controls-overlay"],
   "icons": [
     {
       "src": "/icons/icon-192.png",
-      "sizes": "192x192",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "maskable"
     }
