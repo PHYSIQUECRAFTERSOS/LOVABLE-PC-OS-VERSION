@@ -64,9 +64,10 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     }
   }, [selectedDate]);
 
+  // Load clients list
   useEffect(() => {
     if (!isCoach || !user) return;
-    const loadCoachData = async () => {
+    const loadClients = async () => {
       const { data: cc } = await supabase
         .from("coach_clients")
         .select("client_id")
@@ -81,66 +82,91 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
           .in("user_id", clientIds);
         setClients(profiles?.map((p) => ({ id: p.user_id, full_name: p.full_name || "Unnamed" })) || []);
       }
+    };
+    loadClients();
+  }, [isCoach, user]);
 
-      // Load workouts with sort_order-based day numbering
+  // Load workouts scoped to selected client's assigned program
+  useEffect(() => {
+    if (!isCoach || !user) return;
+    const loadWorkouts = async () => {
+      if (targetClientId && targetClientId !== "none") {
+        // Load client's assigned program workouts with correct sort_order-based numbering
+        const { data: assignData } = await supabase
+          .from("client_program_assignments")
+          .select("program_id")
+          .eq("client_id", targetClientId)
+          .in("status", ["active", "subscribed"])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (assignData) {
+          const { data: phases } = await supabase
+            .from("program_phases")
+            .select("id")
+            .eq("program_id", assignData.program_id);
+          const phaseIds = (phases || []).map(p => p.id);
+
+          if (phaseIds.length > 0) {
+            const { data: pwRows } = await supabase
+              .from("program_workouts")
+              .select("id, workout_id, phase_id, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
+              .in("phase_id", phaseIds)
+              .order("sort_order");
+
+            // Group by phase, compute sequential day numbers
+            const phaseGroups: Record<string, typeof pwRows> = {};
+            (pwRows || []).forEach(pw => {
+              const key = (pw as any).phase_id || "none";
+              if (!phaseGroups[key]) phaseGroups[key] = [];
+              phaseGroups[key].push(pw);
+            });
+
+            const result: typeof workouts = [];
+            Object.values(phaseGroups).forEach(group => {
+              group.sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+              let counter = 1;
+              group.forEach((pw: any) => {
+                const isExcluded = pw.exclude_from_numbering || false;
+                result.push({
+                  id: pw.workout_id,
+                  name: (pw.workouts as any)?.name || "Workout",
+                  dayNumber: isExcluded ? undefined : counter++,
+                  excludeFromNumbering: isExcluded,
+                  customTag: pw.custom_tag || null,
+                });
+              });
+            });
+
+            // Sort: numbered first, then excluded
+            result.sort((a, b) => {
+              if (a.excludeFromNumbering && !b.excludeFromNumbering) return 1;
+              if (!a.excludeFromNumbering && b.excludeFromNumbering) return -1;
+              if (!a.excludeFromNumbering && !b.excludeFromNumbering) return (a.dayNumber ?? 999) - (b.dayNumber ?? 999);
+              return 0;
+            });
+            setWorkouts(result);
+            return;
+          }
+        }
+      }
+
+      // Fallback: load all coach workouts without day numbers
       const { data: wk } = await supabase
         .from("workouts")
         .select("id, name")
         .eq("coach_id", user.id);
 
-      // Load program_workouts to get sort_order for day numbering
-      const workoutIds = (wk || []).map(w => w.id);
-      let dayNumberMap: Record<string, number> = {};
-      let excludedMap: Record<string, { excluded: boolean; tag: string | null }> = {};
-      if (workoutIds.length > 0) {
-        const { data: pwRows } = await supabase
-          .from("program_workouts")
-          .select("workout_id, phase_id, sort_order, exclude_from_numbering, custom_tag")
-          .in("workout_id", workoutIds)
-          .order("sort_order");
-        
-        // Group by phase_id, sort by sort_order, assign sequential day numbers (skipping excluded)
-        const phaseGroups: Record<string, { workout_id: string; sort_order: number; exclude_from_numbering: boolean; custom_tag: string | null }[]> = {};
-        (pwRows || []).forEach(pw => {
-          const key = pw.phase_id || "none";
-          if (!phaseGroups[key]) phaseGroups[key] = [];
-          phaseGroups[key].push({
-            workout_id: pw.workout_id,
-            sort_order: pw.sort_order ?? 999,
-            exclude_from_numbering: (pw as any).exclude_from_numbering || false,
-            custom_tag: (pw as any).custom_tag || null,
-          });
-        });
-        Object.values(phaseGroups).forEach(group => {
-          group.sort((a, b) => a.sort_order - b.sort_order);
-          let counter = 1;
-          group.forEach((item) => {
-            if (item.exclude_from_numbering) {
-              excludedMap[item.workout_id] = { excluded: true, tag: item.custom_tag };
-            } else {
-              dayNumberMap[item.workout_id] = counter++;
-            }
-          });
-        });
-      }
-
-      // Sort: numbered first by dayNumber, then excluded at the bottom
-      const mapped = (wk || []).map(w => ({
+      setWorkouts((wk || []).map(w => ({
         ...w,
-        dayNumber: dayNumberMap[w.id],
-        excludeFromNumbering: excludedMap[w.id]?.excluded || false,
-        customTag: excludedMap[w.id]?.tag || null,
-      }));
-      mapped.sort((a, b) => {
-        if (a.excludeFromNumbering && !b.excludeFromNumbering) return 1;
-        if (!a.excludeFromNumbering && b.excludeFromNumbering) return -1;
-        if (!a.excludeFromNumbering && !b.excludeFromNumbering) return (a.dayNumber ?? 999) - (b.dayNumber ?? 999);
-        return 0;
-      });
-      setWorkouts(mapped);
+        dayNumber: undefined,
+        excludeFromNumbering: false,
+        customTag: null,
+      })));
     };
-    loadCoachData();
-  }, [isCoach, user]);
+    loadWorkouts();
+  }, [isCoach, user, targetClientId]);
 
   const resetForm = () => {
     setTitle("");
@@ -254,13 +280,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
             </Select>
           </div>
 
-          {/* Title */}
-          <div className="space-y-1.5">
-            <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" />
-          </div>
-
-          {/* Client (coach only) */}
+          {/* Client (coach only) — before title so workouts load for selected client */}
           {isCoach && clients.length > 0 && (
             <div className="space-y-1.5">
               <Label>Assign to Client</Label>
@@ -276,18 +296,35 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
             </div>
           )}
 
+          {/* Title */}
+          <div className="space-y-1.5">
+            <Label>Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" />
+          </div>
+
+
           {/* Linked Workout */}
           {isCoach && eventType === "workout" && workouts.length > 0 && (
             <div className="space-y-1.5">
               <Label>Link Workout</Label>
-              <Select value={linkedWorkoutId} onValueChange={setLinkedWorkoutId}>
+              <Select value={linkedWorkoutId} onValueChange={(val) => {
+                setLinkedWorkoutId(val);
+                // Auto-fill title with correct workout label
+                const w = workouts.find(wk => wk.id === val);
+                if (w) {
+                  const label = w.excludeFromNumbering && w.customTag
+                    ? `${w.customTag}: ${w.name}`
+                    : w.dayNumber ? `Day ${w.dayNumber}: ${w.name}` : w.name;
+                  setTitle(label);
+                }
+              }}>
                 <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                 <SelectContent>
                   {workouts.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
                       {w.excludeFromNumbering && w.customTag
-                        ? `${w.customTag} – ${w.name}`
-                        : w.dayNumber ? `Day ${w.dayNumber} – ${w.name}` : w.name}
+                        ? `${w.customTag}: ${w.name}`
+                        : w.dayNumber ? `Day ${w.dayNumber}: ${w.name}` : w.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
