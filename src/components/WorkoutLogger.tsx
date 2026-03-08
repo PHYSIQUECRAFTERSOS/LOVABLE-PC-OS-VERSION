@@ -116,7 +116,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Floating rest timer
-  const [restTimer, setRestTimer] = useState<{ seconds: number } | null>(null);
+  const [restTimer, setRestTimer] = useState<{ seconds: number; startedAt: number } | null>(null);
 
   // Elapsed timer — updates every second
   useEffect(() => {
