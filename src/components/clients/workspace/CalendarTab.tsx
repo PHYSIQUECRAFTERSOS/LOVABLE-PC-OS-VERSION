@@ -370,7 +370,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         }
 
         eventsToInsert.push({
-          user_id: clientId, title, event_date: dateStr, event_type: type,
+          user_id: clientId, 
+          target_client_id: clientId,
+          title, event_date: dateStr, event_type: type,
           is_completed: false, is_recurring: repeatEnabled,
           recurrence_pattern: repeatEnabled ? `${repeatFrequency}:${repeatEveryN}:${repeatDays.join(",")}` : null,
           linked_workout_id: type === "workout" && selectedWorkoutId ? selectedWorkoutId : null,
