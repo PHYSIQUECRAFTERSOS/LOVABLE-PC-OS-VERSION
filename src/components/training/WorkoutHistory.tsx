@@ -370,6 +370,11 @@ const WorkoutHistory = () => {
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(session.completed_at!), "MMM d, yyyy · h:mm a")}
                         </span>
+                        {session.exerciseModifications.length > 0 && (
+                          <Badge variant="outline" className="text-[10px] border-yellow-500/30 text-yellow-500">
+                            ⚠ {session.exerciseModifications.length} modification{session.exerciseModifications.length !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
                         {session.workoutPhase && (
                           <Badge variant="secondary" className="text-[10px]">
                             {session.workoutPhase}
