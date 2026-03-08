@@ -223,6 +223,16 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       setCardioPopup({ eventId: action.id, title: action.title, description: action.description });
       return;
     }
+    // Body Stats: open popup
+    if (action.type === "body_stats" && !action.completed) {
+      setBodyStatsPopup({ eventId: action.id });
+      return;
+    }
+    // Photos: open popup
+    if (action.type === "photos" && !action.completed) {
+      setPhotosPopup({ eventId: action.id });
+      return;
+    }
     // Default: navigate
     const route = ACTION_ROUTES[action.type];
     if (route) navigate(route);
