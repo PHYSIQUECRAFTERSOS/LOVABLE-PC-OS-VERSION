@@ -285,33 +285,19 @@ const SupplementLogger = () => {
         </div>
       </div>
 
-      {/* Barcode Scanner Overlay */}
-      {scanning && (
-        <Card className="border-primary/30 bg-card overflow-hidden">
-          <CardContent className="p-3 space-y-2">
-            <div id={scanContainerId} className="w-full rounded-lg overflow-hidden bg-background" />
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={stopScanner} className="flex-1">Cancel</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Manual Barcode Input */}
-      {!scanning && (
-        <div className="flex gap-2">
-          <Input
-            placeholder="Enter barcode manually..."
-            value={manualBarcode}
-            onChange={(e) => setManualBarcode(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && manualBarcode.length >= 4) lookupBarcode(manualBarcode); }}
-            className="bg-secondary border-border text-sm h-9"
-          />
-          <Button size="sm" variant="outline" disabled={manualBarcode.length < 4 || lookingUp} onClick={() => lookupBarcode(manualBarcode)} className="h-9">
-            {lookingUp ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Look Up"}
-          </Button>
-        </div>
-      )}
+      <div className="flex gap-2">
+        <Input
+          placeholder="Enter barcode manually..."
+          value={manualBarcode}
+          onChange={(e) => setManualBarcode(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && manualBarcode.length >= 4) lookupBarcode(manualBarcode); }}
+          className="bg-secondary border-border text-sm h-9"
+        />
+        <Button size="sm" variant="outline" disabled={manualBarcode.length < 4 || lookingUp} onClick={() => lookupBarcode(manualBarcode)} className="h-9">
+          {lookingUp ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Look Up"}
+        </Button>
+      </div>
 
       {/* History Mode Toggle */}
       <div className="flex gap-1 p-0.5 rounded-md bg-secondary w-fit">
