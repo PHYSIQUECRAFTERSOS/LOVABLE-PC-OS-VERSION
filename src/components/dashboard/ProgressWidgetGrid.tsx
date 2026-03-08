@@ -50,6 +50,7 @@ const ProgressWidgetGrid = () => {
   const [calSpark, setCalSpark] = useState<SparkData[]>([]);
   const [manualSteps, setManualSteps] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
+  const [stepTrendOpen, setStepTrendOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
