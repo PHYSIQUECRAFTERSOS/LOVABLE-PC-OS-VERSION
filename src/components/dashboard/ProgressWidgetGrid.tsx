@@ -202,6 +202,13 @@ const ProgressWidgetGrid = () => {
         onClose={() => setStepTrendOpen(false)}
         clientId={user?.id}
       />
+      {user && (
+        <ProgressPhotosModal
+          open={photosModalOpen}
+          onClose={() => setPhotosModalOpen(false)}
+          clientId={user.id}
+        />
+      )}
     </>
   );
 };
