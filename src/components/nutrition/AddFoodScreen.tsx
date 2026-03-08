@@ -685,7 +685,74 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* Frequent Meals */}
+        {/* My Recipes Tab */}
+        {showRecipes && (
+          <div className="space-y-1.5 py-2">
+            {userRecipes.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-muted-foreground">No recipes yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Create recipes from the Nutrition page to see them here.</p>
+              </div>
+            ) : (
+              userRecipes.map((recipe) => (
+                <div key={recipe.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">🍳 {recipe.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {recipe.calories_per_100g} cal · {recipe.protein_per_100g}P · {recipe.carbs_per_100g}C · {recipe.fat_per_100g}F
+                      <span className="text-muted-foreground/60"> per 100g</span>
+                      <span className="ml-1.5 text-muted-foreground/60">({Math.round(recipe.total_weight_g)}g total)</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => logRecipe(recipe)}
+                    className="ml-3 h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* My Foods Tab */}
+        {showMyFoods && search.length < 2 && (
+          <div className="space-y-1.5 py-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Custom Foods</span>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setQuickAddOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Create
+              </Button>
+            </div>
+            {customFoods.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-muted-foreground">No custom foods yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Use Quick Add or create custom foods to see them here.</p>
+              </div>
+            ) : (
+              customFoods.map((item) => (
+                <FoodRow
+                  key={item.id}
+                  item={item}
+                  expanded={expandedId === item.id}
+                  onToggle={() => toggleExpand(item.id)}
+                  onAdd={() => logFood(item)}
+                  servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                  onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                  servingUnit={servingUnits[item.id] || "g"}
+                  onServingUnitChange={(u) => {
+                    setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                    if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                    else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                    else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                  }}
+                />
+              ))
+            )}
+          </div>
+        )}
+
         {showHistory && !quickAddOpen && (
           <div className="py-2">
             <FrequentMealsSection
