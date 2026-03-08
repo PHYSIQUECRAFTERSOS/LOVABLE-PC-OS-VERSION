@@ -944,6 +944,23 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         clientName={clientNameForSteps}
         externalStepGoal={stepGoal}
       />
+
+      {/* Weight History Modal */}
+      <WeightHistoryScreen
+        open={weightHistoryOpen}
+        onClose={() => setWeightHistoryOpen(false)}
+        clientId={clientId}
+        clientName={clientNameForSteps}
+        readOnly
+      />
+
+      {/* Progress Photos Modal */}
+      <ProgressPhotosModal
+        open={photosModalOpen}
+        onClose={() => setPhotosModalOpen(false)}
+        clientId={clientId}
+        clientName={clientNameForSteps}
+      />
     </div>
   );
 };
