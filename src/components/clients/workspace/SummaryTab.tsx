@@ -32,6 +32,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import StepTrendModal from "@/components/dashboard/StepTrendModal";
+import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
+import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -277,6 +279,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [stepsProvider, setStepsProvider] = useState<string | null>(null);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [clientNameForSteps, setClientNameForSteps] = useState("");
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -614,7 +618,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             <Progress value={data.workoutCompliance} className="mt-3 h-1.5" />
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setWeightHistoryOpen(true)}>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center justify-between">
               <div>
@@ -697,7 +701,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       {/* ── Client Stats Row ── */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setPhotosModalOpen(true)}>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-1.5 mb-2">
               <Camera className="h-3.5 w-3.5 text-muted-foreground" />
@@ -939,6 +943,23 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         clientId={clientId}
         clientName={clientNameForSteps}
         externalStepGoal={stepGoal}
+      />
+
+      {/* Weight History Modal */}
+      <WeightHistoryScreen
+        open={weightHistoryOpen}
+        onClose={() => setWeightHistoryOpen(false)}
+        clientId={clientId}
+        clientName={clientNameForSteps}
+        readOnly
+      />
+
+      {/* Progress Photos Modal */}
+      <ProgressPhotosModal
+        open={photosModalOpen}
+        onClose={() => setPhotosModalOpen(false)}
+        clientId={clientId}
+        clientName={clientNameForSteps}
       />
     </div>
   );

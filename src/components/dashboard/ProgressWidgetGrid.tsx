@@ -8,6 +8,7 @@ import { Footprints, Camera, Flame } from "lucide-react";
 import CurrentWeightCard from "./CurrentWeightCard";
 import WeightHistoryScreen from "./WeightHistoryScreen";
 import StepTrendModal from "./StepTrendModal";
+import ProgressPhotosModal from "./ProgressPhotosModal";
 
 interface SparkData {
   value: number;
@@ -51,6 +52,7 @@ const ProgressWidgetGrid = () => {
   const [manualSteps, setManualSteps] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -153,7 +155,7 @@ const ProgressWidgetGrid = () => {
 
         {/* Progress Photos */}
         <button
-          onClick={() => navigate("/progress?tab=photos")}
+          onClick={() => setPhotosModalOpen(true)}
           className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
         >
           <div className="flex items-center gap-1.5 mb-1">
@@ -202,6 +204,13 @@ const ProgressWidgetGrid = () => {
         onClose={() => setStepTrendOpen(false)}
         clientId={user?.id}
       />
+      {user && (
+        <ProgressPhotosModal
+          open={photosModalOpen}
+          onClose={() => setPhotosModalOpen(false)}
+          clientId={user.id}
+        />
+      )}
     </>
   );
 };
