@@ -93,9 +93,9 @@ const Training = () => {
 
   // Auto-start workout from navigation state (e.g., from calendar or resume banner)
   useEffect(() => {
-    const state = location.state as { startWorkoutId?: string; resumeSessionId?: string } | null;
+    const state = location.state as { startWorkoutId?: string; resumeSessionId?: string; calendarEventId?: string } | null;
     if (state?.startWorkoutId && !showLogger) {
-      loadWorkoutExercises(state.startWorkoutId, state.resumeSessionId);
+      loadWorkoutExercises(state.startWorkoutId, state.resumeSessionId, state.calendarEventId);
       // Clear state to prevent re-triggering
       window.history.replaceState({}, document.title);
     }
