@@ -41,6 +41,10 @@ interface ExerciseCardProps {
   logs: SetLog[];
   previousSets: PreviousSet[];
   allTimePR: { weight: number; reps: number } | null;
+  activeTimerAfterSetIndex: number | null;
+  timerSeconds: number;
+  onTimerComplete: () => void;
+  onTimerSkip: () => void;
   onUpdateLog: (setIdx: number, field: string, value: unknown) => void;
   onCompleteSet: (setIdx: number) => void;
   onAddSet: () => void;
