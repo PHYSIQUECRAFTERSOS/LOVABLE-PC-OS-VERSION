@@ -290,8 +290,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         // Determine title
         let title = "";
         if (type === "workout" && selectedWorkoutId) {
-          const w = clientWorkouts.find(w => w.id === selectedWorkoutId);
-          title = w ? `${w.day_label} – ${w.name}` : "Workout";
+          const w = clientWorkouts.find((cw) => cw.id === selectedWorkoutId);
+          title = w?.label || "Workout";
         } else if (type === "cardio") {
           const targetStr = cardioTargetType !== "none" && cardioTargetValue
             ? ` — ${cardioTargetValue} ${cardioTargetUnit}`
