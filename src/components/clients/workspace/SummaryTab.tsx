@@ -23,6 +23,7 @@ import {
   Camera,
   Scale,
   Flame,
+  Footprints,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -30,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import StepTrendModal from "@/components/dashboard/StepTrendModal";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -268,6 +270,13 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [compliance7d, setCompliance7d] = useState<ComplianceDay[]>([]);
   const [macroAvg, setMacroAvg] = useState<MacroAverages | null>(null);
 
+  // Steps data for the new Steps tile
+  const [todaySteps, setTodaySteps] = useState<number | null>(null);
+  const [stepGoal, setStepGoal] = useState(10000);
+  const [stepsLastSynced, setStepsLastSynced] = useState<string | null>(null);
+  const [stepTrendOpen, setStepTrendOpen] = useState(false);
+  const [clientNameForSteps, setClientNameForSteps] = useState("");
+
   const today = format(new Date(), "yyyy-MM-dd");
 
   /* ─── Load summary cards ─── */
@@ -454,6 +463,33 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
     loadExtended();
   }, [clientId, user, today]);
+
+  /* ─── Load steps data for client ─── */
+  useEffect(() => {
+    if (!clientId) return;
+    const loadSteps = async () => {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const { data: metrics } = await supabase
+        .from("daily_health_metrics")
+        .select("steps, step_goal, synced_at")
+        .eq("user_id", clientId)
+        .eq("metric_date", todayStr)
+        .maybeSingle();
+      if (metrics) {
+        setTodaySteps(metrics.steps ?? null);
+        if (metrics.step_goal) setStepGoal(metrics.step_goal);
+        setStepsLastSynced(metrics.synced_at ?? null);
+      }
+      // Get client name for modal header
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", clientId)
+        .maybeSingle();
+      setClientNameForSteps(profile?.full_name || "Client");
+    };
+    loadSteps();
+  }, [clientId]);
 
   /* ─── Food log per date ─── */
   useEffect(() => {
@@ -651,13 +687,29 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setStepTrendOpen(true)}>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium">Body Weight</span>
+              <Footprints className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Steps Today</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{data.currentWeight ? `${data.currentWeight} lbs` : "—"}</p>
+            <p className="text-2xl font-bold text-foreground tabular-nums">
+              {todaySteps !== null ? todaySteps.toLocaleString() : "—"}
+              <span className="text-sm font-normal text-muted-foreground"> / {stepGoal.toLocaleString()}</span>
+            </p>
+            {todaySteps !== null && (
+              <div className="mt-2 h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, (todaySteps / stepGoal) * 100)}%` }}
+                />
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1.5">
+              {stepsLastSynced
+                ? `Last synced: ${format(new Date(stepsLastSynced), "h:mm a")}`
+                : todaySteps !== null ? "Manually logged" : "Not connected"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -850,6 +902,14 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Step Trend Modal */}
+      <StepTrendModal
+        open={stepTrendOpen}
+        onClose={() => setStepTrendOpen(false)}
+        clientId={clientId}
+        clientName={clientNameForSteps}
+      />
     </div>
   );
 };

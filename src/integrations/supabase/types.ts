@@ -809,6 +809,42 @@ export type Database = {
         }
         Relationships: []
       }
+      client_health_metrics: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          id: string
+          metric_type: string
+          provider: string
+          recorded_at: string | null
+          recorded_date: string
+          source_device: string | null
+          value: number
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          id?: string
+          metric_type: string
+          provider: string
+          recorded_at?: string | null
+          recorded_date: string
+          source_device?: string | null
+          value: number
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          id?: string
+          metric_type?: string
+          provider?: string
+          recorded_at?: string | null
+          recorded_date?: string
+          source_device?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
       client_invites: {
         Row: {
           accepted_at: string | null
@@ -4688,6 +4724,48 @@ export type Database = {
           created_at?: string
           id?: string
           logged_at?: string
+        }
+        Relationships: []
+      }
+      wearable_connections: {
+        Row: {
+          access_token: string | null
+          client_id: string
+          created_at: string | null
+          error_message: string | null
+          id: string
+          last_synced_at: string | null
+          provider: string
+          refresh_token: string | null
+          sync_status: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          client_id: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_synced_at?: string | null
+          provider: string
+          refresh_token?: string | null
+          sync_status?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          client_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          last_synced_at?: string | null
+          provider?: string
+          refresh_token?: string | null
+          sync_status?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }

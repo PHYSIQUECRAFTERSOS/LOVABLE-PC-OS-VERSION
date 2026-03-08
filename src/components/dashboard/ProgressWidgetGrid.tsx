@@ -7,6 +7,7 @@ import { format, subDays } from "date-fns";
 import { Footprints, Camera, Flame } from "lucide-react";
 import CurrentWeightCard from "./CurrentWeightCard";
 import WeightHistoryScreen from "./WeightHistoryScreen";
+import StepTrendModal from "./StepTrendModal";
 
 interface SparkData {
   value: number;
@@ -49,6 +50,7 @@ const ProgressWidgetGrid = () => {
   const [calSpark, setCalSpark] = useState<SparkData[]>([]);
   const [manualSteps, setManualSteps] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
+  const [stepTrendOpen, setStepTrendOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -129,7 +131,7 @@ const ProgressWidgetGrid = () => {
       <div className="grid grid-cols-2 gap-3">
         {/* Steps */}
         <button
-          onClick={() => navigate("/progress?tab=steps")}
+          onClick={() => setStepTrendOpen(true)}
           className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
         >
           <div className="flex items-center gap-1.5 mb-1">
@@ -194,6 +196,11 @@ const ProgressWidgetGrid = () => {
       <WeightHistoryScreen
         open={weightHistoryOpen}
         onClose={() => setWeightHistoryOpen(false)}
+      />
+      <StepTrendModal
+        open={stepTrendOpen}
+        onClose={() => setStepTrendOpen(false)}
+        clientId={user?.id}
       />
     </>
   );
