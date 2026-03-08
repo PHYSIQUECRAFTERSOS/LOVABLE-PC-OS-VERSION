@@ -101,19 +101,24 @@ const SupplementLogger = () => {
 
     try {
       const reader = new BrowserMultiFormatReader();
-      const controls = await reader.decodeFromVideoDevice(undefined, scanContainerId, async (result, err) => {
+      scannerRef.current = { reader };
+
+      await reader.decodeFromVideoDevice(undefined, scanContainerId, async (result, err, controls) => {
+        if (controls && !scannerRef.current?.stop) {
+          scannerRef.current = { reader, stop: () => controls.stop() };
+        }
+
         if (result) {
           const code = result.getText();
           await stopScanner();
           lookupBarcode(code);
           return;
         }
+
         if (err && !(err instanceof NotFoundException)) {
           console.warn("Barcode scan warning:", err);
         }
       });
-
-      scannerRef.current = { reader, stop: () => controls.stop() };
     } catch {
       setScanning(false);
       toast({ title: "Camera access denied", variant: "destructive" });
