@@ -242,11 +242,13 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     }
     // Body Stats: open popup
     if (action.type === "body_stats" && !action.completed) {
+      console.log("Body Stats tapped", action.id);
       setBodyStatsPopup({ eventId: action.id });
       return;
     }
     // Photos: open popup
     if (action.type === "photos" && !action.completed) {
+      console.log("Photos tapped", action.id);
       setPhotosPopup({ eventId: action.id });
       return;
     }
