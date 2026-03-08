@@ -29,12 +29,15 @@ interface ExerciseCardProps {
   rir?: number;
   notes: string;
   videoUrl?: string | null;
+  equipment?: string | null;
   logs: SetLog[];
   previousSets: PreviousSet[];
   allTimePR: { weight: number; reps: number } | null;
   onUpdateLog: (setIdx: number, field: string, value: unknown) => void;
   onCompleteSet: (setIdx: number) => void;
   onAddSet: () => void;
+  onDeleteExercise?: () => void;
+  onSwitchExercise?: () => void;
 }
 
 function getYouTubeId(url: string): string | null {
