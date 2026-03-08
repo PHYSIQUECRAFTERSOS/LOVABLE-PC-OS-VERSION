@@ -334,6 +334,20 @@ const Onboarding = () => {
     if (!validateStep()) return;
     await saveProgress(TOTAL_STEPS, true);
     if (user) {
+      // Sync onboarding weight to weight_logs
+      if (data.weight_lb && data.weight_lb > 0) {
+        const today = new Date().toISOString().split("T")[0];
+        await supabase.from("weight_logs").upsert(
+          {
+            client_id: user.id,
+            weight: data.weight_lb,
+            logged_at: today,
+            source: "onboarding",
+          },
+          { onConflict: "client_id,logged_at" }
+        );
+      }
+
       const { data: assignment } = await supabase
         .from("coach_clients")
         .select("coach_id")
