@@ -103,15 +103,11 @@ const SupplementLogger = () => {
       const reader = new BrowserMultiFormatReader();
       scannerRef.current = { reader };
 
-      await reader.decodeFromVideoDevice(undefined, scanContainerId, async (result, err, controls) => {
-        if (controls && !scannerRef.current?.stop) {
-          scannerRef.current = { reader, stop: () => controls.stop() };
-        }
-
+      await reader.decodeFromVideoDevice(undefined, scanContainerId, (result, err) => {
         if (result) {
           const code = result.getText();
-          await stopScanner();
-          lookupBarcode(code);
+          void stopScanner();
+          void lookupBarcode(code);
           return;
         }
 
