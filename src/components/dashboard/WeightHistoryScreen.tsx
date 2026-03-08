@@ -8,11 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Scale, Plus, CalendarIcon, Trash2 } from "lucide-react";
-import { format, subMonths, subYears } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +39,7 @@ interface WeightHistoryScreenProps {
   open: boolean;
   onClose: () => void;
   clientId?: string;
+  clientName?: string;
   readOnly?: boolean;
 }
 
@@ -46,21 +50,30 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const RANGE_FILTERS = [
-  { label: "1M", months: 1 },
-  { label: "3M", months: 3 },
-  { label: "6M", months: 6 },
-  { label: "1Y", months: 12 },
-  { label: "All", months: 0 },
+  { label: "7D", months: 0, days: 7 },
+  { label: "30D", months: 1, days: 0 },
+  { label: "3M", months: 3, days: 0 },
+  { label: "6M", months: 6, days: 0 },
+  { label: "1Y", months: 12, days: 0 },
+  { label: "All", months: 0, days: 0 },
 ];
 
-const WeightHistoryScreen = ({ open, onClose, clientId, readOnly = false }: WeightHistoryScreenProps) => {
+function rollingAverage(data: { date: string; weight: number }[], window = 7) {
+  return data.map((point, i) => {
+    const slice = data.slice(Math.max(0, i - window + 1), i + 1);
+    const avg = slice.reduce((sum, p) => sum + p.weight, 0) / slice.length;
+    return { ...point, smoothed: Number(avg.toFixed(1)) };
+  });
+}
+
+const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const targetId = clientId || user?.id;
 
   const [entries, setEntries] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rangeIdx, setRangeIdx] = useState(4); // default All
+  const [rangeIdx, setRangeIdx] = useState(2); // default 3M
   const [showLogSheet, setShowLogSheet] = useState(false);
   const [logWeight, setLogWeight] = useState("");
   const [logDate, setLogDate] = useState<Date>(new Date());
@@ -80,6 +93,9 @@ const WeightHistoryScreen = ({ open, onClose, clientId, readOnly = false }: Weig
     const range = RANGE_FILTERS[rangeIdx];
     if (range.months > 0) {
       const since = format(subMonths(new Date(), range.months), "yyyy-MM-dd");
+      query = query.gte("logged_at", since);
+    } else if (range.days > 0) {
+      const since = format(new Date(Date.now() - range.days * 86400000), "yyyy-MM-dd");
       query = query.gte("logged_at", since);
     }
 
@@ -135,12 +151,19 @@ const WeightHistoryScreen = ({ open, onClose, clientId, readOnly = false }: Weig
     toast({ title: "Entry deleted" });
   };
 
-  const latest = entries.length > 0 ? entries[entries.length - 1] : null;
-  const chartData = entries.map((e) => ({
+  // Chart data with 7-day rolling average
+  const rawChartData = entries.map((e) => ({
     date: format(new Date(e.logged_at + "T00:00:00"), "MMM d"),
     weight: e.weight,
   }));
+  const chartData = entries.length >= 7 ? rollingAverage(rawChartData) : rawChartData.map(d => ({ ...d, smoothed: d.weight }));
 
+  // Summary bar
+  const startingWeight = entries.length > 0 ? entries[0].weight : null;
+  const currentWeight = entries.length > 0 ? entries[entries.length - 1].weight : null;
+  const totalChange = startingWeight && currentWeight ? Number((currentWeight - startingWeight).toFixed(1)) : null;
+
+  const title = clientName ? `${clientName}'s Weight` : "My Weight";
   const reversedEntries = [...entries].reverse();
 
   return (
@@ -150,23 +173,11 @@ const WeightHistoryScreen = ({ open, onClose, clientId, readOnly = false }: Weig
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5 text-primary" />
-              Weight History
+              {title}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="p-6 pt-2 space-y-6">
-            {/* Current Weight */}
-            {latest && (
-              <div className="text-center">
-                <div className="text-3xl font-bold text-foreground tabular-nums">
-                  {latest.weight} lbs
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  As of {format(new Date(latest.logged_at + "T00:00:00"), "MMMM d, yyyy")}
-                </p>
-              </div>
-            )}
-
+          <div className="p-6 pt-2 space-y-5">
             {/* Range Filters */}
             <div className="flex gap-1 justify-center">
               {RANGE_FILTERS.map((r, i) => (
@@ -185,14 +196,59 @@ const WeightHistoryScreen = ({ open, onClose, clientId, readOnly = false }: Weig
               ))}
             </div>
 
-            {/* Chart */}
-            {chartData.length >= 2 ? (
-              <div className="h-48">
+            {/* Summary Bar */}
+            {startingWeight && currentWeight && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Starting</p>
+                  <p className="text-lg font-bold text-foreground tabular-nums">{startingWeight} lbs</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current</p>
+                  <p className="text-lg font-bold text-foreground tabular-nums">{currentWeight} lbs</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change</p>
+                  <p className={cn(
+                    "text-lg font-bold tabular-nums",
+                    totalChange && totalChange < 0 ? "text-green-400" : totalChange && totalChange > 0 ? "text-red-400" : "text-foreground"
+                  )}>
+                    {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " lbs" : "—"}
+                    {totalChange !== null && totalChange !== 0 && (
+                      <span className="text-xs ml-1">{totalChange < 0 ? "↓" : "↑"}</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Chart — smooth line with area fill */}
+            {loading ? (
+              <Skeleton className="h-52 rounded-lg" />
+            ) : chartData.length >= 2 ? (
+              <div className="h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-                    <YAxis domain={["dataMin - 2", "dataMax + 2"]} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={Math.max(0, Math.floor(chartData.length / 6) - 1)}
+                    />
+                    <YAxis
+                      domain={["dataMin - 2", "dataMax + 2"]}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={40}
+                    />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
@@ -200,16 +256,18 @@ const WeightHistoryScreen = ({ open, onClose, clientId, readOnly = false }: Weig
                         borderRadius: 8,
                         fontSize: 12,
                       }}
+                      formatter={(value: number) => [value + " lbs", entries.length >= 7 ? "7d Avg" : "Weight"]}
                     />
-                    <Line
+                    <Area
                       type="monotone"
-                      dataKey="weight"
+                      dataKey="smoothed"
                       stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: "hsl(var(--primary))" }}
-                      activeDot={{ r: 5 }}
+                      strokeWidth={2.5}
+                      fill="url(#weightGrad)"
+                      dot={false}
+                      activeDot={{ r: 4, fill: "hsl(var(--primary))" }}
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             ) : (
