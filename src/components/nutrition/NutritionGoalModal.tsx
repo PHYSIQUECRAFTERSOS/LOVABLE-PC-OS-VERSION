@@ -289,6 +289,26 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
           )}
         </div>
 
+        {/* Step Goal */}
+        <div className="pt-4 border-t border-border space-y-2">
+          <Label className="text-sm font-semibold">Daily Step Goal</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              inputMode="numeric"
+              value={dailyStepGoal.toLocaleString()}
+              onChange={e => {
+                const raw = e.target.value.replace(/,/g, "");
+                const num = parseInt(raw) || 0;
+                setDailyStepGoal(num);
+                setStepGoalError(num < 1000 || num > 100000 ? "Must be between 1,000 and 100,000" : "");
+              }}
+              className="max-w-[160px]"
+            />
+            <span className="text-sm text-muted-foreground">steps/day</span>
+          </div>
+          {stepGoalError && <p className="text-xs text-destructive">{stepGoalError}</p>}
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>

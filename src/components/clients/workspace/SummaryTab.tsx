@@ -483,6 +483,22 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         if (metrics.step_goal) setStepGoal(metrics.step_goal);
         setStepsLastSynced(metrics.synced_at ?? null);
       }
+      // Fetch wearable connection info for provider name + last synced
+      const { data: wearConn } = await supabase
+        .from("wearable_connections")
+        .select("provider, last_synced_at, sync_status")
+        .eq("client_id", clientId)
+        .eq("sync_status", "connected")
+        .order("last_synced_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (wearConn) {
+        const providerLabels: Record<string, string> = {
+          fitbit: "Fitbit", google_fit: "Google Fit", apple_health: "Apple Health", whoop: "Whoop"
+        };
+        setStepsProvider(providerLabels[wearConn.provider] || wearConn.provider);
+        if (wearConn.last_synced_at) setStepsLastSynced(wearConn.last_synced_at);
+      }
       // Get client name for modal header
       const { data: profile } = await supabase
         .from("profiles")
@@ -493,6 +509,16 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     };
     loadSteps();
   }, [clientId]);
+
+  const formatRelativeTime = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return format(new Date(dateStr), "MMM d, h:mm a");
+  };
 
   /* ─── Food log per date ─── */
   useEffect(() => {

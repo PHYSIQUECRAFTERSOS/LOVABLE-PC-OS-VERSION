@@ -36,7 +36,12 @@ const StepTrendModal = ({ open, onClose, clientId, clientName, externalStepGoal 
   const [rangeIdx, setRangeIdx] = useState(1); // default 30D
   const [data, setData] = useState<StepDay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stepGoal, setStepGoal] = useState(10000);
+  const [stepGoal, setStepGoal] = useState(externalStepGoal ?? 10000);
+
+  // Sync external goal when it changes
+  useEffect(() => {
+    if (externalStepGoal && externalStepGoal > 0) setStepGoal(externalStepGoal);
+  }, [externalStepGoal]);
 
   useEffect(() => {
     if (!open || !clientId) return;
