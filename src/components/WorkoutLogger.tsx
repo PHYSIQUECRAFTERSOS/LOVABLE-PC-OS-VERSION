@@ -27,8 +27,6 @@ import ExerciseCard from "@/components/workout/ExerciseCard";
 import WorkoutSummary from "@/components/workout/WorkoutSummary";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 import { useNavigate } from "react-router-dom";
-import WorkoutSummary from "@/components/workout/WorkoutSummary";
-import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 
 interface ProgressionSettings {
   progressionType: string;
