@@ -687,13 +687,29 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setStepTrendOpen(true)}>
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium">Body Weight</span>
+              <Footprints className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Steps Today</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">{data.currentWeight ? `${data.currentWeight} lbs` : "—"}</p>
+            <p className="text-2xl font-bold text-foreground tabular-nums">
+              {todaySteps !== null ? todaySteps.toLocaleString() : "—"}
+              <span className="text-sm font-normal text-muted-foreground"> / {stepGoal.toLocaleString()}</span>
+            </p>
+            {todaySteps !== null && (
+              <div className="mt-2 h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, (todaySteps / stepGoal) * 100)}%` }}
+                />
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground mt-1.5">
+              {stepsLastSynced
+                ? `Last synced: ${format(new Date(stepsLastSynced), "h:mm a")}`
+                : todaySteps !== null ? "Manually logged" : "Not connected"}
+            </p>
           </CardContent>
         </Card>
         <Card>
