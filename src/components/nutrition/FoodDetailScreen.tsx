@@ -1,8 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronDown, ShieldCheck, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ServingOption {
   description: string;
@@ -86,6 +88,45 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   const [useGrams, setUseGrams] = useState(false);
   const [customGrams, setCustomGrams] = useState(selectedServing.size_g);
   const [showServingDropdown, setShowServingDropdown] = useState(false);
+  const { user } = useAuth();
+
+  // Smart Serving Memory: silently pre-fill from last used serving
+  useEffect(() => {
+    if (!user?.id || !food.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("user_food_serving_memory" as any)
+          .select("serving_size, serving_unit")
+          .eq("user_id", user.id)
+          .eq("food_id", food.id)
+          .maybeSingle();
+        if (cancelled || !data) return;
+        const mem = data as unknown as { serving_size: number; serving_unit: string };
+        if (mem.serving_unit === "g" || mem.serving_unit === "grams") {
+          setUseGrams(true);
+          setCustomGrams(mem.serving_size);
+        } else {
+          // Try to match a serving option
+          const match = servingOptions.find(
+            (o) => o.description === mem.serving_unit
+          );
+          if (match) {
+            setSelectedServing(match);
+            setQuantity(mem.serving_size);
+          } else {
+            // Fallback: use grams mode with the remembered size
+            setUseGrams(true);
+            setCustomGrams(mem.serving_size);
+          }
+        }
+      } catch {
+        // Silent fallback to defaults
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, food.id]);
 
   const effectiveGrams = useGrams
     ? customGrams * quantity
