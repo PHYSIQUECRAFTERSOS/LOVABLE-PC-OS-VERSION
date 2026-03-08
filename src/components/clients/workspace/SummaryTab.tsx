@@ -902,6 +902,14 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Step Trend Modal */}
+      <StepTrendModal
+        open={stepTrendOpen}
+        onClose={() => setStepTrendOpen(false)}
+        clientId={clientId}
+        clientName={clientNameForSteps}
+      />
     </div>
   );
 };
