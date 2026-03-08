@@ -465,7 +465,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      setRestTimer({ seconds: ex.restSeconds, startedAt: Date.now() });
+      setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
 
