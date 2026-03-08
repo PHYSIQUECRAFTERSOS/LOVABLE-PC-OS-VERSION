@@ -489,8 +489,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 <Select value={selectedWorkoutId} onValueChange={setSelectedWorkoutId}>
                   <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                   <SelectContent>
-                    {clientWorkouts.map(w => (
-                      <SelectItem key={w.id} value={w.id}>{w.day_label} – {w.name}</SelectItem>
+                    {clientWorkouts.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>{w.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
