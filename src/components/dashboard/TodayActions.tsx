@@ -215,7 +215,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const handleActionClick = (action: ActionItem) => {
     // Workout: open popup if there's a linked workout
     if (action.type === "workout" && action.linkedWorkoutId && !action.completed) {
-      setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title });
+      setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title, calendarEventId: action.id });
       return;
     }
     // Cardio: open popup if not completed
