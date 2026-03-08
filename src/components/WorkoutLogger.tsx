@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, RotateCcw, X } from "lucide-react";
+import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -95,6 +95,31 @@ interface WorkoutLoggerProps {
   resumeSessionId?: string | null;
 }
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+// --- Offline retry queue helpers ---
+const RETRY_KEY = "set_retry_queue";
+
+function getRetryQueue(): any[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(RETRY_KEY) || "[]");
+  } catch { return []; }
+}
+
+function pushToRetryQueue(item: any) {
+  const queue = getRetryQueue();
+  queue.push({ ...item, queuedAt: Date.now() });
+  sessionStorage.setItem(RETRY_KEY, JSON.stringify(queue));
+}
+
+function setRetryQueue(queue: any[]) {
+  sessionStorage.setItem(RETRY_KEY, JSON.stringify(queue));
+}
+
+function clearRetryQueue() {
+  sessionStorage.removeItem(RETRY_KEY);
+}
+
 const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -117,6 +142,14 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   // Floating rest timer
   const [restTimer, setRestTimer] = useState<{ seconds: number; startedAt: number } | null>(null);
+
+  // Save status
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Recovery banner
+  const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
+  const [recoveredSetCount, setRecoveredSetCount] = useState(0);
 
   // Elapsed timer — updates every second
   useEffect(() => {
@@ -151,6 +184,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .eq("session_id", resumeSessionId)
           .order("set_number");
         if (logs && logs.length > 0) {
+          let restoredCount = 0;
           setExercises(prev => {
             const updated = [...prev];
             logs.forEach(log => {
@@ -167,9 +201,14 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
                 notes: log.notes ?? undefined,
                 completed: true,
               };
+              restoredCount++;
             });
             return updated;
           });
+          if (restoredCount > 0) {
+            setRecoveredSetCount(restoredCount);
+            setShowRecoveryBanner(true);
+          }
         }
         setSessionId(resumeSessionId);
       } else {
@@ -196,6 +235,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     initSession();
   }, [user, workoutId, resumeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-dismiss recovery banner after 4s
+  useEffect(() => {
+    if (!showRecoveryBanner) return;
+    const t = setTimeout(() => setShowRecoveryBanner(false), 4000);
+    return () => clearTimeout(t);
+  }, [showRecoveryBanner]);
+
   // Heartbeat every 30 seconds
   useEffect(() => {
     if (!sessionId) return;
@@ -209,6 +255,47 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }, 30_000);
     return () => clearInterval(interval);
   }, [sessionId]);
+
+  // Flush retry queue on visibility change
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && sessionId) {
+        flushRetryQueue(sessionId);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [sessionId]);
+
+  const flushRetryQueue = async (sid: string) => {
+    const queue = getRetryQueue();
+    if (queue.length === 0) return;
+    const failed: any[] = [];
+    for (const item of queue) {
+      try {
+        const { error } = await supabase
+          .from("exercise_logs")
+          .upsert({
+            session_id: item.session_id || sid,
+            exercise_id: item.exercise_id,
+            set_number: item.set_number,
+            weight: item.weight,
+            reps: item.reps,
+            tempo: item.tempo || null,
+            rir: item.rir ?? null,
+            notes: item.notes || null,
+            logged_at: new Date().toISOString(),
+          }, { onConflict: "session_id,exercise_id,set_number" });
+        if (error) failed.push(item);
+      } catch {
+        failed.push(item);
+      }
+    }
+    setRetryQueue(failed);
+    if (failed.length === 0 && queue.length > 0) {
+      showSaveSuccess();
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -273,6 +360,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(newEx);
   };
 
+  const showSaveSuccess = () => {
+    setSaveStatus("saved");
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
+  };
+
   const checkPR = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number): boolean => {
     const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
     let isPR = false;
@@ -292,6 +385,61 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     return isPR;
   }, [personalRecords, prAlerts, toast]);
 
+  // Persist a single set to Supabase immediately
+  const persistSet = async (exerciseId: string, log: ExerciseLogForm["logs"][0]) => {
+    if (!sessionId) return;
+    setSaveStatus("saving");
+    try {
+      const { error } = await supabase
+        .from("exercise_logs")
+        .upsert({
+          session_id: sessionId,
+          exercise_id: exerciseId,
+          set_number: log.setNumber,
+          weight: log.weight ?? null,
+          reps: log.reps || null,
+          tempo: log.tempo || null,
+          rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
+          notes: log.notes || null,
+          logged_at: new Date().toISOString(),
+        }, { onConflict: "session_id,exercise_id,set_number" });
+
+      if (error) {
+        console.error("[WorkoutLogger] Set save failed:", error);
+        setSaveStatus("error");
+        pushToRetryQueue({
+          session_id: sessionId,
+          exercise_id: exerciseId,
+          set_number: log.setNumber,
+          weight: log.weight,
+          reps: log.reps,
+          tempo: log.tempo,
+          rir: log.rir,
+          notes: log.notes,
+        });
+        return;
+      }
+      showSaveSuccess();
+
+      // Update last_activity heartbeat (fire-and-forget)
+      supabase
+        .from("workout_sessions")
+        .update({ last_heartbeat: new Date().toISOString() })
+        .eq("id", sessionId)
+        .then(() => {});
+    } catch (e) {
+      console.error("[WorkoutLogger] Set persist error:", e);
+      setSaveStatus("error");
+      pushToRetryQueue({
+        session_id: sessionId,
+        exercise_id: exerciseId,
+        set_number: log.setNumber,
+        weight: log.weight,
+        reps: log.reps,
+      });
+    }
+  };
+
   const completeSet = (exIdx: number, setIdx: number) => {
     const ex = exercises[exIdx];
     const log = ex.logs[setIdx];
@@ -300,7 +448,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     const isPR = checkPR(ex.id, ex.name, log.weight, log.reps);
 
     const newEx = [...exercises];
-    newEx[exIdx].logs[setIdx] = { ...newEx[exIdx].logs[setIdx], completed: true, isPR };
+    const completedLog = { ...newEx[exIdx].logs[setIdx], completed: true, isPR };
+    newEx[exIdx].logs[setIdx] = completedLog;
 
     // Auto-fill next incomplete set
     const nextIdx = newEx[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
@@ -310,6 +459,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
 
     setExercises(newEx);
+
+    // Immediately persist this set to DB
+    persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
       setRestTimer({ seconds: ex.restSeconds, startedAt: Date.now() });
@@ -413,7 +565,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     try {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-      // Delete any existing logs for this session (in case of resume) then re-insert
+      // Reconcile: delete any logs for exercises that were removed, then upsert final state
+      // First delete all existing logs and re-insert completed ones for clean state
       await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
 
       const logsToInsert = exercises.flatMap((ex) =>
@@ -459,6 +612,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         }
       }
 
+      // Clear retry queue
+      clearRetryQueue();
+
       setShowSummary(true);
     } catch (error: any) {
       console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });
@@ -475,17 +631,17 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         .update({ status: "cancelled" })
         .eq("id", sessionId);
     }
+    clearRetryQueue();
     setShowCancelDialog(false);
     onComplete?.();
   };
 
   const discardWorkout = async () => {
     if (sessionId) {
-      // Delete all exercise logs for this session
       await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
-      // Delete the session itself
       await supabase.from("workout_sessions").delete().eq("id", sessionId);
     }
+    clearRetryQueue();
     setShowFinishModal(false);
     setShowDiscardConfirm(false);
     onComplete?.();
@@ -514,17 +670,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   return (
     <div className="space-y-4 pb-52">
-      {/* Sticky Header — Timer + Finish */}
+      {/* Recovery Banner */}
+      {showRecoveryBanner && (
+        <div className="mx-0 rounded-lg border-l-4 border-l-primary bg-primary/10 border border-primary/20 p-3 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm font-medium text-foreground">
+              Session restored — {recoveredSetCount} set{recoveredSetCount !== 1 ? "s" : ""} recovered
+            </span>
+          </div>
+          <button
+            onClick={() => setShowRecoveryBanner(false)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Sticky Header — Timer + Finish + Save Status */}
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 pt-2 pb-3">
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              // Reset timer visual only (cosmetic)
-            }}
-            className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {}}
+              className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+            {/* Save Status Indicator */}
+            <SaveStatusIndicator status={saveStatus} />
+          </div>
           <span className="text-lg font-bold tabular-nums text-foreground">{elapsed}</span>
           <Button
             size="sm"
@@ -725,5 +901,23 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     </div>
   );
 };
+
+// --- Save Status Indicator ---
+function SaveStatusIndicator({ status }: { status: SaveStatus }) {
+  if (status === "idle") return null;
+
+  return (
+    <span className={`text-[11px] font-medium flex items-center gap-1 transition-opacity ${
+      status === "saved" ? "text-primary" :
+      status === "saving" ? "text-muted-foreground" :
+      "text-destructive"
+    }`}>
+      {status === "saving" && <Cloud className="h-3 w-3 animate-pulse" />}
+      {status === "saved" && <Check className="h-3 w-3" />}
+      {status === "error" && <AlertTriangle className="h-3 w-3" />}
+      {status === "saving" ? "Saving..." : status === "saved" ? "Saved" : "Save failed"}
+    </span>
+  );
+}
 
 export default WorkoutLogger;
