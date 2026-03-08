@@ -274,6 +274,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [todaySteps, setTodaySteps] = useState<number | null>(null);
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepsLastSynced, setStepsLastSynced] = useState<string | null>(null);
+  const [stepsProvider, setStepsProvider] = useState<string | null>(null);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [clientNameForSteps, setClientNameForSteps] = useState("");
 
