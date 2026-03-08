@@ -99,85 +99,97 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     loadClients();
   }, [isCoach, user]);
 
-  // Load workouts scoped to selected client's assigned program
+  // Load workouts scoped to selected client's assigned phase
   useEffect(() => {
     if (!isCoach || !user) return;
+
     const loadWorkouts = async () => {
-      if (targetClientId && targetClientId !== "none") {
-        // Load client's assigned program workouts with correct sort_order-based numbering
-        const { data: assignData } = await supabase
-          .from("client_program_assignments")
-          .select("program_id")
-          .eq("client_id", targetClientId)
-          .in("status", ["active", "subscribed"])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (assignData) {
-          const { data: phases } = await supabase
-            .from("program_phases")
-            .select("id")
-            .eq("program_id", assignData.program_id);
-          const phaseIds = (phases || []).map(p => p.id);
-
-          if (phaseIds.length > 0) {
-            const { data: pwRows } = await supabase
-              .from("program_workouts")
-              .select("id, workout_id, phase_id, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
-              .in("phase_id", phaseIds)
-              .order("sort_order");
-
-            // Group by phase, compute sequential day numbers
-            const phaseGroups: Record<string, typeof pwRows> = {};
-            (pwRows || []).forEach(pw => {
-              const key = (pw as any).phase_id || "none";
-              if (!phaseGroups[key]) phaseGroups[key] = [];
-              phaseGroups[key].push(pw);
-            });
-
-            const result: typeof workouts = [];
-            Object.values(phaseGroups).forEach(group => {
-              group.sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
-              let counter = 1;
-              group.forEach((pw: any) => {
-                const isExcluded = pw.exclude_from_numbering || false;
-                result.push({
-                  id: pw.workout_id,
-                  name: (pw.workouts as any)?.name || "Workout",
-                  dayNumber: isExcluded ? undefined : counter++,
-                  excludeFromNumbering: isExcluded,
-                  customTag: pw.custom_tag || null,
-                });
-              });
-            });
-
-            // Sort: numbered first, then excluded
-            result.sort((a, b) => {
-              if (a.excludeFromNumbering && !b.excludeFromNumbering) return 1;
-              if (!a.excludeFromNumbering && b.excludeFromNumbering) return -1;
-              if (!a.excludeFromNumbering && !b.excludeFromNumbering) return (a.dayNumber ?? 999) - (b.dayNumber ?? 999);
-              return 0;
-            });
-            setWorkouts(result);
-            return;
-          }
-        }
+      if (!targetClientId || targetClientId === "none") {
+        setWorkouts([]);
+        return;
       }
 
-      // Fallback: load all coach workouts without day numbers
-      const { data: wk } = await supabase
-        .from("workouts")
-        .select("id, name")
-        .eq("coach_id", user.id);
+      const { data: assignment } = await supabase
+        .from("client_program_assignments")
+        .select("program_id, current_phase_id")
+        .eq("client_id", targetClientId)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      setWorkouts((wk || []).map(w => ({
-        ...w,
-        dayNumber: undefined,
-        excludeFromNumbering: false,
-        customTag: null,
-      })));
+      if (!assignment?.program_id) {
+        setWorkouts([]);
+        return;
+      }
+
+      let phaseId = assignment.current_phase_id;
+      if (!phaseId) {
+        const { data: firstPhase } = await supabase
+          .from("program_phases")
+          .select("id")
+          .eq("program_id", assignment.program_id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        phaseId = firstPhase?.id ?? null;
+      }
+
+      if (!phaseId) {
+        setWorkouts([]);
+        return;
+      }
+
+      const { data: pwRows } = await supabase
+        .from("program_workouts")
+        .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
+        .eq("phase_id", phaseId)
+        .order("sort_order", { ascending: true });
+
+      const normalized = (pwRows || []).map((pw: any) => ({
+        id: pw.workout_id,
+        name: (pw.workouts as any)?.name || "Workout",
+        sort_order: pw.sort_order,
+        exclude_from_numbering: pw.exclude_from_numbering || false,
+        custom_tag: pw.custom_tag || null,
+      }));
+
+      const positioned = withDisplayPositions(normalized);
+
+      // Root cause note:
+      // `program_workouts.day_label` contained stale legacy values (e.g. Day 6/7) and was previously used for UI labels.
+      // We now compute labels only from sorted position + workout name to eliminate phantom numbering.
+      const mapped = positioned.map((w) => {
+        const cleanName = normalizeWorkoutName(w.name);
+        const label = w.exclude_from_numbering && w.custom_tag
+          ? `${w.custom_tag}: ${cleanName}`
+          : w.displayPosition != null
+            ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+            : cleanName;
+
+        return {
+          id: w.id,
+          name: cleanName,
+          label,
+          dayNumber: w.displayPosition ?? undefined,
+          excludeFromNumbering: w.exclude_from_numbering,
+          customTag: w.custom_tag,
+          sortOrder: w.sort_order,
+        };
+      });
+
+      mapped.sort((a, b) => {
+        const aTagged = !!a.excludeFromNumbering;
+        const bTagged = !!b.excludeFromNumbering;
+        if (aTagged && !bTagged) return 1;
+        if (!aTagged && bTagged) return -1;
+        if (!aTagged && !bTagged) return (a.dayNumber ?? 999) - (b.dayNumber ?? 999);
+        return (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+      });
+
+      setWorkouts(mapped);
     };
+
     loadWorkouts();
   }, [isCoach, user, targetClientId]);
 
