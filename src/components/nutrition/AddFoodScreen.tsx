@@ -99,6 +99,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [historySort, setHistorySort] = useState<HistorySort>("recent");
   const [history, setHistory] = useState<FoodItem[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
+  const [userRecipes, setUserRecipes] = useState<any[]>([]);
+  const [customFoods, setCustomFoods] = useState<FoodItem[]>([]);
   const [servings, setServings] = useState<Record<string, string>>({});
   const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
@@ -118,6 +120,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setTimeout(() => searchRef.current?.focus(), 100);
       fetchHistory();
       fetchSavedMeals();
+      fetchUserRecipes();
+      fetchCustomFoods();
     }
   }, [open]);
 
@@ -160,6 +164,54 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       .eq("client_id", user.id)
       .order("created_at", { ascending: false });
     setSavedMeals(data || []);
+  };
+
+  const fetchUserRecipes = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("recipes")
+      .select("*")
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false });
+    setUserRecipes(data || []);
+  };
+
+  const fetchCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("food_items")
+      .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+      .eq("created_by", user.id)
+      .in("data_source", ["custom", "recipe"])
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setCustomFoods((data || []) as FoodItem[]);
+  };
+
+  const logRecipe = async (recipe: any) => {
+    if (!user) return;
+    // Log 100g serving of the recipe
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: `🍳 ${recipe.name} (100g)`,
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(recipe.calories_per_100g || 0),
+      protein: Math.round(recipe.protein_per_100g || 0),
+      carbs: Math.round(recipe.carbs_per_100g || 0),
+      fat: Math.round(recipe.fat_per_100g || 0),
+      fiber: Math.round(recipe.fiber_per_100g || 0),
+      sugar: Math.round(recipe.sugar_per_100g || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+
+    if (error) {
+      toast({ title: "Couldn't log recipe. Please try again." });
+    } else {
+      toast({ title: `${recipe.name} logged` });
+      onLogged();
+    }
   };
 
   useEffect(() => { fetchHistory(); }, [historySort]);
@@ -522,8 +574,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     ...offResults.filter(o => !results.some(r => r.name.toLowerCase() === o.name.toLowerCase())),
   ];
   const displayItems = search.length >= 2 ? allDisplayItems : [];
-  const showHistory = search.length < 2 && activeTab !== "my-meals";
+  const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
+  const showRecipes = activeTab === "my-recipes";
+  const showMyFoods = activeTab === "my-foods";
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
@@ -631,7 +685,74 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* Frequent Meals */}
+        {/* My Recipes Tab */}
+        {showRecipes && (
+          <div className="space-y-1.5 py-2">
+            {userRecipes.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-muted-foreground">No recipes yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Create recipes from the Nutrition page to see them here.</p>
+              </div>
+            ) : (
+              userRecipes.map((recipe) => (
+                <div key={recipe.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-foreground truncate">🍳 {recipe.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {recipe.calories_per_100g} cal · {recipe.protein_per_100g}P · {recipe.carbs_per_100g}C · {recipe.fat_per_100g}F
+                      <span className="text-muted-foreground/60"> per 100g</span>
+                      <span className="ml-1.5 text-muted-foreground/60">({Math.round(recipe.total_weight_g)}g total)</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => logRecipe(recipe)}
+                    className="ml-3 h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* My Foods Tab */}
+        {showMyFoods && search.length < 2 && (
+          <div className="space-y-1.5 py-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Custom Foods</span>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setQuickAddOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Create
+              </Button>
+            </div>
+            {customFoods.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-muted-foreground">No custom foods yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Use Quick Add or create custom foods to see them here.</p>
+              </div>
+            ) : (
+              customFoods.map((item) => (
+                <FoodRow
+                  key={item.id}
+                  item={item}
+                  expanded={expandedId === item.id}
+                  onToggle={() => toggleExpand(item.id)}
+                  onAdd={() => logFood(item)}
+                  servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                  onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                  servingUnit={servingUnits[item.id] || "g"}
+                  onServingUnitChange={(u) => {
+                    setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                    if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                    else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                    else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                  }}
+                />
+              ))
+            )}
+          </div>
+        )}
+
         {showHistory && !quickAddOpen && (
           <div className="py-2">
             <FrequentMealsSection
