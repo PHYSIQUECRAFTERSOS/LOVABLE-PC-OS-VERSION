@@ -54,8 +54,60 @@ const Calendar = () => {
     queryFn: async (signal) => {
       if (!user) return [];
 
-      // Run all queries in parallel
-      // Fetch calendar events with linked workout names
+      const normalizeWorkoutName = (name: string) => name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
+      const workoutLabelMap = new Map<string, string>();
+
+      const { data: assignment } = await supabase
+        .from("client_program_assignments")
+        .select("program_id, current_phase_id")
+        .eq("client_id", user.id)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (assignment?.program_id) {
+        let phaseId = assignment.current_phase_id;
+        if (!phaseId) {
+          const { data: firstPhase } = await supabase
+            .from("program_phases")
+            .select("id")
+            .eq("program_id", assignment.program_id)
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          phaseId = firstPhase?.id ?? null;
+        }
+
+        if (phaseId) {
+          const { data: pws } = await supabase
+            .from("program_workouts")
+            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+            .eq("phase_id", phaseId)
+            .order("sort_order", { ascending: true });
+
+          const positioned = withDisplayPositions(
+            (pws || []).map((pw: any) => ({
+              id: pw.workout_id,
+              sort_order: pw.sort_order,
+              exclude_from_numbering: pw.exclude_from_numbering || false,
+              custom_tag: pw.custom_tag || null,
+              name: (pw.workouts as any)?.name || "Workout",
+            }))
+          );
+
+          positioned.forEach((w: any) => {
+            const cleanName = normalizeWorkoutName(w.name);
+            const label = w.exclude_from_numbering && w.custom_tag
+              ? `${w.custom_tag}: ${cleanName}`
+              : w.displayPosition != null
+                ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+                : cleanName;
+            workoutLabelMap.set(w.id, label);
+          });
+        }
+      }
+
       const calendarPromise = supabase
         .from("calendar_events")
         .select("*, workouts:linked_workout_id(name), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
