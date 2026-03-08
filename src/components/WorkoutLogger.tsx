@@ -336,6 +336,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       restSeconds: 90,
       notes: "",
       videoUrl: exercise.youtube_url || exercise.video_url || null,
+      equipment: exercise.equipment || null,
       logs: Array.from({ length: 3 }, (_, idx) => ({
         setNumber: idx + 1,
         weight: undefined,
@@ -346,6 +347,50 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(prev => [...prev, newExercise]);
     setShowAddExercise(false);
     toast({ title: `${exercise.name} added to workout` });
+  };
+
+  const deleteExercise = (exIdx: number) => {
+    const ex = exercises[exIdx];
+    setExerciseModifications(prev => [...prev, {
+      type: "delete",
+      exercise_id: ex.id,
+      exercise_name: ex.name,
+      deleted_at: new Date().toISOString(),
+    }]);
+    setExercises(prev => prev.filter((_, i) => i !== exIdx));
+    toast({ title: `${ex.name} removed from session` });
+  };
+
+  const handleSwitchExercise = (exercise: any) => {
+    if (switchingExIdx === null) return;
+    const original = exercises[switchingExIdx];
+    
+    setExerciseModifications(prev => [...prev, {
+      type: "switch",
+      original_exercise_id: original.id,
+      original_exercise_name: original.name,
+      replacement_exercise_id: exercise.id,
+      replacement_exercise_name: exercise.name,
+      switched_at: new Date().toISOString(),
+    }]);
+
+    const newEx = [...exercises];
+    newEx[switchingExIdx] = {
+      ...newEx[switchingExIdx],
+      id: exercise.id,
+      name: exercise.name,
+      videoUrl: exercise.youtube_url || exercise.video_url || null,
+      equipment: exercise.equipment || null,
+      logs: newEx[switchingExIdx].logs.map(l => ({
+        ...l,
+        weight: 0,
+        completed: false,
+        isPR: false,
+      })),
+    };
+    setExercises(newEx);
+    setSwitchingExIdx(null);
+    toast({ title: `Switched to ${exercise.name}` });
   };
 
   const finishWorkout = async () => {
