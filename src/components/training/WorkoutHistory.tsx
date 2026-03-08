@@ -19,6 +19,7 @@ interface SessionRow {
   workoutName: string;
   workoutPhase: string | null;
   exerciseLogs: ExerciseLogRow[];
+  exerciseModifications: any[];
 }
 
 interface ExerciseLogRow {
