@@ -77,24 +77,36 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const startScanner = async () => {
     setScanning(true);
     setShowPhotoFallback(false);
-    await new Promise((r) => setTimeout(r, 300));
+    hasDetectedRef.current = false;
 
-    // Show photo fallback after 5 seconds
     fallbackTimerRef.current = setTimeout(() => {
       setShowPhotoFallback(true);
     }, 5000);
 
     try {
-      const scanner = new Html5Qrcode(containerId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 120 }, aspectRatio: 1.5 },
-        async (code) => {
-          await stopScanner();
-          lookupBarcode(code);
-        },
-        () => {}
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
+      const devices = await reader.listVideoInputDevices();
+      const rearCamera = devices.find(d =>
+        d.label.toLowerCase().includes('back') ||
+        d.label.toLowerCase().includes('rear') ||
+        d.label.toLowerCase().includes('environment')
+      ) || devices[devices.length - 1];
+
+      await reader.decodeFromVideoDevice(
+        rearCamera?.deviceId || null,
+        videoRef.current!,
+        (result, err) => {
+          if (result && !hasDetectedRef.current) {
+            hasDetectedRef.current = true;
+            if (navigator.vibrate) navigator.vibrate(100);
+            stopScanner();
+            lookupBarcode(result.getText());
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn('[SuppScan] Scanner error:', err);
+          }
+        }
       );
     } catch {
       setScanning(false);
