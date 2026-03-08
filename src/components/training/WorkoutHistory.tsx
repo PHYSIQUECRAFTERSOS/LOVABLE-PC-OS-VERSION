@@ -20,6 +20,7 @@ interface SessionRow {
   workoutPhase: string | null;
   exerciseLogs: ExerciseLogRow[];
   exerciseModifications: any[];
+  hadUnloggedSets: boolean;
 }
 
 interface ExerciseLogRow {
