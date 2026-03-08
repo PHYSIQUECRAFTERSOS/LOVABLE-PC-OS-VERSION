@@ -108,18 +108,35 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
     setScanning(true);
     setProduct(null);
     setNotFound(false);
-    await new Promise((r) => setTimeout(r, 300));
+    hasDetectedRef.current = false;
+
     try {
-      const scanner = new Html5Qrcode(scannerContainerId);
-      scannerRef.current = scanner;
-      await scanner.start(
-        { facingMode: "environment" },
-        { fps: 15, qrbox: { width: 300, height: 150 }, aspectRatio: 1.7778 },
-        async (decodedText) => {
-          await stopScanner();
-          handleBarcodeLookup(decodedText);
-        },
-        () => {}
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
+
+      const devices = await BrowserMultiFormatReader.listVideoInputDevices();
+      const rearCamera = devices.find(d =>
+        d.label.toLowerCase().includes('back') ||
+        d.label.toLowerCase().includes('rear') ||
+        d.label.toLowerCase().includes('environment')
+      ) || devices[devices.length - 1];
+
+      await reader.decodeFromVideoDevice(
+        rearCamera?.deviceId || null,
+        videoRef.current!,
+        (result, err) => {
+          if (result && !hasDetectedRef.current) {
+            hasDetectedRef.current = true;
+            if (navigator.vibrate) navigator.vibrate(100);
+            reader.reset();
+            readerRef.current = null;
+            setScanning(false);
+            handleBarcodeLookup(result.getText());
+          }
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn('[BARCODE] Scanner error:', err);
+          }
+        }
       );
     } catch {
       setScanning(false);
