@@ -614,6 +614,14 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         }
       }
 
+      // Mark calendar event as completed
+      if (calendarEventId) {
+        await supabase
+          .from("calendar_events")
+          .update({ is_completed: true, completed_at: new Date().toISOString() })
+          .eq("id", calendarEventId);
+      }
+
       // Clear retry queue
       clearRetryQueue();
 
