@@ -18,7 +18,7 @@ interface NutritionGoalModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientId: string;
-  initialTargets?: { calories: number; protein: number; carbs: number; fat: number } | null;
+  initialTargets?: { calories: number; protein: number; carbs: number; fat: number; daily_step_goal?: number } | null;
   onSaved: () => void;
 }
 
