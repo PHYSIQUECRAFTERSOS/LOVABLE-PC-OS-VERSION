@@ -334,22 +334,14 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
               <Label>Link Workout</Label>
               <Select value={linkedWorkoutId} onValueChange={(val) => {
                 setLinkedWorkoutId(val);
-                // Auto-fill title with correct workout label
-                const w = workouts.find(wk => wk.id === val);
-                if (w) {
-                  const label = w.excludeFromNumbering && w.customTag
-                    ? `${w.customTag}: ${w.name}`
-                    : w.dayNumber ? `Day ${w.dayNumber}: ${w.name}` : w.name;
-                  setTitle(label);
-                }
+                const w = workouts.find((wk) => wk.id === val);
+                if (w) setTitle(w.label);
               }}>
                 <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                 <SelectContent>
                   {workouts.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
-                      {w.excludeFromNumbering && w.customTag
-                        ? `${w.customTag}: ${w.name}`
-                        : w.dayNumber ? `Day ${w.dayNumber}: ${w.name}` : w.name}
+                      {w.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
