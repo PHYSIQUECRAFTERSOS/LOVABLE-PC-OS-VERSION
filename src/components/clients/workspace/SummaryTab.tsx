@@ -709,7 +709,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             )}
             <p className="text-[10px] text-muted-foreground mt-1.5">
               {stepsLastSynced
-                ? `Last synced: ${format(new Date(stepsLastSynced), "h:mm a")}`
+                ? `Last synced: ${formatRelativeTime(stepsLastSynced)}${stepsProvider ? ` · via ${stepsProvider}` : ""}`
                 : todaySteps !== null ? "Manually logged" : "Not connected"}
             </p>
           </CardContent>
