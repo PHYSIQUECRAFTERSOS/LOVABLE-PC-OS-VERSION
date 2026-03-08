@@ -66,6 +66,20 @@ const ACTION_ROUTES: Record<string, string> = {
   checkin: "/progress",
 };
 
+const normalizeActionType = (eventType: string, title?: string | null): string => {
+  const titleLower = (title || "").toLowerCase();
+
+  if ((eventType === "custom" || eventType === "rest") && titleLower.includes("body stat")) {
+    return "body_stats";
+  }
+
+  if ((eventType === "custom" || eventType === "rest") && titleLower.includes("photo")) {
+    return "photos";
+  }
+
+  return eventType;
+};
+
 interface TodayActionsProps {
   date?: string;
   onDataLoaded?: (items: ActionItem[]) => void;
