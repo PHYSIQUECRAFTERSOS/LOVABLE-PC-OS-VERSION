@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import InlineRestTimer from "@/components/workout/InlineRestTimer";
 
 interface SetLog {
   setNumber: number;
