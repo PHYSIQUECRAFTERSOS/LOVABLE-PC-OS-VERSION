@@ -246,6 +246,14 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     invalidateCache(cacheKey);
   };
 
+  const handleBodyStatsCompleted = () => {
+    invalidateCache(cacheKey);
+  };
+
+  const handlePhotosCompleted = () => {
+    invalidateCache(cacheKey);
+  };
+
   if (loading) return <CardSkeleton lines={5} />;
 
   const completedCount = actions.filter((a) => a.completed).length;
