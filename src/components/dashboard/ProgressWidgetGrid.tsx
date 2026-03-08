@@ -197,6 +197,11 @@ const ProgressWidgetGrid = () => {
         open={weightHistoryOpen}
         onClose={() => setWeightHistoryOpen(false)}
       />
+      <StepTrendModal
+        open={stepTrendOpen}
+        onClose={() => setStepTrendOpen(false)}
+        clientId={user?.id}
+      />
     </>
   );
 };
