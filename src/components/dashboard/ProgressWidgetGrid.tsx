@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
+import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { Footprints, Camera, Flame } from "lucide-react";
 import CurrentWeightCard from "./CurrentWeightCard";
