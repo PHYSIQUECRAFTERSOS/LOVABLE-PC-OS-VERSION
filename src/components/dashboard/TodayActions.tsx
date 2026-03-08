@@ -97,7 +97,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         supabase
           .from("calendar_events")
           .select("id, title, event_type, is_completed, linked_workout_id, description")
-          .eq("user_id", user.id)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .eq("event_date", targetDate)
           .order("event_time", { ascending: true })
           .abortSignal(signal),
