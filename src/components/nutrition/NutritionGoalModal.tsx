@@ -118,7 +118,7 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       return;
     }
 
-    const { error } = await supabase.from("nutrition_targets").insert({
+    const { error } = await supabase.from("nutrition_targets").upsert({
       client_id: clientId,
       coach_id: user.id,
       calories,
@@ -126,7 +126,7 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       carbs: carbsG,
       fat: fatG,
       daily_step_goal: dailyStepGoal,
-    } as any);
+    } as any, { onConflict: "client_id,effective_date" });
 
     setSaving(false);
     if (error) {
