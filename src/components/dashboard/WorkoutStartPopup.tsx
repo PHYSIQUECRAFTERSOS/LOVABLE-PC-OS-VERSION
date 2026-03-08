@@ -158,7 +158,7 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
             </DrawerClose>
             <Button
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-              onClick={() => { onStartWorkout(workoutId); onClose(); }}
+              onClick={() => { onStartWorkout(workoutId, calendarEventId); onClose(); }}
               disabled={loading}
             >
               <Play className="h-4 w-4 mr-1" /> Start Workout

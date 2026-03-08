@@ -153,7 +153,7 @@ const Training = () => {
     return (
       <AppLayout>
         <div className="animate-fade-in">
-          <WorkoutLogger workoutId={selectedWorkout.id} workoutName={selectedWorkout.name} workoutInstructions={selectedWorkout.instructions} exercises={selectedWorkout.exercises} resumeSessionId={selectedWorkout.resumeSessionId} onComplete={() => { setShowLogger(false); setSelectedWorkout(null); reloadWorkouts(); }} />
+          <WorkoutLogger workoutId={selectedWorkout.id} workoutName={selectedWorkout.name} workoutInstructions={selectedWorkout.instructions} exercises={selectedWorkout.exercises} resumeSessionId={selectedWorkout.resumeSessionId} calendarEventId={selectedWorkout.calendarEventId} onComplete={() => { setShowLogger(false); setSelectedWorkout(null); reloadWorkouts(); }} />
         </div>
       </AppLayout>
     );
