@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import CardioPopup from "@/components/dashboard/CardioPopup";
+import BodyStatsPopup from "@/components/dashboard/BodyStatsPopup";
+import PhotosPopup from "@/components/dashboard/PhotosPopup";
 
 export interface ActionItem {
   id: string;
