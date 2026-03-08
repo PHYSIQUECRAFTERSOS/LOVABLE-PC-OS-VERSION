@@ -911,6 +911,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         onClose={() => setStepTrendOpen(false)}
         clientId={clientId}
         clientName={clientNameForSteps}
+        externalStepGoal={stepGoal}
       />
     </div>
   );
