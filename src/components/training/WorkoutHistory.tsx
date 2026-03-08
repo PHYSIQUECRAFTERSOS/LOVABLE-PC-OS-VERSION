@@ -377,6 +377,11 @@ const WorkoutHistory = () => {
                             ⚠ {session.exerciseModifications.length} modification{session.exerciseModifications.length !== 1 ? "s" : ""}
                           </Badge>
                         )}
+                        {session.hadUnloggedSets && (
+                          <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                            ⚡ Finished early
+                          </Badge>
+                        )}
                         {session.workoutPhase && (
                           <Badge variant="secondary" className="text-[10px]">
                             {session.workoutPhase}
