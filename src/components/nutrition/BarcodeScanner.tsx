@@ -59,17 +59,16 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   const [manualProtein, setManualProtein] = useState("");
   const [manualCarbs, setManualCarbs] = useState("");
   const [manualFat, setManualFat] = useState("");
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const scannerContainerId = "barcode-reader";
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hasDetectedRef = useRef(false);
 
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try {
-        const state = scannerRef.current.getState();
-        if (state === 2) await scannerRef.current.stop();
-      } catch { /* ignore */ }
-      scannerRef.current = null;
+  const stopScanner = useCallback(() => {
+    if (readerRef.current) {
+      try { readerRef.current.reset(); } catch { /* ignore */ }
+      readerRef.current = null;
     }
+    hasDetectedRef.current = false;
     setScanning(false);
   }, []);
 
