@@ -14,10 +14,10 @@ import {
   Plus, Pill, Trash2, Check, ScanBarcode, ChevronDown, ChevronUp,
   Shield, Star, Minus, Loader2, AlertTriangle, Sparkles
 } from "lucide-react";
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { useToast } from "@/hooks/use-toast";
 import { MICRONUTRIENTS, BIOAVAILABILITY_FORMS, NutrientInfo } from "@/lib/micronutrients";
 import { cn } from "@/lib/utils";
-import { Html5Qrcode } from "html5-qrcode";
 import SupplementScanFlow from "./SupplementScanFlow";
 
 const SupplementLogger = () => {
@@ -36,7 +36,7 @@ const SupplementLogger = () => {
   const [scanning, setScanning] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<{ reader: BrowserMultiFormatReader; stop?: () => void } | null>(null);
   const scanContainerId = "supp-barcode-reader";
 
   // Add form state
