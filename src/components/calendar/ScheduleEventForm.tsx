@@ -213,8 +213,9 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     setSaving(true);
 
     try {
+      const assignedClientId = targetClientId && targetClientId !== "none" ? targetClientId : null;
       const eventData: any = {
-        user_id: user.id,
+        user_id: assignedClientId || user.id,
         title: title.trim(),
         description: description.trim() || null,
         event_type: eventType,
@@ -225,7 +226,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
         recurrence_pattern: isRecurring ? recurrencePattern : null,
         recurrence_days: isRecurring && recurrenceDays.length > 0 ? recurrenceDays : null,
         recurrence_end_date: isRecurring && recurrenceEndDate ? recurrenceEndDate : null,
-        target_client_id: targetClientId || null,
+        target_client_id: assignedClientId,
         linked_workout_id: linkedWorkoutId || null,
         notes: notes.trim() || null,
       };
