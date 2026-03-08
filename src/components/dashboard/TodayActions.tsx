@@ -150,12 +150,14 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       });
 
       (calRes.data || []).forEach((e) => {
+        const normalizedType = normalizeActionType(e.event_type, e.title);
+
         if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
 
         let completed = e.is_completed;
         let title = e.title;
 
-        if (e.event_type === "workout" && e.linked_workout_id) {
+        if (normalizedType === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
           const sessionName = (session as any)?.workouts?.name;
@@ -163,7 +165,8 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           const workoutName = sessionName || directName;
           if (workoutName) title = workoutName;
         }
-        if (e.event_type === "cardio") {
+
+        if (normalizedType === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
           if (log?.completed) completed = true;
         }
@@ -171,7 +174,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         items.push({
           id: e.id,
           title,
-          type: e.event_type,
+          type: normalizedType,
           completed,
           description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
