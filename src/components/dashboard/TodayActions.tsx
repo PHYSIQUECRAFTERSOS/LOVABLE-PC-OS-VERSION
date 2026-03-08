@@ -341,6 +341,26 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           onCompleted={handleCardioCompleted}
         />
       )}
+
+      {/* Body Stats Popup */}
+      {bodyStatsPopup && (
+        <BodyStatsPopup
+          open={true}
+          onClose={() => setBodyStatsPopup(null)}
+          eventId={bodyStatsPopup.eventId}
+          onCompleted={handleBodyStatsCompleted}
+        />
+      )}
+
+      {/* Photos Popup */}
+      {photosPopup && (
+        <PhotosPopup
+          open={true}
+          onClose={() => setPhotosPopup(null)}
+          eventId={photosPopup.eventId}
+          onCompleted={handlePhotosCompleted}
+        />
+      )}
     </>
   );
 };
