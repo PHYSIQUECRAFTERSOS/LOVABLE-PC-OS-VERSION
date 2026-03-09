@@ -40,10 +40,11 @@ interface MealScanCaptureProps {
   open: boolean;
   onClose: () => void;
   mealType: string;
+  logDate?: string;
   onLogged: () => void;
 }
 
-const MealScanCapture = ({ open, onClose, mealType, onLogged }: MealScanCaptureProps) => {
+const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealScanCaptureProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
