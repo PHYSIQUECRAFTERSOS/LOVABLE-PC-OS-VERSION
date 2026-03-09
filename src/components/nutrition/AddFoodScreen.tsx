@@ -116,6 +116,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [mealScanOpen, setMealScanOpen] = useState(false);
   const [detailFood, setDetailFood] = useState<FoodItem | null>(null);
+  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
+  const [showCreateFood, setShowCreateFood] = useState(false);
+  const [clientRecipes, setClientRecipes] = useState<any[]>([]);
+  const [clientCustomFoods, setClientCustomFoods] = useState<any[]>([]);
 
   useEffect(() => {
     if (open) {
