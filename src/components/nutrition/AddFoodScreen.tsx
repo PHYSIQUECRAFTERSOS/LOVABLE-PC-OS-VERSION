@@ -989,6 +989,26 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
       <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
       <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} onLogged={onLogged} />
+
+      {showCreateRecipe && (
+        <CreateRecipeScreen
+          onClose={() => setShowCreateRecipe(false)}
+          onSaved={() => {
+            setShowCreateRecipe(false);
+            fetchClientRecipes();
+          }}
+        />
+      )}
+
+      {showCreateFood && (
+        <CreateFoodScreen
+          onClose={() => setShowCreateFood(false)}
+          onSaved={() => {
+            setShowCreateFood(false);
+            fetchClientCustomFoods();
+          }}
+        />
+      )}
     </div>
   );
 };
