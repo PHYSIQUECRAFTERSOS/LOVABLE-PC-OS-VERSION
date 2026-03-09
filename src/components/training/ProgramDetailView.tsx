@@ -615,10 +615,14 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
     // Persist to DB if saved
     if (pw.id) {
-      await supabase.from("program_workouts").update({
+      const { error } = await supabase.from("program_workouts").update({
         exclude_from_numbering: exclude,
         custom_tag: tag,
       } as any).eq("id", pw.id);
+      if (error) {
+        console.error("[ProgramSave] Failed to update custom tag:", error);
+        toast({ title: "Failed to save tag — please try again.", variant: "destructive" });
+      }
     }
   }, [phases]);
 
