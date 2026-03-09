@@ -767,6 +767,48 @@ export type Database = {
         }
         Relationships: []
       }
+      client_custom_foods: {
+        Row: {
+          brand: string | null
+          calories: number | null
+          carbs: number | null
+          client_id: string
+          created_at: string | null
+          fat: number | null
+          id: string
+          name: string
+          protein: number | null
+          serving_size: string | null
+          servings_per_container: number | null
+        }
+        Insert: {
+          brand?: string | null
+          calories?: number | null
+          carbs?: number | null
+          client_id: string
+          created_at?: string | null
+          fat?: number | null
+          id?: string
+          name: string
+          protein?: number | null
+          serving_size?: string | null
+          servings_per_container?: number | null
+        }
+        Update: {
+          brand?: string | null
+          calories?: number | null
+          carbs?: number | null
+          client_id?: string
+          created_at?: string | null
+          fat?: number | null
+          id?: string
+          name?: string
+          protein?: number | null
+          serving_size?: string | null
+          servings_per_container?: number | null
+        }
+        Relationships: []
+      }
       client_goals: {
         Row: {
           aggressiveness: number | null
@@ -1018,6 +1060,107 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      client_recipe_ingredients: {
+        Row: {
+          brand: string | null
+          calories: number | null
+          carbs: number | null
+          created_at: string | null
+          fat: number | null
+          food_name: string
+          id: string
+          protein: number | null
+          quantity: number | null
+          recipe_id: string
+          serving_size: string | null
+        }
+        Insert: {
+          brand?: string | null
+          calories?: number | null
+          carbs?: number | null
+          created_at?: string | null
+          fat?: number | null
+          food_name: string
+          id?: string
+          protein?: number | null
+          quantity?: number | null
+          recipe_id: string
+          serving_size?: string | null
+        }
+        Update: {
+          brand?: string | null
+          calories?: number | null
+          carbs?: number | null
+          created_at?: string | null
+          fat?: number | null
+          food_name?: string
+          id?: string
+          protein?: number | null
+          quantity?: number | null
+          recipe_id?: string
+          serving_size?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_recipe_ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "client_recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_recipes: {
+        Row: {
+          calories_per_serving: number | null
+          carbs_per_serving: number | null
+          client_id: string
+          created_at: string | null
+          fat_per_serving: number | null
+          id: string
+          name: string
+          protein_per_serving: number | null
+          servings: number | null
+          total_calories: number | null
+          total_carbs: number | null
+          total_fat: number | null
+          total_protein: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          calories_per_serving?: number | null
+          carbs_per_serving?: number | null
+          client_id: string
+          created_at?: string | null
+          fat_per_serving?: number | null
+          id?: string
+          name: string
+          protein_per_serving?: number | null
+          servings?: number | null
+          total_calories?: number | null
+          total_carbs?: number | null
+          total_fat?: number | null
+          total_protein?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          calories_per_serving?: number | null
+          carbs_per_serving?: number | null
+          client_id?: string
+          created_at?: string | null
+          fat_per_serving?: number | null
+          id?: string
+          name?: string
+          protein_per_serving?: number | null
+          servings?: number | null
+          total_calories?: number | null
+          total_carbs?: number | null
+          total_fat?: number | null
+          total_protein?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       client_risk_scores: {
         Row: {
