@@ -134,13 +134,23 @@ const CreateRecipeScreen = ({ onClose, onSaved }: CreateRecipeScreenProps) => {
 
   if (showIngredientSearch) {
     return (
-      <AddFoodScreen
-        mealType="ingredient"
-        mealLabel="Add Ingredient"
-        open={true}
-        onClose={() => setShowIngredientSearch(false)}
-        onLogged={() => {}}
-      />
+      <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+        <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
+          <button onClick={() => setShowIngredientSearch(false)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
+            <ArrowLeft className="h-5 w-5 text-foreground" />
+          </button>
+          <h1 className="flex-1 text-center text-base font-semibold text-foreground">Add Ingredient</h1>
+          <div className="w-8" />
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          <FoodSearchPanel
+            onSelect={(food) => {
+              addIngredient(food);
+            }}
+            onClose={() => setShowIngredientSearch(false)}
+          />
+        </div>
+      </div>
     );
   }
 
