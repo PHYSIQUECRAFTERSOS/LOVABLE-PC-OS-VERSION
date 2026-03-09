@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Trash2, ChefHat } from "lucide-react";
 import { getFoodEmoji } from "@/utils/foodEmoji";
-import AddFoodScreen from "./AddFoodScreen";
+import FoodSearchPanel from "./FoodSearchPanel";
 
 interface Ingredient {
   id: string;
