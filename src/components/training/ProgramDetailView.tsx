@@ -569,19 +569,22 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       if (phase.id) {
         // Phase already exists in DB - insert the link directly
         if (!editingWorkout) {
-          const { error } = await supabase.from("program_workouts").insert({
+          const { data, error } = await supabase.from("program_workouts").insert({
             phase_id: phase.id,
             workout_id: workoutId,
             day_of_week: phase.workouts.length - 1,
             day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
             sort_order: phase.workouts.length - 1,
-          });
+          }).select();
           if (error) throw error;
+          if (!data || data.length === 0) throw new Error("Workout link was not saved — check permissions.");
         }
         showSaveStatus("saved");
+        // Re-fetch to sync IDs from database
+        await loadProgram();
       } else {
-        // Phase is new (not yet in DB) — auto-save the entire program
-        await saveProgram();
+        // Phase is new (not yet in DB) — save entire program with the updated phases
+        await saveProgramWithPhases(newPhases);
       }
     } catch (err: any) {
       console.error("[ProgramSave] Failed to save workout link:", err);
@@ -684,13 +687,13 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     }
   };
 
-  // ── Save ──
-  const saveProgram = async () => {
+  // ── Save (uses provided phases or falls back to current state) ──
+  const saveProgramWithPhases = async (phasesToSave: ProgramPhase[]) => {
     if (!user) return;
     setSaving(true);
     showSaveStatus("saving");
     try {
-      const totalDuration = phases.reduce((s, p) => s + p.durationWeeks, 0);
+      const totalDuration = phasesToSave.reduce((s, p) => s + p.durationWeeks, 0);
 
       const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
       if (updateErr) throw updateErr;
@@ -707,8 +710,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       const { error: delWeekErr } = await supabase.from("program_weeks").delete().eq("program_id", programId);
       if (delWeekErr) { console.error("[ProgramSave] Failed to delete weeks:", delWeekErr); throw delWeekErr; }
 
-      // Insert phases with direct workout links (week_id is now nullable)
-      for (const phase of phases) {
+      // Insert phases with direct workout links
+      for (const phase of phasesToSave) {
         const { data: phaseRow, error: phaseErr } = await supabase
           .from("program_phases")
           .insert({
@@ -726,7 +729,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         if (phaseErr) { console.error("[ProgramSave] Failed to insert phase:", phase.name, phaseErr); throw phaseErr; }
 
         if (phase.workouts.length > 0) {
-          const { error: pwErr } = await supabase.from("program_workouts").insert(
+          const { data: pwData, error: pwErr } = await supabase.from("program_workouts").insert(
             phase.workouts.map((w, i) => ({
               phase_id: phaseRow.id,
               workout_id: w.workoutId,
@@ -736,8 +739,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               exclude_from_numbering: w.excludeFromNumbering || false,
               custom_tag: w.customTag || null,
             }))
-          );
+          ).select();
           if (pwErr) { console.error("[ProgramSave] Failed to insert program_workouts:", pwErr); throw pwErr; }
+          if (!pwData || pwData.length === 0) console.warn("[ProgramSave] program_workouts insert returned no data");
         }
       }
 
@@ -753,6 +757,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       setSaving(false);
     }
   };
+
+  const saveProgram = () => saveProgramWithPhases(phases);
 
   if (loading) {
     return (
