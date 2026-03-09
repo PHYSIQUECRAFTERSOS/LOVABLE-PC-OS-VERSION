@@ -350,6 +350,7 @@ const MasterLibraries = () => {
             <TabsTrigger value="programs" className="gap-1.5 text-xs"><Layers className="h-3.5 w-3.5" /> Programs</TabsTrigger>
             <TabsTrigger value="exercises" className="gap-1.5 text-xs"><Dumbbell className="h-3.5 w-3.5" /> Exercises</TabsTrigger>
             <TabsTrigger value="meals" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> Meals</TabsTrigger>
+            <TabsTrigger value="pc-recipes" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> PC Recipes</TabsTrigger>
             <TabsTrigger value="foods" className="gap-1.5 text-xs"><Apple className="h-3.5 w-3.5" /> Foods</TabsTrigger>
             <TabsTrigger value="habits" className="gap-1.5 text-xs"><ListChecks className="h-3.5 w-3.5" /> Habits</TabsTrigger>
             <TabsTrigger value="forms" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" /> Forms</TabsTrigger>
