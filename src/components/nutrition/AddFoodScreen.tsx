@@ -586,15 +586,20 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (selectedPCRecipe) {
+  if (showCreateRecipe) {
     return (
-      <PCRecipeDetail
-        recipe={selectedPCRecipe}
-        mealType={mealType}
-        mealLabel={mealLabel}
-        logDate={effectiveDate}
-        onBack={() => setSelectedPCRecipe(null)}
-        onLogged={() => { setSelectedPCRecipe(null); onLogged(); }}
+      <CreateRecipeScreen
+        onClose={() => setShowCreateRecipe(false)}
+        onSaved={() => { setShowCreateRecipe(false); fetchClientRecipes(); }}
+      />
+    );
+  }
+
+  if (showCreateFood) {
+    return (
+      <CreateFoodScreen
+        onClose={() => setShowCreateFood(false)}
+        onSaved={() => { setShowCreateFood(false); fetchClientFoods(); }}
       />
     );
   }
