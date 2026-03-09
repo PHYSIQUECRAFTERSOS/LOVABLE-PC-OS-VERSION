@@ -562,15 +562,29 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     loadWorkoutMeta(newPhases);
 
     // Auto-save the phase-workout link to database immediately
-    if (phase.id) {
-      // Phase already exists in DB - insert the link directly
-      await supabase.from("program_workouts").insert({
-        phase_id: phase.id,
-        workout_id: workoutId,
-        day_of_week: phase.workouts.length - 1,
-        day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
-        sort_order: phase.workouts.length - 1,
-      });
+    showSaveStatus("saving");
+    try {
+      if (phase.id) {
+        // Phase already exists in DB - insert the link directly
+        if (!editingWorkout) {
+          const { error } = await supabase.from("program_workouts").insert({
+            phase_id: phase.id,
+            workout_id: workoutId,
+            day_of_week: phase.workouts.length - 1,
+            day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
+            sort_order: phase.workouts.length - 1,
+          });
+          if (error) throw error;
+        }
+        showSaveStatus("saved");
+      } else {
+        // Phase is new (not yet in DB) — auto-save the entire program
+        await saveProgram();
+      }
+    } catch (err: any) {
+      console.error("[ProgramSave] Failed to save workout link:", err);
+      toast({ title: "Failed to save workout — please try again.", description: err.message, variant: "destructive" });
+      showSaveStatus("failed");
     }
   };
 
