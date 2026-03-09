@@ -183,13 +183,24 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setSavedMeals(data || []);
   };
 
-  const fetchPCRecipes = async () => {
+  const fetchClientRecipes = async () => {
+    if (!user) return;
     const { data } = await supabase
-      .from("pc_recipes" as any)
+      .from("client_recipes")
       .select("*")
-      .eq("is_published", true)
-      .order("name");
-    setPcRecipes((data as any[]) || []);
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setClientRecipes(data || []);
+  };
+
+  const fetchClientFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("client_custom_foods")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setClientFoods(data || []);
   };
 
   useEffect(() => { fetchHistory(); }, [historySort]);
