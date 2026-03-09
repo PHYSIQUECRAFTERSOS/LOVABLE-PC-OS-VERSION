@@ -773,10 +773,28 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             </div>
           </div>
         </div>
-        <Button onClick={saveProgram} disabled={saving} size="sm">
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-          Save
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Save status indicator */}
+          {saveStatus === "saving" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+            </span>
+          )}
+          {saveStatus === "saved" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-in fade-in duration-300">
+              <Check className="h-3 w-3 text-green-500" /> Saved
+            </span>
+          )}
+          {saveStatus === "failed" && (
+            <span className="text-xs text-destructive flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3" /> Save failed
+            </span>
+          )}
+          <Button onClick={saveProgram} disabled={saving} size="sm">
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+            Save
+          </Button>
+        </div>
       </div>
 
       {/* Phases */}
