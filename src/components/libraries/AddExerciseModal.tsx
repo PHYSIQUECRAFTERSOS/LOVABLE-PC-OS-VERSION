@@ -131,18 +131,22 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
     if (!user || !form.name.trim()) return;
     setSaving(true);
     try {
-      const { data: existing } = await supabase
-        .from("exercises")
-        .select("id, name")
-        .ilike("name", form.name.trim())
-        .limit(1);
+      const isEditing = !!initialData?.id;
 
-      if (existing && existing.length > 0) {
-        const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
-        if (useit) { onOpenChange(false); setSaving(false); return; }
+      if (!isEditing) {
+        const { data: existing } = await supabase
+          .from("exercises")
+          .select("id, name")
+          .ilike("name", form.name.trim())
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
+          if (useit) { onOpenChange(false); setSaving(false); return; }
+        }
       }
 
-      const { error } = await supabase.from("exercises").insert({
+      const payload = {
         name: form.name.trim(),
         primary_muscle: form.primary_muscle || null,
         secondary_muscle: form.secondary_muscle || null,
@@ -152,16 +156,28 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         video_url: form.video_url || null,
         description: form.instructions || null,
         category: form.category || "Strength",
-        created_by: user.id,
-      });
-      if (error) throw error;
+      };
 
-      toast({ title: "Exercise created" });
+      if (isEditing) {
+        const { error } = await supabase.from("exercises").update(payload).eq("id", initialData.id);
+        if (error) throw error;
+        toast({ title: "Exercise updated" });
+      } else {
+        const { error } = await supabase.from("exercises").insert({
+          ...payload,
+          created_by: user.id,
+        });
+        if (error) throw error;
+        toast({ title: "Exercise created" });
+      }
+
+      // Trigger re-fetch BEFORE closing modal to avoid unmount timing issues
+      onCreated();
       resetForm();
       onOpenChange(false);
-      onCreated();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("[AddExercise] Save failed:", err);
+      toast({ title: "Failed to save exercise — please try again.", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
