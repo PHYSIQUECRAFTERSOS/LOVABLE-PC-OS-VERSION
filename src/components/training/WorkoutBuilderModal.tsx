@@ -389,8 +389,10 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       let workoutId = editWorkoutId;
 
       if (editWorkoutId) {
-        await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", editWorkoutId);
-        await supabase.from("workout_exercises").delete().eq("workout_id", editWorkoutId);
+        const { error: updateErr } = await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", editWorkoutId);
+        if (updateErr) throw updateErr;
+        const { error: delErr } = await supabase.from("workout_exercises").delete().eq("workout_id", editWorkoutId);
+        if (delErr) throw delErr;
       } else {
         const { data: newW, error } = await supabase.from("workouts").insert({
           coach_id: coachId, name: workoutName, instructions: instructions || null,
