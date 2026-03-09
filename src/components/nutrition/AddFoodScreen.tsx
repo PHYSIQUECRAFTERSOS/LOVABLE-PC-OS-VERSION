@@ -23,7 +23,7 @@ import {
   Clock,
   TrendingUp,
   Loader2,
-  
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
@@ -33,8 +33,7 @@ import MealScanCapture from "@/components/nutrition/MealScanCapture";
 import SavedMealDetail from "@/components/nutrition/SavedMealDetail";
 import CreateMealSheet from "@/components/nutrition/CreateMealSheet";
 import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet";
-import CreateRecipeScreen from "@/components/nutrition/CreateRecipeScreen";
-import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
+import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
 
 interface FoodItem {
   id: string;
@@ -76,15 +75,14 @@ interface AddFoodScreenProps {
   onLogged: () => void;
 }
 
-type TabKey = "all" | "my-meals" | "my-recipes" | "my-foods";
+type TabKey = "all" | "my-meals" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "my-meals", label: "My Meals" },
-  { key: "my-recipes", label: "My Recipes" },
-  { key: "my-foods", label: "My Foods" },
+  { key: "pc-recipes", label: "PC Recipes" },
 ];
 
 const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
@@ -105,8 +103,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [historySort, setHistorySort] = useState<HistorySort>("recent");
   const [history, setHistory] = useState<FoodItem[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
-  const [clientRecipes, setClientRecipes] = useState<any[]>([]);
-  const [clientFoods, setClientFoods] = useState<any[]>([]);
+  const [pcRecipes, setPcRecipes] = useState<any[]>([]);
   const [servings, setServings] = useState<Record<string, string>>({});
   const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
@@ -126,11 +123,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [showCreateMeal, setShowCreateMeal] = useState(false);
   const [showCopyMeal, setShowCopyMeal] = useState(false);
 
-  // My Recipes sub-screens
-  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
-
-  // My Foods sub-screens
-  const [showCreateFood, setShowCreateFood] = useState(false);
+  // PC Recipes sub-screen
+  const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
@@ -138,8 +132,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setTimeout(() => searchRef.current?.focus(), 100);
       fetchHistory();
       fetchSavedMeals();
-      fetchClientRecipes();
-      fetchClientFoods();
+      fetchPCRecipes();
     }
   }, [open]);
 
@@ -176,32 +169,37 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const fetchSavedMeals = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("saved_meals")
-      .select("*")
-      .eq("client_id", user.id)
-      .order("created_at", { ascending: false });
-    setSavedMeals(data || []);
+    try {
+      const { data, error } = await supabase
+        .from("saved_meals")
+        .select("*")
+        .eq("client_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.error("[SavedMeals] fetch error:", error);
+      }
+      setSavedMeals(data || []);
+    } catch (err) {
+      console.error("[SavedMeals] exception:", err);
+      setSavedMeals([]);
+    }
   };
 
-  const fetchClientRecipes = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("client_recipes")
-      .select("*")
-      .eq("client_id", user.id)
-      .order("created_at", { ascending: false });
-    setClientRecipes(data || []);
-  };
-
-  const fetchClientFoods = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("client_custom_foods")
-      .select("*")
-      .eq("client_id", user.id)
-      .order("created_at", { ascending: false });
-    setClientFoods(data || []);
+  const fetchPCRecipes = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("pc_recipes")
+        .select("*")
+        .eq("is_published", true)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.error("[PCRecipes] fetch error:", error);
+      }
+      setPcRecipes(data || []);
+    } catch (err) {
+      console.error("[PCRecipes] exception:", err);
+      setPcRecipes([]);
+    }
   };
 
   useEffect(() => { fetchHistory(); }, [historySort]);
@@ -224,7 +222,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
     debounceRef.current = setTimeout(async () => {
       try {
-        // Layer 1: Edge function
         const { data, error } = await supabase.functions.invoke("search-foods", {
           body: { query: q, limit: 25, user_id: user?.id ?? null },
         });
@@ -265,8 +262,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           setResults(foods);
           setOffResults([]);
         } else {
-          // Layer 2: Direct Supabase fallback
-          console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2");
           const { data: fallback } = await supabase
             .from("food_items")
             .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
@@ -281,7 +276,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         }
       } catch (err) {
         console.error("[AddFoodScreen] Search error:", err);
-        // Layer 2 fallback on exception
         try {
           const { data: fallback } = await supabase
             .from("food_items")
@@ -405,14 +399,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const logSavedMealQuick = async (meal: any) => {
     if (!user) return;
-    // Check if meal has individual items
     const { data: items } = await supabase
       .from("saved_meal_items" as any)
       .select("*")
       .eq("saved_meal_id", meal.id);
 
     if (items && (items as any[]).length > 0) {
-      // Log each item individually
       const entries = (items as any[]).map(item => ({
         client_id: user.id,
         food_item_id: item.food_item_id || null,
@@ -434,7 +426,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         onLogged();
       }
     } else {
-      // Flat macro log
       const { error } = await supabase.from("nutrition_logs").insert({
         client_id: user.id,
         custom_name: meal.name,
@@ -477,50 +468,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Logged!" });
       setQuickAddOpen(false);
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
-      onLogged();
-    }
-  };
-
-  const logClientRecipe = async (recipe: any) => {
-    if (!user) return;
-    const { error } = await supabase.from("nutrition_logs").insert({
-      client_id: user.id,
-      custom_name: recipe.name,
-      meal_type: mealType,
-      servings: 1,
-      calories: Math.round(recipe.calories_per_serving || 0),
-      protein: Math.round(recipe.protein_per_serving || 0),
-      carbs: Math.round(recipe.carbs_per_serving || 0),
-      fat: Math.round(recipe.fat_per_serving || 0),
-      logged_at: effectiveDate,
-      tz_corrected: true,
-    });
-    if (error) {
-      toast({ title: "Couldn't log recipe." });
-    } else {
-      toast({ title: `${recipe.name} logged` });
-      onLogged();
-    }
-  };
-
-  const logClientFood = async (food: any) => {
-    if (!user) return;
-    const { error } = await supabase.from("nutrition_logs").insert({
-      client_id: user.id,
-      custom_name: food.name,
-      meal_type: mealType,
-      servings: 1,
-      calories: Math.round(food.calories || 0),
-      protein: Math.round(food.protein || 0),
-      carbs: Math.round(food.carbs || 0),
-      fat: Math.round(food.fat || 0),
-      logged_at: effectiveDate,
-      tz_corrected: true,
-    });
-    if (error) {
-      toast({ title: "Couldn't log food." });
-    } else {
-      toast({ title: `${food.name} logged` });
       onLogged();
     }
   };
@@ -631,20 +578,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (showCreateRecipe) {
+  if (selectedPCRecipe) {
     return (
-      <CreateRecipeScreen
-        onClose={() => setShowCreateRecipe(false)}
-        onSaved={() => { setShowCreateRecipe(false); fetchClientRecipes(); }}
-      />
-    );
-  }
-
-  if (showCreateFood) {
-    return (
-      <CreateFoodScreen
-        onClose={() => setShowCreateFood(false)}
-        onSaved={() => { setShowCreateFood(false); fetchClientFoods(); }}
+      <PCRecipeDetail
+        recipe={selectedPCRecipe}
+        mealType={mealType}
+        mealLabel={mealLabel}
+        logDate={effectiveDate}
+        onBack={() => setSelectedPCRecipe(null)}
+        onLogged={() => { setSelectedPCRecipe(null); onLogged(); }}
       />
     );
   }
@@ -686,8 +628,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const displayItems = search.length >= 2 ? allDisplayItems : [];
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
-  const showRecipes = activeTab === "my-recipes";
-  const showFoods = activeTab === "my-foods";
+  const showRecipes = activeTab === "pc-recipes";
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
@@ -719,7 +660,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         </div>
       </div>
 
-      {/* Tabs - styled with gold active indicator */}
+      {/* Tabs */}
       <div className="px-4 pb-2 sticky top-0 z-10">
         <div className="flex">
           {TABS.map((tab) => (
@@ -774,195 +715,93 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {/* ═══ MY MEALS TAB ═══ */}
         {showMeals && (
           <div className="space-y-3 py-2">
-            {/* Action buttons always visible */}
-            <div className="flex flex-col gap-2">
-              <Button
-                variant="outline"
+            {/* Action buttons - ALWAYS visible */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
                 onClick={() => setShowCreateMeal(true)}
-                className="w-full h-11 border-primary text-primary hover:bg-primary/10"
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border/50 bg-card py-4 px-2 hover:bg-secondary transition-colors"
               >
-                <Plus className="h-4 w-4 mr-2" /> Create Meal
-              </Button>
-              <Button
-                variant="secondary"
+                <Plus className="h-5 w-5 text-primary" strokeWidth={1.5} />
+                <span className="text-xs font-medium text-foreground">Create meal</span>
+              </button>
+              <button
                 onClick={() => setShowCopyMeal(true)}
-                className="w-full h-11"
+                className="flex flex-col items-center gap-1.5 rounded-xl border border-border/50 bg-card py-4 px-2 hover:bg-secondary transition-colors"
               >
-                Copy Previous Meal
-              </Button>
+                <Copy className="h-5 w-5 text-primary" strokeWidth={1.5} />
+                <span className="text-xs font-medium text-foreground">Copy previous meal</span>
+              </button>
             </div>
 
+            {/* Saved meals list */}
             {savedMeals.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-8">No saved meals yet</p>
-            ) : (
-              <div className="space-y-1.5">
-                {savedMeals.map((meal) => (
-                  <div key={meal.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
-                    <button
-                      onClick={() => setSelectedMeal(meal)}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="text-sm font-medium text-foreground truncate">{meal.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {meal.calories} cal · {meal.protein}P · {meal.carbs}C · {meal.fat}F
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => logSavedMealQuick(meal)}
-                      className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">No saved meals yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Create a meal or copy one from a previous day.</p>
               </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">My Meals</h3>
+                </div>
+                <div className="space-y-1.5">
+                  {savedMeals.map((meal) => (
+                    <div key={meal.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                      <button
+                        onClick={() => setSelectedMeal(meal)}
+                        className="flex-1 min-w-0 text-left"
+                      >
+                        <div className="text-sm font-medium text-foreground truncate">{meal.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {meal.calories} cal · {meal.protein}P · {meal.carbs}C · {meal.fat}F
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => logSavedMealQuick(meal)}
+                        className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
 
-        {/* ═══ MY RECIPES TAB ═══ */}
+        {/* ═══ PC RECIPES TAB ═══ */}
         {showRecipes && (
           <div className="space-y-3 py-2">
-            {/* Quick Actions */}
-            <div className="grid grid-cols-4 gap-2.5">
-              <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
-              <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
-              <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
-              <QuickActionCard icon={Mic} label="Voice Log" onClick={() => toast({ title: "Coming Soon", description: "Voice logging is under development." })} />
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateRecipe(true)}
-              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Create Recipe
-            </Button>
-
-            {clientRecipes.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-8">No recipes yet. Create one above!</p>
+            {pcRecipes.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-3xl mb-3">🍳</div>
+                <p className="text-sm text-muted-foreground">No recipes available yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Your coach will add recipes here for you to use.</p>
+              </div>
             ) : (
               <div className="space-y-1.5">
-                {clientRecipes.map((recipe: any) => (
+                {pcRecipes.map((recipe: any) => (
                   <button
                     key={recipe.id}
-                    onClick={() => logClientRecipe(recipe)}
+                    onClick={() => setSelectedPCRecipe(recipe)}
                     className="flex items-center gap-3 w-full rounded-xl bg-card border border-border/50 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
                   >
                     <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">🍳</div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-foreground truncate">{recipe.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {recipe.calories_per_serving || 0} cal · {recipe.protein_per_serving || 0}P · {recipe.carbs_per_serving || 0}C · {recipe.fat_per_serving || 0}F
-                        {recipe.servings ? ` · ${recipe.servings} servings` : ""}
+                        {recipe.servings || 1} serving{(recipe.servings || 1) !== 1 ? "s" : ""}
+                        {recipe.description ? ` · ${recipe.description.substring(0, 40)}...` : ""}
                       </div>
                     </div>
                     <div className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
-                      <Plus className="h-4 w-4" />
+                      <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
                     </div>
                   </button>
                 ))}
               </div>
             )}
-
-            {/* Show history below */}
-            <div className="pt-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</span>
-              <div className="space-y-1 mt-2">
-                {history.map((item) => (
-                  <FoodRow
-                    key={item.id}
-                    item={item}
-                    expanded={expandedId === item.id}
-                    onToggle={() => toggleExpand(item.id)}
-                    onAdd={() => logFood(item)}
-                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
-                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                    servingUnit={servingUnits[item.id] || "g"}
-                    onServingUnitChange={(u) => {
-                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
-                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
-                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
-                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ═══ MY FOODS TAB ═══ */}
-        {showFoods && (
-          <div className="space-y-3 py-2">
-            {/* Quick Actions */}
-            <div className="grid grid-cols-4 gap-2.5">
-              <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
-              <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
-              <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
-              <QuickActionCard icon={Mic} label="Voice Log" onClick={() => toast({ title: "Coming Soon", description: "Voice logging is under development." })} />
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateFood(true)}
-              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Create Food
-            </Button>
-
-            {clientFoods.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-8">No custom foods yet. Create one above!</p>
-            ) : (
-              <div className="space-y-1.5">
-                {clientFoods.map((food: any) => (
-                  <button
-                    key={food.id}
-                    onClick={() => logClientFood(food)}
-                    className="flex items-center gap-3 w-full rounded-xl bg-card border border-border/50 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
-                      {getFoodEmoji({ name: food.name })}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {food.calories || 0} cal · {food.protein || 0}P · {food.carbs || 0}C · {food.fat || 0}F
-                        {food.brand ? ` · ${food.brand}` : ""}
-                      </div>
-                    </div>
-                    <div className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
-                      <Plus className="h-4 w-4" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Show history below */}
-            <div className="pt-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</span>
-              <div className="space-y-1 mt-2">
-                {history.map((item) => (
-                  <FoodRow
-                    key={item.id}
-                    item={item}
-                    expanded={expandedId === item.id}
-                    onToggle={() => toggleExpand(item.id)}
-                    onAdd={() => logFood(item)}
-                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
-                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                    servingUnit={servingUnits[item.id] || "g"}
-                    onServingUnitChange={(u) => {
-                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
-                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
-                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
-                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
