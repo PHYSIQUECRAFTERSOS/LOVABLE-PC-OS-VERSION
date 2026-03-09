@@ -569,19 +569,22 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       if (phase.id) {
         // Phase already exists in DB - insert the link directly
         if (!editingWorkout) {
-          const { error } = await supabase.from("program_workouts").insert({
+          const { data, error } = await supabase.from("program_workouts").insert({
             phase_id: phase.id,
             workout_id: workoutId,
             day_of_week: phase.workouts.length - 1,
             day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
             sort_order: phase.workouts.length - 1,
-          });
+          }).select();
           if (error) throw error;
+          if (!data || data.length === 0) throw new Error("Workout link was not saved — check permissions.");
         }
         showSaveStatus("saved");
+        // Re-fetch to sync IDs from database
+        await loadProgram();
       } else {
-        // Phase is new (not yet in DB) — auto-save the entire program
-        await saveProgram();
+        // Phase is new (not yet in DB) — save entire program with the updated phases
+        await saveProgramWithPhases(newPhases);
       }
     } catch (err: any) {
       console.error("[ProgramSave] Failed to save workout link:", err);
