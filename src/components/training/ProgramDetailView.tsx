@@ -590,10 +590,20 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     }
   };
 
-  const removeWorkoutFromPhase = (phaseIdx: number, workoutIdx: number) => {
+  const removeWorkoutFromPhase = async (phaseIdx: number, workoutIdx: number) => {
     const newPhases = [...phases];
+    const removed = newPhases[phaseIdx].workouts[workoutIdx];
     newPhases[phaseIdx].workouts.splice(workoutIdx, 1);
     setPhases(newPhases);
+
+    // Also delete from DB if it has an ID
+    if (removed.id) {
+      const { error } = await supabase.from("program_workouts").delete().eq("id", removed.id);
+      if (error) {
+        console.error("[ProgramSave] Failed to delete workout from phase:", error);
+        toast({ title: "Failed to remove workout — please try again.", variant: "destructive" });
+      }
+    }
   };
 
   const handleToggleCustomTag = useCallback(async (phaseIdx: number, pwIdx: number, exclude: boolean, tag: string | null) => {
