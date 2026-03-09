@@ -776,58 +776,149 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* ═══ PC RECIPES TAB ═══ */}
+        {/* ═══ MY RECIPES TAB ═══ */}
         {showRecipes && (
           <div className="space-y-3 py-2">
-            {/* Client-side search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search recipes..."
-                value={pcRecipeSearch}
-                onChange={e => setPcRecipeSearch(e.target.value)}
-                className="pl-9 h-10 rounded-xl bg-secondary border-0 text-sm"
-              />
+            {/* Quick Actions */}
+            <div className="grid grid-cols-4 gap-2.5">
+              <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
+              <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
+              <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
+              <QuickActionCard icon={Mic} label="Voice Log" onClick={() => toast({ title: "Coming Soon", description: "Voice logging is under development." })} />
             </div>
 
-            {pcRecipes.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-sm text-muted-foreground">No recipes available yet.</p>
-                <p className="text-xs text-muted-foreground mt-1">Check back soon!</p>
-              </div>
-            ) : filteredPCRecipes.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-8">No recipes match "{pcRecipeSearch}"</p>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateRecipe(true)}
+              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Create Recipe
+            </Button>
+
+            {clientRecipes.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No recipes yet. Create one above!</p>
             ) : (
               <div className="space-y-1.5">
-                {filteredPCRecipes.map((recipe: any) => (
-                  <div key={recipe.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
-                    <button
-                      onClick={() => setSelectedPCRecipe(recipe)}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-foreground truncate">{recipe.name}</span>
-                        {recipe.youtube_url && recipe.youtube_url.trim() !== "" && (
-                          <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                        )}
+                {clientRecipes.map((recipe: any) => (
+                  <button
+                    key={recipe.id}
+                    onClick={() => logClientRecipe(recipe)}
+                    className="flex items-center gap-3 w-full rounded-xl bg-card border border-border/50 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">🍳</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{recipe.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {recipe.calories_per_serving || 0} cal · {recipe.protein_per_serving || 0}P · {recipe.carbs_per_serving || 0}C · {recipe.fat_per_serving || 0}F
+                        {recipe.servings ? ` · ${recipe.servings} servings` : ""}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {recipe.servings} serving{recipe.servings !== 1 ? "s" : ""}
-                        {recipe.description && (
-                          <span className="ml-1.5">· {recipe.description.slice(0, 50)}{recipe.description.length > 50 ? "..." : ""}</span>
-                        )}
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setSelectedPCRecipe(recipe)}
-                      className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                    >
+                    </div>
+                    <div className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
                       <Plus className="h-4 w-4" />
-                    </button>
-                  </div>
+                    </div>
+                  </button>
                 ))}
               </div>
             )}
+
+            {/* Show history below */}
+            <div className="pt-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</span>
+              <div className="space-y-1 mt-2">
+                {history.map((item) => (
+                  <FoodRow
+                    key={item.id}
+                    item={item}
+                    expanded={expandedId === item.id}
+                    onToggle={() => toggleExpand(item.id)}
+                    onAdd={() => logFood(item)}
+                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                    servingUnit={servingUnits[item.id] || "g"}
+                    onServingUnitChange={(u) => {
+                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ MY FOODS TAB ═══ */}
+        {showFoods && (
+          <div className="space-y-3 py-2">
+            {/* Quick Actions */}
+            <div className="grid grid-cols-4 gap-2.5">
+              <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
+              <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
+              <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
+              <QuickActionCard icon={Mic} label="Voice Log" onClick={() => toast({ title: "Coming Soon", description: "Voice logging is under development." })} />
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateFood(true)}
+              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Create Food
+            </Button>
+
+            {clientFoods.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No custom foods yet. Create one above!</p>
+            ) : (
+              <div className="space-y-1.5">
+                {clientFoods.map((food: any) => (
+                  <button
+                    key={food.id}
+                    onClick={() => logClientFood(food)}
+                    className="flex items-center gap-3 w-full rounded-xl bg-card border border-border/50 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
+                      {getFoodEmoji({ name: food.name })}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {food.calories || 0} cal · {food.protein || 0}P · {food.carbs || 0}C · {food.fat || 0}F
+                        {food.brand ? ` · ${food.brand}` : ""}
+                      </div>
+                    </div>
+                    <div className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+                      <Plus className="h-4 w-4" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Show history below */}
+            <div className="pt-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</span>
+              <div className="space-y-1 mt-2">
+                {history.map((item) => (
+                  <FoodRow
+                    key={item.id}
+                    item={item}
+                    expanded={expandedId === item.id}
+                    onToggle={() => toggleExpand(item.id)}
+                    onAdd={() => logFood(item)}
+                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                    servingUnit={servingUnits[item.id] || "g"}
+                    onServingUnitChange={(u) => {
+                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
