@@ -661,9 +661,6 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setShowImportDialog(false);
   };
 
-  // ── Save Status ──
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
-  const saveStatusTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const showSaveStatus = (status: "saving" | "saved" | "failed") => {
     if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
