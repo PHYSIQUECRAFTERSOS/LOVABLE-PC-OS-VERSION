@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, ArrowUp, ArrowDown,
-  MoreHorizontal, Pencil, Download, Save, Loader2, GripVertical, Clock, Play,
+  MoreHorizontal, Pencil, Download, Save, Loader2, GripVertical, Clock, Play, Check, AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -272,6 +272,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const saveStatusTimeout = useRef<NodeJS.Timeout | null>(null);
   const [phases, setPhases] = useState<ProgramPhase[]>([]);
   const [programDetails, setProgramDetails] = useState<any>(null);
 
@@ -562,22 +564,46 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     loadWorkoutMeta(newPhases);
 
     // Auto-save the phase-workout link to database immediately
-    if (phase.id) {
-      // Phase already exists in DB - insert the link directly
-      await supabase.from("program_workouts").insert({
-        phase_id: phase.id,
-        workout_id: workoutId,
-        day_of_week: phase.workouts.length - 1,
-        day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
-        sort_order: phase.workouts.length - 1,
-      });
+    showSaveStatus("saving");
+    try {
+      if (phase.id) {
+        // Phase already exists in DB - insert the link directly
+        if (!editingWorkout) {
+          const { error } = await supabase.from("program_workouts").insert({
+            phase_id: phase.id,
+            workout_id: workoutId,
+            day_of_week: phase.workouts.length - 1,
+            day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
+            sort_order: phase.workouts.length - 1,
+          });
+          if (error) throw error;
+        }
+        showSaveStatus("saved");
+      } else {
+        // Phase is new (not yet in DB) — auto-save the entire program
+        await saveProgram();
+      }
+    } catch (err: any) {
+      console.error("[ProgramSave] Failed to save workout link:", err);
+      toast({ title: "Failed to save workout — please try again.", description: err.message, variant: "destructive" });
+      showSaveStatus("failed");
     }
   };
 
-  const removeWorkoutFromPhase = (phaseIdx: number, workoutIdx: number) => {
+  const removeWorkoutFromPhase = async (phaseIdx: number, workoutIdx: number) => {
     const newPhases = [...phases];
+    const removed = newPhases[phaseIdx].workouts[workoutIdx];
     newPhases[phaseIdx].workouts.splice(workoutIdx, 1);
     setPhases(newPhases);
+
+    // Also delete from DB if it has an ID
+    if (removed.id) {
+      const { error } = await supabase.from("program_workouts").delete().eq("id", removed.id);
+      if (error) {
+        console.error("[ProgramSave] Failed to delete workout from phase:", error);
+        toast({ title: "Failed to remove workout — please try again.", variant: "destructive" });
+      }
+    }
   };
 
   const handleToggleCustomTag = useCallback(async (phaseIdx: number, pwIdx: number, exclude: boolean, tag: string | null) => {
@@ -589,10 +615,14 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
     // Persist to DB if saved
     if (pw.id) {
-      await supabase.from("program_workouts").update({
+      const { error } = await supabase.from("program_workouts").update({
         exclude_from_numbering: exclude,
         custom_tag: tag,
       } as any).eq("id", pw.id);
+      if (error) {
+        console.error("[ProgramSave] Failed to update custom tag:", error);
+        toast({ title: "Failed to save tag — please try again.", variant: "destructive" });
+      }
     }
   }, [phases]);
 
@@ -645,23 +675,37 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setShowImportDialog(false);
   };
 
+
+  const showSaveStatus = (status: "saving" | "saved" | "failed") => {
+    if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
+    setSaveStatus(status);
+    if (status === "saved") {
+      saveStatusTimeout.current = setTimeout(() => setSaveStatus("idle"), 3000);
+    }
+  };
+
   // ── Save ──
   const saveProgram = async () => {
     if (!user) return;
     setSaving(true);
+    showSaveStatus("saving");
     try {
       const totalDuration = phases.reduce((s, p) => s + p.durationWeeks, 0);
 
-      await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+      const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+      if (updateErr) throw updateErr;
 
       // Delete existing program_workouts linked to this program's phases
       const { data: existingPhases } = await supabase.from("program_phases").select("id").eq("program_id", programId);
       if (existingPhases && existingPhases.length > 0) {
-        await supabase.from("program_workouts").delete().in("phase_id", existingPhases.map(p => p.id));
+        const { error: delPwErr } = await supabase.from("program_workouts").delete().in("phase_id", existingPhases.map(p => p.id));
+        if (delPwErr) { console.error("[ProgramSave] Failed to delete program_workouts:", delPwErr); throw delPwErr; }
       }
       // Delete existing phases and orphan weeks
-      await supabase.from("program_phases").delete().eq("program_id", programId);
-      await supabase.from("program_weeks").delete().eq("program_id", programId);
+      const { error: delPhaseErr } = await supabase.from("program_phases").delete().eq("program_id", programId);
+      if (delPhaseErr) { console.error("[ProgramSave] Failed to delete phases:", delPhaseErr); throw delPhaseErr; }
+      const { error: delWeekErr } = await supabase.from("program_weeks").delete().eq("program_id", programId);
+      if (delWeekErr) { console.error("[ProgramSave] Failed to delete weeks:", delWeekErr); throw delWeekErr; }
 
       // Insert phases with direct workout links (week_id is now nullable)
       for (const phase of phases) {
@@ -679,7 +723,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             progression_rule: phase.progressionRule,
           })
           .select().single();
-        if (phaseErr) throw phaseErr;
+        if (phaseErr) { console.error("[ProgramSave] Failed to insert phase:", phase.name, phaseErr); throw phaseErr; }
 
         if (phase.workouts.length > 0) {
           const { error: pwErr } = await supabase.from("program_workouts").insert(
@@ -693,15 +737,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               custom_tag: w.customTag || null,
             }))
           );
-          if (pwErr) throw pwErr;
+          if (pwErr) { console.error("[ProgramSave] Failed to insert program_workouts:", pwErr); throw pwErr; }
         }
       }
 
       toast({ title: "Program saved" });
+      showSaveStatus("saved");
       // Re-fetch from database to ensure UI matches persisted state
       await loadProgram();
     } catch (err: any) {
-      toast({ title: "Error saving", description: err.message, variant: "destructive" });
+      console.error("[ProgramSave] Error:", err);
+      toast({ title: "Failed to save program — please try again.", description: err.message, variant: "destructive" });
+      showSaveStatus("failed");
     } finally {
       setSaving(false);
     }
@@ -739,10 +786,28 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             </div>
           </div>
         </div>
-        <Button onClick={saveProgram} disabled={saving} size="sm">
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-          Save
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Save status indicator */}
+          {saveStatus === "saving" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+            </span>
+          )}
+          {saveStatus === "saved" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-in fade-in duration-300">
+              <Check className="h-3 w-3 text-green-500" /> Saved
+            </span>
+          )}
+          {saveStatus === "failed" && (
+            <span className="text-xs text-destructive flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3" /> Save failed
+            </span>
+          )}
+          <Button onClick={saveProgram} disabled={saving} size="sm">
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+            Save
+          </Button>
+        </div>
       </div>
 
       {/* Phases */}

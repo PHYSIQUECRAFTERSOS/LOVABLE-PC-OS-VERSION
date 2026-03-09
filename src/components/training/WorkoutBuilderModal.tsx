@@ -389,8 +389,10 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       let workoutId = editWorkoutId;
 
       if (editWorkoutId) {
-        await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", editWorkoutId);
-        await supabase.from("workout_exercises").delete().eq("workout_id", editWorkoutId);
+        const { error: updateErr } = await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", editWorkoutId);
+        if (updateErr) throw updateErr;
+        const { error: delErr } = await supabase.from("workout_exercises").delete().eq("workout_id", editWorkoutId);
+        if (delErr) throw delErr;
       } else {
         const { data: newW, error } = await supabase.from("workouts").insert({
           coach_id: coachId, name: workoutName, instructions: instructions || null,
@@ -440,7 +442,8 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       onSave(workoutId!, workoutName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("[WorkoutBuilder] Save failed:", err);
+      toast({ title: "Failed to save workout — please try again.", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }

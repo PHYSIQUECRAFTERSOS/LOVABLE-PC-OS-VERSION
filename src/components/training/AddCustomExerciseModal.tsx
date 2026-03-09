@@ -168,7 +168,7 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
 
     const payload = {
       name: title.trim(),
-      category: primaryMuscle || exerciseType,
+      category: exerciseType === "strength" ? "Strength" : exerciseType === "cardio" ? "Cardio" : exerciseType === "bodyweight" ? "Strength" : "Strength",
       primary_muscle: primaryMuscle || null,
       secondary_muscle: secondaryMuscle || null,
       equipment: equipment || null,
@@ -207,7 +207,8 @@ const AddCustomExerciseModal = ({ open, onClose, userId, onExerciseCreated }: Ad
       if (err.name === "AbortError") {
         toast({ title: "Save timed out", description: "Check your connection and try again.", variant: "destructive" });
       } else {
-        toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+        console.error("[CustomExercise] Save failed:", err);
+        toast({ title: "Failed to save exercise — please try again.", description: err.message, variant: "destructive" });
       }
       setSaving(false);
     }

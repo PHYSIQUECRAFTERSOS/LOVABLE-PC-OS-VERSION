@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,16 +58,28 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
   const [ytTitle, setYtTitle] = useState("");
 
   const [form, setForm] = useState({
-    name: initialData?.name || "",
-    primary_muscle: initialData?.primary_muscle || "",
-    secondary_muscle: initialData?.secondary_muscle || "",
-    equipment: initialData?.equipment || "",
-    category: initialData?.category || "Strength",
-    youtube_url: initialData?.youtube_url || "",
-    video_url: initialData?.video_url || "",
-    thumbnail_url: initialData?.youtube_thumbnail || "",
-    instructions: initialData?.description || "",
+    name: "", primary_muscle: "", secondary_muscle: "", equipment: "",
+    category: "Strength", youtube_url: "", video_url: "", thumbnail_url: "", instructions: "",
   });
+
+  // Sync form when initialData changes (edit mode)
+  useEffect(() => {
+    if (open && initialData) {
+      setForm({
+        name: initialData.name || "",
+        primary_muscle: initialData.primary_muscle || "",
+        secondary_muscle: initialData.secondary_muscle || "",
+        equipment: initialData.equipment || "",
+        category: initialData.category || "Strength",
+        youtube_url: initialData.youtube_url || "",
+        video_url: initialData.video_url || "",
+        thumbnail_url: initialData.youtube_thumbnail || "",
+        instructions: initialData.description || "",
+      });
+    } else if (open && !initialData) {
+      resetForm();
+    }
+  }, [open, initialData]);
 
   const resetForm = () => {
     setForm({ name: "", primary_muscle: "", secondary_muscle: "", equipment: "", category: "Strength", youtube_url: "", video_url: "", thumbnail_url: "", instructions: "" });
@@ -131,18 +143,22 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
     if (!user || !form.name.trim()) return;
     setSaving(true);
     try {
-      const { data: existing } = await supabase
-        .from("exercises")
-        .select("id, name")
-        .ilike("name", form.name.trim())
-        .limit(1);
+      const isEditing = !!initialData?.id;
 
-      if (existing && existing.length > 0) {
-        const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
-        if (useit) { onOpenChange(false); setSaving(false); return; }
+      if (!isEditing) {
+        const { data: existing } = await supabase
+          .from("exercises")
+          .select("id, name")
+          .ilike("name", form.name.trim())
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
+          if (useit) { onOpenChange(false); setSaving(false); return; }
+        }
       }
 
-      const { error } = await supabase.from("exercises").insert({
+      const payload = {
         name: form.name.trim(),
         primary_muscle: form.primary_muscle || null,
         secondary_muscle: form.secondary_muscle || null,
@@ -152,16 +168,28 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         video_url: form.video_url || null,
         description: form.instructions || null,
         category: form.category || "Strength",
-        created_by: user.id,
-      });
-      if (error) throw error;
+      };
 
-      toast({ title: "Exercise created" });
+      if (isEditing) {
+        const { error } = await supabase.from("exercises").update(payload).eq("id", initialData.id);
+        if (error) throw error;
+        toast({ title: "Exercise updated" });
+      } else {
+        const { error } = await supabase.from("exercises").insert({
+          ...payload,
+          created_by: user.id,
+        });
+        if (error) throw error;
+        toast({ title: "Exercise created" });
+      }
+
+      // Trigger re-fetch BEFORE closing modal to avoid unmount timing issues
+      onCreated();
       resetForm();
       onOpenChange(false);
-      onCreated();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("[AddExercise] Save failed:", err);
+      toast({ title: "Failed to save exercise — please try again.", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
