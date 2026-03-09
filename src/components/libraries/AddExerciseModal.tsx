@@ -171,20 +171,23 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
       };
 
       if (isEditing) {
-        const { error } = await supabase.from("exercises").update(payload).eq("id", initialData.id);
+        const { data, error } = await supabase.from("exercises").update(payload).eq("id", initialData.id).select();
         if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Update returned no data — check permissions.");
         toast({ title: "Exercise updated" });
       } else {
-        const { error } = await supabase.from("exercises").insert({
+        const { data, error } = await supabase.from("exercises").insert({
           ...payload,
           created_by: user.id,
-        });
+        }).select();
         if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Exercise was not saved — you may not have permission. Contact your admin.");
+        console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
         toast({ title: "Exercise created" });
       }
 
-      // Trigger re-fetch BEFORE closing modal to avoid unmount timing issues
-      onCreated();
+      // Trigger re-fetch BEFORE closing modal and AWAIT it to avoid stale data
+      await onCreated();
       resetForm();
       onOpenChange(false);
     } catch (err: any) {

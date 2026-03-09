@@ -138,7 +138,8 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
 
     try {
       const { getLocalDateString } = await import("@/utils/localDate");
-      const localDate = getLocalDateString();
+      // Use the parent's logDate if provided, otherwise fall back to local date
+      const dateToLog = logDate || getLocalDateString();
       const inserts = result.items.map((item) => ({
         client_id: user.id,
         custom_name: `${item.name} (${item.portion})`.slice(0, 200),
@@ -148,16 +149,21 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
         protein: safeRound(item.protein),
         carbs: safeRound(item.carbs),
         fat: safeRound(item.fat),
-        logged_at: localDate,
+        logged_at: dateToLog,
         tz_corrected: true,
       }));
 
-      console.log("[MealScan] Logging items:", inserts.length, inserts);
-      const { error: logError } = await supabase.from("nutrition_logs").insert(inserts);
+      console.log("[MealScan] Logging items to date:", dateToLog, "count:", inserts.length, inserts);
+      const { data, error: logError } = await supabase.from("nutrition_logs").insert(inserts).select();
       if (logError) {
         console.error("[MealScan] Insert error:", logError);
         throw logError;
       }
+      if (!data || data.length === 0) {
+        console.error("[MealScan] Insert returned no data — possible RLS issue");
+        throw new Error("Items were not saved. Please try logging in again.");
+      }
+      console.log("[MealScan] Successfully inserted", data.length, "rows");
 
       toast({ title: `${result.items.length} item(s) logged!` });
       handleReset();
