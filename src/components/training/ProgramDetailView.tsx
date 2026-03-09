@@ -575,9 +575,11 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             day_of_week: phase.workouts.length - 1,
             day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
             sort_order: phase.workouts.length - 1,
-          }).select();
+            exclude_from_numbering: false,
+            custom_tag: null,
+          }).select("id");
           if (error) throw error;
-          if (!data || data.length === 0) throw new Error("Workout link was not saved — check permissions.");
+          if (!data || data.length === 0) throw new Error("Workout link was not saved — check RLS permissions on program_workouts.");
         }
         showSaveStatus("saved");
         // Re-fetch to sync IDs from database

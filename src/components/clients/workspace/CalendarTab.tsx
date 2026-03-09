@@ -398,11 +398,19 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       }
     }
 
-    const { error } = await supabase.from("calendar_events").insert(eventsToInsert);
+    const { data: insertedEvents, error } = await supabase
+      .from("calendar_events")
+      .insert(eventsToInsert)
+      .select("id");
+
     if (error) {
+      console.error("[Calendar] Insert error:", error);
       toast({ title: "Error scheduling", description: error.message, variant: "destructive" });
+    } else if (!insertedEvents || insertedEvents.length === 0) {
+      console.error("[Calendar] Insert returned no rows — possible RLS violation");
+      toast({ title: "Could not schedule events. Check permissions.", variant: "destructive" });
     } else {
-      toast({ title: `${eventsToInsert.length} event${eventsToInsert.length > 1 ? "s" : ""} scheduled` });
+      toast({ title: `${insertedEvents.length} event${insertedEvents.length > 1 ? "s" : ""} scheduled` });
       setShowSchedule(false);
       loadMonth();
     }

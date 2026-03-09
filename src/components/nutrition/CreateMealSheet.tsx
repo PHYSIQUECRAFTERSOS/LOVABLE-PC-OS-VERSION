@@ -60,15 +60,32 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
     setSearchQuery(q);
     if (q.length < 2) { setSearchResults([]); return; }
     setSearching(true);
-    const { data, error } = await supabase.rpc("search_foods", { search_query: q, result_limit: 15 });
-    if (!error && data) {
-      setSearchResults(data);
-    } else {
+    try {
+      const { data, error } = await supabase.functions.invoke("search-foods", {
+        body: { query: q, limit: 20, user_id: user?.id ?? null },
+      });
+      if (!error && data?.foods?.length > 0) {
+        setSearchResults(data.foods.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          brand: f.brand || null,
+          serving_size: f.serving_size_g ?? 100,
+          serving_unit: f.serving_unit ?? "g",
+          calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+          fat: Math.round((f.fat_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        })));
+      } else {
+        throw new Error("Edge function empty");
+      }
+    } catch {
       const { data: fallback } = await supabase
         .from("food_items")
         .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat")
-        .ilike("name", `%${q}%`)
-        .limit(10);
+        .or(`name.ilike.%${q}%,brand.ilike.%${q}%`)
+        .order("is_verified", { ascending: false })
+        .limit(20);
       setSearchResults(fallback || []);
     }
     setSearching(false);

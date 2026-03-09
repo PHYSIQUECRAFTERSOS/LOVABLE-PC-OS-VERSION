@@ -153,8 +153,10 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
           .limit(1);
 
         if (existing && existing.length > 0) {
-          const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
-          if (useit) { onOpenChange(false); setSaving(false); return; }
+          toast({
+            title: `Similar exercise found: "${existing[0].name}"`,
+            description: "Saving as new exercise anyway. Use the search to find the existing one.",
+          });
         }
       }
 
@@ -179,11 +181,17 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         const { data, error } = await supabase.from("exercises").insert({
           ...payload,
           created_by: user.id,
-        }).select();
-        if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Exercise was not saved — you may not have permission. Contact your admin.");
+        }).select("id, name");
+        if (error) {
+          console.error("[AddExercise] Insert error:", error);
+          throw new Error(error.message);
+        }
+        if (!data || data.length === 0) {
+          console.error("[AddExercise] Insert returned no rows. Check that your account has coach or admin role.");
+          throw new Error("Exercise was not saved. Your account may not have coach permissions. Contact your admin.");
+        }
         console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
-        toast({ title: "Exercise created" });
+        toast({ title: `Exercise "${data[0].name}" created` });
       }
 
       // Trigger re-fetch BEFORE closing modal and AWAIT it to avoid stale data

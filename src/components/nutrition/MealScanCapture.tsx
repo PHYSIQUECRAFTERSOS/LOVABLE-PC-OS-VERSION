@@ -140,10 +140,13 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
       const { getLocalDateString } = await import("@/utils/localDate");
       // Use the parent's logDate if provided, otherwise fall back to local date
       const dateToLog = logDate || getLocalDateString();
+      const VALID_MEAL_TYPES = ["breakfast", "pre-workout", "post-workout", "lunch", "dinner", "snack"];
+      const safeMealType = VALID_MEAL_TYPES.includes(selectedMealType) ? selectedMealType : "snack";
+
       const inserts = result.items.map((item) => ({
         client_id: user.id,
         custom_name: `${item.name} (${item.portion})`.slice(0, 200),
-        meal_type: selectedMealType || "snack",
+        meal_type: safeMealType,
         servings: 1,
         calories: safeRound(item.calories),
         protein: safeRound(item.protein),
