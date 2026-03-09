@@ -194,10 +194,12 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         toast({ title: `Exercise "${data[0].name}" created` });
       }
 
-      // Trigger re-fetch BEFORE closing modal and AWAIT it to avoid stale data
-      await onCreated();
+      // Close modal first, then trigger re-fetch to avoid stale closure issues
       resetForm();
       onOpenChange(false);
+      // Small delay to let modal unmount, then refresh the list
+      await new Promise(r => setTimeout(r, 200));
+      await onCreated();
     } catch (err: any) {
       console.error("[AddExercise] Save failed:", err);
       toast({ title: "Failed to save exercise — please try again.", description: err.message, variant: "destructive" });

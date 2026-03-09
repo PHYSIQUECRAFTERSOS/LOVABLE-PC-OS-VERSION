@@ -40,15 +40,22 @@ const ExerciseLibrary = () => {
   const [editExercise, setEditExercise] = useState<any | null>(null);
 
   const loadExercises = useCallback(async () => {
+    console.log("[ExerciseLibrary] Loading exercises...");
     setLoading(true);
-    const { data, error } = await supabase
-      .from("exercises")
-      .select("id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at")
-      .order("name");
-    if (error) console.error("[ExerciseLibrary] Load error:", error);
-    console.log("[ExerciseLibrary] Loaded", data?.length ?? 0, "exercises");
-    setExercises(data || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from("exercises")
+        .select("id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at")
+        .order("name");
+      if (error) {
+        console.error("[ExerciseLibrary] Load error:", error);
+        return;
+      }
+      console.log("[ExerciseLibrary] Loaded", data?.length ?? 0, "exercises");
+      setExercises(data || []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadExercises(); }, [loadExercises]);

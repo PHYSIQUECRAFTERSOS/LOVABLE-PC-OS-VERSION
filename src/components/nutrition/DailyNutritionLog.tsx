@@ -163,7 +163,14 @@ const DailyNutritionLog = () => {
     );
 
   const handleCopyFromPlan = async (mealKey: string) => {
-    if (!activeDayId || !mealPlanItems) return;
+    if (!activeDayId) {
+      toast({ title: "No meal plan day found", description: "Your meal plan may not have any days configured yet.", variant: "destructive" });
+      return;
+    }
+    if (!mealPlanItems || mealPlanItems.length === 0) {
+      toast({ title: "No meal plan items loaded", description: "Your meal plan may be empty or still loading.", variant: "destructive" });
+      return;
+    }
     setCopyingMeal(mealKey);
 
     const planItems = getItemsForMealSection(activeDayId, mealKey);
