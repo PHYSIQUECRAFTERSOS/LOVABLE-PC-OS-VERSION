@@ -481,6 +481,50 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
+  const logClientRecipe = async (recipe: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: recipe.name,
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(recipe.calories_per_serving || 0),
+      protein: Math.round(recipe.protein_per_serving || 0),
+      carbs: Math.round(recipe.carbs_per_serving || 0),
+      fat: Math.round(recipe.fat_per_serving || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+    if (error) {
+      toast({ title: "Couldn't log recipe." });
+    } else {
+      toast({ title: `${recipe.name} logged` });
+      onLogged();
+    }
+  };
+
+  const logClientFood = async (food: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: food.name,
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(food.calories || 0),
+      protein: Math.round(food.protein || 0),
+      carbs: Math.round(food.carbs || 0),
+      fat: Math.round(food.fat || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+    if (error) {
+      toast({ title: "Couldn't log food." });
+    } else {
+      toast({ title: `${food.name} logged` });
+      onLogged();
+    }
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
   };
