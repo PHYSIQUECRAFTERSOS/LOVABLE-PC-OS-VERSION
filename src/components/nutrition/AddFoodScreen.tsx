@@ -104,7 +104,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [historySort, setHistorySort] = useState<HistorySort>("recent");
   const [history, setHistory] = useState<FoodItem[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
-  const [pcRecipes, setPcRecipes] = useState<any[]>([]);
+  const [clientRecipes, setClientRecipes] = useState<any[]>([]);
+  const [clientFoods, setClientFoods] = useState<any[]>([]);
   const [servings, setServings] = useState<Record<string, string>>({});
   const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
@@ -124,9 +125,11 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [showCreateMeal, setShowCreateMeal] = useState(false);
   const [showCopyMeal, setShowCopyMeal] = useState(false);
 
-  // PC Recipes sub-screens
-  const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
-  const [pcRecipeSearch, setPcRecipeSearch] = useState("");
+  // My Recipes sub-screens
+  const [showCreateRecipe, setShowCreateRecipe] = useState(false);
+
+  // My Foods sub-screens
+  const [showCreateFood, setShowCreateFood] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -134,7 +137,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setTimeout(() => searchRef.current?.focus(), 100);
       fetchHistory();
       fetchSavedMeals();
-      fetchPCRecipes();
+      fetchClientRecipes();
+      fetchClientFoods();
     }
   }, [open]);
 
