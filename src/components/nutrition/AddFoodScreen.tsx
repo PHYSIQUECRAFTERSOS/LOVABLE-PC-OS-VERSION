@@ -128,6 +128,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchSavedMeals();
       fetchUserRecipes();
       fetchCustomFoods();
+      fetchClientRecipes();
+      fetchClientCustomFoods();
     }
   }, [open]);
 
