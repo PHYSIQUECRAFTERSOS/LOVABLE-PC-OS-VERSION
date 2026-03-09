@@ -196,6 +196,70 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setCustomFoods((data || []) as FoodItem[]);
   };
 
+  const fetchClientRecipes = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("client_recipes")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setClientRecipes((data as any[]) || []);
+  };
+
+  const fetchClientCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("client_custom_foods")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setClientCustomFoods((data as any[]) || []);
+  };
+
+  const logClientRecipe = async (recipe: any, numServings: number = 1) => {
+    if (!user) return;
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: `🍳 ${recipe.name} (${numServings} serving${numServings !== 1 ? 's' : ''})`,
+      meal_type: mealType,
+      servings: numServings,
+      calories: Math.round((recipe.calories_per_serving || 0) * numServings),
+      protein: Math.round((recipe.protein_per_serving || 0) * numServings),
+      carbs: Math.round((recipe.carbs_per_serving || 0) * numServings),
+      fat: Math.round((recipe.fat_per_serving || 0) * numServings),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+    if (error) {
+      toast({ title: "Couldn't log recipe." });
+    } else {
+      toast({ title: `${recipe.name} logged` });
+      onLogged();
+    }
+  };
+
+  const logClientCustomFood = async (food: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: food.name,
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(food.calories || 0),
+      protein: Math.round(food.protein || 0),
+      carbs: Math.round(food.carbs || 0),
+      fat: Math.round(food.fat || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+    if (error) {
+      toast({ title: "Couldn't log food." });
+    } else {
+      toast({ title: `${food.name} logged` });
+      onLogged();
+    }
+  };
+
   const logRecipe = async (recipe: any) => {
     if (!user) return;
     // Log 100g serving of the recipe
