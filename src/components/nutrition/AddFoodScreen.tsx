@@ -75,14 +75,15 @@ interface AddFoodScreenProps {
   onLogged: () => void;
 }
 
-type TabKey = "all" | "my-meals" | "pc-recipes";
+type TabKey = "all" | "my-meals" | "my-recipes" | "my-foods";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "my-meals", label: "My Meals" },
-  { key: "pc-recipes", label: "PC Recipes" },
+  { key: "my-recipes", label: "My Recipes" },
+  { key: "my-foods", label: "My Foods" },
 ];
 
 const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
