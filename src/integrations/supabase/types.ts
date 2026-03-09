@@ -3742,6 +3742,128 @@ export type Database = {
         }
         Relationships: []
       }
+      pc_recipe_ingredients: {
+        Row: {
+          calories: number
+          carbs: number
+          fat: number
+          food_item_id: string | null
+          food_name: string
+          id: string
+          protein: number
+          quantity: number
+          recipe_id: string
+          serving_unit: string
+          sort_order: number
+        }
+        Insert: {
+          calories?: number
+          carbs?: number
+          fat?: number
+          food_item_id?: string | null
+          food_name: string
+          id?: string
+          protein?: number
+          quantity?: number
+          recipe_id: string
+          serving_unit?: string
+          sort_order?: number
+        }
+        Update: {
+          calories?: number
+          carbs?: number
+          fat?: number
+          food_item_id?: string | null
+          food_name?: string
+          id?: string
+          protein?: number
+          quantity?: number
+          recipe_id?: string
+          serving_unit?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_recipe_ingredients_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pc_recipe_ingredients_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "pc_recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_recipe_instructions: {
+        Row: {
+          id: string
+          instruction_text: string
+          recipe_id: string
+          step_number: number
+        }
+        Insert: {
+          id?: string
+          instruction_text: string
+          recipe_id: string
+          step_number: number
+        }
+        Update: {
+          id?: string
+          instruction_text?: string
+          recipe_id?: string
+          step_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_recipe_instructions_recipe_id_fkey"
+            columns: ["recipe_id"]
+            isOneToOne: false
+            referencedRelation: "pc_recipes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_recipes: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_published: boolean
+          name: string
+          servings: number
+          updated_at: string
+          youtube_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          name: string
+          servings?: number
+          updated_at?: string
+          youtube_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          name?: string
+          servings?: number
+          updated_at?: string
+          youtube_url?: string | null
+        }
+        Relationships: []
+      }
       personal_records: {
         Row: {
           client_id: string
@@ -4289,6 +4411,63 @@ export type Database = {
           sent_at?: string
         }
         Relationships: []
+      }
+      saved_meal_items: {
+        Row: {
+          calories: number
+          carbs: number
+          created_at: string
+          fat: number
+          food_item_id: string | null
+          food_name: string
+          id: string
+          protein: number
+          quantity: number
+          saved_meal_id: string
+          serving_unit: string
+        }
+        Insert: {
+          calories?: number
+          carbs?: number
+          created_at?: string
+          fat?: number
+          food_item_id?: string | null
+          food_name: string
+          id?: string
+          protein?: number
+          quantity?: number
+          saved_meal_id: string
+          serving_unit?: string
+        }
+        Update: {
+          calories?: number
+          carbs?: number
+          created_at?: string
+          fat?: number
+          food_item_id?: string | null
+          food_name?: string
+          id?: string
+          protein?: number
+          quantity?: number
+          saved_meal_id?: string
+          serving_unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_meal_items_food_item_id_fkey"
+            columns: ["food_item_id"]
+            isOneToOne: false
+            referencedRelation: "food_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_meal_items_saved_meal_id_fkey"
+            columns: ["saved_meal_id"]
+            isOneToOne: false
+            referencedRelation: "saved_meals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       saved_meals: {
         Row: {
