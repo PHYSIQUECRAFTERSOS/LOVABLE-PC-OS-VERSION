@@ -66,20 +66,6 @@ const ACTION_ROUTES: Record<string, string> = {
   checkin: "/progress",
 };
 
-const normalizeActionType = (eventType: string, title?: string | null): string => {
-  const titleLower = (title || "").toLowerCase();
-
-  if ((eventType === "custom" || eventType === "rest") && titleLower.includes("body stat")) {
-    return "body_stats";
-  }
-
-  if ((eventType === "custom" || eventType === "rest") && titleLower.includes("photo")) {
-    return "photos";
-  }
-
-  return eventType;
-};
-
 interface TodayActionsProps {
   date?: string;
   onDataLoaded?: (items: ActionItem[]) => void;
@@ -150,14 +136,12 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       });
 
       (calRes.data || []).forEach((e) => {
-        const normalizedType = normalizeActionType(e.event_type, e.title);
-
         if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
 
         let completed = e.is_completed;
         let title = e.title;
 
-        if (normalizedType === "workout" && e.linked_workout_id) {
+        if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
           const sessionName = (session as any)?.workouts?.name;
@@ -165,8 +149,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           const workoutName = sessionName || directName;
           if (workoutName) title = workoutName;
         }
-
-        if (normalizedType === "cardio") {
+        if (e.event_type === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
           if (log?.completed) completed = true;
         }
@@ -174,7 +157,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         items.push({
           id: e.id,
           title,
-          type: normalizedType,
+          type: e.event_type,
           completed,
           description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
@@ -242,13 +225,11 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     }
     // Body Stats: open popup
     if (action.type === "body_stats" && !action.completed) {
-      console.log("Body Stats tapped", action.id);
       setBodyStatsPopup({ eventId: action.id });
       return;
     }
     // Photos: open popup
     if (action.type === "photos" && !action.completed) {
-      console.log("Photos tapped", action.id);
       setPhotosPopup({ eventId: action.id });
       return;
     }
