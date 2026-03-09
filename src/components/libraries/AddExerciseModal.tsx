@@ -58,16 +58,28 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
   const [ytTitle, setYtTitle] = useState("");
 
   const [form, setForm] = useState({
-    name: initialData?.name || "",
-    primary_muscle: initialData?.primary_muscle || "",
-    secondary_muscle: initialData?.secondary_muscle || "",
-    equipment: initialData?.equipment || "",
-    category: initialData?.category || "Strength",
-    youtube_url: initialData?.youtube_url || "",
-    video_url: initialData?.video_url || "",
-    thumbnail_url: initialData?.youtube_thumbnail || "",
-    instructions: initialData?.description || "",
+    name: "", primary_muscle: "", secondary_muscle: "", equipment: "",
+    category: "Strength", youtube_url: "", video_url: "", thumbnail_url: "", instructions: "",
   });
+
+  // Sync form when initialData changes (edit mode)
+  useEffect(() => {
+    if (open && initialData) {
+      setForm({
+        name: initialData.name || "",
+        primary_muscle: initialData.primary_muscle || "",
+        secondary_muscle: initialData.secondary_muscle || "",
+        equipment: initialData.equipment || "",
+        category: initialData.category || "Strength",
+        youtube_url: initialData.youtube_url || "",
+        video_url: initialData.video_url || "",
+        thumbnail_url: initialData.youtube_thumbnail || "",
+        instructions: initialData.description || "",
+      });
+    } else if (open && !initialData) {
+      resetForm();
+    }
+  }, [open, initialData]);
 
   const resetForm = () => {
     setForm({ name: "", primary_muscle: "", secondary_muscle: "", equipment: "", category: "Strength", youtube_url: "", video_url: "", thumbnail_url: "", instructions: "" });
