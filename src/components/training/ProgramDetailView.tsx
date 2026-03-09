@@ -645,23 +645,40 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setShowImportDialog(false);
   };
 
+  // ── Save Status ──
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const saveStatusTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const showSaveStatus = (status: "saving" | "saved" | "failed") => {
+    if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
+    setSaveStatus(status);
+    if (status === "saved") {
+      saveStatusTimeout.current = setTimeout(() => setSaveStatus("idle"), 3000);
+    }
+  };
+
   // ── Save ──
   const saveProgram = async () => {
     if (!user) return;
     setSaving(true);
+    showSaveStatus("saving");
     try {
       const totalDuration = phases.reduce((s, p) => s + p.durationWeeks, 0);
 
-      await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+      const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+      if (updateErr) throw updateErr;
 
       // Delete existing program_workouts linked to this program's phases
       const { data: existingPhases } = await supabase.from("program_phases").select("id").eq("program_id", programId);
       if (existingPhases && existingPhases.length > 0) {
-        await supabase.from("program_workouts").delete().in("phase_id", existingPhases.map(p => p.id));
+        const { error: delPwErr } = await supabase.from("program_workouts").delete().in("phase_id", existingPhases.map(p => p.id));
+        if (delPwErr) { console.error("[ProgramSave] Failed to delete program_workouts:", delPwErr); throw delPwErr; }
       }
       // Delete existing phases and orphan weeks
-      await supabase.from("program_phases").delete().eq("program_id", programId);
-      await supabase.from("program_weeks").delete().eq("program_id", programId);
+      const { error: delPhaseErr } = await supabase.from("program_phases").delete().eq("program_id", programId);
+      if (delPhaseErr) { console.error("[ProgramSave] Failed to delete phases:", delPhaseErr); throw delPhaseErr; }
+      const { error: delWeekErr } = await supabase.from("program_weeks").delete().eq("program_id", programId);
+      if (delWeekErr) { console.error("[ProgramSave] Failed to delete weeks:", delWeekErr); throw delWeekErr; }
 
       // Insert phases with direct workout links (week_id is now nullable)
       for (const phase of phases) {
@@ -679,7 +696,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             progression_rule: phase.progressionRule,
           })
           .select().single();
-        if (phaseErr) throw phaseErr;
+        if (phaseErr) { console.error("[ProgramSave] Failed to insert phase:", phase.name, phaseErr); throw phaseErr; }
 
         if (phase.workouts.length > 0) {
           const { error: pwErr } = await supabase.from("program_workouts").insert(
@@ -693,15 +710,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               custom_tag: w.customTag || null,
             }))
           );
-          if (pwErr) throw pwErr;
+          if (pwErr) { console.error("[ProgramSave] Failed to insert program_workouts:", pwErr); throw pwErr; }
         }
       }
 
       toast({ title: "Program saved" });
+      showSaveStatus("saved");
       // Re-fetch from database to ensure UI matches persisted state
       await loadProgram();
     } catch (err: any) {
-      toast({ title: "Error saving", description: err.message, variant: "destructive" });
+      console.error("[ProgramSave] Error:", err);
+      toast({ title: "Failed to save program — please try again.", description: err.message, variant: "destructive" });
+      showSaveStatus("failed");
     } finally {
       setSaving(false);
     }
