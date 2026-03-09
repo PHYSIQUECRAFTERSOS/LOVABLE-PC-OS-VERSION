@@ -153,8 +153,10 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
           .limit(1);
 
         if (existing && existing.length > 0) {
-          const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
-          if (useit) { onOpenChange(false); setSaving(false); return; }
+          toast({
+            title: `Similar exercise found: "${existing[0].name}"`,
+            description: "Saving as new exercise anyway. Use the search to find the existing one.",
+          });
         }
       }
 
