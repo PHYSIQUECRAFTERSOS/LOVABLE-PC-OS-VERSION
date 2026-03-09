@@ -642,11 +642,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const displayItems = search.length >= 2 ? allDisplayItems : [];
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
-  const showRecipes = activeTab === "pc-recipes";
-
-  const filteredPCRecipes = pcRecipeSearch
-    ? pcRecipes.filter((r: any) => r.name.toLowerCase().includes(pcRecipeSearch.toLowerCase()))
-    : pcRecipes;
+  const showRecipes = activeTab === "my-recipes";
+  const showFoods = activeTab === "my-foods";
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
