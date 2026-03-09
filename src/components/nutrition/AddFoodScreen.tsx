@@ -23,7 +23,7 @@ import {
   Clock,
   TrendingUp,
   Loader2,
-  Youtube,
+  
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
