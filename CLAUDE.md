@@ -41,12 +41,9 @@ All credentials are in `.env` (gitignored — never committed).
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key (public) |
 | `GITHUB_TOKEN` | GitHub PAT for pushing to main |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin key for running SQL |
-| `SUPABASE_PROJECT_ID_SERVICE` | Supabase project ID matching service role key |
+| `SUPABASE_PROJECT_ID_SERVICE` | Supabase project ID (`ifknsfzawgpzsszaugxf`) |
 
-⚠️ **IMPORTANT**: There are currently two Supabase project IDs in use:
-- `VITE_SUPABASE_PROJECT_ID` = `aeiypruqgzqauvyftitw` (what the app connects to)
-- `SUPABASE_PROJECT_ID_SERVICE` = `ifknsfzawgpzsszaugxf` (service role key project)
-These must be reconciled — see owner to confirm which is the production project.
+All Supabase references point to the single production project: `ifknsfzawgpzsszaugxf`
 
 ---
 
