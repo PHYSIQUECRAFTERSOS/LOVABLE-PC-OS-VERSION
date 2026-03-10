@@ -42,7 +42,7 @@ function getYouTubeVideoId(url: string): string | null {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onCreated: (newExercise?: any) => void;
   initialData?: any;
 }
 
@@ -191,13 +191,37 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
           throw new Error("Exercise was not saved. Your account may not have coach permissions. Contact your admin.");
         }
         console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
-        toast({ title: `Exercise "${data[0].name}" created` });
+
+        // Verify the exercise actually exists in the DB by doing a separate read
+        const { data: verifyData, error: verifyErr } = await supabase
+          .from("exercises")
+          .select("id, name")
+          .eq("id", data[0].id)
+          .single();
+        if (verifyErr || !verifyData) {
+          console.error("[AddExercise] Post-insert verification FAILED:", verifyErr);
+          toast({
+            title: "Exercise may not have saved",
+            description: "The exercise appeared to save but could not be verified. Try refreshing the page.",
+            variant: "destructive",
+          });
+        } else {
+          console.log("[AddExercise] Verified exercise exists in DB:", verifyData.id);
+          toast({ title: `Exercise "${data[0].name}" created` });
+        }
+
+        // Close modal first, then trigger re-fetch with new exercise data
+        resetForm();
+        onOpenChange(false);
+        // Small delay to let modal unmount, then refresh the list
+        await new Promise(r => setTimeout(r, 200));
+        await onCreated({ ...payload, id: data[0].id, name: data[0].name, created_by: user.id, created_at: new Date().toISOString() });
+        return;
       }
 
-      // Close modal first, then trigger re-fetch to avoid stale closure issues
+      // Close modal for edit case
       resetForm();
       onOpenChange(false);
-      // Small delay to let modal unmount, then refresh the list
       await new Promise(r => setTimeout(r, 200));
       await onCreated();
     } catch (err: any) {

@@ -352,7 +352,7 @@ const DailyNutritionLog = () => {
         onClose={() => setLoggerOpen(false)}
         onLogged={async () => {
           setLoggerOpen(false);
-          await new Promise(r => setTimeout(r, 150));
+          await new Promise(r => setTimeout(r, 300));
           await fetchLogs();
           refreshSuggestions();
         }}
