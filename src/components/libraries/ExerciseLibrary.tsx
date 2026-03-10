@@ -166,7 +166,17 @@ const ExerciseLibrary = () => {
       <AddExerciseModal
         open={showAdd}
         onOpenChange={setShowAdd}
-        onCreated={loadExercises}
+        onCreated={(newExercise?: any) => {
+          // Optimistically add new exercise to list immediately so count updates right away
+          if (newExercise?.id) {
+            setExercises(prev => {
+              const merged = [...prev, newExercise];
+              return merged.sort((a, b) => a.name.localeCompare(b.name));
+            });
+          }
+          // Also do a full reload to sync any server-side data
+          loadExercises();
+        }}
         initialData={editExercise}
       />
     </div>

@@ -712,7 +712,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       const { error: delWeekErr } = await supabase.from("program_weeks").delete().eq("program_id", programId);
       if (delWeekErr) { console.error("[ProgramSave] Failed to delete weeks:", delWeekErr); throw delWeekErr; }
 
-      // Insert phases with direct workout links
+      // Insert phases with direct workout links, collecting DB-assigned IDs
+      const savedPhases: ProgramPhase[] = [];
       for (const phase of phasesToSave) {
         const { data: phaseRow, error: phaseErr } = await supabase
           .from("program_phases")
@@ -730,6 +731,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
           .select().single();
         if (phaseErr) { console.error("[ProgramSave] Failed to insert phase:", phase.name, phaseErr); throw phaseErr; }
 
+        let savedWorkouts: ProgramWorkout[] = [];
         if (phase.workouts.length > 0) {
           const { data: pwData, error: pwErr } = await supabase.from("program_workouts").insert(
             phase.workouts.map((w, i) => ({
@@ -743,14 +745,25 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             }))
           ).select();
           if (pwErr) { console.error("[ProgramSave] Failed to insert program_workouts:", pwErr); throw pwErr; }
-          if (!pwData || pwData.length === 0) console.warn("[ProgramSave] program_workouts insert returned no data");
+          if (pwData && pwData.length > 0) {
+            savedWorkouts = phase.workouts.map((w, i) => ({
+              ...w,
+              id: pwData[i]?.id,
+            }));
+          } else {
+            console.warn("[ProgramSave] program_workouts insert returned no data — possible RLS issue");
+            savedWorkouts = phase.workouts;
+          }
         }
+        savedPhases.push({ ...phase, id: phaseRow.id, workouts: savedWorkouts });
       }
 
       toast({ title: "Program saved" });
       showSaveStatus("saved");
-      // Re-fetch from database to ensure UI matches persisted state
-      await loadProgram();
+      // Update state immediately with DB-assigned IDs so workouts don't disappear
+      setPhases(savedPhases);
+      // Background sync to pick up any server-side changes
+      loadProgram();
     } catch (err: any) {
       console.error("[ProgramSave] Error:", err);
       toast({ title: "Failed to save program — please try again.", description: err.message, variant: "destructive" });

@@ -41,7 +41,7 @@ interface MealScanCaptureProps {
   onClose: () => void;
   mealType: string;
   logDate?: string;
-  onLogged: () => void;
+  onLogged: () => void | Promise<void>;
 }
 
 const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealScanCaptureProps) => {
@@ -170,8 +170,9 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
 
       toast({ title: `${result.items.length} item(s) logged!` });
       handleReset();
-      onLogged();
+      // Close scanner first, then trigger parent refresh so fetchLogs runs after close animation
       onClose();
+      await onLogged();
     } catch (err: any) {
       console.error("[MealScan] Log error:", err);
       toast({ title: "Error logging food", description: err.message, variant: "destructive" });

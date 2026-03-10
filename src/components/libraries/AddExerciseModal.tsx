@@ -42,7 +42,7 @@ function getYouTubeVideoId(url: string): string | null {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onCreated: (newExercise?: any) => void;
   initialData?: any;
 }
 
@@ -192,12 +192,18 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         }
         console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
         toast({ title: `Exercise "${data[0].name}" created` });
+        // Close modal first, then trigger re-fetch with new exercise data
+        resetForm();
+        onOpenChange(false);
+        // Small delay to let modal unmount, then refresh the list
+        await new Promise(r => setTimeout(r, 200));
+        await onCreated({ ...payload, id: data[0].id, name: data[0].name, created_by: user.id, created_at: new Date().toISOString() });
+        return;
       }
 
-      // Close modal first, then trigger re-fetch to avoid stale closure issues
+      // Close modal for edit case
       resetForm();
       onOpenChange(false);
-      // Small delay to let modal unmount, then refresh the list
       await new Promise(r => setTimeout(r, 200));
       await onCreated();
     } catch (err: any) {
