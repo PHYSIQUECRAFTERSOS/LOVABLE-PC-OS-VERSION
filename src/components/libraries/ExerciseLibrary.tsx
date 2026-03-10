@@ -193,6 +193,10 @@ const ExerciseLibrary = () => {
               const merged = [...prev.filter(e => e.id !== newExercise.id), newExercise];
               return merged.sort((a, b) => a.name.localeCompare(b.name));
             });
+            // Clear all filters so the newly created exercise is always visible
+            setSearchQuery("");
+            setMuscleFilter("All");
+            setEquipFilter("All");
           }
           // Wait a bit longer for DB commit, then reload to sync IDs/data
           await new Promise(r => setTimeout(r, 500));
