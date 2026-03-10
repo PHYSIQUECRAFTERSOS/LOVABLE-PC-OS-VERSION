@@ -34,6 +34,7 @@ import SavedMealDetail from "@/components/nutrition/SavedMealDetail";
 import CreateMealSheet from "@/components/nutrition/CreateMealSheet";
 import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet";
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
+import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 
 interface FoodItem {
   id: string;
@@ -75,14 +76,15 @@ interface AddFoodScreenProps {
   onLogged: () => void;
 }
 
-type TabKey = "all" | "my-meals" | "pc-recipes";
+type TabKey = "all" | "my-meals" | "pc-recipes" | "my-foods";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "my-meals", label: "My Meals" },
-  { key: "pc-recipes", label: "PC Recipes" },
+  { key: "pc-recipes", label: "My Recipes" },
+  { key: "my-foods", label: "My Foods" },
 ];
 
 const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
@@ -126,6 +128,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   // PC Recipes sub-screen
   const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
 
+  // My Foods sub-screen
+  const [myFoods, setMyFoods] = useState<any[]>([]);
+  const [showCreateFood, setShowCreateFood] = useState(false);
+
   useEffect(() => {
     if (open) {
       setActiveTab("all");
@@ -133,6 +139,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
+      fetchMyFoods();
     }
   }, [open]);
 
@@ -199,6 +206,22 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     } catch (err) {
       console.error("[PCRecipes] exception:", err);
       setPcRecipes([]);
+    }
+  };
+
+  const fetchMyFoods = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from("client_custom_foods")
+        .select("*")
+        .eq("client_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) console.error("[MyFoods] fetch error:", error);
+      setMyFoods(data || []);
+    } catch (err) {
+      console.error("[MyFoods] exception:", err);
+      setMyFoods([]);
     }
   };
 
@@ -578,6 +601,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
+  if (showCreateFood) {
+    return (
+      <CreateFoodScreen
+        onClose={() => setShowCreateFood(false)}
+        onSaved={() => { setShowCreateFood(false); fetchMyFoods(); }}
+      />
+    );
+  }
+
   if (selectedPCRecipe) {
     return (
       <PCRecipeDetail
@@ -629,6 +661,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
   const showRecipes = activeTab === "pc-recipes";
+  const showMyFoods = activeTab === "my-foods";
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
@@ -770,14 +803,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* ═══ PC RECIPES TAB ═══ */}
+        {/* ═══ MY RECIPES TAB (PC Recipes) ═══ */}
         {showRecipes && (
           <div className="space-y-3 py-2">
             {pcRecipes.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-3xl mb-3">🍳</div>
                 <p className="text-sm text-muted-foreground">No recipes available yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Your coach will add recipes here for you to use.</p>
+                <p className="text-xs text-muted-foreground mt-1">Recipes added in the Nutrition → Recipes tab will appear here.</p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -801,6 +834,70 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   </button>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ MY FOODS TAB ═══ */}
+        {showMyFoods && (
+          <div className="space-y-3 py-2">
+            <button
+              onClick={() => setShowCreateFood(true)}
+              className="flex flex-col items-center gap-1.5 w-full rounded-xl border border-border/50 bg-card py-4 px-2 hover:bg-secondary transition-colors"
+            >
+              <Plus className="h-5 w-5 text-primary" strokeWidth={1.5} />
+              <span className="text-xs font-medium text-foreground">Create food</span>
+            </button>
+
+            {myFoods.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">No custom foods yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Create foods with your own nutrition info.</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">My Foods</h3>
+                <div className="space-y-1.5">
+                  {myFoods.map((food) => (
+                    <div key={food.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
+                          {food.serving_size ? ` · ${food.serving_size}` : ""}
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!user) return;
+                          const { error } = await supabase.from("nutrition_logs").insert({
+                            client_id: user.id,
+                            food_item_id: null,
+                            custom_name: food.name,
+                            meal_type: mealType,
+                            servings: 1,
+                            calories: Math.round(Number(food.calories) || 0),
+                            protein: Math.round(Number(food.protein) || 0),
+                            carbs: Math.round(Number(food.carbs) || 0),
+                            fat: Math.round(Number(food.fat) || 0),
+                            logged_at: effectiveDate,
+                            tz_corrected: true,
+                          });
+                          if (error) {
+                            toast({ title: "Couldn't log food. Please try again." });
+                          } else {
+                            toast({ title: `${food.name} logged` });
+                            onLogged();
+                          }
+                        }}
+                        className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
