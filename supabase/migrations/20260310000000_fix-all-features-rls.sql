@@ -2,14 +2,14 @@
 -- Fix all feature-blocking RLS policies
 -- ============================================================
 
--- 1. EXERCISES: Add fallback INSERT policy for coach role issues
--- Drop existing and recreate with broader check
+-- 1. EXERCISES: Ensure INSERT policy works for coaches
+-- The original policy used has_role which is correct — keep it simple
+DROP POLICY IF EXISTS "Coaches can create exercises" ON public.exercises;
 DROP POLICY IF EXISTS "Coaches and admins can create exercises" ON public.exercises;
 CREATE POLICY "Coaches and admins can create exercises"
 ON public.exercises FOR INSERT TO authenticated
 WITH CHECK (
-  created_by = auth.uid()
-  AND (public.has_role(auth.uid(), 'coach') OR public.has_role(auth.uid(), 'admin'))
+  public.has_role(auth.uid(), 'coach') OR public.has_role(auth.uid(), 'admin')
 );
 
 -- Ensure exercises SELECT is truly open to all authenticated users
