@@ -29,17 +29,9 @@ export default defineConfig(({ mode }) => ({
     },
     rollupOptions: {
       output: {
-        manualChunks(id) {
+      manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react-dom') || id.includes('react/') || id.includes('react-router')) {
-              return 'vendor';
-            }
-            if (id.includes('@radix-ui')) {
-              return 'ui';
-            }
-            if (id.includes('recharts')) {
-              return 'recharts';
-            }
+            return 'vendor';
           }
         },
       },
