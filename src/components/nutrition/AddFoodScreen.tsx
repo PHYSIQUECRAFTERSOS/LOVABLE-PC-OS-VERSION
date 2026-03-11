@@ -660,7 +660,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
   const showRecipes = activeTab === "pc-recipes";
-  const showMyFoods = activeTab === "my-foods";
+  
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
