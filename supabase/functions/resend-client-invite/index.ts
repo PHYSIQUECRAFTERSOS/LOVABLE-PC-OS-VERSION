@@ -109,7 +109,7 @@ serve(async (req) => {
     console.log("[resend-invite] Invite record updated successfully");
 
     // Step 5: Build setup URL
-    const origin = req.headers.get("origin") || "https://app.physiquecrafters.com";
+    const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
     const setupUrl = `${origin}/setup?token=${newToken}`;
 
     // Step 6: Send email

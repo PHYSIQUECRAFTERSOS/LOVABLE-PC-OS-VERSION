@@ -34,7 +34,6 @@ import SavedMealDetail from "@/components/nutrition/SavedMealDetail";
 import CreateMealSheet from "@/components/nutrition/CreateMealSheet";
 import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet";
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
-import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 
 interface FoodItem {
   id: string;
@@ -127,10 +126,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   // PC Recipes sub-screen
   const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
 
-  // My Foods sub-screen
-  const [myFoods, setMyFoods] = useState<any[]>([]);
-  const [showCreateFood, setShowCreateFood] = useState(false);
-
   useEffect(() => {
     if (open) {
       setActiveTab("all");
@@ -138,7 +133,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
-      fetchMyFoods();
     }
   }, [open]);
 
@@ -205,22 +199,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     } catch (err) {
       console.error("[PCRecipes] exception:", err);
       setPcRecipes([]);
-    }
-  };
-
-  const fetchMyFoods = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from("client_custom_foods")
-        .select("*")
-        .eq("client_id", user.id)
-        .order("created_at", { ascending: false });
-      if (error) console.error("[MyFoods] fetch error:", error);
-      setMyFoods(data || []);
-    } catch (err) {
-      console.error("[MyFoods] exception:", err);
-      setMyFoods([]);
     }
   };
 
@@ -600,15 +578,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (showCreateFood) {
-    return (
-      <CreateFoodScreen
-        onClose={() => setShowCreateFood(false)}
-        onSaved={() => { setShowCreateFood(false); fetchMyFoods(); }}
-      />
-    );
-  }
-
   if (selectedPCRecipe) {
     return (
       <PCRecipeDetail
@@ -660,7 +629,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
   const showRecipes = activeTab === "pc-recipes";
-  
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
@@ -802,14 +770,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* ═══ MY RECIPES TAB (PC Recipes) ═══ */}
+        {/* ═══ PC RECIPES TAB ═══ */}
         {showRecipes && (
           <div className="space-y-3 py-2">
             {pcRecipes.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-3xl mb-3">🍳</div>
                 <p className="text-sm text-muted-foreground">No recipes available yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Recipes added in the Nutrition → Recipes tab will appear here.</p>
+                <p className="text-xs text-muted-foreground mt-1">Your coach will add recipes here for you to use.</p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -836,7 +804,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             )}
           </div>
         )}
-
 
         {showHistory && !quickAddOpen && (
           <div className="py-2">
