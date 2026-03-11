@@ -37,8 +37,8 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('@radix-ui')) {
               return 'ui';
             }
-            if (id.includes('recharts') || id.includes('d3-')) {
-              return 'charts';
+            if (id.includes('recharts')) {
+              return 'recharts';
             }
           }
         },
