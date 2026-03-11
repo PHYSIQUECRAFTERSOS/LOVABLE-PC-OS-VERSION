@@ -134,7 +134,7 @@ serve(async (req) => {
     const coachName = coachProfile?.full_name || "Your Coach";
 
     // Build the setup URL - use the origin from the request or fallback
-    const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
+    const origin = req.headers.get("origin") || "https://app.physiquecrafters.com";
     const setupUrl = `${origin}/setup?token=${token}`;
 
     // Send invite email via Supabase Auth admin

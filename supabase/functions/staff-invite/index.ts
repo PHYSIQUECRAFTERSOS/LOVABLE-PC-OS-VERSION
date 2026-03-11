@@ -130,7 +130,7 @@ serve(async (req) => {
       }
 
       // Send invite email via Auth admin
-      const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
+      const origin = req.headers.get("origin") || "https://app.physiquecrafters.com";
       const setupUrl = `${origin}/accept-invite?token=${token}`;
 
       const { error: emailErr } = await supabase.auth.admin.inviteUserByEmail(
