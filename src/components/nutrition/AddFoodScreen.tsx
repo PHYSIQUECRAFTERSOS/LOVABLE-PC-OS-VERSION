@@ -660,7 +660,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
   const showRecipes = activeTab === "pc-recipes";
-  const showMyFoods = activeTab === "my-foods";
+  
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
@@ -837,69 +837,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* ═══ MY FOODS TAB ═══ */}
-        {showMyFoods && (
-          <div className="space-y-3 py-2">
-            <button
-              onClick={() => setShowCreateFood(true)}
-              className="flex flex-col items-center gap-1.5 w-full rounded-xl border border-border/50 bg-card py-4 px-2 hover:bg-secondary transition-colors"
-            >
-              <Plus className="h-5 w-5 text-primary" strokeWidth={1.5} />
-              <span className="text-xs font-medium text-foreground">Create food</span>
-            </button>
-
-            {myFoods.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">No custom foods yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Create foods with your own nutrition info.</p>
-              </div>
-            ) : (
-              <>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">My Foods</h3>
-                <div className="space-y-1.5">
-                  {myFoods.map((food) => (
-                    <div key={food.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
-                          {food.serving_size ? ` · ${food.serving_size}` : ""}
-                        </div>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          if (!user) return;
-                          const { error } = await supabase.from("nutrition_logs").insert({
-                            client_id: user.id,
-                            food_item_id: null,
-                            custom_name: food.name,
-                            meal_type: mealType,
-                            servings: 1,
-                            calories: Math.round(Number(food.calories) || 0),
-                            protein: Math.round(Number(food.protein) || 0),
-                            carbs: Math.round(Number(food.carbs) || 0),
-                            fat: Math.round(Number(food.fat) || 0),
-                            logged_at: effectiveDate,
-                            tz_corrected: true,
-                          });
-                          if (error) {
-                            toast({ title: "Couldn't log food. Please try again." });
-                          } else {
-                            toast({ title: `${food.name} logged` });
-                            onLogged();
-                          }
-                        }}
-                        className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
 
         {showHistory && !quickAddOpen && (
           <div className="py-2">
