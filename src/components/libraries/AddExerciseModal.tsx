@@ -42,7 +42,7 @@ function getYouTubeVideoId(url: string): string | null {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (newExercise?: any) => void;
+  onCreated: () => void;
   initialData?: any;
 }
 
@@ -153,10 +153,8 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
           .limit(1);
 
         if (existing && existing.length > 0) {
-          toast({
-            title: `Similar exercise found: "${existing[0].name}"`,
-            description: "Saving as new exercise anyway. Use the search to find the existing one.",
-          });
+          const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
+          if (useit) { onOpenChange(false); setSaving(false); return; }
         }
       }
 
@@ -181,49 +179,17 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         const { data, error } = await supabase.from("exercises").insert({
           ...payload,
           created_by: user.id,
-        }).select("id, name");
-        if (error) {
-          console.error("[AddExercise] Insert error:", error);
-          throw new Error(error.message);
-        }
-        if (!data || data.length === 0) {
-          console.error("[AddExercise] Insert returned no rows. Check that your account has coach or admin role.");
-          throw new Error("Exercise was not saved. Your account may not have coach permissions. Contact your admin.");
-        }
+        }).select();
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Exercise was not saved — you may not have permission. Contact your admin.");
         console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
-
-        // Verify the exercise actually exists in the DB by doing a separate read
-        const { data: verifyData, error: verifyErr } = await supabase
-          .from("exercises")
-          .select("id, name")
-          .eq("id", data[0].id)
-          .single();
-        if (verifyErr || !verifyData) {
-          console.error("[AddExercise] Post-insert verification FAILED:", verifyErr);
-          toast({
-            title: "Exercise may not have saved",
-            description: "The exercise appeared to save but could not be verified. Try refreshing the page.",
-            variant: "destructive",
-          });
-        } else {
-          console.log("[AddExercise] Verified exercise exists in DB:", verifyData.id);
-          toast({ title: `Exercise "${data[0].name}" created` });
-        }
-
-        // Close modal first, then trigger re-fetch with new exercise data
-        resetForm();
-        onOpenChange(false);
-        // Small delay to let modal unmount, then refresh the list
-        await new Promise(r => setTimeout(r, 200));
-        await onCreated({ ...payload, id: data[0].id, name: data[0].name, created_by: user.id, created_at: new Date().toISOString() });
-        return;
+        toast({ title: "Exercise created" });
       }
 
-      // Close modal for edit case
+      // Trigger re-fetch BEFORE closing modal and AWAIT it to avoid stale data
+      await onCreated();
       resetForm();
       onOpenChange(false);
-      await new Promise(r => setTimeout(r, 200));
-      await onCreated();
     } catch (err: any) {
       console.error("[AddExercise] Save failed:", err);
       toast({ title: "Failed to save exercise — please try again.", description: err.message, variant: "destructive" });

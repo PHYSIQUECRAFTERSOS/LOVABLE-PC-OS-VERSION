@@ -575,11 +575,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             day_of_week: phase.workouts.length - 1,
             day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
             sort_order: phase.workouts.length - 1,
-            exclude_from_numbering: false,
-            custom_tag: null,
-          }).select("id");
+          }).select();
           if (error) throw error;
-          if (!data || data.length === 0) throw new Error("Workout link was not saved — check RLS permissions on program_workouts.");
+          if (!data || data.length === 0) throw new Error("Workout link was not saved — check permissions.");
         }
         showSaveStatus("saved");
         // Re-fetch to sync IDs from database
@@ -712,8 +710,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       const { error: delWeekErr } = await supabase.from("program_weeks").delete().eq("program_id", programId);
       if (delWeekErr) { console.error("[ProgramSave] Failed to delete weeks:", delWeekErr); throw delWeekErr; }
 
-      // Insert phases with direct workout links, collecting DB-assigned IDs
-      const savedPhases: ProgramPhase[] = [];
+      // Insert phases with direct workout links
       for (const phase of phasesToSave) {
         const { data: phaseRow, error: phaseErr } = await supabase
           .from("program_phases")
@@ -731,7 +728,6 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
           .select().single();
         if (phaseErr) { console.error("[ProgramSave] Failed to insert phase:", phase.name, phaseErr); throw phaseErr; }
 
-        let savedWorkouts: ProgramWorkout[] = [];
         if (phase.workouts.length > 0) {
           const { data: pwData, error: pwErr } = await supabase.from("program_workouts").insert(
             phase.workouts.map((w, i) => ({
@@ -745,24 +741,14 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
             }))
           ).select();
           if (pwErr) { console.error("[ProgramSave] Failed to insert program_workouts:", pwErr); throw pwErr; }
-          if (pwData && pwData.length > 0) {
-            savedWorkouts = phase.workouts.map((w, i) => ({
-              ...w,
-              id: pwData[i]?.id,
-            }));
-          } else {
-            console.warn("[ProgramSave] program_workouts insert returned no data — possible RLS issue");
-            savedWorkouts = phase.workouts;
-          }
+          if (!pwData || pwData.length === 0) console.warn("[ProgramSave] program_workouts insert returned no data");
         }
-        savedPhases.push({ ...phase, id: phaseRow.id, workouts: savedWorkouts });
       }
 
       toast({ title: "Program saved" });
       showSaveStatus("saved");
-      // Update state with DB-assigned IDs — do NOT call loadProgram() here as it
-      // sets loading=true which shows a skeleton and can wipe phases if SELECT fails.
-      setPhases(savedPhases);
+      // Re-fetch from database to ensure UI matches persisted state
+      await loadProgram();
     } catch (err: any) {
       console.error("[ProgramSave] Error:", err);
       toast({ title: "Failed to save program — please try again.", description: err.message, variant: "destructive" });

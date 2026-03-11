@@ -215,7 +215,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     try {
       const assignedClientId = targetClientId && targetClientId !== "none" ? targetClientId : null;
       const eventData: any = {
-        user_id: user.id,
+        user_id: assignedClientId || user.id,
         title: title.trim(),
         description: description.trim() || null,
         event_type: eventType,

@@ -23,7 +23,7 @@ import {
   Clock,
   TrendingUp,
   Loader2,
-  Copy,
+  Youtube,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
@@ -34,7 +34,6 @@ import SavedMealDetail from "@/components/nutrition/SavedMealDetail";
 import CreateMealSheet from "@/components/nutrition/CreateMealSheet";
 import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet";
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
-import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 
 interface FoodItem {
   id: string;
@@ -124,12 +123,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [showCreateMeal, setShowCreateMeal] = useState(false);
   const [showCopyMeal, setShowCopyMeal] = useState(false);
 
-  // PC Recipes sub-screen
+  // PC Recipes sub-screens
   const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
-
-  // My Foods sub-screen
-  const [myFoods, setMyFoods] = useState<any[]>([]);
-  const [showCreateFood, setShowCreateFood] = useState(false);
+  const [pcRecipeSearch, setPcRecipeSearch] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -138,7 +134,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
-      fetchMyFoods();
     }
   }, [open]);
 
@@ -175,53 +170,21 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const fetchSavedMeals = async () => {
     if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from("saved_meals")
-        .select("*")
-        .eq("client_id", user.id)
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("[SavedMeals] fetch error:", error);
-      }
-      setSavedMeals(data || []);
-    } catch (err) {
-      console.error("[SavedMeals] exception:", err);
-      setSavedMeals([]);
-    }
+    const { data } = await supabase
+      .from("saved_meals")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setSavedMeals(data || []);
   };
 
   const fetchPCRecipes = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from("pc_recipes")
-        .select("*")
-        .eq("is_published", true)
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("[PCRecipes] fetch error:", error);
-      }
-      setPcRecipes(data || []);
-    } catch (err) {
-      console.error("[PCRecipes] exception:", err);
-      setPcRecipes([]);
-    }
-  };
-
-  const fetchMyFoods = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from("client_custom_foods")
-        .select("*")
-        .eq("client_id", user.id)
-        .order("created_at", { ascending: false });
-      if (error) console.error("[MyFoods] fetch error:", error);
-      setMyFoods(data || []);
-    } catch (err) {
-      console.error("[MyFoods] exception:", err);
-      setMyFoods([]);
-    }
+    const { data } = await supabase
+      .from("pc_recipes" as any)
+      .select("*")
+      .eq("is_published", true)
+      .order("name");
+    setPcRecipes((data as any[]) || []);
   };
 
   useEffect(() => { fetchHistory(); }, [historySort]);
@@ -244,6 +207,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
     debounceRef.current = setTimeout(async () => {
       try {
+        // Layer 1: Edge function
         const { data, error } = await supabase.functions.invoke("search-foods", {
           body: { query: q, limit: 25, user_id: user?.id ?? null },
         });
@@ -284,6 +248,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           setResults(foods);
           setOffResults([]);
         } else {
+          // Layer 2: Direct Supabase fallback
+          console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2");
           const { data: fallback } = await supabase
             .from("food_items")
             .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
@@ -298,6 +264,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         }
       } catch (err) {
         console.error("[AddFoodScreen] Search error:", err);
+        // Layer 2 fallback on exception
         try {
           const { data: fallback } = await supabase
             .from("food_items")
@@ -421,12 +388,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const logSavedMealQuick = async (meal: any) => {
     if (!user) return;
+    // Check if meal has individual items
     const { data: items } = await supabase
       .from("saved_meal_items" as any)
       .select("*")
       .eq("saved_meal_id", meal.id);
 
     if (items && (items as any[]).length > 0) {
+      // Log each item individually
       const entries = (items as any[]).map(item => ({
         client_id: user.id,
         food_item_id: item.food_item_id || null,
@@ -448,6 +417,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         onLogged();
       }
     } else {
+      // Flat macro log
       const { error } = await supabase.from("nutrition_logs").insert({
         client_id: user.id,
         custom_name: meal.name,
@@ -600,15 +570,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (showCreateFood) {
-    return (
-      <CreateFoodScreen
-        onClose={() => setShowCreateFood(false)}
-        onSaved={() => { setShowCreateFood(false); fetchMyFoods(); }}
-      />
-    );
-  }
-
   if (selectedPCRecipe) {
     return (
       <PCRecipeDetail
@@ -660,7 +621,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
   const showRecipes = activeTab === "pc-recipes";
-  
+
+  const filteredPCRecipes = pcRecipeSearch
+    ? pcRecipes.filter((r: any) => r.name.toLowerCase().includes(pcRecipeSearch.toLowerCase()))
+    : pcRecipes;
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
@@ -692,7 +656,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - styled with gold active indicator */}
       <div className="px-4 pb-2 sticky top-0 z-10">
         <div className="flex">
           {TABS.map((tab) => (
@@ -747,96 +711,106 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {/* ═══ MY MEALS TAB ═══ */}
         {showMeals && (
           <div className="space-y-3 py-2">
-            {/* Action buttons - ALWAYS visible */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
+            {/* Action buttons always visible */}
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
                 onClick={() => setShowCreateMeal(true)}
-                className="flex flex-col items-center gap-1.5 rounded-xl border border-border/50 bg-card py-4 px-2 hover:bg-secondary transition-colors"
+                className="w-full h-11 border-primary text-primary hover:bg-primary/10"
               >
-                <Plus className="h-5 w-5 text-primary" strokeWidth={1.5} />
-                <span className="text-xs font-medium text-foreground">Create meal</span>
-              </button>
-              <button
+                <Plus className="h-4 w-4 mr-2" /> Create Meal
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => setShowCopyMeal(true)}
-                className="flex flex-col items-center gap-1.5 rounded-xl border border-border/50 bg-card py-4 px-2 hover:bg-secondary transition-colors"
+                className="w-full h-11"
               >
-                <Copy className="h-5 w-5 text-primary" strokeWidth={1.5} />
-                <span className="text-xs font-medium text-foreground">Copy previous meal</span>
-              </button>
+                Copy Previous Meal
+              </Button>
             </div>
 
-            {/* Saved meals list */}
             {savedMeals.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">No saved meals yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Create a meal or copy one from a previous day.</p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">My Meals</h3>
-                </div>
-                <div className="space-y-1.5">
-                  {savedMeals.map((meal) => (
-                    <div key={meal.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
-                      <button
-                        onClick={() => setSelectedMeal(meal)}
-                        className="flex-1 min-w-0 text-left"
-                      >
-                        <div className="text-sm font-medium text-foreground truncate">{meal.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {meal.calories} cal · {meal.protein}P · {meal.carbs}C · {meal.fat}F
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => logSavedMealQuick(meal)}
-                        className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ═══ MY RECIPES TAB (PC Recipes) ═══ */}
-        {showRecipes && (
-          <div className="space-y-3 py-2">
-            {pcRecipes.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-3xl mb-3">🍳</div>
-                <p className="text-sm text-muted-foreground">No recipes available yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Recipes added in the Nutrition → Recipes tab will appear here.</p>
-              </div>
+              <p className="text-center text-sm text-muted-foreground py-8">No saved meals yet</p>
             ) : (
               <div className="space-y-1.5">
-                {pcRecipes.map((recipe: any) => (
-                  <button
-                    key={recipe.id}
-                    onClick={() => setSelectedPCRecipe(recipe)}
-                    className="flex items-center gap-3 w-full rounded-xl bg-card border border-border/50 px-4 py-3 text-left hover:bg-secondary/30 transition-colors"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">🍳</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{recipe.name}</div>
+                {savedMeals.map((meal) => (
+                  <div key={meal.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                    <button
+                      onClick={() => setSelectedMeal(meal)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="text-sm font-medium text-foreground truncate">{meal.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {recipe.servings || 1} serving{(recipe.servings || 1) !== 1 ? "s" : ""}
-                        {recipe.description ? ` · ${recipe.description.substring(0, 40)}...` : ""}
+                        {meal.calories} cal · {meal.protein}P · {meal.carbs}C · {meal.fat}F
                       </div>
-                    </div>
-                    <div className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
-                      <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
-                    </div>
-                  </button>
+                    </button>
+                    <button
+                      onClick={() => logSavedMealQuick(meal)}
+                      className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         )}
 
+        {/* ═══ PC RECIPES TAB ═══ */}
+        {showRecipes && (
+          <div className="space-y-3 py-2">
+            {/* Client-side search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search recipes..."
+                value={pcRecipeSearch}
+                onChange={e => setPcRecipeSearch(e.target.value)}
+                className="pl-9 h-10 rounded-xl bg-secondary border-0 text-sm"
+              />
+            </div>
+
+            {pcRecipes.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-muted-foreground">No recipes available yet.</p>
+                <p className="text-xs text-muted-foreground mt-1">Check back soon!</p>
+              </div>
+            ) : filteredPCRecipes.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No recipes match "{pcRecipeSearch}"</p>
+            ) : (
+              <div className="space-y-1.5">
+                {filteredPCRecipes.map((recipe: any) => (
+                  <div key={recipe.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                    <button
+                      onClick={() => setSelectedPCRecipe(recipe)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-foreground truncate">{recipe.name}</span>
+                        {recipe.youtube_url && recipe.youtube_url.trim() !== "" && (
+                          <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {recipe.servings} serving{recipe.servings !== 1 ? "s" : ""}
+                        {recipe.description && (
+                          <span className="ml-1.5">· {recipe.description.slice(0, 50)}{recipe.description.length > 50 ? "..." : ""}</span>
+                        )}
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setSelectedPCRecipe(recipe)}
+                      className="ml-3 h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {showHistory && !quickAddOpen && (
           <div className="py-2">

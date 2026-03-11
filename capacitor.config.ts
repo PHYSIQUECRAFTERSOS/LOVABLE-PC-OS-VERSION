@@ -1,11 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.physiquecrafters.app',
-  appName: 'Physique Crafters',
+  appId: 'app.lovable.418c5cb36f9242439691d28363e319a3',
+  appName: 'physique-crafters-os',
   webDir: 'dist',
-  // server.url intentionally removed — app loads from local dist/ in production
-  // For live reload during native dev only, restore server.url temporarily
+  server: {
+    url: 'https://418c5cb3-6f92-4243-9691-d28363e319a3.lovableproject.com?forceHideBadge=true',
+    cleartext: true,
+  },
 };
 
 export default config;

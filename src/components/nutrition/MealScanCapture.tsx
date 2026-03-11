@@ -41,7 +41,7 @@ interface MealScanCaptureProps {
   onClose: () => void;
   mealType: string;
   logDate?: string;
-  onLogged: () => void | Promise<void>;
+  onLogged: () => void;
 }
 
 const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealScanCaptureProps) => {
@@ -140,13 +140,10 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
       const { getLocalDateString } = await import("@/utils/localDate");
       // Use the parent's logDate if provided, otherwise fall back to local date
       const dateToLog = logDate || getLocalDateString();
-      const VALID_MEAL_TYPES = ["breakfast", "pre-workout", "post-workout", "lunch", "dinner", "snack"];
-      const safeMealType = VALID_MEAL_TYPES.includes(selectedMealType) ? selectedMealType : "snack";
-
       const inserts = result.items.map((item) => ({
         client_id: user.id,
         custom_name: `${item.name} (${item.portion})`.slice(0, 200),
-        meal_type: safeMealType,
+        meal_type: selectedMealType || "snack",
         servings: 1,
         calories: safeRound(item.calories),
         protein: safeRound(item.protein),
@@ -170,9 +167,8 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
 
       toast({ title: `${result.items.length} item(s) logged!` });
       handleReset();
-      // Close scanner first, then trigger parent refresh so fetchLogs runs after close animation
+      onLogged();
       onClose();
-      await onLogged();
     } catch (err: any) {
       console.error("[MealScan] Log error:", err);
       toast({ title: "Error logging food", description: err.message, variant: "destructive" });

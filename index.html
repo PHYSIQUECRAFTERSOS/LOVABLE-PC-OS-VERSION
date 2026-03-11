@@ -28,24 +28,14 @@
   </head>
 
   <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Force unregister all service workers and clear caches
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var i = 0; i < registrations.length; i++) {
-            registrations[i].unregister();
-          }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (var i = 0; i < names.length; i++) {
-            caches.delete(names[i]);
-          }
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('Service Worker registration failed:', err);
         });
       }
     </script>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

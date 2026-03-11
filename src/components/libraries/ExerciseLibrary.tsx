@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,42 +38,17 @@ const ExerciseLibrary = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [previewExercise, setPreviewExercise] = useState<any | null>(null);
   const [editExercise, setEditExercise] = useState<any | null>(null);
-  // Track recently added exercises to prevent loadExercises from wiping them
-  const pendingExercisesRef = useRef<any[]>([]);
 
   const loadExercises = useCallback(async () => {
-    console.log("[ExerciseLibrary] Loading exercises...");
     setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("exercises")
-        .select("id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at")
-        .order("name");
-      if (error) {
-        console.error("[ExerciseLibrary] Load error:", error);
-        return;
-      }
-      console.log("[ExerciseLibrary] Loaded", data?.length ?? 0, "exercises from DB");
-      // Merge in any recently added exercises that the server hasn't returned yet
-      const pending = pendingExercisesRef.current;
-      if (pending.length > 0 && data) {
-        const serverIds = new Set(data.map(e => e.id));
-        const missing = pending.filter(p => !serverIds.has(p.id));
-        if (missing.length > 0) {
-          console.log("[ExerciseLibrary] Merging", missing.length, "optimistic exercise(s) not yet in DB response");
-          const merged = [...data, ...missing].sort((a, b) => a.name.localeCompare(b.name));
-          setExercises(merged);
-        } else {
-          // All pending exercises are now in server response — clear pending
-          pendingExercisesRef.current = [];
-          setExercises(data);
-        }
-      } else {
-        setExercises(data || []);
-      }
-    } finally {
-      setLoading(false);
-    }
+    const { data, error } = await supabase
+      .from("exercises")
+      .select("id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at")
+      .order("name");
+    if (error) console.error("[ExerciseLibrary] Load error:", error);
+    console.log("[ExerciseLibrary] Loaded", data?.length ?? 0, "exercises");
+    setExercises(data || []);
+    setLoading(false);
   }, []);
 
   useEffect(() => { loadExercises(); }, [loadExercises]);
@@ -184,26 +159,7 @@ const ExerciseLibrary = () => {
       <AddExerciseModal
         open={showAdd}
         onOpenChange={setShowAdd}
-        onCreated={async (newExercise?: any) => {
-          if (newExercise?.id) {
-            // Track the new exercise so loadExercises won't wipe it
-            pendingExercisesRef.current = [...pendingExercisesRef.current, newExercise];
-            // Optimistically add to list immediately — count updates right away
-            setExercises(prev => {
-              const merged = [...prev.filter(e => e.id !== newExercise.id), newExercise];
-              return merged.sort((a, b) => a.name.localeCompare(b.name));
-            });
-            // Clear all filters so the newly created exercise is always visible
-            setSearchQuery("");
-            setMuscleFilter("All");
-            setEquipFilter("All");
-          }
-          // Wait a bit longer for DB commit, then reload to sync IDs/data
-          await new Promise(r => setTimeout(r, 500));
-          await loadExercises();
-          // Clear pending after a delay (DB should be consistent by now)
-          setTimeout(() => { pendingExercisesRef.current = []; }, 5000);
-        }}
+        onCreated={loadExercises}
         initialData={editExercise}
       />
     </div>
