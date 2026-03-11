@@ -17,8 +17,9 @@ import RecipeBuilder from "@/components/nutrition/RecipeBuilder";
 import { Pill, FlaskConical, Brain, ChefHat } from "lucide-react";
 
 const Nutrition = () => {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const isCoach = role === "coach" || role === "admin";
+  const isAuthenticated = !!user;
 
   return (
     <AppLayout>
@@ -54,7 +55,7 @@ const Nutrition = () => {
             {isCoach && (
               <TabsTrigger value="mealplans" className="flex-1">Plans</TabsTrigger>
             )}
-            {isCoach && (
+            {isAuthenticated && (
               <TabsTrigger value="recipes" className="flex-1 gap-1.5">
                 <ChefHat className="h-3.5 w-3.5" />
                 Recipes
@@ -87,7 +88,7 @@ const Nutrition = () => {
               <MealPlanBuilder />
             </TabsContent>
           )}
-          {isCoach && (
+          {isAuthenticated && (
             <TabsContent value="recipes">
               <RecipeBuilder />
             </TabsContent>

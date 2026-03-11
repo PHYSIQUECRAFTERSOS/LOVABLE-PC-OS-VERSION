@@ -760,10 +760,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
       toast({ title: "Program saved" });
       showSaveStatus("saved");
-      // Update state immediately with DB-assigned IDs so workouts don't disappear
+      // Update state with DB-assigned IDs — do NOT call loadProgram() here as it
+      // sets loading=true which shows a skeleton and can wipe phases if SELECT fails.
       setPhases(savedPhases);
-      // Background sync to pick up any server-side changes
-      loadProgram();
     } catch (err: any) {
       console.error("[ProgramSave] Error:", err);
       toast({ title: "Failed to save program — please try again.", description: err.message, variant: "destructive" });
