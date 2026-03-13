@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
+import { BrowserMultiFormatReader, NotFoundException, DecodeHintType, BarcodeFormat } from "@zxing/library";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,36 @@ interface BarcodeScannerProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+/** Build a configured BrowserMultiFormatReader with optimal hints */
+function createReader(): BrowserMultiFormatReader {
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+  ]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+  // Scan every 150ms for faster detection
+  return new BrowserMultiFormatReader(hints, 150);
+}
+
+/** Camera constraints optimized for barcode scanning at distance */
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1920, min: 1280 },
+    height: { ideal: 1080, min: 720 },
+    // @ts-ignore – advanced constraints supported on mobile
+    focusMode: { ideal: "continuous" },
+    // @ts-ignore
+    zoom: { ideal: 1 },
+  },
+  audio: false,
+};
+
 const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: BarcodeScannerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -62,8 +92,15 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hasDetectedRef = useRef(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const startTokenRef = useRef(0); // prevent race conditions on double-start
 
   const stopScanner = useCallback(() => {
+    // Kill any active stream tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
     if (readerRef.current) {
       try { readerRef.current.reset(); } catch { /* ignore */ }
       readerRef.current = null;
@@ -104,22 +141,66 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
     }
   };
 
-  const startScanner = async () => {
+  const startScanner = async (retryCount = 0) => {
+    // Prevent concurrent starts
+    const token = ++startTokenRef.current;
     setScanning(true);
     setProduct(null);
     setNotFound(false);
     hasDetectedRef.current = false;
 
     try {
-      const reader = new BrowserMultiFormatReader();
+      // Step 1: Warm up camera — get permission & stream before decoder
+      console.log("[BARCODE] Warming up camera...");
+      const warmStream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+      
+      // If a newer start was triggered, bail
+      if (token !== startTokenRef.current) {
+        warmStream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      // Assign warm stream to video to show preview immediately
+      if (videoRef.current) {
+        videoRef.current.srcObject = warmStream;
+        try { await videoRef.current.play(); } catch { /* autoplay may already be handled */ }
+      }
+      streamRef.current = warmStream;
+
+      // Step 2: Wait for video to actually produce frames (fixes black screen)
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (token !== startTokenRef.current) { resolve(); return; }
+          if (videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.readyState >= 2) {
+            resolve();
+          } else {
+            setTimeout(check, 100);
+          }
+        };
+        check();
+        // Safety timeout — don't wait forever
+        setTimeout(resolve, 3000);
+      });
+
+      if (token !== startTokenRef.current) return;
+
+      // Step 3: Stop warm stream — decoder will create its own
+      warmStream.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+
+      // Step 4: Create optimized reader and start decoding
+      const reader = createReader();
       readerRef.current = reader;
 
+      // Get device list (permissions already granted from warm-up)
       const devices = await reader.listVideoInputDevices();
-      const rearCamera = devices.find(d =>
-        d.label.toLowerCase().includes('back') ||
-        d.label.toLowerCase().includes('rear') ||
-        d.label.toLowerCase().includes('environment')
-      ) || devices[devices.length - 1];
+      const rearCamera = devices.find(d => {
+        const label = d.label.toLowerCase();
+        return label.includes('back') || label.includes('rear') || label.includes('environment');
+      }) || devices[devices.length - 1];
+
+      console.log("[BARCODE] Starting decode on device:", rearCamera?.label || "default");
 
       await reader.decodeFromVideoDevice(
         rearCamera?.deviceId || null,
@@ -128,8 +209,11 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
           if (result && !hasDetectedRef.current) {
             hasDetectedRef.current = true;
             if (navigator.vibrate) navigator.vibrate(100);
-            reader.reset();
-            readerRef.current = null;
+            // Stop scanner before lookup
+            if (readerRef.current) {
+              try { readerRef.current.reset(); } catch {}
+              readerRef.current = null;
+            }
             setScanning(false);
             handleBarcodeLookup(result.getText());
           }
@@ -138,12 +222,37 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
           }
         }
       );
-    } catch {
+
+      // Step 5: Capture the stream the decoder created for cleanup
+      if (videoRef.current?.srcObject) {
+        streamRef.current = videoRef.current.srcObject as MediaStream;
+      }
+
+      // Step 6: Auto-recovery — check if video is actually showing after 2s
+      setTimeout(() => {
+        if (token !== startTokenRef.current) return;
+        if (videoRef.current && (videoRef.current.videoWidth === 0 || videoRef.current.readyState < 2)) {
+          console.warn("[BARCODE] Black screen detected, auto-retrying...");
+          if (retryCount < 1) {
+            stopScanner();
+            startScanner(retryCount + 1);
+          }
+        }
+      }, 2000);
+
+    } catch (err) {
+      console.error("[BARCODE] Camera start failed:", err);
+      if (token !== startTokenRef.current) return;
       setScanning(false);
-      toast({ title: "Camera access denied", description: "Please allow camera access to scan barcodes.", variant: "destructive" });
+      if (retryCount < 1) {
+        // Single silent retry
+        console.log("[BARCODE] Retrying scanner start...");
+        setTimeout(() => startScanner(retryCount + 1), 500);
+      } else {
+        toast({ title: "Camera access denied", description: "Please allow camera access to scan barcodes.", variant: "destructive" });
+      }
     }
   };
-
   useEffect(() => { return () => { stopScanner(); }; }, [stopScanner]);
 
   const handleClose = async (v: boolean) => {
