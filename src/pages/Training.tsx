@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Play, History, Copy, HeartPulse, FolderOpen } from "lucide-react";
+import { Plus, Play, History, Copy, FolderOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WorkoutBuilder from "@/components/WorkoutBuilder";
 import WorkoutLogger from "@/components/WorkoutLogger";
