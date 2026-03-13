@@ -13,6 +13,8 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
   const audioRef = useRef<AudioContext | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   const playSound = useCallback(() => {
     try {
@@ -36,6 +38,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     } catch { /* Audio not available */ }
   }, []);
 
+  // Start timer ONCE on mount — stable deps only (initialSeconds)
   useEffect(() => {
     endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
@@ -49,14 +52,14 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         if (intervalRef.current) clearInterval(intervalRef.current);
         playSound();
         // Brief flash then auto-remove
-        setTimeout(onComplete, 800);
+        setTimeout(() => onCompleteRef.current(), 800);
       }
-    }, 500);
+    }, 250);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [initialSeconds, playSound, onComplete]);
+  }, [initialSeconds, playSound]);
 
   useEffect(() => {
     return () => { audioRef.current?.close(); };

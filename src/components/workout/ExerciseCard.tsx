@@ -111,10 +111,10 @@ const ExerciseCard = ({
   }, []);
 
   const canLogSet = (log: SetLog) => {
-    // Weight can be 0 (bodyweight), only reps must be > 0
-    const hasWeight = log.weight !== undefined && log.weight !== null && log.weight >= 0;
+    // Weight can be 0 or undefined (bodyweight/mobility), only reps must be > 0
+    const weightOk = log.weight === undefined || log.weight === null || log.weight >= 0;
     const hasReps = !!log.reps && log.reps > 0;
-    return hasWeight && hasReps;
+    return weightOk && hasReps;
   };
 
   return (

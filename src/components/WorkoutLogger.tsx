@@ -445,18 +445,22 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const completeSet = (exIdx: number, setIdx: number) => {
     const ex = exercises[exIdx];
     const log = ex.logs[setIdx];
-    if ((log.weight === undefined || log.weight === null || log.weight < 0) || !log.reps) return;
+    // Allow weight of 0 or undefined (bodyweight/mobility); only require reps > 0
+    const weight = log.weight ?? 0;
+    if (weight < 0 || !log.reps) return;
 
-    const isPR = checkPR(ex.id, ex.name, log.weight, log.reps);
+    const isPR = checkPR(ex.id, ex.name, weight, log.reps);
 
     const newEx = [...exercises];
-    const completedLog = { ...newEx[exIdx].logs[setIdx], completed: true, isPR };
+    const completedLog = { ...newEx[exIdx].logs[setIdx], weight, completed: true, isPR };
     newEx[exIdx].logs[setIdx] = completedLog;
 
     // Auto-fill next incomplete set
     const nextIdx = newEx[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
     if (nextIdx !== -1) {
-      if (!newEx[exIdx].logs[nextIdx].weight) newEx[exIdx].logs[nextIdx].weight = log.weight;
+      if (newEx[exIdx].logs[nextIdx].weight === undefined || newEx[exIdx].logs[nextIdx].weight === null) {
+        newEx[exIdx].logs[nextIdx].weight = weight;
+      }
       if (!newEx[exIdx].logs[nextIdx].reps) newEx[exIdx].logs[nextIdx].reps = log.reps;
     }
 
@@ -567,26 +571,41 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     try {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-      // Reconcile: delete any logs for exercises that were removed, then upsert final state
-      // First delete all existing logs and re-insert completed ones for clean state
-      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
-
-      const logsToInsert = exercises.flatMap((ex) =>
+      // Build final set list — upsert to avoid duplicate-key errors
+      const logsToUpsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
           session_id: sessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
-          weight: log.weight ?? null,
+          weight: log.weight ?? 0,
           reps: log.reps || null,
           tempo: log.tempo || null,
           rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
           notes: log.notes || null,
+          logged_at: new Date().toISOString(),
         }))
       );
 
-      if (logsToInsert.length > 0) {
-        const { error: logsError } = await supabase.from("exercise_logs").insert(logsToInsert);
+      if (logsToUpsert.length > 0) {
+        const { error: logsError } = await supabase
+          .from("exercise_logs")
+          .upsert(logsToUpsert, { onConflict: "session_id,exercise_id,set_number" });
         if (logsError) throw logsError;
+      }
+
+      // Delete logs for exercises that were removed during session
+      const activeExerciseIds = exercises.map(e => e.id);
+      const { data: existingLogs } = await supabase
+        .from("exercise_logs")
+        .select("id, exercise_id")
+        .eq("session_id", sessionId);
+      
+      const orphanedLogIds = (existingLogs || [])
+        .filter(l => !activeExerciseIds.includes(l.exercise_id))
+        .map(l => l.id);
+      
+      if (orphanedLogIds.length > 0) {
+        await supabase.from("exercise_logs").delete().in("id", orphanedLogIds);
       }
 
       // Update session to completed
