@@ -97,6 +97,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   const hasDetectedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const startTokenRef = useRef(0); // prevent race conditions on double-start
+  const startupTimersRef = useRef<number[]>([]);
 
   const stopScanner = useCallback(() => {
     // Kill any active stream tracks
