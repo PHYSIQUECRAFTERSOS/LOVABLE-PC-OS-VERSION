@@ -78,7 +78,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   // Popup state
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
   const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
-  const [bodyStatsPopup, setBodyStatsPopup] = useState<{ eventId: string } | null>(null);
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
 
   const cacheKey = `today-actions-${user?.id}-${targetDate}`;
