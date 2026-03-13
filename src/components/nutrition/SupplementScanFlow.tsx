@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
+import { BrowserMultiFormatReader, NotFoundException, DecodeHintType, BarcodeFormat } from "@zxing/library";
 import { supabase } from "@/integrations/supabase/client";
 import imageCompression from "browser-image-compression";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +33,29 @@ interface ExtractedData {
 
 const SERVING_UNITS = ["capsule", "tablet", "scoop", "ml", "drop", "serving", "softgel", "lozenge"];
 
+/** Build a configured BrowserMultiFormatReader with optimal hints */
+function createSuppReader(): BrowserMultiFormatReader {
+  const hints = new Map();
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+    BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+  ]);
+  hints.set(DecodeHintType.TRY_HARDER, true);
+  return new BrowserMultiFormatReader(hints, 150);
+}
+
+const SUPP_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1920, min: 1280 },
+    height: { ideal: 1080, min: 720 },
+    // @ts-ignore
+    focusMode: { ideal: "continuous" },
+  },
+  audio: false,
+};
+
 const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanFlowProps) => {
   const { user, role } = useAuth();
   const { toast } = useToast();
@@ -60,11 +83,17 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const hasDetectedRef = useRef(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const startTokenRef = useRef(0);
 
   const stopScanner = useCallback(() => {
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
     }
     if (readerRef.current) {
       try { readerRef.current.reset(); } catch {}
@@ -74,7 +103,8 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
     setScanning(false);
   }, []);
 
-  const startScanner = async () => {
+  const startScanner = async (retryCount = 0) => {
+    const token = ++startTokenRef.current;
     setScanning(true);
     setShowPhotoFallback(false);
     hasDetectedRef.current = false;
@@ -84,14 +114,41 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
     }, 5000);
 
     try {
-      const reader = new BrowserMultiFormatReader();
+      // Step 1: Warm up camera
+      const warmStream = await navigator.mediaDevices.getUserMedia(SUPP_CAMERA_CONSTRAINTS);
+      if (token !== startTokenRef.current) { warmStream.getTracks().forEach(t => t.stop()); return; }
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = warmStream;
+        try { await videoRef.current.play(); } catch {}
+      }
+      streamRef.current = warmStream;
+
+      // Wait for video frames
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (token !== startTokenRef.current) { resolve(); return; }
+          if (videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.readyState >= 2) resolve();
+          else setTimeout(check, 100);
+        };
+        check();
+        setTimeout(resolve, 3000);
+      });
+      if (token !== startTokenRef.current) return;
+
+      // Stop warm stream, decoder creates its own
+      warmStream.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+
+      // Step 2: Create reader & decode
+      const reader = createSuppReader();
       readerRef.current = reader;
       const devices = await reader.listVideoInputDevices();
-      const rearCamera = devices.find(d =>
-        d.label.toLowerCase().includes('back') ||
-        d.label.toLowerCase().includes('rear') ||
-        d.label.toLowerCase().includes('environment')
-      ) || devices[devices.length - 1];
+      const rearCamera = devices.find(d => {
+        const l = d.label.toLowerCase();
+        return l.includes('back') || l.includes('rear') || l.includes('environment');
+      }) || devices[devices.length - 1];
 
       await reader.decodeFromVideoDevice(
         rearCamera?.deviceId || null,
@@ -108,13 +165,30 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
           }
         }
       );
+
+      if (videoRef.current?.srcObject) {
+        streamRef.current = videoRef.current.srcObject as MediaStream;
+      }
+
+      // Auto-recovery
+      setTimeout(() => {
+        if (token !== startTokenRef.current) return;
+        if (videoRef.current && (videoRef.current.videoWidth === 0 || videoRef.current.readyState < 2)) {
+          if (retryCount < 1) { stopScanner(); startScanner(retryCount + 1); }
+        }
+      }, 2000);
+
     } catch {
+      if (token !== startTokenRef.current) return;
       setScanning(false);
-      setShowPhotoFallback(true);
-      toast({ title: "Camera access denied", description: "Try taking a photo instead.", variant: "destructive" });
+      if (retryCount < 1) {
+        setTimeout(() => startScanner(retryCount + 1), 500);
+      } else {
+        setShowPhotoFallback(true);
+        toast({ title: "Camera access denied", description: "Try taking a photo instead.", variant: "destructive" });
+      }
     }
   };
-
   const lookupBarcode = async (barcode: string) => {
     setLookingUp(true);
     try {
@@ -310,7 +384,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
               </div>
             ) : (
               <div className="space-y-3">
-                <Button onClick={startScanner} className="w-full gap-2" disabled={lookingUp}>
+                <Button onClick={() => startScanner()} className="w-full gap-2" disabled={lookingUp}>
                   <ScanBarcode className="h-4 w-4" />
                   Start Camera Scanner
                 </Button>
