@@ -178,7 +178,14 @@ const ClientStructuredMealPlan = ({
       return;
     }
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date: dateStr } }));
+      window.dispatchEvent(
+        new CustomEvent("nutrition-logs-updated", {
+          detail: {
+            date: dateStr,
+            addedRows: inserted.map((row) => ({ id: row.id })),
+          },
+        })
+      );
     }
     toast({ title: `${item.custom_name} logged` });
     onLogged?.();

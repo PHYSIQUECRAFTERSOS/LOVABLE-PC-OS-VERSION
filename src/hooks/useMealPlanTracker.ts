@@ -97,9 +97,14 @@ export function mapMealNameToKey(mealName: string): string {
   return "snack";
 }
 
-const emitNutritionLogsUpdated = (date: string) => {
+type NutritionLogsUpdatedEventDetail = {
+  date: string;
+  addedRows?: Array<{ id: string }>;
+};
+
+const emitNutritionLogsUpdated = (detail: NutritionLogsUpdatedEventDetail) => {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date } }));
+    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail }));
   }
 };
 
@@ -235,7 +240,10 @@ export function useMealPlanTracker(selectedDate?: Date) {
         return false;
       }
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
-      emitNutritionLogsUpdated(dateStr);
+      emitNutritionLogsUpdated({
+        date: dateStr,
+        addedRows: inserted.map((row) => ({ id: row.id })),
+      });
       return true;
     },
     [user, dateStr, toast, queryClient]
@@ -272,7 +280,10 @@ export function useMealPlanTracker(selectedDate?: Date) {
       }
       toast({ title: `${inserted.length} items logged to tracker` });
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
-      emitNutritionLogsUpdated(dateStr);
+      emitNutritionLogsUpdated({
+        date: dateStr,
+        addedRows: inserted.map((row) => ({ id: row.id })),
+      });
       return true;
     },
     [user, items, dateStr, toast, queryClient]
