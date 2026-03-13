@@ -138,7 +138,12 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated }: Ed
 
   const handleRemove = async () => {
     if (!logEntry) return;
-    await supabase.from("nutrition_logs").delete().eq("id", logEntry.id);
+    const { error } = await supabase.from("nutrition_logs").delete().eq("id", logEntry.id);
+    if (error) {
+      console.error("[EditFood] Delete error:", error);
+      toast({ title: "Couldn't remove item", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Removed" });
     onOpenChange(false);
     onUpdated();

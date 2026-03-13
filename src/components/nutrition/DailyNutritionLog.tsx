@@ -11,6 +11,7 @@ import MacroRing from "./MacroRing";
 import AddFoodScreen from "./AddFoodScreen";
 import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
 import CopyDayDialog from "./CopyDayDialog";
+import SwipeToDelete from "./SwipeToDelete";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
