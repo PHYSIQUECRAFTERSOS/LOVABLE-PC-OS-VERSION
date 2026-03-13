@@ -192,16 +192,47 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     };
   }, [dateStr, fetchLogs, refreshSuggestions]);
 
-  const deleteLog = async (id: string) => {
-    const { error } = await supabase.from("nutrition_logs").delete().eq("id", id);
+  const deleteLog = useCallback(async (id: string): Promise<boolean> => {
+    if (!user) {
+      toast({ title: "Please sign in again", variant: "destructive" });
+      return false;
+    }
+
+    const previous = logs;
+    setLogs((current) => current.filter((log) => log.id !== id));
+
+    const { data: deletedRows, error } = await supabase
+      .from("nutrition_logs")
+      .delete()
+      .eq("id", id)
+      .eq("client_id", user.id)
+      .select("id");
+
     if (error) {
       console.error("[deleteLog] Delete error:", error);
+      setLogs(previous);
       toast({ title: "Couldn't delete item", description: error.message, variant: "destructive" });
-      return;
+      return false;
     }
+
+    if (!deletedRows || deletedRows.length === 0) {
+      console.error("[deleteLog] Delete returned no rows", { id, userId: user.id });
+      setLogs(previous);
+      toast({
+        title: "Couldn't delete item",
+        description: "No item was removed. Please refresh and try again.",
+        variant: "destructive",
+      });
+      await fetchLogs();
+      return false;
+    }
+
     toast({ title: "Removed" });
+    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date: dateStr } }));
+    refreshSuggestions();
     await fetchLogs();
-  };
+    return true;
+  }, [user, logs, fetchLogs, toast, dateStr, refreshSuggestions]);
 
   const totals = logs.reduce(
     (acc, l) => ({
