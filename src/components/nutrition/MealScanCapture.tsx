@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,12 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
   const [preview, setPreview] = useState<string | null>(null);
   const [selectedMealType, setSelectedMealType] = useState(mealType);
   const [logging, setLogging] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setSelectedMealType(mealType || "snack");
+    }
+  }, [open, mealType]);
 
   const handleCapture = () => {
     console.log("[MealScan] Capture triggered");
@@ -164,6 +170,17 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
         throw new Error("Items were not saved. Please try logging in again.");
       }
       console.log("[MealScan] Successfully inserted", data.length, "rows");
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("nutrition-logs-updated", {
+            detail: {
+              date: dateToLog,
+              addedRows: data.map((row) => ({ id: row.id })),
+            },
+          })
+        );
+      }
 
       toast({ title: `${result.items.length} item(s) logged!` });
       handleReset();

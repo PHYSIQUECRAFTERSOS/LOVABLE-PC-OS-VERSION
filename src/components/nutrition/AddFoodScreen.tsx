@@ -923,7 +923,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       </div>
 
       <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
-      <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={logDate} onLogged={onLogged} />
+      <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={effectiveDate} onLogged={onLogged} />
     </div>
   );
 };
