@@ -167,7 +167,7 @@ const ExerciseLibrary = () => {
       <AddExerciseModal
         open={showAdd}
         onOpenChange={setShowAdd}
-        onCreated={loadExercises}
+        onCreated={handleExerciseCreated}
         initialData={editExercise}
       />
     </div>
