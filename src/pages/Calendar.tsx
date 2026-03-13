@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, CalendarDays, CalendarRange } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CalendarGrid, { CalendarEvent } from "@/components/calendar/CalendarGrid";
+import CalendarDayList from "@/components/calendar/CalendarDayList";
 import EventDetailModal from "@/components/calendar/EventDetailModal";
 import ScheduleEventForm from "@/components/calendar/ScheduleEventForm";
 import ComplianceStreak from "@/components/calendar/ComplianceStreak";
@@ -30,7 +31,12 @@ const Calendar = () => {
 
   const isCoach = role === "coach" || role === "admin";
 
+  // Clients get a wide rolling window; coaches get their grid-specific range
   const dateRange = useMemo(() => {
+    if (!isCoach) {
+      // Client: 30 days back + 90 days forward
+      return { start: subDays(new Date(), 31), end: addDays(new Date(), 91) };
+    }
     if (view === "week") {
       const start = startOfWeek(currentDate, { weekStartsOn: 1 });
       const end = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -39,7 +45,7 @@ const Calendar = () => {
     const start = startOfMonth(currentDate);
     const end = endOfMonth(currentDate);
     return { start: subDays(startOfWeek(start, { weekStartsOn: 1 }), 1), end: addDays(endOfWeek(end, { weekStartsOn: 1 }), 1) };
-  }, [view, currentDate]);
+  }, [isCoach, view, currentDate]);
 
   const startStr = format(dateRange.start, "yyyy-MM-dd");
   const endStr = format(dateRange.end, "yyyy-MM-dd");
@@ -48,7 +54,7 @@ const Calendar = () => {
   const { data: events = [], loading, error, timedOut, refetch } = useDataFetch<CalendarEvent[]>({
     queryKey: cacheKey,
     enabled: !!user,
-    staleTime: 2 * 60 * 1000, // 2 min cache
+    staleTime: 2 * 60 * 1000,
     timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
@@ -141,19 +147,16 @@ const Calendar = () => {
 
       if (calRes.error) throw calRes.error;
 
-      // Enrich calendar events with linked workout/cardio names
       const allEvents: CalendarEvent[] = (calRes.data || []).map((e: any) => {
         let title = e.title;
         let description = e.description;
 
-        // Canonical workout label source (never use stale stored title/day_label)
         if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
           title = workoutLabelMap.get(e.linked_workout_id)!;
         } else if (e.event_type === "workout" && e.workouts?.name) {
           title = normalizeWorkoutName(e.workouts.name);
         }
 
-        // Enrich cardio with full prescription
         if (e.event_type === "cardio" && e.cardio_assignments) {
           const ca = e.cardio_assignments;
           title = ca.title || ca.cardio_type || title;
@@ -165,16 +168,29 @@ const Calendar = () => {
           description = parts.join(" · ") || description;
         }
 
-        return {
-          ...e,
-          title,
-          description,
-          workouts: undefined,
-          cardio_assignments: undefined,
-        } as CalendarEvent;
+        // Cross-reference completion from workout sessions
+        if (e.event_type === "workout" && e.linked_workout_id && !e.is_completed) {
+          const session = sessRes.data?.find((s: any) =>
+            s.workout_id === e.linked_workout_id &&
+            format(new Date(s.created_at), "yyyy-MM-dd") === e.event_date
+          );
+          if (session?.completed_at) {
+            return { ...e, title, description, is_completed: true, completed_at: session.completed_at, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+          }
+        }
+
+        // Cross-reference completion from cardio logs
+        if (e.event_type === "cardio" && !e.is_completed) {
+          const log = cardioRes.data?.find((c: any) => c.title === title && c.logged_at === e.event_date);
+          if (log?.completed) {
+            return { ...e, title, description, is_completed: true, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+          }
+        }
+
+        return { ...e, title, description, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
       });
 
-      // Merge workout sessions — use actual workout name, never generic "Workout"
+      // Merge workout sessions not already in calendar
       sessRes.data?.forEach((s: any) => {
         const eventDate = format(new Date(s.created_at), "yyyy-MM-dd");
         const mappedLabel = workoutLabelMap.get(s.workout_id);
@@ -193,14 +209,16 @@ const Calendar = () => {
 
       // Merge cardio logs
       cardioRes.data?.forEach((c: any) => {
-        allEvents.push({
-          id: `cl-${c.id}`, title: c.title, event_type: "cardio", event_date: c.logged_at,
-          is_completed: c.completed, is_recurring: false, user_id: user.id,
-          description: `${c.cardio_type} • ${c.duration_min || "—"} min`, event_time: null,
-          end_time: null, color: null, notes: null, target_client_id: null,
-          linked_workout_id: null, linked_cardio_id: null, linked_checkin_id: null,
-          completed_at: null, recurrence_pattern: null,
-        });
+        if (!allEvents.find((e) => e.event_type === "cardio" && e.title === c.title && e.event_date === c.logged_at)) {
+          allEvents.push({
+            id: `cl-${c.id}`, title: c.title, event_type: "cardio", event_date: c.logged_at,
+            is_completed: c.completed, is_recurring: false, user_id: user.id,
+            description: `${c.cardio_type} • ${c.duration_min || "—"} min`, event_time: null,
+            end_time: null, color: null, notes: null, target_client_id: null,
+            linked_workout_id: null, linked_cardio_id: null, linked_checkin_id: null,
+            completed_at: null, recurrence_pattern: null,
+          });
+        }
       });
 
       return allEvents;
@@ -216,9 +234,9 @@ const Calendar = () => {
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
   const handleStartWorkout = (workoutId: string) => {
-    // Navigate to training page — the workout logger will handle loading
     navigate("/training", { state: { startWorkoutId: workoutId } });
   };
+
   const handleComplete = async (event: CalendarEvent) => {
     if (event.id.startsWith("ws-") || event.id.startsWith("cl-")) {
       toast({ title: "Complete this from the Training page" });
@@ -251,29 +269,32 @@ const Calendar = () => {
 
   return (
     <AppLayout>
-      <div className="animate-fade-in space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="animate-fade-in">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 px-1">
           <h1 className="font-display text-2xl font-bold text-foreground">Calendar</h1>
-          <div className="flex items-center gap-2">
-            <Tabs value={view} onValueChange={(v) => setView(v as "week" | "month")}>
-              <TabsList>
-                <TabsTrigger value="week" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Week</TabsTrigger>
-                <TabsTrigger value="month" className="gap-1.5"><CalendarRange className="h-3.5 w-3.5" />Month</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            {isCoach && (
+          {isCoach && (
+            <div className="flex items-center gap-2">
+              <Tabs value={view} onValueChange={(v) => setView(v as "week" | "month")}>
+                <TabsList>
+                  <TabsTrigger value="week" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" />Week</TabsTrigger>
+                  <TabsTrigger value="month" className="gap-1.5"><CalendarRange className="h-3.5 w-3.5" />Month</TabsTrigger>
+                </TabsList>
+              </Tabs>
               <Button onClick={() => { setSelectedDate(new Date()); setShowScheduleForm(true); }} size="sm">
                 <Plus className="h-4 w-4 mr-1" />Schedule
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
+        {/* Content */}
         {(error || timedOut) && !events.length ? (
           <RetryBanner onRetry={reloadEvents} message={timedOut ? "Request timed out. Tap to retry." : undefined} />
         ) : loading && !events.length ? (
           <CalendarSkeleton />
-        ) : (
+        ) : isCoach ? (
+          /* Coach: keep grid + sidebar */
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
             <CalendarGrid events={events} view={view} currentDate={currentDate} onDateChange={setCurrentDate} onEventClick={handleEventClick} onDayClick={handleDayClick} onPrev={handlePrev} onNext={handleNext} />
             <div className="space-y-4">
@@ -287,7 +308,7 @@ const Calendar = () => {
                     .slice(0, 5)
                     .map((e) => (
                       <button key={e.id} onClick={() => handleEventClick(e)} className="w-full text-left flex items-center gap-2 p-2 rounded hover:bg-secondary/50 transition-colors">
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${e.event_type === "workout" ? "bg-blue-500" : e.event_type === "cardio" ? "bg-green-500" : e.event_type === "checkin" ? "bg-purple-500" : e.event_type === "rest" ? "bg-muted-foreground" : "bg-primary"}`} />
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${e.event_type === "workout" ? "bg-amber-500" : e.event_type === "cardio" ? "bg-green-500" : e.event_type === "checkin" ? "bg-purple-500" : e.event_type === "rest" ? "bg-muted-foreground" : "bg-primary"}`} />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium truncate">{e.title}</p>
                           <p className="text-[10px] text-muted-foreground">{format(new Date(e.event_date), "EEE, MMM d")}{e.event_time && ` • ${e.event_time.slice(0, 5)}`}</p>
@@ -301,11 +322,14 @@ const Calendar = () => {
               </div>
             </div>
           </div>
+        ) : (
+          /* Client: vertical day list */
+          <CalendarDayList events={events} onEventClick={handleEventClick} />
         )}
       </div>
 
       <EventDetailModal event={selectedEvent} open={showEventDetail} onClose={() => setShowEventDetail(false)} onComplete={handleComplete} onDelete={handleDelete} isCoach={isCoach} onStartWorkout={handleStartWorkout} />
-      <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />
+      {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
     </AppLayout>
   );
 };
