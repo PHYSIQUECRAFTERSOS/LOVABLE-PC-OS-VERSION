@@ -154,7 +154,7 @@ const ClientStructuredMealPlan = ({
     if (!user) return;
     const mealKey = mapMealNameToKey(item.meal_name);
     const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
-    const { error } = await supabase.from("nutrition_logs").insert({
+    const { data: inserted, error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: item.food_item_id,
       custom_name: item.custom_name,
@@ -166,13 +166,19 @@ const ClientStructuredMealPlan = ({
       fat: item.fat,
       logged_at: dateStr,
       tz_corrected: true,
-    });
+    }).select();
     if (error) {
+      console.error("[handleAddSingleItem] Insert error:", error);
       toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: `${item.custom_name} logged` });
-      onLogged?.();
+      return;
     }
+    if (!inserted || inserted.length === 0) {
+      console.error("[handleAddSingleItem] Insert returned no rows — possible RLS block");
+      toast({ title: "Failed to add item", description: "Item could not be saved. Please try again.", variant: "destructive" });
+      return;
+    }
+    toast({ title: `${item.custom_name} logged` });
+    onLogged?.();
   };
 
   const toggleSection = (key: string) => {

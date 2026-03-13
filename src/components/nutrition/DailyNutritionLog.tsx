@@ -11,6 +11,7 @@ import MacroRing from "./MacroRing";
 import AddFoodScreen from "./AddFoodScreen";
 import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
 import CopyDayDialog from "./CopyDayDialog";
+import SwipeToDelete from "./SwipeToDelete";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
@@ -132,8 +133,14 @@ const DailyNutritionLog = () => {
   }, [user, dateStr, refreshCounter]);
 
   const deleteLog = async (id: string) => {
-    await supabase.from("nutrition_logs").delete().eq("id", id);
-    fetchLogs();
+    const { error } = await supabase.from("nutrition_logs").delete().eq("id", id);
+    if (error) {
+      console.error("[deleteLog] Delete error:", error);
+      toast({ title: "Couldn't delete item", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Removed" });
+    await fetchLogs();
   };
 
   const totals = logs.reduce(
@@ -185,8 +192,12 @@ const DailyNutritionLog = () => {
     const success = await copyMealToTracker(planItems, mealKey);
     if (success) {
       toast({ title: `${planItems.length} items copied from meal plan` });
-      fetchLogs();
+      await fetchLogs();
       refreshSuggestions();
+    } else {
+      // copyMealToTracker already shows its own error toast
+      // Force refresh to sync UI with DB state
+      await fetchLogs();
     }
     setCopyingMeal(null);
   };
@@ -305,29 +316,30 @@ const DailyNutritionLog = () => {
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
                   {items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => setEditingLog(item)}
-                      className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
-                    >
-                      {/* Emoji Icon */}
-                      <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
-                        {getFoodEmoji({ name: item.food_item_id ? foodNames[item.food_item_id] || "" : item.custom_name || "" })}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-foreground truncate">
-                          {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
+                    <SwipeToDelete key={item.id} onDelete={() => deleteLog(item.id)}>
+                      <button
+                        onClick={() => setEditingLog(item)}
+                        className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
+                      >
+                        {/* Emoji Icon */}
+                        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
+                          {getFoodEmoji({ name: item.food_item_id ? foodNames[item.food_item_id] || "" : item.custom_name || "" })}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.quantity_display != null && item.quantity_display > 0
-                            ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
-                            : ''
-                          }
-                          {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-foreground truncate">
+                            {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.quantity_display != null && item.quantity_display > 0
+                              ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
+                              : ''
+                            }
+                            {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                          </div>
                         </div>
-                      </div>
-                      <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
-                    </button>
+                        <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
+                      </button>
+                    </SwipeToDelete>
                   ))}
                 </div>
               )}
