@@ -70,7 +70,7 @@ const Nutrition = () => {
             )}
           </TabsList>
           <TabsContent value="tracker">
-            <DailyNutritionLog />
+            <DailyNutritionLog key={trackerKey} />
           </TabsContent>
           <TabsContent value="micros" className="space-y-6">
             <MicronutrientDashboard />
