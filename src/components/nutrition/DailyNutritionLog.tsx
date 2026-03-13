@@ -187,18 +187,42 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   useEffect(() => {
     const handleLogsUpdated = (event: Event) => {
-      const detail = (event as CustomEvent<{ date?: string }>).detail;
-      if (!detail?.date || detail.date === dateStr) {
-        void fetchLogs();
-        refreshSuggestions();
+      const detail = (event as CustomEvent<NutritionLogsUpdatedDetail>).detail;
+      if (detail?.date && detail.date !== dateStr) return;
+
+      if (detail?.addedRows?.length && user) {
+        const addedIds = detail.addedRows.map((row) => row.id);
+        void supabase
+          .from("nutrition_logs")
+          .select("*")
+          .eq("client_id", user.id)
+          .in("id", addedIds)
+          .then(({ data: freshRows, error }) => {
+            if (error) {
+              console.error("[handleLogsUpdated] Added rows fetch error:", error);
+              return;
+            }
+
+            if (!freshRows || freshRows.length === 0) return;
+
+            setLogs((current) => {
+              const existingIds = new Set(current.map((log) => log.id));
+              const appended = (freshRows as NutritionLog[]).filter((row) => !existingIds.has(row.id));
+              if (appended.length === 0) return current;
+              return [...current, ...appended];
+            });
+          });
       }
+
+      void fetchLogs();
+      refreshSuggestions();
     };
 
     window.addEventListener("nutrition-logs-updated", handleLogsUpdated as EventListener);
     return () => {
       window.removeEventListener("nutrition-logs-updated", handleLogsUpdated as EventListener);
     };
-  }, [dateStr, fetchLogs, refreshSuggestions]);
+  }, [dateStr, fetchLogs, refreshSuggestions, user]);
 
   const deleteLog = useCallback(async (id: string): Promise<boolean> => {
     if (!user) {
