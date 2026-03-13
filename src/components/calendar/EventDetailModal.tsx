@@ -24,8 +24,8 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
 };
 
 const EVENT_ROUTES: Record<string, string> = {
-  cardio: "/training", checkin: "/progress", photos: "/progress",
-  body_stats: "/progress", steps: "/progress", nutrition: "/nutrition",
+  cardio: "/training", checkin: "/progress?tab=checkin",
+  steps: "/progress?tab=steps", nutrition: "/nutrition",
 };
 
 interface WorkoutExercise {
@@ -80,6 +80,19 @@ const EventDetailModal = ({
 
   if (!event) return null;
 
+  // Resolve effective type from event_type + title keywords
+  const resolveEventType = (ev: CalendarEvent): string => {
+    const t = ev.event_type;
+    if (t === "body_stats" || t === "photos") return t;
+    const titleLower = ev.title.toLowerCase();
+    if (titleLower.includes("body stat") || titleLower.includes("bodystats")) return "body_stats";
+    if (titleLower.includes("photo") || titleLower.includes("progress pic")) return "photos";
+    if (titleLower.includes("check-in") || titleLower.includes("checkin")) return "checkin";
+    return t;
+  };
+
+  const effectiveType = resolveEventType(event);
+
   const handleOpenAction = () => {
     onClose();
     if (event.event_type === "workout") {
@@ -88,13 +101,17 @@ const EventDetailModal = ({
       } else {
         navigate("/training");
       }
+    } else if (effectiveType === "body_stats") {
+      navigate(`/body-stats?eventId=${event.id}`);
+    } else if (effectiveType === "photos") {
+      navigate(`/progress?tab=photos&eventId=${event.id}`);
     } else {
       const route = EVENT_ROUTES[event.event_type];
       if (route) navigate(route);
     }
   };
 
-  const hasActionRoute = event.event_type === "workout" || !!EVENT_ROUTES[event.event_type];
+  const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -172,7 +189,10 @@ const EventDetailModal = ({
             {!event.is_completed && hasActionRoute && (
               <Button onClick={handleOpenAction} className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg">
                 <Play className="h-4 w-4" />
-                {event.event_type === "workout" ? "Start Workout" : `Open ${TYPE_LABELS[event.event_type] || "Event"}`}
+                {event.event_type === "workout" ? "Start Workout"
+                  : effectiveType === "body_stats" ? "Log Body Stats"
+                  : effectiveType === "photos" ? "Upload Photos"
+                  : `Open ${TYPE_LABELS[event.event_type] || "Event"}`}
               </Button>
             )}
             {!event.is_completed && event.event_type !== "rest" && (

@@ -16,6 +16,9 @@ import CheckinFormBuilder from "@/components/checkin/CheckinFormBuilder";
 import CheckinSubmissionForm from "@/components/checkin/CheckinSubmissionForm";
 import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard";
 import StepsScreen from "@/components/biofeedback/StepsScreen";
+import PhotosPopup from "@/components/dashboard/PhotosPopup";
+import { invalidateCache } from "@/hooks/useDataFetch";
+
 
 const TAB_MAP: Record<string, string> = {
   steps: "steps",
@@ -28,14 +31,37 @@ const TAB_MAP: Record<string, string> = {
 };
 
 const Progress = () => {
-  const { role } = useAuth();
-  const [searchParams] = useSearchParams();
+  const { role, user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
+  const eventIdParam = searchParams.get("eventId");
   const defaultTab = TAB_MAP[tabParam || ""] || "checkin";
 
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey(k => k + 1);
   const isCoach = role === "coach" || role === "admin";
+
+  // Auto-open photos flow if navigated from calendar with eventId
+  const [photosEventId, setPhotosEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tabParam === "photos" && eventIdParam) {
+      setPhotosEventId(eventIdParam);
+      // Clean up URL params
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("eventId");
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [tabParam, eventIdParam]);
+
+  const handlePhotosCompleted = () => {
+    setPhotosEventId(null);
+    refresh();
+    if (user) {
+      const today = new Date().toLocaleDateString("en-CA");
+      invalidateCache(`today-actions-${user.id}-${today}`);
+    }
+  };
 
   return (
     <AppLayout>
@@ -109,6 +135,16 @@ const Progress = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Photos full-page flow (from calendar navigation) */}
+      {photosEventId && (
+        <PhotosPopup
+          open={true}
+          onClose={() => setPhotosEventId(null)}
+          eventId={photosEventId}
+          onCompleted={handlePhotosCompleted}
+        />
+      )}
     </AppLayout>
   );
 };
