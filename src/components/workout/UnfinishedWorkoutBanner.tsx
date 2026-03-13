@@ -103,8 +103,8 @@ const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
         </Button>
         <Button
           size="sm"
-          variant="outline"
-          className="flex-1 border-primary-foreground/30 text-primary-foreground hover:bg-background/20 font-semibold"
+          variant="secondary"
+          className="flex-1 bg-background text-foreground hover:bg-background/90 font-semibold border-0"
           onClick={handleFinish}
           disabled={!online || finishing}
         >

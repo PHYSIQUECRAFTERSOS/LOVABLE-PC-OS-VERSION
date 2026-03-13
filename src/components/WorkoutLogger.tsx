@@ -445,7 +445,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const completeSet = (exIdx: number, setIdx: number) => {
     const ex = exercises[exIdx];
     const log = ex.logs[setIdx];
-    if ((log.weight === undefined || log.weight === null || log.weight < 0) || !log.reps) return;
+    // Allow weight of 0 or undefined (bodyweight/mobility); only require reps > 0
+    const weight = log.weight ?? 0;
+    if (weight < 0 || !log.reps) return;
 
     const isPR = checkPR(ex.id, ex.name, log.weight, log.reps);
 
