@@ -467,7 +467,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <Button onClick={startScanner} className="w-full gap-2">
+                  <Button onClick={() => startScanner()} className="w-full gap-2">
                     <ScanBarcode className="h-4 w-4" /> Start Camera Scanner
                   </Button>
                   <div className="flex items-center gap-2">

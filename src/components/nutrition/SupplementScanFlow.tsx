@@ -384,7 +384,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
               </div>
             ) : (
               <div className="space-y-3">
-                <Button onClick={startScanner} className="w-full gap-2" disabled={lookingUp}>
+                <Button onClick={() => startScanner()} className="w-full gap-2" disabled={lookingUp}>
                   <ScanBarcode className="h-4 w-4" />
                   Start Camera Scanner
                 </Button>
