@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 
 export interface MealPlanFood {
   id: string;
@@ -38,21 +38,25 @@ export interface MealPlanData {
 }
 
 const MEAL_SECTION_MAP: Record<string, string> = {
-  "Breakfast": "breakfast",
+  Breakfast: "breakfast",
   "Pre-Workout": "pre-workout",
   "Pre Workout": "pre-workout",
+  "Pre-Workout Meal": "pre-workout",
+  "Pre Workout Meal": "pre-workout",
   "Post-Workout": "post-workout",
   "Post Workout": "post-workout",
-  "Lunch": "lunch",
-  "Dinner": "dinner",
-  "Snacks": "snack",
-  "Snack": "snack",
-  "breakfast": "breakfast",
+  "Post-Workout Meal": "post-workout",
+  "Post Workout Meal": "post-workout",
+  Lunch: "lunch",
+  Dinner: "dinner",
+  Snacks: "snack",
+  Snack: "snack",
+  breakfast: "breakfast",
   "pre-workout": "pre-workout",
   "post-workout": "post-workout",
-  "lunch": "lunch",
-  "dinner": "dinner",
-  "snack": "snack",
+  lunch: "lunch",
+  dinner: "dinner",
+  snack: "snack",
 };
 
 export const MEAL_SECTIONS = [
@@ -65,14 +69,45 @@ export const MEAL_SECTIONS = [
 ] as const;
 
 export function mapMealNameToKey(mealName: string): string {
-  return MEAL_SECTION_MAP[mealName] || MEAL_SECTION_MAP[mealName.trim()] || "snack";
+  const raw = mealName?.trim();
+  if (!raw) return "snack";
+
+  const direct =
+    MEAL_SECTION_MAP[raw] ||
+    MEAL_SECTION_MAP[raw.toLowerCase()] ||
+    MEAL_SECTION_MAP[raw.replace(/\s+/g, " ")];
+
+  if (direct) return direct;
+
+  const normalized = raw
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\bmeal\b/g, "")
+    .trim();
+
+  if (normalized.includes("breakfast")) return "breakfast";
+  if (normalized.includes("pre workout") || normalized === "preworkout") return "pre-workout";
+  if (normalized.includes("post workout") || normalized === "postworkout") return "post-workout";
+  if (normalized.includes("lunch")) return "lunch";
+  if (normalized.includes("dinner")) return "dinner";
+  if (normalized.includes("snack")) return "snack";
+
+  return "snack";
 }
+
+const emitNutritionLogsUpdated = (date: string) => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date } }));
+  }
+};
 
 export function useMealPlanTracker(selectedDate?: Date) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+  const dateStr = selectedDate ? toLocalDateString(selectedDate) : getLocalDateString();
 
   // Fetch ALL active meal plans for this client
   const { data: plans } = useQuery({
