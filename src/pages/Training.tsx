@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import WorkoutBuilder from "@/components/WorkoutBuilder";
 import WorkoutLogger from "@/components/WorkoutLogger";
 import WorkoutHistory from "@/components/training/WorkoutHistory";
-import CardioManager from "@/components/training/CardioManager";
 import ClientProgramView from "@/components/training/ClientProgramView";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
