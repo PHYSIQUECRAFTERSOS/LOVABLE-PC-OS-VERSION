@@ -16,6 +16,7 @@ import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
 import EditFoodModal from "./EditFoodModal";
+import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 
 interface NutritionLog {
   id: string;
