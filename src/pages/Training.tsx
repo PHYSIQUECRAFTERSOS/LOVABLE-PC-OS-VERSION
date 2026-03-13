@@ -5,12 +5,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Play, History, Copy, HeartPulse, FolderOpen } from "lucide-react";
+import { Plus, Play, History, Copy, FolderOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WorkoutBuilder from "@/components/WorkoutBuilder";
 import WorkoutLogger from "@/components/WorkoutLogger";
 import WorkoutHistory from "@/components/training/WorkoutHistory";
-import CardioManager from "@/components/training/CardioManager";
 import ClientProgramView from "@/components/training/ClientProgramView";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
@@ -173,7 +172,7 @@ const Training = () => {
           <TabsList>
             {role === "client" && <TabsTrigger value="program" className="gap-1.5"><FolderOpen className="h-3.5 w-3.5" /> Program</TabsTrigger>}
             <TabsTrigger value="workouts">Workouts</TabsTrigger>
-            <TabsTrigger value="cardio" className="gap-1.5"><HeartPulse className="h-3.5 w-3.5" /> Cardio</TabsTrigger>
+            
             <TabsTrigger value="history" className="gap-1.5"><History className="h-3.5 w-3.5" /> History</TabsTrigger>
           </TabsList>
 
@@ -228,7 +227,7 @@ const Training = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="cardio"><CardioManager /></TabsContent>
+          
           <TabsContent value="history"><WorkoutHistory /></TabsContent>
         </Tabs>
       </div>
