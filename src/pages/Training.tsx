@@ -172,7 +172,7 @@ const Training = () => {
           <TabsList>
             {role === "client" && <TabsTrigger value="program" className="gap-1.5"><FolderOpen className="h-3.5 w-3.5" /> Program</TabsTrigger>}
             <TabsTrigger value="workouts">Workouts</TabsTrigger>
-            <TabsTrigger value="cardio" className="gap-1.5"><HeartPulse className="h-3.5 w-3.5" /> Cardio</TabsTrigger>
+            
             <TabsTrigger value="history" className="gap-1.5"><History className="h-3.5 w-3.5" /> History</TabsTrigger>
           </TabsList>
 
