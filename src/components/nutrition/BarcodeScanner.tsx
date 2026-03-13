@@ -99,16 +99,79 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   const startTokenRef = useRef(0); // prevent race conditions on double-start
   const startupTimersRef = useRef<number[]>([]);
 
+  const clearStartupTimers = () => {
+    startupTimersRef.current.forEach((id) => window.clearTimeout(id));
+    startupTimersRef.current = [];
+  };
+
+  const tryEnableTorch = async (stream: MediaStream | null) => {
+    if (!stream) return false;
+    const track = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+      getCapabilities?: () => MediaTrackCapabilities & { torch?: boolean };
+    }) | undefined;
+
+    if (!track) return false;
+
+    try {
+      const capabilities = track.getCapabilities?.();
+      if (!capabilities?.torch) return false;
+
+      await track.applyConstraints({
+        advanced: [{ torch: true } as MediaTrackConstraintSet],
+      } as MediaTrackConstraints);
+      return true;
+    } catch (torchErr) {
+      console.warn("[BARCODE] Torch enable failed:", torchErr);
+      return false;
+    }
+  };
+
+  const waitForVideoElement = async (token: number, timeoutMs = 2500) => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      if (token !== startTokenRef.current) return null;
+      if (videoRef.current) return videoRef.current;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return null;
+  };
+
+  const waitForVideoReady = async (
+    video: HTMLVideoElement,
+    token: number,
+    timeoutMs = 3500,
+  ) => {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      if (token !== startTokenRef.current) return false;
+      if (video.videoWidth > 0 && video.readyState >= 2) return true;
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    }
+    return false;
+  };
+
   const stopScanner = useCallback(() => {
-    // Kill any active stream tracks
+    startTokenRef.current += 1;
+    clearStartupTimers();
+
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
     if (readerRef.current) {
-      try { readerRef.current.reset(); } catch { /* ignore */ }
+      try {
+        readerRef.current.reset();
+      } catch {
+        // ignore
+      }
       readerRef.current = null;
     }
+
     hasDetectedRef.current = false;
     setScanning(false);
   }, []);
@@ -146,115 +209,141 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   };
 
   const startScanner = async (retryCount = 0) => {
-    // Prevent concurrent starts
     const token = ++startTokenRef.current;
+    clearStartupTimers();
+    hasDetectedRef.current = false;
     setScanning(true);
     setProduct(null);
     setNotFound(false);
-    hasDetectedRef.current = false;
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (readerRef.current) {
+      try {
+        readerRef.current.reset();
+      } catch {
+        // ignore
+      }
+      readerRef.current = null;
+    }
 
     try {
-      // Step 1: Warm up camera — get permission & stream before decoder
-      console.log("[BARCODE] Warming up camera...");
-      const warmStream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
-      
-      // If a newer start was triggered, bail
+      const videoEl = await waitForVideoElement(token);
+      if (!videoEl) throw new Error("Camera element not ready");
+
+      const constraints = retryCount === 0 ? CAMERA_CONSTRAINTS : FALLBACK_CAMERA_CONSTRAINTS;
+      const warmStream = await navigator.mediaDevices.getUserMedia(constraints);
+
       if (token !== startTokenRef.current) {
-        warmStream.getTracks().forEach(t => t.stop());
+        warmStream.getTracks().forEach((track) => track.stop());
         return;
       }
 
-      // Assign warm stream to video to show preview immediately
-      if (videoRef.current) {
-        videoRef.current.srcObject = warmStream;
-        try { await videoRef.current.play(); } catch { /* autoplay may already be handled */ }
-      }
       streamRef.current = warmStream;
+      videoEl.srcObject = warmStream;
+      try {
+        await videoEl.play();
+      } catch {
+        // no-op
+      }
 
-      // Step 2: Wait for video to actually produce frames (fixes black screen)
-      await new Promise<void>((resolve) => {
-        const check = () => {
-          if (token !== startTokenRef.current) { resolve(); return; }
-          if (videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.readyState >= 2) {
-            resolve();
-          } else {
-            setTimeout(check, 100);
-          }
-        };
-        check();
-        // Safety timeout — don't wait forever
-        setTimeout(resolve, 3000);
-      });
+      const previewReady = await waitForVideoReady(videoEl, token);
+      if (!previewReady) {
+        throw new Error("Camera preview failed to initialize");
+      }
 
-      if (token !== startTokenRef.current) return;
+      await tryEnableTorch(warmStream);
 
-      // Step 3: Stop warm stream — decoder will create its own
-      warmStream.getTracks().forEach(t => t.stop());
+      const warmTrack = warmStream.getVideoTracks()[0];
+      const preferredDeviceId = warmTrack?.getSettings?.().deviceId ?? null;
+
+      warmStream.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
+      videoEl.srcObject = null;
 
-      // Step 4: Create optimized reader and start decoding
       const reader = createReader();
       readerRef.current = reader;
 
-      // Get device list (permissions already granted from warm-up)
-      const devices = await reader.listVideoInputDevices();
-      const rearCamera = devices.find(d => {
-        const label = d.label.toLowerCase();
-        return label.includes('back') || label.includes('rear') || label.includes('environment');
-      }) || devices[devices.length - 1];
-
-      console.log("[BARCODE] Starting decode on device:", rearCamera?.label || "default");
-
-      await reader.decodeFromVideoDevice(
-        rearCamera?.deviceId || null,
-        videoRef.current!,
-        (result, err) => {
+      reader
+        .decodeFromVideoDevice(preferredDeviceId, videoEl, (result, err) => {
           if (result && !hasDetectedRef.current) {
             hasDetectedRef.current = true;
             if (navigator.vibrate) navigator.vibrate(100);
-            // Stop scanner before lookup
-            if (readerRef.current) {
-              try { readerRef.current.reset(); } catch {}
-              readerRef.current = null;
-            }
-            setScanning(false);
+            stopScanner();
             handleBarcodeLookup(result.getText());
+            return;
           }
+
           if (err && !(err instanceof NotFoundException)) {
             console.warn('[BARCODE] Scanner error:', err);
           }
-        }
-      );
+        })
+        .catch((decodeErr) => {
+          if (token !== startTokenRef.current) return;
+          console.error("[BARCODE] Decode stream failed:", decodeErr);
+          setScanning(false);
 
-      // Step 5: Capture the stream the decoder created for cleanup
-      if (videoRef.current?.srcObject) {
-        streamRef.current = videoRef.current.srcObject as MediaStream;
-      }
-
-      // Step 6: Auto-recovery — check if video is actually showing after 2s
-      setTimeout(() => {
-        if (token !== startTokenRef.current) return;
-        if (videoRef.current && (videoRef.current.videoWidth === 0 || videoRef.current.readyState < 2)) {
-          console.warn("[BARCODE] Black screen detected, auto-retrying...");
-          if (retryCount < 1) {
-            stopScanner();
-            startScanner(retryCount + 1);
+          if (retryCount < 2) {
+            const retryTimer = window.setTimeout(() => startScanner(retryCount + 1), 350);
+            startupTimersRef.current.push(retryTimer);
+            return;
           }
-        }
-      }, 2000);
 
+          toast({
+            title: "Scanner unavailable",
+            description: "Please allow camera access and try again.",
+            variant: "destructive",
+          });
+        });
+
+      const streamSyncTimer = window.setTimeout(async () => {
+        if (token !== startTokenRef.current) return;
+        const activeStream = videoEl.srcObject instanceof MediaStream ? videoEl.srcObject : null;
+        if (!activeStream) return;
+
+        streamRef.current = activeStream;
+        await tryEnableTorch(activeStream);
+      }, 450);
+      startupTimersRef.current.push(streamSyncTimer);
+
+      const watchdogTimer = window.setTimeout(() => {
+        if (token !== startTokenRef.current) return;
+
+        const hasFrames = videoEl.videoWidth > 0 && videoEl.readyState >= 2;
+        if (hasFrames) return;
+
+        if (retryCount < 2) {
+          stopScanner();
+          startScanner(retryCount + 1);
+          return;
+        }
+
+        setScanning(false);
+        toast({
+          title: "Camera failed to start",
+          description: "Please tap Start Camera Scanner again.",
+          variant: "destructive",
+        });
+      }, 2200);
+      startupTimersRef.current.push(watchdogTimer);
     } catch (err) {
-      console.error("[BARCODE] Camera start failed:", err);
       if (token !== startTokenRef.current) return;
+      console.error("[BARCODE] Camera start failed:", err);
       setScanning(false);
-      if (retryCount < 1) {
-        // Single silent retry
-        console.log("[BARCODE] Retrying scanner start...");
-        setTimeout(() => startScanner(retryCount + 1), 500);
-      } else {
-        toast({ title: "Camera access denied", description: "Please allow camera access to scan barcodes.", variant: "destructive" });
+
+      if (retryCount < 2) {
+        const retryTimer = window.setTimeout(() => startScanner(retryCount + 1), 350);
+        startupTimersRef.current.push(retryTimer);
+        return;
       }
+
+      toast({
+        title: "Camera access denied",
+        description: "Please allow camera access to scan barcodes.",
+        variant: "destructive",
+      });
     }
   };
   useEffect(() => { return () => { stopScanner(); }; }, [stopScanner]);
