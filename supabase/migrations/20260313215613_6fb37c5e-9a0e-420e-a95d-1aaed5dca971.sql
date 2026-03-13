@@ -1,0 +1,1 @@
+DELETE FROM wearable_connections WHERE access_token IS NULL AND sync_status = 'idle';
