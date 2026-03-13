@@ -96,12 +96,17 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const fetchLogs = useCallback(async () => {
     if (!user) return;
 
+    const fetchId = latestFetchRef.current + 1;
+    latestFetchRef.current = fetchId;
+
     const { data, error } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", dateStr)
       .order("created_at", { ascending: true });
+
+    if (fetchId !== latestFetchRef.current) return;
 
     if (error) {
       console.error("[fetchLogs] Query error:", error);
@@ -118,6 +123,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         .from("food_items")
         .select("id, name")
         .in("id", foodIds);
+
+      if (fetchId !== latestFetchRef.current) return;
 
       if (foodsError) {
         console.error("[fetchLogs] Food names query error:", foodsError);
