@@ -260,7 +260,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     return getItemsForMealSection(activeDayId, mealKey).length > 0;
   };
 
-  const isToday = format(new Date(), "yyyy-MM-dd") === dateStr;
+  const isToday = getLocalDateString() === dateStr;
 
   return (
     <div className="space-y-5">
