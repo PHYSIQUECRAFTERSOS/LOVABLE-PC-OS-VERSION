@@ -352,7 +352,7 @@ const DailyNutritionLog = () => {
         logDate={dateStr}
         open={loggerOpen}
         onClose={() => setLoggerOpen(false)}
-        onLogged={() => { fetchLogs(); refreshSuggestions(); setLoggerOpen(false); }}
+        onLogged={() => { setRefreshCounter((c) => c + 1); refreshSuggestions(); setLoggerOpen(false); }}
       />
       {/* Copy Day Dialog */}
       <CopyDayDialog
