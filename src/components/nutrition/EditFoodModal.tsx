@@ -35,7 +35,7 @@ interface EditFoodModalProps {
 
 type Unit = "g" | "oz";
 
-const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated }: EditFoodModalProps) => {
+const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDeleteLog }: EditFoodModalProps) => {
   const { toast } = useToast();
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState<Unit>("g");
