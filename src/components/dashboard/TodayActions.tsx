@@ -82,7 +82,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
 
   const cacheKey = `today-actions-${user?.id}-${targetDate}`;
 
-  const { data: actions = [], loading } = useDataFetch<ActionItem[]>({
+  const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
     enabled: !!user,
     staleTime: 60 * 1000,
