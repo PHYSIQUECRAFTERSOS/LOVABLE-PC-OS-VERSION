@@ -163,12 +163,20 @@ const DailyNutritionLog = () => {
     );
 
   const handleCopyFromPlan = async (mealKey: string) => {
-    if (!activeDayId || !mealPlanItems) return;
+    if (!activeDayId) {
+      console.warn("[handleCopyFromPlan] No activeDayId — meal plan may not have loaded yet");
+      toast({ title: "Meal plan not loaded yet", description: "Please wait and try again.", variant: "destructive" });
+      return;
+    }
+    if (!mealPlanItems) {
+      toast({ title: "Meal plan items not available", variant: "destructive" });
+      return;
+    }
     setCopyingMeal(mealKey);
 
     const planItems = getItemsForMealSection(activeDayId, mealKey);
     if (planItems.length === 0) {
-      toast({ title: "No items in meal plan for this section" });
+      toast({ title: `No items in your meal plan for this section` });
       setCopyingMeal(null);
       return;
     }
