@@ -298,6 +298,60 @@ export type Database = {
         }
         Relationships: []
       }
+      body_stats: {
+        Row: {
+          bicep_in: number | null
+          body_weight_lbs: number | null
+          calf_in: number | null
+          chest_in: number | null
+          client_id: string
+          created_at: string | null
+          forearm_in: number | null
+          hips_in: number | null
+          id: string
+          log_date: string
+          neck_in: number | null
+          shoulders_in: number | null
+          thigh_in: number | null
+          updated_at: string | null
+          waist_in: number | null
+        }
+        Insert: {
+          bicep_in?: number | null
+          body_weight_lbs?: number | null
+          calf_in?: number | null
+          chest_in?: number | null
+          client_id: string
+          created_at?: string | null
+          forearm_in?: number | null
+          hips_in?: number | null
+          id?: string
+          log_date: string
+          neck_in?: number | null
+          shoulders_in?: number | null
+          thigh_in?: number | null
+          updated_at?: string | null
+          waist_in?: number | null
+        }
+        Update: {
+          bicep_in?: number | null
+          body_weight_lbs?: number | null
+          calf_in?: number | null
+          chest_in?: number | null
+          client_id?: string
+          created_at?: string | null
+          forearm_in?: number | null
+          hips_in?: number | null
+          id?: string
+          log_date?: string
+          neck_in?: number | null
+          shoulders_in?: number | null
+          thigh_in?: number | null
+          updated_at?: string | null
+          waist_in?: number | null
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           color: string | null
@@ -3968,6 +4022,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          measurements_enabled: boolean | null
           phone: string | null
           timezone: string | null
           updated_at: string
@@ -3980,6 +4035,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          measurements_enabled?: boolean | null
           phone?: string | null
           timezone?: string | null
           updated_at?: string
@@ -3992,6 +4048,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          measurements_enabled?: boolean | null
           phone?: string | null
           timezone?: string | null
           updated_at?: string

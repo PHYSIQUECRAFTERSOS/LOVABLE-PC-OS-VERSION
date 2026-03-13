@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import CardioPopup from "@/components/dashboard/CardioPopup";
-import BodyStatsPopup from "@/components/dashboard/BodyStatsPopup";
 import PhotosPopup from "@/components/dashboard/PhotosPopup";
 
 export interface ActionItem {
@@ -79,7 +78,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   // Popup state
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
   const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
-  const [bodyStatsPopup, setBodyStatsPopup] = useState<{ eventId: string } | null>(null);
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
 
   const cacheKey = `today-actions-${user?.id}-${targetDate}`;
@@ -223,9 +221,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       setCardioPopup({ eventId: action.id, title: action.title, description: action.description });
       return;
     }
-    // Body Stats: open popup
+    // Body Stats: navigate to full page
     if (action.type === "body_stats" && !action.completed) {
-      setBodyStatsPopup({ eventId: action.id });
+      navigate(`/body-stats?eventId=${action.id}`);
       return;
     }
     // Photos: open popup
@@ -243,10 +241,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   };
 
   const handleCardioCompleted = () => {
-    invalidateCache(cacheKey);
-  };
-
-  const handleBodyStatsCompleted = () => {
     invalidateCache(cacheKey);
   };
 
@@ -340,16 +334,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           title={cardioPopup.title}
           description={cardioPopup.description}
           onCompleted={handleCardioCompleted}
-        />
-      )}
-
-      {/* Body Stats Popup */}
-      {bodyStatsPopup && (
-        <BodyStatsPopup
-          open={true}
-          onClose={() => setBodyStatsPopup(null)}
-          eventId={bodyStatsPopup.eventId}
-          onCompleted={handleBodyStatsCompleted}
         />
       )}
 

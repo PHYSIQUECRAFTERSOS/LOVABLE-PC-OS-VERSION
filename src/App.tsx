@@ -29,6 +29,7 @@ import ClientDetail from "./pages/ClientDetail";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import DeleteAccount from "./pages/DeleteAccount";
+import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
@@ -81,6 +82,7 @@ const App = () => (
             <Route path="/clients/:clientId" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><ClientDetail /></ProtectedRoute>} />
             <Route path="/libraries" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><MasterLibraries /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><Admin /></ProtectedRoute>} />
+            <Route path="/body-stats" element={<ProtectedRoute><BodyStats /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
