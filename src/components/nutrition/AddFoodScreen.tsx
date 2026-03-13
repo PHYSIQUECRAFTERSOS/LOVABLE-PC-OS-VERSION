@@ -64,6 +64,8 @@ interface FoodItem {
   fiber_per_100g?: number;
   sugar_per_100g?: number;
   sodium_per_100g?: number;
+  // Micronutrient data from USDA (per 100g)
+  _micros_per_100g?: Record<string, number | null>;
 }
 
 interface AddFoodScreenProps {
