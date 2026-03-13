@@ -43,8 +43,9 @@ const ExerciseLibrary = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("exercises")
-      .select("id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at")
-      .order("name");
+      .select("id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at, created_by")
+      .order("created_at", { ascending: false })
+      .order("name", { ascending: true });
     if (error) console.error("[ExerciseLibrary] Load error:", error);
     console.log("[ExerciseLibrary] Loaded", data?.length ?? 0, "exercises");
     setExercises(data || []);

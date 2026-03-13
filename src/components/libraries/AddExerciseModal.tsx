@@ -42,7 +42,7 @@ function getYouTubeVideoId(url: string): string | null {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onCreated: (createdExercise?: any) => Promise<void> | void;
   initialData?: any;
 }
 
