@@ -1009,6 +1009,42 @@ export type Database = {
           },
         ]
       }
+      client_micronutrient_overrides: {
+        Row: {
+          client_id: string
+          coach_notes: string | null
+          custom_target: number | null
+          custom_tier: number | null
+          id: string
+          is_hidden: boolean | null
+          nutrient_key: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          client_id: string
+          coach_notes?: string | null
+          custom_target?: number | null
+          custom_tier?: number | null
+          id?: string
+          is_hidden?: boolean | null
+          nutrient_key: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          client_id?: string
+          coach_notes?: string | null
+          custom_target?: number | null
+          custom_tier?: number | null
+          id?: string
+          is_hidden?: boolean | null
+          nutrient_key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       client_notes: {
         Row: {
           client_id: string
@@ -3277,6 +3313,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      micronutrient_display_config: {
+        Row: {
+          category: string
+          created_at: string | null
+          default_target_female: number | null
+          default_target_male: number | null
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          nutrient_key: string
+          sort_order: number
+          tier: number
+          top_food_sources: Json | null
+          unit: string
+          why_it_matters: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          default_target_female?: number | null
+          default_target_male?: number | null
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          nutrient_key: string
+          sort_order?: number
+          tier?: number
+          top_food_sources?: Json | null
+          unit: string
+          why_it_matters?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          default_target_female?: number | null
+          default_target_male?: number | null
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          nutrient_key?: string
+          sort_order?: number
+          tier?: number
+          top_food_sources?: Json | null
+          unit?: string
+          why_it_matters?: string | null
+        }
+        Relationships: []
       }
       micronutrient_targets: {
         Row: {
