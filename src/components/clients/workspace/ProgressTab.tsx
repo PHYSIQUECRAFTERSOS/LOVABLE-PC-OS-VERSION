@@ -45,8 +45,14 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
           .select("id, storage_path, created_at, pose")
           .eq("client_id", clientId)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("measurements_enabled")
+          .eq("user_id", clientId)
+          .single(),
       ]);
       setMeasurements(measRes.data || []);
+      setMeasurementsEnabled(profileRes.data?.measurements_enabled ?? false);
 
       const photoData = (photoRes.data || []) as Photo[];
       // Get signed URLs
