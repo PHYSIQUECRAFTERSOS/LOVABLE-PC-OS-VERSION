@@ -439,7 +439,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         }
       }
 
-      onSave(workoutId!, workoutName);
+      await onSave(workoutId!, workoutName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
     } catch (err: any) {
       console.error("[WorkoutBuilder] Save failed:", err);
