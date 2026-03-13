@@ -113,7 +113,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
     if (!track) return false;
 
     try {
-      const capabilities = track.getCapabilities?.();
+      const capabilities = track.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
       if (!capabilities?.torch) return false;
 
       await track.applyConstraints({
