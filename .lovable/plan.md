@@ -1,122 +1,60 @@
 
+Issue restatement (what is still broken):
+1) In Add Food → Barcode, first open often shows a black camera preview until user manually stops/restarts.
+2) Barcode detection works, but requires getting very close; scan speed/range is below expected “MyFitnessPal-like” behavior.
 
-# Physique Crafters — Transformation Operating System
+Do I know what the issue is?
+Yes. The scanner startup path in `src/components/nutrition/BarcodeScanner.tsx` is fragile on mobile Safari: it initializes camera/decoder too early and without a camera warm-up + readiness check. It also uses default decoding/camera constraints (lower resolution/focus behavior), which hurts read speed/range.
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+Files to fix:
+- `src/components/nutrition/BarcodeScanner.tsx` (primary)
+- `src/components/nutrition/SupplementScanFlow.tsx` (same scanner pattern; patch for consistency and to prevent repeat regressions)
 
----
+Implementation plan:
+1) Rebuild scanner start sequence (black-screen fix)
+- Add an explicit startup pipeline:
+  - wait until `<video>` is mounted and visible
+  - perform a short `getUserMedia` warm-up request on open
+  - re-enumerate devices after permission
+  - start decode only after video is ready (`readyState`, `videoWidth/videoHeight` checks)
+- Keep current UX (auto-start on modal open), but add internal retry so user does not need manual stop/start.
 
-## Phase 1 — MVP (Core Platform)
+2) Add automatic black-screen recovery
+- If preview is still black/not-ready after a short threshold, auto-restart once with fallback constraints/device selection.
+- Surface a clear toast only after retries fail (not on first transient startup issue).
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+3) Improve instant scan performance and distance tolerance
+- Configure decoder hints for product barcodes (`EAN_13`, `EAN_8`, `UPC_A`, `UPC_E`, `CODE_128`) + `TRY_HARDER`.
+- Reduce decode interval to improve responsiveness.
+- Use stronger camera constraints (environment-facing, higher ideal resolution, frame rate).
+- Attempt autofocus-related constraints where supported (`focusMode: continuous`), without breaking unsupported browsers.
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+4) Preserve existing working behavior
+- Do not change successful lookup/logging flow (`lookupBarcodeService`, nutrition insertion, macros flow).
+- Only improve camera initialization + barcode decode behavior.
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+5) Apply same scanner hardening to supplement barcode flow
+- Mirror startup/recovery improvements in `SupplementScanFlow.tsx` so the same first-open black-screen pattern doesn’t reappear there.
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+Technical details:
+- Scanner control logic will explicitly manage:
+  - `MediaStream` lifecycle (stop all tracks on close)
+  - decoder lifecycle (`reset` + guard against double-start)
+  - one in-flight startup token to prevent race conditions
+- Device selection strategy:
+  - prefer environment-facing
+  - if labels unavailable, fallback by constraints instead of brittle label-only logic
+- No backend/database schema changes required.
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+Validation plan (post-implementation):
+1) Code-level validation
+- Verify no duplicate scanner loops, no leaked tracks, and no stale refs after close/reopen.
+- Confirm TypeScript safety for optional advanced constraints.
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+2) Runtime validation checklist on mobile
+- First open of Add Food → Barcode shows live camera feed without manual restart.
+- Scanning detects barcodes quickly at normal hand distance (no forced extreme close-up).
+- Existing successful lookup + “Add to tracker” behavior remains unchanged.
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
-
+3) Regression check
+- Supplement barcode scan still opens and decodes normally after shared scanner hardening.
