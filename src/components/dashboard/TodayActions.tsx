@@ -266,6 +266,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
 
   const handlePhotosCompleted = () => {
     invalidateCache(cacheKey);
+    refetch();
   };
 
   if (loading) return <CardSkeleton lines={5} />;
