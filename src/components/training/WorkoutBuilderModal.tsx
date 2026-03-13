@@ -88,7 +88,7 @@ interface Exercise {
 interface WorkoutBuilderModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (workoutId: string, workoutName: string) => void;
+  onSave: (workoutId: string, workoutName: string) => void | Promise<void>;
   editWorkoutId?: string;
   coachId: string;
 }
