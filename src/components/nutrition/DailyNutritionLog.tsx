@@ -165,9 +165,24 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   }, [user, dateStr]);
 
   useEffect(() => {
-    fetchLogs();
-    fetchTargets();
-  }, [user, dateStr, refreshCounter]);
+    void fetchLogs();
+    void fetchTargets();
+  }, [fetchLogs, fetchTargets, refreshCounter]);
+
+  useEffect(() => {
+    const handleLogsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ date?: string }>).detail;
+      if (!detail?.date || detail.date === dateStr) {
+        void fetchLogs();
+        refreshSuggestions();
+      }
+    };
+
+    window.addEventListener("nutrition-logs-updated", handleLogsUpdated as EventListener);
+    return () => {
+      window.removeEventListener("nutrition-logs-updated", handleLogsUpdated as EventListener);
+    };
+  }, [dateStr, fetchLogs, refreshSuggestions]);
 
   const deleteLog = async (id: string) => {
     const { error } = await supabase.from("nutrition_logs").delete().eq("id", id);
