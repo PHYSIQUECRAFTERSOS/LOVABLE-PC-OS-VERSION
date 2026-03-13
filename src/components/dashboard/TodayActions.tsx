@@ -261,6 +261,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
 
   const handleCardioCompleted = () => {
     invalidateCache(cacheKey);
+    refetch();
   };
 
   const handlePhotosCompleted = () => {
