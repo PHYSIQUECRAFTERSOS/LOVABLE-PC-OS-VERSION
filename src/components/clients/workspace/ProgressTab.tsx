@@ -22,11 +22,13 @@ interface Photo {
 const PHOTO_FILTERS = ["all", "front", "side", "back", "other"] as const;
 
 const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
+  const { toast } = useToast();
   const [measurements, setMeasurements] = useState<any[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [measurementsEnabled, setMeasurementsEnabled] = useState(false);
 
   useEffect(() => {
     const load = async () => {
