@@ -18,7 +18,7 @@ import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard"
 import StepsScreen from "@/components/biofeedback/StepsScreen";
 import PhotosPopup from "@/components/dashboard/PhotosPopup";
 import { invalidateCache } from "@/hooks/useDataFetch";
-import { useAuth as useAuthHook } from "@/hooks/useAuth";
+
 
 const TAB_MAP: Record<string, string> = {
   steps: "steps",
