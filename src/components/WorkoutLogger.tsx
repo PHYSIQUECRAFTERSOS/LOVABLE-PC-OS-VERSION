@@ -458,7 +458,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     // Auto-fill next incomplete set
     const nextIdx = newEx[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
     if (nextIdx !== -1) {
-      if (!newEx[exIdx].logs[nextIdx].weight) newEx[exIdx].logs[nextIdx].weight = log.weight;
+      if (newEx[exIdx].logs[nextIdx].weight === undefined || newEx[exIdx].logs[nextIdx].weight === null) {
+        newEx[exIdx].logs[nextIdx].weight = weight;
+      }
       if (!newEx[exIdx].logs[nextIdx].reps) newEx[exIdx].logs[nextIdx].reps = log.reps;
     }
 
