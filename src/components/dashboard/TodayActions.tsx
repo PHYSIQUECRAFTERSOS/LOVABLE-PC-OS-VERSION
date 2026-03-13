@@ -244,10 +244,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     invalidateCache(cacheKey);
   };
 
-  const handleBodyStatsCompleted = () => {
-    invalidateCache(cacheKey);
-  };
-
   const handlePhotosCompleted = () => {
     invalidateCache(cacheKey);
   };
