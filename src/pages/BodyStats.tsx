@@ -86,7 +86,7 @@ const BodyStats = () => {
       // Upsert by client_id + log_date
       const { error } = await supabase
         .from("body_stats")
-        .upsert(record, { onConflict: "client_id,log_date" })
+        .upsert(record as any, { onConflict: "client_id,log_date" })
         .select();
 
       if (error) throw error;
