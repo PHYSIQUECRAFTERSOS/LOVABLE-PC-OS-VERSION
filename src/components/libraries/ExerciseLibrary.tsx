@@ -69,6 +69,13 @@ const ExerciseLibrary = () => {
     setShowAdd(true);
   };
 
+  const handleExerciseCreated = useCallback(async (createdExercise?: any) => {
+    if (createdExercise) {
+      setExercises(prev => [createdExercise, ...prev.filter(ex => ex.id !== createdExercise.id)]);
+    }
+    await loadExercises();
+  }, [loadExercises]);
+
   return (
     <div className="space-y-4">
       {/* Header */}
