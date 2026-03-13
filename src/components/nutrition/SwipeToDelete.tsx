@@ -75,7 +75,7 @@ const SwipeToDelete = ({ children, onDelete, className }: SwipeToDeleteProps) =>
       <div
         className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-destructive-foreground cursor-pointer"
         style={{ width: 140 }}
-        onClick={handleDeleteClick}
+        onClick={(e) => handleDeleteClick(e)}
       >
         <div className="flex items-center gap-2 font-medium text-sm">
           <Trash2 className="h-4 w-4" />
