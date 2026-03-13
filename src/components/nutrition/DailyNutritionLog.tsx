@@ -92,31 +92,51 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   // Pick the first day from plan (could be enhanced to match day type)
   const activeDayId = mealPlanDays?.[0]?.id || null;
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", dateStr)
       .order("created_at", { ascending: true });
-    setLogs((data as NutritionLog[]) || []);
 
-    const foodIds = (data || []).filter(d => d.food_item_id).map(d => d.food_item_id!);
+    if (error) {
+      console.error("[fetchLogs] Query error:", error);
+      toast({ title: "Couldn't load food log", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const logData = (data as NutritionLog[]) || [];
+    setLogs(logData);
+
+    const foodIds = logData.filter((d) => d.food_item_id).map((d) => d.food_item_id!);
     if (foodIds.length > 0) {
-      const { data: foods } = await supabase
+      const { data: foods, error: foodsError } = await supabase
         .from("food_items")
         .select("id, name")
         .in("id", foodIds);
-      const names: Record<string, string> = {};
-      (foods || []).forEach(f => { names[f.id] = f.name; });
-      setFoodNames(names);
-    }
-  };
 
-  const fetchTargets = async () => {
+      if (foodsError) {
+        console.error("[fetchLogs] Food names query error:", foodsError);
+      }
+
+      const names: Record<string, string> = {};
+      (foods || []).forEach((f) => {
+        names[f.id] = f.name;
+      });
+      setFoodNames(names);
+      return;
+    }
+
+    setFoodNames({});
+  }, [user, dateStr, toast]);
+
+  const fetchTargets = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("nutrition_targets")
       .select("*")
       .eq("client_id", user.id)
@@ -124,6 +144,12 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       .order("effective_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1);
+
+    if (error) {
+      console.error("[fetchTargets] Query error:", error);
+      return;
+    }
+
     if (data && data.length > 0) {
       setTargets({
         calories: data[0].calories,
@@ -132,8 +158,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         fat: data[0].fat,
         is_refeed: data[0].is_refeed,
       });
+      return;
     }
-  };
+
+    setTargets(DEFAULT_TARGETS);
+  }, [user, dateStr]);
 
   useEffect(() => {
     fetchLogs();
