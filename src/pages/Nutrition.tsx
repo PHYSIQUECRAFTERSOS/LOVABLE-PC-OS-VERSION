@@ -99,7 +99,7 @@ const Nutrition = () => {
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
-              <ClientStructuredMealPlan />
+             <ClientStructuredMealPlan onLogged={refreshTracker} />
             </TabsContent>
           )}
         </Tabs>
