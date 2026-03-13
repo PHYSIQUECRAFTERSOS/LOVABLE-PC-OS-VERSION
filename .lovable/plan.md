@@ -1,38 +1,122 @@
 
 
-# Fix Supplement Scanner: Remove Barcode, Improve AI Photo Analysis
+# Physique Crafters — Transformation Operating System
 
-## Problem Summary
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-1. **Barcode scanning for supplements is fundamentally broken by design** — Open Food Facts and UPC Item DB are *food* databases, not supplement databases. They don't store vitamin/mineral content for supplements. Even when a barcode is found, it returns zero nutrient data. This is why every supplement you've tried returns "Not found."
+---
 
-2. **AI photo label analysis fails ("No nutrients detected")** — The edge function tries `gemini-2.5-pro` then falls back to `gemini-3-flash-preview`. Based on the screenshot showing `"google/gemini-3-flash-preview: No nutrients detected"`, both models are failing. The likely cause is the `tool_choice` format — the current code uses `{ type: "function", function: { name: "..." } }` but the Lovable AI gateway expects OpenAI-compatible format `{ type: "function", function: { name: "..." } }` which may have subtle compatibility issues with Google models. Additionally, the 10-second client-side timeout in `SupplementScanFlow.tsx` may be aborting before the Pro model (15s server timeout) can respond.
+## Phase 1 — MVP (Core Platform)
 
-## Plan
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-### 1. Remove barcode scanning from supplement flow
-- Simplify `SupplementScanFlow.tsx` to remove the barcode scan step entirely
-- Replace with a clean two-step flow: **Photo → Review/Save**
-- The dialog opens directly to a "Take Photo of Label" screen
-- Keep manual entry as a secondary option
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-### 2. Fix AI label analysis
-- **Edge function (`analyze-supplement-label`)**: 
-  - Add `google/gemini-2.5-flash` as a third fallback model (it handles tool calling more reliably than flash-preview)
-  - Add a non-tool-calling fallback path: if tool calling fails on all models, retry with a plain text prompt asking for JSON output, then parse it
-  - Increase timeouts (20s for pro, 15s for flash models)
-  - Log the actual error details so we can debug
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-- **Client side (`SupplementScanFlow.tsx`)**:
-  - Remove the 10-second `AbortController` timeout — let the server-side timeouts handle it
-  - Show better progress feedback ("Reading label..." → "Almost done...")
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-### 3. UX improvements (consultant recommendations)
-- Add a "Retake" button if analysis fails, instead of dumping user to empty manual form
-- Show the captured photo thumbnail during analysis so user can verify image quality
-- Pre-populate the review form with "Unknown Supplement" as default name if AI can't detect it
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-### Files to edit
-- `src/components/nutrition/SupplementScanFlow.tsx` — Remove barcode step, fix timeout, improve UX
-- `supabase/functions/analyze-supplement-label/index.ts` — Add fallback models and non-tool-calling retry path
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
+
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
+
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
+
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
+
+---
+
+## Phase 2 — Advanced Features
+
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
+
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
+
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
+
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
+
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
+
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 
