@@ -189,7 +189,10 @@ const EventDetailModal = ({
             {!event.is_completed && hasActionRoute && (
               <Button onClick={handleOpenAction} className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg">
                 <Play className="h-4 w-4" />
-                {event.event_type === "workout" ? "Start Workout" : `Open ${TYPE_LABELS[event.event_type] || "Event"}`}
+                {event.event_type === "workout" ? "Start Workout"
+                  : effectiveType === "body_stats" ? "Log Body Stats"
+                  : effectiveType === "photos" ? "Upload Photos"
+                  : `Open ${TYPE_LABELS[event.event_type] || "Event"}`}
               </Button>
             )}
             {!event.is_completed && event.event_type !== "rest" && (
