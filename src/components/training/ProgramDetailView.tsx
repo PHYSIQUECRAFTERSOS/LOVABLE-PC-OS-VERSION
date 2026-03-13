@@ -541,11 +541,12 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   };
 
   const handleWorkoutSaved = async (workoutId: string, workoutName: string) => {
+    const wasEditing = !!editingWorkout;
     const newPhases = [...phases];
     const phase = newPhases[builderTargetPhase];
 
-    if (editingWorkout) {
-      const idx = phase.workouts.findIndex(w => w.workoutId === editingWorkout.workoutId);
+    if (wasEditing) {
+      const idx = phase.workouts.findIndex(w => w.workoutId === editingWorkout!.workoutId);
       if (idx >= 0) phase.workouts[idx] = { ...phase.workouts[idx], workoutId, workoutName };
     } else {
       const existingCount = phase.workouts.length;
@@ -566,30 +567,33 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     // Auto-save the phase-workout link to database immediately
     showSaveStatus("saving");
     try {
-      if (phase.id) {
-        // Phase already exists in DB - insert the link directly
-        if (!editingWorkout) {
-          const { data, error } = await supabase.from("program_workouts").insert({
-            phase_id: phase.id,
-            workout_id: workoutId,
-            day_of_week: phase.workouts.length - 1,
-            day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
-            sort_order: phase.workouts.length - 1,
-          }).select();
-          if (error) throw error;
-          if (!data || data.length === 0) throw new Error("Workout link was not saved — check permissions.");
+      if (phase.id && !wasEditing) {
+        // Phase already exists in DB - try direct insert first
+        const { data, error } = await supabase.from("program_workouts").insert({
+          phase_id: phase.id,
+          workout_id: workoutId,
+          day_of_week: phase.workouts.length - 1,
+          day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
+          sort_order: phase.workouts.length - 1,
+        }).select();
+        if (error || !data || data.length === 0) {
+          // Direct insert failed (likely RLS) — fall back to full save
+          console.warn("[ProgramSave] Direct insert failed, falling back to full save:", error?.message);
+          await saveProgramWithPhases(newPhases);
+          return;
         }
         showSaveStatus("saved");
-        // Re-fetch to sync IDs from database
         await loadProgram();
       } else {
-        // Phase is new (not yet in DB) — save entire program with the updated phases
+        // Phase is new, or editing — save entire program with the updated phases
         await saveProgramWithPhases(newPhases);
       }
     } catch (err: any) {
       console.error("[ProgramSave] Failed to save workout link:", err);
       toast({ title: "Failed to save workout — please try again.", description: err.message, variant: "destructive" });
       showSaveStatus("failed");
+      // Always resync UI with actual DB state on failure
+      await loadProgram();
     }
   };
 
