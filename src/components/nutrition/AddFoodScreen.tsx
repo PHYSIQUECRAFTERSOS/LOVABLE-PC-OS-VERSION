@@ -245,6 +245,31 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             source: f.source === "usda" ? "usda" as const : f.source === "open_food_facts" ? "off" as const : "local" as const,
             is_branded: f.is_branded,
             image_url: f.image_url,
+            // Carry USDA micronutrient data through for import into food_items
+            _micros_per_100g: f.source === "usda" ? {
+              vitamin_a_mcg: f.vitamin_a_mcg_per_100g ?? null,
+              vitamin_c_mg: f.vitamin_c_mg_per_100g ?? null,
+              vitamin_d_mcg: f.vitamin_d_mcg_per_100g ?? null,
+              vitamin_e_mg: f.vitamin_e_mg_per_100g ?? null,
+              vitamin_k_mcg: f.vitamin_k_mcg_per_100g ?? null,
+              vitamin_b1_mg: f.vitamin_b1_mg_per_100g ?? null,
+              vitamin_b2_mg: f.vitamin_b2_mg_per_100g ?? null,
+              vitamin_b3_mg: f.vitamin_b3_mg_per_100g ?? null,
+              vitamin_b5_mg: f.vitamin_b5_mg_per_100g ?? null,
+              vitamin_b6_mg: f.vitamin_b6_mg_per_100g ?? null,
+              vitamin_b9_mcg: f.vitamin_b9_mcg_per_100g ?? null,
+              vitamin_b12_mcg: f.vitamin_b12_mcg_per_100g ?? null,
+              calcium_mg: f.calcium_mg_per_100g ?? null,
+              iron_mg: f.iron_mg_per_100g ?? null,
+              magnesium_mg: f.magnesium_mg_per_100g ?? null,
+              phosphorus_mg: f.phosphorus_mg_per_100g ?? null,
+              potassium_mg: f.potassium_mg_per_100g ?? null,
+              zinc_mg: f.zinc_mg_per_100g ?? null,
+              copper_mg: f.copper_mg_per_100g ?? null,
+              manganese_mg: f.manganese_mg_per_100g ?? null,
+              selenium_mcg: f.selenium_mcg_per_100g ?? null,
+              cholesterol: f.cholesterol_per_100g ?? null,
+            } : undefined,
           } as FoodItem));
 
           setResults(foods);
