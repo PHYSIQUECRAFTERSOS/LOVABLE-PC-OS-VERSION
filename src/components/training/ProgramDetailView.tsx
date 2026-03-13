@@ -270,6 +270,7 @@ interface ProgramDetailViewProps {
 const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailViewProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
