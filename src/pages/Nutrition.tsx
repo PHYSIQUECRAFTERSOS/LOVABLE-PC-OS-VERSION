@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +20,8 @@ import { Pill, FlaskConical, Brain, ChefHat } from "lucide-react";
 const Nutrition = () => {
   const { role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
+  const [trackerKey, setTrackerKey] = useState(0);
+  const refreshTracker = useCallback(() => setTrackerKey((k) => k + 1), []);
 
   return (
     <AppLayout>
@@ -68,7 +71,7 @@ const Nutrition = () => {
             )}
           </TabsList>
           <TabsContent value="tracker">
-            <DailyNutritionLog />
+            <DailyNutritionLog key={trackerKey} />
           </TabsContent>
           <TabsContent value="micros" className="space-y-6">
             <MicronutrientDashboard />
@@ -97,7 +100,7 @@ const Nutrition = () => {
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
-              <ClientStructuredMealPlan />
+             <ClientStructuredMealPlan onLogged={refreshTracker} />
             </TabsContent>
           )}
         </Tabs>

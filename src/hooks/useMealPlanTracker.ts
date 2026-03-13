@@ -171,7 +171,10 @@ export function useMealPlanTracker(selectedDate?: Date) {
 
   const copyMealToTracker = useCallback(
     async (mealItems: MealPlanFood[], mealKey: string) => {
-      if (!user || mealItems.length === 0) return false;
+      if (!user || mealItems.length === 0) {
+        console.warn("[copyMealToTracker] No user or empty items", { userId: user?.id, itemCount: mealItems.length });
+        return false;
+      }
       const entries = mealItems.map((item) => ({
         client_id: user.id,
         food_item_id: item.food_item_id,
@@ -185,9 +188,15 @@ export function useMealPlanTracker(selectedDate?: Date) {
         logged_at: dateStr,
         tz_corrected: true,
       }));
-      const { error } = await supabase.from("nutrition_logs").insert(entries);
+      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries).select();
       if (error) {
+        console.error("[copyMealToTracker] Insert error:", error);
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });
+        return false;
+      }
+      if (!inserted || inserted.length === 0) {
+        console.error("[copyMealToTracker] Insert returned no rows — possible RLS block");
+        toast({ title: "Failed to copy meal", description: "Items could not be saved. Please try again.", variant: "destructive" });
         return false;
       }
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
@@ -215,12 +224,17 @@ export function useMealPlanTracker(selectedDate?: Date) {
         logged_at: dateStr,
         tz_corrected: true,
       }));
-      const { error } = await supabase.from("nutrition_logs").insert(entries);
+      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries).select();
       if (error) {
+        console.error("[copyEntireDayToTracker] Insert error:", error);
         toast({ title: "Error copying day", description: error.message, variant: "destructive" });
         return false;
       }
-      toast({ title: `${entries.length} items logged to tracker` });
+      if (!inserted || inserted.length === 0) {
+        toast({ title: "Failed to copy day", description: "Items could not be saved.", variant: "destructive" });
+        return false;
+      }
+      toast({ title: `${inserted.length} items logged to tracker` });
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
       return true;
     },
