@@ -140,23 +140,13 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
   };
 
   const handleSave = async () => {
-    if (!user || !form.name.trim()) return;
+    if (!user || !form.name.trim()) {
+      toast({ title: "Exercise name is required", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const isEditing = !!initialData?.id;
-
-      if (!isEditing) {
-        const { data: existing } = await supabase
-          .from("exercises")
-          .select("id, name")
-          .ilike("name", form.name.trim())
-          .limit(1);
-
-        if (existing && existing.length > 0) {
-          const useit = confirm(`"${existing[0].name}" already exists. Use existing exercise?`);
-          if (useit) { onOpenChange(false); setSaving(false); return; }
-        }
-      }
 
       const payload = {
         name: form.name.trim(),
@@ -180,19 +170,24 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
           ...payload,
           created_by: user.id,
         }).select();
-        if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Exercise was not saved — you may not have permission. Contact your admin.");
+        if (error) {
+          console.error("[AddExercise] Insert error:", error);
+          throw error;
+        }
+        if (!data || data.length === 0) throw new Error("Exercise was not saved — you may not have permission.");
         console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
-        toast({ title: "Exercise created" });
+        toast({ title: "Exercise created", description: `"${data[0].name}" added to library.` });
       }
 
-      // Trigger re-fetch BEFORE closing modal and AWAIT it to avoid stale data
-      await onCreated();
+      // Close modal first, then refresh list
       resetForm();
       onOpenChange(false);
+      
+      // Refresh exercise list after modal closes
+      try { await onCreated(); } catch {} 
     } catch (err: any) {
       console.error("[AddExercise] Save failed:", err);
-      toast({ title: "Failed to save exercise — please try again.", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to save exercise", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
