@@ -337,16 +337,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         />
       )}
 
-      {/* Body Stats Popup */}
-      {bodyStatsPopup && (
-        <BodyStatsPopup
-          open={true}
-          onClose={() => setBodyStatsPopup(null)}
-          eventId={bodyStatsPopup.eventId}
-          onCompleted={handleBodyStatsCompleted}
-        />
-      )}
-
       {/* Photos Popup */}
       {photosPopup && (
         <PhotosPopup
