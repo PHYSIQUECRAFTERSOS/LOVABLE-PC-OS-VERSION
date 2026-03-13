@@ -153,7 +153,7 @@ const ClientStructuredMealPlan = ({
   const handleAddSingleItem = async (item: MealPlanFood) => {
     if (!user) return;
     const mealKey = mapMealNameToKey(item.meal_name);
-    const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+    const dateStr = toLocalDateString(selectedDate || new Date());
     const { data: inserted, error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: item.food_item_id,
