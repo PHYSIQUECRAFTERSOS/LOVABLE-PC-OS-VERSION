@@ -449,7 +449,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     const weight = log.weight ?? 0;
     if (weight < 0 || !log.reps) return;
 
-    const isPR = checkPR(ex.id, ex.name, log.weight, log.reps);
+    const isPR = checkPR(ex.id, ex.name, weight, log.reps);
 
     const newEx = [...exercises];
     const completedLog = { ...newEx[exIdx].logs[setIdx], completed: true, isPR };
