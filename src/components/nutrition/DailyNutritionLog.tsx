@@ -104,14 +104,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     const fetchId = latestFetchRef.current + 1;
     latestFetchRef.current = fetchId;
 
-    const requestTimestamp = new Date().toISOString();
-
     const { data, error } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", dateStr)
-      .lte("created_at", requestTimestamp)
       .order("created_at", { ascending: true });
 
     if (fetchId !== latestFetchRef.current) return;

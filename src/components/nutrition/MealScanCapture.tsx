@@ -55,6 +55,12 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
   const [selectedMealType, setSelectedMealType] = useState(mealType);
   const [logging, setLogging] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setSelectedMealType(mealType || "snack");
+    }
+  }, [open, mealType]);
+
   const handleCapture = () => {
     console.log("[MealScan] Capture triggered");
     fileRef.current?.click();
