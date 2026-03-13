@@ -298,14 +298,32 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
           });
         });
 
-      const streamSyncTimer = window.setTimeout(async () => {
+      const streamSyncTimer = window.setTimeout(() => {
         if (token !== startTokenRef.current) return;
-        const activeStream = videoEl.srcObject instanceof MediaStream ? videoEl.srcObject : null;
-        if (!activeStream) return;
 
-        streamRef.current = activeStream;
-        await tryEnableTorch(activeStream);
-      }, 450);
+        let attempts = 0;
+        const torchInterval = window.setInterval(async () => {
+          if (token !== startTokenRef.current) {
+            window.clearInterval(torchInterval);
+            return;
+          }
+
+          attempts += 1;
+          const activeStream = videoEl.srcObject instanceof MediaStream ? videoEl.srcObject : null;
+          if (!activeStream) {
+            if (attempts >= 6) window.clearInterval(torchInterval);
+            return;
+          }
+
+          streamRef.current = activeStream;
+          const torchEnabled = await tryEnableTorch(activeStream);
+          if (torchEnabled || attempts >= 6) {
+            window.clearInterval(torchInterval);
+          }
+        }, 300);
+
+        startupTimersRef.current.push(torchInterval);
+      }, 350);
       startupTimersRef.current.push(streamSyncTimer);
 
       const watchdogTimer = window.setTimeout(() => {
