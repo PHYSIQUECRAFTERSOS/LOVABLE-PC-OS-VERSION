@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { BrowserMultiFormatReader, NotFoundException, DecodeHintType, BarcodeFormat } from "@zxing/library";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import imageCompression from "browser-image-compression";
 import { useAuth } from "@/hooks/useAuth";
@@ -9,10 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  ScanBarcode, Camera, Loader2, X, AlertTriangle, Sparkles, ChevronLeft,
+  Camera, Loader2, AlertTriangle, Sparkles, ChevronLeft, RotateCcw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MICRONUTRIENTS, NutrientInfo } from "@/lib/micronutrients";
+import { MICRONUTRIENTS } from "@/lib/micronutrients";
 
 interface SupplementScanFlowProps {
   open: boolean;
@@ -20,7 +19,7 @@ interface SupplementScanFlowProps {
   onSuppAdded: () => void;
 }
 
-type FlowStep = "scan" | "photo" | "review";
+type FlowStep = "photo" | "review";
 
 interface ExtractedData {
   product_name?: string;
@@ -33,41 +32,17 @@ interface ExtractedData {
 
 const SERVING_UNITS = ["capsule", "tablet", "scoop", "ml", "drop", "serving", "softgel", "lozenge"];
 
-/** Build a configured BrowserMultiFormatReader with optimal hints */
-function createSuppReader(): BrowserMultiFormatReader {
-  const hints = new Map();
-  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-    BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-    BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-    BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
-  ]);
-  hints.set(DecodeHintType.TRY_HARDER, true);
-  return new BrowserMultiFormatReader(hints, 150);
-}
-
-const SUPP_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
-  video: {
-    facingMode: { ideal: "environment" },
-    width: { ideal: 1920, min: 1280 },
-    height: { ideal: 1080, min: 720 },
-    // @ts-ignore
-    focusMode: { ideal: "continuous" },
-  },
-  audio: false,
-};
-
 const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanFlowProps) => {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const isCoach = role === "coach" || role === "admin";
 
-  const [step, setStep] = useState<FlowStep>("scan");
-  const [scanning, setScanning] = useState(false);
-  const [showPhotoFallback, setShowPhotoFallback] = useState(false);
-  const [lookingUp, setLookingUp] = useState(false);
+  const [step, setStep] = useState<FlowStep>("photo");
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState("");
   const [saving, setSaving] = useState(false);
-  const [manualBarcode, setManualBarcode] = useState("");
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [capturedThumb, setCapturedThumb] = useState<string | null>(null);
 
   // Review form state
   const [name, setName] = useState("");
@@ -78,159 +53,32 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const [confidence, setConfidence] = useState<"high" | "medium" | "low" | null>(null);
   const [wasAiExtracted, setWasAiExtracted] = useState(false);
 
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hasDetectedRef = useRef(false);
-  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const startTokenRef = useRef(0);
-
-  const stopScanner = useCallback(() => {
-    if (fallbackTimerRef.current) {
-      clearTimeout(fallbackTimerRef.current);
-      fallbackTimerRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    if (readerRef.current) {
-      try { readerRef.current.reset(); } catch {}
-      readerRef.current = null;
-    }
-    hasDetectedRef.current = false;
-    setScanning(false);
-  }, []);
-
-  const startScanner = async (retryCount = 0) => {
-    const token = ++startTokenRef.current;
-    setScanning(true);
-    setShowPhotoFallback(false);
-    hasDetectedRef.current = false;
-
-    fallbackTimerRef.current = setTimeout(() => {
-      setShowPhotoFallback(true);
-    }, 5000);
-
-    try {
-      // Step 1: Warm up camera
-      const warmStream = await navigator.mediaDevices.getUserMedia(SUPP_CAMERA_CONSTRAINTS);
-      if (token !== startTokenRef.current) { warmStream.getTracks().forEach(t => t.stop()); return; }
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = warmStream;
-        try { await videoRef.current.play(); } catch {}
-      }
-      streamRef.current = warmStream;
-
-      // Wait for video frames
-      await new Promise<void>((resolve) => {
-        const check = () => {
-          if (token !== startTokenRef.current) { resolve(); return; }
-          if (videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.readyState >= 2) resolve();
-          else setTimeout(check, 100);
-        };
-        check();
-        setTimeout(resolve, 3000);
-      });
-      if (token !== startTokenRef.current) return;
-
-      // Stop warm stream, decoder creates its own
-      warmStream.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
-
-      // Step 2: Create reader & decode
-      const reader = createSuppReader();
-      readerRef.current = reader;
-      const devices = await reader.listVideoInputDevices();
-      const rearCamera = devices.find(d => {
-        const l = d.label.toLowerCase();
-        return l.includes('back') || l.includes('rear') || l.includes('environment');
-      }) || devices[devices.length - 1];
-
-      await reader.decodeFromVideoDevice(
-        rearCamera?.deviceId || null,
-        videoRef.current!,
-        (result, err) => {
-          if (result && !hasDetectedRef.current) {
-            hasDetectedRef.current = true;
-            if (navigator.vibrate) navigator.vibrate(100);
-            stopScanner();
-            lookupBarcode(result.getText());
-          }
-          if (err && !(err instanceof NotFoundException)) {
-            console.warn('[SuppScan] Scanner error:', err);
-          }
-        }
-      );
-
-      if (videoRef.current?.srcObject) {
-        streamRef.current = videoRef.current.srcObject as MediaStream;
-      }
-
-      // Auto-recovery
-      setTimeout(() => {
-        if (token !== startTokenRef.current) return;
-        if (videoRef.current && (videoRef.current.videoWidth === 0 || videoRef.current.readyState < 2)) {
-          if (retryCount < 1) { stopScanner(); startScanner(retryCount + 1); }
-        }
-      }, 2000);
-
-    } catch {
-      if (token !== startTokenRef.current) return;
-      setScanning(false);
-      if (retryCount < 1) {
-        setTimeout(() => startScanner(retryCount + 1), 500);
-      } else {
-        setShowPhotoFallback(true);
-        toast({ title: "Camera access denied", description: "Try taking a photo instead.", variant: "destructive" });
-      }
-    }
-  };
-  const lookupBarcode = async (barcode: string) => {
-    setLookingUp(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("barcode-lookup", { body: { barcode } });
-      if (error) throw error;
-      if (data?.found) {
-        setName(data.name || "");
-        setBrand(data.brand || "");
-        setWasAiExtracted(false);
-        setConfidence(null);
-        setStep("review");
-        toast({ title: "Product found!", description: data.name });
-      } else {
-        toast({ title: "Not found in database", description: "Try taking a photo of the label" });
-        setStep("photo");
-      }
-    } catch {
-      toast({ title: "Lookup failed", variant: "destructive" });
-    } finally {
-      setLookingUp(false);
-    }
-  };
 
   const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setAnalyzing(true);
-    const totalStart = performance.now();
+    setAnalysisError(null);
+    setAnalyzeProgress("Compressing image...");
 
     try {
-      // Step 1: Compress image (target < 300KB, max 800px)
-      const compressStart = performance.now();
+      // Step 1: Compress image
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1200,
         maxSizeMB: 0.5,
         useWebWorker: true,
         fileType: "image/jpeg",
       });
-      console.log("[SuppScan] Compressed:", file.size, "→", compressed.size, "bytes in", Math.round(performance.now() - compressStart), "ms");
+      console.log("[SuppScan] Compressed:", file.size, "→", compressed.size, "bytes");
 
-      // Step 2: Convert to base64 data URL
+      // Create thumbnail for preview
+      const thumbUrl = URL.createObjectURL(compressed);
+      setCapturedThumb(thumbUrl);
+
+      // Step 2: Convert to base64
+      setAnalyzeProgress("Reading label...");
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
@@ -238,30 +86,25 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
         reader.readAsDataURL(compressed);
       });
 
-      // Step 3: Call AI with 10s hard timeout
-      const apiStart = performance.now();
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      // Step 3: Call AI — NO client-side timeout, let server handle it
+      const progressTimer = setTimeout(() => setAnalyzeProgress("Almost done..."), 8000);
 
       const { data, error } = await supabase.functions.invoke("analyze-supplement-label", {
         body: { image: base64 },
       });
 
-      clearTimeout(timeout);
-      console.log("[SuppScan] API response in", Math.round(performance.now() - apiStart), "ms");
-      console.log("[SuppScan] Total time:", Math.round(performance.now() - totalStart), "ms");
+      clearTimeout(progressTimer);
 
       if (error) throw error;
 
       if (data.error && !data.extracted) {
-        toast({ title: data.error, description: "You can enter details manually.", variant: "destructive" });
-        setWasAiExtracted(false);
-        setStep("review");
+        setAnalysisError(data.error);
+        setAnalyzing(false);
         return;
       }
 
       const ext = data.extracted as ExtractedData;
-      setName(ext.product_name || "");
+      setName(ext.product_name || "Unknown Supplement");
       setServingUnit(ext.serving_unit || "capsule");
       setServingsPerContainer(ext.servings_per_container ? String(ext.servings_per_container) : "");
       setConfidence(ext.confidence || "medium");
@@ -278,18 +121,19 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
       toast({ title: "Label analyzed!", description: `${Object.keys(nutMap).length} nutrients detected` });
     } catch (err: any) {
       console.error("[SuppScan] Error:", err);
-      const isTimeout = err.name === "AbortError" || (performance.now() - totalStart > 9500);
-      toast({
-        title: isTimeout ? "Analysis timed out" : "Analysis failed",
-        description: isTimeout ? "Try again with better lighting." : (err.message || "Please try again"),
-        variant: "destructive",
-      });
-      setWasAiExtracted(false);
-      setStep("review");
+      setAnalysisError(err.message || "Analysis failed. Please try again.");
     } finally {
       setAnalyzing(false);
+      setAnalyzeProgress("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleRetake = () => {
+    setAnalysisError(null);
+    setCapturedThumb(null);
+    // Small delay to ensure file input is ready
+    setTimeout(() => fileInputRef.current?.click(), 100);
   };
 
   const handleSave = async () => {
@@ -326,16 +170,15 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   };
 
   const resetAndClose = () => {
-    stopScanner();
-    setStep("scan");
+    setStep("photo");
     setName(""); setBrand(""); setNutrients({});
     setServingUnit("capsule"); setServingsPerContainer("");
-    setManualBarcode(""); setConfidence(null);
-    setWasAiExtracted(false); setShowPhotoFallback(false);
+    setConfidence(null);
+    setWasAiExtracted(false);
+    setAnalysisError(null);
+    setCapturedThumb(null);
     onOpenChange(false);
   };
-
-  useEffect(() => () => { stopScanner(); }, [stopScanner]);
 
   const nutrientCategories = [
     { label: "Vitamins", items: MICRONUTRIENTS.filter(n => n.category === "vitamin") },
@@ -348,92 +191,48 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
       <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
-            {step !== "scan" && (
-              <Button variant="ghost" size="icon" className="h-7 w-7 mr-1" onClick={() => setStep(step === "review" ? "scan" : "scan")}>
+            {step === "review" && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 mr-1" onClick={() => { setStep("photo"); setAnalysisError(null); }}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             )}
-            <ScanBarcode className="h-5 w-5 text-primary" />
-            {step === "scan" ? "Scan Supplement" : step === "photo" ? "Photo Analysis" : "Review & Save"}
+            <Sparkles className="h-5 w-5 text-primary" />
+            {step === "photo" ? "Scan Supplement Label" : "Review & Save"}
           </DialogTitle>
         </DialogHeader>
 
-        {/* STEP 1: BARCODE SCAN */}
-        {step === "scan" && (
-          <div className="space-y-4">
-            {scanning ? (
-              <div className="space-y-3">
-                <div className="relative w-full rounded-lg overflow-hidden bg-background">
-                  <video ref={videoRef} className="w-full max-h-[50vh] object-cover" playsInline muted autoPlay />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-[250px] h-[120px] border-2 border-primary rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
-                  </div>
-                </div>
-                <Button variant="outline" onClick={stopScanner} className="w-full gap-2">
-                  <X className="h-4 w-4" /> Stop Scanner
-                </Button>
-                {showPhotoFallback && (
-                  <button
-                    onClick={() => { stopScanner(); setStep("photo"); }}
-                    className="w-full flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Camera className="h-4 w-4" />
-                    Not scanning? Take a picture instead
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <Button onClick={() => startScanner()} className="w-full gap-2" disabled={lookingUp}>
-                  <ScanBarcode className="h-4 w-4" />
-                  Start Camera Scanner
-                </Button>
-                <div className="flex items-center gap-2">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-xs text-muted-foreground">or enter manually</span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Enter barcode number"
-                    value={manualBarcode}
-                    onChange={(e) => setManualBarcode(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && manualBarcode.length >= 4) lookupBarcode(manualBarcode); }}
-                    className="bg-secondary border-border"
-                  />
-                  <Button onClick={() => lookupBarcode(manualBarcode)} disabled={manualBarcode.length < 4 || lookingUp}>
-                    {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : "Look Up"}
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-px flex-1 bg-border" />
-                  <span className="text-xs text-muted-foreground">or</span>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-                <Button variant="outline" onClick={() => setStep("photo")} className="w-full gap-2">
-                  <Camera className="h-4 w-4" />
-                  Take Photo of Label
-                </Button>
-              </div>
-            )}
-
-            {lookingUp && (
-              <div className="flex items-center justify-center gap-2 py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">Looking up product...</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* STEP 2: PHOTO CAPTURE */}
+        {/* STEP 1: PHOTO CAPTURE */}
         {step === "photo" && (
           <div className="space-y-4">
             {analyzing ? (
               <div className="flex flex-col items-center justify-center py-10 gap-3">
+                {capturedThumb && (
+                  <img src={capturedThumb} alt="Captured label" className="w-32 h-32 object-cover rounded-lg border border-border mb-2" />
+                )}
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Analyzing label with AI...</p>
-                <p className="text-xs text-muted-foreground">Usually completes in 5–10 seconds</p>
+                <p className="text-sm text-muted-foreground">{analyzeProgress || "Analyzing label with AI..."}</p>
+                <p className="text-xs text-muted-foreground">This may take 10–20 seconds</p>
+              </div>
+            ) : analysisError ? (
+              <div className="space-y-4">
+                {capturedThumb && (
+                  <img src={capturedThumb} alt="Captured label" className="w-full max-h-48 object-contain rounded-lg border border-border" />
+                )}
+                <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                  <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Could not read label</p>
+                    <p className="text-xs text-muted-foreground mt-1">{analysisError}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleRetake} variant="outline" className="flex-1 gap-2">
+                    <RotateCcw className="h-4 w-4" /> Retake Photo
+                  </Button>
+                  <Button onClick={() => { setAnalysisError(null); setName("Unknown Supplement"); setStep("review"); }} variant="outline" className="flex-1">
+                    Enter Manually
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -456,7 +255,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
                     Open Camera
                   </Button>
                 </div>
-                <Button variant="outline" onClick={() => setStep("review")} className="w-full text-sm text-muted-foreground">
+                <Button variant="outline" onClick={() => { setName("Unknown Supplement"); setStep("review"); }} className="w-full text-sm text-muted-foreground">
                   Skip — enter manually
                 </Button>
               </div>
@@ -464,7 +263,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
           </div>
         )}
 
-        {/* STEP 3: REVIEW & EDIT */}
+        {/* STEP 2: REVIEW & EDIT */}
         {step === "review" && (
           <div className="space-y-4">
             {wasAiExtracted && (
