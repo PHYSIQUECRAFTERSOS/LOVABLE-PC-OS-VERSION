@@ -69,7 +69,7 @@ const ClientStructuredMealPlan = ({
     if (defaultDayType) { setActiveDayType(defaultDayType); return; }
 
     const checkToday = async () => {
-      const today = format(selectedDate || new Date(), "yyyy-MM-dd");
+      const today = toLocalDateString(selectedDate || new Date());
       const { data: events } = await supabase
         .from("calendar_events")
         .select("event_type")
