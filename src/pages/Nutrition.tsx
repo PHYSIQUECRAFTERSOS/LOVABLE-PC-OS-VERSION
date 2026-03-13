@@ -1,4 +1,4 @@
-import AppLayout from "@/components/AppLayout";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyNutritionLog from "@/components/nutrition/DailyNutritionLog";
