@@ -501,6 +501,24 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       foodItemId = imported.id;
     }
 
+    // Fetch micronutrient data for detail-logged food
+    let micros: Record<string, number> = {};
+    if (foodItemId) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: fullFood } = await supabase
+          .from("food_items")
+          .select("*")
+          .eq("id", foodItemId)
+          .maybeSingle();
+        if (fullFood) {
+          micros = extractMicros(fullFood, entry.quantity);
+        }
+      } catch (err) {
+        console.warn("[handleDetailConfirm] Could not fetch micros:", err);
+      }
+    }
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodItemId,
@@ -517,7 +535,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_unit: "serving",
       logged_at: effectiveDate,
       tz_corrected: true,
-    });
+      ...micros,
+    } as any);
 
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
