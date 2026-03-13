@@ -192,8 +192,12 @@ const DailyNutritionLog = () => {
     const success = await copyMealToTracker(planItems, mealKey);
     if (success) {
       toast({ title: `${planItems.length} items copied from meal plan` });
-      fetchLogs();
+      await fetchLogs();
       refreshSuggestions();
+    } else {
+      // copyMealToTracker already shows its own error toast
+      // Force refresh to sync UI with DB state
+      await fetchLogs();
     }
     setCopyingMeal(null);
   };
