@@ -129,7 +129,7 @@ const DailyNutritionLog = () => {
   useEffect(() => {
     fetchLogs();
     fetchTargets();
-  }, [user, dateStr]);
+  }, [user, dateStr, refreshCounter]);
 
   const deleteLog = async (id: string) => {
     await supabase.from("nutrition_logs").delete().eq("id", id);
