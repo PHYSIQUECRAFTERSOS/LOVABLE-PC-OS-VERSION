@@ -32,6 +32,7 @@ interface EditFoodModalProps {
   foodName: string;
   onUpdated: () => void;
   onDeleteLog?: (id: string) => Promise<boolean>;
+}
 
 type Unit = "g" | "oz";
 
