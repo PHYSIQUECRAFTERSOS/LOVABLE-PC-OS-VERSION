@@ -210,25 +210,44 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     },
   });
 
+  // Resolve the effective type from event_type + title keywords
+  const resolveActionType = (action: ActionItem): string => {
+    const t = action.type;
+    if (t === "body_stats" || t === "photos" || t === "checkin" || t === "workout" || t === "cardio") return t;
+    // Title-based normalization for custom/rest events
+    const titleLower = action.title.toLowerCase();
+    if (titleLower.includes("body stat") || titleLower.includes("bodystats")) return "body_stats";
+    if (titleLower.includes("photo") || titleLower.includes("progress pic")) return "photos";
+    if (titleLower.includes("check-in") || titleLower.includes("checkin")) return "checkin";
+    return t;
+  };
+
   const handleActionClick = (action: ActionItem) => {
+    const effectiveType = resolveActionType(action);
+
     // Workout: open popup if there's a linked workout
-    if (action.type === "workout" && action.linkedWorkoutId && !action.completed) {
+    if (effectiveType === "workout" && action.linkedWorkoutId && !action.completed) {
       setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title, calendarEventId: action.id });
       return;
     }
     // Cardio: open popup if not completed
-    if (action.type === "cardio" && !action.completed) {
+    if (effectiveType === "cardio" && !action.completed) {
       setCardioPopup({ eventId: action.id, title: action.title, description: action.description });
       return;
     }
     // Body Stats: navigate to full page
-    if (action.type === "body_stats" && !action.completed) {
+    if (effectiveType === "body_stats" && !action.completed) {
       navigate(`/body-stats?eventId=${action.id}`);
       return;
     }
-    // Photos: open popup
-    if (action.type === "photos" && !action.completed) {
+    // Photos: open full-page flow
+    if (effectiveType === "photos" && !action.completed) {
       setPhotosPopup({ eventId: action.id });
+      return;
+    }
+    // Check-in: navigate to progress check-in tab
+    if (effectiveType === "checkin" && !action.completed) {
+      navigate("/progress?tab=checkin");
       return;
     }
     // Default: navigate

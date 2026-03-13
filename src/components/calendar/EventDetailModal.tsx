@@ -24,8 +24,8 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
 };
 
 const EVENT_ROUTES: Record<string, string> = {
-  cardio: "/training", checkin: "/progress", photos: "/progress",
-  body_stats: "/progress", steps: "/progress", nutrition: "/nutrition",
+  cardio: "/training", checkin: "/progress?tab=checkin",
+  steps: "/progress?tab=steps", nutrition: "/nutrition",
 };
 
 interface WorkoutExercise {
