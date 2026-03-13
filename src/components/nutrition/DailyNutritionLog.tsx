@@ -133,8 +133,14 @@ const DailyNutritionLog = () => {
   }, [user, dateStr, refreshCounter]);
 
   const deleteLog = async (id: string) => {
-    await supabase.from("nutrition_logs").delete().eq("id", id);
-    fetchLogs();
+    const { error } = await supabase.from("nutrition_logs").delete().eq("id", id);
+    if (error) {
+      console.error("[deleteLog] Delete error:", error);
+      toast({ title: "Couldn't delete item", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Removed" });
+    await fetchLogs();
   };
 
   const totals = logs.reduce(
