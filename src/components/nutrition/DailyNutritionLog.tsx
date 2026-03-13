@@ -407,7 +407,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
                   {items.map((item) => (
-                    <SwipeToDelete key={item.id} onDelete={() => deleteLog(item.id)}>
+                    <SwipeToDelete key={item.id} onDelete={() => { void deleteLog(item.id); }}>
                       <button
                         onClick={() => setEditingLog(item)}
                         className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
