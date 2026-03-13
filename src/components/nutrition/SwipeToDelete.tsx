@@ -55,9 +55,11 @@ const SwipeToDelete = ({ children, onDelete, className }: SwipeToDeleteProps) =>
     }
   }, [offset]);
 
-  const handleDeleteClick = () => {
+  const handleDeleteClick = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setOffset(0);
-    onDelete();
+    void onDelete();
   };
 
   // Reset swipe on click (when not swiped)
