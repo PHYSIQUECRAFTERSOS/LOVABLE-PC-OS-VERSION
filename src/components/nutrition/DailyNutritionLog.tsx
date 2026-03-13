@@ -66,6 +66,7 @@ const DailyNutritionLog = () => {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [copyingMeal, setCopyingMeal] = useState<string | null>(null);
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
@@ -128,7 +129,7 @@ const DailyNutritionLog = () => {
   useEffect(() => {
     fetchLogs();
     fetchTargets();
-  }, [user, dateStr]);
+  }, [user, dateStr, refreshCounter]);
 
   const deleteLog = async (id: string) => {
     await supabase.from("nutrition_logs").delete().eq("id", id);
@@ -351,7 +352,7 @@ const DailyNutritionLog = () => {
         logDate={dateStr}
         open={loggerOpen}
         onClose={() => setLoggerOpen(false)}
-        onLogged={() => { fetchLogs(); refreshSuggestions(); setLoggerOpen(false); }}
+        onLogged={() => { setRefreshCounter((c) => c + 1); refreshSuggestions(); setLoggerOpen(false); }}
       />
       {/* Copy Day Dialog */}
       <CopyDayDialog
