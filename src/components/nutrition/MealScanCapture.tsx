@@ -171,6 +171,17 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
       }
       console.log("[MealScan] Successfully inserted", data.length, "rows");
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("nutrition-logs-updated", {
+            detail: {
+              date: dateToLog,
+              addedRows: data.map((row) => ({ id: row.id })),
+            },
+          })
+        );
+      }
+
       toast({ title: `${result.items.length} item(s) logged!` });
       handleReset();
       onLogged();
