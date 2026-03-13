@@ -321,7 +321,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       {/* Meal Sections */}
       <div className="space-y-4">
         {MEAL_SECTIONS.map(({ key, label }) => {
-          const items = logs.filter(l => l.meal_type === key);
+          const items = logs.filter((l) => mapMealNameToKey(l.meal_type) === key);
           const mealTotals = getMealTotals(items);
           const hasplanForMeal = !isCoach && hasPlanItems(key);
 
