@@ -54,14 +54,21 @@ const MEAL_SECTIONS = [
   { key: "snack", label: "Snacks" },
 ] as const;
 
-const DailyNutritionLog = () => {
+interface DailyNutritionLogProps {
+  selectedDate?: Date;
+  onDateChange?: (date: Date) => void;
+}
+
+const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange }: DailyNutritionLogProps) => {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const isCoach = role === "coach" || role === "admin";
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [internalSelectedDate, setInternalSelectedDate] = useState(new Date());
+  const selectedDate = controlledSelectedDate ?? internalSelectedDate;
+  const setSelectedDate = onDateChange ?? setInternalSelectedDate;
   const [loggerOpen, setLoggerOpen] = useState(false);
   const [activeMealType, setActiveMealType] = useState("snack");
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
@@ -70,7 +77,7 @@ const DailyNutritionLog = () => {
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
 
   // Meal plan tracker for "Copy From Meal Plan"
