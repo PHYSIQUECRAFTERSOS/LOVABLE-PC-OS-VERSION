@@ -318,7 +318,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
     if (!user) return null;
     try {
-      const foodItem = {
+      const foodItem: Record<string, any> = {
         name: food.name,
         brand: food.brand || null,
         serving_size: food.serving_size || 100,
@@ -331,15 +331,25 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         sugar: Math.round(food.sugar || 0),
         sodium: Math.round(food.sodium || 0),
         category: food.category || null,
-        data_source: "open_food_facts",
+        data_source: food.source === "usda" ? "usda" : "open_food_facts",
         created_by: user.id,
-        is_verified: false,
+        is_verified: food.source === "usda",
       };
+
+      // Include micronutrient data if available (USDA foods carry this)
+      if (food._micros_per_100g) {
+        const servingRatio = (food.serving_size || 100) / 100;
+        Object.entries(food._micros_per_100g).forEach(([key, val]) => {
+          if (val != null && typeof val === "number" && val > 0) {
+            foodItem[key] = Math.round(val * servingRatio * 100) / 100;
+          }
+        });
+      }
 
       const { data: inserted, error } = await supabase
         .from("food_items")
-        .insert(foodItem)
-        .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+        .insert(foodItem as any)
+        .select("*")
         .single();
       if (error) throw error;
       return { ...inserted, source: "local" as const } as FoodItem;
