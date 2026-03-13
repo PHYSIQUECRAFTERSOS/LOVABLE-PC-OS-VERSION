@@ -128,11 +128,19 @@ const ClientStructuredMealPlan = ({
   };
 
   const handleCopySection = async (mealKey: string) => {
-    if (!selectedDayId) return;
+    if (!selectedDayId) {
+      toast({ title: "No meal plan day selected", variant: "destructive" });
+      return;
+    }
     setCopyingSection(mealKey);
     const sectionItems = activeItems.filter(
       (i) => i.day_id === selectedDayId && mapMealNameToKey(i.meal_name) === mealKey
     );
+    if (sectionItems.length === 0) {
+      toast({ title: `No items found in your meal plan for this section` });
+      setCopyingSection(null);
+      return;
+    }
     const success = await copyMealToTracker(sectionItems, mealKey);
     if (success) {
       toast({ title: `${sectionItems.length} items added to tracker` });
