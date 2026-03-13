@@ -272,6 +272,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
       }
       toast({ title: `${inserted.length} items logged to tracker` });
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
+      emitNutritionLogsUpdated(dateStr);
       return true;
     },
     [user, items, dateStr, toast, queryClient]
