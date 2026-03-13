@@ -546,13 +546,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     const newPhases = [...phases];
     const phase = newPhases[builderTargetPhase];
 
+    if (!phase) {
+      throw new Error("Selected phase not found");
+    }
+
     if (wasEditing) {
       const idx = phase.workouts.findIndex(w => w.workoutId === editingWorkout!.workoutId);
       if (idx >= 0) phase.workouts[idx] = { ...phase.workouts[idx], workoutId, workoutName };
     } else {
       const existingCount = phase.workouts.length;
       phase.workouts.push({
-        workoutId, workoutName,
+        workoutId,
+        workoutName,
         dayOfWeek: existingCount,
         dayLabel: DAY_LABELS[Math.min(existingCount, 6)],
         sortOrder: existingCount,
@@ -560,41 +565,97 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     }
 
     setPhases(newPhases);
-    setShowWorkoutBuilder(false);
-    setEditingWorkout(null);
-    // Refresh metadata for updated workout
     loadWorkoutMeta(newPhases);
-
-    // Auto-save the phase-workout link to database immediately
     showSaveStatus("saving");
+
     try {
-      if (phase.id && !wasEditing) {
-        // Phase already exists in DB - try direct insert first
-        const { data, error } = await supabase.from("program_workouts").insert({
-          phase_id: phase.id,
-          workout_id: workoutId,
-          day_of_week: phase.workouts.length - 1,
-          day_label: DAY_LABELS[Math.min(phase.workouts.length - 1, 6)],
-          sort_order: phase.workouts.length - 1,
-        }).select();
-        if (error || !data || data.length === 0) {
-          // Direct insert failed (likely RLS) — fall back to full save
-          console.warn("[ProgramSave] Direct insert failed, falling back to full save:", error?.message);
-          await saveProgramWithPhases(newPhases);
-          return;
-        }
-        showSaveStatus("saved");
-        await loadProgram();
-      } else {
-        // Phase is new, or editing — save entire program with the updated phases
-        await saveProgramWithPhases(newPhases);
+      const phaseExistedBeforeSave = !!phase.id;
+
+      if (!phase.id) {
+        const { data: phaseRow, error: phaseErr } = await supabase
+          .from("program_phases")
+          .insert({
+            program_id: programId,
+            name: phase.name,
+            description: phase.description || null,
+            phase_order: phase.phaseOrder,
+            duration_weeks: phase.durationWeeks,
+            training_style: phase.trainingStyle,
+            intensity_system: phase.intensitySystem,
+            custom_intensity: phase.customIntensity || null,
+            progression_rule: phase.progressionRule,
+          })
+          .select("id")
+          .single();
+
+        if (phaseErr) throw phaseErr;
+        phase.id = phaseRow.id;
+
+        const totalDuration = newPhases.reduce((sum, p) => sum + p.durationWeeks, 0);
+        const { error: durationErr } = await supabase
+          .from("programs")
+          .update({ duration_weeks: totalDuration } as any)
+          .eq("id", programId);
+        if (durationErr) throw durationErr;
       }
+
+      if (!wasEditing) {
+        const newWorkout = phase.workouts[phase.workouts.length - 1];
+        if (!newWorkout) throw new Error("Workout could not be linked to phase");
+
+        const insertPayload = {
+          phase_id: phase.id,
+          workout_id: newWorkout.workoutId,
+          day_of_week: newWorkout.dayOfWeek,
+          day_label: newWorkout.dayLabel,
+          sort_order: newWorkout.sortOrder,
+          exclude_from_numbering: newWorkout.excludeFromNumbering || false,
+          custom_tag: newWorkout.customTag || null,
+        };
+
+        let { data: linkedWorkout, error: linkErr } = await supabase
+          .from("program_workouts")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+
+        if (linkErr && phaseExistedBeforeSave) {
+          const { data: freshPhases } = await supabase
+            .from("program_phases")
+            .select("id, name, phase_order")
+            .eq("program_id", programId)
+            .order("phase_order");
+
+          const refreshedPhase =
+            freshPhases?.find((p) => p.id === phase.id) ||
+            freshPhases?.find((p) => p.phase_order === phase.phaseOrder && p.name === phase.name) ||
+            freshPhases?.[builderTargetPhase];
+
+          if (refreshedPhase?.id && refreshedPhase.id !== phase.id) {
+            phase.id = refreshedPhase.id;
+            ({ data: linkedWorkout, error: linkErr } = await supabase
+              .from("program_workouts")
+              .insert({ ...insertPayload, phase_id: refreshedPhase.id })
+              .select("id")
+              .single());
+          }
+        }
+
+        if (linkErr) throw linkErr;
+        newWorkout.id = linkedWorkout.id;
+      }
+
+      setPhases([...newPhases]);
+      setShowWorkoutBuilder(false);
+      setEditingWorkout(null);
+      showSaveStatus("saved");
+      await loadProgram();
     } catch (err: any) {
       console.error("[ProgramSave] Failed to save workout link:", err);
       toast({ title: "Failed to save workout — please try again.", description: err.message, variant: "destructive" });
       showSaveStatus("failed");
-      // Always resync UI with actual DB state on failure
       await loadProgram();
+      throw err;
     }
   };
 
