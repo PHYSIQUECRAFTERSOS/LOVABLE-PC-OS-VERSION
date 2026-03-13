@@ -46,21 +46,24 @@ function createReader(): BrowserMultiFormatReader {
     BarcodeFormat.CODE_39,
   ]);
   hints.set(DecodeHintType.TRY_HARDER, true);
-  // Scan every 150ms for faster detection
-  return new BrowserMultiFormatReader(hints, 150);
+  // Aggressive interval for near-instant read while staying stable on mobile.
+  return new BrowserMultiFormatReader(hints, 90);
 }
 
-/** Camera constraints optimized for barcode scanning at distance */
+/** Primary camera constraints for distance scanning */
 const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   video: {
     facingMode: { ideal: "environment" },
-    width: { ideal: 1920, min: 1280 },
-    height: { ideal: 1080, min: 720 },
-    // @ts-ignore – advanced constraints supported on mobile
-    focusMode: { ideal: "continuous" },
-    // @ts-ignore
-    zoom: { ideal: 1 },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30, max: 60 },
   },
+  audio: false,
+};
+
+/** Fallback constraints if high-res camera request fails */
+const FALLBACK_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: { facingMode: "environment" },
   audio: false,
 };
 
