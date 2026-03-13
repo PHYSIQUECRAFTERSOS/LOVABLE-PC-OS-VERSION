@@ -64,6 +64,8 @@ interface FoodItem {
   fiber_per_100g?: number;
   sugar_per_100g?: number;
   sodium_per_100g?: number;
+  // Micronutrient data from USDA (per 100g)
+  _micros_per_100g?: Record<string, number | null>;
 }
 
 interface AddFoodScreenProps {
@@ -243,6 +245,31 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             source: f.source === "usda" ? "usda" as const : f.source === "open_food_facts" ? "off" as const : "local" as const,
             is_branded: f.is_branded,
             image_url: f.image_url,
+            // Carry USDA micronutrient data through for import into food_items
+            _micros_per_100g: f.source === "usda" ? {
+              vitamin_a_mcg: f.vitamin_a_mcg_per_100g ?? null,
+              vitamin_c_mg: f.vitamin_c_mg_per_100g ?? null,
+              vitamin_d_mcg: f.vitamin_d_mcg_per_100g ?? null,
+              vitamin_e_mg: f.vitamin_e_mg_per_100g ?? null,
+              vitamin_k_mcg: f.vitamin_k_mcg_per_100g ?? null,
+              vitamin_b1_mg: f.vitamin_b1_mg_per_100g ?? null,
+              vitamin_b2_mg: f.vitamin_b2_mg_per_100g ?? null,
+              vitamin_b3_mg: f.vitamin_b3_mg_per_100g ?? null,
+              vitamin_b5_mg: f.vitamin_b5_mg_per_100g ?? null,
+              vitamin_b6_mg: f.vitamin_b6_mg_per_100g ?? null,
+              vitamin_b9_mcg: f.vitamin_b9_mcg_per_100g ?? null,
+              vitamin_b12_mcg: f.vitamin_b12_mcg_per_100g ?? null,
+              calcium_mg: f.calcium_mg_per_100g ?? null,
+              iron_mg: f.iron_mg_per_100g ?? null,
+              magnesium_mg: f.magnesium_mg_per_100g ?? null,
+              phosphorus_mg: f.phosphorus_mg_per_100g ?? null,
+              potassium_mg: f.potassium_mg_per_100g ?? null,
+              zinc_mg: f.zinc_mg_per_100g ?? null,
+              copper_mg: f.copper_mg_per_100g ?? null,
+              manganese_mg: f.manganese_mg_per_100g ?? null,
+              selenium_mcg: f.selenium_mcg_per_100g ?? null,
+              cholesterol: f.cholesterol_per_100g ?? null,
+            } : undefined,
           } as FoodItem));
 
           setResults(foods);
@@ -291,7 +318,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const importOFFFood = async (food: FoodItem): Promise<FoodItem | null> => {
     if (!user) return null;
     try {
-      const foodItem = {
+      const foodItem: Record<string, any> = {
         name: food.name,
         brand: food.brand || null,
         serving_size: food.serving_size || 100,
@@ -304,15 +331,25 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         sugar: Math.round(food.sugar || 0),
         sodium: Math.round(food.sodium || 0),
         category: food.category || null,
-        data_source: "open_food_facts",
+        data_source: food.source === "usda" ? "usda" : "open_food_facts",
         created_by: user.id,
-        is_verified: false,
+        is_verified: food.source === "usda",
       };
+
+      // Include micronutrient data if available (USDA foods carry this)
+      if (food._micros_per_100g) {
+        const servingRatio = (food.serving_size || 100) / 100;
+        Object.entries(food._micros_per_100g).forEach(([key, val]) => {
+          if (val != null && typeof val === "number" && val > 0) {
+            foodItem[key] = Math.round(val * servingRatio * 100) / 100;
+          }
+        });
+      }
 
       const { data: inserted, error } = await supabase
         .from("food_items")
-        .insert(foodItem)
-        .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+        .insert(foodItem as any)
+        .select("*")
         .single();
       if (error) throw error;
       return { ...inserted, source: "local" as const } as FoodItem;
@@ -350,6 +387,24 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       multiplier = inputVal;
     }
 
+    // Fetch micronutrient data from food_items if we have a food_item_id
+    let micros: Record<string, number> = {};
+    if (foodToLog.id) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: fullFood } = await supabase
+          .from("food_items")
+          .select("*")
+          .eq("id", foodToLog.id)
+          .maybeSingle();
+        if (fullFood) {
+          micros = extractMicros(fullFood, multiplier);
+        }
+      } catch (err) {
+        console.warn("[logFood] Could not fetch micros:", err);
+      }
+    }
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodToLog.id,
@@ -366,7 +421,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_unit: unit,
       logged_at: effectiveDate,
       tz_corrected: true,
-    });
+      ...micros,
+    } as any);
 
     if (error) {
       console.error("[NutritionLog] Insert error:", error);
@@ -482,6 +538,24 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       foodItemId = imported.id;
     }
 
+    // Fetch micronutrient data for detail-logged food
+    let micros: Record<string, number> = {};
+    if (foodItemId) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: fullFood } = await supabase
+          .from("food_items")
+          .select("*")
+          .eq("id", foodItemId)
+          .maybeSingle();
+        if (fullFood) {
+          micros = extractMicros(fullFood, entry.quantity);
+        }
+      } catch (err) {
+        console.warn("[handleDetailConfirm] Could not fetch micros:", err);
+      }
+    }
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodItemId,
@@ -498,7 +572,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_unit: "serving",
       logged_at: effectiveDate,
       tz_corrected: true,
-    });
+      ...micros,
+    } as any);
 
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });

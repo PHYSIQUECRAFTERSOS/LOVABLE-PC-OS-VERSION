@@ -215,6 +215,27 @@ export function useMealPlanTracker(selectedDate?: Date) {
         console.warn("[copyMealToTracker] No user or empty items", { userId: user?.id, itemCount: mealItems.length });
         return false;
       }
+
+      // Fetch micronutrients for items that have food_item_ids
+      const foodItemIds = mealItems.map(i => i.food_item_id).filter(Boolean) as string[];
+      let microsMap: Record<string, Record<string, number>> = {};
+      if (foodItemIds.length > 0) {
+        try {
+          const { extractMicros } = await import("@/utils/micronutrientHelper");
+          const { data: foodItems } = await supabase
+            .from("food_items")
+            .select("*")
+            .in("id", foodItemIds);
+          if (foodItems) {
+            foodItems.forEach((fi: any) => {
+              microsMap[fi.id] = extractMicros(fi, 1);
+            });
+          }
+        } catch (err) {
+          console.warn("[copyMealToTracker] Could not fetch micros:", err);
+        }
+      }
+
       const entries = mealItems.map((item) => ({
         client_id: user.id,
         food_item_id: item.food_item_id,
@@ -227,8 +248,9 @@ export function useMealPlanTracker(selectedDate?: Date) {
         fat: item.fat,
         logged_at: dateStr,
         tz_corrected: true,
+        ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
-      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries).select();
+      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
       if (error) {
         console.error("[copyMealToTracker] Insert error:", error);
         toast({ title: "Error copying meal", description: error.message, variant: "destructive" });
@@ -255,6 +277,27 @@ export function useMealPlanTracker(selectedDate?: Date) {
       const src = planItems || items || [];
       const dayItems = src.filter((i) => i.day_id === dayId);
       if (dayItems.length === 0) return false;
+
+      // Fetch micronutrients for items with food_item_ids
+      const foodItemIds = dayItems.map(i => i.food_item_id).filter(Boolean) as string[];
+      let microsMap: Record<string, Record<string, number>> = {};
+      if (foodItemIds.length > 0) {
+        try {
+          const { extractMicros } = await import("@/utils/micronutrientHelper");
+          const { data: foodItems } = await supabase
+            .from("food_items")
+            .select("*")
+            .in("id", foodItemIds);
+          if (foodItems) {
+            foodItems.forEach((fi: any) => {
+              microsMap[fi.id] = extractMicros(fi, 1);
+            });
+          }
+        } catch (err) {
+          console.warn("[copyEntireDayToTracker] Could not fetch micros:", err);
+        }
+      }
+
       const entries = dayItems.map((item) => ({
         client_id: user.id,
         food_item_id: item.food_item_id,
@@ -267,8 +310,9 @@ export function useMealPlanTracker(selectedDate?: Date) {
         fat: item.fat,
         logged_at: dateStr,
         tz_corrected: true,
+        ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
-      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries).select();
+      const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
       if (error) {
         console.error("[copyEntireDayToTracker] Insert error:", error);
         toast({ title: "Error copying day", description: error.message, variant: "destructive" });
