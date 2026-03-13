@@ -350,6 +350,24 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       multiplier = inputVal;
     }
 
+    // Fetch micronutrient data from food_items if we have a food_item_id
+    let micros: Record<string, number> = {};
+    if (foodToLog.id) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: fullFood } = await supabase
+          .from("food_items")
+          .select("*")
+          .eq("id", foodToLog.id)
+          .maybeSingle();
+        if (fullFood) {
+          micros = extractMicros(fullFood, multiplier);
+        }
+      } catch (err) {
+        console.warn("[logFood] Could not fetch micros:", err);
+      }
+    }
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodToLog.id,
@@ -366,7 +384,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_unit: unit,
       logged_at: effectiveDate,
       tz_corrected: true,
-    });
+      ...micros,
+    } as any);
 
     if (error) {
       console.error("[NutritionLog] Insert error:", error);
