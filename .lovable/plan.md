@@ -1,122 +1,39 @@
 
 
-# Physique Crafters — Transformation Operating System
+## Diagnosis
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+**Console error**: `new row violates row-level security policy for table "program_workouts"` at `handleWorkoutSaved`.
 
----
+The `handleWorkoutSaved` function in `ProgramDetailView.tsx` has two code paths:
+1. **Direct INSERT** (line 572) — when the phase already has a DB `id`, it tries inserting a `program_workouts` row directly. This path is failing with an RLS error.
+2. **Full save via `saveProgramWithPhases`** (line 587) — when the phase is new (no `id`), it deletes all phases and recreates them. This path works (confirmed by 201 responses in network logs).
 
-## Phase 1 — MVP (Core Platform)
+The RLS policy on `program_workouts` validates that the `phase_id` belongs to a program owned by the current coach. I verified the data is correct — the phase exists, belongs to the right program, owned by the authenticated coach. However, the direct INSERT fails intermittently, likely due to a **stale phase ID** after `saveProgramWithPhases` previously deleted and recreated phases with new IDs, combined with React closure timing.
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+When the direct insert fails:
+- The WorkoutBuilderModal already showed "Workout created" (workout saved to `workouts` table)
+- `handleWorkoutSaved` optimistically added the workout to local state
+- But `loadProgram()` is never called (error thrown before reaching it)
+- The error toast fires but may be missed by the user
+- The workout appears briefly in local state but is NOT persisted as a `program_workouts` link
+- On any reload/navigation, the workout disappears
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+**For the "add phase" scenario**: Adding a new phase calls `saveProgramWithPhases` which deletes ALL existing phases/workouts and recreates them. If this fails partway through, everything disappears because the old data was already deleted.
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+## Fix Plan
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+### 1. Make `handleWorkoutSaved` resilient (ProgramDetailView.tsx)
+- When the direct INSERT into `program_workouts` fails, **fall back to `saveProgramWithPhases`** instead of just showing an error
+- Always call `loadProgram()` after ANY save attempt (success or failure) to keep UI in sync with DB
+- This ensures the user never sees a "ghost" workout that isn't persisted
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### 2. Fix the `editingWorkout` check bug (ProgramDetailView.tsx)
+- `editingWorkout` is set to `null` at line 562 BEFORE the try/catch block checks it at line 571. This means the `!editingWorkout` check at line 571 is ALWAYS true, even when editing. The `setEditingWorkout(null)` call needs to move AFTER the DB operations.
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+### 3. Ensure `saveProgramWithPhases` doesn't delete before confirming it can insert
+- Currently it deletes all phases first, then inserts. If the insert fails, everything is lost. Add error recovery by catching insert failures and re-fetching.
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+**Files affected**: `src/components/training/ProgramDetailView.tsx` only.
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+**No database changes needed** — the RLS policies are correct; the issue is in the client-side error handling and state management.
 
