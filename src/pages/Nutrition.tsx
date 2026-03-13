@@ -21,6 +21,7 @@ const Nutrition = () => {
   const { role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
   const [trackerKey, setTrackerKey] = useState(0);
+  const [nutritionDate, setNutritionDate] = useState(new Date());
   const refreshTracker = useCallback(() => setTrackerKey((k) => k + 1), []);
 
   return (
