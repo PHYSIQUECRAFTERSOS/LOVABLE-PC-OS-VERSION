@@ -569,26 +569,41 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     try {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-      // Reconcile: delete any logs for exercises that were removed, then upsert final state
-      // First delete all existing logs and re-insert completed ones for clean state
-      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
-
-      const logsToInsert = exercises.flatMap((ex) =>
+      // Build final set list — upsert to avoid duplicate-key errors
+      const logsToUpsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
           session_id: sessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
-          weight: log.weight ?? null,
+          weight: log.weight ?? 0,
           reps: log.reps || null,
           tempo: log.tempo || null,
           rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
           notes: log.notes || null,
+          logged_at: new Date().toISOString(),
         }))
       );
 
-      if (logsToInsert.length > 0) {
-        const { error: logsError } = await supabase.from("exercise_logs").insert(logsToInsert);
+      if (logsToUpsert.length > 0) {
+        const { error: logsError } = await supabase
+          .from("exercise_logs")
+          .upsert(logsToUpsert, { onConflict: "session_id,exercise_id,set_number" });
         if (logsError) throw logsError;
+      }
+
+      // Delete logs for exercises that were removed during session
+      const activeExerciseIds = exercises.map(e => e.id);
+      const { data: existingLogs } = await supabase
+        .from("exercise_logs")
+        .select("id, exercise_id")
+        .eq("session_id", sessionId);
+      
+      const orphanedLogIds = (existingLogs || [])
+        .filter(l => !activeExerciseIds.includes(l.exercise_id))
+        .map(l => l.id);
+      
+      if (orphanedLogIds.length > 0) {
+        await supabase.from("exercise_logs").delete().in("id", orphanedLogIds);
       }
 
       // Update session to completed
