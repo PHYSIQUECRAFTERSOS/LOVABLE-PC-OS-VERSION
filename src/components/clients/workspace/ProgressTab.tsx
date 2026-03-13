@@ -33,7 +33,7 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [measRes, photoRes] = await Promise.all([
+      const [measRes, photoRes, profileRes] = await Promise.all([
         supabase
           .from("body_measurements")
           .select("*")
