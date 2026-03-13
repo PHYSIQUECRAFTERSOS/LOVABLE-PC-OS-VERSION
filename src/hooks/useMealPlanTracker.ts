@@ -240,7 +240,10 @@ export function useMealPlanTracker(selectedDate?: Date) {
         return false;
       }
       queryClient.invalidateQueries({ queryKey: ["nutrition-logs"] });
-      emitNutritionLogsUpdated(dateStr);
+      emitNutritionLogsUpdated({
+        date: dateStr,
+        addedRows: inserted.map((row) => ({ id: row.id })),
+      });
       return true;
     },
     [user, dateStr, toast, queryClient]
