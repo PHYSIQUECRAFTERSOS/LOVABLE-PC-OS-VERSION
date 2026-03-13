@@ -452,7 +452,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     const isPR = checkPR(ex.id, ex.name, weight, log.reps);
 
     const newEx = [...exercises];
-    const completedLog = { ...newEx[exIdx].logs[setIdx], completed: true, isPR };
+    const completedLog = { ...newEx[exIdx].logs[setIdx], weight, completed: true, isPR };
     newEx[exIdx].logs[setIdx] = completedLog;
 
     // Auto-fill next incomplete set
