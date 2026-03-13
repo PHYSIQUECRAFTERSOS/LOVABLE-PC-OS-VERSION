@@ -28,7 +28,7 @@ import {
   type MealPlanFood,
   type MealPlanData,
 } from "@/hooks/useMealPlanTracker";
-import { format } from "date-fns";
+import { toLocalDateString } from "@/utils/localDate";
 
 interface ClientStructuredMealPlanProps {
   selectedDate?: Date;
