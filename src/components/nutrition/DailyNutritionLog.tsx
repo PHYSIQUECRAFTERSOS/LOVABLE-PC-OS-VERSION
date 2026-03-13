@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
@@ -76,6 +76,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [copyingMeal, setCopyingMeal] = useState<string | null>(null);
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
+  const latestFetchRef = useRef(0);
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
@@ -95,12 +96,17 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const fetchLogs = useCallback(async () => {
     if (!user) return;
 
+    const fetchId = latestFetchRef.current + 1;
+    latestFetchRef.current = fetchId;
+
     const { data, error } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", dateStr)
       .order("created_at", { ascending: true });
+
+    if (fetchId !== latestFetchRef.current) return;
 
     if (error) {
       console.error("[fetchLogs] Query error:", error);
@@ -117,6 +123,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         .from("food_items")
         .select("id, name")
         .in("id", foodIds);
+
+      if (fetchId !== latestFetchRef.current) return;
 
       if (foodsError) {
         console.error("[fetchLogs] Food names query error:", foodsError);
@@ -184,16 +192,47 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     };
   }, [dateStr, fetchLogs, refreshSuggestions]);
 
-  const deleteLog = async (id: string) => {
-    const { error } = await supabase.from("nutrition_logs").delete().eq("id", id);
+  const deleteLog = useCallback(async (id: string): Promise<boolean> => {
+    if (!user) {
+      toast({ title: "Please sign in again", variant: "destructive" });
+      return false;
+    }
+
+    const previous = logs;
+    setLogs((current) => current.filter((log) => log.id !== id));
+
+    const { data: deletedRows, error } = await supabase
+      .from("nutrition_logs")
+      .delete()
+      .eq("id", id)
+      .eq("client_id", user.id)
+      .select("id");
+
     if (error) {
       console.error("[deleteLog] Delete error:", error);
+      setLogs(previous);
       toast({ title: "Couldn't delete item", description: error.message, variant: "destructive" });
-      return;
+      return false;
     }
+
+    if (!deletedRows || deletedRows.length === 0) {
+      console.error("[deleteLog] Delete returned no rows", { id, userId: user.id });
+      setLogs(previous);
+      toast({
+        title: "Couldn't delete item",
+        description: "No item was removed. Please refresh and try again.",
+        variant: "destructive",
+      });
+      await fetchLogs();
+      return false;
+    }
+
     toast({ title: "Removed" });
+    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date: dateStr } }));
+    refreshSuggestions();
     await fetchLogs();
-  };
+    return true;
+  }, [user, logs, fetchLogs, toast, dateStr, refreshSuggestions]);
 
   const totals = logs.reduce(
     (acc, l) => ({
@@ -368,7 +407,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
                   {items.map((item) => (
-                    <SwipeToDelete key={item.id} onDelete={() => deleteLog(item.id)}>
+                    <SwipeToDelete key={item.id} onDelete={() => { void deleteLog(item.id); }}>
                       <button
                         onClick={() => setEditingLog(item)}
                         className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
@@ -431,6 +470,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         onOpenChange={(v) => { if (!v) setEditingLog(null); }}
         logEntry={editingLog}
         foodName={editingLog?.food_item_id ? (foodNames[editingLog.food_item_id] || "Food") : (editingLog?.custom_name || "Food")}
+        onDeleteLog={deleteLog}
         onUpdated={() => { setEditingLog(null); fetchLogs(); }}
       />
     </div>

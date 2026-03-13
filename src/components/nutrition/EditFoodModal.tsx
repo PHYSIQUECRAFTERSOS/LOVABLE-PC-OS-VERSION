@@ -31,11 +31,12 @@ interface EditFoodModalProps {
   } | null;
   foodName: string;
   onUpdated: () => void;
+  onDeleteLog?: (id: string) => Promise<boolean>;
 }
 
 type Unit = "g" | "oz";
 
-const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated }: EditFoodModalProps) => {
+const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDeleteLog }: EditFoodModalProps) => {
   const { toast } = useToast();
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState<Unit>("g");
@@ -138,12 +139,32 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated }: Ed
 
   const handleRemove = async () => {
     if (!logEntry) return;
-    const { error } = await supabase.from("nutrition_logs").delete().eq("id", logEntry.id);
+
+    if (onDeleteLog) {
+      const success = await onDeleteLog(logEntry.id);
+      if (!success) return;
+      onOpenChange(false);
+      onUpdated();
+      return;
+    }
+
+    const { data: deletedRows, error } = await supabase
+      .from("nutrition_logs")
+      .delete()
+      .eq("id", logEntry.id)
+      .select("id");
+
     if (error) {
       console.error("[EditFood] Delete error:", error);
       toast({ title: "Couldn't remove item", description: error.message, variant: "destructive" });
       return;
     }
+
+    if (!deletedRows || deletedRows.length === 0) {
+      toast({ title: "Couldn't remove item", description: "No item was deleted.", variant: "destructive" });
+      return;
+    }
+
     toast({ title: "Removed" });
     onOpenChange(false);
     onUpdated();
