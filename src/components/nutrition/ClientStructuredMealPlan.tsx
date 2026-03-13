@@ -177,6 +177,9 @@ const ClientStructuredMealPlan = ({
       toast({ title: "Failed to add item", description: "Item could not be saved. Please try again.", variant: "destructive" });
       return;
     }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date: dateStr } }));
+    }
     toast({ title: `${item.custom_name} logged` });
     onLogged?.();
   };
