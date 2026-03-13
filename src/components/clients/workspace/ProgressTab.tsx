@@ -106,6 +106,32 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
         </Card>
       </div>
 
+      {/* Coach toggle for measurements */}
+      <Card>
+        <CardContent className="pt-4 pb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Enable Body Measurements</p>
+            <p className="text-[10px] text-muted-foreground">Client will see measurement fields when logging body stats</p>
+          </div>
+          <Switch
+            checked={measurementsEnabled}
+            onCheckedChange={async (checked) => {
+              setMeasurementsEnabled(checked);
+              const { error } = await supabase
+                .from("profiles")
+                .update({ measurements_enabled: checked } as any)
+                .eq("user_id", clientId);
+              if (error) {
+                setMeasurementsEnabled(!checked);
+                toast({ title: "Failed to update setting", variant: "destructive" });
+              } else {
+                toast({ title: checked ? "Measurements enabled" : "Measurements disabled" });
+              }
+            }}
+          />
+        </CardContent>
+      </Card>
+
       {/* Photo Gallery */}
       <Card>
         <CardHeader className="pb-3">
