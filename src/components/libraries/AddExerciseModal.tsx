@@ -42,7 +42,7 @@ function getYouTubeVideoId(url: string): string | null {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onCreated: (createdExercise?: any) => Promise<void> | void;
   initialData?: any;
 }
 
@@ -147,6 +147,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
     setSaving(true);
     try {
       const isEditing = !!initialData?.id;
+      const exerciseSelect = "id, name, primary_muscle, secondary_muscle, equipment, youtube_url, youtube_thumbnail, video_url, description, category, created_at";
 
       const payload = {
         name: form.name.trim(),
@@ -160,31 +161,45 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
         category: form.category || "Strength",
       };
 
+      let createdExercise: any | undefined;
+
       if (isEditing) {
-        const { data, error } = await supabase.from("exercises").update(payload).eq("id", initialData.id).select();
+        const { data, error } = await supabase
+          .from("exercises")
+          .update(payload)
+          .eq("id", initialData.id)
+          .select(exerciseSelect)
+          .single();
+
         if (error) throw error;
-        if (!data || data.length === 0) throw new Error("Update returned no data — check permissions.");
+        createdExercise = data;
         toast({ title: "Exercise updated" });
       } else {
-        const { data, error } = await supabase.from("exercises").insert({
-          ...payload,
-          created_by: user.id,
-        }).select();
+        const { data, error } = await supabase
+          .from("exercises")
+          .insert({
+            ...payload,
+            created_by: user.id,
+          })
+          .select(exerciseSelect)
+          .single();
+
         if (error) {
           console.error("[AddExercise] Insert error:", error);
           throw error;
         }
-        if (!data || data.length === 0) throw new Error("Exercise was not saved — you may not have permission.");
-        console.log("[AddExercise] Saved successfully:", data[0].id, data[0].name);
-        toast({ title: "Exercise created", description: `"${data[0].name}" added to library.` });
+
+        createdExercise = data;
+        console.log("[AddExercise] Saved successfully:", data.id, data.name);
+        toast({ title: "Exercise created", description: `"${data.name}" added to library.` });
       }
 
       // Close modal first, then refresh list
       resetForm();
       onOpenChange(false);
-      
+
       // Refresh exercise list after modal closes
-      try { await onCreated(); } catch {} 
+      try { await onCreated(createdExercise); } catch {}
     } catch (err: any) {
       console.error("[AddExercise] Save failed:", err);
       toast({ title: "Failed to save exercise", description: err.message, variant: "destructive" });
