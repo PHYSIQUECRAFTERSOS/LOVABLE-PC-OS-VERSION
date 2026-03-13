@@ -227,7 +227,7 @@ const Training = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="cardio"><CardioManager /></TabsContent>
+          
           <TabsContent value="history"><WorkoutHistory /></TabsContent>
         </Tabs>
       </div>
