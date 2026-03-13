@@ -80,6 +80,19 @@ const EventDetailModal = ({
 
   if (!event) return null;
 
+  // Resolve effective type from event_type + title keywords
+  const resolveEventType = (ev: CalendarEvent): string => {
+    const t = ev.event_type;
+    if (t === "body_stats" || t === "photos") return t;
+    const titleLower = ev.title.toLowerCase();
+    if (titleLower.includes("body stat") || titleLower.includes("bodystats")) return "body_stats";
+    if (titleLower.includes("photo") || titleLower.includes("progress pic")) return "photos";
+    if (titleLower.includes("check-in") || titleLower.includes("checkin")) return "checkin";
+    return t;
+  };
+
+  const effectiveType = resolveEventType(event);
+
   const handleOpenAction = () => {
     onClose();
     if (event.event_type === "workout") {
@@ -88,13 +101,17 @@ const EventDetailModal = ({
       } else {
         navigate("/training");
       }
+    } else if (effectiveType === "body_stats") {
+      navigate(`/body-stats?eventId=${event.id}`);
+    } else if (effectiveType === "photos") {
+      navigate(`/progress?tab=photos&eventId=${event.id}`);
     } else {
       const route = EVENT_ROUTES[event.event_type];
       if (route) navigate(route);
     }
   };
 
-  const hasActionRoute = event.event_type === "workout" || !!EVENT_ROUTES[event.event_type];
+  const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
