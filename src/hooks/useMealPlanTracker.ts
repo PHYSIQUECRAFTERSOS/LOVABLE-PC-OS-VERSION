@@ -97,9 +97,14 @@ export function mapMealNameToKey(mealName: string): string {
   return "snack";
 }
 
-const emitNutritionLogsUpdated = (date: string) => {
+type NutritionLogsUpdatedEventDetail = {
+  date: string;
+  addedRows?: Array<{ id: string }>;
+};
+
+const emitNutritionLogsUpdated = (detail: NutritionLogsUpdatedEventDetail) => {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date } }));
+    window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail }));
   }
 };
 
