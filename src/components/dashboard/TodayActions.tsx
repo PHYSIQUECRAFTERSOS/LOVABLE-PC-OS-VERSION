@@ -221,9 +221,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       setCardioPopup({ eventId: action.id, title: action.title, description: action.description });
       return;
     }
-    // Body Stats: open popup
+    // Body Stats: navigate to full page
     if (action.type === "body_stats" && !action.completed) {
-      setBodyStatsPopup({ eventId: action.id });
+      navigate(`/body-stats?eventId=${action.id}`);
       return;
     }
     // Photos: open popup
