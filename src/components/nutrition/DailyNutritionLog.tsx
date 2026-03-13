@@ -45,6 +45,11 @@ interface Targets {
 
 const DEFAULT_TARGETS: Targets = { calories: 2000, protein: 150, carbs: 200, fat: 70, is_refeed: false };
 
+interface NutritionLogsUpdatedDetail {
+  date?: string;
+  addedRows?: Array<{ id: string }>;
+}
+
 const MEAL_SECTIONS = [
   { key: "breakfast", label: "Breakfast" },
   { key: "pre-workout", label: "Pre-Workout Meal" },
