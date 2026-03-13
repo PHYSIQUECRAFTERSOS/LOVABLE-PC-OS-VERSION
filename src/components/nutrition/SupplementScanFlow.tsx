@@ -149,8 +149,8 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
       // Step 1: Compress image (target < 300KB, max 800px)
       const compressStart = performance.now();
       const compressed = await imageCompression(file, {
-        maxWidthOrHeight: 800,
-        maxSizeMB: 0.3,
+        maxWidthOrHeight: 1200,
+        maxSizeMB: 0.5,
         useWebWorker: true,
         fileType: "image/jpeg",
       });
