@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
@@ -16,6 +16,7 @@ import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
 import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
 import EditFoodModal from "./EditFoodModal";
+import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 
 interface NutritionLog {
   id: string;
@@ -53,14 +54,21 @@ const MEAL_SECTIONS = [
   { key: "snack", label: "Snacks" },
 ] as const;
 
-const DailyNutritionLog = () => {
+interface DailyNutritionLogProps {
+  selectedDate?: Date;
+  onDateChange?: (date: Date) => void;
+}
+
+const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange }: DailyNutritionLogProps) => {
   const { user, role } = useAuth();
   const { toast } = useToast();
   const isCoach = role === "coach" || role === "admin";
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [internalSelectedDate, setInternalSelectedDate] = useState(new Date());
+  const selectedDate = controlledSelectedDate ?? internalSelectedDate;
+  const setSelectedDate = onDateChange ?? setInternalSelectedDate;
   const [loggerOpen, setLoggerOpen] = useState(false);
   const [activeMealType, setActiveMealType] = useState("snack");
   const [activeMealLabel, setActiveMealLabel] = useState("Snacks");
@@ -69,7 +77,7 @@ const DailyNutritionLog = () => {
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
-  const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
 
   // Meal plan tracker for "Copy From Meal Plan"
@@ -84,31 +92,51 @@ const DailyNutritionLog = () => {
   // Pick the first day from plan (could be enhanced to match day type)
   const activeDayId = mealPlanDays?.[0]?.id || null;
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", dateStr)
       .order("created_at", { ascending: true });
-    setLogs((data as NutritionLog[]) || []);
 
-    const foodIds = (data || []).filter(d => d.food_item_id).map(d => d.food_item_id!);
+    if (error) {
+      console.error("[fetchLogs] Query error:", error);
+      toast({ title: "Couldn't load food log", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const logData = (data as NutritionLog[]) || [];
+    setLogs(logData);
+
+    const foodIds = logData.filter((d) => d.food_item_id).map((d) => d.food_item_id!);
     if (foodIds.length > 0) {
-      const { data: foods } = await supabase
+      const { data: foods, error: foodsError } = await supabase
         .from("food_items")
         .select("id, name")
         .in("id", foodIds);
-      const names: Record<string, string> = {};
-      (foods || []).forEach(f => { names[f.id] = f.name; });
-      setFoodNames(names);
-    }
-  };
 
-  const fetchTargets = async () => {
+      if (foodsError) {
+        console.error("[fetchLogs] Food names query error:", foodsError);
+      }
+
+      const names: Record<string, string> = {};
+      (foods || []).forEach((f) => {
+        names[f.id] = f.name;
+      });
+      setFoodNames(names);
+      return;
+    }
+
+    setFoodNames({});
+  }, [user, dateStr, toast]);
+
+  const fetchTargets = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
+
+    const { data, error } = await supabase
       .from("nutrition_targets")
       .select("*")
       .eq("client_id", user.id)
@@ -116,6 +144,12 @@ const DailyNutritionLog = () => {
       .order("effective_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1);
+
+    if (error) {
+      console.error("[fetchTargets] Query error:", error);
+      return;
+    }
+
     if (data && data.length > 0) {
       setTargets({
         calories: data[0].calories,
@@ -124,13 +158,31 @@ const DailyNutritionLog = () => {
         fat: data[0].fat,
         is_refeed: data[0].is_refeed,
       });
+      return;
     }
-  };
+
+    setTargets(DEFAULT_TARGETS);
+  }, [user, dateStr]);
 
   useEffect(() => {
-    fetchLogs();
-    fetchTargets();
-  }, [user, dateStr, refreshCounter]);
+    void fetchLogs();
+    void fetchTargets();
+  }, [fetchLogs, fetchTargets, refreshCounter]);
+
+  useEffect(() => {
+    const handleLogsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ date?: string }>).detail;
+      if (!detail?.date || detail.date === dateStr) {
+        void fetchLogs();
+        refreshSuggestions();
+      }
+    };
+
+    window.addEventListener("nutrition-logs-updated", handleLogsUpdated as EventListener);
+    return () => {
+      window.removeEventListener("nutrition-logs-updated", handleLogsUpdated as EventListener);
+    };
+  }, [dateStr, fetchLogs, refreshSuggestions]);
 
   const deleteLog = async (id: string) => {
     const { error } = await supabase.from("nutrition_logs").delete().eq("id", id);
@@ -208,7 +260,7 @@ const DailyNutritionLog = () => {
     return getItemsForMealSection(activeDayId, mealKey).length > 0;
   };
 
-  const isToday = format(new Date(), "yyyy-MM-dd") === dateStr;
+  const isToday = getLocalDateString() === dateStr;
 
   return (
     <div className="space-y-5">
@@ -269,7 +321,7 @@ const DailyNutritionLog = () => {
       {/* Meal Sections */}
       <div className="space-y-4">
         {MEAL_SECTIONS.map(({ key, label }) => {
-          const items = logs.filter(l => l.meal_type === key);
+          const items = logs.filter((l) => mapMealNameToKey(l.meal_type) === key);
           const mealTotals = getMealTotals(items);
           const hasplanForMeal = !isCoach && hasPlanItems(key);
 

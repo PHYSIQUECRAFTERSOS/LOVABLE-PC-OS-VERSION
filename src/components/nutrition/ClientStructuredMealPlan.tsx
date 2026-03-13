@@ -28,7 +28,7 @@ import {
   type MealPlanFood,
   type MealPlanData,
 } from "@/hooks/useMealPlanTracker";
-import { format } from "date-fns";
+import { toLocalDateString } from "@/utils/localDate";
 
 interface ClientStructuredMealPlanProps {
   selectedDate?: Date;
@@ -69,7 +69,7 @@ const ClientStructuredMealPlan = ({
     if (defaultDayType) { setActiveDayType(defaultDayType); return; }
 
     const checkToday = async () => {
-      const today = format(selectedDate || new Date(), "yyyy-MM-dd");
+      const today = toLocalDateString(selectedDate || new Date());
       const { data: events } = await supabase
         .from("calendar_events")
         .select("event_type")
@@ -153,7 +153,7 @@ const ClientStructuredMealPlan = ({
   const handleAddSingleItem = async (item: MealPlanFood) => {
     if (!user) return;
     const mealKey = mapMealNameToKey(item.meal_name);
-    const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+    const dateStr = toLocalDateString(selectedDate || new Date());
     const { data: inserted, error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: item.food_item_id,
@@ -176,6 +176,9 @@ const ClientStructuredMealPlan = ({
       console.error("[handleAddSingleItem] Insert returned no rows — possible RLS block");
       toast({ title: "Failed to add item", description: "Item could not be saved. Please try again.", variant: "destructive" });
       return;
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date: dateStr } }));
     }
     toast({ title: `${item.custom_name} logged` });
     onLogged?.();

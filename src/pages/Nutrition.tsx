@@ -21,6 +21,7 @@ const Nutrition = () => {
   const { role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
   const [trackerKey, setTrackerKey] = useState(0);
+  const [nutritionDate, setNutritionDate] = useState(new Date());
   const refreshTracker = useCallback(() => setTrackerKey((k) => k + 1), []);
 
   return (
@@ -71,7 +72,7 @@ const Nutrition = () => {
             )}
           </TabsList>
           <TabsContent value="tracker">
-            <DailyNutritionLog key={trackerKey} />
+            <DailyNutritionLog key={trackerKey} selectedDate={nutritionDate} onDateChange={setNutritionDate} />
           </TabsContent>
           <TabsContent value="micros" className="space-y-6">
             <MicronutrientDashboard />
@@ -100,7 +101,7 @@ const Nutrition = () => {
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
-             <ClientStructuredMealPlan onLogged={refreshTracker} />
+             <ClientStructuredMealPlan selectedDate={nutritionDate} onLogged={refreshTracker} />
             </TabsContent>
           )}
         </Tabs>
