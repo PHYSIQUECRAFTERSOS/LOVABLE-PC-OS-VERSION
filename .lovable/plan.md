@@ -1,122 +1,76 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Health Integrations Overhaul + Remove Cardio Tab
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Honest Assessment
 
----
+Before diving in, here's the reality of each integration:
 
-## Phase 1 — MVP (Core Platform)
+**1. Remove Cardio tab from Training** — Simple UI change. Done in one edit.
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+**2. Apple Health** — **Cannot work from a PWA.** Apple Health (HealthKit) is only accessible to native iOS apps compiled with Xcode. No browser, PWA, or web view can access it. The current code checks `Capacitor.isNativePlatform()` which is always `false` for your PWA. The `DeviceMotionEvent` permission (used in onboarding) grants access to the accelerometer — NOT to Apple Health data. These are completely different things. To properly sync Apple Health, you would need to build and distribute a native iOS app via Xcode using Capacitor with a HealthKit plugin.
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+**3. Fitbit** — **Achievable with OAuth.** Fitbit has a well-documented Web API. The flow: user clicks Connect → redirected to Fitbit OAuth → returns with auth code → edge function exchanges code for tokens → tokens stored → sync function fetches step data. This requires a Fitbit Developer App (client ID + secret).
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+**4. Google Fit** — **Achievable with OAuth**, same pattern as Fitbit. Requires Google Cloud OAuth credentials with Fitness API scope.
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+**5. Whoop** — **Achievable with OAuth**, but Whoop's API does not expose step counts (their API focuses on recovery, strain, sleep). Limited usefulness for step tracking.
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+## What I'll Implement
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+### Phase 1: Remove Cardio Tab (Training page)
+- Remove the `<TabsTrigger value="cardio">` and `<TabsContent value="cardio">` from `Training.tsx`
+- Remove the `CardioManager` import
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### Phase 2: Fix Health Integrations UI to be honest
+- **Apple Health**: Change the "Connect" button to clearly state it requires the native app (not PWA). Show "Available in native app only" instead of the misleading modal about adding to Home Screen.
+- **Google Fit**: Same — mark as requiring OAuth setup.
+- Remove the fake "connected" state for Fitbit/Whoop that currently just inserts a DB row with no real tokens.
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+### Phase 3: Implement Real Fitbit OAuth Flow
+This is the most impactful integration since you already clicked "Connect" on Fitbit. Full OAuth implementation:
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+1. **Edge function: `fitbit-auth-callback`** — Handles OAuth code exchange, stores tokens in `wearable_connections`
+2. **Edge function: `fitbit-auth-start`** — Returns the Fitbit OAuth authorization URL
+3. **Update `HealthIntegrations.tsx`** — "Connect Fitbit" opens real OAuth flow
+4. **Update `sync-wearable-steps`** — Already handles Fitbit API calls, just needs real tokens
+5. **Token refresh** — Already scaffolded in `sync-wearable-steps-batch`
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+**Requires**: Fitbit Developer App credentials (client ID + client secret). I'll need to ask you to provide these.
 
----
+### Phase 4: Google Fit OAuth (same pattern)
+Same architecture as Fitbit but with Google Fitness API endpoints.
 
-## Phase 2 — Advanced Features
+**Requires**: Google Cloud OAuth credentials with Fitness API scope.
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+## Technical Details
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+### Fitbit OAuth Flow
+```text
+User clicks "Connect Fitbit"
+  → Frontend calls edge fn `fitbit-auth-start`
+  → Returns Fitbit OAuth URL
+  → User redirects to fitbit.com, grants permission
+  → Fitbit redirects back to callback URL
+  → Edge fn `fitbit-auth-callback` exchanges code for tokens
+  → Stores access_token, refresh_token, expires_at in wearable_connections
+  → Redirects user back to /profile with success param
+  → "Sync Now" calls sync-wearable-steps with real token
+```
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+### Files to modify
+- `src/pages/Training.tsx` — Remove cardio tab
+- `src/components/settings/HealthIntegrations.tsx` — Honest provider states, real OAuth flows
+- `supabase/functions/fitbit-auth-start/index.ts` — New: generates OAuth URL
+- `supabase/functions/fitbit-auth-callback/index.ts` — New: exchanges code, stores tokens
+- `supabase/functions/google-fit-auth-start/index.ts` — New
+- `supabase/functions/google-fit-auth-callback/index.ts` — New
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
+### Prerequisite
+Before implementing Fitbit/Google Fit OAuth, you'll need to create developer apps on those platforms and provide the client ID + secret. I'll walk you through that step by step.
 
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+### What stays as-is
+- Manual step entry (always works, no API needed)
+- The `daily_health_metrics` table and step tracking UI
+- Whoop (marked as "coming soon" — their API doesn't expose steps)
 
