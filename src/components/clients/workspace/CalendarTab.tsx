@@ -561,9 +561,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 </div>
                 <div className="space-y-0.5">
                   {dayItems.slice(0, 3).map((item: any, i: number) => (
-                    <div key={item.id + i} draggable={!item.isSession}
+                    <button key={item.id + i} draggable={!item.isSession}
                       onDragStart={e => handleDragStart(e, item)}
-                      className="flex items-center gap-1 cursor-grab active:cursor-grabbing">
+                      onClick={(e) => { e.stopPropagation(); handleEventClick(item); }}
+                      className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                       {item.is_completed ? (
                         <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
                           <Check className="h-1.5 w-1.5 text-white" />
@@ -572,10 +573,15 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                         <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
                       )}
                       <span className="text-[9px] truncate leading-tight">{item.title}</span>
-                    </div>
+                    </button>
                   ))}
                   {dayItems.length > 3 && (
-                    <span className="text-[9px] text-muted-foreground pl-3">+{dayItems.length - 3} more</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
+                      className="w-full text-left text-[9px] text-primary font-medium pl-3 hover:underline"
+                    >
+                      +{dayItems.length - 3} more
+                    </button>
                   )}
                 </div>
               </div>
