@@ -229,6 +229,33 @@ export type Database = {
           },
         ]
       }
+      badges: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          icon: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       body_measurements: {
         Row: {
           blood_pressure_diastolic: number | null
@@ -576,6 +603,156 @@ export type Database = {
             columns: ["assignment_id"]
             isOneToOne: false
             referencedRelation: "cardio_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_logs: {
+        Row: {
+          challenge_id: string
+          created_at: string | null
+          id: string
+          log_date: string
+          metadata: Json | null
+          source: string | null
+          user_id: string
+          value: number
+        }
+        Insert: {
+          challenge_id: string
+          created_at?: string | null
+          id?: string
+          log_date: string
+          metadata?: Json | null
+          source?: string | null
+          user_id: string
+          value: number
+        }
+        Update: {
+          challenge_id?: string
+          created_at?: string | null
+          id?: string
+          log_date?: string
+          metadata?: Json | null
+          source?: string | null
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_logs_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenge_participants: {
+        Row: {
+          best_value: number | null
+          challenge_id: string
+          completed_at: string | null
+          current_value: number | null
+          id: string
+          joined_at: string | null
+          rank: number | null
+          status: string | null
+          user_id: string
+          xp_earned: number | null
+        }
+        Insert: {
+          best_value?: number | null
+          challenge_id: string
+          completed_at?: string | null
+          current_value?: number | null
+          id?: string
+          joined_at?: string | null
+          rank?: number | null
+          status?: string | null
+          user_id: string
+          xp_earned?: number | null
+        }
+        Update: {
+          best_value?: number | null
+          challenge_id?: string
+          completed_at?: string | null
+          current_value?: number | null
+          id?: string
+          joined_at?: string | null
+          rank?: number | null
+          status?: string | null
+          user_id?: string
+          xp_earned?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_participants_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      challenges: {
+        Row: {
+          badge_id: string | null
+          challenge_type: string
+          config: Json
+          created_at: string | null
+          created_by: string
+          description: string | null
+          end_date: string
+          id: string
+          max_participants: number | null
+          start_date: string
+          status: string
+          title: string
+          updated_at: string | null
+          visibility: string | null
+          xp_reward: number
+        }
+        Insert: {
+          badge_id?: string | null
+          challenge_type: string
+          config?: Json
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          end_date: string
+          id?: string
+          max_participants?: number | null
+          start_date: string
+          status?: string
+          title: string
+          updated_at?: string | null
+          visibility?: string | null
+          xp_reward?: number
+        }
+        Update: {
+          badge_id?: string | null
+          challenge_type?: string
+          config?: Json
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          end_date?: string
+          id?: string
+          max_participants?: number | null
+          start_date?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+          visibility?: string | null
+          xp_reward?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
             referencedColumns: ["id"]
           },
         ]
@@ -5081,6 +5258,72 @@ export type Database = {
           },
         ]
       }
+      tiers: {
+        Row: {
+          color: string
+          icon: string | null
+          id: string
+          min_xp: number
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          icon?: string | null
+          id?: string
+          min_xp?: number
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          icon?: string | null
+          id?: string
+          min_xp?: number
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      user_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string | null
+          id: string
+          source_challenge_id: string | null
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string | null
+          id?: string
+          source_challenge_id?: string | null
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string | null
+          id?: string
+          source_challenge_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_badges_source_challenge_id_fkey"
+            columns: ["source_challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_food_serving_memory: {
         Row: {
           food_id: string
@@ -5174,6 +5417,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_xp_summary: {
+        Row: {
+          comebacks: number | null
+          current_streak: number | null
+          current_tier_id: string | null
+          elite_weeks: number | null
+          lifetime_avg_pct: number | null
+          longest_streak: number | null
+          resets: number | null
+          total_xp: number | null
+          user_id: string
+        }
+        Insert: {
+          comebacks?: number | null
+          current_streak?: number | null
+          current_tier_id?: string | null
+          elite_weeks?: number | null
+          lifetime_avg_pct?: number | null
+          longest_streak?: number | null
+          resets?: number | null
+          total_xp?: number | null
+          user_id: string
+        }
+        Update: {
+          comebacks?: number | null
+          current_streak?: number | null
+          current_tier_id?: string | null
+          elite_weeks?: number | null
+          lifetime_avg_pct?: number | null
+          longest_streak?: number | null
+          resets?: number | null
+          total_xp?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_xp_summary_current_tier_id_fkey"
+            columns: ["current_tier_id"]
+            isOneToOne: false
+            referencedRelation: "tiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       water_logs: {
         Row: {
@@ -5705,6 +5992,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      xp_ledger: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          source_id: string | null
+          source_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          source_id?: string | null
+          source_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          source_id?: string | null
+          source_type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
