@@ -69,6 +69,11 @@ const CARDIO_TARGET_TYPES = [
 interface CalEvent {
   id: string; title: string; event_date: string; event_type: string;
   is_completed: boolean; color: string | null; event_time: string | null;
+  description?: string | null; notes?: string | null;
+  linked_workout_id?: string | null; linked_cardio_id?: string | null;
+  linked_checkin_id?: string | null; is_recurring?: boolean;
+  recurrence_pattern?: string | null; target_client_id?: string | null;
+  completed_at?: string | null; end_time?: string | null; user_id?: string;
 }
 
 const CalendarTab = ({ clientId }: { clientId: string }) => {
