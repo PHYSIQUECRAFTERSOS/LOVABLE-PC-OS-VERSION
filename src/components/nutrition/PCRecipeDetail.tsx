@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Minus, Plus, Youtube } from "lucide-react";
+import { ArrowLeft, Minus, Plus } from "lucide-react";
 
 interface PCRecipeDetailProps {
   recipe: any;
