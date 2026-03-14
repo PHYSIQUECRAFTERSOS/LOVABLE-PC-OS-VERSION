@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-// Cast supabase client for new tables not yet in auto-generated types
+// Cast for new tables not yet in auto-generated types
 const db = supabase as any;
 
 export interface Challenge {
@@ -60,7 +60,6 @@ export interface UserXPSummary {
   comebacks: number;
   resets: number;
   lifetime_avg_pct: number;
-  // joined
   full_name?: string;
   avatar_url?: string;
   tier_name?: string;
@@ -81,10 +80,7 @@ export function useTiers() {
   return useQuery({
     queryKey: ["tiers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tiers")
-        .select("*")
-        .order("sort_order");
+      const { data, error } = await db.from("tiers").select("*").order("sort_order");
       if (error) throw error;
       return data as Tier[];
     },
@@ -95,7 +91,7 @@ export function useBadges() {
   return useQuery({
     queryKey: ["badges"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("badges").select("*").order("name");
+      const { data, error } = await db.from("badges").select("*").order("name");
       if (error) throw error;
       return data as Badge[];
     },
@@ -107,25 +103,25 @@ export function useChallenges() {
   return useQuery({
     queryKey: ["challenges"],
     queryFn: async () => {
-      const { data: challenges, error } = await supabase
+      const { data: challenges, error } = await db
         .from("challenges")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
       if (!challenges?.length) return [];
 
-      const challengeIds = challenges.map((c) => c.id);
-      const { data: participants } = await supabase
+      const challengeIds = challenges.map((c: any) => c.id);
+      const { data: participants } = await db
         .from("challenge_participants")
         .select("challenge_id, user_id")
         .in("challenge_id", challengeIds);
 
-      return challenges.map((c) => {
-        const pList = (participants || []).filter((p) => p.challenge_id === c.id);
+      return challenges.map((c: any) => {
+        const pList = (participants || []).filter((p: any) => p.challenge_id === c.id);
         return {
           ...c,
           participant_count: pList.length,
-          is_joined: user ? pList.some((p) => p.user_id === user.id) : false,
+          is_joined: user ? pList.some((p: any) => p.user_id === user.id) : false,
         } as Challenge;
       });
     },
@@ -138,7 +134,7 @@ export function useChallengeDetail(challengeId: string | null) {
     queryKey: ["challenge-detail", challengeId],
     queryFn: async () => {
       if (!challengeId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("challenges")
         .select("*")
         .eq("id", challengeId)
@@ -155,7 +151,7 @@ export function useChallengeParticipants(challengeId: string | null) {
     queryKey: ["challenge-participants", challengeId],
     queryFn: async () => {
       if (!challengeId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("challenge_participants")
         .select("*")
         .eq("challenge_id", challengeId)
@@ -164,14 +160,14 @@ export function useChallengeParticipants(challengeId: string | null) {
       if (error) throw error;
       if (!data?.length) return [];
 
-      const userIds = data.map((p) => p.user_id);
+      const userIds = data.map((p: any) => p.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, full_name, avatar_url")
         .in("user_id", userIds);
-      const profileMap = Object.fromEntries((profiles || []).map((p) => [p.user_id, p]));
+      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
 
-      return data.map((p, i) => ({
+      return data.map((p: any, i: number) => ({
         ...p,
         rank: i + 1,
         full_name: profileMap[p.user_id]?.full_name || "Unknown",
@@ -188,7 +184,7 @@ export function useMyXPSummary() {
     queryKey: ["my-xp-summary", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data } = await db
         .from("user_xp_summary")
         .select("*")
         .eq("user_id", user.id)
@@ -198,7 +194,7 @@ export function useMyXPSummary() {
       let tier_name = "Bronze";
       let tier_color = "#CD7F32";
       if (data.current_tier_id) {
-        const { data: tier } = await supabase
+        const { data: tier } = await db
           .from("tiers")
           .select("name, color")
           .eq("id", data.current_tier_id)
@@ -220,7 +216,7 @@ export function useMyUserBadges() {
     queryKey: ["my-user-badges", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from("user_badges")
         .select("*, badges:badge_id(name, icon, description, category)")
         .eq("user_id", user.id)
@@ -235,7 +231,7 @@ export function useGlobalXPLeaderboard() {
   return useQuery({
     queryKey: ["global-xp-leaderboard"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("user_xp_summary")
         .select("*")
         .order("total_xp", { ascending: false })
@@ -243,18 +239,18 @@ export function useGlobalXPLeaderboard() {
       if (error) throw error;
       if (!data?.length) return [];
 
-      const userIds = data.map((d) => d.user_id);
+      const userIds = data.map((d: any) => d.user_id);
       const [profilesRes, tiersRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
-        supabase.from("tiers").select("*").order("sort_order"),
+        db.from("tiers").select("*").order("sort_order"),
       ]);
 
-      const profileMap = Object.fromEntries((profilesRes.data || []).map((p) => [p.user_id, p]));
+      const profileMap = Object.fromEntries((profilesRes.data || []).map((p: any) => [p.user_id, p]));
       const tiers = tiersRes.data || [];
 
-      return data.map((d) => {
+      return data.map((d: any) => {
         const tier = d.current_tier_id
-          ? tiers.find((t) => t.id === d.current_tier_id)
+          ? tiers.find((t: any) => t.id === d.current_tier_id)
           : tiers[0];
         return {
           ...d,
@@ -274,9 +270,9 @@ export function useCreateChallenge() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (challenge: Partial<Challenge>) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("challenges")
-        .insert(challenge as any)
+        .insert(challenge)
         .select()
         .single();
       if (error) throw error;
@@ -286,7 +282,7 @@ export function useCreateChallenge() {
       qc.invalidateQueries({ queryKey: ["challenges"] });
       toast.success("Challenge created!");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 }
 
@@ -295,17 +291,17 @@ export function useJoinChallenge() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (challengeId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("challenge_participants")
         .insert({ challenge_id: challengeId, user_id: user!.id });
       if (error) throw error;
     },
-    onSuccess: (_, challengeId) => {
+    onSuccess: (_: any, challengeId: string) => {
       qc.invalidateQueries({ queryKey: ["challenges"] });
       qc.invalidateQueries({ queryKey: ["challenge-participants", challengeId] });
       toast.success("Joined challenge!");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 }
 
@@ -314,14 +310,12 @@ export function useLogChallengeEntry() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ challengeId, value, logDate }: { challengeId: string; value: number; logDate: string }) => {
-      // Insert log
-      const { error: logError } = await supabase
+      const { error: logError } = await db
         .from("challenge_logs")
         .insert({ challenge_id: challengeId, user_id: user!.id, log_date: logDate, value, source: "manual" });
       if (logError) throw logError;
 
-      // Update participant best_value and current_value
-      const { data: participant } = await supabase
+      const { data: participant } = await db
         .from("challenge_participants")
         .select("*")
         .eq("challenge_id", challengeId)
@@ -329,27 +323,26 @@ export function useLogChallengeEntry() {
         .maybeSingle();
 
       if (participant) {
-        // For steps: aggregate total
-        const { data: logs } = await supabase
+        const { data: logs } = await db
           .from("challenge_logs")
           .select("value")
           .eq("challenge_id", challengeId)
           .eq("user_id", user!.id);
-        const total = (logs || []).reduce((sum, l) => sum + Number(l.value), 0);
+        const total = (logs || []).reduce((sum: number, l: any) => sum + Number(l.value), 0);
         const best = Math.max(Number(participant.best_value), value);
 
-        await supabase
+        await db
           .from("challenge_participants")
           .update({ current_value: total, best_value: best })
           .eq("id", participant.id);
       }
     },
-    onSuccess: (_, { challengeId }) => {
+    onSuccess: (_: any, { challengeId }: { challengeId: string }) => {
       qc.invalidateQueries({ queryKey: ["challenge-participants", challengeId] });
       qc.invalidateQueries({ queryKey: ["challenges"] });
       toast.success("Entry logged!");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 }
 
@@ -357,18 +350,18 @@ export function useCreateBadge() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (badge: { name: string; icon: string; description?: string; category?: string }) => {
-      const { data, error } = await supabase.from("badges").insert(badge).select().single();
+      const { data, error } = await db.from("badges").insert(badge).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["badges"] }),
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => toast.error(e.message),
   });
 }
 
 // XP helpers
 export async function awardXP(userId: string, amount: number, sourceType: string, sourceId: string | null, description: string) {
-  const { error } = await supabase.from("xp_ledger").insert({
+  const { error } = await db.from("xp_ledger").insert({
     user_id: userId,
     amount,
     source_type: sourceType,
@@ -377,21 +370,19 @@ export async function awardXP(userId: string, amount: number, sourceType: string
   });
   if (error) throw error;
 
-  // Recalculate total XP
-  const { data: ledger } = await supabase
+  const { data: ledger } = await db
     .from("xp_ledger")
     .select("amount")
     .eq("user_id", userId);
-  const totalXP = (ledger || []).reduce((sum, l) => sum + l.amount, 0);
+  const totalXP = (ledger || []).reduce((sum: number, l: any) => sum + l.amount, 0);
 
-  // Get correct tier
-  const { data: tiers } = await supabase
+  const { data: tiers } = await db
     .from("tiers")
     .select("*")
     .order("min_xp", { ascending: false });
-  const tier = (tiers || []).find((t) => totalXP >= t.min_xp) || tiers?.[tiers.length - 1];
+  const tier = (tiers || []).find((t: any) => totalXP >= t.min_xp) || tiers?.[tiers.length - 1];
 
-  await supabase.from("user_xp_summary").upsert({
+  await db.from("user_xp_summary").upsert({
     user_id: userId,
     total_xp: totalXP,
     current_tier_id: tier?.id || null,
