@@ -62,6 +62,9 @@ const ClientDashboard = () => {
 
   return (
     <>
+      {/* Challenge Banner */}
+      <ChallengeBanner />
+
       {/* Date Navigator */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
