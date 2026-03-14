@@ -1,119 +1,122 @@
 
 
-# Fix & Overhaul: Challenges System with In-Challenge Tiers
+# Physique Crafters — Transformation Operating System
 
-## Problem Analysis
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-**Black screen bug**: After publishing a challenge, the wizard closes but the Challenges page goes blank. Root cause: the `handlePublish` function calls `createChallenge.mutateAsync()` which inserts into `challenges` — but the SELECT RLS policy (`Read published challenges`) filters by `status <> 'draft' OR created_by = auth.uid()`. The insert works, but the subsequent query invalidation may fail silently if the `as any` cast causes a type mismatch or the toast/reset happens before the query refetch completes. Additionally, the `useChallenges` hook fetches participants in a second query using `.in("challenge_id", challengeIds)` — if `challengeIds` is empty, this returns an error on some Supabase versions. The page rendering depends on this query succeeding.
+---
 
-**Missing tier system within challenges**: Currently challenges only track raw values. The Trainerize-style progression tiers (where participants climb through ranks based on points) don't exist.
+## Phase 1 — MVP (Core Platform)
 
-## What Changes
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-### 1. Database: Add `challenge_tiers` table and `challenge_scoring_rules`
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-**`challenge_scoring_rules`** — stores per-challenge point rules:
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid PK | |
-| challenge_id | uuid FK → challenges | ON DELETE CASCADE |
-| action_type | text | "workout_completed", "personal_best", "daily_logging", "streak_bonus" |
-| points | integer | e.g. 1, 5, 3 |
-| daily_cap | integer DEFAULT 1 | Max times per day this action earns points |
-| is_enabled | boolean DEFAULT true | |
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-**`challenge_tiers`** — defines progression levels within a challenge:
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid PK | |
-| challenge_id | uuid FK → challenges | ON DELETE CASCADE |
-| name | text | "Bronze", "Silver", "Gold", "Platinum", "Diamond" |
-| min_points | integer | Threshold to enter tier |
-| color | text | Hex color |
-| icon | text | Emoji or icon name |
-| sort_order | integer | Display ordering |
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-Default tier presets seeded per challenge:
-- Bronze: 0-25 pts (#CD7F32)
-- Silver: 26-50 pts (#C0C0C0)
-- Gold: 51-75 pts (#D4A017)
-- Platinum: 76-100 pts (#00CED1)
-- Diamond: 101+ pts (#B9F2FF)
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-RLS: Same pattern as other challenge tables — authenticated read, coach/admin write.
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-### 2. Fix Black Screen Bug
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-In `CreateChallengeWizard.tsx`:
-- Wrap `handlePublish` in try/catch with proper error handling instead of letting exceptions silently kill the render
-- Add error boundary toast on failure
-- Ensure `reset()` and `onOpenChange(false)` only fire after successful mutation
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-In `useChallenges.ts`:
-- Guard the `.in("challenge_id", challengeIds)` call — if `challengeIds` is empty, skip the participants query and return challenges with `participant_count: 0`
-- Add `onError` handler to the `useChallenges` query to prevent silent failures
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-### 3. Wizard Step 2 Overhaul: Scoring Rules & Tiers
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
 
-Add a new section to the Configure step (or a dedicated "Rules & Scoring" step between Configure and Participants):
+---
 
-**Scoring Rules** — checkboxes with point inputs:
-- Workout Completed: [x] — `1` pts (daily cap: 1x)
-- Personal Best Set: [x] — `5` pts (daily cap: 1x)
-- Daily Logging (meals/steps/custom): [x] — `1` pts (daily cap: 1x)
-- Streak Bonus (7+ day streak): [x] — `3` pts (daily cap: 1x)
+## Phase 2 — Advanced Features
 
-**Challenge Tiers** — editable table pre-filled with defaults:
-- Bronze: 0 pts
-- Silver: 26 pts
-- Gold: 51 pts
-- Platinum: 76 pts
-- Diamond: 101 pts
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
 
-Coach can rename tiers, adjust point thresholds, add/remove tiers.
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
 
-### 4. Challenge Detail View Overhaul
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
 
-Replace the flat leaderboard with a tiered visual:
-- Show tier progress bar at top (which tier the user is in, points to next)
-- Leaderboard grouped by tier with colored tier badges
-- Each participant shows their current points, tier badge, and rank within their tier
-- Mountain/path visualization showing participant avatars at their tier level (inspired by the Trainerize screenshot)
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
 
-### 5. Updated `handlePublish` Flow
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
 
-After creating the challenge:
-1. Insert challenge → get `challenge.id`
-2. Insert `challenge_scoring_rules` rows for enabled rules
-3. Insert `challenge_tiers` rows (5 default tiers)
-4. If enrollment = "all", auto-insert all clients into `challenge_participants`
-5. Close wizard, invalidate queries
+---
 
-### 6. Points Tracking
-
-Add a `challenge_points` table (or reuse `challenge_logs` with `source = "points"`):
-- When a workout is completed → check active challenges → award points per scoring rules
-- When a PR is hit → check active challenges → award points
-- Daily cap enforced by checking `challenge_logs` for same `user_id + challenge_id + log_date + action_type`
-
-Update `challenge_participants.current_value` to reflect total points earned.
-
-### 7. Files to Create/Edit
-
-| File | Action |
-|------|--------|
-| Migration SQL | CREATE `challenge_tiers`, `challenge_scoring_rules` tables with RLS |
-| `src/hooks/useChallenges.ts` | Fix empty array guard, add tier/scoring hooks, fix error handling |
-| `src/components/challenges/CreateChallengeWizard.tsx` | Add scoring rules step, tier config, fix publish error handling |
-| `src/components/challenges/ChallengeDetailView.tsx` | Add tiered leaderboard, tier progress, points display |
-| `src/components/challenges/ChallengesTab.tsx` | Show tier badge on challenge cards |
-| `src/components/challenges/ChallengeTierProgress.tsx` | New: visual tier progression component |
-
-### 8. Key UX Improvements
-
-- Challenge cards show a tier badge indicator (current user's tier in that challenge)
-- "Rules & Settings" section visible on challenge detail (like Trainerize screenshot)
-- Points breakdown visible per participant
-- Threshold display: "Everyone who reaches X points enters [Tier Name]"
-- Daily cap indicator: "Each action earns points 1x per day"
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 

@@ -8,16 +8,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Trophy, Footprints, SlidersHorizontal, ChevronLeft, ChevronRight, Check, Sparkles, FileText, PlusCircle } from "lucide-react";
-import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate, type ChallengeTemplate } from "@/hooks/useChallenges";
+import { Switch } from "@/components/ui/switch";
+import { Trophy, Footprints, SlidersHorizontal, ChevronLeft, ChevronRight, Check, Sparkles, FileText, PlusCircle, Dumbbell, Target, Flame, Zap } from "lucide-react";
+import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate, insertDefaultChallengeTiersAndRules, DEFAULT_CHALLENGE_TIERS, DEFAULT_SCORING_RULES, type ChallengeTemplate } from "@/hooks/useChallenges";
 import { supabase } from "@/integrations/supabase/client";
 import { useAllClients } from "@/hooks/useCulture";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }
+
+const SCORING_ACTION_LABELS: Record<string, { label: string; desc: string; icon: React.ElementType }> = {
+  workout_completed: { label: "Workout Completed", desc: "Earn points for each workout logged", icon: Dumbbell },
+  personal_best: { label: "Personal Best Set", desc: "Bonus for hitting a new PR", icon: Trophy },
+  daily_logging: { label: "Daily Logging", desc: "Points for logging meals/steps/metrics", icon: Target },
+  streak_bonus: { label: "Streak Bonus (7+ days)", desc: "Reward consistency with streaks", icon: Flame },
+};
 
 const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   const { user } = useAuth();
@@ -28,11 +37,11 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   const { data: templates } = useChallengeTemplates();
   const saveTemplate = useSaveTemplate();
 
-  // Wizard starts at step -1 (template picker) if templates exist, else step 0
   const hasTemplates = (templates || []).length > 0;
   const [step, setStep] = useState(hasTemplates ? -1 : 0);
   const [challengeType, setChallengeType] = useState<"pr" | "steps" | "custom" | "">("");
   const [fromTemplateId, setFromTemplateId] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Config
   const [title, setTitle] = useState("");
@@ -51,6 +60,16 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   const [customMetricUnit, setCustomMetricUnit] = useState("");
   const [customDirection, setCustomDirection] = useState("higher_is_better");
   const [customTargetValue, setCustomTargetValue] = useState<number | "">("");
+
+  // Scoring rules
+  const [scoringRules, setScoringRules] = useState(
+    DEFAULT_SCORING_RULES.map((r) => ({ ...r }))
+  );
+
+  // Tiers
+  const [challengeTiers, setChallengeTiers] = useState(
+    DEFAULT_CHALLENGE_TIERS.map((t) => ({ ...t }))
+  );
 
   // Participants
   const [enrollment, setEnrollment] = useState("all");
@@ -72,13 +91,13 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
     }
   }, [open, hasTemplates]);
 
-  const STEPS = ["Type", "Configure", "Participants", "Rewards", "Review"];
-  const stepIndex = step + 1; // step -1 = template picker, 0 = type, etc.
+  const STEPS = ["Type", "Configure", "Rules & Scoring", "Participants", "Rewards", "Review"];
 
   const reset = () => {
     setStep(hasTemplates ? -1 : 0);
     setChallengeType("");
     setFromTemplateId(null);
+    setIsPublishing(false);
     setTitle("");
     setDescription("");
     setExerciseName("");
@@ -93,6 +112,8 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
     setCustomMetricUnit("");
     setCustomDirection("higher_is_better");
     setCustomTargetValue("");
+    setScoringRules(DEFAULT_SCORING_RULES.map((r) => ({ ...r })));
+    setChallengeTiers(DEFAULT_CHALLENGE_TIERS.map((t) => ({ ...t })));
     setEnrollment("all");
     setMaxParticipants("");
     setSelectedClients([]);
@@ -131,11 +152,11 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
       setCustomDirection(config.direction || "higher_is_better");
       setCustomTargetValue(config.target_value ?? "");
     }
-    setStep(0); // go to type step (pre-selected)
+    setStep(0);
   };
 
   const canNext = () => {
-    if (step === -1) return true; // template step always navigable
+    if (step === -1) return true;
     if (step === 0) return !!challengeType;
     if (step === 1) {
       if (!title || !startDate || !endDate) return false;
@@ -163,68 +184,124 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   };
 
   const handlePublish = async (asDraft: boolean) => {
-    let badgeId = selectedBadgeId || null;
+    setIsPublishing(true);
+    try {
+      let badgeId = selectedBadgeId || null;
 
-    if (!badgeId && newBadgeName) {
-      try {
-        const badge = await createBadge.mutateAsync({
-          name: newBadgeName,
-          icon: newBadgeIcon,
-          category: "challenge",
-        });
-        badgeId = badge.id;
-      } catch { /* ignore */ }
-    }
+      if (!badgeId && newBadgeName) {
+        try {
+          const badge = await createBadge.mutateAsync({
+            name: newBadgeName,
+            icon: newBadgeIcon,
+            category: "challenge",
+          });
+          badgeId = badge.id;
+        } catch {
+          /* badge creation optional */
+        }
+      }
 
-    const today = new Date().toLocaleDateString("en-CA");
-    let status = asDraft ? "draft" : "upcoming";
-    if (!asDraft && startDate <= today) status = "active";
+      const today = new Date().toLocaleDateString("en-CA");
+      let status = asDraft ? "draft" : "upcoming";
+      if (!asDraft && startDate <= today) status = "active";
 
-    const config = buildConfig();
+      const config = buildConfig();
 
-    await createChallenge.mutateAsync({
-      created_by: user!.id,
-      title,
-      description: description || null,
-      challenge_type: challengeType,
-      status,
-      start_date: startDate,
-      end_date: endDate,
-      config,
-      xp_reward: xpReward,
-      badge_id: badgeId,
-      max_participants: maxParticipants ? Number(maxParticipants) : null,
-      visibility: enrollment === "invite_only" ? "invite_only" : "all",
-    } as any);
-
-    // Save as template if checked
-    if (saveAsTemplate && templateName) {
-      const durationDays = Math.ceil(
-        (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
-      );
-      await saveTemplate.mutateAsync({
+      const challengeData = await createChallenge.mutateAsync({
         created_by: user!.id,
-        name: templateName,
+        title,
         description: description || null,
         challenge_type: challengeType,
+        status,
+        start_date: startDate,
+        end_date: endDate,
         config,
-        default_duration_days: durationDays,
-        default_xp_reward: xpReward,
-        default_enrollment: enrollment,
+        xp_reward: xpReward,
+        badge_id: badgeId,
+        max_participants: maxParticipants ? Number(maxParticipants) : null,
+        visibility: enrollment === "invite_only" ? "invite_only" : "all",
       } as any);
-    }
 
-    // Increment usage_count if from template
-    if (fromTemplateId) {
-      const db2 = supabase as any;
-      const { data: tpl } = await db2.from("challenge_templates").select("usage_count").eq("id", fromTemplateId).maybeSingle();
-      if (tpl) {
-        await db2.from("challenge_templates").update({ usage_count: (tpl.usage_count || 0) + 1 }).eq("id", fromTemplateId);
+      // Insert tiers & scoring rules
+      if (challengeData?.id) {
+        try {
+          await insertDefaultChallengeTiersAndRules(
+            challengeData.id,
+            scoringRules,
+            challengeTiers
+          );
+        } catch (e) {
+          console.error("Failed to insert tiers/rules:", e);
+        }
+
+        // Auto-enroll all clients if enrollment = "all"
+        if (enrollment === "all" && allClients?.length) {
+          const db2 = supabase as any;
+          const participants = allClients.map((c: any) => ({
+            challenge_id: challengeData.id,
+            user_id: c.user_id,
+          }));
+          await db2.from("challenge_participants").insert(participants);
+        }
+
+        // Invite-only: enroll selected clients
+        if (enrollment === "invite_only" && selectedClients.length > 0) {
+          const db2 = supabase as any;
+          const participants = selectedClients.map((uid) => ({
+            challenge_id: challengeData.id,
+            user_id: uid,
+          }));
+          await db2.from("challenge_participants").insert(participants);
+        }
       }
-    }
 
-    reset();
-    onOpenChange(false);
+      // Save as template if checked
+      if (saveAsTemplate && templateName) {
+        const durationDays = Math.ceil(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
+        );
+        await saveTemplate.mutateAsync({
+          created_by: user!.id,
+          name: templateName,
+          description: description || null,
+          challenge_type: challengeType,
+          config,
+          default_duration_days: durationDays,
+          default_xp_reward: xpReward,
+          default_enrollment: enrollment,
+        } as any);
+      }
+
+      // Increment usage_count if from template
+      if (fromTemplateId) {
+        const db2 = supabase as any;
+        const { data: tpl } = await db2.from("challenge_templates").select("usage_count").eq("id", fromTemplateId).maybeSingle();
+        if (tpl) {
+          await db2.from("challenge_templates").update({ usage_count: (tpl.usage_count || 0) + 1 }).eq("id", fromTemplateId);
+        }
+      }
+
+      toast.success("Challenge created!");
+      reset();
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error("Challenge publish error:", err);
+      toast.error(err?.message || "Failed to create challenge. Please try again.");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const updateScoringRule = (actionType: string, field: string, value: any) => {
+    setScoringRules((prev) =>
+      prev.map((r) => (r.action_type === actionType ? { ...r, [field]: value } : r))
+    );
+  };
+
+  const updateTier = (index: number, field: string, value: any) => {
+    setChallengeTiers((prev) =>
+      prev.map((t, i) => (i === index ? { ...t, [field]: value } : t))
+    );
   };
 
   const typeLabel = challengeType === "pr" ? "PR Challenge" : challengeType === "steps" ? "Steps Challenge" : "Custom Challenge";
@@ -439,8 +516,97 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
           </div>
         )}
 
-        {/* Step 2: Participants */}
+        {/* Step 2: Rules & Scoring */}
         {step === 2 && (
+          <div className="space-y-5">
+            {/* Scoring Rules */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Point Scoring Rules
+              </h3>
+              <p className="text-[10px] text-muted-foreground mb-3">
+                Each action earns points <strong>1× per day</strong>. Points determine tier progression.
+              </p>
+              <div className="space-y-2">
+                {scoringRules.map((rule) => {
+                  const meta = SCORING_ACTION_LABELS[rule.action_type];
+                  const Icon = meta?.icon || Zap;
+                  return (
+                    <div
+                      key={rule.action_type}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                        rule.is_enabled ? "border-primary/30 bg-primary/5" : "border-border bg-card opacity-60"
+                      }`}
+                    >
+                      <Switch
+                        checked={rule.is_enabled}
+                        onCheckedChange={(v) => updateScoringRule(rule.action_type, "is_enabled", v)}
+                      />
+                      <Icon className="h-4 w-4 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{meta?.label || rule.action_type}</p>
+                        <p className="text-[10px] text-muted-foreground">{meta?.desc}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Input
+                          type="number"
+                          value={rule.points}
+                          onChange={(e) => updateScoringRule(rule.action_type, "points", Number(e.target.value) || 1)}
+                          className="w-14 h-7 text-xs text-center"
+                          disabled={!rule.is_enabled}
+                        />
+                        <span className="text-[10px] text-muted-foreground">pts</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Challenge Tiers */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Challenge Tiers
+              </h3>
+              <p className="text-[10px] text-muted-foreground mb-3">
+                Participants climb tiers as they earn points. Customize names & thresholds.
+              </p>
+              <div className="space-y-2">
+                {challengeTiers.map((tier, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card"
+                  >
+                    <div
+                      className="h-8 w-8 rounded-full flex items-center justify-center text-sm border-2 shrink-0"
+                      style={{ borderColor: tier.color, backgroundColor: `${tier.color}15` }}
+                    >
+                      {tier.icon}
+                    </div>
+                    <Input
+                      value={tier.name}
+                      onChange={(e) => updateTier(i, "name", e.target.value)}
+                      className="h-7 text-xs flex-1"
+                      placeholder="Tier name"
+                    />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Input
+                        type="number"
+                        value={tier.min_points}
+                        onChange={(e) => updateTier(i, "min_points", Number(e.target.value) || 0)}
+                        className="w-16 h-7 text-xs text-center"
+                      />
+                      <span className="text-[10px] text-muted-foreground">pts</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Participants */}
+        {step === 3 && (
           <div className="space-y-4">
             <div>
               <Label className="text-xs">Enrollment</Label>
@@ -456,7 +622,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
             {enrollment === "invite_only" && (
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 <Label className="text-xs">Select Clients</Label>
-                {(allClients || []).map((c) => (
+                {(allClients || []).map((c: any) => (
                   <label key={c.user_id} className="flex items-center gap-2 p-2 rounded hover:bg-secondary/50 cursor-pointer text-sm">
                     <input
                       type="checkbox"
@@ -479,8 +645,8 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
           </div>
         )}
 
-        {/* Step 3: Rewards */}
-        {step === 3 && (
+        {/* Step 4: Rewards */}
+        {step === 4 && (
           <div className="space-y-4">
             <div>
               <Label className="text-xs">Award Badge</Label>
@@ -527,8 +693,8 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
           </div>
         )}
 
-        {/* Step 4: Review */}
-        {step === 4 && (
+        {/* Step 5: Review */}
+        {step === 5 && (
           <div className="space-y-3">
             <Card className="border-border bg-card">
               <CardContent className="pt-4 space-y-2 text-sm">
@@ -553,6 +719,36 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
                     )}
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Scoring Rules Summary */}
+            <Card className="border-border bg-card">
+              <CardContent className="pt-4 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Scoring Rules</p>
+                {scoringRules.filter((r) => r.is_enabled).map((r) => (
+                  <div key={r.action_type} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{SCORING_ACTION_LABELS[r.action_type]?.label}</span>
+                    <span className="text-primary font-bold">{r.points} pts</span>
+                  </div>
+                ))}
+                <p className="text-[10px] text-muted-foreground">Daily cap: 1× per action per day</p>
+              </CardContent>
+            </Card>
+
+            {/* Tiers Summary */}
+            <Card className="border-border bg-card">
+              <CardContent className="pt-4 space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tiers</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {challengeTiers.map((t) => (
+                    <div key={t.name} className="flex items-center gap-1 text-xs">
+                      <span>{t.icon}</span>
+                      <span style={{ color: t.color }} className="font-medium">{t.name}</span>
+                      <span className="text-muted-foreground">({t.min_points}+)</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
@@ -591,7 +787,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
             </Button>
           ) : <div />}
 
-          {step < 4 ? (
+          {step < 5 ? (
             step === -1 ? <div /> : (
               <Button size="sm" onClick={() => setStep(step + 1)} disabled={!canNext()}>
                 Next <ChevronRight className="h-4 w-4 ml-1" />
@@ -599,10 +795,10 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
             )
           ) : (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => handlePublish(true)} disabled={createChallenge.isPending}>
+              <Button variant="outline" size="sm" onClick={() => handlePublish(true)} disabled={isPublishing}>
                 Save as Draft
               </Button>
-              <Button size="sm" onClick={() => handlePublish(false)} disabled={createChallenge.isPending}>
+              <Button size="sm" onClick={() => handlePublish(false)} disabled={isPublishing}>
                 <Check className="h-4 w-4 mr-1" /> Publish
               </Button>
             </div>

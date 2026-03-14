@@ -50,6 +50,25 @@ export interface Tier {
   sort_order: number;
 }
 
+export interface ChallengeTier {
+  id: string;
+  challenge_id: string;
+  name: string;
+  min_points: number;
+  color: string;
+  icon: string;
+  sort_order: number;
+}
+
+export interface ChallengeScoringRule {
+  id: string;
+  challenge_id: string;
+  action_type: string;
+  points: number;
+  daily_cap: number;
+  is_enabled: boolean;
+}
+
 export interface UserXPSummary {
   user_id: string;
   total_xp: number;
@@ -126,13 +145,19 @@ export function useChallenges() {
       if (!challenges?.length) return [];
 
       const challengeIds = challenges.map((c: any) => c.id);
-      const { data: participants } = await db
-        .from("challenge_participants")
-        .select("challenge_id, user_id")
-        .in("challenge_id", challengeIds);
+      
+      // Guard empty array
+      let participants: any[] = [];
+      if (challengeIds.length > 0) {
+        const { data: pData, error: pError } = await db
+          .from("challenge_participants")
+          .select("challenge_id, user_id")
+          .in("challenge_id", challengeIds);
+        if (!pError) participants = pData || [];
+      }
 
       return challenges.map((c: any) => {
-        const pList = (participants || []).filter((p: any) => p.challenge_id === c.id);
+        const pList = participants.filter((p: any) => p.challenge_id === c.id);
         return {
           ...c,
           participant_count: pList.length,
@@ -189,6 +214,39 @@ export function useChallengeParticipants(challengeId: string | null, direction?:
         full_name: profileMap[p.user_id]?.full_name || "Unknown",
         avatar_url: profileMap[p.user_id]?.avatar_url || null,
       })) as ChallengeParticipant[];
+    },
+    enabled: !!challengeId,
+  });
+}
+
+export function useChallengeTiers(challengeId: string | null) {
+  return useQuery({
+    queryKey: ["challenge-tiers", challengeId],
+    queryFn: async () => {
+      if (!challengeId) return [];
+      const { data, error } = await db
+        .from("challenge_tiers")
+        .select("*")
+        .eq("challenge_id", challengeId)
+        .order("sort_order");
+      if (error) throw error;
+      return (data || []) as ChallengeTier[];
+    },
+    enabled: !!challengeId,
+  });
+}
+
+export function useChallengeScoringRules(challengeId: string | null) {
+  return useQuery({
+    queryKey: ["challenge-scoring-rules", challengeId],
+    queryFn: async () => {
+      if (!challengeId) return [];
+      const { data, error } = await db
+        .from("challenge_scoring_rules")
+        .select("*")
+        .eq("challenge_id", challengeId);
+      if (error) throw error;
+      return (data || []) as ChallengeScoringRule[];
     },
     enabled: !!challengeId,
   });
@@ -323,14 +381,12 @@ export function useUndismissedChallenges() {
     queryKey: ["undismissed-challenges", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      // Get dismissed challenge IDs
       const { data: dismissals } = await db
         .from("challenge_banner_dismissals")
         .select("challenge_id")
         .eq("user_id", user.id);
       const dismissedIds = (dismissals || []).map((d: any) => d.challenge_id);
 
-      // Get active/upcoming challenges
       const { data: challenges, error } = await db
         .from("challenges")
         .select("*")
@@ -339,10 +395,8 @@ export function useUndismissedChallenges() {
         .limit(10);
       if (error) throw error;
 
-      // Filter out dismissed and invite-only (unless user is a participant)
       let filtered = (challenges || []).filter((c: any) => !dismissedIds.includes(c.id));
 
-      // For invite_only, check participation
       const inviteOnly = filtered.filter((c: any) => c.visibility === "invite_only");
       if (inviteOnly.length > 0) {
         const { data: myParts } = await db
@@ -393,7 +447,6 @@ export function useCreateChallenge() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["challenges"] });
       qc.invalidateQueries({ queryKey: ["undismissed-challenges"] });
-      toast.success("Challenge created!");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -479,6 +532,31 @@ export function useCreateBadge() {
   });
 }
 
+// ---- Helper: Insert default tiers & scoring rules for a challenge ----
+
+export async function insertDefaultChallengeTiersAndRules(
+  challengeId: string,
+  scoringRules: { action_type: string; points: number; daily_cap: number; is_enabled: boolean }[],
+  tiers: { name: string; min_points: number; color: string; icon: string; sort_order: number }[]
+) {
+  // Insert tiers
+  if (tiers.length > 0) {
+    const { error: tierError } = await db.from("challenge_tiers").insert(
+      tiers.map((t) => ({ ...t, challenge_id: challengeId }))
+    );
+    if (tierError) throw tierError;
+  }
+
+  // Insert scoring rules
+  const enabledRules = scoringRules.filter((r) => r.is_enabled);
+  if (enabledRules.length > 0) {
+    const { error: ruleError } = await db.from("challenge_scoring_rules").insert(
+      enabledRules.map((r) => ({ ...r, challenge_id: challengeId }))
+    );
+    if (ruleError) throw ruleError;
+  }
+}
+
 // XP helpers
 export async function awardXP(userId: string, amount: number, sourceType: string, sourceId: string | null, description: string) {
   const { error } = await db.from("xp_ledger").insert({
@@ -508,3 +586,19 @@ export async function awardXP(userId: string, amount: number, sourceType: string
     current_tier_id: tier?.id || null,
   }, { onConflict: "user_id" });
 }
+
+// Default tier presets
+export const DEFAULT_CHALLENGE_TIERS = [
+  { name: "Bronze", min_points: 0, color: "#CD7F32", icon: "🥉", sort_order: 0 },
+  { name: "Silver", min_points: 26, color: "#C0C0C0", icon: "🥈", sort_order: 1 },
+  { name: "Gold", min_points: 51, color: "#D4A017", icon: "🥇", sort_order: 2 },
+  { name: "Platinum", min_points: 76, color: "#00CED1", icon: "💎", sort_order: 3 },
+  { name: "Diamond", min_points: 101, color: "#B9F2FF", icon: "👑", sort_order: 4 },
+];
+
+export const DEFAULT_SCORING_RULES = [
+  { action_type: "workout_completed", points: 1, daily_cap: 1, is_enabled: true },
+  { action_type: "personal_best", points: 5, daily_cap: 1, is_enabled: true },
+  { action_type: "daily_logging", points: 1, daily_cap: 1, is_enabled: true },
+  { action_type: "streak_bonus", points: 3, daily_cap: 1, is_enabled: true },
+];
