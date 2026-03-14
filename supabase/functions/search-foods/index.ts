@@ -47,13 +47,31 @@ function brandRelevanceScore(food: any, query: string): number {
   const nameLower = (food.name ?? "").toLowerCase();
   const brandLower = (food.brand ?? "").toLowerCase();
   const queryWords = queryLower.split(/\s+/);
+  const isMultiWord = queryWords.length >= 2;
 
   let score = 0;
+
+  // Exact full-query match in brand → highest priority
+  if (brandLower && brandLower.includes(queryLower)) score += 100;
+  // Full query appears in name (brand + product name combined)
+  if (nameLower.includes(queryLower)) score += 80;
+  // Brand word match
   if (brandLower && queryWords.some((w: string) => brandLower.includes(w))) score += 50;
   if (brandLower && queryWords.some((w: string) => brandLower.startsWith(w))) score += 30;
+  // Branded item bonus
+  if (food.is_branded || brandLower) score += 30;
+  // OFF branded items are often exact retail products
+  if (food.source === "open_food_facts" && brandLower) score += 15;
+  // Name word matches
   const nameMatches = queryWords.filter((w: string) => nameLower.includes(w)).length;
   score += nameMatches * 10;
-  if (food.source === "usda") score += 20;
+  // USDA bonus (smaller now so brands win)
+  if (food.source === "usda") score += 10;
+  // Complete macros bonus
+  if (food.has_complete_macros !== false) score += 10;
+  // Penalize generic items when query is multi-word (likely brand search)
+  if (isMultiWord && !brandLower) score -= 20;
+  // Popularity
   score += Math.min(food.popularity_score ?? 0, 20);
   return score;
 }
