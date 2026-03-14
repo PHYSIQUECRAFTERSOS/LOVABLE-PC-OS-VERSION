@@ -217,8 +217,6 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
     // Increment usage_count if from template
     if (fromTemplateId) {
       const db2 = supabase as any;
-      await db2.rpc("", {}).catch(() => {}); // No RPC needed, just update directly
-      // Simple increment
       const { data: tpl } = await db2.from("challenge_templates").select("usage_count").eq("id", fromTemplateId).maybeSingle();
       if (tpl) {
         await db2.from("challenge_templates").update({ usage_count: (tpl.usage_count || 0) + 1 }).eq("id", fromTemplateId);
