@@ -18,7 +18,7 @@ import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 import { useLoggingStreak } from "@/hooks/useLoggingStreak";
 import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import ChallengeBanner from "@/components/dashboard/ChallengeBanner";
 const Dashboard = () => {
   const { role } = useAuth();
   const isClient = role === "client";
