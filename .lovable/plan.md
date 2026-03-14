@@ -1,56 +1,122 @@
 
 
-# Fix Nutrition: Voice Log, Barcode Scanner, Brand Search
+# Physique Crafters — Transformation Operating System
 
-## 1. Remove Voice Log Button
-**File:** `src/components/nutrition/AddFoodScreen.tsx` (line 762)
-- Remove the Voice Log `QuickActionCard` entirely
-- Change grid from `grid-cols-4` to `grid-cols-3` so the remaining 3 actions (Barcode, Meal Scan, Quick Add) fill evenly
-- Remove unused `Mic` import
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-## 2. Fix Barcode Scanner Reliability
+---
 
-**Root cause:** The scanner uses a fragile double-camera pattern — it opens a "warm" MediaStream to detect the device ID, then **stops** that stream and lets `@zxing/library`'s `decodeFromVideoDevice()` open a **second** stream. On many mobile devices (especially iOS), this second stream fails silently, leaving the scanner dead.
+## Phase 1 — MVP (Core Platform)
 
-**Fix in `src/components/nutrition/BarcodeScanner.tsx`:**
-- Replace `decodeFromVideoDevice(preferredDeviceId, videoEl, callback)` with `decodeFromStream(warmStream, videoEl, callback)`
-- Keep the warm stream alive instead of stopping it — zxing will decode directly from the already-running stream
-- Remove the lines that stop the warm stream and null out `srcObject` before calling zxing (lines ~262-264)
-- Move `streamRef.current = warmStream` to persist it for cleanup
-- Remove the `streamSyncTimer` interval that tries to re-grab the stream from the video element (no longer needed since we own the stream)
-- Keep the watchdog timer for frame-ready detection and auto-retry
-- Auto-start the scanner immediately when the dialog opens (already done via useEffect at line 529-533)
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-This matches how MyFitnessPal works — one continuous camera stream, zxing reads every frame.
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-## 3. Improve Brand Search Prioritization
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-**Problem:** When searching "pacific sunrise yellow flesh potatoes", the edge function returns generic USDA results because brand relevance scoring is weak — it only gives +50 for a partial brand word match and +20 for USDA source, so generic USDA items outscore branded OFF results.
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-**Fix in `supabase/functions/search-foods/index.ts`:**
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-### A. Improve `brandRelevanceScore()` function:
-- **Exact brand match**: +100 (brand contains entire multi-word brand query)
-- **Full name contains entire query**: +80
-- **Brand word match**: +50 (keep)
-- **Branded items bonus**: +30 for any item with `is_branded: true`
-- **Penalize generic**: -20 for items with no brand when the query has 2+ words (likely a brand search)
-- **OFF branded items**: +15 (OFF branded products are often the exact retail product)
-- **Complete macros bonus**: +10
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-### B. Better brand detection in query:
-- Current `likelyBrandSearch` just checks `queryWords.length >= 2` — too broad
-- Add smarter detection: if the query contains words that match known brand patterns OR if OFF returns branded results, boost those heavily
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-### C. Increase OFF page size for brand searches:
-- Change `page_size=30` to `page_size=50` for brand searches to increase the chance of finding the exact branded product
-- Add `sort_by=popularity_key` parameter for brand searches (sorted by popularity increases chance of exact match)
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-## Files Changed
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-| File | Change |
-|------|--------|
-| `src/components/nutrition/AddFoodScreen.tsx` | Remove Voice Log button, adjust grid to 3 cols |
-| `src/components/nutrition/BarcodeScanner.tsx` | Use `decodeFromStream` with persistent stream |
-| `supabase/functions/search-foods/index.ts` | Improve brand relevance scoring and OFF search params |
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
+
+---
+
+## Phase 2 — Advanced Features
+
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
+
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
+
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
+
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
+
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
+
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 

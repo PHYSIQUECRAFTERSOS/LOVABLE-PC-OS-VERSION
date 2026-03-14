@@ -15,7 +15,7 @@ import {
   ScanBarcode,
   Camera,
   Zap,
-  Mic,
+  
   Plus,
   ChevronDown,
   ChevronUp,
@@ -755,11 +755,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {/* Quick Actions (All tab only) */}
         {search.length < 2 && activeTab === "all" && (
-          <div className="grid grid-cols-4 gap-2.5 py-3">
+          <div className="grid grid-cols-3 gap-2.5 py-3">
             <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
             <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
             <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
-            <QuickActionCard icon={Mic} label="Voice Log" onClick={() => toast({ title: "Coming Soon", description: "Voice logging is under development." })} />
           </div>
         )}
 
