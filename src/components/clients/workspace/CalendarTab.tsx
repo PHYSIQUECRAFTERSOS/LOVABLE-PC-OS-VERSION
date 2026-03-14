@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import EventDetailModal from "@/components/calendar/EventDetailModal";
+import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,6 +69,11 @@ const CARDIO_TARGET_TYPES = [
 interface CalEvent {
   id: string; title: string; event_date: string; event_type: string;
   is_completed: boolean; color: string | null; event_time: string | null;
+  description?: string | null; notes?: string | null;
+  linked_workout_id?: string | null; linked_cardio_id?: string | null;
+  linked_checkin_id?: string | null; is_recurring?: boolean;
+  recurrence_pattern?: string | null; target_client_id?: string | null;
+  completed_at?: string | null; end_time?: string | null; user_id?: string;
 }
 
 const CalendarTab = ({ clientId }: { clientId: string }) => {
@@ -102,8 +109,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [cardioTargetUnit, setCardioTargetUnit] = useState("km");
   const [cardioNotes, setCardioNotes] = useState("");
 
-  // Drag state
   const [dragEvent, setDragEvent] = useState<CalEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showEventDetail, setShowEventDetail] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
 
   const loadMonth = useCallback(async () => {
     setLoading(true);
@@ -169,7 +178,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
     const [eventsRes, sessionsRes] = await Promise.all([
       supabase.from("calendar_events")
-        .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id")
+        .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
         .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
       supabase.from("workout_sessions")
         .select("id, workout_id, created_at, completed_at, workouts(name)")
@@ -409,6 +418,56 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     setSaving(false);
   };
 
+  const toCalendarEvent = (item: any): CalendarEvent => ({
+    id: item.id,
+    title: item.title,
+    description: item.description || null,
+    event_type: item.event_type,
+    event_date: item.event_date,
+    event_time: item.event_time || null,
+    end_time: item.end_time || null,
+    color: item.color || null,
+    is_completed: item.is_completed,
+    completed_at: item.completed_at || null,
+    notes: item.notes || null,
+    target_client_id: item.target_client_id || clientId,
+    linked_workout_id: item.linked_workout_id || null,
+    linked_cardio_id: item.linked_cardio_id || null,
+    linked_checkin_id: item.linked_checkin_id || null,
+    is_recurring: item.is_recurring || false,
+    recurrence_pattern: item.recurrence_pattern || null,
+    user_id: item.user_id || clientId,
+  });
+
+  const handleEventClick = (item: any) => {
+    setSelectedEvent(toCalendarEvent(item));
+    setShowEventDetail(true);
+  };
+
+  const handleEventComplete = async (ev: CalendarEvent) => {
+    const { error } = await supabase.from("calendar_events")
+      .update({ is_completed: true, completed_at: new Date().toISOString() })
+      .eq("id", ev.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Marked complete" });
+      setShowEventDetail(false);
+      loadMonth();
+    }
+  };
+
+  const handleEventDelete = async (ev: CalendarEvent) => {
+    const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Event deleted" });
+      setShowEventDetail(false);
+      loadMonth();
+    }
+  };
+
   // Drag and drop
   const handleDragStart = (e: React.DragEvent, event: CalEvent) => {
     if ((event as any).isSession) return;
@@ -502,9 +561,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 </div>
                 <div className="space-y-0.5">
                   {dayItems.slice(0, 3).map((item: any, i: number) => (
-                    <div key={item.id + i} draggable={!item.isSession}
+                    <button key={item.id + i} draggable={!item.isSession}
                       onDragStart={e => handleDragStart(e, item)}
-                      className="flex items-center gap-1 cursor-grab active:cursor-grabbing">
+                      onClick={(e) => { e.stopPropagation(); handleEventClick(item); }}
+                      className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                       {item.is_completed ? (
                         <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
                           <Check className="h-1.5 w-1.5 text-white" />
@@ -513,10 +573,15 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                         <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
                       )}
                       <span className="text-[9px] truncate leading-tight">{item.title}</span>
-                    </div>
+                    </button>
                   ))}
                   {dayItems.length > 3 && (
-                    <span className="text-[9px] text-muted-foreground pl-3">+{dayItems.length - 3} more</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
+                      className="w-full text-left text-[9px] text-primary font-medium pl-3 hover:underline"
+                    >
+                      +{dayItems.length - 3} more
+                    </button>
                   )}
                 </div>
               </div>
@@ -685,6 +750,57 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             <Button onClick={handleSaveEvent} disabled={saving || selectedTypes.length === 0} className="w-full">
               {saving ? "Saving..." : `Schedule ${selectedTypes.length} type${selectedTypes.length > 1 ? "s" : ""}${repeatEnabled ? " (recurring)" : ""}`}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Event Detail Modal */}
+      <EventDetailModal
+        event={selectedEvent}
+        open={showEventDetail}
+        onClose={() => setShowEventDetail(false)}
+        onComplete={handleEventComplete}
+        onDelete={handleEventDelete}
+        isCoach={true}
+      />
+
+      {/* Expanded Day Dialog */}
+      <Dialog open={!!expandedDay} onOpenChange={(open) => !open && setExpandedDay(null)}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {expandedDay ? format(expandedDay, "EEEE, MMMM d") : "Events"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 pt-1">
+            {expandedDay && getEventsForDay(expandedDay).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No events</p>
+            ) : (
+              expandedDay && getEventsForDay(expandedDay).map((item: any) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setExpandedDay(null);
+                    handleEventClick(item);
+                  }}
+                  className="w-full text-left text-sm px-3 py-2.5 rounded-lg border border-border flex items-center gap-2 transition-colors hover:bg-secondary/50"
+                >
+                  {item.is_completed ? (
+                    <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
+                      <Check className="h-2 w-2 text-white" />
+                    </div>
+                  ) : (
+                    <div className={`h-3 w-3 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate block">{item.title}</span>
+                    {item.event_time && (
+                      <span className="text-xs text-muted-foreground">{item.event_time.slice(0, 5)}</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
