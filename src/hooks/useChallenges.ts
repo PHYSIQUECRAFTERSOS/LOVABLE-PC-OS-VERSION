@@ -74,6 +74,21 @@ export interface Badge {
   category: string | null;
 }
 
+export interface ChallengeTemplate {
+  id: string;
+  created_by: string;
+  name: string;
+  description: string | null;
+  challenge_type: string;
+  config: any;
+  default_duration_days: number | null;
+  default_xp_reward: number;
+  default_enrollment: string;
+  usage_count: number;
+  is_archived: boolean;
+  created_at: string;
+}
+
 // ---- Queries ----
 
 export function useTiers() {
@@ -146,17 +161,18 @@ export function useChallengeDetail(challengeId: string | null) {
   });
 }
 
-export function useChallengeParticipants(challengeId: string | null) {
+export function useChallengeParticipants(challengeId: string | null, direction?: string) {
   return useQuery({
     queryKey: ["challenge-participants", challengeId],
     queryFn: async () => {
       if (!challengeId) return [];
+      const ascending = direction === "lower_is_better";
       const { data, error } = await db
         .from("challenge_participants")
         .select("*")
         .eq("challenge_id", challengeId)
         .eq("status", "active")
-        .order("best_value", { ascending: false });
+        .order("best_value", { ascending });
       if (error) throw error;
       if (!data?.length) return [];
 
@@ -264,6 +280,102 @@ export function useGlobalXPLeaderboard() {
   });
 }
 
+// ---- Templates ----
+
+export function useChallengeTemplates() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["challenge-templates"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("challenge_templates")
+        .select("*")
+        .eq("is_archived", false)
+        .order("usage_count", { ascending: false });
+      if (error) throw error;
+      return (data || []) as ChallengeTemplate[];
+    },
+    enabled: !!user,
+  });
+}
+
+export function useSaveTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (template: Partial<ChallengeTemplate>) => {
+      const { data, error } = await db.from("challenge_templates").insert(template).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["challenge-templates"] });
+      toast.success("Template saved! Use it next time you create a challenge.");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// ---- Banner Dismissals ----
+
+export function useUndismissedChallenges() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["undismissed-challenges", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      // Get dismissed challenge IDs
+      const { data: dismissals } = await db
+        .from("challenge_banner_dismissals")
+        .select("challenge_id")
+        .eq("user_id", user.id);
+      const dismissedIds = (dismissals || []).map((d: any) => d.challenge_id);
+
+      // Get active/upcoming challenges
+      const { data: challenges, error } = await db
+        .from("challenges")
+        .select("*")
+        .in("status", ["upcoming", "active"])
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+
+      // Filter out dismissed and invite-only (unless user is a participant)
+      let filtered = (challenges || []).filter((c: any) => !dismissedIds.includes(c.id));
+
+      // For invite_only, check participation
+      const inviteOnly = filtered.filter((c: any) => c.visibility === "invite_only");
+      if (inviteOnly.length > 0) {
+        const { data: myParts } = await db
+          .from("challenge_participants")
+          .select("challenge_id")
+          .eq("user_id", user.id)
+          .in("challenge_id", inviteOnly.map((c: any) => c.id));
+        const myPartIds = new Set((myParts || []).map((p: any) => p.challenge_id));
+        filtered = filtered.filter((c: any) => c.visibility !== "invite_only" || myPartIds.has(c.id));
+      }
+
+      return filtered.slice(0, 3) as Challenge[];
+    },
+    enabled: !!user,
+  });
+}
+
+export function useDismissBanner() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (challengeId: string) => {
+      const { error } = await db
+        .from("challenge_banner_dismissals")
+        .insert({ user_id: user!.id, challenge_id: challengeId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["undismissed-challenges"] });
+    },
+  });
+}
+
 // ---- Mutations ----
 
 export function useCreateChallenge() {
@@ -280,6 +392,7 @@ export function useCreateChallenge() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["challenges"] });
+      qc.invalidateQueries({ queryKey: ["undismissed-challenges"] });
       toast.success("Challenge created!");
     },
     onError: (e: any) => toast.error(e.message),
@@ -308,11 +421,18 @@ export function useJoinChallenge() {
 export function useLogChallengeEntry() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  return useMutation<void, Error, { challengeId: string; value: number; logDate: string }>({
-    mutationFn: async ({ challengeId, value, logDate }) => {
+  return useMutation<void, Error, { challengeId: string; value: number; logDate: string; metadata?: any }>({
+    mutationFn: async ({ challengeId, value, logDate, metadata }) => {
       const { error: logError } = await db
         .from("challenge_logs")
-        .insert({ challenge_id: challengeId, user_id: user!.id, log_date: logDate, value, source: "manual" });
+        .insert({
+          challenge_id: challengeId,
+          user_id: user!.id,
+          log_date: logDate,
+          value,
+          source: "manual",
+          metadata: metadata || null,
+        });
       if (logError) throw logError;
 
       const { data: participant } = await db

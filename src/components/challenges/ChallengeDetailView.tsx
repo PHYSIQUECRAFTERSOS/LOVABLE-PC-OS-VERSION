@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Footprints, Calendar, Users, Crown, Star } from "lucide-react";
-import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry } from "@/hooks/useChallenges";
+import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star } from "lucide-react";
+import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
@@ -20,14 +21,20 @@ interface Props {
 const medals = ["🥇", "🥈", "🥉"];
 
 const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
-  const { user } = useAuth();
-  const { data: participants } = useChallengeParticipants(challenge?.id || null);
+  const { user, role } = useAuth();
+  const direction = challenge?.challenge_type === "custom" ? challenge.config?.direction : undefined;
+  const { data: participants } = useChallengeParticipants(challenge?.id || null, direction);
   const joinChallenge = useJoinChallenge();
   const logEntry = useLogChallengeEntry();
+  const saveTemplate = useSaveTemplate();
+  const isCoach = role === "coach" || role === "admin";
 
-  const [stepsValue, setStepsValue] = useState("");
-  const [stepsDate, setStepsDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [logValue, setLogValue] = useState("");
+  const [logDate, setLogDate] = useState(new Date().toLocaleDateString("en-CA"));
+  const [logNote, setLogNote] = useState("");
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState("");
 
   if (!challenge) return null;
 
@@ -38,17 +45,59 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const elapsed = totalDays - daysLeft;
   const progressPct = Math.min(100, Math.round((elapsed / totalDays) * 100));
 
+  const config = challenge.config || {};
+  const isCustom = challenge.challenge_type === "custom";
+  const isSteps = challenge.challenge_type === "steps";
+  const isPR = challenge.challenge_type === "pr";
+
+  const metricLabel = isCustom
+    ? `${config.metric_name || "Value"} (${config.metric_unit || ""})`
+    : isSteps ? "Steps" : config.metric || "Weight";
+
+  // Custom target progress
+  const hasTarget = isCustom && config.target_value != null;
+  const targetProgress = hasTarget && myParticipant
+    ? config.direction === "lower_is_better"
+      ? Math.min(100, Math.round(((config.target_value - Number(myParticipant.best_value)) / config.target_value) * 100))
+      : Math.min(100, Math.round((Number(myParticipant.best_value) / config.target_value) * 100))
+    : 0;
+
   const handleJoin = () => {
     if (challenge.id) joinChallenge.mutate(challenge.id);
   };
 
-  const handleLogSteps = () => {
-    if (!stepsValue || !challenge.id) return;
+  const handleLog = () => {
+    if (!logValue || !challenge.id) return;
     logEntry.mutate(
-      { challengeId: challenge.id, value: Number(stepsValue), logDate: stepsDate },
-      { onSuccess: () => { setStepsValue(""); setShowLogModal(false); } }
+      {
+        challengeId: challenge.id,
+        value: Number(logValue),
+        logDate,
+        metadata: logNote ? { note: logNote } : null,
+      },
+      { onSuccess: () => { setLogValue(""); setLogNote(""); setShowLogModal(false); } }
     );
   };
+
+  const handleSaveAsTemplate = async () => {
+    if (!templateName) return;
+    const durationDays = Math.ceil(
+      (new Date(challenge.end_date).getTime() - new Date(challenge.start_date).getTime()) / 86400000
+    );
+    await saveTemplate.mutateAsync({
+      created_by: user!.id,
+      name: templateName,
+      description: challenge.description,
+      challenge_type: challenge.challenge_type,
+      config: challenge.config,
+      default_duration_days: durationDays,
+      default_xp_reward: challenge.xp_reward,
+    } as any);
+    setShowTemplateModal(false);
+    setTemplateName("");
+  };
+
+  const TypeIcon = isPR ? Trophy : isSteps ? Footprints : SlidersHorizontal;
 
   const statusColor = {
     active: "bg-green-500/20 text-green-400 border-green-500/30",
@@ -64,7 +113,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-2">
-              {challenge.challenge_type === "pr" ? <Trophy className="h-5 w-5 text-primary" /> : <Footprints className="h-5 w-5 text-primary" />}
+              <TypeIcon className="h-5 w-5 text-primary" />
               <DialogTitle className="text-lg">{challenge.title}</DialogTitle>
             </div>
           </DialogHeader>
@@ -84,7 +133,14 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
             <p className="text-sm text-muted-foreground">{challenge.description}</p>
           )}
 
-          {/* Progress */}
+          {isCustom && (
+            <p className="text-xs text-muted-foreground bg-secondary/30 rounded-lg p-2">
+              <SlidersHorizontal className="inline h-3.5 w-3.5 mr-1 text-primary" />
+              Tracking: <strong>{config.metric_name}</strong> ({config.metric_unit}) — {config.direction === "lower_is_better" ? "Lower is better" : "Higher is better"}
+            </p>
+          )}
+
+          {/* Challenge Progress */}
           {challenge.status === "active" && (
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
@@ -113,24 +169,42 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                     <p className="text-[10px] text-muted-foreground">Rank</p>
                   </div>
                 </div>
+                {hasTarget && (
+                  <div className="mt-3 space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Target: {config.target_value} {config.metric_unit}</span>
+                      <span>{targetProgress}%</span>
+                    </div>
+                    <Progress value={targetProgress} className="h-1.5" />
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
           {/* Actions */}
-          {challenge.status === "active" && !isJoined && (
-            <Button onClick={handleJoin} disabled={joinChallenge.isPending} className="w-full">
-              <Users className="h-4 w-4 mr-1" /> Join Challenge
-            </Button>
-          )}
+          <div className="flex gap-2 flex-wrap">
+            {challenge.status === "active" && !isJoined && (
+              <Button onClick={handleJoin} disabled={joinChallenge.isPending} className="flex-1">
+                <Users className="h-4 w-4 mr-1" /> Join Challenge
+              </Button>
+            )}
 
-          {challenge.status === "active" && isJoined && challenge.challenge_type === "steps" && (
-            <Button onClick={() => setShowLogModal(true)} variant="outline" className="w-full">
-              <Footprints className="h-4 w-4 mr-1" /> Log Steps
-            </Button>
-          )}
+            {challenge.status === "active" && isJoined && (isSteps || isCustom) && (
+              <Button onClick={() => setShowLogModal(true)} variant="outline" className="flex-1">
+                {isSteps ? <Footprints className="h-4 w-4 mr-1" /> : <SlidersHorizontal className="h-4 w-4 mr-1" />}
+                {isSteps ? "Log Steps" : "Log Progress"}
+              </Button>
+            )}
 
-          {challenge.challenge_type === "pr" && isJoined && (
+            {isCoach && (challenge.status === "active" || challenge.status === "completed") && (
+              <Button variant="ghost" size="sm" onClick={() => { setTemplateName(challenge.title); setShowTemplateModal(true); }}>
+                <Star className="h-4 w-4 mr-1" /> Save as Template
+              </Button>
+            )}
+          </div>
+
+          {isPR && isJoined && (
             <p className="text-xs text-muted-foreground text-center p-2 bg-secondary/30 rounded-lg">
               <Trophy className="inline h-3.5 w-3.5 mr-1 text-primary" />
               PRs are auto-detected from your workout logs. Just keep training!
@@ -163,7 +237,10 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                         <AvatarFallback className="text-[10px] bg-secondary">{initials}</AvatarFallback>
                       </Avatar>
                       <span className="flex-1 text-sm font-medium text-foreground truncate">{p.full_name}</span>
-                      <span className="text-sm font-bold text-primary">{Number(p.best_value).toLocaleString()}</span>
+                      <span className="text-sm font-bold text-primary">
+                        {Number(p.best_value).toLocaleString()}
+                        {isCustom && <span className="text-[10px] text-muted-foreground ml-1">{config.metric_unit}</span>}
+                      </span>
                     </div>
                   );
                 })}
@@ -173,23 +250,47 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
         </DialogContent>
       </Dialog>
 
-      {/* Log Steps Modal */}
+      {/* Log Modal (Steps + Custom) */}
       <Dialog open={showLogModal} onOpenChange={setShowLogModal}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Log Steps</DialogTitle>
+            <DialogTitle>{isSteps ? "Log Steps" : `Log ${config.metric_name || "Progress"}`}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Date</Label>
-              <Input type="date" value={stepsDate} onChange={(e) => setStepsDate(e.target.value)} />
+              <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs">Steps</Label>
-              <Input type="number" value={stepsValue} onChange={(e) => setStepsValue(e.target.value)} placeholder="e.g. 10000" />
+              <Label className="text-xs">{metricLabel}</Label>
+              <Input type="number" value={logValue} onChange={(e) => setLogValue(e.target.value)} placeholder={isSteps ? "e.g. 10000" : `e.g. 32`} />
             </div>
-            <Button onClick={handleLogSteps} disabled={!stepsValue || logEntry.isPending} className="w-full">
+            {isCustom && (
+              <div>
+                <Label className="text-xs">Note (optional)</Label>
+                <Textarea value={logNote} onChange={(e) => setLogNote(e.target.value)} placeholder="Any context..." className="min-h-[50px]" />
+              </div>
+            )}
+            <Button onClick={handleLog} disabled={!logValue || logEntry.isPending} className="w-full">
               Submit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save as Template Modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save as Template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Template Name</Label>
+              <Input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Template name" />
+            </div>
+            <Button onClick={handleSaveAsTemplate} disabled={!templateName || saveTemplate.isPending} className="w-full">
+              Save Template
             </Button>
           </div>
         </DialogContent>

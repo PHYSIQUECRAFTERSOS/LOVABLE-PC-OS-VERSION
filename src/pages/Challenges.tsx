@@ -3,7 +3,7 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Trophy, Plus, Flame, Star, Shield, Award } from "lucide-react";
+import { Trophy, Plus, Flame, Star, Award } from "lucide-react";
 import GlobalLeaderboard from "@/components/challenges/GlobalLeaderboard";
 import MyRankTab from "@/components/challenges/MyRankTab";
 import ChallengesTab from "@/components/challenges/ChallengesTab";
@@ -20,9 +20,9 @@ const Challenges = () => {
       <div className="animate-fade-in space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">Culture & Challenges</h1>
+            <h1 className="font-display text-2xl font-bold text-foreground">Physique Crafters Challenges</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Compete, grow, and earn your rank.
+              Show up. Level up. Stand out.
             </p>
           </div>
           {isCoach && (
