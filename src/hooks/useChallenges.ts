@@ -3,6 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+// Cast supabase client for new tables not yet in auto-generated types
+const db = supabase as any;
+
 export interface Challenge {
   id: string;
   created_by: string;
