@@ -15,6 +15,7 @@ Rules:
 - Use standard units: mg, mcg, g, IU
 - If a value is listed as "0" or not present, omit it
 - Extract the serving size exactly as shown (e.g., "1 capsule", "2 tablets", "1 scoop (5g)")
+- Extract the numeric quantity from the serving size (e.g., 8 from "8 Capsules", 1 from "1 Scoop")
 - For each vitamin/mineral, use the standardized key from this list:
   vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg, vitamin_k_mcg,
   vitamin_b1_mg, vitamin_b2_mg, vitamin_b3_mg, vitamin_b5_mg, vitamin_b6_mg,
@@ -29,7 +30,8 @@ const plainTextPrompt = `You are a supplement label reader. Analyze the image of
 Extract ALL vitamin and mineral information and return ONLY valid JSON (no markdown, no code blocks) in this exact format:
 {
   "product_name": "product name if visible",
-  "serving_size": "serving size as shown",
+  "serving_size": "serving size as shown e.g. 8 Capsules",
+  "serving_size_qty": 8,
   "serving_unit": "capsule|tablet|scoop|ml|drop|serving|softgel|lozenge",
   "servings_per_container": 60,
   "nutrients": {
@@ -38,6 +40,8 @@ Extract ALL vitamin and mineral information and return ONLY valid JSON (no markd
   },
   "confidence": "high|medium|low"
 }
+
+IMPORTANT: "serving_size_qty" is the numeric count from the serving size. If "Serving Size: 8 Capsules" then serving_size_qty = 8. If "Serving Size: 1 Scoop" then serving_size_qty = 1.
 
 Use these standardized nutrient keys:
 vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg, vitamin_k_mcg,
@@ -59,7 +63,8 @@ const toolDef = {
       type: "object",
       properties: {
         product_name: { type: "string", description: "Product name if visible" },
-        serving_size: { type: "string", description: "Serving size as shown on label" },
+        serving_size: { type: "string", description: "Serving size as shown on label e.g. '8 Capsules'" },
+        serving_size_qty: { type: "number", description: "Numeric quantity from serving size e.g. 8 from '8 Capsules', 1 from '1 Scoop'" },
         serving_unit: { type: "string", enum: ["capsule", "tablet", "scoop", "ml", "drop", "serving", "softgel", "lozenge"], description: "Type of serving unit" },
         servings_per_container: { type: "number", description: "Number of servings per container" },
         nutrients: {
@@ -69,7 +74,7 @@ const toolDef = {
         },
         confidence: { type: "string", enum: ["high", "medium", "low"], description: "Confidence in extraction accuracy" },
       },
-      required: ["serving_size", "nutrients", "confidence"],
+      required: ["serving_size", "serving_size_qty", "nutrients", "confidence"],
       additionalProperties: false,
     },
   },
@@ -172,7 +177,6 @@ function parsePlainTextResponse(data: any): any | null {
   const content = data.choices?.[0]?.message?.content || "";
   if (!content) return null;
 
-  // Strip markdown code blocks if present
   let jsonStr = content;
   const match = content.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (match) jsonStr = match[1].trim();
@@ -200,7 +204,6 @@ serve(async (req) => {
       );
     }
 
-    // Phase 1: Try tool calling with multiple models
     const toolCallingModels = [
       { model: "google/gemini-2.5-pro", timeout: 20000 },
       { model: "google/gemini-2.5-flash", timeout: 15000 },
@@ -252,7 +255,6 @@ serve(async (req) => {
       }
     }
 
-    // Phase 2: Fallback to plain text (no tool calling) — more reliable with some models
     const plainTextModels = [
       { model: "google/gemini-2.5-flash", timeout: 15000 },
       { model: "openai/gpt-5-mini", timeout: 15000 },
@@ -290,7 +292,6 @@ serve(async (req) => {
       }
     }
 
-    // All attempts failed
     console.error(`[analyze-supplement-label] All models failed. Last error: ${lastError}`);
     return new Response(
       JSON.stringify({ error: "Could not read label. Please retake with better lighting or enter manually.", extracted: null }),

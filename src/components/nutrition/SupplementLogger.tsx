@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  Plus, Pill, Trash2, Check, ScanBarcode, ChevronDown, ChevronUp,
+  Plus, Pill, Trash2, Check, Camera, ChevronDown, ChevronUp,
   Shield, Star, Minus, Loader2, AlertTriangle, Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,7 +38,7 @@ const SupplementLogger = () => {
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [servingUnit, setServingUnit] = useState("capsule");
-  const [servingsPerContainer, setServingsPerContainer] = useState("");
+  const [servingSize, setServingSize] = useState("");
   const [nutrients, setNutrients] = useState<Record<string, string>>({});
   const [nutrientForms, setNutrientForms] = useState<Record<string, string>>({});
   const [isVerified, setIsVerified] = useState(false);
@@ -87,7 +87,8 @@ const SupplementLogger = () => {
       name: name.trim(),
       brand: brand.trim() || null,
       serving_unit: servingUnit,
-      servings_per_container: servingsPerContainer ? parseInt(servingsPerContainer) : null,
+      serving_size: servingSize ? parseInt(servingSize) : null,
+      servings_per_container: null,
       is_verified: isCoach ? isVerified : false,
       is_coach_recommended: isCoach,
       coach_id: isCoach ? user.id : null,
@@ -127,15 +128,18 @@ const SupplementLogger = () => {
   const resetForm = () => {
     setShowAdd(false);
     setName(""); setBrand(""); setNutrients({}); setNutrientForms({});
-    setServingsPerContainer(""); setIsVerified(false);
+    setServingSize(""); setIsVerified(false);
   };
 
   const logSupplement = async (supplementId: string, servings: number = 1) => {
     if (!user) return;
+    // Find the supplement to use its serving_size as default
+    const supp = supplements.find(s => s.id === supplementId);
+    const defaultServings = supp?.serving_size || 1;
     const { error } = await supabase.from("supplement_logs").insert({
       client_id: user.id,
       supplement_id: supplementId,
-      servings,
+      servings: defaultServings,
       logged_at: today,
     });
     if (error) {
@@ -158,18 +162,6 @@ const SupplementLogger = () => {
   const getLogForSupplement = (supplementId: string) =>
     todayLogs.find((l) => l.supplement_id === supplementId);
 
-  const getEffectiveAmount = (nutrient: NutrientInfo, amount: number, forms: any[]) => {
-    const form = forms?.find((f: any) => f.nutrient_key === nutrient.key);
-    return amount * (form?.absorption_multiplier || 1.0);
-  };
-
-  const isHighAbsorption = (nutrientKey: string, formName: string) => {
-    const forms = BIOAVAILABILITY_FORMS[nutrientKey];
-    if (!forms) return false;
-    const form = forms.find(f => f.form === formName);
-    return form ? form.multiplier >= 0.85 : false;
-  };
-
   return (
     <div className="space-y-5">
       {/* Header Actions */}
@@ -179,15 +171,15 @@ const SupplementLogger = () => {
           Supplements
         </h3>
         <div className="flex items-center gap-2">
-          {/* Scan Button */}
+          {/* Take Photo Button */}
           <Button
             variant="outline"
             size="sm"
             className="gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
             onClick={() => setShowScanFlow(true)}
           >
-            <ScanBarcode className="h-3.5 w-3.5" />
-            Scan
+            <Camera className="h-3.5 w-3.5" />
+            Take Photo
           </Button>
           <SupplementScanFlow
             open={showScanFlow}
@@ -227,8 +219,11 @@ const SupplementLogger = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-foreground">Servings / Container</Label>
-                    <Input type="number" value={servingsPerContainer} onChange={(e) => setServingsPerContainer(e.target.value)} className="bg-secondary border-border" placeholder="e.g. 60" />
+                    <Label className="text-foreground">Serving Size</Label>
+                    <Input type="number" value={servingSize} onChange={(e) => setServingSize(e.target.value)} className="bg-secondary border-border" placeholder="e.g. 8" />
+                    {servingSize && parseInt(servingSize) > 1 && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{servingSize} {servingUnit}s per serving</p>
+                    )}
                   </div>
                 </div>
 
@@ -330,7 +325,7 @@ const SupplementLogger = () => {
 
       {/* All Supplements */}
       {supplements.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-6">No supplements added yet. Scan a barcode or add manually.</p>
+        <p className="text-xs text-muted-foreground text-center py-6">No supplements added yet. Take a photo of a label or add manually.</p>
       ) : (
         <div className="space-y-2">
           {supplements.filter(s => !s.is_verified).map((s) => (
@@ -354,8 +349,13 @@ interface SupplementCardProps {
 
 const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded, onToggle }: SupplementCardProps) => {
   const servings = log?.servings || 0;
+  const labelServingSize = s.serving_size || 1;
+  const unit = s.serving_unit || "serving";
 
   const nutrientValues = MICRONUTRIENTS.filter(n => n.category !== "other" && (s[n.key] || 0) > 0);
+
+  // Calculate the multiplier: logged quantity / label serving size
+  const nutrientMultiplier = servings > 0 ? servings / labelServingSize : 1;
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -367,7 +367,9 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded,
               {s.is_verified && <Shield className="h-3 w-3 text-primary shrink-0" />}
               {s.is_coach_recommended && <Star className="h-3 w-3 text-primary shrink-0" />}
             </div>
-            {s.brand && <p className="text-[10px] text-muted-foreground">{s.brand} · {s.serving_unit}</p>}
+            <p className="text-[10px] text-muted-foreground">
+              {s.brand ? `${s.brand} · ` : ""}{labelServingSize > 1 ? `${labelServingSize} ${unit}s per serving` : unit}
+            </p>
           </div>
           {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
         </button>
@@ -379,7 +381,12 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded,
               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onUpdateServings(log.id, servings - 1)}>
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="text-sm font-bold text-primary w-6 text-center tabular-nums">{servings}</span>
+              <div className="text-center min-w-[3rem]">
+                <span className="text-sm font-bold text-primary tabular-nums">{servings}</span>
+                {labelServingSize > 1 && (
+                  <p className="text-[9px] text-muted-foreground leading-none">of {labelServingSize}</p>
+                )}
+              </div>
               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onUpdateServings(log.id, servings + 1)}>
                 <Plus className="h-3 w-3" />
               </Button>
@@ -397,26 +404,22 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded,
       {expanded && nutrientValues.length > 0 && (
         <div className="border-t border-border/50 px-3 py-2 bg-secondary/30">
           <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">
-            Per {s.serving_unit} {servings > 1 ? `× ${servings}` : ""}
+            {servings > 0
+              ? `${servings} of ${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""} (${Math.round(nutrientMultiplier * 100)}%)`
+              : `Per serving (${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""})`
+            }
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             {nutrientValues.map(n => {
-              const raw = (s[n.key] || 0) * Math.max(servings, 1);
-              const formInfo = BIOAVAILABILITY_FORMS[n.key];
-              const multiplier = s.bioavailability_multiplier && formInfo
-                ? (formInfo.find(f => f.multiplier === s.bioavailability_multiplier)?.multiplier || s.bioavailability_multiplier)
-                : 1.0;
-              const effective = raw * multiplier;
-              const isHighForm = multiplier >= 0.85;
+              const labelAmount = s[n.key] || 0;
+              const effective = labelAmount * nutrientMultiplier;
+              const showScaled = servings > 0 && nutrientMultiplier !== 1;
               return (
                 <div key={n.key} className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground">{n.label}</span>
                   <div className="flex items-center gap-1">
-                    <span className="text-muted-foreground">{n.label}</span>
-                    {isHighForm && <Sparkles className="h-2.5 w-2.5 text-primary" />}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {multiplier < 1.0 && (
-                      <span className="text-[9px] text-muted-foreground line-through tabular-nums">{raw.toFixed(1)}</span>
+                    {showScaled && (
+                      <span className="text-[9px] text-muted-foreground tabular-nums">{labelAmount.toFixed(1)}→</span>
                     )}
                     <span className="text-foreground font-medium tabular-nums">{effective.toFixed(1)}{n.unit}</span>
                   </div>
@@ -424,10 +427,10 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded,
               );
             })}
           </div>
-          {s.bioavailability_multiplier && s.bioavailability_multiplier < 1.0 && (
+          {servings > 0 && nutrientMultiplier !== 1 && (
             <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1">
-              <AlertTriangle className="h-2.5 w-2.5" />
-              Effective amounts adjusted for absorption ({Math.round(s.bioavailability_multiplier * 100)}%)
+              <Sparkles className="h-2.5 w-2.5 text-primary" />
+              Scaled to {servings} {unit}{servings !== 1 ? "s" : ""} (label is per {labelServingSize})
             </p>
           )}
         </div>

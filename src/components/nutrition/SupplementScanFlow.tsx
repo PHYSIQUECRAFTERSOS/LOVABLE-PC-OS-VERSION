@@ -24,6 +24,7 @@ type FlowStep = "photo" | "review";
 interface ExtractedData {
   product_name?: string;
   serving_size?: string;
+  serving_size_qty?: number;
   serving_unit?: string;
   servings_per_container?: number;
   nutrients: Record<string, number>;
@@ -48,7 +49,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [servingUnit, setServingUnit] = useState("capsule");
-  const [servingsPerContainer, setServingsPerContainer] = useState("");
+  const [servingSize, setServingSize] = useState("");
   const [nutrients, setNutrients] = useState<Record<string, string>>({});
   const [confidence, setConfidence] = useState<"high" | "medium" | "low" | null>(null);
   const [wasAiExtracted, setWasAiExtracted] = useState(false);
@@ -64,20 +65,16 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
     setAnalyzeProgress("Compressing image...");
 
     try {
-      // Step 1: Compress image
       const compressed = await imageCompression(file, {
         maxWidthOrHeight: 1200,
         maxSizeMB: 0.5,
         useWebWorker: true,
         fileType: "image/jpeg",
       });
-      console.log("[SuppScan] Compressed:", file.size, "→", compressed.size, "bytes");
 
-      // Create thumbnail for preview
       const thumbUrl = URL.createObjectURL(compressed);
       setCapturedThumb(thumbUrl);
 
-      // Step 2: Convert to base64
       setAnalyzeProgress("Reading label...");
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -86,7 +83,6 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
         reader.readAsDataURL(compressed);
       });
 
-      // Step 3: Call AI — NO client-side timeout, let server handle it
       const progressTimer = setTimeout(() => setAnalyzeProgress("Almost done..."), 8000);
 
       const { data, error } = await supabase.functions.invoke("analyze-supplement-label", {
@@ -105,10 +101,18 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
 
       const ext = data.extracted as ExtractedData;
       setName(ext.product_name || "Unknown Supplement");
+      setBrand("");
       setServingUnit(ext.serving_unit || "capsule");
-      setServingsPerContainer(ext.servings_per_container ? String(ext.servings_per_container) : "");
       setConfidence(ext.confidence || "medium");
       setWasAiExtracted(true);
+
+      // Extract numeric serving size from AI response
+      let sizeQty = ext.serving_size_qty;
+      if (!sizeQty && ext.serving_size) {
+        const match = ext.serving_size.match(/(\d+)/);
+        if (match) sizeQty = parseInt(match[1]);
+      }
+      setServingSize(sizeQty ? String(sizeQty) : "1");
 
       const nutMap: Record<string, string> = {};
       if (ext.nutrients) {
@@ -132,7 +136,6 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const handleRetake = () => {
     setAnalysisError(null);
     setCapturedThumb(null);
-    // Small delay to ensure file input is ready
     setTimeout(() => fileInputRef.current?.click(), 100);
   };
 
@@ -140,12 +143,15 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
     if (!user || !name.trim()) return;
     setSaving(true);
 
+    const parsedServingSize = servingSize ? parseInt(servingSize) : null;
+
     const suppData: any = {
       client_id: user.id,
       name: name.trim(),
       brand: brand.trim() || null,
       serving_unit: servingUnit,
-      servings_per_container: servingsPerContainer ? parseInt(servingsPerContainer) : null,
+      serving_size: parsedServingSize,
+      servings_per_container: null,
       is_verified: false,
       is_coach_recommended: isCoach,
       coach_id: isCoach ? user.id : null,
@@ -172,7 +178,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
   const resetAndClose = () => {
     setStep("photo");
     setName(""); setBrand(""); setNutrients({});
-    setServingUnit("capsule"); setServingsPerContainer("");
+    setServingUnit("capsule"); setServingSize("");
     setConfidence(null);
     setWasAiExtracted(false);
     setAnalysisError(null);
@@ -197,7 +203,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
               </Button>
             )}
             <Sparkles className="h-5 w-5 text-primary" />
-            {step === "photo" ? "Scan Supplement Label" : "Review & Save"}
+            {step === "photo" ? "Take Photo of Label" : "Review & Save"}
           </DialogTitle>
         </DialogHeader>
 
@@ -304,20 +310,27 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
                 </Select>
               </div>
               <div>
-                <Label className="text-foreground text-xs">Servings / Container</Label>
+                <Label className="text-foreground text-xs">Serving Size</Label>
                 <Input
                   type="number"
-                  value={servingsPerContainer}
-                  onChange={(e) => setServingsPerContainer(e.target.value)}
+                  value={servingSize}
+                  onChange={(e) => setServingSize(e.target.value)}
                   className="bg-secondary border-border"
-                  placeholder="e.g. 60"
+                  placeholder="e.g. 8"
                 />
+                {servingSize && parseInt(servingSize) > 1 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {servingSize} {servingUnit}s per serving
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Nutrient Fields */}
             <div className="space-y-3">
-              <Label className="text-xs text-muted-foreground">Nutrient content per serving</Label>
+              <Label className="text-xs text-muted-foreground">
+                Nutrient content per serving ({servingSize || "1"} {servingUnit}{parseInt(servingSize || "1") > 1 ? "s" : ""})
+              </Label>
               {nutrientCategories.map((cat) => (
                 <div key={cat.label}>
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">{cat.label}</p>
