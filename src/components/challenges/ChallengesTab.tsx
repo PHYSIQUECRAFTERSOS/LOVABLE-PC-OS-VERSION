@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp, Trophy, Footprints, SlidersHorizontal } from "lucide-react";
 import { Challenge, useChallenges, useJoinChallenge } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
