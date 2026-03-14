@@ -275,33 +275,19 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           setResults(foods);
           setOffResults([]);
         } else {
-          // Layer 2: Direct Supabase fallback
-          console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2");
-          const { data: fallback } = await supabase
-            .from("food_items")
-            .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
-            .or(`name.ilike.%${q}%,brand.ilike.%${q}%`)
-            .order("is_verified", { ascending: false })
-            .order("name")
-            .limit(50);
-
+          // Layer 2: Tokenized fallback — search foods cache then food_items
+          console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2 tokenized fallback");
+          const fallbackResults = await tokenizedFallbackSearch(q);
           if (searchRequestIdRef.current !== requestId) return;
-          setResults((fallback || []) as FoodItem[]);
+          setResults(fallbackResults);
           setOffResults([]);
         }
       } catch (err) {
         console.error("[AddFoodScreen] Search error:", err);
-        // Layer 2 fallback on exception
         try {
-          const { data: fallback } = await supabase
-            .from("food_items")
-            .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
-            .or(`name.ilike.%${q}%,brand.ilike.%${q}%`)
-            .order("is_verified", { ascending: false })
-            .limit(50);
-
+          const fallbackResults = await tokenizedFallbackSearch(q);
           if (searchRequestIdRef.current !== requestId) return;
-          setResults((fallback || []) as FoodItem[]);
+          setResults(fallbackResults);
         } catch {
           setResults([]);
         }
