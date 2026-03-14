@@ -30,22 +30,30 @@ interface StagedInstruction {
   instruction_text: string;
 }
 
-function normalizeYouTubeUrl(url: string): string | null {
+function extractYouTubeId(url: string): string | null {
   if (!url.trim()) return null;
   const patterns = [
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/,
     /(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/,
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/,
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]+)/,
   ];
   for (const p of patterns) {
     const match = url.match(p);
-    if (match) return `https://www.youtube.com/watch?v=${match[1]}`;
+    if (match) return match[1];
   }
-  return undefined as any; // invalid
+  return null;
+}
+
+function normalizeYouTubeUrl(url: string): string | null {
+  if (!url.trim()) return null;
+  const id = extractYouTubeId(url);
+  return id ? `https://www.youtube.com/watch?v=${id}` : null;
 }
 
 function isValidYouTubeUrl(url: string): boolean {
   if (!url.trim()) return true;
-  return normalizeYouTubeUrl(url) !== undefined;
+  return extractYouTubeId(url) !== null;
 }
 
 interface PCRecipeEditorProps {
@@ -411,13 +419,25 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
         <div>
           <Label>Recipe Video URL (YouTube — optional)</Label>
           <Input
-            placeholder="https://youtu.be/..."
+            placeholder="https://youtu.be/... or youtube.com/shorts/..."
             value={youtubeUrl}
             onChange={e => { setYoutubeUrl(e.target.value); setYoutubeError(""); }}
             className="mt-1"
           />
-          <p className="text-xs text-muted-foreground mt-1">You can add this later after filming.</p>
+          <p className="text-xs text-muted-foreground mt-1">Supports regular videos, Shorts, and share links.</p>
           {youtubeError && <p className="text-xs text-destructive mt-1">{youtubeError}</p>}
+          {youtubeUrl.trim() && isValidYouTubeUrl(youtubeUrl) && extractYouTubeId(youtubeUrl) && (
+            <div className="mt-2 rounded-xl overflow-hidden border border-border/50 aspect-video">
+              <iframe
+                src={`https://www.youtube.com/embed/${extractYouTubeId(youtubeUrl)}?playsinline=1&rel=0&modestbranding=1`}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                loading="lazy"
+                title="Recipe video preview"
+              />
+            </div>
+          )}
         </div>
 
         {/* Published Toggle */}
