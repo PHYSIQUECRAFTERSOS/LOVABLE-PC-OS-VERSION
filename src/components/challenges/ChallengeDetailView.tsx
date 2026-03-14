@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star } from "lucide-react";
-import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate } from "@/hooks/useChallenges";
+import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame } from "lucide-react";
+import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
+import ChallengeTierProgress from "./ChallengeTierProgress";
 
 interface Props {
   challenge: Challenge | null;
@@ -20,10 +21,19 @@ interface Props {
 
 const medals = ["🥇", "🥈", "🥉"];
 
+const SCORING_ACTION_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
+  workout_completed: { label: "Workout Completed", icon: Dumbbell },
+  personal_best: { label: "Personal Best", icon: Trophy },
+  daily_logging: { label: "Daily Logging", icon: Target },
+  streak_bonus: { label: "Streak Bonus", icon: Flame },
+};
+
 const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const { user, role } = useAuth();
   const direction = challenge?.challenge_type === "custom" ? challenge.config?.direction : undefined;
   const { data: participants } = useChallengeParticipants(challenge?.id || null, direction);
+  const { data: challengeTiers } = useChallengeTiers(challenge?.id || null);
+  const { data: scoringRules } = useChallengeScoringRules(challenge?.id || null);
   const joinChallenge = useJoinChallenge();
   const logEntry = useLogChallengeEntry();
   const saveTemplate = useSaveTemplate();
@@ -54,13 +64,14 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
     ? `${config.metric_name || "Value"} (${config.metric_unit || ""})`
     : isSteps ? "Steps" : config.metric || "Weight";
 
-  // Custom target progress
-  const hasTarget = isCustom && config.target_value != null;
-  const targetProgress = hasTarget && myParticipant
-    ? config.direction === "lower_is_better"
-      ? Math.min(100, Math.round(((config.target_value - Number(myParticipant.best_value)) / config.target_value) * 100))
-      : Math.min(100, Math.round((Number(myParticipant.best_value) / config.target_value) * 100))
-    : 0;
+  const myPoints = Number(myParticipant?.current_value || 0);
+
+  // Get participant tier
+  const getParticipantTier = (points: number) => {
+    if (!challengeTiers?.length) return null;
+    const sorted = [...challengeTiers].sort((a, b) => b.min_points - a.min_points);
+    return sorted.find((t) => points >= t.min_points) || challengeTiers[0];
+  };
 
   const handleJoin = () => {
     if (challenge.id) joinChallenge.mutate(challenge.id);
@@ -133,13 +144,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
             <p className="text-sm text-muted-foreground">{challenge.description}</p>
           )}
 
-          {isCustom && (
-            <p className="text-xs text-muted-foreground bg-secondary/30 rounded-lg p-2">
-              <SlidersHorizontal className="inline h-3.5 w-3.5 mr-1 text-primary" />
-              Tracking: <strong>{config.metric_name}</strong> ({config.metric_unit}) — {config.direction === "lower_is_better" ? "Lower is better" : "Higher is better"}
-            </p>
-          )}
-
           {/* Challenge Progress */}
           {challenge.status === "active" && (
             <div className="space-y-1">
@@ -151,14 +155,23 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
             </div>
           )}
 
+          {/* Tier Progress for current user */}
+          {myParticipant && challengeTiers && challengeTiers.length > 0 && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-4 pb-3">
+                <ChallengeTierProgress tiers={challengeTiers} currentPoints={myPoints} />
+              </CardContent>
+            </Card>
+          )}
+
           {/* My Stats */}
           {myParticipant && (
-            <Card className="border-primary/20 bg-primary/5">
+            <Card className="border-border bg-card">
               <CardContent className="pt-4 pb-3">
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
                     <p className="text-lg font-bold text-primary">{Number(myParticipant.current_value).toLocaleString()}</p>
-                    <p className="text-[10px] text-muted-foreground">Current</p>
+                    <p className="text-[10px] text-muted-foreground">Points</p>
                   </div>
                   <div>
                     <p className="text-lg font-bold text-foreground">{Number(myParticipant.best_value).toLocaleString()}</p>
@@ -169,17 +182,32 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                     <p className="text-[10px] text-muted-foreground">Rank</p>
                   </div>
                 </div>
-                {hasTarget && (
-                  <div className="mt-3 space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Target: {config.target_value} {config.metric_unit}</span>
-                      <span>{targetProgress}%</span>
-                    </div>
-                    <Progress value={targetProgress} className="h-1.5" />
-                  </div>
-                )}
               </CardContent>
             </Card>
+          )}
+
+          {/* Scoring Rules */}
+          {scoringRules && scoringRules.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                How to Earn Points
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {scoringRules.filter((r) => r.is_enabled).map((rule) => {
+                  const meta = SCORING_ACTION_LABELS[rule.action_type];
+                  const Icon = meta?.icon || Star;
+                  return (
+                    <div key={rule.action_type} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/30">
+                      <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <div>
+                        <p className="text-[11px] font-medium text-foreground">{meta?.label || rule.action_type}</p>
+                        <p className="text-[10px] text-primary font-bold">{rule.points} pts · 1×/day</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           {/* Actions */}
@@ -224,6 +252,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                   const initials = (p.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   const isMe = p.user_id === user?.id;
                   const isTop3 = i < 3;
+                  const pTier = getParticipantTier(Number(p.current_value));
                   return (
                     <div
                       key={p.id}
@@ -236,7 +265,14 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                         {p.avatar_url && <AvatarImage src={p.avatar_url} />}
                         <AvatarFallback className="text-[10px] bg-secondary">{initials}</AvatarFallback>
                       </Avatar>
-                      <span className="flex-1 text-sm font-medium text-foreground truncate">{p.full_name}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-foreground truncate block">{p.full_name}</span>
+                        {pTier && (
+                          <span className="text-[9px] font-medium" style={{ color: pTier.color }}>
+                            {pTier.icon} {pTier.name}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-sm font-bold text-primary">
                         {Number(p.best_value).toLocaleString()}
                         {isCustom && <span className="text-[10px] text-muted-foreground ml-1">{config.metric_unit}</span>}
@@ -250,7 +286,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
         </DialogContent>
       </Dialog>
 
-      {/* Log Modal (Steps + Custom) */}
+      {/* Log Modal */}
       <Dialog open={showLogModal} onOpenChange={setShowLogModal}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
