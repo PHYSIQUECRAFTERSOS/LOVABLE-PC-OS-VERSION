@@ -178,7 +178,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
     const [eventsRes, sessionsRes] = await Promise.all([
       supabase.from("calendar_events")
-        .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id")
+        .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
         .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
       supabase.from("workout_sessions")
         .select("id, workout_id, created_at, completed_at, workouts(name)")
