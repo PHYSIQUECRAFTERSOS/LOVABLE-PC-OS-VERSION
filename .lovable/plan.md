@@ -1,108 +1,122 @@
 
-## Deep-dive findings (root cause)
-1. **Primary failure is reliability, not only ranking**  
-   The `search-foods` backend function is throwing `TimeoutError: Signal timed out` during external API parsing. When that happens, the whole request returns an error instead of partial results.
 
-2. **Client fallback is too weak**  
-   In `AddFoodScreen`, when edge search fails, fallback queries `food_items` (small table) using a strict full-phrase `ILIKE` (`%kirkland chicken breast%`).  
-   This misses brand+food searches where words are split/reordered across name/brand.
+# Physique Crafters — Transformation Operating System
 
-3. **Brand intent logic is incomplete**
-   - Local cache query in `search-foods` also uses strict full-phrase matching only.
-   - Early cache short-circuit returns unsorted local items before brand-relevance scoring.
-   - No synonym handling for **Costco ↔ Kirkland**, so “costco chicken breast” won’t reliably surface Kirkland top matches.
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
 ---
 
-## Implementation plan
+## Phase 1 — MVP (Core Platform)
 
-### 1) Harden `search-foods` so it never hard-fails on timeout
-**File:** `supabase/functions/search-foods/index.ts`
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-- Wrap each external source (USDA/OFF + JSON parsing) in isolated try/catch.
-- Return **partial results** when one source fails (never fail whole search for timeout).
-- Keep local cache results as guaranteed baseline.
-- Add structured logging per source (`ok/timeout/error`) for future debugging.
-- Remove failure mode where timeout in one source causes empty result experience.
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-### 2) Rebuild candidate retrieval for brand+food queries
-**File:** `supabase/functions/search-foods/index.ts`
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-- Replace strict phrase-only local search with tokenized matching:
-  - tokenize query words
-  - match across `name` OR `brand` per token
-  - include reordered phrases and split brand/name cases
-- Add brand alias expansion:
-  - searching “costco” expands with “kirkland”
-  - searching “kirkland” expands with “costco”
-- Keep dedupe, but score all merged results before slicing to `limit`.
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-### 3) Upgrade ranking so top result behaves like MyFitnessPal
-**File:** `supabase/functions/search-foods/index.ts`
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-- Strong boosts for:
-  - exact/near-exact brand match
-  - full query coverage across brand+name
-  - exact food term coverage (e.g., “chicken breast”, “bagel”)
-- Penalties for:
-  - generic rows without brand when brand intent is clear
-  - partial-only token matches
-- Ensure “brand + food” searches place specific branded items first.
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-### 4) Fix client fallback path in tracker UI
-**File:** `src/components/nutrition/AddFoodScreen.tsx`
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-- Replace fallback from strict `food_items` full-phrase query to robust fallback:
-  1. tokenized fallback from `foods` cache table (same matching intent as edge)
-  2. then fallback to `food_items` (for user/custom foods)
-- Ensure mapped fallback IDs are stable (`id || off_id || usda_fdc_id`) to prevent rendering/key issues and serving-state collisions.
-- Keep logging behavior unchanged (no change to add button function).
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-### 5) Safety pass for related mistakes
-**Files:** `src/components/nutrition/AddFoodScreen.tsx`, `supabase/functions/search-foods/index.ts`
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-- Guard against stale-response race conditions already present with request IDs; preserve this behavior.
-- Ensure no UI regression for existing successful searches.
-- Keep branded nutrition import flow intact.
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
 
 ---
 
-## Technical details (implementation shape)
-- Query normalization: lowercase, trim, collapse whitespace, tokenize.
-- Alias map example:
-  - `costco -> kirkland`
-  - `kirkland -> costco`
-- Score components:
-  - `brand contains full query`
-  - `name contains full query`
-  - `all tokens matched across brand+name`
-  - `food-term phrase match` (e.g. “chicken breast”)
-  - `brand-intent bonus`
-  - `generic penalty when brand-intent`
-- Resilience model:
-  - return 200 with best available results even when upstreams timeout
-  - never let one external timeout collapse all results
+## Phase 2 — Advanced Features
+
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
+
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
+
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
+
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
+
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
 
 ---
 
-## Verification plan (including iPhone-focused)
-1. **Backend validation via direct calls**
-   - Run `search-foods` for:
-     - `kirkland`
-     - `kirkland chicken breast`
-     - `costco chicken breast`
-     - `costco bagel`
-   - Confirm non-empty responses and top result brand/food relevance.
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 
-2. **Runtime log validation**
-   - Check function logs to confirm no uncaught timeout failures and partial-source behavior works.
-
-3. **Mobile UI validation (iPhone viewport)**
-   - Test in narrow viewport with keyboard open.
-   - Confirm searches return visible top branded rows immediately.
-   - Confirm add flow still logs correctly (no behavior change).
-
-4. **Regression checks**
-   - Generic searches still work.
-   - My Meals / PC Recipes tabs unaffected.
-   - No duplicate/undefined-key rendering errors in search results.
