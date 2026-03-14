@@ -30,22 +30,30 @@ interface StagedInstruction {
   instruction_text: string;
 }
 
-function normalizeYouTubeUrl(url: string): string | null {
+function extractYouTubeId(url: string): string | null {
   if (!url.trim()) return null;
   const patterns = [
     /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/,
     /(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]+)/,
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/,
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]+)/,
   ];
   for (const p of patterns) {
     const match = url.match(p);
-    if (match) return `https://www.youtube.com/watch?v=${match[1]}`;
+    if (match) return match[1];
   }
-  return undefined as any; // invalid
+  return null;
+}
+
+function normalizeYouTubeUrl(url: string): string | null {
+  if (!url.trim()) return null;
+  const id = extractYouTubeId(url);
+  return id ? `https://www.youtube.com/watch?v=${id}` : null;
 }
 
 function isValidYouTubeUrl(url: string): boolean {
   if (!url.trim()) return true;
-  return normalizeYouTubeUrl(url) !== undefined;
+  return extractYouTubeId(url) !== null;
 }
 
 interface PCRecipeEditorProps {
