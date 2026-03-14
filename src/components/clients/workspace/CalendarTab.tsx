@@ -109,8 +109,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [cardioTargetUnit, setCardioTargetUnit] = useState("km");
   const [cardioNotes, setCardioNotes] = useState("");
 
-  // Drag state
   const [dragEvent, setDragEvent] = useState<CalEvent | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showEventDetail, setShowEventDetail] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<Date | null>(null);
 
   const loadMonth = useCallback(async () => {
     setLoading(true);
