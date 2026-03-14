@@ -1,33 +1,35 @@
 
 
-# Store OAuth Secrets and Deploy Edge Functions
+# Fix CalendarTab Click Behavior and "+more" Overflow
 
-## What needs to happen
+## Problems
 
-You've provided all four credentials. I need to:
+1. **Event clicks open schedule form instead of event details** — The entire day cell has an `onClick={() => handleDayClick(day)}` that opens the schedule dialog. Individual event items inside cells are plain `<div>`s with no click handler. Clicking an event bubbles up to the day cell, opening the schedule form.
 
-1. **Store 4 secrets** securely so your edge functions can access them:
-   - `FITBIT_CLIENT_ID` → `23V6TZ`
-   - `FITBIT_CLIENT_SECRET` → `1c2222ece8fcac053bb504d18b595b2f`
-   - `GOOGLE_FIT_CLIENT_ID` → `992566955286-1h5v33ooa6c9p8gmo49abjrb3j3drqlg.apps.googleusercontent.com`
-   - `GOOGLE_FIT_CLIENT_SECRET` → `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`
+2. **"+N more" is not clickable** — It's a plain `<span>` element with no interactivity, so users can't see overflow events.
 
-2. **Add edge function config** entries to `supabase/config.toml` for the 4 auth functions (fitbit-auth-start, fitbit-auth-callback, google-fit-auth-start, google-fit-auth-callback) with `verify_jwt = false`
+Both issues are in `CalendarTab.tsx`. The `CalendarGrid.tsx` (used on the coach `/calendar` page) already handles both correctly — events use `e.stopPropagation()` and "+more" opens an expanded day dialog. CalendarTab needs the same treatment.
 
-3. **Deploy all edge functions** so they're live and ready
+## Changes — `src/components/clients/workspace/CalendarTab.tsx`
 
-4. **Update the Fitbit redirect URI** — Your Fitbit app has `https://app.physiquecrafters.com` as the redirect URL, but the code sends `https://app.physiquecrafters.com/profile?oauth_provider=fitbit`. You need to update the Fitbit developer portal redirect URL to match: `https://app.physiquecrafters.com/profile?oauth_provider=fitbit`
+### 1. Add event detail modal
+- Import `EventDetailModal` from `@/components/calendar/EventDetailModal`
+- Add state for `selectedEvent` and `showEventDetail`
+- Wire up `onComplete` and `onDelete` handlers (reuse existing supabase patterns)
+- Render `<EventDetailModal>` at the bottom of the component
 
-## Google Cloud Console setup reminder
+### 2. Make event items clickable
+- Change event items from `<div>` to `<button>` 
+- Add `onClick` with `e.stopPropagation()` → set `selectedEvent` and open detail modal
+- Keep drag behavior on these items
 
-Make sure in Google Cloud Console → Credentials → your **Web application** OAuth client:
-- **Authorized redirect URIs** includes:
-  - `https://app.physiquecrafters.com/profile?oauth_provider=google_fit`
-  - `https://physique-crafters-os.lovable.app/profile?oauth_provider=google_fit`
+### 3. Fix "+more" overflow
+- Add state `expandedDay: Date | null`
+- Change the "+N more" `<span>` to a `<button>` with `e.stopPropagation()` → set `expandedDay`
+- Add an expanded day `<Dialog>` (same pattern as CalendarGrid) listing all events for that day, each clickable to open event detail
 
-## Files to modify
-- `supabase/config.toml` — Add 4 function entries
+### 4. Map CalEvent to CalendarEvent type
+- The `EventDetailModal` expects a `CalendarEvent` type. Need to adapt the local `CalEvent` to include missing fields (description, notes, etc.) or fetch them. Simplest: expand the initial query to include `description, notes, linked_workout_id, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time` so the modal has full data.
 
-## No other code changes needed
-The edge functions and frontend code are already built from the previous implementation. This is purely secrets + config + deployment.
+## No database changes needed
 
