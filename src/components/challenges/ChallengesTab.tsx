@@ -41,7 +41,7 @@ const ChallengesTab = () => {
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <Flame className="h-4 w-4 text-primary" />
+                {challenge.challenge_type === "pr" ? <Trophy className="h-4 w-4 text-primary" /> : challenge.challenge_type === "steps" ? <Footprints className="h-4 w-4 text-primary" /> : <SlidersHorizontal className="h-4 w-4 text-primary" />}
                 <h3 className="font-semibold text-foreground">{challenge.title}</h3>
               </div>
               {challenge.description && (
