@@ -100,7 +100,89 @@ const PrivacyPolicy = () => {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-primary font-display text-base font-semibold">10. Contact</h2>
+          <h2 className="text-primary font-display text-base font-semibold">10. Health Device Integrations</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Physique Crafters offers optional integrations with third-party health and fitness platforms,
+            including <strong>Fitbit</strong> and <strong>Google Fit</strong>. When you connect a health device or
+            platform, we may access the following data types with your explicit authorization:
+          </p>
+          <ul className="text-sm text-foreground/80 leading-relaxed list-disc pl-6 space-y-1">
+            <li>Daily step count</li>
+            <li>Heart rate (resting and active)</li>
+            <li>Sleep duration and quality</li>
+            <li>Active minutes and activity data</li>
+            <li>Calories burned</li>
+          </ul>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            This data is used <strong>exclusively</strong> to personalize your coaching program, track your fitness
+            progress, and provide analytics to your assigned coach. Health data from connected devices is:
+          </p>
+          <ul className="text-sm text-foreground/80 leading-relaxed list-disc pl-6 space-y-1">
+            <li>Never sold to third parties</li>
+            <li>Never used for advertising or marketing purposes</li>
+            <li>Never shared with insurance companies, employers, or data brokers</li>
+            <li>Accessible only to you and your assigned coach</li>
+          </ul>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            You may disconnect any health integration at any time via the Settings page. Upon disconnection,
+            your OAuth tokens are immediately deleted. Previously synced health data remains in your account
+            unless you request full data deletion.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">11. Google API Limited Use Disclosure</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Physique Crafters' use and transfer of information received from Google APIs adheres to the{" "}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements. Specifically:
+          </p>
+          <ul className="text-sm text-foreground/80 leading-relaxed list-disc pl-6 space-y-1">
+            <li>We only request access to the data types necessary to provide coaching services (fitness activity, steps, heart rate, sleep).</li>
+            <li>We do not use Google user data for serving advertisements.</li>
+            <li>We do not allow humans to read your Google data unless: (a) we have your affirmative consent, (b) it is necessary for security purposes, (c) it is necessary to comply with applicable law, or (d) our use is limited to internal operations and the data has been aggregated and anonymized.</li>
+            <li>We do not transfer Google user data to third parties except as necessary to provide or improve our coaching services, as required by law, or as part of a merger/acquisition with equivalent privacy protections.</li>
+          </ul>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">12. Fitbit API Data Disclosure</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Data accessed via the Fitbit Web API is used solely to support your personalized coaching program.
+            We comply with{" "}
+            <a
+              href="https://dev.fitbit.com/legal/platform-terms-of-service/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Fitbit's Platform Terms of Service
+            </a>
+            . Your Fitbit data is never sold, shared for advertising, or used for any purpose beyond fitness coaching
+            and progress tracking. You may revoke Fitbit access at any time through your Physique Crafters settings
+            or directly through your Fitbit account settings.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">13. Health Data Token Storage</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            When you connect a health platform, we store encrypted OAuth access tokens and refresh tokens to
+            maintain your connection. These tokens grant limited, scoped access to your health data as authorized.
+            Tokens are automatically refreshed as needed and are permanently deleted when you disconnect the
+            integration. We do not store your health platform passwords.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">14. Contact</h2>
           <p className="text-sm text-foreground/80 leading-relaxed">
             For privacy inquiries, data requests, or concerns, contact: privacy@physiquecrafters.com
           </p>

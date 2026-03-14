@@ -107,7 +107,34 @@ const TermsOfService = () => {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-primary font-display text-base font-semibold">11. Contact</h2>
+          <h2 className="text-primary font-display text-base font-semibold">11. Third-Party Health Integrations</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Physique Crafters offers optional integrations with third-party health and fitness platforms including
+            Fitbit and Google Fit. By connecting these services, you authorize Physique Crafters to access specific
+            health and activity data (such as steps, heart rate, sleep, and activity minutes) from the connected
+            platform. You may revoke this authorization at any time through the Settings page in the app or through
+            the connected platform's account settings. Revoking access will immediately delete stored authentication
+            tokens. Previously synced data will remain in your account unless you request full data deletion.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">12. Health Data Use Limitations</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Health and fitness data obtained through third-party integrations is used exclusively to support your
+            personalized coaching program, including progress tracking and analytics visible to you and your assigned
+            coach. This data is <strong>never</strong> used for:
+          </p>
+          <ul className="text-sm text-foreground/80 leading-relaxed list-disc pl-6 space-y-1">
+            <li>Advertising, marketing, or user profiling</li>
+            <li>Sale or transfer to data brokers</li>
+            <li>Insurance underwriting, lending, or employment decisions</li>
+            <li>Any purpose unrelated to fitness coaching services</li>
+          </ul>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">13. Contact</h2>
           <p className="text-sm text-foreground/80 leading-relaxed">
             For questions about these terms, contact: support@physiquecrafters.com
           </p>
