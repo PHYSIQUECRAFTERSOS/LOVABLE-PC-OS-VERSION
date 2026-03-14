@@ -191,6 +191,66 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   useEffect(() => { fetchHistory(); }, [historySort]);
 
+  const FALLBACK_BRAND_ALIASES: Record<string, string[]> = {
+    costco: ["kirkland", "kirkland signature"],
+    kirkland: ["costco"], "kirkland signature": ["costco"],
+    "trader joe's": ["trader joes"], "trader joes": ["trader joe's"],
+    walmart: ["great value"], "great value": ["walmart"],
+  };
+
+  const tokenizedFallbackSearch = async (q: string): Promise<FoodItem[]> => {
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+    // Build tokenized OR conditions
+    const orParts = tokens.flatMap(t => [`name.ilike.%${t}%`, `brand.ilike.%${t}%`]);
+    // Add brand aliases
+    const joined = tokens.join(" ");
+    for (const [key, aliases] of Object.entries(FALLBACK_BRAND_ALIASES)) {
+      if (joined.includes(key)) {
+        for (const alias of aliases) orParts.push(`brand.ilike.%${alias}%`);
+      }
+    }
+
+    // Try foods cache table first (has external results cached)
+    const { data: cachedFoods } = await supabase
+      .from("foods" as any)
+      .select("id, name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, fiber_per_100g, sugar_per_100g, sodium_per_100g, serving_size_g, serving_unit, serving_description, is_verified, source, is_branded, image_url")
+      .or(orParts.join(","))
+      .not("calories_per_100g", "is", null)
+      .limit(50);
+
+    if (cachedFoods && cachedFoods.length > 0) {
+      return (cachedFoods as any[]).map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        brand: f.brand || null,
+        serving_size: f.serving_size_g ?? 100,
+        serving_unit: f.serving_unit ?? "g",
+        serving_description: f.serving_description ?? null,
+        calories: Math.round((f.calories_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        protein: Math.round((f.protein_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        carbs: Math.round((f.carbs_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        fat: Math.round((f.fat_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        fiber: Math.round((f.fiber_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        sugar: Math.round((f.sugar_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        sodium: Math.round((f.sodium_per_100g ?? 0) * (f.serving_size_g ?? 100) / 100),
+        is_verified: f.is_verified,
+        source: f.source === "usda" ? "usda" as const : f.source === "open_food_facts" ? "off" as const : "local" as const,
+        is_branded: f.is_branded,
+        image_url: f.image_url,
+      } as FoodItem));
+    }
+
+    // Fallback to food_items
+    const { data: fallback } = await supabase
+      .from("food_items")
+      .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+      .or(orParts.join(","))
+      .order("is_verified", { ascending: false })
+      .limit(50);
+
+    return (fallback || []) as FoodItem[];
+  };
+
   const handleSearch = useCallback(async (q: string) => {
     setSearch(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
