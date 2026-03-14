@@ -724,6 +724,44 @@ export type Database = {
           },
         ]
       }
+      challenge_scoring_rules: {
+        Row: {
+          action_type: string
+          challenge_id: string
+          created_at: string
+          daily_cap: number
+          id: string
+          is_enabled: boolean
+          points: number
+        }
+        Insert: {
+          action_type: string
+          challenge_id: string
+          created_at?: string
+          daily_cap?: number
+          id?: string
+          is_enabled?: boolean
+          points?: number
+        }
+        Update: {
+          action_type?: string
+          challenge_id?: string
+          created_at?: string
+          daily_cap?: number
+          id?: string
+          is_enabled?: boolean
+          points?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_scoring_rules_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenge_templates: {
         Row: {
           challenge_type: string
@@ -771,6 +809,47 @@ export type Database = {
           usage_count?: number | null
         }
         Relationships: []
+      }
+      challenge_tiers: {
+        Row: {
+          challenge_id: string
+          color: string
+          created_at: string
+          icon: string | null
+          id: string
+          min_points: number
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          challenge_id: string
+          color?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          min_points?: number
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          challenge_id?: string
+          color?: string
+          created_at?: string
+          icon?: string | null
+          id?: string
+          min_points?: number
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_tiers_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       challenges: {
         Row: {
