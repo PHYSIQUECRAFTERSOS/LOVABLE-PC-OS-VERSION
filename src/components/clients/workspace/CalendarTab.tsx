@@ -753,6 +753,57 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Event Detail Modal */}
+      <EventDetailModal
+        event={selectedEvent}
+        open={showEventDetail}
+        onClose={() => setShowEventDetail(false)}
+        onComplete={handleEventComplete}
+        onDelete={handleEventDelete}
+        isCoach={true}
+      />
+
+      {/* Expanded Day Dialog */}
+      <Dialog open={!!expandedDay} onOpenChange={(open) => !open && setExpandedDay(null)}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {expandedDay ? format(expandedDay, "EEEE, MMMM d") : "Events"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 pt-1">
+            {expandedDay && getEventsForDay(expandedDay).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No events</p>
+            ) : (
+              expandedDay && getEventsForDay(expandedDay).map((item: any) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setExpandedDay(null);
+                    handleEventClick(item);
+                  }}
+                  className="w-full text-left text-sm px-3 py-2.5 rounded-lg border border-border flex items-center gap-2 transition-colors hover:bg-secondary/50"
+                >
+                  {item.is_completed ? (
+                    <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
+                      <Check className="h-2 w-2 text-white" />
+                    </div>
+                  ) : (
+                    <div className={`h-3 w-3 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate block">{item.title}</span>
+                    {item.event_time && (
+                      <span className="text-xs text-muted-foreground">{item.event_time.slice(0, 5)}</span>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
