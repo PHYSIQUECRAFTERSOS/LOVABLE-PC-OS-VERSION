@@ -418,6 +418,56 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     setSaving(false);
   };
 
+  const toCalendarEvent = (item: any): CalendarEvent => ({
+    id: item.id,
+    title: item.title,
+    description: item.description || null,
+    event_type: item.event_type,
+    event_date: item.event_date,
+    event_time: item.event_time || null,
+    end_time: item.end_time || null,
+    color: item.color || null,
+    is_completed: item.is_completed,
+    completed_at: item.completed_at || null,
+    notes: item.notes || null,
+    target_client_id: item.target_client_id || clientId,
+    linked_workout_id: item.linked_workout_id || null,
+    linked_cardio_id: item.linked_cardio_id || null,
+    linked_checkin_id: item.linked_checkin_id || null,
+    is_recurring: item.is_recurring || false,
+    recurrence_pattern: item.recurrence_pattern || null,
+    user_id: item.user_id || clientId,
+  });
+
+  const handleEventClick = (item: any) => {
+    setSelectedEvent(toCalendarEvent(item));
+    setShowEventDetail(true);
+  };
+
+  const handleEventComplete = async (ev: CalendarEvent) => {
+    const { error } = await supabase.from("calendar_events")
+      .update({ is_completed: true, completed_at: new Date().toISOString() })
+      .eq("id", ev.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Marked complete" });
+      setShowEventDetail(false);
+      loadMonth();
+    }
+  };
+
+  const handleEventDelete = async (ev: CalendarEvent) => {
+    const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Event deleted" });
+      setShowEventDetail(false);
+      loadMonth();
+    }
+  };
+
   // Drag and drop
   const handleDragStart = (e: React.DragEvent, event: CalEvent) => {
     if ((event as any).isSession) return;
