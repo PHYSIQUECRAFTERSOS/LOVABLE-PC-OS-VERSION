@@ -15,7 +15,7 @@ import {
   ScanBarcode,
   Camera,
   Zap,
-  Mic,
+  
   Plus,
   ChevronDown,
   ChevronUp,
