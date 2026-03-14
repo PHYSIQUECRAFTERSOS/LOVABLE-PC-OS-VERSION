@@ -308,8 +308,8 @@ export function useJoinChallenge() {
 export function useLogChallengeEntry() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  return useMutation({
-    mutationFn: async ({ challengeId, value, logDate }: { challengeId: string; value: number; logDate: string }) => {
+  return useMutation<void, Error, { challengeId: string; value: number; logDate: string }>({
+    mutationFn: async ({ challengeId, value, logDate }) => {
       const { error: logError } = await db
         .from("challenge_logs")
         .insert({ challenge_id: challengeId, user_id: user!.id, log_date: logDate, value, source: "manual" });
