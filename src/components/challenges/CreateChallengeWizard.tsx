@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Trophy, Footprints, SlidersHorizontal, ChevronLeft, ChevronRight, Check, Sparkles, FileText, PlusCircle } from "lucide-react";
-import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate } from "@/hooks/useChallenges";
+import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate, type ChallengeTemplate } from "@/hooks/useChallenges";
+import { supabase } from "@/integrations/supabase/client";
 import { useAllClients } from "@/hooks/useCulture";
 import { useAuth } from "@/hooks/useAuth";
 
