@@ -419,13 +419,25 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
         <div>
           <Label>Recipe Video URL (YouTube — optional)</Label>
           <Input
-            placeholder="https://youtu.be/..."
+            placeholder="https://youtu.be/... or youtube.com/shorts/..."
             value={youtubeUrl}
             onChange={e => { setYoutubeUrl(e.target.value); setYoutubeError(""); }}
             className="mt-1"
           />
-          <p className="text-xs text-muted-foreground mt-1">You can add this later after filming.</p>
+          <p className="text-xs text-muted-foreground mt-1">Supports regular videos, Shorts, and share links.</p>
           {youtubeError && <p className="text-xs text-destructive mt-1">{youtubeError}</p>}
+          {youtubeUrl.trim() && isValidYouTubeUrl(youtubeUrl) && extractYouTubeId(youtubeUrl) && (
+            <div className="mt-2 rounded-xl overflow-hidden border border-border/50 aspect-video">
+              <iframe
+                src={`https://www.youtube.com/embed/${extractYouTubeId(youtubeUrl)}?playsinline=1&rel=0&modestbranding=1`}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                loading="lazy"
+                title="Recipe video preview"
+              />
+            </div>
+          )}
         </div>
 
         {/* Published Toggle */}

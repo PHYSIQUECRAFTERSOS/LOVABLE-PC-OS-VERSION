@@ -171,19 +171,27 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
               </div>
             )}
 
-            {/* YouTube */}
-            {recipe.youtube_url && recipe.youtube_url.trim() !== "" && (
-              <div className="py-3">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Watch Recipe</h2>
-                <button
-                  onClick={() => window.open(recipe.youtube_url, "_blank")}
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  <Youtube className="h-4 w-4" />
-                  Watch on YouTube
-                </button>
-              </div>
-            )}
+            {/* YouTube Video Preview */}
+            {recipe.youtube_url && recipe.youtube_url.trim() !== "" && (() => {
+              const ytMatch = recipe.youtube_url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]+)/);
+              const videoId = ytMatch ? ytMatch[1] : null;
+              if (!videoId) return null;
+              return (
+                <div className="py-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Watch Recipe</h2>
+                  <div className="rounded-xl overflow-hidden border border-border/50 aspect-video">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1`}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      loading="lazy"
+                      title="Recipe video"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             {recipe.description && (
               <div className="py-3">
