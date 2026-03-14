@@ -17,7 +17,7 @@ const PrivacyPolicy = () => {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        <p className="text-xs text-muted-foreground italic">Last Updated: February 24, 2026</p>
+        <p className="text-xs text-muted-foreground italic">Last Updated: March 14, 2026</p>
 
         <section className="space-y-3">
           <h2 className="text-primary font-display text-base font-semibold">1. Information We Collect</h2>
