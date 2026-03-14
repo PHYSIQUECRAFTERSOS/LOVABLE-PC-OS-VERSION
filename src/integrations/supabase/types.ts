@@ -607,6 +607,35 @@ export type Database = {
           },
         ]
       }
+      challenge_banner_dismissals: {
+        Row: {
+          challenge_id: string
+          dismissed_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          dismissed_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          dismissed_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_banner_dismissals_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       challenge_logs: {
         Row: {
           challenge_id: string
@@ -694,6 +723,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      challenge_templates: {
+        Row: {
+          challenge_type: string
+          config: Json
+          created_at: string | null
+          created_by: string
+          default_duration_days: number | null
+          default_enrollment: string | null
+          default_xp_reward: number | null
+          description: string | null
+          id: string
+          is_archived: boolean | null
+          name: string
+          updated_at: string | null
+          usage_count: number | null
+        }
+        Insert: {
+          challenge_type: string
+          config?: Json
+          created_at?: string | null
+          created_by: string
+          default_duration_days?: number | null
+          default_enrollment?: string | null
+          default_xp_reward?: number | null
+          description?: string | null
+          id?: string
+          is_archived?: boolean | null
+          name: string
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Update: {
+          challenge_type?: string
+          config?: Json
+          created_at?: string | null
+          created_by?: string
+          default_duration_days?: number | null
+          default_enrollment?: string | null
+          default_xp_reward?: number | null
+          description?: string | null
+          id?: string
+          is_archived?: boolean | null
+          name?: string
+          updated_at?: string | null
+          usage_count?: number | null
+        }
+        Relationships: []
       }
       challenges: {
         Row: {

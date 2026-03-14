@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp, Trophy, Footprints, SlidersHorizontal } from "lucide-react";
 import { Challenge, useChallenges, useJoinChallenge } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,7 +41,7 @@ const ChallengesTab = () => {
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <Flame className="h-4 w-4 text-primary" />
+                {challenge.challenge_type === "pr" ? <Trophy className="h-4 w-4 text-primary" /> : challenge.challenge_type === "steps" ? <Footprints className="h-4 w-4 text-primary" /> : <SlidersHorizontal className="h-4 w-4 text-primary" />}
                 <h3 className="font-semibold text-foreground">{challenge.title}</h3>
               </div>
               {challenge.description && (
