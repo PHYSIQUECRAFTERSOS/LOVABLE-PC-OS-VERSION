@@ -256,18 +256,12 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
 
       await tryEnableTorch(warmStream);
 
-      const warmTrack = warmStream.getVideoTracks()[0];
-      const preferredDeviceId = warmTrack?.getSettings?.().deviceId ?? null;
-
-      warmStream.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-      videoEl.srcObject = null;
-
+      // Keep the warm stream alive — decode directly from it (single-stream pattern)
       const reader = createReader();
       readerRef.current = reader;
 
       reader
-        .decodeFromVideoDevice(preferredDeviceId, videoEl, (result, err) => {
+        .decodeFromStream(warmStream, videoEl, (result, err) => {
           if (result && !hasDetectedRef.current) {
             hasDetectedRef.current = true;
             if (navigator.vibrate) navigator.vibrate(100);
@@ -297,34 +291,6 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
             variant: "destructive",
           });
         });
-
-      const streamSyncTimer = window.setTimeout(() => {
-        if (token !== startTokenRef.current) return;
-
-        let attempts = 0;
-        const torchInterval = window.setInterval(async () => {
-          if (token !== startTokenRef.current) {
-            window.clearInterval(torchInterval);
-            return;
-          }
-
-          attempts += 1;
-          const activeStream = videoEl.srcObject instanceof MediaStream ? videoEl.srcObject : null;
-          if (!activeStream) {
-            if (attempts >= 6) window.clearInterval(torchInterval);
-            return;
-          }
-
-          streamRef.current = activeStream;
-          const torchEnabled = await tryEnableTorch(activeStream);
-          if (torchEnabled || attempts >= 6) {
-            window.clearInterval(torchInterval);
-          }
-        }, 300);
-
-        startupTimersRef.current.push(torchInterval);
-      }, 350);
-      startupTimersRef.current.push(streamSyncTimer);
 
       const watchdogTimer = window.setTimeout(() => {
         if (token !== startTokenRef.current) return;
