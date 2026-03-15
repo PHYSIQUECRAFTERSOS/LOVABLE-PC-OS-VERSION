@@ -1,122 +1,59 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Client Preview Popup, Deactivate/Delete, and Deactivated Tab
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Overview
+Replace the current "click to navigate" behavior on client cards with a Trainerize-style preview dialog. Add deactivate/delete functionality and a "Deactivated" tab to the Clients page.
 
----
+## Changes
 
-## Phase 1 — MVP (Core Platform)
+### 1. New Component: `ClientPreviewDialog.tsx`
+**File:** `src/components/clients/ClientPreviewDialog.tsx`
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+A `Dialog` that opens when clicking a client card. Fetches and displays:
+- **Header**: Avatar, name, "Open" button (navigates to `/clients/:id`), dropdown with "Deactivate" and "Delete" options
+- **Stats row**: Current weight (from `weight_logs`), age/height/gender (from `onboarding_profiles`), body fat (from `onboarding_profiles.bodyfat_final_confirmed`)
+- **Program info**: Current program name + phase (from `client_program_assignments`)
+- **Compliance rings**: Exercise compliance (7d `workout_sessions`) and Nutrition compliance (7d `nutrition_logs` vs `nutrition_targets`)
+- **Activity**: Last signed in (from `profiles.updated_at`), last message sent/received (from `thread_messages` via `message_threads`)
+- **Macros today**: Calories/protein/carbs/fat from today's `nutrition_logs` vs targets
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+Data fetched in a single `useEffect` with parallel Supabase queries.
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+### 2. Deactivate Client Flow
+- **UI**: Confirmation `AlertDialog` ("Are you sure you want to deactivate {name}?")
+- **Action**: Updates `coach_clients.status` from `"active"` to `"deactivated"` for the coach+client pair
+- **Effect**: Client no longer appears in Active Clients tab; client's auth account is soft-banned via `supabase.auth.admin.updateUserById` through a new edge function
+- **Edge function**: `supabase/functions/manage-client-status/index.ts` — accepts `{ action: "deactivate" | "reactivate" | "delete", clientId }`, validates coach ownership, then:
+  - Deactivate: updates `coach_clients.status = 'deactivated'`, bans user (`ban_duration: "876000h"`)
+  - Reactivate: updates `coach_clients.status = 'active'`, unbans user (`ban_duration: "none"`)
+  - Delete: deletes all client data (profile, logs, sessions, etc.) and calls `auth.admin.deleteUser()`
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+### 3. Delete Client Flow
+- **UI**: Confirmation `AlertDialog` with destructive styling ("This will permanently delete {name}'s account and all data. Type DELETE to confirm.")
+- **Action**: Calls the same edge function with `action: "delete"`
+- **Effect**: Removes user from auth, deletes profile + all associated data
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### 4. Deactivated Clients Tab
+**File:** `src/pages/Clients.tsx`
+- Add a 4th tab: "Deactivated" with `UserX` icon
+- New component `DeactivatedClientsList.tsx` that queries `coach_clients` where `status = 'deactivated'`
+- Each row shows client name/avatar with a "Reactivate" button (confirmation dialog → calls edge function with `action: "reactivate"`)
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+### 5. Update `SelectableClientCards.tsx`
+- Change card click handler: instead of `navigate()`, set `previewClientId` state and open `ClientPreviewDialog`
+- Pass `onClientDeactivated` callback to refresh the client list after deactivation
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### 6. Database Migration
+- No schema changes needed — `coach_clients.status` already supports string values; we'll use `"deactivated"` alongside existing `"active"`
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+### Files Changed
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+| File | Change |
+|------|--------|
+| `src/components/clients/ClientPreviewDialog.tsx` | **New** — Preview popup with stats, Open/Deactivate/Delete |
+| `src/components/clients/DeactivatedClientsList.tsx` | **New** — List of deactivated clients with reactivate |
+| `src/components/clients/SelectableClientCards.tsx` | Card click opens preview instead of navigating |
+| `src/pages/Clients.tsx` | Add "Deactivated" tab |
+| `supabase/functions/manage-client-status/index.ts` | **New** — Edge function for deactivate/reactivate/delete |
 
