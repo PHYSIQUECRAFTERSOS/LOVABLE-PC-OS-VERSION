@@ -360,8 +360,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           const fallbackResults = await tokenizedFallbackSearch(q);
           if (searchRequestIdRef.current !== requestId) return;
           setResults(fallbackResults);
+          setBestMatches([]);
+          setMoreResultsList([]);
         } catch {
           setResults([]);
+          setBestMatches([]);
+          setMoreResultsList([]);
         }
         setOffResults([]);
       } finally {
