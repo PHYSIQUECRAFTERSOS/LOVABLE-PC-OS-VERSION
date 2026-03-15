@@ -45,7 +45,7 @@ interface FoodSearchPanelProps {
   onClose: () => void;
 }
 
-type FilterTab = "all" | "favorites" | "recent" | "branded" | "generic";
+type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic";
 type SortBy = "relevance" | "calories" | "protein" | "alpha";
 
 const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
