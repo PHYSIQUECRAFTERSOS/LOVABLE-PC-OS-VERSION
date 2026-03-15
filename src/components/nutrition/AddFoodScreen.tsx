@@ -356,6 +356,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             setBestMatches([]);
             setMoreResultsList([]);
           }
+          // Track favorites from response
+          const favSet = new Set<string>();
+          data.foods.forEach((f: any) => { if (f.is_favorite) favSet.add(f.id); });
+          if (favSet.size > 0) setFavorites(prev => new Set([...prev, ...favSet]));
           setOffResults([]);
         } else {
           console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2 tokenized fallback");
