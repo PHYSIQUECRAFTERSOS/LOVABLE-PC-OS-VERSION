@@ -59,6 +59,8 @@ interface MealFood {
   fat_per_100: number;
   fiber_per_100: number;
   sugar_per_100: number;
+  serving_unit: string;
+  serving_size_g: number;
 }
 
 interface Meal {
