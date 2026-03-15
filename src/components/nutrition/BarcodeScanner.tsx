@@ -32,6 +32,7 @@ interface BarcodeScannerProps {
   onLogged: () => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  defaultMealType?: string;
 }
 
 /** Build a configured BrowserMultiFormatReader with optimal hints */
