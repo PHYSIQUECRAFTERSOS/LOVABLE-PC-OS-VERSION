@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import ChallengeDetailView from "./ChallengeDetailView";
 
-const ChallengesTab = () => {
+interface ChallengesTabProps {
+  focusChallengeId?: string | null;
+  onFocusChallengeHandled?: () => void;
+}
+
+const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: ChallengesTabProps) => {
   const { role } = useAuth();
   const { data: challenges, isLoading } = useChallenges();
   const joinChallenge = useJoinChallenge();
@@ -17,6 +22,15 @@ const ChallengesTab = () => {
 
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
   const [showPast, setShowPast] = useState(false);
+
+  useEffect(() => {
+    if (!focusChallengeId || !challenges?.length) return;
+    const createdChallenge = challenges.find((c) => c.id === focusChallengeId);
+    if (createdChallenge) {
+      setSelectedChallenge(createdChallenge);
+      onFocusChallengeHandled?.();
+    }
+  }, [focusChallengeId, challenges, onFocusChallengeHandled]);
 
   if (isLoading) {
     return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)}</div>;
