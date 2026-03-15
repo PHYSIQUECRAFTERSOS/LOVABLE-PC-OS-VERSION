@@ -12,6 +12,7 @@ import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell,
 import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 import ChallengeTierProgress from "./ChallengeTierProgress";
+import TierIcon from "./TierIcon";
 
 interface Props {
   challenge: Challenge | null;
@@ -268,8 +269,8 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                       <div className="flex-1 min-w-0">
                         <span className="text-sm font-medium text-foreground truncate block">{p.full_name}</span>
                         {pTier && (
-                          <span className="text-[9px] font-medium" style={{ color: pTier.color }}>
-                            {pTier.icon} {pTier.name}
+                          <span className="text-[9px] font-medium flex items-center gap-1" style={{ color: pTier.color }}>
+                            <TierIcon name={pTier.name} size={14} /> {pTier.name}
                           </span>
                         )}
                       </div>

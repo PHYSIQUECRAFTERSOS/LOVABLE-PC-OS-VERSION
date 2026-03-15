@@ -6,6 +6,7 @@ import { Trophy, Crown, Star, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import TierIcon from "./TierIcon";
 
 const medals = ["🥇", "🥈", "🥉"];
 
@@ -78,9 +79,12 @@ const GlobalLeaderboard = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-foreground truncate">{entry.full_name}</span>
-                    <Badge variant="outline" className="text-[8px] px-1.5 py-0" style={{ color: entry.tier_color, borderColor: `${entry.tier_color}40` }}>
-                      {entry.tier_name}
-                    </Badge>
+                    <span className="flex items-center gap-1">
+                      <TierIcon name={entry.tier_name} size={16} />
+                      <Badge variant="outline" className="text-[8px] px-1.5 py-0" style={{ color: entry.tier_color, borderColor: `${entry.tier_color}40` }}>
+                        {entry.tier_name}
+                      </Badge>
+                    </span>
                   </div>
                 </div>
 

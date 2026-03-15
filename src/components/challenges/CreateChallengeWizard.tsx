@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Trophy, Footprints, SlidersHorizontal, ChevronLeft, ChevronRight, Check, Sparkles, FileText, PlusCircle, Dumbbell, Target, Flame, Zap } from "lucide-react";
 import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate, insertDefaultChallengeTiersAndRules, DEFAULT_CHALLENGE_TIERS, DEFAULT_SCORING_RULES, type ChallengeTemplate } from "@/hooks/useChallenges";
+import TierIcon from "./TierIcon";
 import { supabase } from "@/integrations/supabase/client";
 import { useAllClients } from "@/hooks/useCulture";
 import { useAuth } from "@/hooks/useAuth";
@@ -578,10 +579,10 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
                     className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card"
                   >
                     <div
-                      className="h-8 w-8 rounded-full flex items-center justify-center text-sm border-2 shrink-0"
+                      className="h-8 w-8 rounded-full flex items-center justify-center border-2 shrink-0"
                       style={{ borderColor: tier.color, backgroundColor: `${tier.color}15` }}
                     >
-                      {tier.icon}
+                      <TierIcon name={tier.name} size={20} />
                     </div>
                     <Input
                       value={tier.name}
@@ -743,7 +744,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
                 <div className="flex items-center gap-2 flex-wrap">
                   {challengeTiers.map((t) => (
                     <div key={t.name} className="flex items-center gap-1 text-xs">
-                      <span>{t.icon}</span>
+                      <TierIcon name={t.name} size={16} />
                       <span style={{ color: t.color }} className="font-medium">{t.name}</span>
                       <span className="text-muted-foreground">({t.min_points}+)</span>
                     </div>
