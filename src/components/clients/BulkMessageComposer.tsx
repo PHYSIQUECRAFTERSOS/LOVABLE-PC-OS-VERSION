@@ -174,7 +174,7 @@ const BulkMessageComposer = ({
                       checked={!excludedIds.has(r.id)}
                       onCheckedChange={() => toggleExclude(r.id)}
                     />
-                    <span className="text-sm text-foreground">{r.full_name}</span>
+                    <span className="text-sm text-foreground">{r.name}</span>
                   </label>
                 ))}
               </div>
