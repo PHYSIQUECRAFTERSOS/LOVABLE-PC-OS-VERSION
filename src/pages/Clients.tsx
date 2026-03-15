@@ -57,6 +57,7 @@ const Clients = () => {
             <SelectableClientCards
               onSelectionChange={setSelectedClients}
               onSendMessage={() => setBulkOpen(true)}
+              onClientStatusChanged={() => setDeactivatedRefreshKey((k) => k + 1)}
             />
           </TabsContent>
 
