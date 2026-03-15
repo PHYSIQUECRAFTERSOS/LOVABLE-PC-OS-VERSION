@@ -63,7 +63,6 @@ interface FoodItem {
   is_recent?: boolean;
   is_favorite?: boolean;
   log_count?: number;
-  image_url?: string | null;
   calories_per_100g?: number;
   protein_per_100g?: number;
   carbs_per_100g?: number;
