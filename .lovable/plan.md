@@ -1,122 +1,64 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Fix Bulk Messaging, Add Trigger/Template Edit/Delete, Recipient Checkboxes
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Problems Identified
 
----
+1. **Bulk message RLS crash**: `BulkMessageComposer` writes to `conversations`/`messages` tables, but the app's messaging system uses `message_threads`/`thread_messages`. Even if RLS were fixed, messages wouldn't appear in coach/client inboxes. Must rewrite to use `message_threads` + `thread_messages`.
 
-## Phase 1 — MVP (Core Platform)
+2. **No edit/delete for triggers or templates**: AutoMessagingManager only supports creating triggers and templates — no way to edit or delete them.
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+3. **Bulk message UI lacks individual client names**: Shows "4 clients" badge but not who they are. Need checkboxes per recipient.
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
-
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
-
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
-
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
-
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
-
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+4. **Trigger timing for missed workout/checkin**: The edge function currently checks "no workout in 2 days" / "no checkin in 8 days". Should fire 24 hours after the scheduled date, at 5 AM client local time.
 
 ---
 
-## Phase 2 — Advanced Features
+## Plan
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+### 1. Fix Bulk Messaging — Rewrite to use `message_threads` + `thread_messages`
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+**File: `src/components/clients/BulkMessageComposer.tsx`**
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+- Remove all `conversations`, `conversation_participants`, `messages` table usage
+- For each recipient: find existing `message_threads` row where `coach_id = user.id` and `client_id = recipient.id`; if none, create one
+- Insert into `thread_messages` with `thread_id`, `sender_id = user.id`, `content = message`
+- Remove "announcement/broadcast" delivery type (not supported by thread model) — keep only "Direct Message"
+- Add `excludedIds: Set<string>` state for client deselection
+- Show each recipient by name with a checkbox to exclude them
+- Compute effective recipients as `recipients.filter(r => !excludedIds.has(r.id))`
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
+### 2. Add Edit & Delete for Triggers and Templates
 
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
+**File: `src/components/messaging/AutoMessagingManager.tsx`**
+
+**Triggers:**
+- Add `editingTriggerId` state. When editing, pre-fill the trigger form fields from the selected trigger
+- Save mutation: if `editingTriggerId` is set, `.update()` instead of `.insert()`
+- Add Trash2 icon button on each trigger card with confirmation via AlertDialog
+- Delete mutation: `.delete().eq("id", triggerId)`
+
+**Templates:**
+- Add `editingTemplateId` state. When editing, pre-fill `tplName`, `tplContent`, `tplCategory`
+- Save mutation: if `editingTemplateId`, `.update()` instead of `.insert()`
+- Add Pencil and Trash2 icon buttons on each template card
+- Delete mutation with AlertDialog confirmation
+
+### 3. Update Trigger Timing Logic
+
+**File: `supabase/functions/evaluate-auto-messages/index.ts`**
+
+- For `missed_workout`: check if the client had a workout scheduled (via `calendar_events` where `event_type = 'workout'`) for yesterday (relative to client's timezone from `profiles.timezone`), and no `workout_sessions` completed for that date. Only fire if current time is past 5 AM in client's local timezone.
+- For `missed_checkin`: check if a checkin was due yesterday (based on `calendar_events` or `checkin_schedules`) and no `weekly_checkins` submitted for that week. Fire at 5 AM client local time the next day.
+- Fetch client timezone from `profiles.timezone`, default to "America/Los_Angeles" if not set.
 
 ---
 
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `src/components/clients/BulkMessageComposer.tsx` | Rewrite to use `message_threads`/`thread_messages`, add per-client checkboxes |
+| `src/components/messaging/AutoMessagingManager.tsx` | Add edit/delete for triggers and templates with confirmation dialogs |
+| `supabase/functions/evaluate-auto-messages/index.ts` | Update missed_workout/missed_checkin to fire 24h after schedule at 5 AM client local time |
 
