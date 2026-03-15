@@ -19,8 +19,12 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus, Search, Star, Trash2, Copy, MoreHorizontal, FolderOpen,
-  UtensilsCrossed, ChevronDown, ChevronUp, Loader2,
+  UtensilsCrossed, ChevronDown, ChevronUp, Loader2, Pencil, UserPlus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -85,6 +89,7 @@ const MealPlanTemplateLibrary = () => {
   const [copyPlanType, setCopyPlanType] = useState("training_day");
   const [copying, setCopying] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const openCopyToClient = async (template: Template) => {
     setCopyTemplate(template);
@@ -325,7 +330,7 @@ const MealPlanTemplateLibrary = () => {
             Back to Templates
           </Button>
         </div>
-        <MealPlanBuilder forceTemplate onSaved={() => { setShowBuilder(false); setEditingTemplateId(undefined); loadTemplates(); }} />
+        <MealPlanBuilder forceTemplate editingTemplateId={editingTemplateId} onSaved={() => { setShowBuilder(false); setEditingTemplateId(undefined); loadTemplates(); }} />
       </div>
     );
   }
@@ -427,13 +432,16 @@ const MealPlanTemplateLibrary = () => {
                         <DropdownMenuTrigger asChild>
                           <div
                             role="button"
-                            className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
+                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted transition-all"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <MoreHorizontal className="h-3.5 w-3.5" />
                           </div>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setEditingTemplateId(template.id); setShowBuilder(true); }}>
+                            <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toggleFavorite(template.id, template.is_favorite)}>
                             <Star className={cn("h-3.5 w-3.5 mr-2", template.is_favorite && "fill-yellow-400 text-yellow-400")} />
                             {template.is_favorite ? "Unfavorite" : "Favorite"}
@@ -442,7 +450,7 @@ const MealPlanTemplateLibrary = () => {
                             <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openCopyToClient(template)}>
-                            <Copy className="h-3.5 w-3.5 mr-2" /> Copy to Client
+                            <UserPlus className="h-3.5 w-3.5 mr-2" /> Assign to Client
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {CATEGORIES.map(cat => (
@@ -454,7 +462,7 @@ const MealPlanTemplateLibrary = () => {
                             {!template.category ? "✓ " : ""}No Category
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive" onClick={() => deleteTemplate(template.id)}>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirmId(template.id)}>
                             <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -477,6 +485,20 @@ const MealPlanTemplateLibrary = () => {
                   <div className="flex gap-2 mt-1">
                     {selectedTemplate.category && <Badge variant="outline">{selectedTemplate.category}</Badge>}
                   </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingTemplateId(selectedTemplate.id); setShowBuilder(true); }} title="Edit">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateTemplate(selectedTemplate)} title="Duplicate">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCopyToClient(selectedTemplate)} title="Assign to Client">
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(selectedTemplate.id)} title="Delete">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
 
@@ -636,6 +658,26 @@ const MealPlanTemplateLibrary = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this meal plan template and all its days/items. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteConfirmId) { deleteTemplate(deleteConfirmId); setDeleteConfirmId(null); } }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

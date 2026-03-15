@@ -96,13 +96,14 @@ const uid = () => crypto.randomUUID();
 
 interface MealPlanBuilderProps {
   forceTemplate?: boolean;
+  editingTemplateId?: string;
   onSaved?: () => void;
   clientId?: string;
   dayType?: string;
   dayTypeLabel?: string;
 }
 
-const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLabel }: MealPlanBuilderProps) => {
+const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, dayType, dayTypeLabel }: MealPlanBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [planName, setPlanName] = useState("");
@@ -156,6 +157,90 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
     if (!clientId || !user) return;
     loadExistingPlan(clientId);
   }, [clientId, user, dayType]);
+
+  // Load template for editing
+  useEffect(() => {
+    if (!editingTemplateId || !user) return;
+    const loadTemplate = async () => {
+      setLoadingExisting(true);
+      try {
+        const { data: plan } = await supabase
+          .from("meal_plans")
+          .select("id, name")
+          .eq("id", editingTemplateId)
+          .single();
+
+        if (!plan) { setLoadingExisting(false); return; }
+        setExistingPlanId(plan.id);
+        setPlanName(plan.name);
+
+        const { data: dbDays } = await supabase
+          .from("meal_plan_days")
+          .select("*")
+          .eq("meal_plan_id", plan.id)
+          .order("day_order");
+
+        if (!dbDays || dbDays.length === 0) { setLoadingExisting(false); return; }
+
+        const { data: items } = await supabase
+          .from("meal_plan_items")
+          .select("*, food_items:food_item_id(name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar)")
+          .eq("meal_plan_id", plan.id)
+          .order("meal_order")
+          .order("item_order");
+
+        const loadedDays: DayType[] = dbDays.map((day) => {
+          const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
+          const mealGroups: Record<string, any[]> = {};
+          dayItems.forEach((item: any) => {
+            const key = `${item.meal_order}::${item.meal_name}`;
+            if (!mealGroups[key]) mealGroups[key] = [];
+            mealGroups[key].push(item);
+          });
+
+          const meals: Meal[] = Object.entries(mealGroups)
+            .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+            .map(([key, groupItems]) => {
+              const mealName = key.split("::").slice(1).join("::");
+              return {
+                id: uid(),
+                name: mealName,
+                foods: groupItems.map((item: any) => {
+                  const fi = item.food_items as any;
+                  const ss = fi?.serving_size || 100;
+                  const unit = fi?.serving_unit || "g";
+                  return {
+                    id: uid(),
+                    food_item_id: item.food_item_id || "",
+                    food_name: item.custom_name || fi?.name || "Unknown",
+                    brand: fi?.brand || null,
+                    gram_amount: item.gram_amount || ss,
+                    cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / (item.gram_amount || 100)) * 100,
+                    protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / (item.gram_amount || 100)) * 100,
+                    carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / (item.gram_amount || 100)) * 100,
+                    fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
+                    fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
+                    sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
+                    serving_unit: unit,
+                    serving_size_g: ss,
+                  };
+                }),
+              };
+            });
+
+          return { id: day.id, type: day.day_type, meals: meals.length > 0 ? meals : DEFAULT_MEALS() };
+        });
+
+        setDays(loadedDays);
+        if (loadedDays.length > 0) setExpandedDay(loadedDays[0].id);
+      } catch (err) {
+        console.error("Failed to load template for editing", err);
+      } finally {
+        setLoadingExisting(false);
+      }
+    };
+    loadTemplate();
+  }, [editingTemplateId, user]);
 
   const loadExistingPlan = async (cId: string) => {
     setLoadingExisting(true);
