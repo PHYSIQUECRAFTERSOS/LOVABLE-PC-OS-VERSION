@@ -506,6 +506,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${foodToLog.name} logged` });
+      // Log to user_food_history (fire-and-forget)
+      if (foodToLog.id) {
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodToLog.id }).then(() => {}).catch(() => {});
+      }
       try {
         const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
         const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
