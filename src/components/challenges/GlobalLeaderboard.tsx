@@ -83,7 +83,8 @@ const GlobalLeaderboard = () => {
                       <TierIcon name={entry.tier_name} size={16} />
                       <Badge variant="outline" className="text-[8px] px-1.5 py-0" style={{ color: entry.tier_color, borderColor: `${entry.tier_color}40` }}>
                         {entry.tier_name}
-                    </Badge>
+                      </Badge>
+                    </span>
                   </div>
                 </div>
 

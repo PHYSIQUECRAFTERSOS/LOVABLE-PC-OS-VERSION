@@ -49,7 +49,7 @@ const MyRankTab = () => {
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-4">
             <div className={`h-16 w-16 rounded-full flex items-center justify-center ${tierBgMap[tierName]}`}>
-              <span className={`text-2xl font-bold ${tierTextMap[tierName]}`}>{tierName[0]}</span>
+              <TierIcon name={tierName} size={40} />
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">

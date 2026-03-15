@@ -269,8 +269,8 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                       <div className="flex-1 min-w-0">
                         <span className="text-sm font-medium text-foreground truncate block">{p.full_name}</span>
                         {pTier && (
-                          <span className="text-[9px] font-medium" style={{ color: pTier.color }}>
-                            {pTier.icon} {pTier.name}
+                          <span className="text-[9px] font-medium flex items-center gap-1" style={{ color: pTier.color }}>
+                            <TierIcon name={pTier.name} size={14} /> {pTier.name}
                           </span>
                         )}
                       </div>
