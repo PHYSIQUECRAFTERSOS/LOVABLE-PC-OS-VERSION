@@ -691,7 +691,30 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn("gap-6", isMobile ? "space-y-0" : "flex")}>
+      {/* Mobile: sticky top bar */}
+      {isMobile && (
+        <MealPlanMacroSidebar
+          targets={macroTargets}
+          current={activeDayTotals}
+          onTargetsChange={setMacroTargets}
+          clientId={clientId}
+        />
+      )}
+
+      {/* Desktop: sticky sidebar */}
+      {!isMobile && (
+        <aside className="w-72 shrink-0">
+          <MealPlanMacroSidebar
+            targets={macroTargets}
+            current={activeDayTotals}
+            onTargetsChange={setMacroTargets}
+            clientId={clientId}
+          />
+        </aside>
+      )}
+
+      <div className="flex-1 min-w-0 space-y-4">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
