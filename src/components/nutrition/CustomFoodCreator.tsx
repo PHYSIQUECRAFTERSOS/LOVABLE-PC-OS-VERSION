@@ -191,8 +191,20 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
               <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Kirkland" />
             </div>
             <div>
-              <Label>Serving Size (g)</Label>
-              <Input type="number" value={servingSize} onChange={(e) => setServingSize(e.target.value)} />
+              <Label>Serving Size</Label>
+              <div className="flex gap-2">
+                <Input type="number" value={servingSize} onChange={(e) => setServingSize(e.target.value)} className="flex-1" />
+                <Select value={servingUnit} onValueChange={setServingUnit}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVING_UNIT_OPTIONS.map((u) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

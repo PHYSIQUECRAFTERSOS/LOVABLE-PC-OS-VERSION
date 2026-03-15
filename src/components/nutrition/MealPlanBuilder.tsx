@@ -341,7 +341,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
         if (d.id !== dayId) return d;
         const meal = d.meals.find((m) => m.id === mealId);
         if (!meal) return d;
-        const clone = { ...meal, id: uid(), name: `${meal.name} (copy)`, foods: meal.foods.map((f) => ({ ...f, id: uid() })) };
+        const clone: Meal = { ...meal, id: uid(), name: `${meal.name} (copy)`, foods: meal.foods.map((f) => ({ ...f, id: uid() })) };
         return { ...d, meals: [...d.meals, clone] };
       })
     );
