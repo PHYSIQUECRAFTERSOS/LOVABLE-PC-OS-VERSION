@@ -1,122 +1,80 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Fix Challenge Creation + League-Style Tier Icons
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Problem Diagnosis
 
----
+### Bug: Challenge creation appears to succeed but nothing shows up
+**Root cause: RLS policy blocking participant enrollment.**
 
-## Phase 1 — MVP (Core Platform)
+The `challenge_participants` table has INSERT policy: `WITH CHECK (user_id = auth.uid())`. When a coach creates a challenge with "All Clients (Auto-enroll)", the code tries to insert rows where `user_id` = each client's ID. Since the coach's `auth.uid()` doesn't match those client IDs, **every insert silently fails**. The challenge row itself IS created, but with 0 participants and no leaderboard data — hence the "blank screen" appearance.
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+Additionally, the `badges` table only allows admin management (`has_role('admin')`), so coaches creating a badge during challenge setup also fails silently.
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+### Visual: Tier icons need League of Legends-inspired wing/crest SVGs
+Replace emoji icons (🥉🥈🥇💎👑) with custom SVG wing/crest components matching the LoL tier aesthetic — each with distinct colors and increasing visual complexity.
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+## Changes
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+### 1. Database Migration — Fix RLS Policies
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+**`challenge_participants`**: Add new INSERT policy allowing coaches/admins to enroll any user:
+```sql
+CREATE POLICY "Coaches can enroll participants"
+  ON challenge_participants FOR INSERT TO authenticated
+  WITH CHECK (
+    has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin')
+  );
+```
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+**`badges`**: Update to allow coaches to create badges:
+```sql
+DROP POLICY "Admin can manage badges" ON badges;
+CREATE POLICY "Coaches and admins can manage badges" ON badges FOR ALL TO authenticated
+  USING (has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin'))
+  WITH CHECK (has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin'));
+```
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### 2. New Component — `TierIcon.tsx`
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+Create `src/components/challenges/TierIcon.tsx` — an SVG component that renders League-inspired wing/crest icons per tier name. Five designs with increasing visual complexity:
+- **Bronze**: Simple angular wings, warm bronze (#CD7F32)
+- **Silver**: Slightly more detailed wings, cool silver (#C0C0C0)
+- **Gold**: Ornate wings with center gem, gold (#D4A017)
+- **Platinum**: Crystalline wings with glow effect, cyan (#00CED1)
+- **Diamond**: Most ornate wings with multiple layered details, ice blue (#B9F2FF)
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+Each icon is a pure SVG, scalable via a `size` prop (default 32px).
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+### 3. Update Tier Displays to Use SVG Icons
 
----
+Replace emoji rendering in these files:
+- **`ChallengeTierProgress.tsx`** — Replace `{tier.icon}` emoji with `<TierIcon name={tier.name} />`
+- **`CreateChallengeWizard.tsx`** (step 2 tier list) — Same replacement
+- **`ChallengeDetailView.tsx`** (leaderboard tier badges) — Same replacement
+- **`MyRankTab.tsx`** — Replace the single-letter tier circle with the SVG icon
+- **`GlobalLeaderboard.tsx`** — Add tier icon next to tier badge
 
-## Phase 2 — Advanced Features
+### 4. Update DEFAULT_CHALLENGE_TIERS in useChallenges.ts
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+Change the `icon` field from emoji strings to tier name strings (e.g., `"bronze"`) so the `TierIcon` component can render the correct SVG. The icon field becomes a key rather than a literal display character.
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+## Files Changed
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+| File | Change |
+|------|--------|
+| New migration | Fix RLS on `challenge_participants` and `badges` |
+| `src/components/challenges/TierIcon.tsx` | NEW — SVG wing/crest icons |
+| `src/components/challenges/ChallengeTierProgress.tsx` | Use TierIcon instead of emoji |
+| `src/components/challenges/CreateChallengeWizard.tsx` | Use TierIcon in tier config step |
+| `src/components/challenges/ChallengeDetailView.tsx` | Use TierIcon in leaderboard |
+| `src/components/challenges/MyRankTab.tsx` | Use TierIcon for rank display |
+| `src/components/challenges/GlobalLeaderboard.tsx` | Add TierIcon next to tier badge |
+| `src/hooks/useChallenges.ts` | Update DEFAULT_CHALLENGE_TIERS icon values |
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## What is NOT Touched
+- No food/nutrition logic
+- No training/calendar/workout logic
+- No messaging logic
+- No existing challenge data modified
 
