@@ -554,7 +554,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             // Update existing plan instead of creating duplicate
             planId = existing[0].id;
             setExistingPlanId(planId);
-            await supabase.from("meal_plans").update({ name: planName, updated_at: new Date().toISOString() }).eq("id", planId);
+            await supabase.from("meal_plans").update({ name: planName, updated_at: new Date().toISOString(), target_calories: macroTargets.calories, target_protein: macroTargets.protein, target_carbs: macroTargets.carbs, target_fat: macroTargets.fat }).eq("id", planId);
             await supabase.from("meal_plan_days").delete().eq("meal_plan_id", planId);
           }
         }
