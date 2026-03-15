@@ -37,6 +37,7 @@ interface NutritionCompliance {
 interface SelectableClientCardsProps {
   onSelectionChange: (selected: SelectableClient[]) => void;
   onSendMessage: () => void;
+  onClientStatusChanged?: () => void;
 }
 
 /* ─── Compliance Badge ─── */
