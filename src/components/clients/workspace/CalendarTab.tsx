@@ -159,8 +159,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       query = query.eq("is_completed", true);
     }
 
-    const { error, count } = await query.select("id");
-    // We can't get count from delete easily, so just check error
+    const { error } = await query;
     if (error) {
       toast({ title: "Error clearing events", description: error.message, variant: "destructive" });
     } else {
