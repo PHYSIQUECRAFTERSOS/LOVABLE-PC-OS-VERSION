@@ -18,6 +18,7 @@ import {
 import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
 import { subDays, format } from "date-fns";
 import { cn } from "@/lib/utils";
+import ClientPreviewDialog from "./ClientPreviewDialog";
 
 export interface SelectableClient {
   id: string;
@@ -36,6 +37,7 @@ interface NutritionCompliance {
 interface SelectableClientCardsProps {
   onSelectionChange: (selected: SelectableClient[]) => void;
   onSendMessage: () => void;
+  onClientStatusChanged?: () => void;
 }
 
 /* ─── Compliance Badge ─── */
@@ -54,9 +56,10 @@ const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
   );
 };
 
-const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableClientCardsProps) => {
+const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatusChanged }: SelectableClientCardsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [previewClient, setPreviewClient] = useState<SelectableClient | null>(null);
   const [clients, setClients] = useState<SelectableClient[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -317,7 +320,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
               }`}
               onClick={(e) => {
                 if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
-                navigate(`/clients/${client.id}`);
+                setPreviewClient(client);
               }}
             >
               <CardContent className="pt-4 pb-4">
@@ -357,6 +360,25 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableC
       {filteredClients.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">No clients match your filters.</p>
       )}
+
+      <ClientPreviewDialog
+        clientId={previewClient?.id || null}
+        clientName={previewClient?.name || ""}
+        clientAvatar={previewClient?.avatar_url}
+        open={!!previewClient}
+        onOpenChange={(open) => { if (!open) setPreviewClient(null); }}
+        onClientDeactivated={() => {
+          setPreviewClient(null);
+          onClientStatusChanged?.();
+          // Re-fetch clients
+          setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
+        }}
+        onClientDeleted={() => {
+          setPreviewClient(null);
+          onClientStatusChanged?.();
+          setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
+        }}
+      />
     </div>
   );
 };

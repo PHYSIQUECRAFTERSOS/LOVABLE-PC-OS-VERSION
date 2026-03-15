@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.seed-foods]
 verify_jwt = false
+
+[functions.manage-client-status]
+verify_jwt = false

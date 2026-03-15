@@ -9,11 +9,13 @@ import InviteList from "@/components/clients/InviteList";
 import InviteDashboard from "@/components/clients/InviteDashboard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Users, Send, BarChart3 } from "lucide-react";
+import DeactivatedClientsList from "@/components/clients/DeactivatedClientsList";
+import { Plus, Users, Send, BarChart3, UserX } from "lucide-react";
 
 const Clients = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [deactivatedRefreshKey, setDeactivatedRefreshKey] = useState(0);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selectedClients, setSelectedClients] = useState<SelectableClient[]>([]);
 
@@ -49,12 +51,17 @@ const Clients = () => {
               <BarChart3 className="h-3.5 w-3.5" />
               Invite Dashboard
             </TabsTrigger>
+            <TabsTrigger value="deactivated" className="gap-2">
+              <UserX className="h-3.5 w-3.5" />
+              Deactivated
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="mt-4">
             <SelectableClientCards
               onSelectionChange={setSelectedClients}
               onSendMessage={() => setBulkOpen(true)}
+              onClientStatusChanged={() => setDeactivatedRefreshKey((k) => k + 1)}
             />
           </TabsContent>
 
@@ -64,6 +71,10 @@ const Clients = () => {
 
           <TabsContent value="dashboard" className="mt-4">
             <InviteDashboard />
+          </TabsContent>
+
+          <TabsContent value="deactivated" className="mt-4">
+            <DeactivatedClientsList refreshKey={deactivatedRefreshKey} />
           </TabsContent>
         </Tabs>
 
