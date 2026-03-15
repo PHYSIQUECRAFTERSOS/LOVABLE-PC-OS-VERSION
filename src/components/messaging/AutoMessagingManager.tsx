@@ -11,8 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Zap, Mail, Send, Clock, Trash2 } from "lucide-react";
+import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 
 const TRIGGER_TYPES = [
@@ -47,6 +57,7 @@ const AutoMessagingManager = () => {
   const [tplName, setTplName] = useState("");
   const [tplContent, setTplContent] = useState("");
   const [tplCategory, setTplCategory] = useState("motivational");
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
   // Trigger form
   const [showTriggerForm, setShowTriggerForm] = useState(false);
@@ -56,6 +67,11 @@ const AutoMessagingManager = () => {
   const [trigTag, setTrigTag] = useState("");
   const [trigClientId, setTrigClientId] = useState("");
   const [trigCron, setTrigCron] = useState("");
+  const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
+
+  // Delete confirmations
+  const [deleteTriggerId, setDeleteTriggerId] = useState<string | null>(null);
+  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
 
   // Broadcast form
   const [showBroadcast, setShowBroadcast] = useState(false);
@@ -102,7 +118,6 @@ const AutoMessagingManager = () => {
         .limit(30);
       if (error) throw error;
 
-      // Get client names
       const clientIds = [...new Set(data?.map((l) => l.client_id) || [])];
       if (clientIds.length === 0) return data || [];
       const { data: profiles } = await supabase
@@ -154,48 +169,144 @@ const AutoMessagingManager = () => {
     enabled: !!user,
   });
 
+  // ── Template mutations ──
+
+  const resetTemplateForm = () => {
+    setShowTemplateForm(false);
+    setEditingTemplateId(null);
+    setTplName("");
+    setTplContent("");
+    setTplCategory("motivational");
+  };
+
   const saveTemplateMutation = useMutation({
     mutationFn: async () => {
       if (!user || !tplName || !tplContent) throw new Error("Name and content required");
-      const { error } = await supabase.from("auto_message_templates").insert({
-        coach_id: user.id,
-        name: tplName,
-        content: tplContent,
-        category: tplCategory,
-      });
-      if (error) throw error;
+      if (editingTemplateId) {
+        const { error } = await supabase
+          .from("auto_message_templates")
+          .update({ name: tplName, content: tplContent, category: tplCategory })
+          .eq("id", editingTemplateId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("auto_message_templates").insert({
+          coach_id: user.id,
+          name: tplName,
+          content: tplContent,
+          category: tplCategory,
+        });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto-msg-templates"] });
-      toast({ title: "Template saved" });
-      setShowTemplateForm(false);
-      setTplName("");
-      setTplContent("");
+      toast({ title: editingTemplateId ? "Template updated" : "Template saved" });
+      resetTemplateForm();
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("auto_message_templates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-templates"] });
+      toast({ title: "Template deleted" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const startEditTemplate = (t: any) => {
+    setEditingTemplateId(t.id);
+    setTplName(t.name);
+    setTplContent(t.content);
+    setTplCategory(t.category);
+    setShowTemplateForm(true);
+  };
+
+  // ── Trigger mutations ──
+
+  const resetTriggerForm = () => {
+    setShowTriggerForm(false);
+    setEditingTriggerId(null);
+    setTrigTemplateId("");
+    setTrigType("missed_workout");
+    setTrigTargetType("all_clients");
+    setTrigTag("");
+    setTrigClientId("");
+    setTrigCron("");
+  };
+
   const saveTriggerMutation = useMutation({
     mutationFn: async () => {
       if (!user || !trigTemplateId) throw new Error("Select a template");
-      const { error } = await supabase.from("auto_message_triggers").insert({
-        coach_id: user.id,
+      const payload = {
         template_id: trigTemplateId,
         trigger_type: trigType,
         target_type: trigTargetType,
         target_tag: trigTargetType === "tag_group" ? trigTag : null,
         target_client_id: trigTargetType === "individual" ? trigClientId : null,
         recurrence_cron: trigType === "recurring" ? trigCron : null,
-      });
+      };
+      if (editingTriggerId) {
+        const { error } = await supabase
+          .from("auto_message_triggers")
+          .update(payload)
+          .eq("id", editingTriggerId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("auto_message_triggers").insert({
+          coach_id: user.id,
+          ...payload,
+        });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] });
+      toast({ title: editingTriggerId ? "Trigger updated" : "Trigger created" });
+      resetTriggerForm();
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteTriggerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("auto_message_triggers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] });
-      toast({ title: "Trigger created" });
-      setShowTriggerForm(false);
+      toast({ title: "Trigger deleted" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
+
+  const startEditTrigger = (t: any) => {
+    setEditingTriggerId(t.id);
+    setTrigTemplateId(t.template_id);
+    setTrigType(t.trigger_type);
+    setTrigTargetType(t.target_type);
+    setTrigTag(t.target_tag || "");
+    setTrigClientId(t.target_client_id || "");
+    setTrigCron(t.recurrence_cron || "");
+    setShowTriggerForm(true);
+  };
+
+  const toggleTriggerMutation = useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await supabase
+        .from("auto_message_triggers")
+        .update({ is_active })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] }),
+  });
+
+  // ── Broadcast ──
 
   const broadcastMutation = useMutation({
     mutationFn: async () => {
@@ -215,14 +326,14 @@ const AutoMessagingManager = () => {
 
       if (targetClients.length === 0) throw new Error("No clients to send to");
 
-      const logs = targetClients.map((clientId) => ({
+      const logEntries = targetClients.map((clientId) => ({
         coach_id: user.id,
         client_id: clientId,
         message_content: broadcastContent,
         trigger_reason: "broadcast",
       }));
 
-      const { error } = await supabase.from("auto_message_logs").insert(logs);
+      const { error } = await supabase.from("auto_message_logs").insert(logEntries);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -232,17 +343,6 @@ const AutoMessagingManager = () => {
       setBroadcastContent("");
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
-  });
-
-  const toggleTriggerMutation = useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
-        .from("auto_message_triggers")
-        .update({ is_active })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] }),
   });
 
   return (
@@ -303,7 +403,7 @@ const AutoMessagingManager = () => {
 
         {/* Triggers Tab */}
         <TabsContent value="triggers" className="space-y-4 mt-4">
-          <Button size="sm" onClick={() => setShowTriggerForm(!showTriggerForm)}>
+          <Button size="sm" onClick={() => { resetTriggerForm(); setShowTriggerForm(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New Trigger
           </Button>
 
@@ -378,8 +478,10 @@ const AutoMessagingManager = () => {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => saveTriggerMutation.mutate()} disabled={!trigTemplateId}>Create Trigger</Button>
-                  <Button variant="outline" onClick={() => setShowTriggerForm(false)}>Cancel</Button>
+                  <Button onClick={() => saveTriggerMutation.mutate()} disabled={!trigTemplateId}>
+                    {editingTriggerId ? "Update Trigger" : "Create Trigger"}
+                  </Button>
+                  <Button variant="outline" onClick={resetTriggerForm}>Cancel</Button>
                 </div>
               </CardContent>
             </Card>
@@ -403,10 +505,30 @@ const AutoMessagingManager = () => {
                           </p>
                         </div>
                       </div>
-                      <Switch
-                        checked={t.is_active}
-                        onCheckedChange={(v) => toggleTriggerMutation.mutate({ id: t.id, is_active: v })}
-                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => startEditTrigger(t)}
+                          title="Edit trigger"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTriggerId(t.id)}
+                          title="Delete trigger"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Switch
+                          checked={t.is_active}
+                          onCheckedChange={(v) => toggleTriggerMutation.mutate({ id: t.id, is_active: v })}
+                        />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -419,7 +541,7 @@ const AutoMessagingManager = () => {
 
         {/* Templates Tab */}
         <TabsContent value="templates" className="space-y-4 mt-4">
-          <Button size="sm" onClick={() => setShowTemplateForm(!showTemplateForm)}>
+          <Button size="sm" onClick={() => { resetTemplateForm(); setShowTemplateForm(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New Template
           </Button>
 
@@ -449,8 +571,10 @@ const AutoMessagingManager = () => {
                   <p className="text-xs text-muted-foreground">Use {"{name}"} for client name personalization</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => saveTemplateMutation.mutate()} disabled={!tplName || !tplContent}>Save</Button>
-                  <Button variant="outline" onClick={() => setShowTemplateForm(false)}>Cancel</Button>
+                  <Button onClick={() => saveTemplateMutation.mutate()} disabled={!tplName || !tplContent}>
+                    {editingTemplateId ? "Update Template" : "Save Template"}
+                  </Button>
+                  <Button variant="outline" onClick={resetTemplateForm}>Cancel</Button>
                 </div>
               </CardContent>
             </Card>
@@ -463,7 +587,27 @@ const AutoMessagingManager = () => {
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-sm">{t.name}</span>
-                      <Badge variant="outline" className="text-xs">{t.category}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-xs">{t.category}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => startEditTemplate(t)}
+                          title="Edit template"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTemplateId(t.id)}
+                          title="Delete template"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{t.content}</p>
                   </CardContent>
@@ -499,6 +643,54 @@ const AutoMessagingManager = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Trigger Confirmation */}
+      <AlertDialog open={!!deleteTriggerId} onOpenChange={(open) => !open && setDeleteTriggerId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Trigger?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this trigger. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTriggerId) deleteTriggerMutation.mutate(deleteTriggerId);
+                setDeleteTriggerId(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Template Confirmation */}
+      <AlertDialog open={!!deleteTemplateId} onOpenChange={(open) => !open && setDeleteTemplateId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this template. Triggers using it will stop working. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTemplateId) deleteTemplateMutation.mutate(deleteTemplateId);
+                setDeleteTemplateId(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

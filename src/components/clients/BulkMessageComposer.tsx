@@ -22,19 +22,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
   Send,
   Loader2,
   MessageSquare,
-  Megaphone,
   Users,
   Eye,
 } from "lucide-react";
@@ -56,15 +49,26 @@ const BulkMessageComposer = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const [message, setMessage] = useState("");
-  const [deliveryType, setDeliveryType] = useState<"direct" | "announcement">(
-    "direct"
-  );
   const [sending, setSending] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
 
+  const effectiveRecipients = recipients.filter((r) => !excludedIds.has(r.id));
   const charCount = message.length;
-  const canSend = message.trim().length > 0 && recipients.length > 0;
+  const canSend = message.trim().length > 0 && effectiveRecipients.length > 0;
+
+  const toggleExclude = (id: string) => {
+    setExcludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const handleSend = () => {
     if (!canSend) return;
@@ -77,101 +81,51 @@ const BulkMessageComposer = ({
     setSending(true);
 
     try {
-      if (deliveryType === "announcement") {
-        // Create a single broadcast conversation
-        const { data: convo, error: convoErr } = await supabase
-          .from("conversations")
+      for (const client of effectiveRecipients) {
+        // Find existing thread between coach and client
+        const { data: existingThread } = await supabase
+          .from("message_threads")
+          .select("id")
+          .eq("coach_id", user.id)
+          .eq("client_id", client.id)
+          .maybeSingle();
+
+        let threadId: string;
+
+        if (existingThread) {
+          threadId = existingThread.id;
+        } else {
+          // Create new thread
+          const { data: newThread, error: threadErr } = await supabase
+            .from("message_threads")
+            .insert({
+              coach_id: user.id,
+              client_id: client.id,
+            })
+            .select()
+            .single();
+          if (threadErr) throw threadErr;
+          threadId = newThread.id;
+        }
+
+        // Send message
+        const { error: msgErr } = await supabase
+          .from("thread_messages")
           .insert({
-            created_by: user.id,
-            type: "broadcast",
-            name: `Broadcast — ${new Date().toLocaleDateString()}`,
-          })
-          .select()
-          .single();
-
-        if (convoErr) throw convoErr;
-
-        const participants = [
-          { conversation_id: convo.id, user_id: user.id },
-          ...recipients.map((r) => ({
-            conversation_id: convo.id,
-            user_id: r.id,
-          })),
-        ];
-
-        const { error: partErr } = await supabase
-          .from("conversation_participants")
-          .insert(participants);
-        if (partErr) throw partErr;
-
-        const { error: msgErr } = await supabase.from("messages").insert({
-          conversation_id: convo.id,
-          sender_id: user.id,
-          content: message,
-        });
-        if (msgErr) throw msgErr;
-      } else {
-        // Direct messages: send into each client's 1:1 thread
-        for (const client of recipients) {
-          // Find or create 1:1 conversation
-          const { data: existing } = await supabase
-            .from("conversations")
-            .select(
-              "id, conversation_participants!inner(user_id)"
-            )
-            .eq("type", "direct")
-            .eq("conversation_participants.user_id", client.id);
-
-          let convoId: string | null = null;
-
-          if (existing && existing.length > 0) {
-            // Check which ones include the coach
-            for (const conv of existing) {
-              const { data: parts } = await supabase
-                .from("conversation_participants")
-                .select("user_id")
-                .eq("conversation_id", conv.id);
-              const uids = (parts || []).map((p) => p.user_id);
-              if (uids.includes(user.id) && uids.includes(client.id)) {
-                convoId = conv.id;
-                break;
-              }
-            }
-          }
-
-          if (!convoId) {
-            const { data: newConvo, error: cErr } = await supabase
-              .from("conversations")
-              .insert({
-                created_by: user.id,
-                type: "direct",
-                name: null,
-              })
-              .select()
-              .single();
-            if (cErr) throw cErr;
-            convoId = newConvo.id;
-
-            await supabase.from("conversation_participants").insert([
-              { conversation_id: convoId, user_id: user.id },
-              { conversation_id: convoId, user_id: client.id },
-            ]);
-          }
-
-          await supabase.from("messages").insert({
-            conversation_id: convoId,
+            thread_id: threadId,
             sender_id: user.id,
             content: message,
           });
-        }
+        if (msgErr) throw msgErr;
       }
 
       toast({
         title: "Messages sent! 📨",
-        description: `Successfully sent to ${recipients.length} client${recipients.length !== 1 ? "s" : ""}.`,
+        description: `Successfully sent to ${effectiveRecipients.length} client${effectiveRecipients.length !== 1 ? "s" : ""}.`,
       });
 
       setMessage("");
+      setExcludedIds(new Set());
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -199,46 +153,31 @@ const BulkMessageComposer = ({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Recipients badge */}
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/50">
-              <Users className="h-4 w-4 text-primary shrink-0" />
-              <span className="text-sm text-foreground font-medium">
-                Sending to:
-              </span>
-              <Badge variant="secondary" className="font-bold text-primary">
-                {recipients.length} client{recipients.length !== 1 ? "s" : ""}
-              </Badge>
-            </div>
-
-            {/* Delivery type */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">
-                Delivery Type
-              </Label>
-              <Select
-                value={deliveryType}
-                onValueChange={(v: "direct" | "announcement") =>
-                  setDeliveryType(v)
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="direct">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      Direct Message (1:1 threads)
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="announcement">
-                    <div className="flex items-center gap-2">
-                      <Megaphone className="h-3.5 w-3.5" />
-                      Announcement (broadcast)
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Recipients with checkboxes */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary shrink-0" />
+                <span className="text-sm text-foreground font-medium">
+                  Recipients
+                </span>
+                <Badge variant="secondary" className="font-bold text-primary ml-auto">
+                  {effectiveRecipients.length} selected
+                </Badge>
+              </div>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-secondary/30 p-2 space-y-1">
+                {recipients.map((r) => (
+                  <label
+                    key={r.id}
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-secondary/50 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={!excludedIds.has(r.id)}
+                      onCheckedChange={() => toggleExclude(r.id)}
+                    />
+                    <span className="text-sm text-foreground">{r.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             {/* Message body */}
@@ -302,15 +241,9 @@ const BulkMessageComposer = ({
             <AlertDialogDescription>
               You are about to send this message to{" "}
               <span className="font-bold text-foreground">
-                {recipients.length} client{recipients.length !== 1 ? "s" : ""}
+                {effectiveRecipients.length} client{effectiveRecipients.length !== 1 ? "s" : ""}
               </span>{" "}
-              as a{" "}
-              <span className="font-bold text-foreground">
-                {deliveryType === "direct"
-                  ? "direct message"
-                  : "broadcast announcement"}
-              </span>
-              . This action cannot be undone.
+              as a direct message. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
