@@ -18,6 +18,7 @@ import {
 import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
 import { subDays, format } from "date-fns";
 import { cn } from "@/lib/utils";
+import ClientPreviewDialog from "./ClientPreviewDialog";
 
 export interface SelectableClient {
   id: string;
