@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,29 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
+export interface CustomFoodData {
+  id?: string;
+  name: string;
+  brand?: string | null;
+  serving_size?: number;
+  serving_unit?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
+}
+
 interface CustomFoodCreatorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (food: any) => void;
+  editFood?: CustomFoodData | null;
 }
 
-const CustomFoodCreator = ({ open, onOpenChange, onCreated }: CustomFoodCreatorProps) => {
+const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFoodCreatorProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState("");
@@ -43,6 +59,33 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated }: CustomFoodCreatorP
   const [iron, setIron] = useState("");
   const [potassium, setPotassium] = useState("");
 
+  const isEditing = !!editFood?.id;
+
+  // Pre-fill when editing
+  useEffect(() => {
+    if (editFood) {
+      setName(editFood.name || "");
+      setBrand(editFood.brand || "");
+      setServingSize(String(editFood.serving_size ?? 100));
+      setCalories(editFood.calories ? String(editFood.calories) : "");
+      setProtein(editFood.protein ? String(editFood.protein) : "");
+      setCarbs(editFood.carbs ? String(editFood.carbs) : "");
+      setFat(editFood.fat ? String(editFood.fat) : "");
+      setFiber(editFood.fiber ? String(editFood.fiber) : "");
+      setSugar(editFood.sugar ? String(editFood.sugar) : "");
+      setSodium(editFood.sodium ? String(editFood.sodium) : "");
+    } else {
+      resetForm();
+    }
+  }, [editFood]);
+
+  const resetForm = () => {
+    setName(""); setBrand(""); setServingSize("100"); setCalories("");
+    setProtein(""); setCarbs(""); setFat(""); setFiber(""); setSugar("");
+    setSodium(""); setShowMicros(false);
+    setVitA(""); setVitC(""); setVitD(""); setCalcium(""); setIron(""); setPotassium("");
+  };
+
   const handleSave = async () => {
     if (!user || !name) return;
     setSaving(true);
@@ -53,50 +96,68 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated }: CustomFoodCreatorP
     const c = parseFloat(carbs) || 0;
     const f = parseFloat(fat) || 0;
 
-    // Auto-calculate calories from macros if not provided
     const autoCalories = cal || Math.round(p * 4 + c * 4 + f * 9);
 
-    const { data, error } = await supabase
-      .from("food_items")
-      .insert({
-        name,
-        brand: brand || null,
-        serving_size: ss,
-        serving_unit: "g",
-        calories: autoCalories,
-        protein: p,
-        carbs: c,
-        fat: f,
-        fiber: parseFloat(fiber) || 0,
-        sugar: parseFloat(sugar) || 0,
-        sodium: parseFloat(sodium) || 0,
-        created_by: user.id,
-        data_source: "custom",
-        is_verified: false,
-        ...(showMicros && {
-          vitamin_a_mcg: parseFloat(vitA) || 0,
-          vitamin_c_mg: parseFloat(vitC) || 0,
-          vitamin_d_mcg: parseFloat(vitD) || 0,
-          calcium_mg: parseFloat(calcium) || 0,
-          iron_mg: parseFloat(iron) || 0,
-          potassium_mg: parseFloat(potassium) || 0,
-        }),
-      })
-      .select("*")
-      .single();
+    const payload = {
+      name,
+      brand: brand || null,
+      serving_size: ss,
+      serving_unit: "g",
+      calories: autoCalories,
+      protein: p,
+      carbs: c,
+      fat: f,
+      fiber: parseFloat(fiber) || 0,
+      sugar: parseFloat(sugar) || 0,
+      sodium: parseFloat(sodium) || 0,
+      ...(showMicros && {
+        vitamin_a_mcg: parseFloat(vitA) || 0,
+        vitamin_c_mg: parseFloat(vitC) || 0,
+        vitamin_d_mcg: parseFloat(vitD) || 0,
+        calcium_mg: parseFloat(calcium) || 0,
+        iron_mg: parseFloat(iron) || 0,
+        potassium_mg: parseFloat(potassium) || 0,
+      }),
+    };
 
-    setSaving(false);
+    if (isEditing) {
+      const { data, error } = await supabase
+        .from("food_items")
+        .update(payload)
+        .eq("id", editFood!.id!)
+        .select("*")
+        .single();
 
-    if (error) {
-      toast({ title: "Error creating food", description: error.message, variant: "destructive" });
+      setSaving(false);
+      if (error) {
+        toast({ title: "Error updating food", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: `${name} updated!` });
+        onCreated(data);
+        onOpenChange(false);
+        resetForm();
+      }
     } else {
-      toast({ title: `${name} added to database!` });
-      onCreated(data);
-      onOpenChange(false);
-      // Reset
-      setName(""); setBrand(""); setServingSize("100"); setCalories("");
-      setProtein(""); setCarbs(""); setFat(""); setFiber(""); setSugar("");
-      setSodium(""); setShowMicros(false);
+      const { data, error } = await supabase
+        .from("food_items")
+        .insert({
+          ...payload,
+          created_by: user.id,
+          data_source: "custom",
+          is_verified: false,
+        })
+        .select("*")
+        .single();
+
+      setSaving(false);
+      if (error) {
+        toast({ title: "Error creating food", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: `${name} added to database!` });
+        onCreated(data);
+        onOpenChange(false);
+        resetForm();
+      }
     }
   };
 
@@ -104,7 +165,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated }: CustomFoodCreatorP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create Custom Food</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Custom Food" : "Create Custom Food"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -169,7 +230,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated }: CustomFoodCreatorP
           )}
 
           <Button onClick={handleSave} disabled={saving || !name} className="w-full">
-            {saving ? "Saving..." : "Save to Database"}
+            {saving ? "Saving..." : isEditing ? "Update Food" : "Save to Database"}
           </Button>
         </div>
       </DialogContent>
