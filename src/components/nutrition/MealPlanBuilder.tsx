@@ -732,7 +732,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
       {/* Desktop: sticky sidebar */}
       {!isMobile && (
-        <aside className="w-72 shrink-0">
+        <aside className="w-72 shrink-0 sticky top-4 self-start">
           <MealPlanMacroSidebar
             targets={macroTargets}
             current={activeDayTotals}
