@@ -1028,6 +1028,59 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   <Plus className="h-3 w-3 mr-1" /> Add Custom Food
                 </Button>
               </div>
+            ) : bestMatches.length > 0 ? (
+              <>
+                {/* Best Match section */}
+                <div className="flex items-center gap-2 pb-1.5 pt-1">
+                  <BadgeCheck className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-primary">Best Match</span>
+                </div>
+                {bestMatches.map((item) => (
+                  <FoodRow
+                    key={`best-${item.id}`}
+                    item={item}
+                    expanded={expandedId === item.id}
+                    onToggle={() => openFoodDetail(item)}
+                    onAdd={() => openFoodDetail(item)}
+                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                    servingUnit={servingUnits[item.id] || "g"}
+                    onServingUnitChange={(u) => {
+                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                    }}
+                  />
+                ))}
+
+                {/* More Results section */}
+                {moreResultsList.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 pb-1.5 pt-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">More Results</span>
+                    </div>
+                    {moreResultsList.map((item) => (
+                      <FoodRow
+                        key={`more-${item.id}`}
+                        item={item}
+                        expanded={expandedId === item.id}
+                        onToggle={() => openFoodDetail(item)}
+                        onAdd={() => openFoodDetail(item)}
+                        servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                        onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                        servingUnit={servingUnits[item.id] || "g"}
+                        onServingUnitChange={(u) => {
+                          setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                          if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                          else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                          else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
             ) : (
               displayItems.map((item) => (
                 <FoodRow
@@ -1052,6 +1105,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
               <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Searching branded foods...
+              </div>
+            )}
+          </div>
+        )}
               </div>
             )}
           </div>
