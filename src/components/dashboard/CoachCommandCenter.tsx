@@ -142,6 +142,7 @@ const CoachCommandCenter = () => {
       const now = new Date();
       const last7Start = format(subDays(now, 6), "yyyy-MM-dd");
       const last7Days = Array.from({ length: 7 }, (_, i) => format(subDays(now, 6 - i), "yyyy-MM-dd"));
+      const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
 
       // 2. Parallel data fetch — split to avoid deep type inference
       const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds).abortSignal(signal);
@@ -150,9 +151,11 @@ const CoachCommandCenter = () => {
       const checkinsReq = supabase.from("weekly_checkins").select("client_id, week_date").in("client_id", clientIds).gte("week_date", last7Start).abortSignal(signal);
       const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false }).abortSignal(signal);
       const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20).abortSignal(signal);
+      // Yesterday's scheduled workouts (coach schedules via target_client_id OR client's own)
+      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title").eq("event_date", yesterday).eq("event_type", "workout").abortSignal(signal);
 
-      const [profilesRes, sessionsRes, nutritionRes, checkinsRes, riskRes, messagesRes] = await Promise.all([
-        profilesReq, sessionsReq, nutritionReq, checkinsReq, riskReq, messagesReq,
+      const [profilesRes, sessionsRes, nutritionRes, checkinsRes, riskRes, messagesRes, yesterdayCalRes] = await Promise.all([
+        profilesReq, sessionsReq, nutritionReq, checkinsReq, riskReq, messagesReq, yesterdayCalReq,
       ]);
 
       const profiles = (profilesRes.data || []) as ClientProfile[];
