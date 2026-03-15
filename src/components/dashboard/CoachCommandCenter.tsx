@@ -74,12 +74,21 @@ interface UnreadThread {
   isAtRisk: boolean;
 }
 
+interface YesterdayWorkoutClient {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  workoutTitle: string;
+}
+
 interface CommandCenterData {
   actionItems: ActionItem[];
   snapshot: ComplianceSnapshot;
   leaderboard: LeaderboardEntry[];
   atRisk: AtRiskClient[];
   unreadThreads: UnreadThread[];
+  completedYesterday: YesterdayWorkoutClient[];
+  missedYesterday: YesterdayWorkoutClient[];
 }
 
 // ── Helpers ──
