@@ -15,6 +15,7 @@ import { Plus, Users, Send, BarChart3, UserX } from "lucide-react";
 const Clients = () => {
   const [addOpen, setAddOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [deactivatedRefreshKey, setDeactivatedRefreshKey] = useState(0);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [selectedClients, setSelectedClients] = useState<SelectableClient[]>([]);
 
