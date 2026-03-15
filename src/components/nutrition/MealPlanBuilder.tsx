@@ -170,11 +170,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       try {
         const { data: plan } = await supabase
           .from("meal_plans")
-          .select("id, name")
+          .select("id, name, target_calories, target_protein, target_carbs, target_fat")
           .eq("id", editingTemplateId)
           .single();
 
         if (!plan) { setLoadingExisting(false); return; }
+        if (plan.target_calories || plan.target_protein || plan.target_carbs || plan.target_fat) {
+          setMacroTargets({
+            calories: plan.target_calories || 2000,
+            protein: plan.target_protein || 150,
+            carbs: plan.target_carbs || 200,
+            fat: plan.target_fat || 60,
+          });
+        }
         setExistingPlanId(plan.id);
         setPlanName(plan.name);
 
@@ -251,7 +259,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
     try {
       let query = supabase
         .from("meal_plans")
-        .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label")
+        .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label, target_calories, target_protein, target_carbs, target_fat")
         .eq("client_id", cId)
         .eq("is_template", false)
         .order("created_at", { ascending: false })
@@ -271,6 +279,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       const plan = plans[0];
       setExistingPlanId(plan.id);
       setPlanName(plan.name);
+      if (plan.target_calories || plan.target_protein || plan.target_carbs || plan.target_fat) {
+        setMacroTargets({
+          calories: plan.target_calories || 2000,
+          protein: plan.target_protein || 150,
+          carbs: plan.target_carbs || 200,
+          fat: plan.target_fat || 60,
+        });
+      }
 
       const { data: dbDays } = await supabase
         .from("meal_plan_days")
@@ -512,7 +528,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       if (planId) {
         const { error } = await supabase
           .from("meal_plans")
-          .update({ name: planName, updated_at: new Date().toISOString() })
+          .update({
+            name: planName,
+            updated_at: new Date().toISOString(),
+            target_calories: macroTargets.calories,
+            target_protein: macroTargets.protein,
+            target_carbs: macroTargets.carbs,
+            target_fat: macroTargets.fat,
+          })
           .eq("id", planId);
         if (error) throw error;
         await supabase.from("meal_plan_days").delete().eq("meal_plan_id", planId);
@@ -531,7 +554,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             // Update existing plan instead of creating duplicate
             planId = existing[0].id;
             setExistingPlanId(planId);
-            await supabase.from("meal_plans").update({ name: planName, updated_at: new Date().toISOString() }).eq("id", planId);
+            await supabase.from("meal_plans").update({ name: planName, updated_at: new Date().toISOString(), target_calories: macroTargets.calories, target_protein: macroTargets.protein, target_carbs: macroTargets.carbs, target_fat: macroTargets.fat }).eq("id", planId);
             await supabase.from("meal_plan_days").delete().eq("meal_plan_id", planId);
           }
         }
@@ -548,6 +571,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
               day_type: effectiveDayType,
               day_type_label: effectiveDayTypeLabel,
               sort_order: effectiveDayType === "training" ? 0 : effectiveDayType === "rest" ? 1 : 2,
+              target_calories: macroTargets.calories,
+              target_protein: macroTargets.protein,
+              target_carbs: macroTargets.carbs,
+              target_fat: macroTargets.fat,
             })
             .select("id")
             .single();
@@ -692,7 +719,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   }
 
   return (
-    <div className={cn("gap-6", isMobile ? "space-y-0" : "flex")}>
+    <div className={cn("gap-6", isMobile ? "space-y-0" : "flex items-start")}>
       {/* Mobile: sticky top bar */}
       {isMobile && (
         <MealPlanMacroSidebar
@@ -705,7 +732,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
       {/* Desktop: sticky sidebar */}
       {!isMobile && (
-        <aside className="w-72 shrink-0">
+        <aside className="w-72 shrink-0 sticky top-4 self-start">
           <MealPlanMacroSidebar
             targets={macroTargets}
             current={activeDayTotals}
