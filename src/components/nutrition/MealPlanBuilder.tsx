@@ -96,13 +96,14 @@ const uid = () => crypto.randomUUID();
 
 interface MealPlanBuilderProps {
   forceTemplate?: boolean;
+  editingTemplateId?: string;
   onSaved?: () => void;
   clientId?: string;
   dayType?: string;
   dayTypeLabel?: string;
 }
 
-const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLabel }: MealPlanBuilderProps) => {
+const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, dayType, dayTypeLabel }: MealPlanBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [planName, setPlanName] = useState("");
