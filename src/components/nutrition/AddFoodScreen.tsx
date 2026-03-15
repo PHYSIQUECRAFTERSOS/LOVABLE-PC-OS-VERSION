@@ -1170,6 +1170,8 @@ interface FoodRowProps {
   onServingsChange: (v: string) => void;
   servingUnit: ServingUnit;
   onServingUnitChange: (u: ServingUnit) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange }: FoodRowProps) => {
