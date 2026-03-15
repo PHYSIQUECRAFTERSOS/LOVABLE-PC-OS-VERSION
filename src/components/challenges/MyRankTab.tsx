@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Flame, Star, Shield, ArrowUp, RotateCcw, Zap, Crown } from "lucide-react";
+import TierIcon from "./TierIcon";
 
 const MyRankTab = () => {
   const { data: summary, isLoading: summaryLoading } = useMyXPSummary();
