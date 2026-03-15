@@ -108,6 +108,8 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   const isMultiWord = tokens.length >= 2;
   let score = 0;
 
+  const { brandTokens, foodTokens } = classifyTokens(tokens);
+
   // Exact brand match on full query
   if (brandLower && brandLower === query) score += 120;
   else if (brandLower && brandLower.includes(query)) score += 100;
@@ -146,6 +148,29 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   if (isMultiWord && !brandLower) score -= 25;
 
   score += Math.min(food.popularity_score ?? 0, 20);
+
+  // ── Food token coverage scoring (critical for brand+food queries) ──
+  if (foodTokens.length > 0) {
+    const foodTokensInName = foodTokens.filter(t => nameLower.includes(t)).length;
+
+    if (foodTokensInName === 0) {
+      // Brand matches but ZERO food tokens in name → heavy penalty
+      score -= 80;
+    } else if (foodTokensInName < foodTokens.length) {
+      // Partial food match
+      score -= 40;
+    } else {
+      // All food tokens found in name → bonus
+      score += 60;
+    }
+
+    // Exact contiguous food phrase bonus
+    const foodPhrase = foodTokens.join(" ");
+    if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) {
+      score += 40;
+    }
+  }
+
   return score;
 }
 
