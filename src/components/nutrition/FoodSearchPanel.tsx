@@ -57,6 +57,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
+  const [customFoods, setCustomFoods] = useState<FoodResult[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [sortBy, setSortBy] = useState<SortBy>("relevance");
   const [showCustomFood, setShowCustomFood] = useState(false);
@@ -65,6 +66,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (!user) return;
     loadFavorites();
     loadRecents();
+    loadCustomFoods();
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [user]);
 
