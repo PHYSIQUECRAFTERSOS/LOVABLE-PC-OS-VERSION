@@ -233,8 +233,13 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     }
   };
 
-  const onCustomFoodCreated = (food: any) => {
+  const onCustomFoodCreated = async (food: any) => {
     setShowCustomFood(false);
+    if (food.id) {
+      await trackUsage(food.id, food.name);
+    }
+    // Refresh custom foods list
+    loadCustomFoods();
     onSelect({ ...food, source: "local" });
   };
 
