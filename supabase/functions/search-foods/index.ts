@@ -403,7 +403,10 @@ serve(async (req) => {
       .order("popularity_score", { ascending: false })
       .limit(50);
 
-    let localFoods = localResults ?? [];
+    // Filter out foods with no macros (calories but 0P/0C/0F)
+    let localFoods = (localResults ?? []).filter((f: any) =>
+      (f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0) > 0
+    );
 
     // Wait for synonyms
     const synonymTerms = await synonymPromise;
