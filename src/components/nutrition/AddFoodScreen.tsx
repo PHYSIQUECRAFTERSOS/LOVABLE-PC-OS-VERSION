@@ -1038,9 +1038,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {search.length >= 2 && activeTab === "all" && (
           <div className="space-y-1 py-2">
             {searching ? (
-              <div className="flex justify-center py-12">
-                <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
+              <FoodResultSkeleton />
             ) : displayItems.length === 0 && !offSearching ? (
               <div className="text-center py-12">
                 <p className="text-sm text-muted-foreground">No foods found for "{search}"</p>
