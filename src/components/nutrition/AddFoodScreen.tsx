@@ -98,6 +98,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<FoodItem[]>([]);
+  const [bestMatches, setBestMatches] = useState<FoodItem[]>([]);
+  const [moreResultsList, setMoreResultsList] = useState<FoodItem[]>([]);
   const [offResults, setOffResults] = useState<FoodItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [offSearching, setOffSearching] = useState(false);
@@ -277,7 +279,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         if (searchRequestIdRef.current !== requestId) return;
 
         if (!error && data?.foods?.length > 0) {
-          const foods = data.foods.map((f: any) => ({
+          const mapFood = (f: any): FoodItem => ({
             id: f.id,
             name: f.name,
             brand: f.brand || null,
@@ -305,7 +307,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             source: f.source === "usda" ? "usda" as const : f.source === "open_food_facts" ? "off" as const : "local" as const,
             is_branded: f.is_branded,
             image_url: f.image_url,
-            // Carry USDA micronutrient data through for import into food_items
             _micros_per_100g: f.source === "usda" ? {
               vitamin_a_mcg: f.vitamin_a_mcg_per_100g ?? null,
               vitamin_c_mg: f.vitamin_c_mg_per_100g ?? null,
@@ -330,16 +331,27 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
               selenium_mcg: f.selenium_mcg_per_100g ?? null,
               cholesterol: f.cholesterol_per_100g ?? null,
             } : undefined,
-          } as FoodItem));
+          });
 
+          const foods = data.foods.map(mapFood);
           setResults(foods);
+
+          // Use grouped response if available
+          if (data.bestMatches?.length > 0 || data.moreResults?.length > 0) {
+            setBestMatches(data.bestMatches.map(mapFood));
+            setMoreResultsList(data.moreResults.map(mapFood));
+          } else {
+            setBestMatches([]);
+            setMoreResultsList([]);
+          }
           setOffResults([]);
         } else {
-          // Layer 2: Tokenized fallback — search foods cache then food_items
           console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2 tokenized fallback");
           const fallbackResults = await tokenizedFallbackSearch(q);
           if (searchRequestIdRef.current !== requestId) return;
           setResults(fallbackResults);
+          setBestMatches([]);
+          setMoreResultsList([]);
           setOffResults([]);
         }
       } catch (err) {
@@ -348,8 +360,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           const fallbackResults = await tokenizedFallbackSearch(q);
           if (searchRequestIdRef.current !== requestId) return;
           setResults(fallbackResults);
+          setBestMatches([]);
+          setMoreResultsList([]);
         } catch {
           setResults([]);
+          setBestMatches([]);
+          setMoreResultsList([]);
         }
         setOffResults([]);
       } finally {
@@ -1012,6 +1028,59 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   <Plus className="h-3 w-3 mr-1" /> Add Custom Food
                 </Button>
               </div>
+            ) : bestMatches.length > 0 ? (
+              <>
+                {/* Best Match section */}
+                <div className="flex items-center gap-2 pb-1.5 pt-1">
+                  <BadgeCheck className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-primary">Best Match</span>
+                </div>
+                {bestMatches.map((item) => (
+                  <FoodRow
+                    key={`best-${item.id}`}
+                    item={item}
+                    expanded={expandedId === item.id}
+                    onToggle={() => openFoodDetail(item)}
+                    onAdd={() => openFoodDetail(item)}
+                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                    servingUnit={servingUnits[item.id] || "g"}
+                    onServingUnitChange={(u) => {
+                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                    }}
+                  />
+                ))}
+
+                {/* More Results section */}
+                {moreResultsList.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 pb-1.5 pt-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">More Results</span>
+                    </div>
+                    {moreResultsList.map((item) => (
+                      <FoodRow
+                        key={`more-${item.id}`}
+                        item={item}
+                        expanded={expandedId === item.id}
+                        onToggle={() => openFoodDetail(item)}
+                        onAdd={() => openFoodDetail(item)}
+                        servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                        onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                        servingUnit={servingUnits[item.id] || "g"}
+                        onServingUnitChange={(u) => {
+                          setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                          if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                          else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                          else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
             ) : (
               displayItems.map((item) => (
                 <FoodRow

@@ -1,79 +1,122 @@
 
 
-# Fix Food Search Relevance — MFP-Quality Ranking
+# Physique Crafters — Transformation Operating System
 
-## Problem Summary
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-From screenshots, "kirkland bagel" returns O'Doughs and Thomas bagels (no Kirkland), "kirkland cookie" returns Gerble and XXL Nutrition cookies (no Kirkland), and "costco bagels" returns Fitzgeralds bagels. The scoring system was updated but three structural issues remain:
+---
 
-1. **Premature short-circuiting**: The edge function returns cached results too early (5 brand matches → skip external APIs), so actual Kirkland bagels from USDA/OFF never get fetched
-2. **Local query is too broad**: OR-matching any token returns too many irrelevant items that dilute results
-3. **No result grouping**: All results shown in a flat list instead of MFP-style "Best Match" / "More Results"
+## Phase 1 — MVP (Core Platform)
 
-## Changes
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-### 1. Edge Function — `supabase/functions/search-foods/index.ts`
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-**A) Remove premature short-circuiting for brand+food queries**
-- When query has both brand AND food tokens (e.g., "kirkland bagel"), ALWAYS hit external APIs regardless of local cache size
-- Only short-circuit for single-word generic queries with 8+ local results
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-**B) Expand brand aliases to cover more common fitness brands**
-- Add: `grenade`, `quest`, `optimum nutrition`, `fairlife`, `fage`, `chobani`, `premier protein`, `rxbar`, `clif`, `kind`, `nature valley`, `dave's killer bread`
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-**C) Improve local query — require ALL food tokens present**
-- After the broad OR query, filter local results to only keep items where ALL food tokens appear in name OR brand (post-query filter)
-- This prevents "kirkland bagel" from returning "Kirkland Fruit Punch"
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-**D) Boost scoring for brand+food compound matches**
-- Brand in `brand` field AND all food tokens in `name` → +100 bonus (highest tier)
-- Brand alias in `brand` field AND all food tokens → +90
-- All tokens covered across name+brand → +70
-- Reduce generic brand-only match score to avoid brand-but-wrong-food results dominating
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-**E) Add result grouping to response**
-- Split results into `bestMatches` (score >= threshold where brand+food both match) and `moreResults`
-- Return `{ bestMatches, moreResults, foods (flat for backward compat) }`
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-**F) Increase external API page sizes for brand searches**
-- USDA: increase from 20 to 30 for brand queries
-- OFF: keep at 50 for brand queries
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-### 2. Frontend — `src/components/nutrition/AddFoodScreen.tsx`
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-**A) Consume grouped response**
-- Check for `data.bestMatches` / `data.moreResults` in the edge function response
-- Fall back to `data.foods` for backward compatibility
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
 
-**B) Render "Best Match" and "More Results" sections**
-- When bestMatches exist, show a "Best Match" header above them
-- Show "More Results" header above remaining items
-- Keep existing FoodRow component unchanged
+---
 
-### 3. Database — Add trigram indexes (migration)
+## Phase 2 — Advanced Features
 
-The `foods` table already has a `search_vector` tsvector column and a trigger `foods_search_vector_update`. Add trigram indexes on `name` and `brand` for better partial matching:
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
 
-```sql
-CREATE INDEX IF NOT EXISTS foods_name_trgm_idx ON foods USING GIN(name gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS foods_brand_trgm_idx ON foods USING GIN(brand gin_trgm_ops);
-```
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
 
-pg_trgm extension is already enabled (confirmed from existing functions).
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
 
-## Files Changed
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
 
-| File | Change |
-|------|--------|
-| `supabase/functions/search-foods/index.ts` | Fix short-circuiting, expand brands, improve scoring, add grouping |
-| `src/components/nutrition/AddFoodScreen.tsx` | Render grouped results with Best Match / More Results headers |
-| Database migration | Add trigram indexes on `foods.name` and `foods.brand` |
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
 
-## What is NOT touched
-- No food data deleted or re-imported
-- No training/calendar/workout/messaging logic
-- No RLS policy changes
-- No water tracking
-- Barcode scanner unchanged
-- FoodDetailScreen unchanged
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 
