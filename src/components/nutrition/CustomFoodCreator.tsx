@@ -93,7 +93,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
   }, [editFood]);
 
   const resetForm = () => {
-    setName(""); setBrand(""); setServingSize("100"); setCalories("");
+    setName(""); setBrand(""); setServingSize("100"); setServingUnit("g"); setCalories("");
     setProtein(""); setCarbs(""); setFat(""); setFiber(""); setSugar("");
     setSodium(""); setShowMicros(false);
     setVitA(""); setVitC(""); setVitD(""); setCalcium(""); setIron(""); setPotassium("");
