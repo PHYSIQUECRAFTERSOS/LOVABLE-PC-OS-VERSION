@@ -9,7 +9,8 @@ import InviteList from "@/components/clients/InviteList";
 import InviteDashboard from "@/components/clients/InviteDashboard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Users, Send, BarChart3 } from "lucide-react";
+import DeactivatedClientsList from "@/components/clients/DeactivatedClientsList";
+import { Plus, Users, Send, BarChart3, UserX } from "lucide-react";
 
 const Clients = () => {
   const [addOpen, setAddOpen] = useState(false);
