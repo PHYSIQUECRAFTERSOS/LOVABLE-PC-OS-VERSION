@@ -289,6 +289,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         if (searchRequestIdRef.current !== requestId) return;
 
         if (!error && data?.foods?.length > 0) {
+          setWasWidened(data.wasWidened ?? false);
+          setUsedQuery(data.usedQuery ?? q);
           const mapFood = (f: any): FoodItem => ({
             id: f.id,
             name: f.name,
