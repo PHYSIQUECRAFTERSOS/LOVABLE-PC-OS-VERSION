@@ -508,7 +508,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: `${foodToLog.name} logged` });
       // Log to user_food_history (fire-and-forget)
       if (foodToLog.id) {
-        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodToLog.id }).then(() => {}).catch(() => {});
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodToLog.id }).then(() => {});
       }
       try {
         const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
