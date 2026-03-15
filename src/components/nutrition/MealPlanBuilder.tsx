@@ -571,6 +571,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
               day_type: effectiveDayType,
               day_type_label: effectiveDayTypeLabel,
               sort_order: effectiveDayType === "training" ? 0 : effectiveDayType === "rest" ? 1 : 2,
+              target_calories: macroTargets.calories,
+              target_protein: macroTargets.protein,
+              target_carbs: macroTargets.carbs,
+              target_fat: macroTargets.fat,
             })
             .select("id")
             .single();
