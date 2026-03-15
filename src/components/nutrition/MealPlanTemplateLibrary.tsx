@@ -330,7 +330,7 @@ const MealPlanTemplateLibrary = () => {
             Back to Templates
           </Button>
         </div>
-        <MealPlanBuilder forceTemplate onSaved={() => { setShowBuilder(false); setEditingTemplateId(undefined); loadTemplates(); }} />
+        <MealPlanBuilder forceTemplate editingTemplateId={editingTemplateId} onSaved={() => { setShowBuilder(false); setEditingTemplateId(undefined); loadTemplates(); }} />
       </div>
     );
   }
