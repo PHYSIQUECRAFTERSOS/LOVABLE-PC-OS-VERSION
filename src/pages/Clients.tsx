@@ -51,6 +51,10 @@ const Clients = () => {
               <BarChart3 className="h-3.5 w-3.5" />
               Invite Dashboard
             </TabsTrigger>
+            <TabsTrigger value="deactivated" className="gap-2">
+              <UserX className="h-3.5 w-3.5" />
+              Deactivated
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="mt-4">
