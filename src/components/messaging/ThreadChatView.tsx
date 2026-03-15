@@ -14,6 +14,9 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import UserAvatar from "@/components/profile/UserAvatar";
 import { useToast } from "@/hooks/use-toast";
+import MessageAttachment from "./MessageAttachment";
+import EmojiReactions from "./EmojiReactions";
+import AttachmentUploadMenu from "./AttachmentUploadMenu";
 
 interface Message {
   id: string;
@@ -21,6 +24,16 @@ interface Message {
   content: string;
   created_at: string;
   read_at: string | null;
+  attachment_url?: string | null;
+  attachment_type?: string | null;
+  attachment_name?: string | null;
+}
+
+interface Reaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
 }
 
 interface ThreadChatViewProps {
@@ -34,6 +47,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
   const { user } = useAuth();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
@@ -43,7 +57,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Update coach_last_seen_at and clear manual unread when opening thread
   const markThreadSeen = async () => {
     if (!user) return;
     await supabase
@@ -54,8 +67,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       } as any)
       .eq("id", threadId)
       .eq("coach_id", user.id);
-
-    // Trigger thread list refresh
     (window as any).__refetchCoachThreads?.();
   };
 
@@ -68,17 +79,38 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
     setMessages((data as Message[]) || []);
   };
 
+  const fetchReactions = async () => {
+    // Get all message IDs first, then fetch reactions
+    const { data: msgs } = await supabase
+      .from("thread_messages")
+      .select("id")
+      .eq("thread_id", threadId);
+    if (!msgs?.length) return;
+
+    const msgIds = msgs.map(m => m.id);
+    const { data: reactionData } = await supabase
+      .from("message_reactions")
+      .select("*")
+      .in("message_id", msgIds);
+
+    const grouped: Record<string, Reaction[]> = {};
+    (reactionData as Reaction[] || []).forEach(r => {
+      if (!grouped[r.message_id]) grouped[r.message_id] = [];
+      grouped[r.message_id].push(r);
+    });
+    setReactions(grouped);
+  };
+
   useEffect(() => {
-    fetchMessages();
+    fetchMessages().then(() => fetchReactions());
     markThreadSeen();
 
-    // Fetch my avatar
     if (user) {
       supabase.from("profiles").select("avatar_url").eq("user_id", user.id).single()
         .then(({ data }) => setMyAvatarUrl(data?.avatar_url || null));
     }
 
-    const channel = supabase
+    const msgChannel = supabase
       .channel(`thread-chat-${threadId}`)
       .on("postgres_changes", {
         event: "INSERT",
@@ -88,10 +120,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       }, (payload) => {
         const newMsg = payload.new as Message;
         setMessages(prev => [...prev, newMsg]);
-        // Auto-update last_seen when viewing thread
-        if (user && newMsg.sender_id !== user.id) {
-          markThreadSeen();
-        }
+        if (user && newMsg.sender_id !== user.id) markThreadSeen();
       })
       .on("postgres_changes", {
         event: "UPDATE",
@@ -104,26 +133,35 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    const reactChannel = supabase
+      .channel(`reactions-${threadId}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "message_reactions",
+      }, () => {
+        // Re-fetch reactions on any change
+        fetchReactions();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(msgChannel);
+      supabase.removeChannel(reactChannel);
+    };
   }, [threadId]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(() => { scrollToBottom(); }, [messages]);
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
     setSending(true);
-
     await supabase.from("thread_messages").insert({
       thread_id: threadId,
       sender_id: user.id,
       content: newMessage.trim(),
     });
-
-    // Update last_seen immediately after sending (coach sent = 0 unread)
     await markThreadSeen();
-
     setNewMessage("");
     setSending(false);
   };
@@ -135,19 +173,17 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       .update({ coach_marked_unread: true } as any)
       .eq("id", threadId)
       .eq("coach_id", user.id);
-
     toast({ title: "Marked as unread" });
     (window as any).__refetchCoachThreads?.();
-
-    // Go back to list on mobile
     onBack?.();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const handleReactionsChange = (messageId: string, newReactions: Reaction[]) => {
+    setReactions(prev => ({ ...prev, [messageId]: newReactions }));
   };
 
   return (
@@ -161,7 +197,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
         )}
         <UserAvatar src={otherUserAvatar} name={otherUserName} className="h-8 w-8 text-xs" />
         <h2 className="font-medium text-foreground truncate flex-1">{otherUserName}</h2>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -186,8 +221,9 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
         )}
         {messages.map((msg) => {
           const isOwn = msg.sender_id === user?.id;
+          const msgReactions = reactions[msg.id] || [];
           return (
-            <div key={msg.id} className={cn("flex gap-2", isOwn ? "justify-end" : "justify-start")}>
+            <div key={msg.id} className={cn("flex gap-2 group", isOwn ? "justify-end" : "justify-start")}>
               {!isOwn && (
                 <UserAvatar src={otherUserAvatar} name={otherUserName} className="h-7 w-7 text-[10px] mt-1 ring-1" />
               )}
@@ -195,13 +231,27 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
                 <div
                   className={cn(
                     "rounded-2xl px-4 py-2 text-sm",
-                    isOwn
-                      ? "bg-primary text-primary-foreground rounded-br-md"
-                      : "bg-muted text-foreground rounded-bl-md"
+                    isOwn ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted text-foreground rounded-bl-md"
                   )}
                 >
-                  {msg.content}
+                  {msg.attachment_url && msg.attachment_type && (
+                    <div className="mb-1">
+                      <MessageAttachment
+                        url={msg.attachment_url}
+                        type={msg.attachment_type as "image" | "video" | "pdf"}
+                        name={msg.attachment_name || undefined}
+                        isOwn={isOwn}
+                      />
+                    </div>
+                  )}
+                  {msg.content && <p>{msg.content}</p>}
                 </div>
+                {/* Reactions */}
+                <EmojiReactions
+                  messageId={msg.id}
+                  reactions={msgReactions}
+                  onReactionsChange={handleReactionsChange}
+                />
                 <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isOwn ? "justify-end" : "justify-start")}>
                   <span>{format(new Date(msg.created_at), "HH:mm")}</span>
                   {isOwn && (
@@ -223,6 +273,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       {/* Input */}
       <div className="border-t border-border p-3">
         <div className="flex gap-2">
+          <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -230,11 +281,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
             placeholder="Type a message..."
             className="flex-1"
           />
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={sending || !newMessage.trim()}
-          >
+          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
             <Send className="h-4 w-4" />
           </Button>
         </div>

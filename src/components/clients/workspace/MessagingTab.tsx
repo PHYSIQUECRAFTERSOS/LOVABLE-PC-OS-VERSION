@@ -9,7 +9,9 @@ import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, Send, CheckCheck, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import UserAvatar from "@/components/profile/UserAvatar";
+import MessageAttachment from "@/components/messaging/MessageAttachment";
+import EmojiReactions from "@/components/messaging/EmojiReactions";
+import AttachmentUploadMenu from "@/components/messaging/AttachmentUploadMenu";
 
 interface Message {
   id: string;
@@ -17,6 +19,16 @@ interface Message {
   content: string;
   created_at: string;
   read_at: string | null;
+  attachment_url?: string | null;
+  attachment_type?: string | null;
+  attachment_name?: string | null;
+}
+
+interface Reaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
 }
 
 const MessagingTab = ({ clientId }: { clientId: string }) => {
@@ -24,37 +36,26 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
-  const [clientAvatar, setClientAvatar] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    loadThread();
-  }, [clientId, user]);
+  useEffect(() => { loadThread(); }, [clientId, user]);
 
   const loadThread = async () => {
     if (!user || !clientId) return;
     setLoading(true);
 
-    // Get client profile
     const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, avatar_url")
-      .eq("user_id", clientId)
-      .single();
+      .from("profiles").select("full_name").eq("user_id", clientId).single();
     setClientName(profile?.full_name || "Client");
-    setClientAvatar(profile?.avatar_url || null);
 
-    // Find existing thread between coach and client
     const { data: existingThread } = await supabase
-      .from("message_threads")
-      .select("id")
-      .eq("coach_id", user.id)
-      .eq("client_id", clientId)
-      .maybeSingle();
+      .from("message_threads").select("id")
+      .eq("coach_id", user.id).eq("client_id", clientId).maybeSingle();
 
     if (existingThread) {
       setThreadId(existingThread.id);
@@ -69,40 +70,43 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
   const loadMessages = async (tId: string) => {
     const { data } = await supabase
       .from("thread_messages")
-      .select("id, content, sender_id, created_at, read_at")
+      .select("*")
       .eq("thread_id", tId)
       .order("created_at", { ascending: true })
       .limit(50);
-    setMessages((data as Message[]) || []);
+    const msgs = (data as Message[]) || [];
+    setMessages(msgs);
 
-    // Update coach_last_seen_at to mark thread as read
+    // Fetch reactions
+    if (msgs.length) {
+      const { data: reactionData } = await supabase
+        .from("message_reactions")
+        .select("*")
+        .in("message_id", msgs.map(m => m.id));
+      const grouped: Record<string, Reaction[]> = {};
+      (reactionData as Reaction[] || []).forEach(r => {
+        if (!grouped[r.message_id]) grouped[r.message_id] = [];
+        grouped[r.message_id].push(r);
+      });
+      setReactions(grouped);
+    }
+
     if (user) {
       await supabase
         .from("message_threads")
-        .update({
-          coach_last_seen_at: new Date().toISOString(),
-          coach_marked_unread: false,
-        } as any)
-        .eq("id", tId)
-        .eq("coach_id", user.id);
+        .update({ coach_last_seen_at: new Date().toISOString(), coach_marked_unread: false } as any)
+        .eq("id", tId).eq("coach_id", user.id);
     }
-
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
 
   const handleSend = async () => {
     if (!newMessage.trim() || !user) return;
     setSending(true);
-
     let tId = threadId;
-
-    // Create thread if needed
     if (!tId) {
       const { data: newThread, error } = await supabase
-        .from("message_threads")
-        .insert({ coach_id: user.id, client_id: clientId })
-        .select("id")
-        .single();
+        .from("message_threads").insert({ coach_id: user.id, client_id: clientId }).select("id").single();
       if (error || !newThread) {
         toast({ title: "Error", description: error?.message || "Could not create thread", variant: "destructive" });
         setSending(false);
@@ -111,13 +115,9 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
       tId = newThread.id;
       setThreadId(tId);
     }
-
     const { error } = await supabase.from("thread_messages").insert({
-      thread_id: tId,
-      sender_id: user.id,
-      content: newMessage.trim(),
+      thread_id: tId, sender_id: user.id, content: newMessage.trim(),
     });
-
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -127,47 +127,49 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
     setSending(false);
   };
 
-  // Realtime subscription
+  const handleReactionsChange = (messageId: string, newReactions: Reaction[]) => {
+    setReactions(prev => ({ ...prev, [messageId]: newReactions }));
+  };
+
+  // Realtime
   useEffect(() => {
     if (!threadId) return;
     const channel = supabase
       .channel(`workspace-chat-${threadId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "thread_messages",
-        filter: `thread_id=eq.${threadId}`,
-      }, (payload) => {
-        const msg = payload.new as Message;
-        setMessages(prev => [...prev, msg]);
-        if (user && msg.sender_id !== user.id) {
-          supabase.from("thread_messages").update({ read_at: new Date().toISOString() }).eq("id", msg.id);
-        }
-      })
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "thread_messages",
-        filter: `thread_id=eq.${threadId}`,
-      }, (payload) => {
-        const updated = payload.new as Message;
-        setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "thread_messages", filter: `thread_id=eq.${threadId}` },
+        (payload) => {
+          const msg = payload.new as Message;
+          setMessages(prev => [...prev, msg]);
+          if (user && msg.sender_id !== user.id) {
+            supabase.from("thread_messages").update({ read_at: new Date().toISOString() }).eq("id", msg.id);
+          }
+        })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "thread_messages", filter: `thread_id=eq.${threadId}` },
+        (payload) => {
+          const updated = payload.new as Message;
+          setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+        })
+      .subscribe();
+
+    const reactChannel = supabase
+      .channel(`workspace-reactions-${threadId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, () => {
+        if (threadId) loadMessages(threadId);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(reactChannel);
+    };
   }, [threadId, user]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   if (loading) {
     return (
       <div className="space-y-4">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 rounded-lg" />
-        ))}
+        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
       </div>
     );
   }
@@ -183,28 +185,34 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
       <CardContent className="flex-1 flex flex-col min-h-0 pb-3">
         <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-1">
           {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              No messages yet. Start the conversation.
-            </p>
+            <p className="text-sm text-muted-foreground text-center py-8">No messages yet. Start the conversation.</p>
           ) : (
             messages.map(msg => {
               const isMe = msg.sender_id === user?.id;
+              const msgReactions = reactions[msg.id] || [];
               return (
-                <div key={msg.id} className={cn("flex gap-2", isMe ? "justify-end" : "justify-start")}>
+                <div key={msg.id} className={cn("flex gap-2 group", isMe ? "justify-end" : "justify-start")}>
                   <div className={cn("max-w-[75%] space-y-1")}>
                     <div className={cn(
                       "rounded-2xl px-3 py-2 text-sm",
                       isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
                     )}>
-                      {msg.content}
+                      {msg.attachment_url && msg.attachment_type && (
+                        <div className="mb-1">
+                          <MessageAttachment
+                            url={msg.attachment_url}
+                            type={msg.attachment_type as "image" | "video" | "pdf"}
+                            name={msg.attachment_name || undefined}
+                            isOwn={isMe}
+                          />
+                        </div>
+                      )}
+                      {msg.content && <p>{msg.content}</p>}
                     </div>
+                    <EmojiReactions messageId={msg.id} reactions={msgReactions} onReactionsChange={handleReactionsChange} />
                     <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isMe ? "justify-end" : "justify-start")}>
                       <span>{format(new Date(msg.created_at), "h:mm a")}</span>
-                      {isMe && (
-                        msg.read_at
-                          ? <CheckCheck className="h-3 w-3 text-primary" />
-                          : <Check className="h-3 w-3" />
-                      )}
+                      {isMe && (msg.read_at ? <CheckCheck className="h-3 w-3 text-primary" /> : <Check className="h-3 w-3" />)}
                     </div>
                   </div>
                 </div>
@@ -215,11 +223,13 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
         </div>
 
         <div className="flex gap-2 shrink-0">
+          {threadId && <AttachmentUploadMenu threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />}
           <Input
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
             placeholder="Type a message..."
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            className="flex-1"
           />
           <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()} className="shrink-0">
             <Send className="h-4 w-4" />
