@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Plus, Search, FolderOpen, Layers, Trash2, Copy, MoreHorizontal,
   Users, Link2, Unlink, RefreshCw, History, Dumbbell, UtensilsCrossed,
-  Apple, ListChecks, FileText, Target,
+  Target,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
