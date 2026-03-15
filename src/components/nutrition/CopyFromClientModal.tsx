@@ -247,7 +247,7 @@ const CopyFromClientModal = ({ open, onOpenChange, onImport }: CopyFromClientMod
       // Load all items for selected days
       const { data: items } = await supabase
         .from("meal_plan_items")
-        .select("*, food_items:food_item_id(name, brand, serving_size, calories, protein, carbs, fat, fiber, sugar)")
+        .select("*, food_items:food_item_id(name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar)")
         .eq("meal_plan_id", selectedPlan.id)
         .in("day_id", dayIds)
         .order("meal_order")

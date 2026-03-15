@@ -196,7 +196,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
 
       const { data: items } = await supabase
         .from("meal_plan_items")
-        .select("*, food_items:food_item_id(name, brand, serving_size, calories, protein, carbs, fat, fiber, sugar)")
+        .select("*, food_items:food_item_id(name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar)")
         .eq("meal_plan_id", plan.id)
         .order("meal_order")
         .order("item_order");
