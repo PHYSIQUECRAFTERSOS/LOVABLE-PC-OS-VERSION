@@ -662,7 +662,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: `${entry.food.name} logged` });
       // Log to user_food_history (fire-and-forget)
       if (foodItemId) {
-        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {}).catch(() => {});
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
         supabase.from("user_food_serving_memory" as any).upsert({
           user_id: user.id,
           food_id: foodItemId,
