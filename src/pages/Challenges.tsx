@@ -14,6 +14,14 @@ const Challenges = () => {
   const { role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("leaderboard");
+  const [focusChallengeId, setFocusChallengeId] = useState<string | null>(null);
+
+  const handleChallengeCreated = (challengeId: string) => {
+    setWizardOpen(false);
+    setActiveTab("challenges");
+    setFocusChallengeId(challengeId);
+  };
 
   return (
     <AppLayout>
@@ -32,7 +40,7 @@ const Challenges = () => {
           )}
         </div>
 
-        <Tabs defaultValue="leaderboard" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="w-full bg-secondary/50">
             <TabsTrigger value="leaderboard" className="flex-1 gap-1.5 text-xs">
               <Trophy className="h-3.5 w-3.5" /> Leaderboard
@@ -59,7 +67,10 @@ const Challenges = () => {
           </TabsContent>
 
           <TabsContent value="challenges" className="mt-4">
-            <ChallengesTab />
+            <ChallengesTab
+              focusChallengeId={focusChallengeId}
+              onFocusChallengeHandled={() => setFocusChallengeId(null)}
+            />
           </TabsContent>
 
           {isCoach && (
@@ -70,7 +81,11 @@ const Challenges = () => {
         </Tabs>
       </div>
 
-      <CreateChallengeWizard open={wizardOpen} onOpenChange={setWizardOpen} />
+      <CreateChallengeWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onChallengeCreated={handleChallengeCreated}
+      />
     </AppLayout>
   );
 };
