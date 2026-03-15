@@ -486,6 +486,20 @@ const MealPlanTemplateLibrary = () => {
                     {selectedTemplate.category && <Badge variant="outline">{selectedTemplate.category}</Badge>}
                   </div>
                 </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingTemplateId(selectedTemplate.id); setShowBuilder(true); }} title="Edit">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateTemplate(selectedTemplate)} title="Duplicate">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCopyToClient(selectedTemplate)} title="Assign to Client">
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(selectedTemplate.id)} title="Delete">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               {/* Macro Targets */}
