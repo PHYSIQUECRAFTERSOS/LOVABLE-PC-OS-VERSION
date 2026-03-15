@@ -24,8 +24,11 @@ import {
   TrendingUp,
   Loader2,
   Youtube,
+  Star,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Badge } from "@/components/ui/badge";
 import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
