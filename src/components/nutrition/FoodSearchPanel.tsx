@@ -374,7 +374,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
         <div className="flex items-center gap-1.5 pt-1">
           <Clock className="h-3 w-3 text-muted-foreground" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {activeFilter === "favorites" ? "Favorite Foods" : "Recently Used"}
+            {activeFilter === "favorites" ? "Favorite Foods" : activeFilter === "custom" ? "Your Custom Foods" : "Recently Used"}
           </span>
         </div>
       )}
