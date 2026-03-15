@@ -32,6 +32,7 @@ interface BarcodeScannerProps {
   onLogged: () => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  defaultMealType?: string;
 }
 
 /** Build a configured BrowserMultiFormatReader with optimal hints */
@@ -67,7 +68,7 @@ const FALLBACK_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
 };
 
-const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: BarcodeScannerProps) => {
+const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultMealType = "snack" }: BarcodeScannerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { refresh: refreshStreak } = useLoggingStreak();
@@ -84,7 +85,9 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
   const [notFoundBarcode, setNotFoundBarcode] = useState("");
   const [servingSize, setServingSize] = useState("100");
   const [numServings, setNumServings] = useState(1);
-  const [mealType, setMealType] = useState("snack");
+  const [mealType, setMealType] = useState(defaultMealType);
+  // Sync when parent meal type changes
+  useEffect(() => { setMealType(defaultMealType); }, [defaultMealType]);
   const [logging, setLogging] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
   const [macroEntryMode, setMacroEntryMode] = useState<"auto" | "manual">("auto");
@@ -339,7 +342,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: Barcod
       setNotFound(false);
       setServingSize("100");
       setNumServings(1);
-      setMealType("snack");
+      setMealType(defaultMealType);
       setManualBarcode("");
       setMacroEntryMode("auto");
       setManualCal(""); setManualProtein(""); setManualCarbs(""); setManualFat("");
