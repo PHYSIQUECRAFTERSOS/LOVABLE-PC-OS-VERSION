@@ -298,7 +298,36 @@ const CoachCommandCenter = () => {
           };
         });
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads };
+      // ── Section 6: Yesterday's Workout Results ──
+      const yesterdayEvents = (yesterdayCalRes.data || [])
+        .filter((e) => {
+          const effectiveClient = e.target_client_id || e.user_id;
+          return clientIds.includes(effectiveClient);
+        })
+        .map((e) => ({ ...e, effectiveClientId: e.target_client_id || e.user_id }));
+
+      const completedYesterday: YesterdayWorkoutClient[] = [];
+      const missedYesterday: YesterdayWorkoutClient[] = [];
+      const seenCompleted = new Set<string>();
+      const seenMissed = new Set<string>();
+
+      for (const ev of yesterdayEvents) {
+        const cid = ev.effectiveClientId;
+        const profile = profileMap.get(cid);
+        const entry: YesterdayWorkoutClient = {
+          clientId: cid,
+          clientName: profile?.full_name || "Client",
+          avatarUrl: profile?.avatar_url,
+          workoutTitle: ev.title || "Workout",
+        };
+        if (ev.is_completed) {
+          if (!seenCompleted.has(cid)) { completedYesterday.push(entry); seenCompleted.add(cid); }
+        } else {
+          if (!seenMissed.has(cid)) { missedYesterday.push(entry); seenMissed.add(cid); }
+        }
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday };
     },
   });
 
