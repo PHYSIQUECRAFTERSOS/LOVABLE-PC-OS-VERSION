@@ -79,10 +79,10 @@ const AttachmentUploadMenu = ({ threadId, onSent }: AttachmentUploadMenuProps) =
       }
 
       // Compress images
-      let uploadFile = file;
+      let uploadBlob: File | Blob = file;
       if (type === "image") {
         try {
-          uploadFile = await compressImage(file);
+          uploadBlob = await compressImage(file);
         } catch {
           // Use original if compression fails
         }
