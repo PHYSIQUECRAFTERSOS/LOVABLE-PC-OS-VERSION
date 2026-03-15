@@ -439,6 +439,9 @@ const MealPlanTemplateLibrary = () => {
                           </div>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { setEditingTemplateId(template.id); setShowBuilder(true); }}>
+                            <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toggleFavorite(template.id, template.is_favorite)}>
                             <Star className={cn("h-3.5 w-3.5 mr-2", template.is_favorite && "fill-yellow-400 text-yellow-400")} />
                             {template.is_favorite ? "Unfavorite" : "Favorite"}
@@ -447,7 +450,7 @@ const MealPlanTemplateLibrary = () => {
                             <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openCopyToClient(template)}>
-                            <Copy className="h-3.5 w-3.5 mr-2" /> Copy to Client
+                            <UserPlus className="h-3.5 w-3.5 mr-2" /> Assign to Client
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           {CATEGORIES.map(cat => (
@@ -459,7 +462,7 @@ const MealPlanTemplateLibrary = () => {
                             {!template.category ? "✓ " : ""}No Category
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive" onClick={() => deleteTemplate(template.id)}>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteConfirmId(template.id)}>
                             <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
