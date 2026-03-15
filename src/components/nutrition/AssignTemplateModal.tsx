@@ -166,6 +166,8 @@ const AssignTemplateModal = ({ open, onOpenChange, onImport }: AssignTemplateMod
                   fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
                   fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                   sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
+                  serving_unit: fi?.serving_unit || "g",
+                  serving_size_g: ss,
                 };
               }),
             };
