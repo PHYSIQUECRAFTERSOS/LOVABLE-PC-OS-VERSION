@@ -93,7 +93,7 @@ const AttachmentUploadMenu = ({ threadId, onSent }: AttachmentUploadMenuProps) =
 
       const { error: uploadError } = await supabase.storage
         .from("chat-attachments")
-        .upload(path, uploadFile, { contentType: file.type });
+        .upload(path, uploadBlob, { contentType: file.type });
 
       if (uploadError) throw uploadError;
 
