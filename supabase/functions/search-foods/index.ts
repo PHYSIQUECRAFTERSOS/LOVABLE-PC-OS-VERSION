@@ -32,6 +32,43 @@ function expandBrandAliases(tokens: string[]): string[] {
   return extra;
 }
 
+// ── Token classification ───────────────────────────────────────────────
+const BRAND_KEYWORDS = new Set(Object.keys(BRAND_ALIASES));
+// Also include multi-word brand names
+const MULTI_WORD_BRANDS = Object.keys(BRAND_ALIASES).filter(k => k.includes(" "));
+
+function classifyTokens(tokens: string[]): { brandTokens: string[]; foodTokens: string[] } {
+  const brandTokens: string[] = [];
+  const foodTokens: string[] = [];
+  const joined = tokens.join(" ");
+
+  // Check for multi-word brand matches first
+  const consumedIndices = new Set<number>();
+  for (const mb of MULTI_WORD_BRANDS) {
+    if (joined.includes(mb)) {
+      const mbTokens = mb.split(/\s+/);
+      for (let i = 0; i <= tokens.length - mbTokens.length; i++) {
+        if (mbTokens.every((t, j) => tokens[i + j] === t)) {
+          for (let j = 0; j < mbTokens.length; j++) consumedIndices.add(i + j);
+          brandTokens.push(mb);
+        }
+      }
+    }
+  }
+
+  // Classify remaining tokens
+  for (let i = 0; i < tokens.length; i++) {
+    if (consumedIndices.has(i)) continue;
+    if (BRAND_KEYWORDS.has(tokens[i])) {
+      brandTokens.push(tokens[i]);
+    } else {
+      foodTokens.push(tokens[i]);
+    }
+  }
+
+  return { brandTokens, foodTokens };
+}
+
 // ── Filters ────────────────────────────────────────────────────────────
 const ALLOWED_COUNTRIES = new Set([
   "united states", "us", "usa", "canada", "ca",
@@ -71,6 +108,8 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   const isMultiWord = tokens.length >= 2;
   let score = 0;
 
+  const { brandTokens, foodTokens } = classifyTokens(tokens);
+
   // Exact brand match on full query
   if (brandLower && brandLower === query) score += 120;
   else if (brandLower && brandLower.includes(query)) score += 100;
@@ -109,6 +148,29 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   if (isMultiWord && !brandLower) score -= 25;
 
   score += Math.min(food.popularity_score ?? 0, 20);
+
+  // ── Food token coverage scoring (critical for brand+food queries) ──
+  if (foodTokens.length > 0) {
+    const foodTokensInName = foodTokens.filter(t => nameLower.includes(t)).length;
+
+    if (foodTokensInName === 0) {
+      // Brand matches but ZERO food tokens in name → heavy penalty
+      score -= 80;
+    } else if (foodTokensInName < foodTokens.length) {
+      // Partial food match
+      score -= 40;
+    } else {
+      // All food tokens found in name → bonus
+      score += 60;
+    }
+
+    // Exact contiguous food phrase bonus
+    const foodPhrase = foodTokens.join(" ");
+    if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) {
+      score += 40;
+    }
+  }
+
   return score;
 }
 

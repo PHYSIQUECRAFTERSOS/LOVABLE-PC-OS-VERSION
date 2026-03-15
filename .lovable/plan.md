@@ -1,65 +1,122 @@
 
 
-# Fix Brand+Food Search Relevance
+# Physique Crafters — Transformation Operating System
 
-## Root Cause
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-The `brandRelevanceScore` function in `search-foods/index.ts` has a critical flaw: it rewards brand matches heavily (+120/+100/+95) but doesn't penalize items that match the brand while **completely missing the food terms**. So "kirkland bagel" returns "Kirkland Fruit Punch" because the brand match alone scores ~160+ points, regardless of whether "bagel" appears anywhere.
+---
 
-The scoring also treats all tokens equally — it doesn't distinguish between brand tokens ("kirkland") and food tokens ("bagel", "chicken", "ground beef").
+## Phase 1 — MVP (Core Platform)
 
-## Fix Strategy
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-### 1. `supabase/functions/search-foods/index.ts` — Scoring overhaul
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-Split query tokens into **brand tokens** and **food tokens** using the BRAND_ALIASES map and known brand words. Then:
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-- **Food token coverage requirement**: When food tokens exist (e.g., "bagel" in "kirkland bagel"), items that match zero food tokens get a **-80 penalty**. Items matching only some food tokens get a **-40 penalty**.
-- **Full coverage bonus**: Items matching ALL food tokens in name AND brand token in brand get a **+60 bonus** (the ideal case — exactly what MyFitnessPal surfaces first).
-- **Exact phrase bonus**: If the full food phrase (e.g., "extra lean ground beef") appears contiguously in the name, add **+40**.
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-Score changes to `brandRelevanceScore`:
-```
-// Identify brand vs food tokens
-const brandTokens = tokens that match any brand alias key
-const foodTokens = remaining tokens
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-// Food coverage scoring
-foodTokensInName = count of foodTokens found in name
-if foodTokens.length > 0:
-  if foodTokensInName == 0: score -= 80   // "Kirkland Fruit Punch" for "kirkland bagel"
-  elif foodTokensInName < foodTokens.length: score -= 40
-  else: score += 60  // all food tokens found
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-// Exact food phrase bonus
-foodPhrase = foodTokens.join(" ")
-if nameLower.includes(foodPhrase): score += 40
-```
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-### 2. `supabase/functions/search-foods/index.ts` — Better brand token detection
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-Add a helper to classify which tokens are brand-intent vs food-intent:
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-```typescript
-function classifyTokens(tokens: string[], aliases: Record<string, string[]>): 
-  { brandTokens: string[], foodTokens: string[] }
-```
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
 
-This checks each token against the BRAND_ALIASES keys and common brand patterns. Tokens like "kirkland", "costco", "trader" become brand tokens; the rest ("bagel", "chicken", "ground", "beef") become food tokens.
+---
 
-### 3. No client-side changes needed
+## Phase 2 — Advanced Features
 
-The `AddFoodScreen.tsx` fallback search and the edge function structure are sound — the issue is purely in scoring/ranking within the edge function.
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
 
-## Files Changed
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
 
-| File | Change |
-|------|--------|
-| `supabase/functions/search-foods/index.ts` | Add `classifyTokens` helper, overhaul `brandRelevanceScore` to penalize brand-only matches and reward full brand+food coverage |
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
 
-## Expected Outcomes
-- "kirkland bagel" → top results are bagels from Kirkland brand
-- "kirkland cookie" → top results are cookies from Kirkland brand  
-- "kirkland extra lean ground beef" → top results are ground beef from Kirkland
-- Generic "kirkland" → still shows variety of Kirkland products (no food penalty since no food tokens)
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
+
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
+
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 
