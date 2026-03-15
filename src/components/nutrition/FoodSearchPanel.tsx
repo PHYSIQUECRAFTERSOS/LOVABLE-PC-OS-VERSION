@@ -261,6 +261,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (query.length < 2) {
       if (activeFilter === "favorites") return deduplicateAndFilter(recentFoods.filter(f => favorites.has(f.id)));
       if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
+      if (activeFilter === "custom") return deduplicateAndFilter(customFoods);
       const favFoods = recentFoods.filter(f => favorites.has(f.id));
       const nonFavRecents = recentFoods.filter(f => !favorites.has(f.id));
       return deduplicateAndFilter([...favFoods, ...nonFavRecents]);
@@ -269,6 +270,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     let combined = [...localResults];
 
     if (activeFilter === "favorites") combined = combined.filter(f => favorites.has(f.id));
+    else if (activeFilter === "custom") combined = combined.filter(f => f.data_source === "custom");
     else if (activeFilter === "branded") combined = combined.filter(f => f.brand);
     else if (activeFilter === "generic") combined = combined.filter(f => !f.brand);
 
