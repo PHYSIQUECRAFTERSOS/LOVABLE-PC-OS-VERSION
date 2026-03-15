@@ -713,6 +713,11 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                       <div className="divide-y divide-border/50">
                         {meal.foods.map((food) => {
                           const macros = calcMacros(food);
+                          const useNatural = food.serving_unit && food.serving_unit !== "g" && food.serving_size_g > 0;
+                          const displayQty = useNatural
+                            ? +(food.gram_amount / food.serving_size_g).toFixed(2)
+                            : food.gram_amount;
+                          const displayUnit = useNatural ? food.serving_unit : "g";
                           return (
                             <div key={food.id} className="flex items-center gap-2 px-3 py-2">
                               <FoodIcon name={food.food_name} size={28} />
@@ -723,12 +728,17 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                               <div className="flex items-center gap-1.5">
                                 <Input
                                   type="number"
-                                  min="1"
-                                  value={food.gram_amount}
-                                  onChange={(e) => updateGrams(day.id, meal.id, food.id, parseFloat(e.target.value) || 0)}
+                                  min="0.1"
+                                  step={useNatural ? "0.5" : "1"}
+                                  value={displayQty}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    const grams = useNatural ? val * food.serving_size_g : val;
+                                    updateGrams(day.id, meal.id, food.id, grams);
+                                  }}
                                   className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
                                 />
-                                <span className="text-[10px] text-muted-foreground w-4">g</span>
+                                <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
                               </div>
                               <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
                                 <span>{macros.calories}cal</span>
