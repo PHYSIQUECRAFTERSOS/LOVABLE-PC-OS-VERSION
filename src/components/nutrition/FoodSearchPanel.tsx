@@ -45,7 +45,7 @@ interface FoodSearchPanelProps {
   onClose: () => void;
 }
 
-type FilterTab = "all" | "favorites" | "recent" | "branded" | "generic";
+type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic";
 type SortBy = "relevance" | "calories" | "protein" | "alpha";
 
 const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
@@ -57,6 +57,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
+  const [customFoods, setCustomFoods] = useState<FoodResult[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [sortBy, setSortBy] = useState<SortBy>("relevance");
   const [showCustomFood, setShowCustomFood] = useState(false);
@@ -65,6 +66,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (!user) return;
     loadFavorites();
     loadRecents();
+    loadCustomFoods();
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [user]);
 
@@ -125,6 +127,18 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     }
   };
 
+  const loadCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("food_items")
+      .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
+      .eq("data_source", "custom")
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (data) setCustomFoods(data.map((f: any) => ({ ...f, source: "local" as const })));
+  };
+
   const toggleFavorite = async (foodId: string) => {
     if (!user) return;
     const isFav = favorites.has(foodId);
@@ -165,11 +179,11 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     name: r.name,
     brand: r.brand ?? null,
     calories: Math.round((r.calories_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
-    protein: Math.round((r.protein_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
-    carbs: Math.round((r.carbs_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
-    fat: Math.round((r.fat_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
-    fiber: Math.round((r.fiber_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
-    sugar: Math.round((r.sugar_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100),
+    protein: parseFloat(((r.protein_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100).toFixed(1)),
+    carbs: parseFloat(((r.carbs_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100).toFixed(1)),
+    fat: parseFloat(((r.fat_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100).toFixed(1)),
+    fiber: parseFloat(((r.fiber_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100).toFixed(1)),
+    sugar: parseFloat(((r.sugar_per_100g ?? 0) * (r.serving_size_g ?? 100) / 100).toFixed(1)),
     serving_size: r.serving_size_g ?? 100,
     serving_unit: r.serving_unit ?? "g",
     is_verified: r.is_verified,
@@ -219,13 +233,22 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     }
   };
 
-  const onCustomFoodCreated = (food: any) => {
+  const onCustomFoodCreated = async (food: any) => {
     setShowCustomFood(false);
+    if (food.id) {
+      await trackUsage(food.id, food.name);
+    }
+    // Refresh custom foods list
+    loadCustomFoods();
     onSelect({ ...food, source: "local" });
   };
 
   const deduplicateAndFilter = (foods: FoodResult[]): FoodResult[] => {
-    const valid = foods.filter(f => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
+    // Exclude foods with calories > 10 but all macros at 0
+    const valid = foods.filter(f => {
+      if (f.calories > 10 && f.protein === 0 && f.carbs === 0 && f.fat === 0) return false;
+      return f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0;
+    });
     return valid.filter((food, index, self) =>
       index === self.findIndex(f =>
         f.name.toLowerCase().trim() === food.name.toLowerCase().trim() &&
@@ -238,6 +261,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (query.length < 2) {
       if (activeFilter === "favorites") return deduplicateAndFilter(recentFoods.filter(f => favorites.has(f.id)));
       if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
+      if (activeFilter === "custom") return deduplicateAndFilter(customFoods);
       const favFoods = recentFoods.filter(f => favorites.has(f.id));
       const nonFavRecents = recentFoods.filter(f => !favorites.has(f.id));
       return deduplicateAndFilter([...favFoods, ...nonFavRecents]);
@@ -246,6 +270,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     let combined = [...localResults];
 
     if (activeFilter === "favorites") combined = combined.filter(f => favorites.has(f.id));
+    else if (activeFilter === "custom") combined = combined.filter(f => f.data_source === "custom");
     else if (activeFilter === "branded") combined = combined.filter(f => f.brand);
     else if (activeFilter === "generic") combined = combined.filter(f => !f.brand);
 
@@ -286,6 +311,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     { key: "all", label: "All" },
     { key: "favorites", label: "★ Favorites" },
     { key: "recent", label: "Recent" },
+    { key: "custom", label: "Custom Foods" },
     { key: "branded", label: "Branded" },
     { key: "generic", label: "Generic" },
   ];
@@ -348,7 +374,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
         <div className="flex items-center gap-1.5 pt-1">
           <Clock className="h-3 w-3 text-muted-foreground" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {activeFilter === "favorites" ? "Favorite Foods" : "Recently Used"}
+            {activeFilter === "favorites" ? "Favorite Foods" : activeFilter === "custom" ? "Your Custom Foods" : "Recently Used"}
           </span>
         </div>
       )}

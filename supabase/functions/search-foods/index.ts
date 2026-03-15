@@ -403,7 +403,10 @@ serve(async (req) => {
       .order("popularity_score", { ascending: false })
       .limit(50);
 
-    let localFoods = localResults ?? [];
+    // Filter out foods with no macros (calories but 0P/0C/0F)
+    let localFoods = (localResults ?? []).filter((f: any) =>
+      (f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0) > 0
+    );
 
     // Wait for synonyms
     const synonymTerms = await synonymPromise;
@@ -581,7 +584,10 @@ serve(async (req) => {
     const existingOffIds = new Set(localFoods.map((f: any) => f.off_id).filter(Boolean));
     const newUsda = usdaFoods.filter((f) => !existingUsdaIds.has(f.usda_fdc_id));
     const newOff = offFoods.filter((f) => !existingOffIds.has(f.off_id));
-    const allResultsRaw = [...localFoods, ...newUsda, ...newOff].filter((f) => f.has_complete_macros !== false);
+    const allResultsRaw = [...localFoods, ...newUsda, ...newOff].filter((f) =>
+      f.has_complete_macros !== false &&
+      ((f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0)) > 0
+    );
 
     const scored = allResultsRaw.map((f) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases, synonymTerms) }));
     scored.sort((a, b) => b._relevance - a._relevance);
