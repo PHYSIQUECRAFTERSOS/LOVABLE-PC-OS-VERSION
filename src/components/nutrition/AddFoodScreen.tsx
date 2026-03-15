@@ -1041,8 +1041,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
               <FoodResultSkeleton />
             ) : displayItems.length === 0 && !offSearching ? (
               <div className="text-center py-12">
-                <p className="text-sm text-muted-foreground">No foods found for "{search}"</p>
-                <p className="text-xs text-muted-foreground mt-1">Try a different search term.</p>
+                <p className="text-2xl mb-2">🔍</p>
+                <p className="text-sm text-foreground font-medium">No results found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try a shorter or simpler search term.</p>
                 <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={() => setQuickAddOpen(true)}>
                   <Plus className="h-3 w-3 mr-1" /> Add Custom Food
                 </Button>
