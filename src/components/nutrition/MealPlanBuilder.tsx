@@ -719,7 +719,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   }
 
   return (
-    <div className={cn("gap-6", isMobile ? "space-y-0" : "flex")}>
+    <div className={cn("gap-6", isMobile ? "space-y-0" : "flex items-start")}>
       {/* Mobile: sticky top bar */}
       {isMobile && (
         <MealPlanMacroSidebar
