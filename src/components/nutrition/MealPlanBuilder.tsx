@@ -498,6 +498,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
     return activeDay ? getDayTotals(activeDay) : { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 };
   }, [days, expandedDay]);
 
+  const handleSave = async () => {
     if (!user || !planName) return;
     setSaving(true);
 
