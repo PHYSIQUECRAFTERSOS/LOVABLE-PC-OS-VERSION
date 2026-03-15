@@ -132,6 +132,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
+  const [macroTargets, setMacroTargets] = useState({ calories: 2000, protein: 150, carbs: 200, fat: 60 });
 
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
