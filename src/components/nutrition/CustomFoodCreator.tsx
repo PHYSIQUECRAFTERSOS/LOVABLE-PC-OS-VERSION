@@ -59,6 +59,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
   const [fiber, setFiber] = useState("");
   const [sugar, setSugar] = useState("");
   const [sodium, setSodium] = useState("");
+  const [servingUnit, setServingUnit] = useState("g");
   const [showMicros, setShowMicros] = useState(false);
   const [saving, setSaving] = useState(false);
 
