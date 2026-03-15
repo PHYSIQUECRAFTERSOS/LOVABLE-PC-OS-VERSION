@@ -36,6 +36,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const { data: challengeTiers } = useChallengeTiers(challenge?.id || null);
   const { data: scoringRules } = useChallengeScoringRules(challenge?.id || null);
   const joinChallenge = useJoinChallenge();
+  const removeParticipant = useRemoveChallengeParticipant();
   const logEntry = useLogChallengeEntry();
   const saveTemplate = useSaveTemplate();
   const isCoach = role === "coach" || role === "admin";
