@@ -1228,6 +1228,14 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
         <button onClick={onToggle} className="p-1 text-muted-foreground">
           {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </button>
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+            className="p-1 transition-colors shrink-0"
+          >
+            <Star className={cn("h-4 w-4", isFavorite ? "fill-primary text-primary" : "text-muted-foreground")} />
+          </button>
+        )}
         <button
           onClick={onAdd}
           className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
