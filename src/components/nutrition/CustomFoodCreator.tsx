@@ -11,7 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+
+const SERVING_UNIT_OPTIONS = [
+  "g", "bar", "bottle", "unit", "cup", "ml", "oz", "scoop", "slice", "tsp", "tbsp",
+] as const;
 
 export interface CustomFoodData {
   id?: string;
