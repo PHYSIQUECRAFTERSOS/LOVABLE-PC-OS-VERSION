@@ -20,7 +20,10 @@ import { toast } from "sonner";
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onChallengeCreated?: (challengeId: string) => void;
 }
+
+const NO_BADGE_VALUE = "none";
 
 const SCORING_ACTION_LABELS: Record<string, { label: string; desc: string; icon: React.ElementType }> = {
   workout_completed: { label: "Workout Completed", desc: "Earn points for each workout logged", icon: Dumbbell },
@@ -29,7 +32,7 @@ const SCORING_ACTION_LABELS: Record<string, { label: string; desc: string; icon:
   streak_bonus: { label: "Streak Bonus (7+ days)", desc: "Reward consistency with streaks", icon: Flame },
 };
 
-const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
+const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props) => {
   const { user } = useAuth();
   const createChallenge = useCreateChallenge();
   const { data: badges } = useBadges();
@@ -78,7 +81,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
 
   // Rewards
-  const [selectedBadgeId, setSelectedBadgeId] = useState<string | "">("");
+  const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null);
   const [newBadgeName, setNewBadgeName] = useState("");
   const [newBadgeIcon, setNewBadgeIcon] = useState("🏆");
 
