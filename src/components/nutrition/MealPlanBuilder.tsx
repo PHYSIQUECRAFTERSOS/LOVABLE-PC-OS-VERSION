@@ -279,6 +279,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       const plan = plans[0];
       setExistingPlanId(plan.id);
       setPlanName(plan.name);
+      if (plan.target_calories || plan.target_protein || plan.target_carbs || plan.target_fat) {
+        setMacroTargets({
+          calories: plan.target_calories || 2000,
+          protein: plan.target_protein || 150,
+          carbs: plan.target_carbs || 200,
+          fat: plan.target_fat || 60,
+        });
+      }
 
       const { data: dbDays } = await supabase
         .from("meal_plan_days")
