@@ -32,6 +32,43 @@ function expandBrandAliases(tokens: string[]): string[] {
   return extra;
 }
 
+// ── Token classification ───────────────────────────────────────────────
+const BRAND_KEYWORDS = new Set(Object.keys(BRAND_ALIASES));
+// Also include multi-word brand names
+const MULTI_WORD_BRANDS = Object.keys(BRAND_ALIASES).filter(k => k.includes(" "));
+
+function classifyTokens(tokens: string[]): { brandTokens: string[]; foodTokens: string[] } {
+  const brandTokens: string[] = [];
+  const foodTokens: string[] = [];
+  const joined = tokens.join(" ");
+
+  // Check for multi-word brand matches first
+  const consumedIndices = new Set<number>();
+  for (const mb of MULTI_WORD_BRANDS) {
+    if (joined.includes(mb)) {
+      const mbTokens = mb.split(/\s+/);
+      for (let i = 0; i <= tokens.length - mbTokens.length; i++) {
+        if (mbTokens.every((t, j) => tokens[i + j] === t)) {
+          for (let j = 0; j < mbTokens.length; j++) consumedIndices.add(i + j);
+          brandTokens.push(mb);
+        }
+      }
+    }
+  }
+
+  // Classify remaining tokens
+  for (let i = 0; i < tokens.length; i++) {
+    if (consumedIndices.has(i)) continue;
+    if (BRAND_KEYWORDS.has(tokens[i])) {
+      brandTokens.push(tokens[i]);
+    } else {
+      foodTokens.push(tokens[i]);
+    }
+  }
+
+  return { brandTokens, foodTokens };
+}
+
 // ── Filters ────────────────────────────────────────────────────────────
 const ALLOWED_COUNTRIES = new Set([
   "united states", "us", "usa", "canada", "ca",
