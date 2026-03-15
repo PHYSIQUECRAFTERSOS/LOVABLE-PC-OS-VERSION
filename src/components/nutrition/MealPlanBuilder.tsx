@@ -528,7 +528,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       if (planId) {
         const { error } = await supabase
           .from("meal_plans")
-          .update({ name: planName, updated_at: new Date().toISOString() })
+          .update({
+            name: planName,
+            updated_at: new Date().toISOString(),
+            target_calories: macroTargets.calories,
+            target_protein: macroTargets.protein,
+            target_carbs: macroTargets.carbs,
+            target_fat: macroTargets.fat,
+          })
           .eq("id", planId);
         if (error) throw error;
         await supabase.from("meal_plan_days").delete().eq("meal_plan_id", planId);
