@@ -360,6 +360,25 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       {filteredClients.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">No clients match your filters.</p>
       )}
+
+      <ClientPreviewDialog
+        clientId={previewClient?.id || null}
+        clientName={previewClient?.name || ""}
+        clientAvatar={previewClient?.avatar_url}
+        open={!!previewClient}
+        onOpenChange={(open) => { if (!open) setPreviewClient(null); }}
+        onClientDeactivated={() => {
+          setPreviewClient(null);
+          onClientStatusChanged?.();
+          // Re-fetch clients
+          setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
+        }}
+        onClientDeleted={() => {
+          setPreviewClient(null);
+          onClientStatusChanged?.();
+          setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
+        }}
+      />
     </div>
   );
 };

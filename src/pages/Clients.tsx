@@ -72,6 +72,10 @@ const Clients = () => {
           <TabsContent value="dashboard" className="mt-4">
             <InviteDashboard />
           </TabsContent>
+
+          <TabsContent value="deactivated" className="mt-4">
+            <DeactivatedClientsList refreshKey={deactivatedRefreshKey} />
+          </TabsContent>
         </Tabs>
 
         <AddClientDialog
