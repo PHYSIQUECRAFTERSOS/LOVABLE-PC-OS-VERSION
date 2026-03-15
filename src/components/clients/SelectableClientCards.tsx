@@ -56,9 +56,10 @@ const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
   );
 };
 
-const SelectableClientCards = ({ onSelectionChange, onSendMessage }: SelectableClientCardsProps) => {
+const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatusChanged }: SelectableClientCardsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [previewClient, setPreviewClient] = useState<SelectableClient | null>(null);
   const [clients, setClients] = useState<SelectableClient[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
