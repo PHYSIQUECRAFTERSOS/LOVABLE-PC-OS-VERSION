@@ -6,6 +6,34 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+/** Return the client's current local hour (0-23) given their IANA timezone */
+function getClientLocalHour(tz: string): number {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      hour12: false,
+    });
+    return parseInt(formatter.format(new Date()), 10);
+  } catch {
+    return new Date().getUTCHours(); // fallback
+  }
+}
+
+/** Return yesterday's date string (YYYY-MM-DD) in the client's timezone */
+function getYesterdayLocal(tz: string): string {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    // Subtract 1 day
+    const yesterday = new Date(now.getTime() - 86400000);
+    return formatter.format(yesterday);
+  } catch {
+    const yesterday = new Date(Date.now() - 86400000);
+    return yesterday.toISOString().split("T")[0];
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -59,21 +87,66 @@ Deno.serve(async (req) => {
 
       if (clientIds.length === 0) continue;
 
+      // Fetch client timezones
+      const { data: profileRows } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, timezone")
+        .in("user_id", clientIds);
+
+      const profileMap = new Map(
+        (profileRows || []).map((p: any) => [p.user_id, p])
+      );
+
       // Evaluate trigger conditions
       let eligibleClients: string[] = [];
 
       switch (trigger.trigger_type) {
         case "missed_workout": {
-          // Clients with no workout session in last 2 days
-          const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
+          // Fire 24h after a scheduled workout date, at 5 AM client local time
           for (const cid of clientIds) {
+            const profile = profileMap.get(cid);
+            const tz = profile?.timezone || "America/Los_Angeles";
+            const localHour = getClientLocalHour(tz);
+
+            // Only fire at 5 AM local time (allow 5:00-5:59 window)
+            if (localHour !== 5) continue;
+
+            const yesterday = getYesterdayLocal(tz);
+
+            // Check if there was a workout scheduled yesterday
+            const { data: scheduledWorkouts } = await supabase
+              .from("calendar_events")
+              .select("id")
+              .eq("user_id", cid)
+              .eq("event_type", "workout")
+              .eq("event_date", yesterday)
+              .limit(1);
+
+            if (!scheduledWorkouts || scheduledWorkouts.length === 0) continue;
+
+            // Check if they completed it (via workout_sessions)
             const { data: sessions } = await supabase
               .from("workout_sessions")
               .select("id")
               .eq("client_id", cid)
-              .gte("created_at", twoDaysAgo)
+              .eq("session_date", yesterday)
+              .eq("status", "completed")
               .limit(1);
-            if (!sessions || sessions.length === 0) {
+
+            // Also check calendar completion flag
+            const { data: completedEvents } = await supabase
+              .from("calendar_events")
+              .select("id")
+              .eq("user_id", cid)
+              .eq("event_type", "workout")
+              .eq("event_date", yesterday)
+              .eq("is_completed", true)
+              .limit(1);
+
+            if (
+              (!sessions || sessions.length === 0) &&
+              (!completedEvents || completedEvents.length === 0)
+            ) {
               eligibleClients.push(cid);
             }
           }
@@ -81,18 +154,61 @@ Deno.serve(async (req) => {
         }
 
         case "missed_checkin": {
-          // Clients with no weekly checkin in last 8 days
-          const eightDaysAgo = new Date(Date.now() - 8 * 86400000)
-            .toISOString()
-            .split("T")[0];
+          // Fire 24h after a scheduled check-in date, at 5 AM client local time
           for (const cid of clientIds) {
-            const { data: checkins } = await supabase
-              .from("weekly_checkins")
+            const profile = profileMap.get(cid);
+            const tz = profile?.timezone || "America/Los_Angeles";
+            const localHour = getClientLocalHour(tz);
+
+            if (localHour !== 5) continue;
+
+            const yesterday = getYesterdayLocal(tz);
+
+            // Check if there was a check-in scheduled yesterday via calendar_events
+            const { data: scheduledCheckins } = await supabase
+              .from("calendar_events")
+              .select("id")
+              .eq("user_id", cid)
+              .eq("event_type", "checkin")
+              .eq("event_date", yesterday)
+              .limit(1);
+
+            // Also check checkin_submissions due yesterday
+            const { data: dueCheckins } = await supabase
+              .from("checkin_submissions")
               .select("id")
               .eq("client_id", cid)
-              .gte("week_date", eightDaysAgo)
+              .eq("due_date", yesterday)
               .limit(1);
-            if (!checkins || checkins.length === 0) {
+
+            const hadCheckinDue =
+              (scheduledCheckins && scheduledCheckins.length > 0) ||
+              (dueCheckins && dueCheckins.length > 0);
+
+            if (!hadCheckinDue) continue;
+
+            // Check if they submitted it
+            const { data: submitted } = await supabase
+              .from("checkin_submissions")
+              .select("id")
+              .eq("client_id", cid)
+              .eq("due_date", yesterday)
+              .eq("status", "submitted")
+              .limit(1);
+
+            const { data: completedCalCheckin } = await supabase
+              .from("calendar_events")
+              .select("id")
+              .eq("user_id", cid)
+              .eq("event_type", "checkin")
+              .eq("event_date", yesterday)
+              .eq("is_completed", true)
+              .limit(1);
+
+            if (
+              (!submitted || submitted.length === 0) &&
+              (!completedCalCheckin || completedCalCheckin.length === 0)
+            ) {
               eligibleClients.push(cid);
             }
           }
@@ -100,7 +216,7 @@ Deno.serve(async (req) => {
         }
 
         case "inactivity_7d": {
-          // No workout, no nutrition log, no checkin in 7 days
+          // No workout, no nutrition log in 7 days
           const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
           for (const cid of clientIds) {
             const { data: ws } = await supabase
@@ -174,16 +290,9 @@ Deno.serve(async (req) => {
 
       if (toSend.length === 0) continue;
 
-      // Get client names for personalization
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", toSend);
-
       const logs = toSend.map((clientId) => {
-        const name =
-          profiles?.find((p: any) => p.user_id === clientId)?.full_name ||
-          "there";
+        const profile = profileMap.get(clientId);
+        const name = profile?.full_name || "there";
         const content = template.content.replace(/\{name\}/g, name);
         return {
           trigger_id: trigger.id,
