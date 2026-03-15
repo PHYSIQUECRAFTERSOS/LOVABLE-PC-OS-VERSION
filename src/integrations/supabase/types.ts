@@ -2808,24 +2808,39 @@ export type Database = {
       }
       food_search_log: {
         Row: {
+          best_match_count: number | null
+          clicked_food_id: string | null
           created_at: string | null
+          detected_brand: string | null
           id: string
+          normalized_query: string | null
           query: string
           results_count: number | null
+          search_strategy: string | null
           user_id: string | null
         }
         Insert: {
+          best_match_count?: number | null
+          clicked_food_id?: string | null
           created_at?: string | null
+          detected_brand?: string | null
           id?: string
+          normalized_query?: string | null
           query: string
           results_count?: number | null
+          search_strategy?: string | null
           user_id?: string | null
         }
         Update: {
+          best_match_count?: number | null
+          clicked_food_id?: string | null
           created_at?: string | null
+          detected_brand?: string | null
           id?: string
+          normalized_query?: string | null
           query?: string
           results_count?: number | null
+          search_strategy?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -2861,6 +2876,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      food_synonyms: {
+        Row: {
+          created_at: string | null
+          id: string
+          synonym: string
+          term: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          synonym: string
+          term: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          synonym?: string
+          term?: string
+        }
+        Relationships: []
       }
       foods: {
         Row: {
@@ -5480,6 +5516,39 @@ export type Database = {
           },
         ]
       }
+      user_food_history: {
+        Row: {
+          created_at: string | null
+          first_logged_at: string
+          food_id: string
+          id: string
+          is_favorite: boolean
+          last_logged_at: string
+          log_count: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          first_logged_at?: string
+          food_id: string
+          id?: string
+          is_favorite?: boolean
+          last_logged_at?: string
+          log_count?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          first_logged_at?: string
+          food_id?: string
+          id?: string
+          is_favorite?: boolean
+          last_logged_at?: string
+          log_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_food_serving_memory: {
         Row: {
           food_id: string
@@ -6191,6 +6260,15 @@ export type Database = {
         }
         Relationships: []
       }
+      zero_result_searches: {
+        Row: {
+          last_searched_at: string | null
+          query: string | null
+          search_count: number | null
+          unique_users: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       admin_repair_workout_labels: { Args: never; Returns: Json }
@@ -6201,6 +6279,10 @@ export type Database = {
             Args: { p_today: string; p_tz_only?: boolean; p_user_id: string }
             Returns: number
           }
+      get_synonyms_for_query: {
+        Args: { input_query: string }
+        Returns: string[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -6219,6 +6301,10 @@ export type Database = {
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      log_food_to_history: {
+        Args: { p_food_id: string; p_user_id: string }
+        Returns: undefined
       }
       recalc_engagement_score: {
         Args: { _user_id: string }
@@ -6249,6 +6335,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      toggle_food_favorite: {
+        Args: { p_food_id: string; p_user_id: string }
+        Returns: boolean
+      }
       update_personal_record: {
         Args: {
           _client_id: string

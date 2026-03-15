@@ -1,98 +1,122 @@
 
 
-# Food Search Enhancements — Synonyms, History Boost, Analytics, Zero-Result Widening, Debounce
+# Physique Crafters — Transformation Operating System
 
-## Summary
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-Five enhancements to bring food search to MyFitnessPal-quality UX. The project already has `food_search_log`, `user_recent_foods`, `coach_favorite_foods`, and `coach_recent_foods` tables — we will build on top of these rather than creating redundant tables.
+---
 
-## Database Changes (Single Migration)
+## Phase 1 — MVP (Core Platform)
 
-### 1. `food_synonyms` table — NEW
-- Columns: `id`, `term`, `synonym`, `created_at`, `UNIQUE(term, synonym)`
-- Index on `lower(term)`
-- RLS: SELECT for authenticated, INSERT/UPDATE/DELETE admin-only at app layer
-- Seed ~45 synonym pairs (brand aliases, common food equivalents)
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-### 2. `food_search_log` table — ALTER
-- Add columns: `normalized_query TEXT`, `best_match_count INT DEFAULT 0`, `clicked_food_id UUID`, `search_strategy TEXT`, `detected_brand TEXT`
-- Add indexes on `normalized_query`, `result_count WHERE result_count = 0`, `created_at DESC`
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-### 3. `user_food_history` table — NEW
-- Columns: `id`, `user_id` (FK auth.users), `food_id` (FK foods), `log_count INT DEFAULT 1`, `is_favorite BOOLEAN DEFAULT false`, `last_logged_at TIMESTAMPTZ`, `first_logged_at TIMESTAMPTZ`, `UNIQUE(user_id, food_id)`
-- Indexes on `user_id`, `(user_id, food_id)`, `(user_id, last_logged_at DESC)`
-- RLS: ALL for authenticated WHERE `user_id = auth.uid()`
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-### 4. Database Functions — NEW
-- `get_synonyms_for_query(input_query TEXT) RETURNS TEXT[]` — looks up synonyms for each token + the full phrase
-- `log_food_to_history(p_user_id UUID, p_food_id UUID) RETURNS void` — upsert into `user_food_history`
-- `toggle_food_favorite(p_user_id UUID, p_food_id UUID) RETURNS BOOLEAN` — toggle is_favorite
-- `zero_result_searches` VIEW — aggregates zero-result queries for admin review
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-## Edge Function Changes — `search-foods/index.ts`
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-### Synonym expansion
-- After parsing tokens, call `get_synonyms_for_query` RPC to get expanded terms
-- Add synonym terms to the local query OR conditions and external API queries
-- Add +15 scoring bonus for synonym matches
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-### User history boost
-- If `user_id` provided, fetch `user_food_history` (limit 500) into a Map
-- After scoring, apply boost: favorites +15, log_count * 0.5 (capped at +10), recency factor * 5 (decays over 60 days)
-- Re-sort after boosting
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-### Enhanced analytics logging
-- Update the fire-and-forget log to include `normalized_query`, `best_match_count`, `search_strategy`, `detected_brand`
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-### Zero-result widening
-- If primary search returns 0 results, cascade through: food-tokens-only → longest single token → brand-only
-- Return `wasWidened`, `usedQuery`, `strategy` in response
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-### Response shape update
-```
-{ foods, bestMatches, moreResults, wasWidened, usedQuery, strategy, source }
-```
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
 
-## Frontend Changes — `AddFoodScreen.tsx`
+---
 
-### Debounce
-- Create `src/hooks/useDebounce.ts` hook (simple useState + useEffect + setTimeout pattern, 300ms)
-- Already has 300ms debounce via `debounceRef` — will keep this pattern but clean it up
+## Phase 2 — Advanced Features
 
-### Skeleton loaders
-- Add a `FoodResultSkeleton` component (5 animated placeholder rows)
-- Show during search instead of spinner
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
 
-### Widening notice
-- When `wasWidened === true`, show subtle text: "Showing results for '{usedQuery}'"
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
 
-### Star/Favorite toggle
-- Add star icon on each FoodRow (gold when favorited, muted when not)
-- Tapping calls `toggle_food_favorite` RPC
-- Track favorites state in component
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
 
-### History boost wiring
-- After successful `logFood`, call `log_food_to_history` RPC (fire-and-forget)
-- Same for `handleDetailConfirm`
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
 
-### Zero-result "Add Custom" improvement
-- Show clearer empty state with "No exact results" messaging
-- "Type at least 2 characters" hint when input length === 1
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
 
-## Files Changed
+---
 
-| File | Change |
-|------|--------|
-| New migration SQL | food_synonyms table, user_food_history table, alter food_search_log, 3 functions, 1 view |
-| `supabase/functions/search-foods/index.ts` | Synonym expansion, history boost, widening cascade, enhanced logging |
-| `src/hooks/useDebounce.ts` | NEW — simple debounce hook |
-| `src/components/nutrition/AddFoodScreen.tsx` | Skeleton loader, widening notice, favorite star, history boost wiring, min-char hint |
-
-## What is NOT touched
-- No food data deleted or modified
-- No training/calendar/workout/messaging logic
-- No RLS policy changes on existing tables
-- Barcode scanner unchanged
-- FoodDetailScreen unchanged
-- Existing `user_recent_foods`, `coach_favorite_foods`, `coach_recent_foods` tables unchanged
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 

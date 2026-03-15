@@ -120,7 +120,7 @@ function hasCompleteMacros(nutriments: any): boolean {
 }
 
 // ── Scoring ────────────────────────────────────────────────────────────
-function brandRelevanceScore(food: any, query: string, tokens: string[], aliases: string[]): number {
+function brandRelevanceScore(food: any, query: string, tokens: string[], aliases: string[], synonymTerms: string[] = []): number {
   const nameLower = (food.name ?? "").toLowerCase();
   const brandLower = (food.brand ?? "").toLowerCase();
   let score = 0;
@@ -142,37 +142,32 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   // ── COMPOUND SCORING (brand + food queries) ──
   if (hasBrandIntent && hasFoodIntent) {
     if (brandMatchesDirect && allFoodTokensInName) {
-      // IDEAL: exact brand + all food tokens → highest score
       score += 200;
       if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) score += 40;
     } else if (brandMatchesAlias && allFoodTokensInName) {
       score += 180;
       if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) score += 30;
     } else if (brandMatched && foodTokensInName > 0 && !allFoodTokensInName) {
-      // Brand matches + partial food match
       score += 100 + (foodTokensInName * 20);
     } else if (!brandMatched && allFoodTokensInName) {
-      // No brand match but all food tokens present — decent fallback
       score += 80;
       if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) score += 20;
     } else if (brandMatched && foodTokensInName === 0) {
-      // Brand matches but ZERO food tokens → heavy penalty
       score += 10;
     } else if (!brandMatched && foodTokensInName > 0) {
-      // No brand, partial food
       score += 40 + (foodTokensInName * 10);
     } else {
       score += 5;
     }
   }
-  // ── BRAND-ONLY queries (e.g. just "kirkland") ──
+  // ── BRAND-ONLY queries ──
   else if (hasBrandIntent && !hasFoodIntent) {
     if (brandLower === query) score += 120;
     else if (brandMatchesDirect) score += 100;
     else if (brandMatchesAlias) score += 90;
     if (nameLower.includes(query)) score += 30;
   }
-  // ── FOOD-ONLY queries (e.g. "chicken breast") ──
+  // ── FOOD-ONLY queries ──
   else {
     if (nameLower === query) score += 120;
     else if (nameLower.includes(query)) score += 100;
@@ -182,6 +177,14 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
     if (brandLower && brandLower.includes(query)) score += 50;
     const brandTokenHits = tokens.filter(t => brandLower.includes(t)).length;
     if (brandTokenHits > 0) score += brandTokenHits * 10;
+  }
+
+  // ── Synonym match bonus ──
+  if (synonymTerms.length > 0) {
+    const hasSynonymMatch = synonymTerms.some(syn =>
+      nameLower.includes(syn) || brandLower.includes(syn)
+    );
+    if (hasSynonymMatch) score += 15;
   }
 
   // ── Universal bonuses ──
@@ -288,6 +291,73 @@ async function safeJson(response: Response): Promise<any> {
   catch { return null; }
 }
 
+// ── User food history for boosting ─────────────────────────────────────
+interface HistoryEntry {
+  food_id: string;
+  log_count: number;
+  is_favorite: boolean;
+  last_logged_at: string;
+}
+
+async function getUserFoodHistory(supabase: any, userId: string): Promise<Map<string, HistoryEntry>> {
+  try {
+    const { data, error } = await supabase
+      .from("user_food_history")
+      .select("food_id, log_count, is_favorite, last_logged_at")
+      .eq("user_id", userId)
+      .order("last_logged_at", { ascending: false })
+      .limit(500);
+
+    if (error || !data) return new Map();
+    const map = new Map<string, HistoryEntry>();
+    data.forEach((row: HistoryEntry) => map.set(row.food_id, row));
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+function applyHistoryBoost(results: any[], historyMap: Map<string, HistoryEntry>): any[] {
+  if (historyMap.size === 0) return results;
+  return results.map(food => {
+    const history = historyMap.get(food.id);
+    if (!history) return food;
+
+    const daysSinceLogged = Math.floor(
+      (Date.now() - new Date(history.last_logged_at).getTime()) / 86400000
+    );
+    const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
+
+    const historyBoost =
+      (history.is_favorite ? 15.0 : 0) +
+      Math.min(history.log_count, 20) * 0.5 +
+      recencyFactor * 5.0;
+
+    return {
+      ...food,
+      _relevance: (food._relevance ?? 0) + historyBoost,
+      is_recent: true,
+      is_favorite: history.is_favorite,
+      log_count: history.log_count,
+    };
+  }).sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
+}
+
+// ── Synonym expansion ──────────────────────────────────────────────────
+async function expandWithSynonyms(supabase: any, originalQuery: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase.rpc("get_synonyms_for_query", {
+      input_query: originalQuery,
+    });
+    if (error || !data) return [];
+    // Filter out tokens that are already in the original query
+    const origTokens = new Set(originalQuery.toLowerCase().split(/\s+/));
+    return (data as string[]).filter(t => !origTokens.has(t));
+  } catch {
+    return [];
+  }
+}
+
 // ── Main handler ───────────────────────────────────────────────────────
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -315,6 +385,10 @@ serve(async (req) => {
     const hasFoodIntent = foodTokens.length > 0;
     const isCompoundQuery = hasBrandIntent && hasFoodIntent;
 
+    // ── Synonym expansion (non-blocking, parallel with local search) ──
+    const synonymPromise = expandWithSynonyms(supabase, query);
+    const historyPromise = userId ? getUserFoodHistory(supabase, userId) : Promise.resolve(new Map<string, HistoryEntry>());
+
     // ── Step 1: Tokenized local cache search ─────────────────────────
     const orConditions = tokens.map(t => `name.ilike.%${t}%,brand.ilike.%${t}%`).join(",");
     const aliasConditions = aliases.map(a => `brand.ilike.%${a}%`).join(",");
@@ -330,7 +404,30 @@ serve(async (req) => {
       .limit(50);
 
     let localFoods = localResults ?? [];
-    console.log(`[search-foods] Local cache: ${localFoods.length} results for "${query}"`);
+
+    // Wait for synonyms
+    const synonymTerms = await synonymPromise;
+    const historyMap = await historyPromise;
+
+    // If synonyms found, also query with them
+    if (synonymTerms.length > 0) {
+      const synConditions = synonymTerms.map(s => `name.ilike.%${s}%,brand.ilike.%${s}%`).join(",");
+      try {
+        const { data: synResults } = await supabase
+          .from("foods")
+          .select("*")
+          .or(synConditions)
+          .not("calories_per_100g", "is", null)
+          .limit(20);
+        if (synResults) {
+          const existingIds = new Set(localFoods.map((f: any) => f.id));
+          const newSyn = synResults.filter((f: any) => !existingIds.has(f.id));
+          localFoods = [...localFoods, ...newSyn];
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    console.log(`[search-foods] Local cache: ${localFoods.length} results for "${query}" (synonyms: ${synonymTerms.length})`);
 
     // Post-filter: for compound queries, require ALL food tokens present in name or brand
     if (isCompoundQuery && localFoods.length > 0) {
@@ -339,28 +436,27 @@ serve(async (req) => {
         const b = (f.brand ?? "").toLowerCase();
         return foodTokens.every(ft => n.includes(ft) || b.includes(ft));
       });
-      // Keep filtered as primary, but retain originals as fallback
       if (filtered.length > 0) {
         localFoods = filtered;
       }
     }
 
-    // Log search (fire and forget)
-    if (userId) {
-      supabase.from("food_search_log").insert({ query, results_count: localFoods.length, user_id: userId }).then(() => {});
-    }
-
     // Only short-circuit for simple single-word queries with abundant local results
-    // NEVER short-circuit compound brand+food queries — always hit external APIs
     if (!isCompoundQuery && !hasBrandIntent && localFoods.length >= 8) {
-      const scored = localFoods.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases) }));
+      const scored = localFoods.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases, synonymTerms) }));
       scored.sort((a: any, b: any) => b._relevance - a._relevance);
-      const foods = scored.slice(0, limit);
+      const boosted = applyHistoryBoost(scored, historyMap);
+      const foods = boosted.slice(0, limit);
+
+      // Fire-and-forget analytics log
+      logSearchAnalytics(supabase, userId, query, foods.length, "cache", brandTokens[0] ?? null, Math.min(5, foods.length));
+
       return new Response(JSON.stringify({
         foods,
         bestMatches: foods.slice(0, 5),
         moreResults: foods.slice(5),
         source: "cache",
+        wasWidened: false,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -371,12 +467,18 @@ serve(async (req) => {
     const offPageSize = hasBrandIntent ? 50 : 30;
     const usdaPageSize = hasBrandIntent ? 30 : 20;
 
-    // Build search terms with aliases for external APIs
     const externalQueries = [query];
     if (aliases.length > 0 && hasBrandIntent) {
       for (const alias of aliases.slice(0, 1)) {
         const foodPart = foodTokens.join(" ");
         if (foodPart) externalQueries.push(`${alias} ${foodPart}`);
+      }
+    }
+    // Also add synonym-expanded external queries
+    if (synonymTerms.length > 0 && hasFoodIntent) {
+      for (const syn of synonymTerms.slice(0, 2)) {
+        const synQuery = hasBrandIntent ? `${brandTokens[0]} ${syn}` : syn;
+        if (!externalQueries.includes(synQuery)) externalQueries.push(synQuery);
       }
     }
 
@@ -481,7 +583,7 @@ serve(async (req) => {
     const newOff = offFoods.filter((f) => !existingOffIds.has(f.off_id));
     const allResultsRaw = [...localFoods, ...newUsda, ...newOff].filter((f) => f.has_complete_macros !== false);
 
-    const scored = allResultsRaw.map((f) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases) }));
+    const scored = allResultsRaw.map((f) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases, synonymTerms) }));
     scored.sort((a, b) => b._relevance - a._relevance);
 
     const seen = new Set<string>();
@@ -492,18 +594,98 @@ serve(async (req) => {
       return true;
     });
 
-    const merged = deduped.slice(0, limit);
+    let merged = deduped.slice(0, limit);
+
+    // Apply history boost
+    merged = applyHistoryBoost(merged, historyMap);
+
+    // ── Zero-result widening ─────────────────────────────────────────
+    let wasWidened = false;
+    let usedQuery = query;
+    let searchStrategy = "hybrid";
+
+    if (merged.length === 0) {
+      // Strategy 2: food tokens only
+      if (hasFoodIntent && foodTokens.length > 0) {
+        const nameOnly = foodTokens.join(" ");
+        const { data: wideResults } = await supabase
+          .from("foods")
+          .select("*")
+          .or(foodTokens.map(t => `name.ilike.%${t}%`).join(","))
+          .not("calories_per_100g", "is", null)
+          .order("data_quality_score", { ascending: false })
+          .limit(limit);
+        if (wideResults && wideResults.length > 0) {
+          merged = wideResults.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, nameOnly, foodTokens, [], synonymTerms) }));
+          merged.sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
+          merged = applyHistoryBoost(merged, historyMap);
+          wasWidened = true;
+          usedQuery = nameOnly;
+          searchStrategy = "name_only";
+        }
+      }
+
+      // Strategy 3: longest single token
+      if (merged.length === 0 && foodTokens.length > 1) {
+        const sortedTokens = [...foodTokens].sort((a, b) => b.length - a.length);
+        for (const token of sortedTokens) {
+          if (token.length < 3) continue;
+          const { data: tokenResults } = await supabase
+            .from("foods")
+            .select("*")
+            .ilike("name", `%${token}%`)
+            .not("calories_per_100g", "is", null)
+            .order("data_quality_score", { ascending: false })
+            .limit(limit);
+          if (tokenResults && tokenResults.length > 0) {
+            merged = tokenResults.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, token, [token], [], synonymTerms) }));
+            merged.sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
+            merged = applyHistoryBoost(merged, historyMap);
+            wasWidened = true;
+            usedQuery = token;
+            searchStrategy = "single_token";
+            break;
+          }
+        }
+      }
+
+      // Strategy 4: brand only
+      if (merged.length === 0 && hasBrandIntent) {
+        const brandOnly = brandTokens[0];
+        const { data: brandResults } = await supabase
+          .from("foods")
+          .select("*")
+          .ilike("brand", `%${brandOnly}%`)
+          .not("calories_per_100g", "is", null)
+          .order("data_quality_score", { ascending: false })
+          .limit(limit);
+        if (brandResults && brandResults.length > 0) {
+          merged = brandResults.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, brandOnly, [brandOnly], aliases, synonymTerms) }));
+          merged.sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
+          merged = applyHistoryBoost(merged, historyMap);
+          wasWidened = true;
+          usedQuery = brandOnly;
+          searchStrategy = "brand_only";
+        }
+      }
+    }
 
     // ── Step 5: Group into Best Match / More Results ─────────────────
     const BEST_MATCH_THRESHOLD = isCompoundQuery ? 150 : 80;
-    const bestMatches = merged.filter((f) => f._relevance >= BEST_MATCH_THRESHOLD);
-    const moreResults = merged.filter((f) => f._relevance < BEST_MATCH_THRESHOLD);
+    const bestMatches = merged.filter((f) => (f._relevance ?? 0) >= BEST_MATCH_THRESHOLD);
+    const moreResults = merged.filter((f) => (f._relevance ?? 0) < BEST_MATCH_THRESHOLD);
+
+    // Fire-and-forget analytics log
+    logSearchAnalytics(supabase, userId, query, merged.length, searchStrategy, brandTokens[0] ?? null, bestMatches.length);
 
     return new Response(JSON.stringify({
       foods: merged,
       bestMatches,
       moreResults,
       source: "hybrid",
+      wasWidened,
+      usedQuery,
+      strategy: searchStrategy,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -515,3 +697,24 @@ serve(async (req) => {
     });
   }
 });
+
+// ── Analytics logging (fire-and-forget) ────────────────────────────────
+function logSearchAnalytics(
+  supabase: any,
+  userId: string | null,
+  query: string,
+  resultCount: number,
+  strategy: string,
+  detectedBrand: string | null,
+  bestMatchCount: number
+) {
+  supabase.from("food_search_log").insert({
+    user_id: userId,
+    query,
+    normalized_query: query.toLowerCase().trim(),
+    results_count: resultCount,
+    best_match_count: bestMatchCount,
+    search_strategy: strategy,
+    detected_brand: detectedBrand,
+  }).then(() => {}).catch(() => {}); // silent
+}

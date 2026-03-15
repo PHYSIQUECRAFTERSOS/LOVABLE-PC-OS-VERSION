@@ -24,8 +24,11 @@ import {
   TrendingUp,
   Loader2,
   Youtube,
+  Star,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Badge } from "@/components/ui/badge";
 import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
@@ -57,6 +60,9 @@ interface FoodItem {
   source?: "local" | "off" | "usda";
   is_branded?: boolean;
   image_url?: string | null;
+  is_recent?: boolean;
+  is_favorite?: boolean;
+  log_count?: number;
   calories_per_100g?: number;
   protein_per_100g?: number;
   carbs_per_100g?: number;
@@ -100,6 +106,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [results, setResults] = useState<FoodItem[]>([]);
   const [bestMatches, setBestMatches] = useState<FoodItem[]>([]);
   const [moreResultsList, setMoreResultsList] = useState<FoodItem[]>([]);
+  const [wasWidened, setWasWidened] = useState(false);
+  const [usedQuery, setUsedQuery] = useState("");
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [offResults, setOffResults] = useState<FoodItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [offSearching, setOffSearching] = useState(false);
@@ -279,6 +288,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         if (searchRequestIdRef.current !== requestId) return;
 
         if (!error && data?.foods?.length > 0) {
+          setWasWidened(data.wasWidened ?? false);
+          setUsedQuery(data.usedQuery ?? q);
           const mapFood = (f: any): FoodItem => ({
             id: f.id,
             name: f.name,
@@ -344,6 +355,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             setBestMatches([]);
             setMoreResultsList([]);
           }
+          // Track favorites from response
+          const favSet = new Set<string>();
+          data.foods.forEach((f: any) => { if (f.is_favorite) favSet.add(f.id); });
+          if (favSet.size > 0) setFavorites(prev => new Set([...prev, ...favSet]));
           setOffResults([]);
         } else {
           console.log("[AddFoodScreen] Layer 1 empty/error, trying Layer 2 tokenized fallback");
@@ -491,6 +506,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${foodToLog.name} logged` });
+      // Log to user_food_history (fire-and-forget)
+      if (foodToLog.id) {
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodToLog.id }).then(() => {});
+      }
       try {
         const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
         const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
@@ -586,6 +605,22 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const handleToggleFavorite = async (foodId: string) => {
+    if (!user) return;
+    try {
+      const { data: newState } = await supabase.rpc("toggle_food_favorite" as any, {
+        p_user_id: user.id,
+        p_food_id: foodId,
+      });
+      setFavorites(prev => {
+        const next = new Set(prev);
+        if (newState) next.add(foodId);
+        else next.delete(foodId);
+        return next;
+      });
+    } catch { /* ignore */ }
+  };
+
   const openFoodDetail = (item: FoodItem) => {
     setDetailFood(item);
   };
@@ -641,7 +676,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${entry.food.name} logged` });
+      // Log to user_food_history (fire-and-forget)
       if (foodItemId) {
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
         supabase.from("user_food_serving_memory" as any).upsert({
           user_id: user.id,
           food_id: foodItemId,
@@ -791,7 +828,18 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
           )}
         </div>
+        {search.trim().length === 1 && (
+          <p className="text-xs text-muted-foreground text-center mt-1.5">Type at least 2 characters to search</p>
+        )}
       </div>
+
+      {/* Widening notice */}
+      {wasWidened && usedQuery && search.length >= 2 && !searching && (
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-secondary/60 flex items-center gap-2">
+          <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground">Showing results for &ldquo;<span className="text-foreground font-medium">{usedQuery}</span>&rdquo;</span>
+        </div>
+      )}
 
       {/* Tabs - styled with gold active indicator */}
       <div className="px-4 pb-2 sticky top-0 z-10">
@@ -1017,13 +1065,23 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {search.length >= 2 && activeTab === "all" && (
           <div className="space-y-1 py-2">
             {searching ? (
-              <div className="flex justify-center py-12">
-                <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <div className="space-y-1.5 py-2">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/50">
+                    <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-3.5 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                    <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                  </div>
+                ))}
               </div>
             ) : displayItems.length === 0 && !offSearching ? (
               <div className="text-center py-12">
-                <p className="text-sm text-muted-foreground">No foods found for "{search}"</p>
-                <p className="text-xs text-muted-foreground mt-1">Try a different search term.</p>
+                <p className="text-2xl mb-2">🔍</p>
+                <p className="text-sm text-foreground font-medium">No results found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try a shorter or simpler search term.</p>
                 <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={() => setQuickAddOpen(true)}>
                   <Plus className="h-3 w-3 mr-1" /> Add Custom Food
                 </Button>
@@ -1051,6 +1109,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                       else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
                       else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                     }}
+                    isFavorite={favorites.has(item.id)}
+                    onToggleFavorite={() => handleToggleFavorite(item.id)}
                   />
                 ))}
 
@@ -1076,6 +1136,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                           else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
                           else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                         }}
+                        isFavorite={favorites.has(item.id)}
+                        onToggleFavorite={() => handleToggleFavorite(item.id)}
                       />
                     ))}
                   </>
@@ -1128,9 +1190,11 @@ interface FoodRowProps {
   onServingsChange: (v: string) => void;
   servingUnit: ServingUnit;
   onServingUnitChange: (u: ServingUnit) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
-const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange }: FoodRowProps) => {
+const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange, isFavorite, onToggleFavorite }: FoodRowProps) => {
   const inputVal = parseFloat(servings) || 0;
   let multiplier: number;
   if (servingUnit === "g") {
@@ -1184,6 +1248,14 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
         <button onClick={onToggle} className="p-1 text-muted-foreground">
           {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </button>
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+            className="p-1 transition-colors shrink-0"
+          >
+            <Star className={cn("h-4 w-4", isFavorite ? "fill-primary text-primary" : "text-muted-foreground")} />
+          </button>
+        )}
         <button
           onClick={onAdd}
           className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0"
