@@ -320,7 +320,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
               }`}
               onClick={(e) => {
                 if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
-                navigate(`/clients/${client.id}`);
+                setPreviewClient(client);
               }}
             >
               <CardContent className="pt-4 pb-4">
