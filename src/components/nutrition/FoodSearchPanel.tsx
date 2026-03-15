@@ -127,6 +127,18 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     }
   };
 
+  const loadCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("food_items")
+      .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
+      .eq("data_source", "custom")
+      .eq("created_by", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (data) setCustomFoods(data.map((f: any) => ({ ...f, source: "local" as const })));
+  };
+
   const toggleFavorite = async (foodId: string) => {
     if (!user) return;
     const isFav = favorites.has(foodId);
