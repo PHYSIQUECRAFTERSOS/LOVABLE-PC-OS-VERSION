@@ -19,6 +19,27 @@ const BRAND_ALIASES: Record<string, string[]> = {
   target: ["good & gather", "market pantry"],
   "good & gather": ["target"],
   "market pantry": ["target"],
+  quest: [],
+  "optimum nutrition": [],
+  fairlife: [],
+  fage: [],
+  chobani: [],
+  "premier protein": [],
+  rxbar: [],
+  clif: [],
+  kind: [],
+  "nature valley": [],
+  "dave's killer bread": [],
+  grenade: [],
+  "muscle milk": [],
+  "built bar": [],
+  lenny: ["lenny & larry's", "lenny and larry's"],
+  "lenny & larry's": ["lenny"],
+  barebells: [],
+  "think!": [],
+  oikos: [],
+  "siggi's": [],
+  siggi: ["siggi's"],
 };
 
 function expandBrandAliases(tokens: string[]): string[] {
@@ -34,7 +55,6 @@ function expandBrandAliases(tokens: string[]): string[] {
 
 // ── Token classification ───────────────────────────────────────────────
 const BRAND_KEYWORDS = new Set(Object.keys(BRAND_ALIASES));
-// Also include multi-word brand names
 const MULTI_WORD_BRANDS = Object.keys(BRAND_ALIASES).filter(k => k.includes(" "));
 
 function classifyTokens(tokens: string[]): { brandTokens: string[]; foodTokens: string[] } {
@@ -42,7 +62,6 @@ function classifyTokens(tokens: string[]): { brandTokens: string[]; foodTokens: 
   const foodTokens: string[] = [];
   const joined = tokens.join(" ");
 
-  // Check for multi-word brand matches first
   const consumedIndices = new Set<number>();
   for (const mb of MULTI_WORD_BRANDS) {
     if (joined.includes(mb)) {
@@ -56,7 +75,6 @@ function classifyTokens(tokens: string[]): { brandTokens: string[]; foodTokens: 
     }
   }
 
-  // Classify remaining tokens
   for (let i = 0; i < tokens.length; i++) {
     if (consumedIndices.has(i)) continue;
     if (BRAND_KEYWORDS.has(tokens[i])) {
@@ -105,71 +123,75 @@ function hasCompleteMacros(nutriments: any): boolean {
 function brandRelevanceScore(food: any, query: string, tokens: string[], aliases: string[]): number {
   const nameLower = (food.name ?? "").toLowerCase();
   const brandLower = (food.brand ?? "").toLowerCase();
-  const isMultiWord = tokens.length >= 2;
   let score = 0;
 
   const { brandTokens, foodTokens } = classifyTokens(tokens);
+  const hasBrandIntent = brandTokens.length > 0;
+  const hasFoodIntent = foodTokens.length > 0;
 
-  // Exact brand match on full query
-  if (brandLower && brandLower === query) score += 120;
-  else if (brandLower && brandLower.includes(query)) score += 100;
+  // ── Brand matching ──
+  const brandMatchesDirect = hasBrandIntent && brandTokens.some(bt => brandLower.includes(bt));
+  const brandMatchesAlias = !brandMatchesDirect && aliases.length > 0 && aliases.some(a => brandLower.includes(a));
+  const brandMatched = brandMatchesDirect || brandMatchesAlias;
 
-  // Brand alias match
-  if (brandLower && aliases.length > 0) {
-    for (const alias of aliases) {
-      if (brandLower.includes(alias)) { score += 95; break; }
+  // ── Food token matching ──
+  const foodTokensInName = hasFoodIntent ? foodTokens.filter(t => nameLower.includes(t)).length : 0;
+  const allFoodTokensInName = hasFoodIntent && foodTokensInName === foodTokens.length;
+  const foodPhrase = foodTokens.join(" ");
+
+  // ── COMPOUND SCORING (brand + food queries) ──
+  if (hasBrandIntent && hasFoodIntent) {
+    if (brandMatchesDirect && allFoodTokensInName) {
+      // IDEAL: exact brand + all food tokens → highest score
+      score += 200;
+      if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) score += 40;
+    } else if (brandMatchesAlias && allFoodTokensInName) {
+      score += 180;
+      if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) score += 30;
+    } else if (brandMatched && foodTokensInName > 0 && !allFoodTokensInName) {
+      // Brand matches + partial food match
+      score += 100 + (foodTokensInName * 20);
+    } else if (!brandMatched && allFoodTokensInName) {
+      // No brand match but all food tokens present — decent fallback
+      score += 80;
+      if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) score += 20;
+    } else if (brandMatched && foodTokensInName === 0) {
+      // Brand matches but ZERO food tokens → heavy penalty
+      score += 10;
+    } else if (!brandMatched && foodTokensInName > 0) {
+      // No brand, partial food
+      score += 40 + (foodTokensInName * 10);
+    } else {
+      score += 5;
     }
   }
+  // ── BRAND-ONLY queries (e.g. just "kirkland") ──
+  else if (hasBrandIntent && !hasFoodIntent) {
+    if (brandLower === query) score += 120;
+    else if (brandMatchesDirect) score += 100;
+    else if (brandMatchesAlias) score += 90;
+    if (nameLower.includes(query)) score += 30;
+  }
+  // ── FOOD-ONLY queries (e.g. "chicken breast") ──
+  else {
+    if (nameLower === query) score += 120;
+    else if (nameLower.includes(query)) score += 100;
+    else if (allFoodTokensInName) score += 80;
+    else if (foodTokensInName > 0) score += 40 + (foodTokensInName * 10);
 
-  // Full query in name
-  if (nameLower.includes(query)) score += 80;
+    if (brandLower && brandLower.includes(query)) score += 50;
+    const brandTokenHits = tokens.filter(t => brandLower.includes(t)).length;
+    if (brandTokenHits > 0) score += brandTokenHits * 10;
+  }
 
-  // All tokens matched across brand+name
-  const allTokensCovered = tokens.every(t => nameLower.includes(t) || brandLower.includes(t));
-  if (allTokensCovered) score += 70;
-
-  // Brand word match
-  if (brandLower && tokens.some(t => brandLower.includes(t))) score += 50;
-  if (brandLower && tokens.some(t => brandLower.startsWith(t))) score += 30;
-
-  // Branded item bonus
-  if (food.is_branded || brandLower) score += 30;
-  if (food.source === "open_food_facts" && brandLower) score += 15;
-
-  // Name word matches
-  const nameMatches = tokens.filter(t => nameLower.includes(t)).length;
-  score += nameMatches * 10;
-
-  // USDA bonus
-  if (food.source === "usda") score += 10;
-  if (food.has_complete_macros !== false) score += 10;
-
-  // Penalize generic items when multi-word brand search
-  if (isMultiWord && !brandLower) score -= 25;
-
+  // ── Universal bonuses ──
+  if (food.source === "usda") score += 15;
+  if (food.is_branded || brandLower) score += 10;
+  if (food.has_complete_macros !== false) score += 5;
   score += Math.min(food.popularity_score ?? 0, 20);
 
-  // ── Food token coverage scoring (critical for brand+food queries) ──
-  if (foodTokens.length > 0) {
-    const foodTokensInName = foodTokens.filter(t => nameLower.includes(t)).length;
-
-    if (foodTokensInName === 0) {
-      // Brand matches but ZERO food tokens in name → heavy penalty
-      score -= 80;
-    } else if (foodTokensInName < foodTokens.length) {
-      // Partial food match
-      score -= 40;
-    } else {
-      // All food tokens found in name → bonus
-      score += 60;
-    }
-
-    // Exact contiguous food phrase bonus
-    const foodPhrase = foodTokens.join(" ");
-    if (foodPhrase.length > 0 && nameLower.includes(foodPhrase)) {
-      score += 40;
-    }
-  }
+  // Penalize generic items when brand-intent query
+  if (hasBrandIntent && !brandLower) score -= 30;
 
   return score;
 }
@@ -280,7 +302,7 @@ serve(async (req) => {
     const usdaApiKey = Deno.env.get("USDA_API_KEY") ?? "";
 
     if (!query || query.length < 2) {
-      return new Response(JSON.stringify({ foods: [], source: "empty" }), {
+      return new Response(JSON.stringify({ foods: [], bestMatches: [], moreResults: [], source: "empty" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -288,12 +310,13 @@ serve(async (req) => {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const tokens = query.split(/\s+/).filter(Boolean);
     const aliases = expandBrandAliases(tokens);
-    const likelyBrandSearch = tokens.length >= 2;
+    const { brandTokens, foodTokens } = classifyTokens(tokens);
+    const hasBrandIntent = brandTokens.length > 0;
+    const hasFoodIntent = foodTokens.length > 0;
+    const isCompoundQuery = hasBrandIntent && hasFoodIntent;
 
     // ── Step 1: Tokenized local cache search ─────────────────────────
-    // Build OR conditions for each token across name and brand
     const orConditions = tokens.map(t => `name.ilike.%${t}%,brand.ilike.%${t}%`).join(",");
-    // Also add alias conditions
     const aliasConditions = aliases.map(a => `brand.ilike.%${a}%`).join(",");
     const allConditions = aliasConditions ? `${orConditions},${aliasConditions}` : orConditions;
 
@@ -306,47 +329,54 @@ serve(async (req) => {
       .order("popularity_score", { ascending: false })
       .limit(50);
 
-    const localFoods = localResults ?? [];
+    let localFoods = localResults ?? [];
     console.log(`[search-foods] Local cache: ${localFoods.length} results for "${query}"`);
+
+    // Post-filter: for compound queries, require ALL food tokens present in name or brand
+    if (isCompoundQuery && localFoods.length > 0) {
+      const filtered = localFoods.filter((f: any) => {
+        const n = (f.name ?? "").toLowerCase();
+        const b = (f.brand ?? "").toLowerCase();
+        return foodTokens.every(ft => n.includes(ft) || b.includes(ft));
+      });
+      // Keep filtered as primary, but retain originals as fallback
+      if (filtered.length > 0) {
+        localFoods = filtered;
+      }
+    }
 
     // Log search (fire and forget)
     if (userId) {
       supabase.from("food_search_log").insert({ query, results_count: localFoods.length, user_id: userId }).then(() => {});
     }
 
-    // Score local results for brand relevance
-    const localBrandMatches = localFoods.filter((f: any) => {
-      const b = (f.brand ?? "").toLowerCase();
-      return tokens.some(t => b.includes(t)) || aliases.some(a => b.includes(a));
-    });
-
-    // Only short-circuit when we have very strong local results
-    if (!likelyBrandSearch && localFoods.length >= 8) {
+    // Only short-circuit for simple single-word queries with abundant local results
+    // NEVER short-circuit compound brand+food queries — always hit external APIs
+    if (!isCompoundQuery && !hasBrandIntent && localFoods.length >= 8) {
       const scored = localFoods.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases) }));
       scored.sort((a: any, b: any) => b._relevance - a._relevance);
-      return new Response(JSON.stringify({ foods: scored.slice(0, limit), source: "cache" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (likelyBrandSearch && localBrandMatches.length >= 5) {
-      const scored = localFoods.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases) }));
-      scored.sort((a: any, b: any) => b._relevance - a._relevance);
-      return new Response(JSON.stringify({ foods: scored.slice(0, limit), source: "cache" }), {
+      const foods = scored.slice(0, limit);
+      return new Response(JSON.stringify({
+        foods,
+        bestMatches: foods.slice(0, 5),
+        moreResults: foods.slice(5),
+        source: "cache",
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // ── Step 2: External APIs (isolated try/catch per source) ────────
-    const offCountryFilter = likelyBrandSearch ? "" : "&tagtype_0=countries&tag_contains_0=contains&tag_0=united+states";
-    const offPageSize = likelyBrandSearch ? 50 : 30;
+    const offCountryFilter = hasBrandIntent ? "" : "&tagtype_0=countries&tag_contains_0=contains&tag_0=united+states";
+    const offPageSize = hasBrandIntent ? 50 : 30;
+    const usdaPageSize = hasBrandIntent ? 30 : 20;
 
     // Build search terms with aliases for external APIs
     const externalQueries = [query];
-    if (aliases.length > 0 && likelyBrandSearch) {
-      // Add alias-expanded query: replace brand token with alias
+    if (aliases.length > 0 && hasBrandIntent) {
       for (const alias of aliases.slice(0, 1)) {
-        const foodTokens = tokens.slice(1).join(" ");
-        if (foodTokens) externalQueries.push(`${alias} ${foodTokens}`);
+        const foodPart = foodTokens.join(" ");
+        if (foodPart) externalQueries.push(`${alias} ${foodPart}`);
       }
     }
 
@@ -358,7 +388,7 @@ serve(async (req) => {
     try {
       if (usdaApiKey) {
         const usdaRes = await fetch(
-          `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=20&api_key=${usdaApiKey}`,
+          `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=${usdaPageSize}&api_key=${usdaApiKey}`,
           { signal: AbortSignal.timeout(8000) }
         );
         if (usdaRes.ok) {
@@ -393,7 +423,7 @@ serve(async (req) => {
     }
 
     // OFF — alias expanded (only for brand searches)
-    if (likelyBrandSearch && externalQueries.length > 1) {
+    if (hasBrandIntent && externalQueries.length > 1) {
       for (const aliasQuery of externalQueries.slice(1)) {
         try {
           const offAliasRes = await fetch(
@@ -412,7 +442,7 @@ serve(async (req) => {
     }
 
     // OFF — Canada filter for brand searches
-    if (likelyBrandSearch) {
+    if (hasBrandIntent) {
       try {
         const offCaRes = await fetch(
           `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=20&fields=code,product_name,brands,nutriments,serving_size,image_front_small_url,lang,language,countries_tags&tagtype_0=countries&tag_contains_0=contains&tag_0=canada`,
@@ -449,9 +479,9 @@ serve(async (req) => {
     const existingOffIds = new Set(localFoods.map((f: any) => f.off_id).filter(Boolean));
     const newUsda = usdaFoods.filter((f) => !existingUsdaIds.has(f.usda_fdc_id));
     const newOff = offFoods.filter((f) => !existingOffIds.has(f.off_id));
-    const allResults = [...localFoods, ...newUsda, ...newOff].filter((f) => f.has_complete_macros !== false);
+    const allResultsRaw = [...localFoods, ...newUsda, ...newOff].filter((f) => f.has_complete_macros !== false);
 
-    const scored = allResults.map((f) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases) }));
+    const scored = allResultsRaw.map((f) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases) }));
     scored.sort((a, b) => b._relevance - a._relevance);
 
     const seen = new Set<string>();
@@ -464,12 +494,22 @@ serve(async (req) => {
 
     const merged = deduped.slice(0, limit);
 
-    return new Response(JSON.stringify({ foods: merged, source: "hybrid" }), {
+    // ── Step 5: Group into Best Match / More Results ─────────────────
+    const BEST_MATCH_THRESHOLD = isCompoundQuery ? 150 : 80;
+    const bestMatches = merged.filter((f) => f._relevance >= BEST_MATCH_THRESHOLD);
+    const moreResults = merged.filter((f) => f._relevance < BEST_MATCH_THRESHOLD);
+
+    return new Response(JSON.stringify({
+      foods: merged,
+      bestMatches,
+      moreResults,
+      source: "hybrid",
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("search-foods error:", err);
-    return new Response(JSON.stringify({ error: "Search failed", foods: [] }), {
+    return new Response(JSON.stringify({ error: "Search failed", foods: [], bestMatches: [], moreResults: [] }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
