@@ -32,6 +32,8 @@ import CopyFromClientModal from "./CopyFromClientModal";
 import AssignTemplateModal from "./AssignTemplateModal";
 import AdjustMacrosModal from "./AdjustMacrosModal";
 import FoodIcon from "@/lib/foodIcons";
+import MealPlanMacroSidebar from "./MealPlanMacroSidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface FoodItem {
   id: string;

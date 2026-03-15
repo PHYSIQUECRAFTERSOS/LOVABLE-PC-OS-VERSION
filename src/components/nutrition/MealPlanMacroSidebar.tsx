@@ -108,7 +108,7 @@ const MealPlanMacroSidebar = ({
     const loadClientTargets = async () => {
       const { data } = await supabase
         .from("nutrition_targets")
-        .select("calories, protein_g, carbs_g, fat_g")
+        .select("calories, protein, carbs, fat")
         .eq("client_id", clientId)
         .order("effective_date", { ascending: false })
         .order("created_at", { ascending: false })
@@ -118,9 +118,9 @@ const MealPlanMacroSidebar = ({
         const t = data[0];
         const newTargets = {
           calories: t.calories || 2000,
-          protein: t.protein_g || 150,
-          carbs: t.carbs_g || 200,
-          fat: t.fat_g || 60,
+          protein: t.protein || 150,
+          carbs: t.carbs || 200,
+          fat: t.fat || 60,
         };
         onTargetsChange(newTargets);
         setDraft(newTargets);
