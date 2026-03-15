@@ -115,7 +115,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
       name,
       brand: brand || null,
       serving_size: ss,
-      serving_unit: "g",
+      serving_unit: servingUnit,
       calories: autoCalories,
       protein: p,
       carbs: c,
