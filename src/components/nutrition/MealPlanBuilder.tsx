@@ -32,6 +32,8 @@ import CopyFromClientModal from "./CopyFromClientModal";
 import AssignTemplateModal from "./AssignTemplateModal";
 import AdjustMacrosModal from "./AdjustMacrosModal";
 import FoodIcon from "@/lib/foodIcons";
+import MealPlanMacroSidebar from "./MealPlanMacroSidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface FoodItem {
   id: string;
@@ -106,6 +108,7 @@ interface MealPlanBuilderProps {
 const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, dayType, dayTypeLabel }: MealPlanBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [planName, setPlanName] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
@@ -129,6 +132,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
+  const [macroTargets, setMacroTargets] = useState({ calories: 2000, protein: 150, carbs: 200, fat: 60 });
 
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
@@ -488,6 +492,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
     );
 
+  // Compute totals for the currently expanded day (or first day)
+  const activeDayTotals = useMemo(() => {
+    const activeDay = days.find((d) => d.id === expandedDay) || days[0];
+    return activeDay ? getDayTotals(activeDay) : { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 };
+  }, [days, expandedDay]);
+
   const handleSave = async () => {
     if (!user || !planName) return;
     setSaving(true);
@@ -682,7 +692,30 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   }
 
   return (
-    <div className="space-y-4">
+    <div className={cn("gap-6", isMobile ? "space-y-0" : "flex")}>
+      {/* Mobile: sticky top bar */}
+      {isMobile && (
+        <MealPlanMacroSidebar
+          targets={macroTargets}
+          current={activeDayTotals}
+          onTargetsChange={setMacroTargets}
+          clientId={clientId}
+        />
+      )}
+
+      {/* Desktop: sticky sidebar */}
+      {!isMobile && (
+        <aside className="w-72 shrink-0">
+          <MealPlanMacroSidebar
+            targets={macroTargets}
+            current={activeDayTotals}
+            onTargetsChange={setMacroTargets}
+            clientId={clientId}
+          />
+        </aside>
+      )}
+
+      <div className="flex-1 min-w-0 space-y-4">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -890,6 +923,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       <CopyFromClientModal open={copyModalOpen} onOpenChange={setCopyModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AssignTemplateModal open={templateModalOpen} onOpenChange={setTemplateModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AdjustMacrosModal open={adjustMacrosOpen} onOpenChange={setAdjustMacrosOpen} days={days} onApply={(newDays) => setDays(newDays)} />
+      </div>
     </div>
   );
 };
