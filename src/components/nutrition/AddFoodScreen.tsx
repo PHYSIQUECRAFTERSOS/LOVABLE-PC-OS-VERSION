@@ -1174,7 +1174,7 @@ interface FoodRowProps {
   onToggleFavorite?: () => void;
 }
 
-const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange }: FoodRowProps) => {
+const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, servingUnit, onServingUnitChange, isFavorite, onToggleFavorite }: FoodRowProps) => {
   const inputVal = parseFloat(servings) || 0;
   let multiplier: number;
   if (servingUnit === "g") {
