@@ -11,7 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+
+const SERVING_UNIT_OPTIONS = [
+  "g", "bar", "bottle", "unit", "cup", "ml", "oz", "scoop", "slice", "tsp", "tbsp",
+] as const;
 
 export interface CustomFoodData {
   id?: string;
@@ -48,6 +59,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
   const [fiber, setFiber] = useState("");
   const [sugar, setSugar] = useState("");
   const [sodium, setSodium] = useState("");
+  const [servingUnit, setServingUnit] = useState("g");
   const [showMicros, setShowMicros] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -67,6 +79,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
       setName(editFood.name || "");
       setBrand(editFood.brand || "");
       setServingSize(String(editFood.serving_size ?? 100));
+      setServingUnit(editFood.serving_unit || "g");
       setCalories(editFood.calories ? String(editFood.calories) : "");
       setProtein(editFood.protein ? String(editFood.protein) : "");
       setCarbs(editFood.carbs ? String(editFood.carbs) : "");
@@ -80,7 +93,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
   }, [editFood]);
 
   const resetForm = () => {
-    setName(""); setBrand(""); setServingSize("100"); setCalories("");
+    setName(""); setBrand(""); setServingSize("100"); setServingUnit("g"); setCalories("");
     setProtein(""); setCarbs(""); setFat(""); setFiber(""); setSugar("");
     setSodium(""); setShowMicros(false);
     setVitA(""); setVitC(""); setVitD(""); setCalcium(""); setIron(""); setPotassium("");
@@ -102,7 +115,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
       name,
       brand: brand || null,
       serving_size: ss,
-      serving_unit: "g",
+      serving_unit: servingUnit,
       calories: autoCalories,
       protein: p,
       carbs: c,
@@ -178,8 +191,20 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
               <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Kirkland" />
             </div>
             <div>
-              <Label>Serving Size (g)</Label>
-              <Input type="number" value={servingSize} onChange={(e) => setServingSize(e.target.value)} />
+              <Label>Serving Size</Label>
+              <div className="flex gap-2">
+                <Input type="number" value={servingSize} onChange={(e) => setServingSize(e.target.value)} className="flex-1" />
+                <Select value={servingUnit} onValueChange={setServingUnit}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVING_UNIT_OPTIONS.map((u) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

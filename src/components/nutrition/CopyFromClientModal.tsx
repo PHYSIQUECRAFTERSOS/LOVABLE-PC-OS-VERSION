@@ -23,6 +23,8 @@ interface MealFood {
   fat_per_100: number;
   fiber_per_100: number;
   sugar_per_100: number;
+  serving_unit: string;
+  serving_size_g: number;
 }
 
 interface Meal {
@@ -245,7 +247,7 @@ const CopyFromClientModal = ({ open, onOpenChange, onImport }: CopyFromClientMod
       // Load all items for selected days
       const { data: items } = await supabase
         .from("meal_plan_items")
-        .select("*, food_items:food_item_id(name, brand, serving_size, calories, protein, carbs, fat, fiber, sugar)")
+        .select("*, food_items:food_item_id(name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar)")
         .eq("meal_plan_id", selectedPlan.id)
         .in("day_id", dayIds)
         .order("meal_order")
@@ -296,6 +298,8 @@ const CopyFromClientModal = ({ open, onOpenChange, onImport }: CopyFromClientMod
                     fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
                     fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                     sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
+                    serving_unit: fi?.serving_unit || "g",
+                    serving_size_g: ss,
                   };
                 }),
               };

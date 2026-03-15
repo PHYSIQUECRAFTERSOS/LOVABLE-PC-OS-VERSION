@@ -59,6 +59,8 @@ interface MealFood {
   fat_per_100: number;
   fiber_per_100: number;
   sugar_per_100: number;
+  serving_unit: string;
+  serving_size_g: number;
 }
 
 interface Meal {
@@ -194,7 +196,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
 
       const { data: items } = await supabase
         .from("meal_plan_items")
-        .select("*, food_items:food_item_id(name, brand, serving_size, calories, protein, carbs, fat, fiber, sugar)")
+        .select("*, food_items:food_item_id(name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar)")
         .eq("meal_plan_id", plan.id)
         .order("meal_order")
         .order("item_order");
@@ -218,6 +220,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
               foods: groupItems.map((item: any) => {
                 const fi = item.food_items as any;
                 const ss = fi?.serving_size || 100;
+                const unit = fi?.serving_unit || "g";
                 return {
                   id: uid(),
                   food_item_id: item.food_item_id || "",
@@ -230,6 +233,8 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                   fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
                   fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                   sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
+                  serving_unit: unit,
+                  serving_size_g: ss,
                 };
               }),
             };
@@ -257,6 +262,8 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
 
   // ... all the add/remove/rename/duplicate/grams handlers
   const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
+    const ss = food.serving_size || 100;
+    const unit = food.serving_unit || "g";
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
@@ -273,13 +280,15 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                           food_item_id: food.id,
                           food_name: food.name,
                           brand: food.brand,
-                          gram_amount: food.serving_size || 100,
-                          cal_per_100: (food.calories / food.serving_size) * 100,
-                          protein_per_100: (food.protein / food.serving_size) * 100,
-                          carbs_per_100: (food.carbs / food.serving_size) * 100,
-                          fat_per_100: (food.fat / food.serving_size) * 100,
-                          fiber_per_100: ((food.fiber || 0) / food.serving_size) * 100,
-                          sugar_per_100: ((food.sugar || 0) / food.serving_size) * 100,
+                          gram_amount: ss,
+                          cal_per_100: (food.calories / ss) * 100,
+                          protein_per_100: (food.protein / ss) * 100,
+                          carbs_per_100: (food.carbs / ss) * 100,
+                          fat_per_100: (food.fat / ss) * 100,
+                          fiber_per_100: ((food.fiber || 0) / ss) * 100,
+                          sugar_per_100: ((food.sugar || 0) / ss) * 100,
+                          serving_unit: unit,
+                          serving_size_g: ss,
                         },
                       ],
                     }
@@ -332,7 +341,7 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
         if (d.id !== dayId) return d;
         const meal = d.meals.find((m) => m.id === mealId);
         if (!meal) return d;
-        const clone = { ...meal, id: uid(), name: `${meal.name} (copy)`, foods: meal.foods.map((f) => ({ ...f, id: uid() })) };
+        const clone: Meal = { ...meal, id: uid(), name: `${meal.name} (copy)`, foods: meal.foods.map((f) => ({ ...f, id: uid() })) };
         return { ...d, meals: [...d.meals, clone] };
       })
     );
@@ -704,6 +713,11 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                       <div className="divide-y divide-border/50">
                         {meal.foods.map((food) => {
                           const macros = calcMacros(food);
+                          const useNatural = food.serving_unit && food.serving_unit !== "g" && food.serving_size_g > 0;
+                          const displayQty = useNatural
+                            ? +(food.gram_amount / food.serving_size_g).toFixed(2)
+                            : food.gram_amount;
+                          const displayUnit = useNatural ? food.serving_unit : "g";
                           return (
                             <div key={food.id} className="flex items-center gap-2 px-3 py-2">
                               <FoodIcon name={food.food_name} size={28} />
@@ -714,12 +728,17 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                               <div className="flex items-center gap-1.5">
                                 <Input
                                   type="number"
-                                  min="1"
-                                  value={food.gram_amount}
-                                  onChange={(e) => updateGrams(day.id, meal.id, food.id, parseFloat(e.target.value) || 0)}
+                                  min="0.1"
+                                  step={useNatural ? "0.5" : "1"}
+                                  value={displayQty}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    const grams = useNatural ? val * food.serving_size_g : val;
+                                    updateGrams(day.id, meal.id, food.id, grams);
+                                  }}
                                   className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
                                 />
-                                <span className="text-[10px] text-muted-foreground w-4">g</span>
+                                <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
                               </div>
                               <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
                                 <span>{macros.calories}cal</span>
