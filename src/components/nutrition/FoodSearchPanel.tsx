@@ -311,6 +311,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     { key: "all", label: "All" },
     { key: "favorites", label: "★ Favorites" },
     { key: "recent", label: "Recent" },
+    { key: "custom", label: "Custom Foods" },
     { key: "branded", label: "Branded" },
     { key: "generic", label: "Generic" },
   ];
