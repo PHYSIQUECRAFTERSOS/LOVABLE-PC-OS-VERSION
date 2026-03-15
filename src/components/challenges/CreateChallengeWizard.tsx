@@ -641,10 +641,13 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
           <div className="space-y-4">
             <div>
               <Label className="text-xs">Award Badge</Label>
-              <Select value={selectedBadgeId} onValueChange={setSelectedBadgeId}>
+              <Select
+                value={selectedBadgeId ?? NO_BADGE_VALUE}
+                onValueChange={(value) => setSelectedBadgeId(value === NO_BADGE_VALUE ? null : value)}
+              >
                 <SelectTrigger><SelectValue placeholder="Select a badge (optional)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value={NO_BADGE_VALUE}>None</SelectItem>
                   {(badges || []).map((b) => (
                     <SelectItem key={b.id} value={b.id}>
                       {b.icon} {b.name}
