@@ -1109,10 +1109,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             )}
           </div>
         )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} defaultMealType={mealType} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
