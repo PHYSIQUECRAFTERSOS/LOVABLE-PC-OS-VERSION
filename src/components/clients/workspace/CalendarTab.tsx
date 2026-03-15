@@ -118,6 +118,60 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [showEventDetail, setShowEventDetail] = useState(false);
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
 
+  // Clear calendar dialog
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [clearStartDate, setClearStartDate] = useState("");
+  const [clearEndDate, setClearEndDate] = useState("");
+  const [clearStatus, setClearStatus] = useState<"all" | "scheduled" | "completed">("all");
+  const [clearTypes, setClearTypes] = useState<string[]>([]);
+  const [clearing, setClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const toggleClearType = (type: string) => {
+    setClearTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+  };
+
+  const openClearDialog = () => {
+    const start = format(startOfMonth(currentMonth), "yyyy-MM-dd");
+    const end = format(endOfMonth(currentMonth), "yyyy-MM-dd");
+    setClearStartDate(start);
+    setClearEndDate(end);
+    setClearStatus("all");
+    setClearTypes([]);
+    setShowClearDialog(true);
+  };
+
+  const handleClearCalendar = async () => {
+    if (clearTypes.length === 0) {
+      toast({ title: "Select at least one event type", variant: "destructive" });
+      return;
+    }
+    setClearing(true);
+    let query = supabase.from("calendar_events").delete()
+      .eq("user_id", clientId)
+      .gte("event_date", clearStartDate)
+      .lte("event_date", clearEndDate)
+      .in("event_type", clearTypes);
+
+    if (clearStatus === "scheduled") {
+      query = query.eq("is_completed", false);
+    } else if (clearStatus === "completed") {
+      query = query.eq("is_completed", true);
+    }
+
+    const { error, count } = await query.select("id");
+    // We can't get count from delete easily, so just check error
+    if (error) {
+      toast({ title: "Error clearing events", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Calendar cleared", description: "Selected events have been removed." });
+      setShowClearDialog(false);
+      setShowClearConfirm(false);
+      loadMonth();
+    }
+    setClearing(false);
+  };
+
   const loadMonth = useCallback(async () => {
     setLoading(true);
     const monthStart = startOfMonth(currentMonth);
