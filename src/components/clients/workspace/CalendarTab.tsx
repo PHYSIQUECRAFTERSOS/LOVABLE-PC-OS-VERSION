@@ -15,9 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   CalendarDays, Dumbbell, Heart, Camera, FileText, Bell,
   ChevronLeft, ChevronRight, Check, Plus, ClipboardList,
-  Activity, MessageSquare, Repeat
+  Activity, MessageSquare, Repeat, Trash2
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -113,6 +117,59 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showEventDetail, setShowEventDetail] = useState(false);
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
+
+  // Clear calendar dialog
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [clearStartDate, setClearStartDate] = useState("");
+  const [clearEndDate, setClearEndDate] = useState("");
+  const [clearStatus, setClearStatus] = useState<"all" | "scheduled" | "completed">("all");
+  const [clearTypes, setClearTypes] = useState<string[]>([]);
+  const [clearing, setClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const toggleClearType = (type: string) => {
+    setClearTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+  };
+
+  const openClearDialog = () => {
+    const start = format(startOfMonth(currentMonth), "yyyy-MM-dd");
+    const end = format(endOfMonth(currentMonth), "yyyy-MM-dd");
+    setClearStartDate(start);
+    setClearEndDate(end);
+    setClearStatus("all");
+    setClearTypes([]);
+    setShowClearDialog(true);
+  };
+
+  const handleClearCalendar = async () => {
+    if (clearTypes.length === 0) {
+      toast({ title: "Select at least one event type", variant: "destructive" });
+      return;
+    }
+    setClearing(true);
+    let query = supabase.from("calendar_events").delete()
+      .eq("user_id", clientId)
+      .gte("event_date", clearStartDate)
+      .lte("event_date", clearEndDate)
+      .in("event_type", clearTypes);
+
+    if (clearStatus === "scheduled") {
+      query = query.eq("is_completed", false);
+    } else if (clearStatus === "completed") {
+      query = query.eq("is_completed", true);
+    }
+
+    const { error } = await query;
+    if (error) {
+      toast({ title: "Error clearing events", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Calendar cleared", description: "Selected events have been removed." });
+      setShowClearDialog(false);
+      setShowClearConfirm(false);
+      loadMonth();
+    }
+    setClearing(false);
+  };
 
   const loadMonth = useCallback(async () => {
     setLoading(true);
@@ -535,9 +592,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             <Button size="icon" variant="ghost" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}><ChevronRight className="h-4 w-4" /></Button>
             <h2 className="font-display text-lg font-bold">{format(currentMonth, "MMMM yyyy")}</h2>
           </div>
-          <Button size="sm" className="gap-1.5" onClick={() => handleDayClick(new Date())}>
-            <Plus className="h-3.5 w-3.5" /> Schedule
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5 text-destructive hover:text-destructive" onClick={openClearDialog}>
+              <Trash2 className="h-3.5 w-3.5" /> Clear
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => handleDayClick(new Date())}>
+              <Plus className="h-3.5 w-3.5" /> Schedule
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-7 gap-px">
@@ -804,6 +866,98 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Clear Calendar Dialog */}
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-destructive" />
+              Clear Calendar
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Date Range */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Start Date</Label>
+                <Input type="date" value={clearStartDate} onChange={e => setClearStartDate(e.target.value)} className="h-9" />
+              </div>
+              <div>
+                <Label className="text-xs">End Date</Label>
+                <Input type="date" value={clearEndDate} onChange={e => setClearEndDate(e.target.value)} className="h-9" />
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <Label className="text-xs">Status</Label>
+              <Select value={clearStatus} onValueChange={(v: "all" | "scheduled" | "completed") => setClearStatus(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All items</SelectItem>
+                  <SelectItem value="scheduled">Scheduled only</SelectItem>
+                  <SelectItem value="completed">Completed only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Event Type Checkboxes */}
+            <div>
+              <Label className="text-xs mb-2 block">Event Types to Clear</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {EVENT_TYPES.map(t => (
+                  <label key={t.value} className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors ${clearTypes.includes(t.value) ? "border-destructive bg-destructive/5" : "border-border hover:bg-muted/30"}`}>
+                    <Checkbox checked={clearTypes.includes(t.value)} onCheckedChange={() => toggleClearType(t.value)} />
+                    <t.icon className="h-3.5 w-3.5" />
+                    <span className="text-xs">{t.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Select All / Deselect All */}
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => setClearTypes(EVENT_TYPES.map(t => t.value))}>
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs" onClick={() => setClearTypes([])}>
+                Deselect All
+              </Button>
+            </div>
+
+            {/* Clear Button */}
+            <Button
+              variant="destructive"
+              className="w-full"
+              disabled={clearing || clearTypes.length === 0 || !clearStartDate || !clearEndDate}
+              onClick={() => setShowClearConfirm(true)}
+            >
+              {clearing ? "Clearing..." : `CLEAR ${clearTypes.length} type${clearTypes.length !== 1 ? "s" : ""}`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Confirmation */}
+      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all {clearStatus === "all" ? "" : clearStatus + " "} 
+              {clearTypes.map(t => EVENT_TYPES.find(e => e.value === t)?.label).filter(Boolean).join(", ")} events 
+              from {clearStartDate} to {clearEndDate}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearCalendar} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {clearing ? "Clearing..." : "Yes, Clear Events"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
