@@ -922,6 +922,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       <CopyFromClientModal open={copyModalOpen} onOpenChange={setCopyModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AssignTemplateModal open={templateModalOpen} onOpenChange={setTemplateModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AdjustMacrosModal open={adjustMacrosOpen} onOpenChange={setAdjustMacrosOpen} days={days} onApply={(newDays) => setDays(newDays)} />
+      </div>
     </div>
   );
 };
