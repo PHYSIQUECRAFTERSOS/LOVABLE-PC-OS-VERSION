@@ -471,6 +471,26 @@ export function useJoinChallenge() {
   });
 }
 
+export function useRemoveChallengeParticipant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ challengeId, userId }: { challengeId: string; userId: string }) => {
+      const { error } = await db
+        .from("challenge_participants")
+        .delete()
+        .eq("challenge_id", challengeId)
+        .eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: (_: any, { challengeId }: { challengeId: string; userId: string }) => {
+      qc.invalidateQueries({ queryKey: ["challenges"] });
+      qc.invalidateQueries({ queryKey: ["challenge-participants", challengeId] });
+      toast.success("Participant removed.");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useLogChallengeEntry() {
   const qc = useQueryClient();
   const { user } = useAuth();

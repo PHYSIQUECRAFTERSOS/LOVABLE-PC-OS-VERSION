@@ -20,7 +20,10 @@ import { toast } from "sonner";
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onChallengeCreated?: (challengeId: string) => void;
 }
+
+const NO_BADGE_VALUE = "none";
 
 const SCORING_ACTION_LABELS: Record<string, { label: string; desc: string; icon: React.ElementType }> = {
   workout_completed: { label: "Workout Completed", desc: "Earn points for each workout logged", icon: Dumbbell },
@@ -29,7 +32,7 @@ const SCORING_ACTION_LABELS: Record<string, { label: string; desc: string; icon:
   streak_bonus: { label: "Streak Bonus (7+ days)", desc: "Reward consistency with streaks", icon: Flame },
 };
 
-const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
+const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props) => {
   const { user } = useAuth();
   const createChallenge = useCreateChallenge();
   const { data: badges } = useBadges();
@@ -78,7 +81,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
 
   // Rewards
-  const [selectedBadgeId, setSelectedBadgeId] = useState<string | "">("");
+  const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null);
   const [newBadgeName, setNewBadgeName] = useState("");
   const [newBadgeIcon, setNewBadgeIcon] = useState("🏆");
 
@@ -118,7 +121,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
     setEnrollment("all");
     setMaxParticipants("");
     setSelectedClients([]);
-    setSelectedBadgeId("");
+    setSelectedBadgeId(null);
     setNewBadgeName("");
     setNewBadgeIcon("🏆");
     setSaveAsTemplate(false);
@@ -187,7 +190,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
   const handlePublish = async (asDraft: boolean) => {
     setIsPublishing(true);
     try {
-      let badgeId = selectedBadgeId || null;
+      let badgeId = selectedBadgeId;
 
       if (!badgeId && newBadgeName) {
         try {
@@ -198,7 +201,7 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
           });
           badgeId = badge.id;
         } catch {
-          /* badge creation optional */
+          // badge is optional
         }
       }
 
@@ -223,40 +226,27 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
         visibility: enrollment === "invite_only" ? "invite_only" : "all",
       } as any);
 
-      // Insert tiers & scoring rules
       if (challengeData?.id) {
         try {
-          await insertDefaultChallengeTiersAndRules(
-            challengeData.id,
-            scoringRules,
-            challengeTiers
-          );
+          await insertDefaultChallengeTiersAndRules(challengeData.id, scoringRules, challengeTiers);
         } catch (e) {
           console.error("Failed to insert tiers/rules:", e);
         }
 
-        // Auto-enroll all clients if enrollment = "all"
+        const db2 = supabase as any;
         if (enrollment === "all" && allClients?.length) {
-          const db2 = supabase as any;
-          const participants = allClients.map((c: any) => ({
-            challenge_id: challengeData.id,
-            user_id: c.user_id,
-          }));
-          await db2.from("challenge_participants").insert(participants);
+          const participants = allClients.map((c: any) => ({ challenge_id: challengeData.id, user_id: c.user_id }));
+          const { error: enrollAllError } = await db2.from("challenge_participants").insert(participants);
+          if (enrollAllError) throw enrollAllError;
         }
 
-        // Invite-only: enroll selected clients
         if (enrollment === "invite_only" && selectedClients.length > 0) {
-          const db2 = supabase as any;
-          const participants = selectedClients.map((uid) => ({
-            challenge_id: challengeData.id,
-            user_id: uid,
-          }));
-          await db2.from("challenge_participants").insert(participants);
+          const participants = selectedClients.map((uid) => ({ challenge_id: challengeData.id, user_id: uid }));
+          const { error: inviteOnlyError } = await db2.from("challenge_participants").insert(participants);
+          if (inviteOnlyError) throw inviteOnlyError;
         }
       }
 
-      // Save as template if checked
       if (saveAsTemplate && templateName) {
         const durationDays = Math.ceil(
           (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
@@ -273,7 +263,6 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
         } as any);
       }
 
-      // Increment usage_count if from template
       if (fromTemplateId) {
         const db2 = supabase as any;
         const { data: tpl } = await db2.from("challenge_templates").select("usage_count").eq("id", fromTemplateId).maybeSingle();
@@ -282,7 +271,8 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
         }
       }
 
-      toast.success("Challenge created!");
+      onChallengeCreated?.(challengeData.id);
+      toast.success("Challenge created and opened.");
       reset();
       onOpenChange(false);
     } catch (err: any) {
@@ -651,10 +641,13 @@ const CreateChallengeWizard = ({ open, onOpenChange }: Props) => {
           <div className="space-y-4">
             <div>
               <Label className="text-xs">Award Badge</Label>
-              <Select value={selectedBadgeId} onValueChange={setSelectedBadgeId}>
+              <Select
+                value={selectedBadgeId ?? NO_BADGE_VALUE}
+                onValueChange={(value) => setSelectedBadgeId(value === NO_BADGE_VALUE ? null : value)}
+              >
                 <SelectTrigger><SelectValue placeholder="Select a badge (optional)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value={NO_BADGE_VALUE}>None</SelectItem>
                   {(badges || []).map((b) => (
                     <SelectItem key={b.id} value={b.id}>
                       {b.icon} {b.name}

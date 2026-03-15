@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame } from "lucide-react";
-import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules } from "@/hooks/useChallenges";
+import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame, UserMinus } from "lucide-react";
+import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules, useRemoveChallengeParticipant } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 import ChallengeTierProgress from "./ChallengeTierProgress";
 import TierIcon from "./TierIcon";
@@ -36,6 +36,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const { data: challengeTiers } = useChallengeTiers(challenge?.id || null);
   const { data: scoringRules } = useChallengeScoringRules(challenge?.id || null);
   const joinChallenge = useJoinChallenge();
+  const removeParticipant = useRemoveChallengeParticipant();
   const logEntry = useLogChallengeEntry();
   const saveTemplate = useSaveTemplate();
   const isCoach = role === "coach" || role === "admin";
@@ -274,10 +275,25 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                           </span>
                         )}
                       </div>
-                      <span className="text-sm font-bold text-primary">
-                        {Number(p.best_value).toLocaleString()}
-                        {isCustom && <span className="text-[10px] text-muted-foreground ml-1">{config.metric_unit}</span>}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-primary">
+                          {Number(p.best_value).toLocaleString()}
+                          {isCustom && <span className="text-[10px] text-muted-foreground ml-1">{config.metric_unit}</span>}
+                        </span>
+                        {isCoach && p.user_id !== user?.id && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => removeParticipant.mutate({ challengeId: challenge.id, userId: p.user_id })}
+                            disabled={removeParticipant.isPending}
+                            aria-label={`Remove ${p.full_name} from challenge`}
+                          >
+                            <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
