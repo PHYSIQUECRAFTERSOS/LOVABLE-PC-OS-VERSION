@@ -812,7 +812,18 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
           )}
         </div>
+        {search.trim().length === 1 && (
+          <p className="text-xs text-muted-foreground text-center mt-1.5">Type at least 2 characters to search</p>
+        )}
       </div>
+
+      {/* Widening notice */}
+      {wasWidened && usedQuery && search.length >= 2 && !searching && (
+        <div className="mx-4 mb-2 px-3 py-2 rounded-lg bg-secondary/60 flex items-center gap-2">
+          <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground">Showing results for &ldquo;<span className="text-foreground font-medium">{usedQuery}</span>&rdquo;</span>
+        </div>
+      )}
 
       {/* Tabs - styled with gold active indicator */}
       <div className="px-4 pb-2 sticky top-0 z-10">
