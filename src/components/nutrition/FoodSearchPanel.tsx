@@ -244,7 +244,11 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   };
 
   const deduplicateAndFilter = (foods: FoodResult[]): FoodResult[] => {
-    const valid = foods.filter(f => f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0);
+    // Exclude foods with calories > 10 but all macros at 0
+    const valid = foods.filter(f => {
+      if (f.calories > 10 && f.protein === 0 && f.carbs === 0 && f.fat === 0) return false;
+      return f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0;
+    });
     return valid.filter((food, index, self) =>
       index === self.findIndex(f =>
         f.name.toLowerCase().trim() === food.name.toLowerCase().trim() &&
