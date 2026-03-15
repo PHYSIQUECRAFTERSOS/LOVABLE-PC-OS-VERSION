@@ -259,6 +259,8 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
 
   // ... all the add/remove/rename/duplicate/grams handlers
   const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
+    const ss = food.serving_size || 100;
+    const unit = food.serving_unit || "g";
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
@@ -275,13 +277,15 @@ const MealPlanBuilder = ({ forceTemplate, onSaved, clientId, dayType, dayTypeLab
                           food_item_id: food.id,
                           food_name: food.name,
                           brand: food.brand,
-                          gram_amount: food.serving_size || 100,
-                          cal_per_100: (food.calories / food.serving_size) * 100,
-                          protein_per_100: (food.protein / food.serving_size) * 100,
-                          carbs_per_100: (food.carbs / food.serving_size) * 100,
-                          fat_per_100: (food.fat / food.serving_size) * 100,
-                          fiber_per_100: ((food.fiber || 0) / food.serving_size) * 100,
-                          sugar_per_100: ((food.sugar || 0) / food.serving_size) * 100,
+                          gram_amount: ss,
+                          cal_per_100: (food.calories / ss) * 100,
+                          protein_per_100: (food.protein / ss) * 100,
+                          carbs_per_100: (food.carbs / ss) * 100,
+                          fat_per_100: (food.fat / ss) * 100,
+                          fiber_per_100: ((food.fiber || 0) / ss) * 100,
+                          sugar_per_100: ((food.sugar || 0) / ss) * 100,
+                          serving_unit: unit,
+                          serving_size_g: ss,
                         },
                       ],
                     }
