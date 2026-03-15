@@ -19,8 +19,12 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus, Search, Star, Trash2, Copy, MoreHorizontal, FolderOpen,
-  UtensilsCrossed, ChevronDown, ChevronUp, Loader2,
+  UtensilsCrossed, ChevronDown, ChevronUp, Loader2, Pencil, UserPlus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
