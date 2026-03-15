@@ -340,7 +340,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
       setNotFound(false);
       setServingSize("100");
       setNumServings(1);
-      setMealType("snack");
+      setMealType(defaultMealType);
       setManualBarcode("");
       setMacroEntryMode("auto");
       setManualCal(""); setManualProtein(""); setManualCarbs(""); setManualFat("");
