@@ -68,7 +68,7 @@ const FALLBACK_CAMERA_CONSTRAINTS: MediaStreamConstraints = {
   audio: false,
 };
 
-const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange }: BarcodeScannerProps) => {
+const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultMealType = "snack" }: BarcodeScannerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { refresh: refreshStreak } = useLoggingStreak();
