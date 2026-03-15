@@ -79,6 +79,7 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
       setName(editFood.name || "");
       setBrand(editFood.brand || "");
       setServingSize(String(editFood.serving_size ?? 100));
+      setServingUnit(editFood.serving_unit || "g");
       setCalories(editFood.calories ? String(editFood.calories) : "");
       setProtein(editFood.protein ? String(editFood.protein) : "");
       setCarbs(editFood.carbs ? String(editFood.carbs) : "");
