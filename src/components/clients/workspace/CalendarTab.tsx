@@ -593,9 +593,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             <Button size="icon" variant="ghost" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}><ChevronRight className="h-4 w-4" /></Button>
             <h2 className="font-display text-lg font-bold">{format(currentMonth, "MMMM yyyy")}</h2>
           </div>
-          <Button size="sm" className="gap-1.5" onClick={() => handleDayClick(new Date())}>
-            <Plus className="h-3.5 w-3.5" /> Schedule
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5 text-destructive hover:text-destructive" onClick={openClearDialog}>
+              <Trash2 className="h-3.5 w-3.5" /> Clear
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => handleDayClick(new Date())}>
+              <Plus className="h-3.5 w-3.5" /> Schedule
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-7 gap-px">
