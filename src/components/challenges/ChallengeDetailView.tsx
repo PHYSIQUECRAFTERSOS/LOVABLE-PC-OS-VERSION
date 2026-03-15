@@ -275,10 +275,25 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                           </span>
                         )}
                       </div>
-                      <span className="text-sm font-bold text-primary">
-                        {Number(p.best_value).toLocaleString()}
-                        {isCustom && <span className="text-[10px] text-muted-foreground ml-1">{config.metric_unit}</span>}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-primary">
+                          {Number(p.best_value).toLocaleString()}
+                          {isCustom && <span className="text-[10px] text-muted-foreground ml-1">{config.metric_unit}</span>}
+                        </span>
+                        {isCoach && p.user_id !== user?.id && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => removeParticipant.mutate({ challengeId: challenge.id, userId: p.user_id })}
+                            disabled={removeParticipant.isPending}
+                            aria-label={`Remove ${p.full_name} from challenge`}
+                          >
+                            <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
