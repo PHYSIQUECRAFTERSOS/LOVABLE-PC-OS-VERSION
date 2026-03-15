@@ -108,6 +108,7 @@ interface MealPlanBuilderProps {
 const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, dayType, dayTypeLabel }: MealPlanBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [planName, setPlanName] = useState("");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
