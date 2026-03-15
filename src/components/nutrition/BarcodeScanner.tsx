@@ -86,6 +86,8 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
   const [servingSize, setServingSize] = useState("100");
   const [numServings, setNumServings] = useState(1);
   const [mealType, setMealType] = useState(defaultMealType);
+  // Sync when parent meal type changes
+  useEffect(() => { setMealType(defaultMealType); }, [defaultMealType]);
   const [logging, setLogging] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
   const [macroEntryMode, setMacroEntryMode] = useState<"auto" | "manual">("auto");
