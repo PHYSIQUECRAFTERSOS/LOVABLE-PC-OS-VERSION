@@ -605,6 +605,22 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const handleToggleFavorite = async (foodId: string) => {
+    if (!user) return;
+    try {
+      const { data: newState } = await supabase.rpc("toggle_food_favorite" as any, {
+        p_user_id: user.id,
+        p_food_id: foodId,
+      });
+      setFavorites(prev => {
+        const next = new Set(prev);
+        if (newState) next.add(foodId);
+        else next.delete(foodId);
+        return next;
+      });
+    } catch { /* ignore */ }
+  };
+
   const openFoodDetail = (item: FoodItem) => {
     setDetailFood(item);
   };
