@@ -8,15 +8,25 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import { useFoodSearch, Food } from "@/hooks/useFoodSearch";
-import CustomFoodCreator from "./CustomFoodCreator";
+import CustomFoodCreator, { CustomFoodData } from "./CustomFoodCreator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Search,
   Star,
   Clock,
-  TrendingUp,
   Plus,
   Loader2,
-  X,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 export interface FoodResult {
@@ -61,6 +71,8 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [sortBy, setSortBy] = useState<SortBy>("relevance");
   const [showCustomFood, setShowCustomFood] = useState(false);
+  const [editingFood, setEditingFood] = useState<CustomFoodData | null>(null);
+  const [deletingFood, setDeletingFood] = useState<FoodResult | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -173,7 +185,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     }
   };
 
-  // Convert search results to FoodResult format
   const localResults: FoodResult[] = searchResults.map(r => ({
     id: r.id ?? crypto.randomUUID(),
     name: r.name,
@@ -194,7 +205,6 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const handleSelect = async (food: FoodResult) => {
     if (food.source === "off") {
-      // Import from Open Food Facts into local DB
       try {
         const foodItem = {
           name: food.name,
@@ -235,16 +245,49 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const onCustomFoodCreated = async (food: any) => {
     setShowCustomFood(false);
+    setEditingFood(null);
     if (food.id) {
       await trackUsage(food.id, food.name);
     }
-    // Refresh custom foods list
     loadCustomFoods();
     onSelect({ ...food, source: "local" });
   };
 
+  const handleEditFood = (food: FoodResult) => {
+    setEditingFood({
+      id: food.id,
+      name: food.name,
+      brand: food.brand,
+      serving_size: food.serving_size,
+      serving_unit: food.serving_unit,
+      calories: food.calories,
+      protein: food.protein,
+      carbs: food.carbs,
+      fat: food.fat,
+      fiber: food.fiber,
+      sugar: food.sugar,
+    });
+    setShowCustomFood(true);
+  };
+
+  const handleDeleteFood = async () => {
+    if (!deletingFood || !user) return;
+    const { error } = await supabase
+      .from("food_items")
+      .delete()
+      .eq("id", deletingFood.id)
+      .eq("created_by", user.id);
+
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `${deletingFood.name} deleted` });
+      loadCustomFoods();
+    }
+    setDeletingFood(null);
+  };
+
   const deduplicateAndFilter = (foods: FoodResult[]): FoodResult[] => {
-    // Exclude foods with calories > 10 but all macros at 0
     const valid = foods.filter(f => {
       if (f.calories > 10 && f.protein === 0 && f.carbs === 0 && f.fat === 0) return false;
       return f.calories > 0 || f.protein > 0 || f.carbs > 0 || f.fat > 0;
@@ -261,7 +304,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     if (query.length < 2) {
       if (activeFilter === "favorites") return deduplicateAndFilter(recentFoods.filter(f => favorites.has(f.id)));
       if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
-      if (activeFilter === "custom") return deduplicateAndFilter(customFoods);
+      if (activeFilter === "custom") return customFoods;
       const favFoods = recentFoods.filter(f => favorites.has(f.id));
       const nonFavRecents = recentFoods.filter(f => !favorites.has(f.id));
       return deduplicateAndFilter([...favFoods, ...nonFavRecents]);
@@ -290,8 +333,12 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
   const displayList = getDisplayList();
   const showingRecents = query.length < 2;
+  const isCustomTab = activeFilter === "custom";
 
   const getSourceBadge = (food: FoodResult) => {
+    if (food.data_source === "custom") {
+      return <Badge className="h-3.5 px-1 text-[8px] bg-primary/20 text-primary">Custom</Badge>;
+    }
     if (food.source === "off" || food.data_source === "open_food_facts") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
     }
@@ -333,7 +380,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
             <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
           )}
         </div>
-        <Button variant="outline" size="sm" className="h-9 text-xs" onClick={() => setShowCustomFood(true)}>
+        <Button variant="outline" size="sm" className="h-9 text-xs" onClick={() => { setEditingFood(null); setShowCustomFood(true); }}>
           <Plus className="h-3 w-3 mr-1" /> Custom
         </Button>
         <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={onClose}>
@@ -384,16 +431,18 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
         {displayList.length === 0 && !loading ? (
           <div className="text-center py-6">
             <p className="text-[11px] text-muted-foreground">
-              {query.length >= 2
-                ? `No results found for "${query}". Try a different spelling or add a custom food.`
-                : "Start typing to search foods"}
+              {isCustomTab && query.length < 2
+                ? "No custom foods yet. Create one!"
+                : query.length >= 2
+                  ? `No results found for "${query}". Try a different spelling or add a custom food.`
+                  : "Start typing to search foods"}
             </p>
-            {query.length >= 2 && (
+            {(query.length >= 2 || isCustomTab) && (
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-2 text-xs"
-                onClick={() => setShowCustomFood(true)}
+                onClick={() => { setEditingFood(null); setShowCustomFood(true); }}
               >
                 <Plus className="h-3 w-3 mr-1" /> Add Custom Food
               </Button>
@@ -401,47 +450,72 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
           </div>
         ) : (
           displayList.map((food) => (
-            <button
+            <div
               key={food.id}
-              onClick={() => handleSelect(food)}
               className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-secondary transition-colors flex items-center gap-2 group"
             >
-              {/* Emoji Icon */}
-              <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
-                {getFoodEmoji(food)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="font-medium text-foreground truncate">{food.name}</span>
-                  {getSourceBadge(food)}
-                </div>
-                {food.brand && (
-                  <span className="text-[10px] text-muted-foreground">{food.brand}</span>
-                )}
-              </div>
-              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {food.calories}cal · {food.protein}P · {food.carbs}C · {food.fat}F
-              </span>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (food.source === "local") toggleFavorite(food.id);
-                }}
-                className={cn(
-                  "h-5 w-5 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                  food.source === "local" && "hover:bg-primary/10"
-                )}
+                onClick={() => handleSelect(food)}
+                className="flex items-center gap-2 flex-1 min-w-0"
               >
-                {food.source === "local" && (
-                  <Star
-                    className={cn(
-                      "h-3 w-3",
-                      favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
-                    )}
-                  />
-                )}
+                <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
+                  {getFoodEmoji(food)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-foreground truncate">{food.name}</span>
+                    {getSourceBadge(food)}
+                  </div>
+                  {food.brand && (
+                    <span className="text-[10px] text-muted-foreground">{food.brand}</span>
+                  )}
+                </div>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                  {food.calories}cal · {food.protein}P · {food.carbs}C · {food.fat}F
+                </span>
               </button>
-            </button>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                {isCustomTab && food.data_source === "custom" && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleEditFood(food); }}
+                      className="h-6 w-6 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10"
+                      title="Edit"
+                    >
+                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeletingFood(food); }}
+                      className="h-6 w-6 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (food.source === "local") toggleFavorite(food.id);
+                  }}
+                  className={cn(
+                    "h-5 w-5 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+                    food.source === "local" && "hover:bg-primary/10"
+                  )}
+                >
+                  {food.source === "local" && (
+                    <Star
+                      className={cn(
+                        "h-3 w-3",
+                        favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+                      )}
+                    />
+                  )}
+                </button>
+              </div>
+            </div>
           ))
         )}
       </div>
@@ -449,10 +523,29 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       {showCustomFood && (
         <CustomFoodCreator
           open={showCustomFood}
-          onOpenChange={setShowCustomFood}
+          onOpenChange={(open) => { setShowCustomFood(open); if (!open) setEditingFood(null); }}
           onCreated={onCustomFoodCreated}
+          editFood={editingFood}
         />
       )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deletingFood} onOpenChange={(open) => { if (!open) setDeletingFood(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Custom Food</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingFood?.name}"? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteFood} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
