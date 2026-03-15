@@ -388,7 +388,88 @@ const CoachCommandCenter = () => {
         )}
       </div>
 
-      {/* ─── SECTION 2: Compliance Snapshot ─── */}
+      {/* ─── SECTION 2: Yesterday's Workout Results ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Completed Yesterday */}
+        <Card className="border-emerald-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              Completed Yesterday
+              {completedYesterday.length > 0 && (
+                <span className="ml-1 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  {completedYesterday.length}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {completedYesterday.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-3 text-center">No workouts completed yesterday.</p>
+            ) : (
+              completedYesterday.map((client) => (
+                <div key={client.clientId} className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 transition-colors">
+                  <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-emerald-400 hover:text-emerald-300"
+                    onClick={() => navigate("/messages")}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                    Congrats
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Missed Yesterday */}
+        <Card className="border-destructive/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-destructive" />
+              Missed Yesterday
+              {missedYesterday.length > 0 && (
+                <span className="ml-1 rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                  {missedYesterday.length}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {missedYesterday.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-3 text-center">No missed workouts yesterday.</p>
+            ) : (
+              missedYesterday.map((client) => (
+                <div key={client.clientId} className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 transition-colors">
+                  <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-destructive hover:text-destructive/80"
+                    onClick={() => navigate("/messages")}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                    Check In
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ─── SECTION 3: Compliance Snapshot ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
           <Activity className="h-5 w-5 text-primary" />
