@@ -492,7 +492,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
     );
 
-  const handleSave = async () => {
+  // Compute totals for the currently expanded day (or first day)
+  const activeDayTotals = useMemo(() => {
+    const activeDay = days.find((d) => d.id === expandedDay) || days[0];
+    return activeDay ? getDayTotals(activeDay) : { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 };
+  }, [days, expandedDay]);
+
     if (!user || !planName) return;
     setSaving(true);
 
