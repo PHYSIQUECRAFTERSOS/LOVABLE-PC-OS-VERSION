@@ -121,7 +121,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
     setEnrollment("all");
     setMaxParticipants("");
     setSelectedClients([]);
-    setSelectedBadgeId("");
+    setSelectedBadgeId(null);
     setNewBadgeName("");
     setNewBadgeIcon("🏆");
     setSaveAsTemplate(false);
