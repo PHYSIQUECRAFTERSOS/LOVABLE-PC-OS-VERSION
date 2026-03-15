@@ -1,122 +1,84 @@
+# Add Media Attachments, File Uploads, and Emoji Reactions to Messaging
+
+## What We're Building
+
+1. **Media attachments** — upload photos, videos (max 59s / 200MB), and PDF files in chat both clients and coach can do this ( If it does not accept say " video must be under 1m shorten video and reupload" 
+2. **Emoji reactions** — tap any message to react with 👍 💪 🥲 🔥 💯 (like Trainerize)
+3. Both coach and client can use all features
+
+## Database Changes
+
+### 1. Add attachment columns to `thread_messages`
+
+```sql
+ALTER TABLE thread_messages
+  ADD COLUMN attachment_url text,
+  ADD COLUMN attachment_type text, -- 'image', 'video', 'pdf'
+  ADD COLUMN attachment_name text;
+```
+
+### 2. Create `message_reactions` table
+
+```sql
+CREATE TABLE message_reactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id uuid REFERENCES thread_messages(id) ON DELETE CASCADE NOT NULL,
+  user_id uuid NOT NULL,
+  emoji text NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(message_id, user_id, emoji)
+);
+ALTER TABLE message_reactions ENABLE ROW LEVEL SECURITY;
+-- RLS: thread participants can read/insert/delete reactions
+```
+
+### 3. Create `chat-attachments` storage bucket (public for signed URLs)
+
+### 4. Enable realtime on `message_reactions`
+
+## UI Changes — `ThreadChatView.tsx`
+
+### Input Bar
+
+- Add a "+" button (or attachment icon) that opens a popover/menu with:
+  - "Upload Photo" (accepts image/*)
+  - "Upload Video" (accepts video/*, validates ≤59s via `<video>` element duration check, ≤200MB) 
+  - "Upload PDF" (accepts application/pdf)
+- Files upload to `chat-attachments` bucket, then insert `thread_messages` with `attachment_url`, `attachment_type`, `attachment_name`
+- Show upload progress indicator
+
+### Message Rendering
+
+- If `attachment_type === 'image'`: render `<img>` with signed URL, tap to view full-screen
+- If `attachment_type === 'video'`: render `<video>` player with controls
+- If `attachment_type === 'pdf'`: render a PDF file card with name + download link
+- Text content still renders normally (message can have text + attachment)
+
+### Emoji Reactions
+
+- Tap/click a message bubble to show a horizontal emoji picker row (👍 💪 🥲 🔥 💯)
+- Selecting an emoji inserts into `message_reactions`; tapping same emoji again removes it (toggle)
+- Reactions display as small emoji chips below the message bubble with count
+- Realtime subscription on `message_reactions` for live updates
+
+## Also Update `MessagingTab.tsx` (Client Workspace)
+
+- Same attachment and reaction rendering (it shares the same `thread_messages` table)
+
+## Files Changed
 
 
-# Physique Crafters — Transformation Operating System
+| File                                                | Change                                                                                                                           |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Migration**                                       | Add attachment columns to `thread_messages`, create `message_reactions` table, create `chat-attachments` bucket, enable realtime |
+| `src/components/messaging/ThreadChatView.tsx`       | Add attachment upload menu, media rendering, emoji reaction UI + logic                                                           |
+| `src/components/clients/workspace/MessagingTab.tsx` | Add same media rendering and reaction display                                                                                    |
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
 
----
+## Improvements Included
 
-## Phase 1 — MVP (Core Platform)
-
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
-
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
-
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
-
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
-
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
-
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
-
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
-
+- Video duration validation client-side before upload (rejects >59s) 
+- File size validation (200MB for video, 10MB for images, 20MB for PDF)
+- Image compression before upload using existing `compressImage` utility
+- Signed URLs for private bucket access
+- Optimistic reaction toggle for instant UI feedback
