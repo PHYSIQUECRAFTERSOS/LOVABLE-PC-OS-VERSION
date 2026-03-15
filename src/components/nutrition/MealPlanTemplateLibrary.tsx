@@ -89,6 +89,7 @@ const MealPlanTemplateLibrary = () => {
   const [copyPlanType, setCopyPlanType] = useState("training_day");
   const [copying, setCopying] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const openCopyToClient = async (template: Template) => {
     setCopyTemplate(template);
