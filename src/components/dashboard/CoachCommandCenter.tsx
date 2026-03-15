@@ -74,12 +74,21 @@ interface UnreadThread {
   isAtRisk: boolean;
 }
 
+interface YesterdayWorkoutClient {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  workoutTitle: string;
+}
+
 interface CommandCenterData {
   actionItems: ActionItem[];
   snapshot: ComplianceSnapshot;
   leaderboard: LeaderboardEntry[];
   atRisk: AtRiskClient[];
   unreadThreads: UnreadThread[];
+  completedYesterday: YesterdayWorkoutClient[];
+  missedYesterday: YesterdayWorkoutClient[];
 }
 
 // ── Helpers ──
@@ -114,7 +123,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -127,12 +136,13 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
       const last7Start = format(subDays(now, 6), "yyyy-MM-dd");
       const last7Days = Array.from({ length: 7 }, (_, i) => format(subDays(now, 6 - i), "yyyy-MM-dd"));
+      const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
 
       // 2. Parallel data fetch — split to avoid deep type inference
       const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds).abortSignal(signal);
@@ -141,9 +151,11 @@ const CoachCommandCenter = () => {
       const checkinsReq = supabase.from("weekly_checkins").select("client_id, week_date").in("client_id", clientIds).gte("week_date", last7Start).abortSignal(signal);
       const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false }).abortSignal(signal);
       const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20).abortSignal(signal);
+      // Yesterday's scheduled workouts (coach schedules via target_client_id OR client's own)
+      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title").eq("event_date", yesterday).eq("event_type", "workout").abortSignal(signal);
 
-      const [profilesRes, sessionsRes, nutritionRes, checkinsRes, riskRes, messagesRes] = await Promise.all([
-        profilesReq, sessionsReq, nutritionReq, checkinsReq, riskReq, messagesReq,
+      const [profilesRes, sessionsRes, nutritionRes, checkinsRes, riskRes, messagesRes, yesterdayCalRes] = await Promise.all([
+        profilesReq, sessionsReq, nutritionReq, checkinsReq, riskReq, messagesReq, yesterdayCalReq,
       ]);
 
       const profiles = (profilesRes.data || []) as ClientProfile[];
@@ -286,7 +298,36 @@ const CoachCommandCenter = () => {
           };
         });
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads };
+      // ── Section 6: Yesterday's Workout Results ──
+      const yesterdayEvents = (yesterdayCalRes.data || [])
+        .filter((e) => {
+          const effectiveClient = e.target_client_id || e.user_id;
+          return clientIds.includes(effectiveClient);
+        })
+        .map((e) => ({ ...e, effectiveClientId: e.target_client_id || e.user_id }));
+
+      const completedYesterday: YesterdayWorkoutClient[] = [];
+      const missedYesterday: YesterdayWorkoutClient[] = [];
+      const seenCompleted = new Set<string>();
+      const seenMissed = new Set<string>();
+
+      for (const ev of yesterdayEvents) {
+        const cid = ev.effectiveClientId;
+        const profile = profileMap.get(cid);
+        const entry: YesterdayWorkoutClient = {
+          clientId: cid,
+          clientName: profile?.full_name || "Client",
+          avatarUrl: profile?.avatar_url,
+          workoutTitle: ev.title || "Workout",
+        };
+        if (ev.is_completed) {
+          if (!seenCompleted.has(cid)) { completedYesterday.push(entry); seenCompleted.add(cid); }
+        } else {
+          if (!seenMissed.has(cid)) { missedYesterday.push(entry); seenMissed.add(cid); }
+        }
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday };
     },
   });
 
@@ -294,7 +335,7 @@ const CoachCommandCenter = () => {
   if ((error || timedOut) && !data?.actionItems?.length) return <RetryBanner onRetry={refetch} />;
   if (!data) return null;
 
-  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads } = data;
+  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday } = data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -347,7 +388,88 @@ const CoachCommandCenter = () => {
         )}
       </div>
 
-      {/* ─── SECTION 2: Compliance Snapshot ─── */}
+      {/* ─── SECTION 2: Yesterday's Workout Results ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Completed Yesterday */}
+        <Card className="border-emerald-500/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              Completed Yesterday
+              {completedYesterday.length > 0 && (
+                <span className="ml-1 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  {completedYesterday.length}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {completedYesterday.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-3 text-center">No workouts completed yesterday.</p>
+            ) : (
+              completedYesterday.map((client) => (
+                <div key={client.clientId} className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 transition-colors">
+                  <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-emerald-400 hover:text-emerald-300"
+                    onClick={() => navigate("/messages")}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                    Congrats
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Missed Yesterday */}
+        <Card className="border-destructive/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-display flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-destructive" />
+              Missed Yesterday
+              {missedYesterday.length > 0 && (
+                <span className="ml-1 rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                  {missedYesterday.length}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {missedYesterday.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-3 text-center">No missed workouts yesterday.</p>
+            ) : (
+              missedYesterday.map((client) => (
+                <div key={client.clientId} className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 transition-colors">
+                  <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-destructive hover:text-destructive/80"
+                    onClick={() => navigate("/messages")}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                    Check In
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ─── SECTION 3: Compliance Snapshot ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
           <Activity className="h-5 w-5 text-primary" />
