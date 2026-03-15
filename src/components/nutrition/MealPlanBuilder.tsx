@@ -259,7 +259,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
     try {
       let query = supabase
         .from("meal_plans")
-        .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label")
+        .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label, target_calories, target_protein, target_carbs, target_fat")
         .eq("client_id", cId)
         .eq("is_template", false)
         .order("created_at", { ascending: false })
