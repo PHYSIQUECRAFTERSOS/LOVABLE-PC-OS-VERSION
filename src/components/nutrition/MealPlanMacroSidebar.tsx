@@ -1,10 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Target, Pencil, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Target, Flame, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +40,9 @@ interface MealPlanMacroSidebarProps {
   clientId?: string;
 }
 
+type GoalType = "calories_only" | "calories_protein" | "full_macros";
+
+/* ── Remaining macro row ── */
 const MacroRow = ({
   label,
   current,
@@ -72,11 +83,7 @@ const MacroRow = ({
       <Progress
         value={pct}
         className="h-2 bg-secondary"
-        style={
-          {
-            "--progress-color": color,
-          } as React.CSSProperties
-        }
+        style={{ "--progress-color": color } as React.CSSProperties}
       />
       <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
         <span>
@@ -90,6 +97,21 @@ const MacroRow = ({
   );
 };
 
+/* ── Helper: compute percentages from gram targets ── */
+function gramsToPercentages(targets: MacroTargets) {
+  const pCal = targets.protein * 4;
+  const cCal = targets.carbs * 4;
+  const fCal = targets.fat * 9;
+  const total = pCal + cCal + fCal;
+  if (total === 0) return { protein: 40, carbs: 40, fat: 20 };
+  return {
+    protein: Math.round((pCal / total) * 100),
+    carbs: Math.round((cCal / total) * 100),
+    fat: Math.round((fCal / total) * 100),
+  };
+}
+
+/* ── Main sidebar ── */
 const MealPlanMacroSidebar = ({
   targets,
   current,
@@ -97,15 +119,22 @@ const MealPlanMacroSidebar = ({
   clientId,
 }: MealPlanMacroSidebarProps) => {
   const isMobile = useIsMobile();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<MacroTargets>(targets);
-  const [mobileExpanded, setMobileExpanded] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
 
-  // Auto-load client nutrition targets as defaults
+  // Goal editor state
+  const [goalType, setGoalType] = useState<GoalType>("full_macros");
+  const [calories, setCalories] = useState(targets.calories || 2000);
+  const initPcts = useMemo(() => gramsToPercentages(targets), []);
+  const [proteinPct, setProteinPct] = useState(initPcts.protein);
+  const [carbsPct, setCarbsPct] = useState(initPcts.carbs);
+  const [fatPct, setFatPct] = useState(initPcts.fat);
+
+  // Auto-load client nutrition targets
   useEffect(() => {
     if (!clientId || loaded) return;
-    const loadClientTargets = async () => {
+    const load = async () => {
       const { data } = await supabase
         .from("nutrition_targets")
         .select("calories, protein, carbs, fat")
@@ -123,39 +152,126 @@ const MealPlanMacroSidebar = ({
           fat: t.fat || 60,
         };
         onTargetsChange(newTargets);
-        setDraft(newTargets);
+        setCalories(newTargets.calories);
+        const pcts = gramsToPercentages(newTargets);
+        setProteinPct(pcts.protein);
+        setCarbsPct(pcts.carbs);
+        setFatPct(pcts.fat);
       }
       setLoaded(true);
     };
-    loadClientTargets();
+    load();
   }, [clientId, loaded]);
 
+  // Sync when external targets change (e.g. from load)
   useEffect(() => {
-    setDraft(targets);
-  }, [targets]);
+    if (!editing) {
+      setCalories(targets.calories);
+      const pcts = gramsToPercentages(targets);
+      setProteinPct(pcts.protein);
+      setCarbsPct(pcts.carbs);
+      setFatPct(pcts.fat);
+    }
+  }, [targets, editing]);
 
-  const handleSave = () => {
-    onTargetsChange(draft);
-    setEditing(false);
+  // Computed grams from percentages
+  const grams = useMemo(
+    () => ({
+      protein: Math.round((calories * proteinPct) / 100 / 4),
+      carbs: Math.round((calories * carbsPct) / 100 / 4),
+      fat: Math.round((calories * fatPct) / 100 / 9),
+    }),
+    [calories, proteinPct, carbsPct, fatPct]
+  );
+
+  // Push targets upstream whenever sliders/calories change in edit mode
+  const pushTargets = useCallback(
+    (cal: number, pP: number, cP: number, fP: number) => {
+      const p =
+        goalType === "calories_only" ? 0 : Math.round((cal * pP) / 100 / 4);
+      const c =
+        goalType === "full_macros" ? Math.round((cal * cP) / 100 / 4) : 0;
+      const f =
+        goalType === "full_macros" ? Math.round((cal * fP) / 100 / 9) : 0;
+      onTargetsChange({ calories: cal, protein: p, carbs: c, fat: f });
+    },
+    [goalType, onTargetsChange]
+  );
+
+  // Slider handlers — keep total at 100%
+  const handleProteinChange = useCallback(
+    (val: number[]) => {
+      const newP = val[0];
+      const remaining = 100 - newP;
+      const oldOther = carbsPct + fatPct;
+      let newC: number, newF: number;
+      if (oldOther === 0) {
+        newC = Math.round(remaining * 0.67);
+        newF = remaining - newC;
+      } else {
+        newC = Math.round((carbsPct / oldOther) * remaining);
+        newF = remaining - newC;
+      }
+      setProteinPct(newP);
+      setCarbsPct(newC);
+      setFatPct(newF);
+      pushTargets(calories, newP, newC, newF);
+    },
+    [carbsPct, fatPct, calories, pushTargets]
+  );
+
+  const handleCarbsChange = useCallback(
+    (val: number[]) => {
+      const newC = val[0];
+      const remaining = 100 - newC;
+      const oldOther = proteinPct + fatPct;
+      let newP: number, newF: number;
+      if (oldOther === 0) {
+        newP = Math.round(remaining * 0.67);
+        newF = remaining - newP;
+      } else {
+        newP = Math.round((proteinPct / oldOther) * remaining);
+        newF = remaining - newP;
+      }
+      setProteinPct(newP);
+      setCarbsPct(newC);
+      setFatPct(newF);
+      pushTargets(calories, newP, newC, newF);
+    },
+    [proteinPct, fatPct, calories, pushTargets]
+  );
+
+  const handleFatChange = useCallback(
+    (val: number[]) => {
+      const newF = val[0];
+      const remaining = 100 - newF;
+      const oldOther = proteinPct + carbsPct;
+      let newP: number, newC: number;
+      if (oldOther === 0) {
+        newP = Math.round(remaining * 0.5);
+        newC = remaining - newP;
+      } else {
+        newP = Math.round((proteinPct / oldOther) * remaining);
+        newC = remaining - newP;
+      }
+      setProteinPct(newP);
+      setCarbsPct(newC);
+      setFatPct(newF);
+      pushTargets(calories, newP, newC, newF);
+    },
+    [proteinPct, carbsPct, calories, pushTargets]
+  );
+
+  const handleCaloriesChange = (val: number) => {
+    setCalories(val);
+    pushTargets(val, proteinPct, carbsPct, fatPct);
   };
 
-  const handleCancel = () => {
-    setDraft(targets);
-    setEditing(false);
-  };
-
-  // Macro percentage breakdown
-  const totalMacroCals =
-    targets.protein * 4 + targets.carbs * 4 + targets.fat * 9;
-  const pctP =
-    totalMacroCals > 0
-      ? Math.round((targets.protein * 4 * 100) / totalMacroCals)
-      : 0;
-  const pctC =
-    totalMacroCals > 0
-      ? Math.round((targets.carbs * 4 * 100) / totalMacroCals)
-      : 0;
-  const pctF = totalMacroCals > 0 ? 100 - pctP - pctC : 0;
+  const macroBarSegments = [
+    { pct: proteinPct, color: "bg-blue-500", label: "Protein" },
+    { pct: carbsPct, color: "bg-amber-500", label: "Carbs" },
+    { pct: fatPct, color: "bg-rose-500", label: "Fat" },
+  ];
 
   // Overall calorie progress
   const calPct =
@@ -163,7 +279,7 @@ const MealPlanMacroSidebar = ({
       ? Math.min(Math.round((current.calories / targets.calories) * 100), 100)
       : 0;
 
-  // Mobile compact bar
+  /* ── Mobile compact bar ── */
   if (isMobile) {
     return (
       <div className="sticky top-0 z-20">
@@ -178,13 +294,13 @@ const MealPlanMacroSidebar = ({
                 <span className="text-foreground">
                   {current.calories}/{targets.calories} cal
                 </span>
-                <span className="text-red-400">
+                <span className="text-blue-400">
                   {Math.round(current.protein)}P
                 </span>
-                <span className="text-blue-400">
+                <span className="text-amber-400">
                   {Math.round(current.carbs)}C
                 </span>
-                <span className="text-yellow-400">
+                <span className="text-rose-400">
                   {Math.round(current.fat)}F
                 </span>
               </div>
@@ -200,17 +316,26 @@ const MealPlanMacroSidebar = ({
           {mobileExpanded && (
             <CardContent className="pt-3 pb-4 space-y-3">
               {editing ? (
-                <EditForm
-                  draft={draft}
-                  setDraft={setDraft}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
+                <GoalEditor
+                  goalType={goalType}
+                  setGoalType={setGoalType}
+                  calories={calories}
+                  onCaloriesChange={handleCaloriesChange}
+                  proteinPct={proteinPct}
+                  carbsPct={carbsPct}
+                  fatPct={fatPct}
+                  grams={grams}
+                  macroBarSegments={macroBarSegments}
+                  onProteinChange={handleProteinChange}
+                  onCarbsChange={handleCarbsChange}
+                  onFatChange={handleFatChange}
+                  onDone={() => setEditing(false)}
                 />
               ) : (
                 <>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-foreground">
-                      Daily Targets
+                      Nutrition Goal
                     </span>
                     <Button
                       variant="ghost"
@@ -232,19 +357,19 @@ const MealPlanMacroSidebar = ({
                     label="Protein"
                     current={current.protein}
                     target={targets.protein}
-                    color="hsl(0 70% 60%)"
+                    color="hsl(217 91% 60%)"
                   />
                   <MacroRow
                     label="Carbs"
                     current={current.carbs}
                     target={targets.carbs}
-                    color="hsl(210 70% 60%)"
+                    color="hsl(38 92% 50%)"
                   />
                   <MacroRow
                     label="Fat"
                     current={current.fat}
                     target={targets.fat}
-                    color="hsl(45 70% 50%)"
+                    color="hsl(347 77% 50%)"
                   />
                 </>
               )}
@@ -255,16 +380,17 @@ const MealPlanMacroSidebar = ({
     );
   }
 
-  // Desktop sticky sidebar
+  /* ── Desktop sticky sidebar ── */
   return (
     <div className="sticky top-4 space-y-3">
+      {/* Goal Editor Card */}
       <Card className="border-primary/20">
         <CardContent className="pt-4 pb-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-primary" />
               <span className="text-sm font-bold text-foreground">
-                Plan Targets
+                {editing ? "Set Nutrition Goal" : "Nutrition Goal"}
               </span>
             </div>
             {!editing && (
@@ -280,15 +406,24 @@ const MealPlanMacroSidebar = ({
           </div>
 
           {editing ? (
-            <EditForm
-              draft={draft}
-              setDraft={setDraft}
-              onSave={handleSave}
-              onCancel={handleCancel}
+            <GoalEditor
+              goalType={goalType}
+              setGoalType={setGoalType}
+              calories={calories}
+              onCaloriesChange={handleCaloriesChange}
+              proteinPct={proteinPct}
+              carbsPct={carbsPct}
+              fatPct={fatPct}
+              grams={grams}
+              macroBarSegments={macroBarSegments}
+              onProteinChange={handleProteinChange}
+              onCarbsChange={handleCarbsChange}
+              onFatChange={handleFatChange}
+              onDone={() => setEditing(false)}
             />
           ) : (
             <>
-              {/* Calorie ring / big number */}
+              {/* Calorie summary */}
               <div className="text-center space-y-1">
                 <div className="text-2xl font-bold text-foreground tabular-nums">
                   {current.calories}
@@ -297,35 +432,45 @@ const MealPlanMacroSidebar = ({
                     / {targets.calories} cal
                   </span>
                 </div>
-                <Progress
-                  value={calPct}
-                  className="h-2.5 bg-secondary"
-                />
-                <div className="flex justify-center gap-4 text-[10px] text-muted-foreground">
-                  <span>{pctP}% P</span>
-                  <span>{pctC}% C</span>
-                  <span>{pctF}% F</span>
-                </div>
+                <Progress value={calPct} className="h-2.5 bg-secondary" />
               </div>
 
+              {/* Macro distribution bar */}
+              <div className="flex h-3 rounded-full overflow-hidden">
+                {macroBarSegments.map((seg) => (
+                  <div
+                    key={seg.label}
+                    className={`${seg.color} transition-all duration-75`}
+                    style={{ width: `${seg.pct}%` }}
+                  >
+                    {seg.pct >= 15 && (
+                      <span className="text-[8px] font-bold text-white flex items-center justify-center h-full">
+                        {seg.pct}%
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Remaining progress */}
               <div className="space-y-3">
                 <MacroRow
                   label="Protein"
                   current={current.protein}
                   target={targets.protein}
-                  color="hsl(0 70% 60%)"
+                  color="hsl(217 91% 60%)"
                 />
                 <MacroRow
                   label="Carbs"
                   current={current.carbs}
                   target={targets.carbs}
-                  color="hsl(210 70% 60%)"
+                  color="hsl(38 92% 50%)"
                 />
                 <MacroRow
                   label="Fat"
                   current={current.fat}
                   target={targets.fat}
-                  color="hsl(45 70% 50%)"
+                  color="hsl(347 77% 50%)"
                 />
               </div>
             </>
@@ -333,7 +478,7 @@ const MealPlanMacroSidebar = ({
         </CardContent>
       </Card>
 
-      {/* Quick stats */}
+      {/* Fiber / Sugar quick stats */}
       {!editing && (
         <Card>
           <CardContent className="pt-3 pb-3">
@@ -358,74 +503,225 @@ const MealPlanMacroSidebar = ({
   );
 };
 
-const EditForm = ({
-  draft,
-  setDraft,
-  onSave,
-  onCancel,
-}: {
-  draft: MacroTargets;
-  setDraft: (d: MacroTargets) => void;
-  onSave: () => void;
-  onCancel: () => void;
-}) => (
-  <div className="space-y-3">
+/* ── Goal Editor (shared between mobile expanded & desktop) ── */
+interface GoalEditorProps {
+  goalType: GoalType;
+  setGoalType: (t: GoalType) => void;
+  calories: number;
+  onCaloriesChange: (v: number) => void;
+  proteinPct: number;
+  carbsPct: number;
+  fatPct: number;
+  grams: { protein: number; carbs: number; fat: number };
+  macroBarSegments: { pct: number; color: string; label: string }[];
+  onProteinChange: (v: number[]) => void;
+  onCarbsChange: (v: number[]) => void;
+  onFatChange: (v: number[]) => void;
+  onDone: () => void;
+}
+
+const GoalEditor = ({
+  goalType,
+  setGoalType,
+  calories,
+  onCaloriesChange,
+  proteinPct,
+  carbsPct,
+  fatPct,
+  grams,
+  macroBarSegments,
+  onProteinChange,
+  onCarbsChange,
+  onFatChange,
+  onDone,
+}: GoalEditorProps) => (
+  <div className="space-y-4">
+    {/* Goal Type */}
     <div>
-      <Label className="text-xs">Calories</Label>
+      <Label className="text-xs">Goal Type</Label>
+      <Select value={goalType} onValueChange={(v) => setGoalType(v as GoalType)}>
+        <SelectTrigger className="h-8 text-sm">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="calories_only">Calories Only</SelectItem>
+          <SelectItem value="calories_protein">Calories + Protein</SelectItem>
+          <SelectItem value="full_macros">Full Macros</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+    {/* Calorie Input */}
+    <div>
+      <Label className="text-xs flex items-center gap-1.5">
+        <Flame className="h-3 w-3 text-primary" />
+        Calories / Day
+      </Label>
       <Input
         type="number"
-        value={draft.calories || ""}
-        onChange={(e) =>
-          setDraft({ ...draft, calories: parseInt(e.target.value) || 0 })
-        }
-        className="h-8 text-sm"
+        value={calories || ""}
+        onChange={(e) => onCaloriesChange(parseInt(e.target.value) || 0)}
+        className="h-8 text-sm font-bold"
         onFocus={(e) => e.target.select()}
       />
     </div>
-    <div>
-      <Label className="text-xs">Protein (g)</Label>
-      <Input
-        type="number"
-        value={draft.protein || ""}
-        onChange={(e) =>
-          setDraft({ ...draft, protein: parseInt(e.target.value) || 0 })
-        }
-        className="h-8 text-sm"
-        onFocus={(e) => e.target.select()}
-      />
-    </div>
-    <div>
-      <Label className="text-xs">Carbs (g)</Label>
-      <Input
-        type="number"
-        value={draft.carbs || ""}
-        onChange={(e) =>
-          setDraft({ ...draft, carbs: parseInt(e.target.value) || 0 })
-        }
-        className="h-8 text-sm"
-        onFocus={(e) => e.target.select()}
-      />
-    </div>
-    <div>
-      <Label className="text-xs">Fat (g)</Label>
-      <Input
-        type="number"
-        value={draft.fat || ""}
-        onChange={(e) =>
-          setDraft({ ...draft, fat: parseInt(e.target.value) || 0 })
-        }
-        className="h-8 text-sm"
-        onFocus={(e) => e.target.select()}
-      />
-    </div>
-    <div className="flex gap-2">
-      <Button size="sm" className="flex-1 gap-1" onClick={onSave}>
-        <Check className="h-3 w-3" /> Set
-      </Button>
-      <Button size="sm" variant="ghost" className="flex-1" onClick={onCancel}>
-        Cancel
-      </Button>
-    </div>
+
+    {/* Sliders */}
+    {goalType !== "calories_only" && (
+      <div className="space-y-3">
+        <Label className="text-xs font-semibold">Macro Distribution</Label>
+
+        {/* Visual bar */}
+        <div className="flex h-3.5 rounded-full overflow-hidden">
+          {macroBarSegments.map((seg) => (
+            <div
+              key={seg.label}
+              className={`${seg.color} transition-all duration-75`}
+              style={{ width: `${seg.pct}%` }}
+            >
+              {seg.pct >= 12 && (
+                <span className="text-[8px] font-bold text-white flex items-center justify-center h-full">
+                  {seg.pct}%
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Protein slider */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <span className="text-xs font-medium">Protein</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-bold">{grams.protein}g</span>
+              <span className="text-[10px] text-muted-foreground ml-1">
+                {proteinPct}%
+              </span>
+            </div>
+          </div>
+          <Slider
+            value={[proteinPct]}
+            onValueChange={onProteinChange}
+            min={5}
+            max={70}
+            step={1}
+            className="[&_[role=slider]]:border-blue-500 [&_span:first-child>span]:bg-blue-500"
+          />
+        </div>
+
+        {/* Carbs slider */}
+        {goalType === "full_macros" && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <span className="text-xs font-medium">Carbs</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-bold">{grams.carbs}g</span>
+                <span className="text-[10px] text-muted-foreground ml-1">
+                  {carbsPct}%
+                </span>
+              </div>
+            </div>
+            <Slider
+              value={[carbsPct]}
+              onValueChange={onCarbsChange}
+              min={5}
+              max={70}
+              step={1}
+              className="[&_[role=slider]]:border-amber-500 [&_span:first-child>span]:bg-amber-500"
+            />
+          </div>
+        )}
+
+        {/* Fat slider */}
+        {goalType === "full_macros" && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                <span className="text-xs font-medium">Fat</span>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-bold">{grams.fat}g</span>
+                <span className="text-[10px] text-muted-foreground ml-1">
+                  {fatPct}%
+                </span>
+              </div>
+            </div>
+            <Slider
+              value={[fatPct]}
+              onValueChange={onFatChange}
+              min={5}
+              max={60}
+              step={1}
+              className="[&_[role=slider]]:border-rose-500 [&_span:first-child>span]:bg-rose-500"
+            />
+          </div>
+        )}
+
+        {/* Live macro preview */}
+        <div className="p-3 rounded-lg bg-muted/30 border border-border space-y-2">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Live Preview
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              {
+                label: "Protein",
+                g: grams.protein,
+                pct: proteinPct,
+                color: "text-blue-400",
+                bg: "bg-blue-500/10",
+              },
+              {
+                label: "Carbs",
+                g: goalType === "full_macros" ? grams.carbs : "—",
+                pct: goalType === "full_macros" ? carbsPct : "—",
+                color: "text-amber-400",
+                bg: "bg-amber-500/10",
+              },
+              {
+                label: "Fat",
+                g: goalType === "full_macros" ? grams.fat : "—",
+                pct: goalType === "full_macros" ? fatPct : "—",
+                color: "text-rose-400",
+                bg: "bg-rose-500/10",
+              },
+            ].map((m) => (
+              <div
+                key={m.label}
+                className={`text-center p-2 rounded-md ${m.bg}`}
+              >
+                <p className={`text-sm font-bold ${m.color}`}>
+                  {m.g}
+                  {typeof m.g === "number" ? "g" : ""}
+                </p>
+                <p className="text-[9px] text-muted-foreground">
+                  {m.pct}
+                  {typeof m.pct === "number" ? "%" : ""}
+                </p>
+                <p className="text-[9px] text-muted-foreground">{m.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-muted-foreground">Total</p>
+            <p className="text-lg font-bold text-primary">
+              {calories.toLocaleString()} cal
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <Button size="sm" className="w-full" onClick={onDone}>
+      Done
+    </Button>
   </div>
 );
 
