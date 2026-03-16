@@ -175,7 +175,7 @@ const FoodLogger = ({ onLogged, mealType, open, onOpenChange }: FoodLoggerProps)
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetForm(); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChange(v); }}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Food — {MEAL_LABELS[mealType] || mealType}</DialogTitle>

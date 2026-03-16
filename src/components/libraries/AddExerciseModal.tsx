@@ -209,7 +209,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) resetForm(); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={v => { if (!v) onOpenChange(v); else onOpenChange(v); }}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initialData ? "Edit Exercise" : "Add Exercise"}</DialogTitle>
