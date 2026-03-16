@@ -141,7 +141,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [exerciseModifications, setExerciseModifications] = useState<ExerciseModification[]>([]);
   const [switchingExIdx, setSwitchingExIdx] = useState<number | null>(null);
   const [showFinishModal, setShowFinishModal] = useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Inline rest timer state: which exercise index + which set index the timer appears after
   const [restTimer, setRestTimer] = useState<{ exIdx: number; setIdx: number; seconds: number; startedAt: number } | null>(null);
@@ -593,11 +592,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const handleFinishTap = () => {
-    if (hasIncompleteSets()) {
-      setShowFinishModal(true);
-    } else {
-      finishWorkout(false);
-    }
+    setShowFinishModal(true);
   };
 
   const finishWorkout = async (hadUnlogged: boolean = false) => {
@@ -700,21 +695,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     onComplete?.();
   };
 
-  const discardWorkout = async () => {
-    if (sessionId) {
-      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
-      await supabase.from("workout_sessions").delete().eq("id", sessionId);
-    }
-    clearRetryQueue();
-    setShowFinishModal(false);
-    setShowDiscardConfirm(false);
-    onComplete?.();
-  };
-
-  const finishAnyway = async () => {
-    setShowFinishModal(false);
-    await finishWorkout(true);
-  };
 
   if (showSummary) {
     return (
@@ -844,7 +824,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       ))}
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 space-y-2 safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 safe-area-bottom">
         <Button
           variant="outline"
           className="w-full gap-2"
@@ -852,32 +832,42 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         >
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
-        <Button
-          variant="ghost"
-          className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
-          onClick={() => setShowCancelDialog(true)}
-        >
-          Cancel Workout
-        </Button>
+        <div className="mt-6">
+          <Button
+            variant="ghost"
+            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20"
+            onClick={() => setShowCancelDialog(true)}
+          >
+            Cancel Workout
+          </Button>
+        </div>
       </div>
 
       {/* Cancel Confirmation */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Workout?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure you want to cancel?</AlertDialogTitle>
             <AlertDialogDescription>
-              All your saved sets here will be lost.
+              All your logged sets will not be saved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
-            <AlertDialogAction
+            <Button
               onClick={cancelWorkout}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
+              size="lg"
             >
               Cancel Workout
-            </AlertDialogAction>
-            <AlertDialogCancel className="w-full mt-0">Resume Workout</AlertDialogCancel>
+            </Button>
+            <Button
+              variant="default"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              size="lg"
+              onClick={() => setShowCancelDialog(false)}
+            >
+              Continue Workout
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -895,65 +885,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         </DialogContent>
       </Dialog>
 
-      {/* Finish Workout Modal — 3-option Strong-style */}
-      <Dialog open={showFinishModal} onOpenChange={(open) => { setShowFinishModal(open); if (!open) setShowDiscardConfirm(false); }}>
-        <DialogContent className="max-w-sm border-primary/30">
+      {/* Finish Workout Confirmation */}
+      <AlertDialog open={showFinishModal} onOpenChange={setShowFinishModal}>
+        <AlertDialogContent>
           <div className="flex flex-col items-center text-center space-y-4 py-2">
-            <span className="text-4xl">🎉</span>
-            <div>
-              <h3 className="text-lg font-bold text-foreground">Finish Workout?</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                There are sets in this workout that have not been logged yet.
-              </p>
-            </div>
-
-            <div className="w-full space-y-3 pt-2">
-              <Button
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                size="lg"
-                onClick={finishAnyway}
-                disabled={loading}
-              >
-                {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                Finish Anyway
-              </Button>
-
-              <div className="w-full">
-                <Button
-                  variant="outline"
-                  className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 font-semibold"
-                  size="lg"
-                  onClick={() => setShowDiscardConfirm(true)}
-                >
-                  Discard Workout
-                </Button>
-                {showDiscardConfirm && (
-                  <div className="mt-2 text-center">
-                    <p className="text-xs text-muted-foreground mb-2">Are you sure? This will delete all logged sets.</p>
-                    <div className="flex justify-center gap-3">
-                      <button className="text-xs font-semibold text-destructive" onClick={discardWorkout}>
-                        Yes, Discard
-                      </button>
-                      <button className="text-xs text-muted-foreground" onClick={() => setShowDiscardConfirm(false)}>
-                        Go Back
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Button
-                variant="secondary"
-                className="w-full"
-                size="lg"
-                onClick={() => { setShowFinishModal(false); setShowDiscardConfirm(false); }}
-              >
-                Cancel
-              </Button>
-            </div>
+            <span className="text-4xl">💯</span>
+            <AlertDialogTitle className="text-lg font-bold text-foreground">Finished your workout 💯?</AlertDialogTitle>
           </div>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              size="lg"
+              onClick={() => {
+                setShowFinishModal(false);
+                finishWorkout(hasIncompleteSets());
+              }}
+              disabled={loading}
+            >
+              {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+              Finish
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full font-semibold"
+              size="lg"
+              onClick={() => setShowFinishModal(false)}
+            >
+              Resume Workout
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
