@@ -1,0 +1,1 @@
+ALTER TABLE public.exercise_logs ADD COLUMN IF NOT EXISTS rpe numeric;

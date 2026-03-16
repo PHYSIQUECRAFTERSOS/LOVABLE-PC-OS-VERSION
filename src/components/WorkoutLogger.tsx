@@ -183,7 +183,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         // Restore previously logged sets
         const { data: logs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, notes, tempo")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo")
           .eq("session_id", resumeSessionId)
           .order("set_number");
         if (logs && logs.length > 0) {
@@ -200,6 +200,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
                 weight: log.weight ?? undefined,
                 reps: log.reps ?? undefined,
                 rir: log.rir ?? undefined,
+                rpe: (log as any).rpe ?? undefined,
                 tempo: log.tempo ?? undefined,
                 notes: log.notes ?? undefined,
                 completed: true,
@@ -359,8 +360,14 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const updateLog = (exIdx: number, setIdx: number, field: string, value: unknown) => {
     const newEx = [...exercises];
-    newEx[exIdx].logs[setIdx] = { ...newEx[exIdx].logs[setIdx], [field]: value };
+    const updatedLog = { ...newEx[exIdx].logs[setIdx], [field]: value };
+    newEx[exIdx].logs[setIdx] = updatedLog;
     setExercises(newEx);
+
+    // If RPE is updated on a completed set, re-persist immediately
+    if (field === "rpe" && updatedLog.completed) {
+      persistSet(newEx[exIdx].id, updatedLog);
+    }
   };
 
   const showSaveSuccess = () => {
@@ -402,10 +409,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           weight: log.weight ?? null,
           reps: log.reps || null,
           tempo: log.tempo || null,
-          rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
+          rir: log.rir ?? (log.rpe ? Math.round((10 - log.rpe) * 10) / 10 : null),
+          rpe: log.rpe ?? null,
           notes: log.notes || null,
           logged_at: new Date().toISOString(),
-        }, { onConflict: "session_id,exercise_id,set_number" });
+        } as any, { onConflict: "session_id,exercise_id,set_number" });
 
       if (error) {
         console.error("[WorkoutLogger] Set save failed:", error);

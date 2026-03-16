@@ -2489,6 +2489,7 @@ export type Database = {
           notes: string | null
           reps: number | null
           rir: number | null
+          rpe: number | null
           session_id: string
           set_number: number
           tempo: string | null
@@ -2503,6 +2504,7 @@ export type Database = {
           notes?: string | null
           reps?: number | null
           rir?: number | null
+          rpe?: number | null
           session_id: string
           set_number: number
           tempo?: string | null
@@ -2517,6 +2519,7 @@ export type Database = {
           notes?: string | null
           reps?: number | null
           rir?: number | null
+          rpe?: number | null
           session_id?: string
           set_number?: number
           tempo?: string | null

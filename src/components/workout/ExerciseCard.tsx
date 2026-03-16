@@ -9,6 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
 import { cn } from "@/lib/utils";
 
@@ -59,15 +64,83 @@ function getYouTubeId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-function displayWeight(weight: number | null | undefined): string {
-  if (weight === 0 || weight === null || weight === undefined) return "BW";
-  return `${weight}`;
-}
-
 const isBodyweight = (equipment: string | null | undefined): boolean => {
   if (!equipment) return false;
   const lower = equipment.toLowerCase();
   return lower === "bodyweight" || lower === "none" || lower === "body weight";
+};
+
+// RPE values from 6 to 10 in 0.5 increments (like Strong app)
+const RPE_VALUES = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+
+const RPE_LABELS: Record<number, string> = {
+  6: "Could do 4+ more",
+  6.5: "",
+  7: "Could do 3 more",
+  7.5: "",
+  8: "Could do 2 more",
+  8.5: "",
+  9: "Could do 1 more",
+  9.5: "Maybe 1 more",
+  10: "Maximum effort",
+};
+
+// --- RPE Selector Popover ---
+const RPESelector = ({
+  currentRPE,
+  onSelect,
+  children,
+}: {
+  currentRPE?: number;
+  onSelect: (rpe: number | undefined) => void;
+  children: React.ReactNode;
+}) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="center"
+        className="w-64 p-3"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">RPE</p>
+            {currentRPE != null && (
+              <button
+                onClick={() => { onSelect(undefined); setOpen(false); }}
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {RPE_VALUES.map((val) => (
+              <button
+                key={val}
+                onClick={() => { onSelect(val); setOpen(false); }}
+                className={cn(
+                  "h-9 rounded-md text-sm font-medium transition-colors border",
+                  currentRPE === val
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-secondary/60 text-foreground border-border hover:bg-secondary"
+                )}
+              >
+                {val}
+              </button>
+            ))}
+          </div>
+          {currentRPE != null && RPE_LABELS[currentRPE] && (
+            <p className="text-[11px] text-center text-muted-foreground">{RPE_LABELS[currentRPE]}</p>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 // --- Swipe-to-delete wrapper for individual set rows ---
@@ -361,14 +434,32 @@ const ExerciseCard = ({
                 )}
               </div>
 
-              <Input
-                type="number"
-                value={log.reps ?? ""}
-                onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
-                placeholder="0"
-                className="text-sm h-8"
-                disabled={log.completed}
-              />
+              {/* Reps field — tappable for RPE after completion */}
+              <div className="relative">
+                {log.completed ? (
+                  <RPESelector
+                    currentRPE={log.rpe}
+                    onSelect={(rpe) => onUpdateLog(setIdx, "rpe", rpe)}
+                  >
+                    <button className="w-full h-8 rounded-md border border-border bg-secondary/40 text-sm font-medium tabular-nums flex items-center justify-center gap-1 hover:bg-secondary transition-colors">
+                      {log.reps}
+                      {log.rpe != null ? (
+                        <span className="text-[10px] text-primary font-semibold">@{log.rpe}</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/50">RPE</span>
+                      )}
+                    </button>
+                  </RPESelector>
+                ) : (
+                  <Input
+                    type="number"
+                    value={log.reps ?? ""}
+                    onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="0"
+                    className="text-sm h-8"
+                  />
+                )}
+              </div>
 
               <div className="flex items-center gap-1">
                 {log.isPR && <Trophy className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
