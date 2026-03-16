@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Trophy, Plus, MoreVertical } from "lucide-react";
+import { Check, Trophy, Plus, MoreVertical, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
+import { cn } from "@/lib/utils";
 
 interface SetLog {
   setNumber: number;
@@ -48,6 +49,7 @@ interface ExerciseCardProps {
   onUpdateLog: (setIdx: number, field: string, value: unknown) => void;
   onCompleteSet: (setIdx: number) => void;
   onAddSet: () => void;
+  onDeleteSet?: (setIdx: number) => void;
   onDeleteExercise?: () => void;
   onSwitchExercise?: () => void;
 }
@@ -66,6 +68,105 @@ const isBodyweight = (equipment: string | null | undefined): boolean => {
   if (!equipment) return false;
   const lower = equipment.toLowerCase();
   return lower === "bodyweight" || lower === "none" || lower === "body weight";
+};
+
+// --- Swipe-to-delete wrapper for individual set rows ---
+const SWIPE_THRESHOLD = 80;
+
+const SwipeableSetRow = ({
+  children,
+  onDelete,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onDelete: () => void;
+  disabled?: boolean;
+}) => {
+  const [offset, setOffset] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const locked = useRef(false);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (disabled) return;
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    locked.current = false;
+    setSwiping(true);
+  }, [disabled]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!swiping || disabled) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+
+    if (!locked.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      locked.current = true;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        setSwiping(false);
+        setOffset(0);
+        return;
+      }
+    }
+
+    if (dx < 0) {
+      setOffset(Math.max(dx, -100));
+    }
+  }, [swiping, disabled]);
+
+  const handleTouchEnd = useCallback(() => {
+    setSwiping(false);
+    if (offset < -SWIPE_THRESHOLD) {
+      setOffset(-100);
+    } else {
+      setOffset(0);
+    }
+  }, [offset]);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOffset(0);
+    onDelete();
+  };
+
+  const handleClick = () => {
+    if (offset < -10) setOffset(0);
+  };
+
+  if (disabled) return <>{children}</>;
+
+  return (
+    <div className="relative overflow-hidden rounded-lg">
+      {/* Delete button behind */}
+      <div
+        className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-destructive-foreground cursor-pointer rounded-r-lg"
+        style={{ width: 100 }}
+        onClick={handleDeleteClick}
+      >
+        <div className="flex items-center gap-1.5 font-medium text-sm">
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </div>
+      </div>
+
+      {/* Foreground */}
+      <div
+        className="relative"
+        style={{
+          transform: `translateX(${offset}px)`,
+          transition: swiping ? "none" : "transform 0.25s ease-out",
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={handleClick}
+      >
+        {children}
+      </div>
+    </div>
+  );
 };
 
 const ExerciseCard = ({
@@ -88,6 +189,7 @@ const ExerciseCard = ({
   onUpdateLog,
   onCompleteSet,
   onAddSet,
+  onDeleteSet,
   onDeleteExercise,
   onSwitchExercise,
 }: ExerciseCardProps) => {
@@ -111,11 +213,13 @@ const ExerciseCard = ({
   }, []);
 
   const canLogSet = (log: SetLog) => {
-    // Weight can be 0 or undefined (bodyweight/mobility), only reps must be > 0
     const weightOk = log.weight === undefined || log.weight === null || log.weight >= 0;
     const hasReps = !!log.reps && log.reps > 0;
     return weightOk && hasReps;
   };
+
+  // Only allow deleting if there's more than 1 set
+  const canDeleteSet = logs.length > 1;
 
   return (
     <Card
@@ -218,68 +322,81 @@ const ExerciseCard = ({
             ? `${prev.weight === 0 ? "BW" : prev.weight}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
             : "—";
 
-          return (
-            <div key={setIdx}>
-              <div
-                className={`grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 items-center p-1.5 rounded-lg transition-colors ${
-                  log.completed ? "bg-primary/5 border border-primary/20" : "bg-card border border-border"
-                }`}
-              >
-                <div className="flex items-center justify-center">
-                  {log.completed ? (
-                    <Check className="h-4 w-4 text-primary" />
-                  ) : (
-                    <span className="text-sm font-medium text-center">{log.setNumber}</span>
-                  )}
-                </div>
+          const setRow = (
+            <div
+              className={`grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 items-center p-1.5 rounded-lg transition-colors ${
+                log.completed ? "bg-primary/5 border border-primary/20" : "bg-card border border-border"
+              }`}
+            >
+              <div className="flex items-center justify-center">
+                {log.completed ? (
+                  <Check className="h-4 w-4 text-primary" />
+                ) : (
+                  <span className="text-sm font-medium text-center">{log.setNumber}</span>
+                )}
+              </div>
 
-                <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
+              <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
-                <div className="relative">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    value={log.weight !== undefined && log.weight !== null ? String(log.weight) : ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "" || val === "0") {
-                        onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
-                      } else {
-                        const num = parseFloat(val);
-                        if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
-                      }
-                    }}
-                    placeholder={isBW ? "BW" : "0"}
-                    className="text-sm h-8"
-                    disabled={log.completed}
-                  />
-                  {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
-                    <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
-                  )}
-                </div>
-
+              <div className="relative">
                 <Input
-                  type="number"
-                  value={log.reps ?? ""}
-                  onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
-                  placeholder="0"
+                  type="text"
+                  inputMode="numeric"
+                  value={log.weight !== undefined && log.weight !== null ? String(log.weight) : ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "" || val === "0") {
+                      onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
+                    } else {
+                      const num = parseFloat(val);
+                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
+                    }
+                  }}
+                  placeholder={isBW ? "BW" : "0"}
                   className="text-sm h-8"
                   disabled={log.completed}
                 />
-
-                <div className="flex items-center gap-1">
-                  {log.isPR && <Trophy className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
-                  <Button
-                    size="sm"
-                    className="h-8 px-3"
-                    variant={log.completed ? "secondary" : "default"}
-                    disabled={log.completed || !canLogSet(log)}
-                    onClick={() => onCompleteSet(setIdx)}
-                  >
-                    {log.completed ? <Check className="h-3.5 w-3.5" /> : "Log"}
-                  </Button>
-                </div>
+                {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
+                  <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
+                )}
               </div>
+
+              <Input
+                type="number"
+                value={log.reps ?? ""}
+                onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="0"
+                className="text-sm h-8"
+                disabled={log.completed}
+              />
+
+              <div className="flex items-center gap-1">
+                {log.isPR && <Trophy className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
+                <Button
+                  size="sm"
+                  className="h-8 px-3"
+                  variant={log.completed ? "secondary" : "default"}
+                  disabled={log.completed || !canLogSet(log)}
+                  onClick={() => onCompleteSet(setIdx)}
+                >
+                  {log.completed ? <Check className="h-3.5 w-3.5" /> : "Log"}
+                </Button>
+              </div>
+            </div>
+          );
+
+          return (
+            <div key={setIdx}>
+              {canDeleteSet && onDeleteSet && !log.completed ? (
+                <SwipeableSetRow
+                  onDelete={() => onDeleteSet(setIdx)}
+                  disabled={log.completed}
+                >
+                  {setRow}
+                </SwipeableSetRow>
+              ) : (
+                setRow
+              )}
 
               {/* Inline rest timer between sets */}
               {activeTimerAfterSetIndex === setIdx && (
