@@ -672,69 +672,81 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   // Save workout
   const handleSave = async () => {
-    if (!workoutName.trim()) {
+    const trimmedName = workoutName.trim();
+    if (!trimmedName) {
       toast({ title: "Workout name required", variant: "destructive" });
       return;
     }
+
     setSaving(true);
 
     try {
       let workoutId = editWorkoutId;
 
       if (editWorkoutId) {
-        const { error: updateErr } = await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", editWorkoutId);
-        if (updateErr) throw updateErr;
-        const { error: delErr } = await supabase.from("workout_exercises").delete().eq("workout_id", editWorkoutId);
-        if (delErr) throw delErr;
+        if (buildDraftSnapshot() !== lastPersistedSnapshotRef.current) {
+          await persistExistingWorkoutChanges();
+        }
       } else {
-        const { data: newW, error } = await supabase.from("workouts").insert({
-          coach_id: coachId, name: workoutName, instructions: instructions || null,
-          is_template: true, workout_type: "regular",
-        } as any).select().single();
-        if (error) throw error;
-        workoutId = newW.id;
-      }
+        const { data: newWorkout, error: workoutErr } = await supabase
+          .from("workouts")
+          .insert({
+            coach_id: coachId,
+            name: trimmedName,
+            instructions: instructions || null,
+            is_template: true,
+            workout_type: "regular",
+          })
+          .select()
+          .single();
+        if (workoutErr) throw workoutErr;
+        workoutId = newWorkout.id;
 
-      if (exercises.length > 0 && workoutId) {
-        const { data: insertedExercises } = await supabase.from("workout_exercises").insert(
-          exercises.map((ex, i) => ({
-            workout_id: workoutId!,
-            exercise_id: ex.exerciseId,
-            exercise_order: i + 1,
-            sets: ex.sets,
-            reps: ex.reps || null,
-            tempo: useTempo ? (ex.tempo || null) : null,
-            rest_seconds: ex.restSeconds || null,
-            rir: useRir ? (ex.rir ? parseInt(ex.rir) : null) : null,
-            rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
-            notes: ex.notes || null,
-            superset_group: null,
-            grouping_type: ex.groupingType || null,
-            grouping_id: ex.groupingId || null,
-          }))
-        ).select("id");
+        if (exercises.length > 0) {
+          const { data: insertedExercises, error: insertErr } = await supabase
+            .from("workout_exercises")
+            .insert(
+              exercises.map((exercise, index) => ({
+                workout_id: workoutId,
+                exercise_id: exercise.exerciseId,
+                exercise_order: index + 1,
+                sets: exercise.sets,
+                reps: exercise.reps || null,
+                tempo: useTempo ? (exercise.tempo || null) : null,
+                rest_seconds: exercise.restSeconds || null,
+                rir: useRir ? (exercise.rir ? parseInt(exercise.rir, 10) : null) : null,
+                rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+                notes: exercise.notes || null,
+                superset_group: null,
+                grouping_type: exercise.groupingType || null,
+                grouping_id: exercise.groupingId || null,
+              }))
+            )
+            .select("id");
+          if (insertErr) throw insertErr;
 
-        if (insertedExercises) {
-          const setRows: any[] = [];
-          insertedExercises.forEach((we, idx) => {
-            const ex = exercises[idx];
-            for (let s = 1; s <= ex.sets; s++) {
-              setRows.push({
-                workout_exercise_id: we.id,
-                set_number: s,
-                rep_target: ex.reps || null,
-                rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
-                set_type: "working",
-              });
-            }
+          const setRows = (insertedExercises || []).flatMap((workoutExercise, index) => {
+            const exercise = exercises[index];
+            return Array.from({ length: exercise.sets }, (_, setIndex) => ({
+              workout_exercise_id: workoutExercise.id,
+              set_number: setIndex + 1,
+              rep_target: exercise.reps || null,
+              rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+              set_type: "working",
+            }));
           });
-          if (setRows.length > 0) await supabase.from("workout_sets").insert(setRows);
+
+          if (setRows.length > 0) {
+            const { error: setErr } = await supabase.from("workout_sets").insert(setRows);
+            if (setErr) throw setErr;
+          }
         }
       }
 
       try { sessionStorage.removeItem(draftKey); } catch {}
       savedSuccessfullyRef.current = true;
-      await onSave(workoutId!, workoutName);
+      setTransientAutoSaveState("saved");
+      await onSave(workoutId!, trimmedName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
     } catch (err: any) {
       console.error("[WorkoutBuilder] Save failed:", err);
