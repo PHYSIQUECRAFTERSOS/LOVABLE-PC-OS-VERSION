@@ -46,6 +46,23 @@ const MessageAttachment = ({ url, type, name, isOwn }: MessageAttachmentProps) =
     );
   }
 
+  if (type === "audio") {
+    return (
+      <div className="min-w-[200px]">
+        <audio
+          src={url}
+          controls
+          preload="metadata"
+          className="w-full max-w-[280px] h-10"
+          controlsList="nodownload"
+        />
+        {name && !name.startsWith("voice-message") && (
+          <span className="text-[10px] opacity-70 mt-0.5 block truncate">{name}</span>
+        )}
+      </div>
+    );
+  }
+
   if (type === "pdf") {
     return (
       <a
