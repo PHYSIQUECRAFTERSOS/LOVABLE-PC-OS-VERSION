@@ -52,6 +52,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
