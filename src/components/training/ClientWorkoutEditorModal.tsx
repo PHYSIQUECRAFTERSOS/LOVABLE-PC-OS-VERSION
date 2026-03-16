@@ -85,6 +85,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   const [hasChanges, setHasChanges] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const initialStateRef = useRef<string>("");
+  const savedSuccessfullyRef = useRef(false);
 
   const [useRpe, setUseRpe] = useState(false);
   const [useTempo, setUseTempo] = useState(false);
@@ -137,12 +138,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     load();
   }, [workoutId, open]);
 
+  // Only reset state after a successful save — never on tab switch / focus loss
   useEffect(() => {
-    if (!open) {
+    if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all");
       setUseRpe(false); setUseTempo(false); setSelectionMode(false);
       setHasChanges(false);
+      savedSuccessfullyRef.current = false;
     }
   }, [open]);
 
@@ -155,7 +158,12 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
   const handleClose = () => {
     if (hasChanges) setShowDiscardDialog(true);
-    else onClose();
+    else { discardAndClose(); }
+  };
+
+  const discardAndClose = () => {
+    savedSuccessfullyRef.current = true; // allow the reset useEffect to fire
+    onClose();
   };
 
   const filteredLibrary = libraryExercises.filter((ex) => {
@@ -261,6 +269,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
       toast({ title: "Workout saved" });
       setHasChanges(false);
+      savedSuccessfullyRef.current = true;
       onSaved();
       onClose();
     } catch (err: any) {
@@ -270,7 +279,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
         <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 py-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -494,7 +503,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowDiscardDialog(false); setHasChanges(false); onClose(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={() => { setShowDiscardDialog(false); setHasChanges(false); discardAndClose(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Discard
             </AlertDialogAction>
           </AlertDialogFooter>

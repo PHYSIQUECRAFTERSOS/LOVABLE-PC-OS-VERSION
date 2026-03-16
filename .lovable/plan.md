@@ -1,44 +1,122 @@
-# Fix: Prevent Data Loss on Tab Switch Across All Modals
-
-## Analysis
-
-Investigated all Dialog/Drawer/Sheet components. The WorkoutBuilderModal fix from the previous round is correct and in place. However, one other **critical** component has the exact same destructive pattern:
-
-### ClientWorkoutEditorModal.tsx (HIGH RISK)
-
-Lines 140-147 contain a `useEffect` that **unconditionally wipes all state when `open` becomes false**:
-
-```typescript
-useEffect(() => {
-  if (!open) {
-    setWorkoutName(""); setInstructions(""); setExercises([]);
-    // ... clears everything
-  }
-}, [open]);
-```
-
-Line 273: `onOpenChange` calls `handleClose()` which can fire on focus events.
-
-This is the same root cause as the original WorkoutBuilderModal bug. A coach editing an existing client workout (adding exercises, adjusting sets/reps) will lose all work if the Dialog's `onOpenChange(false)` fires during tab switch or focus loss.
 
 
+# Physique Crafters — Transformation Operating System
 
-## Plan
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-### File: `src/components/training/ClientWorkoutEditorModal.tsx`
+---
 
-1. **Remove the destructive `useEffect**` (lines 140-147) that wipes state when `open` becomes false
-2. **Add a `savedSuccessfullyRef**` — only reset state after a successful save (same pattern as WorkoutBuilderModal)
-3. **Fix `onOpenChange` handler** — just call `onClose()` instead of `handleClose()` to prevent the discard dialog from popping up on tab switch. Keep `handleClose` for the explicit X button only.
-4. **Add** `discardAndClose` **function** — explicit user action to abandon changes, with state reset. make sure that Other components 
-   like FoodLogger, AddExerciseModal, SupplementLogger, MealScanCapture, and CreateChallengeWizard do NOT close on reset or switching tabs,
-5. **Add sessionStorage draft persistence** — same debounced pattern as WorkoutBuilderModal, keyed by `workoutId`
+## Phase 1 — MVP (Core Platform)
 
-### File: `src/components/training/WorkoutBuilderModal.tsx`
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-No changes needed — the fix from the previous round is correct and complete.
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-| File                                                   | Change                                                                                                |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `src/components/training/ClientWorkoutEditorModal.tsx` | Remove destructive reset effect; add draft persistence; fix onOpenChange; add explicit discard button |
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
+
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
+
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
+
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
+
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
+
+---
+
+## Phase 2 — Advanced Features
+
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
+
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
+
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
+
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
+
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
+
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
+
