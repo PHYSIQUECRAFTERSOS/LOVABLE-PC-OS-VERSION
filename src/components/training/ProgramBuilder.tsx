@@ -351,7 +351,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const openWorkoutPicker = (phaseIdx: number, weekIdx: number) => {
     setTargetPhaseIdx(phaseIdx);
     setTargetWeekIdx(weekIdx);
-    setShowAddChoice(true);
+    setShowWorkoutBuilder(true);
   };
 
   const handleWorkoutBuilderSave = (workoutId: string, workoutName: string) => {
