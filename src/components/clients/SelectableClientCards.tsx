@@ -34,6 +34,12 @@ interface NutritionCompliance {
   status: "on_target" | "close" | "missed" | "no_data";
 }
 
+interface PhaseInfo {
+  phaseName: string;
+  endDate: string;
+  daysLeft: number;
+}
+
 interface SelectableClientCardsProps {
   onSelectionChange: (selected: SelectableClient[]) => void;
   onSendMessage: () => void;
