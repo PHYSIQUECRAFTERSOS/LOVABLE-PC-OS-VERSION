@@ -161,6 +161,10 @@ const ExerciseLibrary = () => {
         open={!!previewExercise}
         onOpenChange={open => { if (!open) setPreviewExercise(null); }}
         onEdit={handleEdit}
+        onDeleted={(id) => {
+          setPreviewExercise(null);
+          setExercises(prev => prev.filter(ex => ex.id !== id));
+        }}
       />
 
       {/* Add/Edit Modal */}
