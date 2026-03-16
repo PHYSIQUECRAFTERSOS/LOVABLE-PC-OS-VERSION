@@ -1061,6 +1061,33 @@ export type Database = {
           },
         ]
       }
+      checkin_reviewers: {
+        Row: {
+          coach_id: string
+          color: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          coach_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          coach_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       checkin_submissions: {
         Row: {
           assignment_id: string | null
@@ -1071,6 +1098,7 @@ export type Database = {
           due_date: string
           id: string
           reviewed_at: string | null
+          reviewed_by: string | null
           status: string
           submitted_at: string | null
           submitted_at_pst: string | null
@@ -1086,6 +1114,7 @@ export type Database = {
           due_date: string
           id?: string
           reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           submitted_at?: string | null
           submitted_at_pst?: string | null
@@ -1101,6 +1130,7 @@ export type Database = {
           due_date?: string
           id?: string
           reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           submitted_at?: string | null
           submitted_at_pst?: string | null
@@ -1113,6 +1143,13 @@ export type Database = {
             columns: ["assignment_id"]
             isOneToOne: false
             referencedRelation: "checkin_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkin_submissions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "checkin_reviewers"
             referencedColumns: ["id"]
           },
           {
@@ -1584,6 +1621,38 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      client_reviewer_assignments: {
+        Row: {
+          client_id: string
+          coach_id: string
+          created_at: string
+          id: string
+          reviewer_id: string
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          created_at?: string
+          id?: string
+          reviewer_id: string
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          created_at?: string
+          id?: string
+          reviewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_reviewer_assignments_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_reviewers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_risk_scores: {
         Row: {
