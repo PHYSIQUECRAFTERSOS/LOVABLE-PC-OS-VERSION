@@ -817,20 +817,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
         <Button
-          onClick={handleFinishTap}
-          disabled={loading}
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-          size="lg"
-        >
-          {loading && <Loader2 className="animate-spin mr-2" />}
-          Finish Workout
-        </Button>
-        <Button
           variant="ghost"
           className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => setShowCancelDialog(true)}
         >
-          <X className="h-4 w-4 mr-1" /> Cancel Workout
+          Cancel Workout
         </Button>
       </div>
 
