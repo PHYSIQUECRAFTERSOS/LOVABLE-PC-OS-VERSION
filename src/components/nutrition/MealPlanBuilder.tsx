@@ -165,7 +165,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
   // Load template for editing
   useEffect(() => {
-    if (!editingTemplateId || !user) return;
+    if (!editingTemplateId || !userId) return;
     const loadTemplate = async () => {
       setLoadingExisting(true);
       try {
