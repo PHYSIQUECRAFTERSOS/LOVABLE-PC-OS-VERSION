@@ -827,6 +827,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onUpdateLog={(setIdx, field, value) => updateLog(exIdx, setIdx, field, value)}
           onCompleteSet={(setIdx) => completeSet(exIdx, setIdx)}
           onAddSet={() => addSet(exIdx)}
+          onDeleteSet={(setIdx) => deleteSet(exIdx, setIdx)}
           onDeleteExercise={() => deleteExercise(exIdx)}
           onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
         />
