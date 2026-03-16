@@ -99,16 +99,25 @@ const MealPlanTemplateLibrary = () => {
     setCopyModalOpen(true);
     setLoadingClients(true);
     if (user) {
-      const { data } = await supabase
+      const { data: connections } = await supabase
         .from("coach_clients")
-        .select("client_id, profiles!coach_clients_client_id_fkey(user_id, full_name, avatar_url)")
+        .select("client_id")
         .eq("coach_id", user.id)
         .eq("status", "active");
-      setClients((data || []).map((c: any) => ({
-        id: c.client_id,
-        full_name: c.profiles?.full_name || "Client",
-        avatar_url: c.profiles?.avatar_url,
-      })));
+      const clientIds = (connections || []).map((c) => c.client_id);
+      if (clientIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, avatar_url")
+          .in("user_id", clientIds);
+        setClients((profiles || []).map((p) => ({
+          id: p.user_id,
+          full_name: p.full_name || "Client",
+          avatar_url: p.avatar_url,
+        })));
+      } else {
+        setClients([]);
+      }
     }
     setLoadingClients(false);
   };
