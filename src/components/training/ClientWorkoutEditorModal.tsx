@@ -269,6 +269,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
       toast({ title: "Workout saved" });
       setHasChanges(false);
+      savedSuccessfullyRef.current = true;
       onSaved();
       onClose();
     } catch (err: any) {
