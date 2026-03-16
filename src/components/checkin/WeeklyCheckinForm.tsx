@@ -49,21 +49,29 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
     enabled: !!user,
   });
 
-  // Check if already submitted this week
+  // Check if already submitted this week (Monday 00:00 PST reset)
   const { data: alreadySubmitted } = useQuery({
     queryKey: ["weekly-checkin-status", user?.id],
     queryFn: async () => {
       const now = new Date();
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay());
-      startOfWeek.setHours(0, 0, 0, 0);
+      const pstFormatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Los_Angeles",
+        year: "numeric", month: "2-digit", day: "2-digit",
+      });
+      const pstDateStr = pstFormatter.format(now);
+      const pstDate = new Date(pstDateStr + "T00:00:00");
+      const day = pstDate.getDay(); // 0=Sun
+      const diffToMonday = day === 0 ? -6 : 1 - day;
+      const monday = new Date(pstDate);
+      monday.setDate(monday.getDate() + diffToMonday);
+      const mondayStr = monday.toISOString().split("T")[0];
 
       const { data } = await supabase
         .from("checkin_submissions")
         .select("id")
         .eq("client_id", user!.id)
         .eq("template_id", DEFAULT_TEMPLATE_ID)
-        .gte("submitted_at", startOfWeek.toISOString())
+        .gte("submitted_at", `${mondayStr}T00:00:00Z`)
         .limit(1);
       return (data || []).length > 0;
     },
