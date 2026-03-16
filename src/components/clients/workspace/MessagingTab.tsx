@@ -224,21 +224,27 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
           <div ref={bottomRef} />
         </div>
 
-        <div className="flex gap-2 shrink-0">
-          {threadId && <AttachmentUploadMenu threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />}
-          <Input
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            className="flex-1"
-          />
+        <div className="flex gap-2 shrink-0 items-center">
+          {!isRecording && threadId && <AttachmentUploadMenu threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />}
+          {!isRecording && (
+            <Input
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              className="flex-1"
+            />
+          )}
           {newMessage.trim() ? (
             <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()} className="shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           ) : threadId ? (
-            <VoiceMessageRecorder threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />
+            <VoiceMessageRecorder
+              threadId={threadId}
+              onSent={() => threadId && loadMessages(threadId)}
+              onRecordingStateChange={setIsRecording}
+            />
           ) : (
             <Button size="icon" disabled className="shrink-0">
               <Send className="h-4 w-4" />
