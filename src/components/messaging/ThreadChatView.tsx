@@ -237,12 +237,12 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
                 >
                   {msg.attachment_url && msg.attachment_type && (
                     <div className="mb-1">
-                      <MessageAttachment
-                        url={msg.attachment_url}
-                        type={msg.attachment_type as "image" | "video" | "pdf"}
-                        name={msg.attachment_name || undefined}
-                        isOwn={isOwn}
-                      />
+                        <MessageAttachment
+                          url={msg.attachment_url}
+                          type={msg.attachment_type as "image" | "video" | "pdf" | "audio"}
+                          name={msg.attachment_name || undefined}
+                          isOwn={isOwn}
+                        />
                     </div>
                   )}
                   {msg.content && <p>{msg.content}</p>}
