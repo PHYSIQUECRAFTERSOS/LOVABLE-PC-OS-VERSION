@@ -293,7 +293,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   }, [editWorkoutId, workoutName, instructions, exercises, useTempo, useRir, useRpe, buildDraftSnapshot]);
 
   const triggerAutoSave = useCallback(async () => {
-    if (!open || !editWorkoutId || !hydratedRef.current || loading) return;
+    if (!open || !editWorkoutId || !hydratedRef.current || loading || saving) return;
     if (!workoutName.trim()) return;
 
     const nextSnapshot = buildDraftSnapshot();
@@ -322,7 +322,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         }
       }
     }
-  }, [open, editWorkoutId, loading, workoutName, buildDraftSnapshot, persistExistingWorkoutChanges, setTransientAutoSaveState]);
+  }, [open, editWorkoutId, loading, saving, workoutName, buildDraftSnapshot, persistExistingWorkoutChanges, setTransientAutoSaveState]);
 
   useEffect(() => {
     if (!open) return;
