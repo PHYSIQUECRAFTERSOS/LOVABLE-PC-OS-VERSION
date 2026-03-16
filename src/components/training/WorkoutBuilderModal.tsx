@@ -519,6 +519,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     }
 
     savedSuccessfullyRef.current = true;
+    latestDraftRef.current.saved = true;
 
     if (editWorkoutId && syncedDuringSessionRef.current) {
       try {
