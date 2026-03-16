@@ -253,7 +253,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       }
     };
     loadTemplate();
-  }, [editingTemplateId, user]);
+  }, [editingTemplateId, userId]);
 
   const loadExistingPlan = async (cId: string) => {
     setLoadingExisting(true);

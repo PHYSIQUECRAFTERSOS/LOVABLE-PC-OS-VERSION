@@ -382,7 +382,7 @@ const MealPlanMacroSidebar = ({
 
   /* ── Desktop sticky sidebar ── */
   return (
-    <div className="sticky top-4 space-y-3">
+    <div className="space-y-3">
       {/* Goal Editor Card */}
       <Card className="border-primary/20">
         <CardContent className="pt-4 pb-4 space-y-4">
