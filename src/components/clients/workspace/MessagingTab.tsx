@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import MessageAttachment from "@/components/messaging/MessageAttachment";
 import EmojiReactions from "@/components/messaging/EmojiReactions";
 import AttachmentUploadMenu from "@/components/messaging/AttachmentUploadMenu";
+import VoiceMessageRecorder from "@/components/messaging/VoiceMessageRecorder";
 
 interface Message {
   id: string;
@@ -41,6 +42,7 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
   const [sending, setSending] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadThread(); }, [clientId, user]);
@@ -199,9 +201,9 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
                     )}>
                       {msg.attachment_url && msg.attachment_type && (
                         <div className="mb-1">
-                          <MessageAttachment
+                         <MessageAttachment
                             url={msg.attachment_url}
-                            type={msg.attachment_type as "image" | "video" | "pdf"}
+                            type={msg.attachment_type as "image" | "video" | "pdf" | "audio"}
                             name={msg.attachment_name || undefined}
                             isOwn={isMe}
                           />
@@ -222,18 +224,32 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
           <div ref={bottomRef} />
         </div>
 
-        <div className="flex gap-2 shrink-0">
-          {threadId && <AttachmentUploadMenu threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />}
-          <Input
-            value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            className="flex-1"
-          />
-          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()} className="shrink-0">
-            <Send className="h-4 w-4" />
-          </Button>
+        <div className="flex gap-2 shrink-0 items-center">
+          {!isRecording && threadId && <AttachmentUploadMenu threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />}
+          {!isRecording && (
+            <Input
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              className="flex-1"
+            />
+          )}
+          {newMessage.trim() ? (
+            <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()} className="shrink-0">
+              <Send className="h-4 w-4" />
+            </Button>
+          ) : threadId ? (
+            <VoiceMessageRecorder
+              threadId={threadId}
+              onSent={() => threadId && loadMessages(threadId)}
+              onRecordingStateChange={setIsRecording}
+            />
+          ) : (
+            <Button size="icon" disabled className="shrink-0">
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

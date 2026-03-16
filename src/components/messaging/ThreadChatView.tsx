@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
+import VoiceMessageRecorder from "./VoiceMessageRecorder";
 
 interface Message {
   id: string;
@@ -51,6 +52,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -236,12 +238,12 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
                 >
                   {msg.attachment_url && msg.attachment_type && (
                     <div className="mb-1">
-                      <MessageAttachment
-                        url={msg.attachment_url}
-                        type={msg.attachment_type as "image" | "video" | "pdf"}
-                        name={msg.attachment_name || undefined}
-                        isOwn={isOwn}
-                      />
+                        <MessageAttachment
+                          url={msg.attachment_url}
+                          type={msg.attachment_type as "image" | "video" | "pdf" | "audio"}
+                          name={msg.attachment_name || undefined}
+                          isOwn={isOwn}
+                        />
                     </div>
                   )}
                   {msg.content && <p>{msg.content}</p>}
@@ -272,18 +274,28 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
 
       {/* Input */}
       <div className="border-t border-border p-3">
-        <div className="flex gap-2">
-          <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            className="flex-1"
-          />
-          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
+        <div className="flex gap-2 items-center">
+          {!isRecording && <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />}
+          {!isRecording && (
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className="flex-1"
+            />
+          )}
+          {newMessage.trim() ? (
+            <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          ) : (
+            <VoiceMessageRecorder
+              threadId={threadId}
+              onSent={fetchMessages}
+              onRecordingStateChange={setIsRecording}
+            />
+          )}
         </div>
       </div>
     </div>
