@@ -159,9 +159,9 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   }, [userId, clientId, forceTemplate]);
 
   useEffect(() => {
-    if (!clientId || !user) return;
+    if (!clientId || !userId) return;
     loadExistingPlan(clientId);
-  }, [clientId, user, dayType]);
+  }, [clientId, userId, dayType]);
 
   // Load template for editing
   useEffect(() => {
