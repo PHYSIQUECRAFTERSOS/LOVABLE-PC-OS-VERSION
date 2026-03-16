@@ -1,122 +1,37 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Fix Rest Timer Sound + Add Lock Screen Countdown
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Problems
+1. **Sound is silent on iOS**: The current `AudioContext` oscillator approach gets suspended by iOS when the browser is backgrounded or the phone is locked. iOS requires a user-gesture-unlocked audio element, not raw oscillators created at timer-completion time.
+2. **No lock screen countdown**: The timer is only visible inside the app. The user wants the countdown visible on the iPhone lock screen, like the Strong app.
 
----
+## Solution
 
-## Phase 1 — MVP (Core Platform)
+### 1. Reliable Sound via `<audio>` element
+- Create a utility module `src/utils/restTimerAudio.ts` that:
+  - Pre-creates a hidden `<audio>` element on first user interaction (set completion tap / workout start)
+  - Loads a short MP3 alarm tone (a base64-encoded ~1s chime embedded directly in code, no external file needed)
+  - On timer complete, calls `.play()` on this pre-unlocked audio element
+  - This works on iOS even when backgrounded because the audio session is already active
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+### 2. Lock Screen Timer via Media Session API
+- When a rest timer starts, play a **silent audio track** of the exact rest duration using the same `<audio>` element
+- Set `navigator.mediaSession.metadata` with title "Rest Timer" and the workout name
+- Set `navigator.mediaSession.setPositionState()` with duration = rest seconds, position = 0, playbackRate = 1
+- iOS will show a "Now Playing" widget on the lock screen with the countdown progress
+- When timer completes, swap the silent track for the alarm chime
+- On skip, stop the silent track and clear media session
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+### 3. Apply to both timer components
+- Update `InlineRestTimer.tsx` and `FloatingRestTimer.tsx` to use the new audio utility instead of raw `AudioContext`
+- Remove duplicated `playSound` logic from both components
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+## Files to create/edit
+1. **Create** `src/utils/restTimerAudio.ts` — audio utility with silent track generation, alarm sound, and Media Session integration
+2. **Edit** `src/components/workout/InlineRestTimer.tsx` — replace `playSound` with new utility, call `startMediaSession()` on mount and `stopMediaSession()` on skip/complete
+3. **Edit** `src/components/workout/FloatingRestTimer.tsx` — same changes
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
-
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
-
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
-
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Technical detail: Silent track generation
+Generate a silent WAV in-memory using a small ArrayBuffer (no external file needed). The duration matches the rest timer seconds. This is what drives the lock screen countdown via Media Session.
 
