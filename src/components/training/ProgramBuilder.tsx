@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, GripVertical, ArrowUp, ArrowDown, Hammer, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import WorkoutBuilderModal from "./WorkoutBuilderModal";
 
 const GOAL_TYPES = [
   { label: "Hypertrophy", value: "hypertrophy" },
@@ -114,6 +115,8 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   ]);
   const [availableWorkouts, setAvailableWorkouts] = useState<any[]>([]);
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
+  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [targetPhaseIdx, setTargetPhaseIdx] = useState(0);
   const [targetWeekIdx, setTargetWeekIdx] = useState(0);
 
@@ -347,7 +350,22 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const openWorkoutPicker = (phaseIdx: number, weekIdx: number) => {
     setTargetPhaseIdx(phaseIdx);
     setTargetWeekIdx(weekIdx);
-    setShowWorkoutPicker(true);
+    setShowAddChoice(true);
+  };
+
+  const handleWorkoutBuilderSave = (workoutId: string, workoutName: string) => {
+    const newPhases = [...phases];
+    const week = newPhases[targetPhaseIdx].weeks[targetWeekIdx];
+    const existingCount = week.workouts.length;
+    week.workouts.push({
+      workoutId,
+      workoutName,
+      dayOfWeek: Math.min(existingCount, 6),
+      dayLabel: DAY_LABELS[Math.min(existingCount, 6)],
+      sortOrder: existingCount,
+    });
+    setPhases(newPhases);
+    setShowWorkoutBuilder(false);
   };
 
   const addWorkoutToWeek = (workout: any) => {
@@ -705,7 +723,36 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         {editProgramId ? "Update Program" : "Create Program"}
       </Button>
 
-      {/* Workout Picker */}
+      {/* Add Workout Choice Dialog */}
+      <Dialog open={showAddChoice} onOpenChange={setShowAddChoice}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Add Workout</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <button
+              onClick={() => { setShowAddChoice(false); setShowWorkoutBuilder(true); }}
+              className="w-full text-left p-4 border rounded-lg hover:bg-muted/50 transition-colors flex items-center gap-3"
+            >
+              <Hammer className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Build from Scratch</p>
+                <p className="text-xs text-muted-foreground">Create a new workout with exercises</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { setShowAddChoice(false); setShowWorkoutPicker(true); }}
+              className="w-full text-left p-4 border rounded-lg hover:bg-muted/50 transition-colors flex items-center gap-3"
+            >
+              <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Import Existing Template</p>
+                <p className="text-xs text-muted-foreground">Use an existing workout template</p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workout Template Picker */}
       <Dialog open={showWorkoutPicker} onOpenChange={setShowWorkoutPicker}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Select Workout Template</DialogTitle></DialogHeader>
@@ -729,6 +776,16 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Full Workout Builder Modal */}
+      {user && (
+        <WorkoutBuilderModal
+          open={showWorkoutBuilder}
+          onClose={() => setShowWorkoutBuilder(false)}
+          onSave={handleWorkoutBuilderSave}
+          coachId={user.id}
+        />
+      )}
     </div>
   );
 };
