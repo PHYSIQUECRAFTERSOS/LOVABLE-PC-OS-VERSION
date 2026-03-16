@@ -536,19 +536,88 @@ const CoachCommandCenter = () => {
         </Card>
       </div>
 
-      {/* ─── SECTION 3: Compliance Snapshot ─── */}
+      {/* ─── SECTION 3: Phase Deadline Alerts ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
-          <Activity className="h-5 w-5 text-primary" />
-          Compliance Snapshot
+          <CalendarClock className="h-5 w-5 text-primary" />
+          Training Phase Deadlines
         </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <MetricCard icon={Zap} label="Training" value={`${snapshot.trainingPct}%`} pct={snapshot.trainingPct} />
-          <MetricCard icon={UtensilsCrossed} label="Nutrition" value={`${snapshot.nutritionPct}%`} pct={snapshot.nutritionPct} />
-          <MetricCard icon={ClipboardCheck} label="Check-ins" value={`${snapshot.checkinPct}%`} pct={snapshot.checkinPct} />
-          <MetricCard icon={Users} label="Active" value={String(snapshot.activeClients)} />
-          <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
-        </div>
+        {phaseDeadlines.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center">
+              <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No phases ending within 7 days.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Overdue */}
+            {phaseDeadlines.some((c) => c.daysLeft <= 0) && (
+              <Card className="border-destructive/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-display flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    Overdue
+                    <span className="ml-1 rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                      {phaseDeadlines.filter((c) => c.daysLeft <= 0).length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {phaseDeadlines.filter((c) => c.daysLeft <= 0).map((client) => (
+                    <div
+                      key={client.clientId}
+                      className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/clients/${client.clientId}`)}
+                    >
+                      <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ended {client.endDate}</p>
+                      </div>
+                      <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-destructive/20 text-destructive">
+                        {Math.abs(client.daysLeft)}d overdue
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Due within 7 days */}
+            {phaseDeadlines.some((c) => c.daysLeft > 0) && (
+              <Card className="border-amber-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-display flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-amber-400" />
+                    Due Within 7 Days
+                    <span className="ml-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                      {phaseDeadlines.filter((c) => c.daysLeft > 0).length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {phaseDeadlines.filter((c) => c.daysLeft > 0).map((client) => (
+                    <div
+                      key={client.clientId}
+                      className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/clients/${client.clientId}`)}
+                    >
+                      <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ends {client.endDate}</p>
+                      </div>
+                      <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-amber-400/20 text-amber-400">
+                        {client.daysLeft}d left
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─── SECTION 3 & 4: Leaderboard + At-Risk side by side ─── */}
