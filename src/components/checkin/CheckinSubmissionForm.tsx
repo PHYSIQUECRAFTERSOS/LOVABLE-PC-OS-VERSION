@@ -24,6 +24,33 @@ const CheckinSubmissionForm = () => {
   const [activeAssignment, setActiveAssignment] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
+  // Fetch join date for week number calculation
+  const { data: assignedAt } = useQuery({
+    queryKey: ["client-assigned-at", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("coach_clients")
+        .select("assigned_at")
+        .eq("client_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      return data?.assigned_at || null;
+    },
+    enabled: !!user,
+  });
+
+  const getWeekNumber = () => {
+    if (!assignedAt) return 1;
+    const now = new Date();
+    const start = new Date(assignedAt);
+    const diff = now.getTime() - start.getTime();
+    return Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1);
+  };
+
+  const getPSTTime = () => {
+    return new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+  };
+
   const { data: assignments } = useQuery({
     queryKey: ["client-checkin-assignments", user?.id],
     queryFn: async () => {
@@ -72,13 +99,17 @@ const CheckinSubmissionForm = () => {
       if (!user || !activeAssignment) throw new Error("No assignment selected");
 
       // Create submission
+      const now = new Date().toISOString();
       const { data: sub, error: subErr } = await supabase
         .from("checkin_submissions")
         .insert({
           assignment_id: activeAssignment.id,
           client_id: user.id,
+          template_id: activeAssignment.template_id,
           due_date: activeAssignment.next_due_date,
-          submitted_at: new Date().toISOString(),
+          submitted_at: now,
+          submitted_at_pst: getPSTTime(),
+          week_number: getWeekNumber(),
           status: "submitted",
         })
         .select()

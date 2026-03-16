@@ -16,22 +16,61 @@ function getClientLocalHour(tz: string): number {
     });
     return parseInt(formatter.format(new Date()), 10);
   } catch {
-    return new Date().getUTCHours(); // fallback
+    return new Date().getUTCHours();
   }
 }
 
 /** Return yesterday's date string (YYYY-MM-DD) in the client's timezone */
 function getYesterdayLocal(tz: string): string {
   try {
-    const now = new Date();
+    const yesterday = new Date(Date.now() - 86400000);
     const formatter = new Intl.DateTimeFormat("en-CA", { timeZone: tz });
-    // Subtract 1 day
-    const yesterday = new Date(now.getTime() - 86400000);
     return formatter.format(yesterday);
   } catch {
     const yesterday = new Date(Date.now() - 86400000);
     return yesterday.toISOString().split("T")[0];
   }
+}
+
+/** Get Monday 00:00 PST of current week as YYYY-MM-DD */
+function getCurrentWeekMondayPST(): string {
+  const now = new Date();
+  const pstFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const pstDateStr = pstFormatter.format(now);
+  const pstDate = new Date(pstDateStr + "T00:00:00");
+  const day = pstDate.getDay(); // 0=Sun
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(pstDate);
+  monday.setDate(monday.getDate() + diffToMonday);
+  return monday.toISOString().split("T")[0];
+}
+
+/** Get today's date in PST */
+function getTodayPST(): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+  });
+  return formatter.format(now);
+}
+
+/** Get current day of week in PST (0=Sun, 1=Mon, ... 6=Sat) */
+function getDayOfWeekPST(): number {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+  });
+  const dayStr = formatter.format(now);
+  const map: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  return map[dayStr] ?? 0;
 }
 
 Deno.serve(async (req) => {
@@ -97,34 +136,30 @@ Deno.serve(async (req) => {
         (profileRows || []).map((p: any) => [p.user_id, p])
       );
 
-      // Evaluate trigger conditions
       let eligibleClients: string[] = [];
 
       switch (trigger.trigger_type) {
         case "missed_workout": {
-          // Fire 24h after a scheduled workout date, at 5 AM client local time
           for (const cid of clientIds) {
             const profile = profileMap.get(cid);
             const tz = profile?.timezone || "America/Los_Angeles";
             const localHour = getClientLocalHour(tz);
-
-            // Only fire at 5 AM local time (allow 5:00-5:59 window)
             if (localHour !== 5) continue;
 
             const yesterday = getYesterdayLocal(tz);
 
-            // Check if there was a workout scheduled yesterday
+            // Check scheduled workouts — coach schedules via target_client_id OR client's own
             const { data: scheduledWorkouts } = await supabase
               .from("calendar_events")
               .select("id")
-              .eq("user_id", cid)
+              .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
               .eq("event_type", "workout")
               .eq("event_date", yesterday)
               .limit(1);
 
             if (!scheduledWorkouts || scheduledWorkouts.length === 0) continue;
 
-            // Check if they completed it (via workout_sessions)
+            // Check completion via sessions
             const { data: sessions } = await supabase
               .from("workout_sessions")
               .select("id")
@@ -137,7 +172,7 @@ Deno.serve(async (req) => {
             const { data: completedEvents } = await supabase
               .from("calendar_events")
               .select("id")
-              .eq("user_id", cid)
+              .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
               .eq("event_type", "workout")
               .eq("event_date", yesterday)
               .eq("is_completed", true)
@@ -154,69 +189,88 @@ Deno.serve(async (req) => {
         }
 
         case "missed_checkin": {
-          // Fire 24h after a scheduled check-in date, at 5 AM client local time
+          // Two detection strategies:
+          // A) Calendar-based: check-in event was scheduled yesterday and NOT completed → fire next day 5 AM
+          // B) Weekly window: client hasn't submitted a check-in this week AND it's Thursday+ → fire at 5 AM
+          const mondayStr = getCurrentWeekMondayPST();
+
           for (const cid of clientIds) {
             const profile = profileMap.get(cid);
             const tz = profile?.timezone || "America/Los_Angeles";
             const localHour = getClientLocalHour(tz);
 
+            // Only fire at 5 AM local time (5:00-5:59 window)
             if (localHour !== 5) continue;
 
             const yesterday = getYesterdayLocal(tz);
 
-            // Check if there was a check-in scheduled yesterday via calendar_events
-            const { data: scheduledCheckins } = await supabase
+            // Strategy A: Was there a check-in calendar event yesterday that wasn't completed?
+            const { data: yesterdayCheckinEvents } = await supabase
               .from("calendar_events")
-              .select("id")
-              .eq("user_id", cid)
+              .select("id, is_completed")
+              .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
               .eq("event_type", "checkin")
               .eq("event_date", yesterday)
               .limit(1);
 
-            // Also check checkin_submissions due yesterday
-            const { data: dueCheckins } = await supabase
+            const hadScheduledCheckin = yesterdayCheckinEvents && yesterdayCheckinEvents.length > 0;
+            const completedScheduledCheckin = yesterdayCheckinEvents?.some((e: any) => e.is_completed);
+
+            // Check if client submitted any check-in recently (yesterday or this week)
+            const { data: recentSubmission } = await supabase
               .from("checkin_submissions")
               .select("id")
               .eq("client_id", cid)
-              .eq("due_date", yesterday)
+              .gte("submitted_at", `${yesterday}T00:00:00Z`)
+              .not("submitted_at", "is", null)
               .limit(1);
 
-            const hadCheckinDue =
-              (scheduledCheckins && scheduledCheckins.length > 0) ||
-              (dueCheckins && dueCheckins.length > 0);
+            const hasRecentSubmission = recentSubmission && recentSubmission.length > 0;
 
-            if (!hadCheckinDue) continue;
-
-            // Check if they submitted it
-            const { data: submitted } = await supabase
-              .from("checkin_submissions")
-              .select("id")
-              .eq("client_id", cid)
-              .eq("due_date", yesterday)
-              .eq("status", "submitted")
-              .limit(1);
-
-            const { data: completedCalCheckin } = await supabase
-              .from("calendar_events")
-              .select("id")
-              .eq("user_id", cid)
-              .eq("event_type", "checkin")
-              .eq("event_date", yesterday)
-              .eq("is_completed", true)
-              .limit(1);
-
-            if (
-              (!submitted || submitted.length === 0) &&
-              (!completedCalCheckin || completedCalCheckin.length === 0)
-            ) {
+            // Strategy A: specific calendar event missed yesterday
+            if (hadScheduledCheckin && !completedScheduledCheckin && !hasRecentSubmission) {
               eligibleClients.push(cid);
+              continue;
+            }
+
+            // Strategy B: weekly window check (Thursday+)
+            const currentDayPST = getDayOfWeekPST();
+            if (currentDayPST >= 4 || currentDayPST === 0) {
+              // Check if client submitted this week at all
+              const { data: weekSubmissions } = await supabase
+                .from("checkin_submissions")
+                .select("id")
+                .eq("client_id", cid)
+                .gte("submitted_at", `${mondayStr}T00:00:00Z`)
+                .not("submitted_at", "is", null)
+                .limit(1);
+
+              if (!weekSubmissions || weekSubmissions.length === 0) {
+                // Also verify no completed calendar checkin this week
+                const sundayDate = new Date(mondayStr);
+                sundayDate.setDate(sundayDate.getDate() + 6);
+                const sundayStr = sundayDate.toISOString().split("T")[0];
+
+                const { data: completedThisWeek } = await supabase
+                  .from("calendar_events")
+                  .select("id")
+                  .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
+                  .eq("event_type", "checkin")
+                  .gte("event_date", mondayStr)
+                  .lte("event_date", sundayStr)
+                  .eq("is_completed", true)
+                  .limit(1);
+
+                if (!completedThisWeek || completedThisWeek.length === 0) {
+                  eligibleClients.push(cid);
+                }
+              }
             }
           }
           break;
         }
 
         case "inactivity_7d": {
-          // No workout, no nutrition log in 7 days
           const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
           for (const cid of clientIds) {
             const { data: ws } = await supabase
@@ -242,7 +296,6 @@ Deno.serve(async (req) => {
         }
 
         case "goal_milestone": {
-          // Clients who hit a weight goal within 1kg
           for (const cid of clientIds) {
             const { data: goal } = await supabase
               .from("client_goals")
@@ -275,8 +328,8 @@ Deno.serve(async (req) => {
 
       if (eligibleClients.length === 0) continue;
 
-      // Check we haven't already sent to these clients today for this trigger
-      const today = new Date().toISOString().split("T")[0];
+      // Dedup: don't send to clients we've already messaged today for this trigger
+      const today = getTodayPST();
       const { data: alreadySent } = await supabase
         .from("auto_message_logs")
         .select("client_id")
@@ -290,27 +343,54 @@ Deno.serve(async (req) => {
 
       if (toSend.length === 0) continue;
 
-      const logs = toSend.map((clientId) => {
+      // Also insert into message_threads/thread_messages for real chat delivery
+      for (const clientId of toSend) {
         const profile = profileMap.get(clientId);
         const name = profile?.full_name || "there";
         const content = template.content.replace(/\{name\}/g, name);
-        return {
+
+        // Log to auto_message_logs
+        await supabase.from("auto_message_logs").insert({
           trigger_id: trigger.id,
           template_id: trigger.template_id,
           coach_id: trigger.coach_id,
           client_id: clientId,
           message_content: content,
           trigger_reason: trigger.trigger_type,
-        };
-      });
+        });
 
-      const { error: logErr } = await supabase
-        .from("auto_message_logs")
-        .insert(logs);
-      if (logErr) {
-        console.error("Failed to insert logs:", logErr);
-      } else {
-        totalSent += logs.length;
+        // Also deliver as a real message in their thread
+        const { data: existingThread } = await supabase
+          .from("message_threads")
+          .select("id")
+          .eq("coach_id", trigger.coach_id)
+          .eq("client_id", clientId)
+          .limit(1)
+          .maybeSingle();
+
+        let threadId = existingThread?.id;
+
+        if (!threadId) {
+          const { data: newThread } = await supabase
+            .from("message_threads")
+            .insert({
+              coach_id: trigger.coach_id,
+              client_id: clientId,
+            })
+            .select("id")
+            .single();
+          threadId = newThread?.id;
+        }
+
+        if (threadId) {
+          await supabase.from("thread_messages").insert({
+            thread_id: threadId,
+            sender_id: trigger.coach_id,
+            content: content,
+          });
+        }
+
+        totalSent++;
       }
 
       // Update last evaluated
