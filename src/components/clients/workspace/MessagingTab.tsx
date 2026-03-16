@@ -42,6 +42,7 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
   const [sending, setSending] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadThread(); }, [clientId, user]);
