@@ -234,7 +234,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
       const { error } = await supabase.from("calendar_events").insert(eventData);
       if (error) throw error;
 
-      // If recurring, generate occurrences
+      // If recurring, generate occurrences (skip the initial single event for weekly with specific days)
       if (isRecurring && recurrencePattern) {
         const occurrences: any[] = [];
         const startDate = new Date(eventDate + "T12:00:00"); // noon to avoid TZ issues
@@ -256,7 +256,7 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
           const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
           const baseMonday = addDays(startDate, mondayOffset);
 
-          // Default to same weekday if no specific days chosen
+          // Convert Mon=0 day indices to Monday-based offsets (already Mon=0 system in this form)
           const daysToRepeat = recurrenceDays.length > 0
             ? recurrenceDays
             : [jsDay === 0 ? 6 : jsDay - 1]; // Mon=0 system

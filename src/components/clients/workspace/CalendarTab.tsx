@@ -391,32 +391,44 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const generateRepeatDates = (baseDate: Date): string[] => {
     const baseDateStr = format(baseDate, "yyyy-MM-dd");
-    const dates: string[] = [baseDateStr];
-    if (!repeatEnabled) return dates;
+    if (!repeatEnabled) return [baseDateStr];
+
+    const dates: string[] = [];
 
     if (repeatFrequency === "daily") {
+      dates.push(baseDateStr);
       for (let i = 1; i < repeatForWeeks * 7; i++)
         dates.push(format(addDays(baseDate, i), "yyyy-MM-dd"));
     } else if (repeatFrequency === "weekly") {
-      // Find Monday of the base date's week (Mon=0 system)
+      // Find Monday of the base date's week
       const jsDay = baseDate.getDay(); // Sun=0, Mon=1 ... Sat=6
       const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
       const baseMonday = addDays(baseDate, mondayOffset);
 
       // Default to same weekday as base date if no specific days selected
-      const daysToRepeat = repeatDays.length > 0
-        ? repeatDays
-        : [jsDay === 0 ? 6 : jsDay - 1]; // convert JS day to Mon=0 system
+      // Convert JS day values (Mon=1,Tue=2...Sun=0) to Monday-based offsets (Mon=0,Tue=1...Sun=6)
+      const toMondayOffset = (jsDayVal: number) => jsDayVal === 0 ? 6 : jsDayVal - 1;
 
-      for (let week = 1; week < repeatForWeeks; week++) {
+      const daysToRepeat = repeatDays.length > 0
+        ? repeatDays.map(toMondayOffset)
+        : [toMondayOffset(jsDay)];
+
+      // Start from week 0 to include the first week, iterate for repeatForWeeks total
+      for (let week = 0; week < repeatForWeeks; week++) {
         const weekMonday = addWeeks(baseMonday, week * repeatEveryN);
-        for (const dayNum of daysToRepeat) {
-          const d = addDays(weekMonday, dayNum); // dayNum: 0=Mon, 1=Tue ... 6=Sun
+        for (const offset of daysToRepeat) {
+          const d = addDays(weekMonday, offset); // offset: 0=Mon, 1=Tue ... 6=Sun
           const dateStr = format(d, "yyyy-MM-dd");
+          // Skip dates before the base date to avoid scheduling in the past
+          if (dateStr < baseDateStr) continue;
           if (!dates.includes(dateStr)) dates.push(dateStr);
         }
       }
+
+      // If no dates generated, at least include the base date
+      if (dates.length === 0) dates.push(baseDateStr);
     } else if (repeatFrequency === "monthly") {
+      dates.push(baseDateStr);
       for (let i = 1; i <= repeatForWeeks; i++)
         dates.push(format(addMonths(baseDate, i), "yyyy-MM-dd"));
     }
@@ -528,9 +540,16 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   };
 
   const handleEventDelete = async (ev: CalendarEvent) => {
-    const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
+    // Workout sessions merged into the calendar can't be deleted from here
+    if ((ev as any).isSession) {
+      toast({ title: "Cannot delete workout sessions from calendar", variant: "destructive" });
+      return;
+    }
+    const { error, count } = await supabase.from("calendar_events").delete({ count: "exact" }).eq("id", ev.id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else if (count === 0) {
+      toast({ title: "Could not delete", description: "Event may have already been removed.", variant: "destructive" });
     } else {
       toast({ title: "Event deleted" });
       setShowEventDetail(false);
