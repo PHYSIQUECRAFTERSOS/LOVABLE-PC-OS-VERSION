@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 interface MessageAttachmentProps {
   url: string;
-  type: "image" | "video" | "pdf";
+  type: "image" | "video" | "pdf" | "audio";
   name?: string;
   isOwn: boolean;
 }
