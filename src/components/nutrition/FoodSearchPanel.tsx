@@ -147,7 +147,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       .eq("data_source", "custom")
       .eq("created_by", user.id)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(200);
     if (data) setCustomFoods(data.map((f: any) => ({ ...f, source: "local" as const })));
   };
 
