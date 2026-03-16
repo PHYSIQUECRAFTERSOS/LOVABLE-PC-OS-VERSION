@@ -1,4 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
+import CheckinSubmissionDashboard from "@/components/dashboard/CheckinSubmissionDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
