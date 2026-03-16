@@ -35,6 +35,20 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
     enabled: !!user,
   });
 
+  const { data: assignedAt } = useQuery({
+    queryKey: ["client-assigned-at", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("coach_clients")
+        .select("assigned_at")
+        .eq("client_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      return data?.assigned_at || null;
+    },
+    enabled: !!user,
+  });
+
   // Check if already submitted this week
   const { data: alreadySubmitted } = useQuery({
     queryKey: ["weekly-checkin-status", user?.id],
