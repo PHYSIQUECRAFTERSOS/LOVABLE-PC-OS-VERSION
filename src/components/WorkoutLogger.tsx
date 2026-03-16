@@ -141,7 +141,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [exerciseModifications, setExerciseModifications] = useState<ExerciseModification[]>([]);
   const [switchingExIdx, setSwitchingExIdx] = useState<number | null>(null);
   const [showFinishModal, setShowFinishModal] = useState(false);
-  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Inline rest timer state: which exercise index + which set index the timer appears after
   const [restTimer, setRestTimer] = useState<{ exIdx: number; setIdx: number; seconds: number; startedAt: number } | null>(null);
