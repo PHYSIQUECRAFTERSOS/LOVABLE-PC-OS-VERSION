@@ -189,17 +189,10 @@ Deno.serve(async (req) => {
         }
 
         case "missed_checkin": {
-          // Strategy: Check if the client hasn't submitted their weekly check-in
-          // for the current week (Monday-Sunday PST window).
-          // Fire at 5 AM client local time, only on Thursday+ (giving them until Wednesday to submit).
+          // Two detection strategies:
+          // A) Calendar-based: check-in event was scheduled yesterday and NOT completed → fire next day 5 AM
+          // B) Weekly window: client hasn't submitted a check-in this week AND it's Thursday+ → fire at 5 AM
           const mondayStr = getCurrentWeekMondayPST();
-          const currentDayPST = getDayOfWeekPST();
-
-          // Only evaluate on Thursday (4) or later — give clients until Wed to submit
-          if (currentDayPST < 4 && currentDayPST !== 0) {
-            // It's Mon-Wed, too early to flag as missed
-            break;
-          }
 
           for (const cid of clientIds) {
             const profile = profileMap.get(cid);
@@ -209,41 +202,70 @@ Deno.serve(async (req) => {
             // Only fire at 5 AM local time (5:00-5:59 window)
             if (localHour !== 5) continue;
 
-            // Check if client submitted a check-in this week
-            const { data: weekSubmissions } = await supabase
+            const yesterday = getYesterdayLocal(tz);
+
+            // Strategy A: Was there a check-in calendar event yesterday that wasn't completed?
+            const { data: yesterdayCheckinEvents } = await supabase
+              .from("calendar_events")
+              .select("id, is_completed")
+              .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
+              .eq("event_type", "checkin")
+              .eq("event_date", yesterday)
+              .limit(1);
+
+            const hadScheduledCheckin = yesterdayCheckinEvents && yesterdayCheckinEvents.length > 0;
+            const completedScheduledCheckin = yesterdayCheckinEvents?.some((e: any) => e.is_completed);
+
+            // Check if client submitted any check-in recently (yesterday or this week)
+            const { data: recentSubmission } = await supabase
               .from("checkin_submissions")
               .select("id")
               .eq("client_id", cid)
-              .gte("submitted_at", `${mondayStr}T00:00:00Z`)
+              .gte("submitted_at", `${yesterday}T00:00:00Z`)
               .not("submitted_at", "is", null)
               .limit(1);
 
-            if (weekSubmissions && weekSubmissions.length > 0) {
-              // Client already submitted this week — not missed
+            const hasRecentSubmission = recentSubmission && recentSubmission.length > 0;
+
+            // Strategy A: specific calendar event missed yesterday
+            if (hadScheduledCheckin && !completedScheduledCheckin && !hasRecentSubmission) {
+              eligibleClients.push(cid);
               continue;
             }
 
-            // Also check calendar_events for check-in completion this week
-            const sundayDate = new Date(mondayStr);
-            sundayDate.setDate(sundayDate.getDate() + 6);
-            const sundayStr = sundayDate.toISOString().split("T")[0];
+            // Strategy B: weekly window check (Thursday+)
+            const currentDayPST = getDayOfWeekPST();
+            if (currentDayPST >= 4 || currentDayPST === 0) {
+              // Check if client submitted this week at all
+              const { data: weekSubmissions } = await supabase
+                .from("checkin_submissions")
+                .select("id")
+                .eq("client_id", cid)
+                .gte("submitted_at", `${mondayStr}T00:00:00Z`)
+                .not("submitted_at", "is", null)
+                .limit(1);
 
-            const { data: completedCheckinEvents } = await supabase
-              .from("calendar_events")
-              .select("id")
-              .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
-              .eq("event_type", "checkin")
-              .gte("event_date", mondayStr)
-              .lte("event_date", sundayStr)
-              .eq("is_completed", true)
-              .limit(1);
+              if (!weekSubmissions || weekSubmissions.length === 0) {
+                // Also verify no completed calendar checkin this week
+                const sundayDate = new Date(mondayStr);
+                sundayDate.setDate(sundayDate.getDate() + 6);
+                const sundayStr = sundayDate.toISOString().split("T")[0];
 
-            if (completedCheckinEvents && completedCheckinEvents.length > 0) {
-              continue;
+                const { data: completedThisWeek } = await supabase
+                  .from("calendar_events")
+                  .select("id")
+                  .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
+                  .eq("event_type", "checkin")
+                  .gte("event_date", mondayStr)
+                  .lte("event_date", sundayStr)
+                  .eq("is_completed", true)
+                  .limit(1);
+
+                if (!completedThisWeek || completedThisWeek.length === 0) {
+                  eligibleClients.push(cid);
+                }
+              }
             }
-
-            // Client hasn't submitted this week — they're eligible
-            eligibleClients.push(cid);
           }
           break;
         }
