@@ -277,6 +277,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const saveStatusTimeout = useRef<NodeJS.Timeout | null>(null);
   const [phases, setPhases] = useState<ProgramPhase[]>([]);
   const [programDetails, setProgramDetails] = useState<any>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Workout builder modal
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
@@ -761,7 +764,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     try {
       const totalDuration = phasesToSave.reduce((s, p) => s + p.durationWeeks, 0);
 
-      const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+      const updatedName = programDetails?.name || programName;
+      const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration, name: updatedName } as any).eq("id", programId);
       if (updateErr) throw updateErr;
 
       // Delete existing program_workouts linked to this program's phases
@@ -843,10 +847,40 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 group">
           <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
-            <h2 className="text-xl font-bold text-foreground">{programDetails?.name || programName}</h2>
+            {editingName ? (
+              <Input
+                ref={nameInputRef}
+                value={nameValue}
+                onChange={e => setNameValue(e.target.value)}
+                onBlur={() => {
+                  const trimmed = nameValue.trim();
+                  if (trimmed && trimmed !== (programDetails?.name || programName)) {
+                    setProgramDetails((prev: any) => prev ? { ...prev, name: trimmed } : prev);
+                  } else {
+                    setNameValue(programDetails?.name || programName);
+                  }
+                  setEditingName(false);
+                }}
+                onKeyDown={e => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") { setNameValue(programDetails?.name || programName); setEditingName(false); }
+                }}
+                className="text-xl font-bold h-9 px-2 bg-secondary border-primary/40"
+                autoFocus
+              />
+            ) : (
+              <h2
+                className="text-xl font-bold text-foreground cursor-pointer hover:text-primary transition-colors flex items-center gap-1.5"
+                onClick={() => { setNameValue(programDetails?.name || programName); setEditingName(true); setTimeout(() => nameInputRef.current?.select(), 50); }}
+                title="Click to rename"
+              >
+                {programDetails?.name || programName}
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </h2>
+            )}
             <div className="flex items-center gap-2 mt-0.5">
               {programDetails?.is_master && <Badge className="text-[10px] bg-primary/20 text-primary">Master</Badge>}
               <Badge variant="outline" className="text-[10px]">v{programDetails?.version_number || 1}</Badge>
