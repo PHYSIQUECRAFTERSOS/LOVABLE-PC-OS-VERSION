@@ -57,6 +57,15 @@ function clearCachedRoles(userId?: string) {
   } catch {}
 }
 
+function areRolesEqual(current: AppRole[], next: AppRole[]) {
+  if (current.length !== next.length) return false;
+
+  const left = [...current].sort();
+  const right = [...next].sort();
+
+  return left.every((role, index) => role === right[index]);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
