@@ -567,8 +567,6 @@ const CoachCommandCenter = () => {
         </Card>
       </div>
 
-      {/* ─── SECTION 6: Weekly Check-In Dashboard ─── */}
-      <CheckinSubmissionDashboard />
 
       {/* ─── SECTION 5: Messaging Quick Access ─── */}
       {unreadThreads.length > 0 && (
