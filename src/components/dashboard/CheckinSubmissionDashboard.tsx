@@ -175,36 +175,39 @@ const CheckinSubmissionDashboard = () => {
       const notSubmitted: CheckinClient[] = [];
       const offWeek: CheckinClient[] = [];
 
-      // Process each client with an active assignment
-      const processedClients = new Set<string>();
+      // Build a map of assignment info per client (if any)
+      const assignmentMap = new Map<string, typeof checkinAssignments[0]>();
+      for (const a of checkinAssignments) {
+        if (!assignmentMap.has(a.client_id)) assignmentMap.set(a.client_id, a);
+      }
 
-      for (const assignment of checkinAssignments) {
-        if (processedClients.has(assignment.client_id)) continue;
-        processedClients.add(assignment.client_id);
-
-        const profile = profileMap.get(assignment.client_id);
-        const submission = submissionMap.get(assignment.client_id);
+      // Process ALL coach clients — fall back to "weekly" if no assignment exists
+      for (const cid of clientIds) {
+        const assignment = assignmentMap.get(cid);
+        const profile = profileMap.get(cid);
+        const submission = submissionMap.get(cid);
         const tz = profile?.timezone || null;
+        const recurrence = assignment?.recurrence || "weekly";
+        const nextDueDate = assignment?.next_due_date || null;
 
         const baseClient: CheckinClient = {
-          clientId: assignment.client_id,
+          clientId: cid,
           clientName: profile?.full_name || "Client",
           avatarUrl: profile?.avatar_url || null,
           submittedAt: submission?.submitted_at || null,
           formattedTime: submission?.submitted_at
             ? formatTimestampInTz(submission.submitted_at, tz)
             : "",
-          recurrence: assignment.recurrence || "weekly",
-          nextDueDate: assignment.next_due_date || null,
+          recurrence,
+          nextDueDate,
           timezone: tz,
         };
 
         // Check if biweekly and off-week
-        if (assignment.recurrence === "biweekly" && assignment.next_due_date) {
-          const nextDue = new Date(assignment.next_due_date);
+        if (recurrence === "biweekly" && nextDueDate) {
+          const nextDue = new Date(nextDueDate);
           const sundayDate = new Date(sundayStr + "T23:59:59");
           if (nextDue > sundayDate) {
-            // Off-week: next due is after this Sunday
             offWeek.push(baseClient);
             continue;
           }
@@ -212,14 +215,11 @@ const CheckinSubmissionDashboard = () => {
 
         if (submission?.submitted_at) {
           const dayOfWeek = getDayOfWeekPST(submission.submitted_at);
-          // Tue=2, Wed=3
           if (dayOfWeek === 2 || dayOfWeek === 3) {
             submittedWednesday.push(baseClient);
           } else if (dayOfWeek === 4) {
-            // Thu=4
             submittedThursday.push(baseClient);
           } else {
-            // Submitted on other days (Mon, Fri, etc.) — put in Wednesday bucket as "early/late"
             if (dayOfWeek <= 3) {
               submittedWednesday.push(baseClient);
             } else {
@@ -227,12 +227,9 @@ const CheckinSubmissionDashboard = () => {
             }
           }
         } else {
-          // Not submitted
           notSubmitted.push(baseClient);
         }
       }
-
-      // Also check clients without assignments — they shouldn't appear
       // Sort each list alphabetically
       const sortByName = (a: CheckinClient, b: CheckinClient) =>
         a.clientName.localeCompare(b.clientName);
