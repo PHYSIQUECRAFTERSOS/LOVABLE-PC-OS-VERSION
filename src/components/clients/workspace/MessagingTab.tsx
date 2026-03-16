@@ -200,9 +200,9 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
                     )}>
                       {msg.attachment_url && msg.attachment_type && (
                         <div className="mb-1">
-                          <MessageAttachment
+                         <MessageAttachment
                             url={msg.attachment_url}
-                            type={msg.attachment_type as "image" | "video" | "pdf"}
+                            type={msg.attachment_type as "image" | "video" | "pdf" | "audio"}
                             name={msg.attachment_name || undefined}
                             isOwn={isMe}
                           />
