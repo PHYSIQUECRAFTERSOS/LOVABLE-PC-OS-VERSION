@@ -903,65 +903,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         </DialogContent>
       </Dialog>
 
-      {/* Finish Workout Modal — 3-option Strong-style */}
-      <Dialog open={showFinishModal} onOpenChange={(open) => { setShowFinishModal(open); if (!open) setShowDiscardConfirm(false); }}>
-        <DialogContent className="max-w-sm border-primary/30">
+      {/* Finish Workout Confirmation */}
+      <AlertDialog open={showFinishModal} onOpenChange={(open) => { setShowFinishModal(open); if (!open) setShowDiscardConfirm(false); }}>
+        <AlertDialogContent>
           <div className="flex flex-col items-center text-center space-y-4 py-2">
-            <span className="text-4xl">🎉</span>
-            <div>
-              <h3 className="text-lg font-bold text-foreground">Finish Workout?</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                There are sets in this workout that have not been logged yet.
-              </p>
-            </div>
-
-            <div className="w-full space-y-3 pt-2">
-              <Button
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                size="lg"
-                onClick={finishAnyway}
-                disabled={loading}
-              >
-                {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-                Finish Anyway
-              </Button>
-
-              <div className="w-full">
-                <Button
-                  variant="outline"
-                  className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 font-semibold"
-                  size="lg"
-                  onClick={() => setShowDiscardConfirm(true)}
-                >
-                  Discard Workout
-                </Button>
-                {showDiscardConfirm && (
-                  <div className="mt-2 text-center">
-                    <p className="text-xs text-muted-foreground mb-2">Are you sure? This will delete all logged sets.</p>
-                    <div className="flex justify-center gap-3">
-                      <button className="text-xs font-semibold text-destructive" onClick={discardWorkout}>
-                        Yes, Discard
-                      </button>
-                      <button className="text-xs text-muted-foreground" onClick={() => setShowDiscardConfirm(false)}>
-                        Go Back
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <Button
-                variant="secondary"
-                className="w-full"
-                size="lg"
-                onClick={() => { setShowFinishModal(false); setShowDiscardConfirm(false); }}
-              >
-                Cancel
-              </Button>
-            </div>
+            <span className="text-4xl">💯</span>
+            <AlertDialogTitle className="text-lg font-bold text-foreground">Finished your workout 💯?</AlertDialogTitle>
           </div>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              size="lg"
+              onClick={() => {
+                setShowFinishModal(false);
+                finishWorkout(hasIncompleteSets());
+              }}
+              disabled={loading}
+            >
+              {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+              Finish
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full font-semibold"
+              size="lg"
+              onClick={() => { setShowFinishModal(false); setShowDiscardConfirm(false); }}
+            >
+              Resume Workout
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
