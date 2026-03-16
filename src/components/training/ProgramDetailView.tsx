@@ -880,6 +880,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                 <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </h2>
             )}
+            <div className="flex items-center gap-2 mt-0.5">
+              {programDetails?.is_master && <Badge className="text-[10px] bg-primary/20 text-primary">Master</Badge>}
               <Badge variant="outline" className="text-[10px]">v{programDetails?.version_number || 1}</Badge>
               <span className="text-xs text-muted-foreground">
                 {phases.length} phase{phases.length !== 1 ? "s" : ""} ·{" "}
