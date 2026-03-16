@@ -195,6 +195,67 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     return () => clearInterval(interval);
   }, [clients]);
 
+  /* ─── Batch load phase end dates for all clients ─── */
+  useEffect(() => {
+    if (clients.length === 0) return;
+    const ids = clients.map((c) => c.id);
+
+    const fetchPhases = async () => {
+      // Get active program assignments for all clients
+      const { data: assignments } = await supabase
+        .from("client_program_assignments")
+        .select("client_id, program_id, current_phase_id, start_date")
+        .in("client_id", ids)
+        .in("status", ["active", "subscribed"]);
+
+      if (!assignments?.length) return;
+
+      // Get all unique program IDs to fetch phases
+      const programIds = [...new Set(assignments.map((a) => a.program_id))];
+      const { data: allPhases } = await supabase
+        .from("program_phases")
+        .select("id, program_id, phase_order, duration_weeks, name")
+        .in("program_id", programIds)
+        .order("phase_order", { ascending: true });
+
+      if (!allPhases?.length) return;
+
+      const phasesByProgram = new Map<string, typeof allPhases>();
+      allPhases.forEach((p) => {
+        if (!phasesByProgram.has(p.program_id)) phasesByProgram.set(p.program_id, []);
+        phasesByProgram.get(p.program_id)!.push(p);
+      });
+
+      const map: Record<string, PhaseInfo> = {};
+      for (const a of assignments) {
+        const phases = phasesByProgram.get(a.program_id);
+        if (!phases?.length || !a.current_phase_id) continue;
+
+        const currentPhase = phases.find((p) => p.id === a.current_phase_id);
+        if (!currentPhase) continue;
+
+        // Sum weeks of prior phases + current phase
+        let totalWeeks = 0;
+        for (const p of phases) {
+          totalWeeks += p.duration_weeks;
+          if (p.id === a.current_phase_id) break;
+        }
+
+        const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
+        const daysLeft = differenceInDays(endDate, new Date());
+
+        map[a.client_id] = {
+          phaseName: currentPhase.name,
+          endDate: format(endDate, "MMM d"),
+          daysLeft,
+        };
+      }
+      setPhaseMap(map);
+    };
+
+    fetchPhases();
+  }, [clients]);
+
   const allTags = useMemo(() => {
     const tags = new Set<string>();
     clients.forEach((c) => c.tags.forEach((t) => tags.add(t)));
