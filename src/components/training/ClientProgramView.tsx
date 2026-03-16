@@ -182,7 +182,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         const { data: directWorkouts } = await supabase
           .from("workouts")
           .select("id, name")
-          .eq("client_id", user?.id || "")
+          .eq("client_id", userId || "")
           .order("created_at");
 
         if (directWorkouts && directWorkouts.length > 0) {

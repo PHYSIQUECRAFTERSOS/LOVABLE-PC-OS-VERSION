@@ -43,6 +43,7 @@ const TRAINING_STYLE_LABELS: Record<string, string> = {
 
 const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const { user } = useAuth();
+  const userId = user?.id;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [assignment, setAssignment] = useState<any>(null);
@@ -78,10 +79,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; names: string[] } | null>(null);
 
-  useEffect(() => { loadClientProgram(); }, [clientId, user]);
+  useEffect(() => { loadClientProgram(); }, [clientId, userId]);
 
   const loadClientProgram = async () => {
-    if (!clientId || !user) return;
+    if (!clientId || !userId) return;
     setLoading(true);
 
     const { data: assignData } = await supabase

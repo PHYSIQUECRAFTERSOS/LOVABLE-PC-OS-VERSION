@@ -13,6 +13,7 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { user, role, loading, roleLoading } = useAuth();
+  const userId = user?.id;
   const location = useLocation();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
@@ -35,7 +36,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   }, [isAuthLoading]);
 
   useEffect(() => {
-    if (!user || !role) return;
+    if (!userId || !role) return;
     if (role !== "client") {
       setOnboardingChecked(true);
       return;
@@ -50,7 +51,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     supabase
       .from("onboarding_profiles")
       .select("onboarding_completed")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -64,7 +65,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return () => {
       cancelled = true;
     };
-  }, [user, role, location.pathname]);
+  }, [userId, role, location.pathname]);
 
   if (isAuthLoading && !stalledLoading) {
     return (

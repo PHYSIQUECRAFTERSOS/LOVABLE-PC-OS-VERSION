@@ -33,6 +33,7 @@ const ClientDetail = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = user?.id;
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dash");
@@ -40,12 +41,12 @@ const ClientDetail = () => {
   const [tags, setTags] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!clientId || !user) return;
+    if (!clientId || !userId) return;
     const load = async () => {
       setLoading(true);
       const [profileRes, tagsRes, programRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
-        supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", user.id),
+        supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
         supabase
           .from("client_program_assignments")
           .select("program_id, programs(name)")
@@ -60,7 +61,7 @@ const ClientDetail = () => {
       setLoading(false);
     };
     load();
-  }, [clientId, user]);
+  }, [clientId, userId]);
 
   if (loading) {
     return (

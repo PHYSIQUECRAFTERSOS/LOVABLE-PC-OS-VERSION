@@ -42,6 +42,7 @@ const GOAL_LABELS: Record<string, string> = {
 
 const MasterLibraries = () => {
   const { user } = useAuth();
+  const userId = user?.id;
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("programs");
   const [programs, setPrograms] = useState<any[]>([]);
@@ -77,12 +78,12 @@ const MasterLibraries = () => {
   const [versions, setVersions] = useState<any[]>([]);
 
   const loadPrograms = async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     const { data } = await supabase
       .from("programs")
       .select("id, name, description, goal_type, is_master, created_at, duration_weeks, tags, version_number")
-      .eq("coach_id", user.id)
+      .eq("coach_id", userId)
       .eq("is_template", true)
       .order("created_at", { ascending: false });
     setPrograms(data || []);
@@ -108,11 +109,11 @@ const MasterLibraries = () => {
   };
 
   const loadClients = async () => {
-    if (!user) return;
+    if (!userId) return;
     const { data, error } = await supabase
       .from("coach_clients")
       .select("client_id")
-      .eq("coach_id", user.id)
+      .eq("coach_id", userId)
       .eq("status", "active");
     if (error || !data) return;
     const clientIds = data.map((d: any) => d.client_id);
@@ -125,7 +126,7 @@ const MasterLibraries = () => {
     setClients(clientIds.map((id: string) => ({ id, name: profileMap.get(id) || id.slice(0, 8) })));
   };
 
-  useEffect(() => { loadPrograms(); loadClients(); }, [user]);
+  useEffect(() => { loadPrograms(); loadClients(); }, [userId]);
 
   const filteredPrograms = programs.filter(p =>
     !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())

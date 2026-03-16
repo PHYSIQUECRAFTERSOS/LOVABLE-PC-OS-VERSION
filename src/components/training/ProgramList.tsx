@@ -26,6 +26,7 @@ const GOAL_LABELS: Record<string, string> = {
 
 const ProgramList = () => {
   const { user } = useAuth();
+  const userId = user?.id;
   const { toast } = useToast();
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,12 +61,12 @@ const ProgramList = () => {
   const [versionProgramId, setVersionProgramId] = useState<string | null>(null);
 
   const loadPrograms = async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     const { data } = await supabase
       .from("programs")
       .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number")
-      .eq("coach_id", user.id)
+      .eq("coach_id", userId)
       .eq("is_template", true)
       .order("created_at", { ascending: false });
     setPrograms(data || []);
@@ -95,11 +96,11 @@ const ProgramList = () => {
   };
 
   const loadClients = async () => {
-    if (!user) return;
+    if (!userId) return;
     const { data, error } = await supabase
       .from("coach_clients")
       .select("client_id")
-      .eq("coach_id", user.id)
+      .eq("coach_id", userId)
       .eq("status", "active");
     if (error || !data) return;
     
@@ -115,7 +116,7 @@ const ProgramList = () => {
     setClients(clientIds.map((id: string) => ({ id, name: profileMap.get(id) || id.slice(0, 8) })));
   };
 
-  useEffect(() => { loadPrograms(); loadClients(); }, [user]);
+  useEffect(() => { loadPrograms(); loadClients(); }, [userId]);
 
   const cloneProgramToClient = async (masterProgramId: string, clientId: string, isLinked: boolean) => {
     if (!user) throw new Error("Not authenticated");

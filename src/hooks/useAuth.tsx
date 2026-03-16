@@ -292,13 +292,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setRoles([]);
+    setRolesIfChanged([]);
     setLoading(false);
     setRoleLoading(false);
     autoAcceptAttempted.current = false;
     activeUserIdRef.current = null;
     if (userId) clearCachedRoles(userId);
-  }, []);
+  }, [setRolesIfChanged]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
