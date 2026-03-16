@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { unlockAudio } from "@/utils/restTimerAudio";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
