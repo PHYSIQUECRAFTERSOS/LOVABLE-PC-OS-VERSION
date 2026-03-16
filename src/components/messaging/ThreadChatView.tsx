@@ -282,9 +282,13 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
             placeholder="Type a message..."
             className="flex-1"
           />
-          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
+          {newMessage.trim() ? (
+            <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          ) : (
+            <VoiceMessageRecorder threadId={threadId} onSent={fetchMessages} />
+          )}
         </div>
       </div>
     </div>
