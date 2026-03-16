@@ -1,122 +1,70 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Check-In Submission Dashboard for Coach Command Center
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Overview
 
----
+A new section at the bottom of the Coach Command Center showing weekly check-in submission status across all clients, organized into three groups: submitted Wednesday, submitted Thursday, and not submitted (at-risk). Resets every Monday at midnight PST. Biweekly clients on off-weeks shown separately with their next due date.
 
-## Phase 1 — MVP (Core Platform)
+## Database Changes
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+### 1. Add `checkin_dashboard_week_start` view concept (no migration needed)
+The dashboard will compute the current week window dynamically in the query (Monday-to-Sunday PST window). No new tables needed — we query `checkin_submissions` and `checkin_assignments` directly.
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+### 2. Enable realtime on `checkin_submissions`
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.checkin_submissions;
+```
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+This lets the dashboard update live when clients submit check-ins.
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+## Data Architecture
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+The query logic inside `CoachCommandCenter.tsx`:
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+1. Fetch active `checkin_assignments` for all coach's clients (includes `recurrence`, `next_due_date`, `client_id`)
+2. Compute current week window: Monday 00:00 PST to Sunday 23:59 PST
+3. Fetch `checkin_submissions` where `client_id` is in coach's clients and `submitted_at` falls within current week
+4. Fetch `profiles` for timezone data (already fetched)
+5. Categorize:
+   - **Biweekly off-week**: `recurrence = 'biweekly'` AND `next_due_date` is after this week's Sunday → show with "Next due: [date]" label
+   - **Submitted Wednesday** (Tue/Wed): `submitted_at` day-of-week is Tuesday or Wednesday
+   - **Submitted Thursday**: `submitted_at` day-of-week is Thursday
+   - **Not Submitted**: active weekly assignment (or biweekly due this week) with no submission this week, checked after Thursday → flagged at-risk
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+Timestamps displayed using client's `profiles.timezone` via `Intl.DateTimeFormat`.
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+## UI Design
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+New section after the existing content, titled "Weekly Check-In Dashboard" with `ClipboardCheck` icon.
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+Three columns (responsive: stacked on mobile):
 
----
+| Submitted Wednesday | Submitted Thursday | Not Submitted (At-Risk) |
+|---|---|---|
+| Green left border | Blue left border | Red left border |
+| Client name (tappable → `/clients/:id?tab=checkin`) | Same | Same + ⚠️ badge |
+| Timestamp in client's TZ | Timestamp in client's TZ | "Overdue" label |
 
-## Phase 2 — Advanced Features
+Below the three columns, a separate "Off-Week Clients" row showing biweekly clients with a `🔄` badge and "Next: [date]" label.
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+Each client name navigates to `/clients/${clientId}` (their check-in history tab).
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+## Realtime
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+Subscribe to `postgres_changes` on `checkin_submissions` for the coach's client IDs. On new insert, re-fetch the dashboard data (invalidate cache).
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
+## Files Changed
 
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
+| File | Change |
+|------|--------|
+| **Migration** | Enable realtime on `checkin_submissions` |
+| `src/components/dashboard/CoachCommandCenter.tsx` | Add check-in dashboard section with three submission groups + biweekly off-week display + realtime subscription |
 
----
+## Performance
 
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+- Parallel fetch with existing queries (added to `Promise.all`)
+- Uses existing `useDataFetch` with 2-min stale time
+- Realtime channel for live updates without polling
+- Under 3s load guaranteed by existing timeout infrastructure
 
