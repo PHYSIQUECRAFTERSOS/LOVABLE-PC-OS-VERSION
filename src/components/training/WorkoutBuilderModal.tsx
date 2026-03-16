@@ -483,6 +483,32 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     }
   }, [open]);
 
+  const handleDialogClose = useCallback(async () => {
+    persistDraftToSession();
+
+    if (editWorkoutId && workoutName.trim() && buildDraftSnapshot() !== lastPersistedSnapshotRef.current) {
+      try {
+        await persistExistingWorkoutChanges();
+        setTransientAutoSaveState("saved");
+      } catch (error) {
+        console.error("[WorkoutBuilder] Final sync before close failed:", error);
+        setTransientAutoSaveState("error");
+      }
+    }
+
+    savedSuccessfullyRef.current = true;
+
+    if (editWorkoutId && syncedDuringSessionRef.current) {
+      try {
+        await onSave(editWorkoutId, workoutName.trim() || workoutName || "Workout");
+      } catch (error) {
+        console.error("[WorkoutBuilder] Parent sync after autosave failed:", error);
+      }
+    }
+
+    onClose();
+  }, [persistDraftToSession, editWorkoutId, workoutName, buildDraftSnapshot, persistExistingWorkoutChanges, setTransientAutoSaveState, onSave, onClose]);
+
   const discardAndClose = () => {
     try { sessionStorage.removeItem(draftKey); } catch {}
     // Reset state immediately since user is intentionally discarding
@@ -490,6 +516,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
     setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
     setPreviewExerciseIdx(null);
+    savedSuccessfullyRef.current = true;
     onClose();
   };
 
