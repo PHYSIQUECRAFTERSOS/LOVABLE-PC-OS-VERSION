@@ -71,10 +71,11 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   });
 
   const getWeekNumber = () => {
+    if (!assignedAt) return 1;
     const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
+    const start = new Date(assignedAt);
     const diff = now.getTime() - start.getTime();
-    return Math.ceil(diff / (7 * 24 * 60 * 60 * 1000));
+    return Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1);
   };
 
   const getPSTTime = () => {
