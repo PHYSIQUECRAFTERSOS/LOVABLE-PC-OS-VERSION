@@ -847,7 +847,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 group">
           <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
             {editingName ? (
