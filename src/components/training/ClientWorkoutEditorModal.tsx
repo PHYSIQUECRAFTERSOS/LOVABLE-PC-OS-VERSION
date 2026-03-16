@@ -279,7 +279,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
         <DialogContent className="max-w-6xl h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 py-3 border-b flex-shrink-0">
             <div className="flex items-center justify-between">
