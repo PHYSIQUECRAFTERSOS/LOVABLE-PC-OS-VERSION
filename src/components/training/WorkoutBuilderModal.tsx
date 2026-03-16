@@ -499,7 +499,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const previewEmbedUrl = previewEx ? getYouTubeEmbedUrl(previewEx.youtubeUrl) : null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && clearDraftAndClose()}>
       <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-3 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
