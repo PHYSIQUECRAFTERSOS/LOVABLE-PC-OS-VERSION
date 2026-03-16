@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,8 @@ import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layer
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import WorkoutBuilderModal from "./WorkoutBuilderModal";
+
+const WorkoutBuilderModal = lazy(() => import("./WorkoutBuilderModal"));
 
 const GOAL_TYPES = [
   { label: "Hypertrophy", value: "hypertrophy" },
@@ -90,7 +91,6 @@ interface ProgramBuilderProps {
   editProgramId?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -780,12 +780,14 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
 
       {/* Full Workout Builder Modal */}
       {user && (
-        <WorkoutBuilderModal
-          open={showWorkoutBuilder}
-          onClose={() => setShowWorkoutBuilder(false)}
-          onSave={handleWorkoutBuilderSave}
-          coachId={user.id}
-        />
+        <Suspense fallback={null}>
+          <WorkoutBuilderModal
+            open={showWorkoutBuilder}
+            onClose={() => setShowWorkoutBuilder(false)}
+            onSave={handleWorkoutBuilderSave}
+            coachId={user.id}
+          />
+        </Suspense>
       )}
     </div>
   );
