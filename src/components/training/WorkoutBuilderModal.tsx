@@ -119,6 +119,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
@@ -172,90 +173,299 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   useEffect(() => { if (open) loadLibrary(); }, [open, loadLibrary]);
 
-  // Load existing workout
-  useEffect(() => {
-    if (!editWorkoutId || !open) return;
-    const loadWorkout = async () => {
-      setLoading(true);
-      const { data: workout } = await supabase.from("workouts").select("name, instructions").eq("id", editWorkoutId).single();
-      if (workout) { setWorkoutName(workout.name); setInstructions(workout.instructions || ""); }
-
-      const { data: exRows } = await supabase
-        .from("workout_exercises")
-        .select("id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id, exercises(name, youtube_thumbnail, youtube_url)")
-        .eq("workout_id", editWorkoutId)
-        .order("exercise_order");
-
-      if (exRows) {
-        const loaded = exRows.map((ex: any) => ({
-          id: ex.id,
-          exerciseId: ex.exercise_id,
-          exerciseName: ex.exercises?.name || "Unknown",
-          thumbnail: ex.exercises?.youtube_thumbnail || null,
-          youtubeUrl: ex.exercises?.youtube_url || null,
-          exerciseOrder: ex.exercise_order,
-          sets: ex.sets || 3,
-          reps: ex.reps || "10",
-          tempo: ex.tempo || "",
-          restSeconds: ex.rest_seconds || 60,
-          rir: ex.rir?.toString() || "",
-          rpe: ex.rpe_target?.toString() || "",
-          notes: ex.notes || "",
-          groupingType: (ex as any).grouping_type || null,
-          groupingId: (ex as any).grouping_id || null,
-          selected: false,
-        }));
-        setExercises(loaded);
-        if (loaded.some((e: WorkoutExercise) => e.rpe)) setUseRpe(true);
-        if (loaded.some((e: WorkoutExercise) => e.tempo)) setUseTempo(true);
-        // RIR defaults to ON; only turn off if no exercise has a RIR value
-        if (!loaded.some((e: WorkoutExercise) => e.rir)) setUseRir(false);
-        else setUseRir(true);
-      }
-      setLoading(false);
-    };
-    loadWorkout();
-  }, [editWorkoutId, open]);
-
-  // ── sessionStorage draft persistence ──
+  // ── sessionStorage draft persistence + resilient autosave ──
   const draftKey = `workout_draft_${editWorkoutId || "new"}_${coachId}`;
   const savedSuccessfullyRef = useRef(false);
+  const hydratedRef = useRef(false);
+  const lastPersistedSnapshotRef = useRef("");
+  const autoSaveInFlightRef = useRef(false);
+  const queuedAutoSaveRef = useRef(false);
+  const syncedDuringSessionRef = useRef(false);
+  const autoSaveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Save draft on state changes (debounced)
-  useEffect(() => {
-    if (!open) return;
-    const timer = setTimeout(() => {
-      if (workoutName || exercises.length > 0) {
-        try {
-          sessionStorage.setItem(draftKey, JSON.stringify({
-            workoutName, instructions, exercises, useRpe, useTempo, useRir,
-          }));
-        } catch { /* quota exceeded — ignore */ }
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, draftKey]);
+  const buildDraftSnapshot = useCallback(() => JSON.stringify({
+    workoutName,
+    instructions,
+    exercises: exercises.map(({ selected, ...exercise }) => ({ ...exercise, selected: false })),
+    useRpe,
+    useTempo,
+    useRir,
+  }), [workoutName, instructions, exercises, useRpe, useTempo, useRir]);
 
-  // Restore draft on open (for both new and edit workouts)
-  useEffect(() => {
+  const applyDraftState = useCallback((draft: any) => {
+    setWorkoutName(draft.workoutName || "");
+    setInstructions(draft.instructions || "");
+    setExercises(Array.isArray(draft.exercises)
+      ? draft.exercises.map((exercise: WorkoutExercise, index: number) => ({
+          ...exercise,
+          exerciseOrder: exercise.exerciseOrder || index + 1,
+          selected: false,
+        }))
+      : []);
+    setUseRpe(Boolean(draft.useRpe));
+    setUseTempo(Boolean(draft.useTempo));
+    setUseRir(draft.useRir !== undefined ? Boolean(draft.useRir) : true);
+  }, []);
+
+  const persistDraftToSession = useCallback(() => {
     if (!open) return;
-    // For edit workouts, skip restore — DB load handles it
-    if (editWorkoutId) return;
     try {
-      const raw = sessionStorage.getItem(draftKey);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        if (draft.workoutName) setWorkoutName(draft.workoutName);
-        if (draft.instructions) setInstructions(draft.instructions);
-        if (draft.exercises?.length) setExercises(draft.exercises);
-        if (draft.useRpe !== undefined) setUseRpe(draft.useRpe);
-        if (draft.useTempo !== undefined) setUseTempo(draft.useTempo);
-        if (draft.useRir !== undefined) setUseRir(draft.useRir);
+      const snapshot = buildDraftSnapshot();
+      const hasContent = workoutName.trim() || instructions.trim() || exercises.length > 0;
+      if (hasContent) {
+        sessionStorage.setItem(draftKey, snapshot);
+      } else {
+        sessionStorage.removeItem(draftKey);
       }
-    } catch { /* parse error — ignore */ }
-  }, [open, editWorkoutId, draftKey]);
+    } catch {
+      // Ignore storage quota / serialization failures and keep in-memory state intact.
+    }
+  }, [open, buildDraftSnapshot, draftKey, workoutName, instructions, exercises.length]);
 
-  // Clear state only after a successful save
+  const setTransientAutoSaveState = useCallback((state: "idle" | "saving" | "saved" | "error") => {
+    if (autoSaveStatusTimeoutRef.current) clearTimeout(autoSaveStatusTimeoutRef.current);
+    setAutoSaveState(state);
+    if (state === "saved") {
+      autoSaveStatusTimeoutRef.current = setTimeout(() => setAutoSaveState("idle"), 1800);
+    }
+  }, []);
+
+  const persistExistingWorkoutChanges = useCallback(async () => {
+    if (!editWorkoutId) return false;
+    const trimmedName = workoutName.trim();
+    if (!trimmedName) return false;
+
+    const { error: updateErr } = await supabase
+      .from("workouts")
+      .update({ name: trimmedName, instructions: instructions || null })
+      .eq("id", editWorkoutId);
+    if (updateErr) throw updateErr;
+
+    const { error: deleteErr } = await supabase
+      .from("workout_exercises")
+      .delete()
+      .eq("workout_id", editWorkoutId);
+    if (deleteErr) throw deleteErr;
+
+    if (exercises.length > 0) {
+      const { data: insertedExercises, error: insertErr } = await supabase
+        .from("workout_exercises")
+        .insert(
+          exercises.map((exercise, index) => ({
+            workout_id: editWorkoutId,
+            exercise_id: exercise.exerciseId,
+            exercise_order: index + 1,
+            sets: exercise.sets,
+            reps: exercise.reps || null,
+            tempo: useTempo ? (exercise.tempo || null) : null,
+            rest_seconds: exercise.restSeconds || null,
+            rir: useRir ? (exercise.rir ? parseInt(exercise.rir, 10) : null) : null,
+            rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+            notes: exercise.notes || null,
+            superset_group: null,
+            grouping_type: exercise.groupingType || null,
+            grouping_id: exercise.groupingId || null,
+          }))
+        )
+        .select("id");
+      if (insertErr) throw insertErr;
+
+      const setRows = (insertedExercises || []).flatMap((workoutExercise, index) => {
+        const exercise = exercises[index];
+        return Array.from({ length: exercise.sets }, (_, setIndex) => ({
+          workout_exercise_id: workoutExercise.id,
+          set_number: setIndex + 1,
+          rep_target: exercise.reps || null,
+          rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+          set_type: "working",
+        }));
+      });
+
+      if (setRows.length > 0) {
+        const { error: setErr } = await supabase.from("workout_sets").insert(setRows);
+        if (setErr) throw setErr;
+      }
+    }
+
+    lastPersistedSnapshotRef.current = buildDraftSnapshot();
+    syncedDuringSessionRef.current = true;
+    return true;
+  }, [editWorkoutId, workoutName, instructions, exercises, useTempo, useRir, useRpe, buildDraftSnapshot]);
+
+  const triggerAutoSave = useCallback(async () => {
+    if (!open || !editWorkoutId || !hydratedRef.current || loading || saving) return;
+    if (!workoutName.trim()) return;
+
+    const nextSnapshot = buildDraftSnapshot();
+    if (nextSnapshot === lastPersistedSnapshotRef.current) return;
+
+    if (autoSaveInFlightRef.current) {
+      queuedAutoSaveRef.current = true;
+      return;
+    }
+
+    autoSaveInFlightRef.current = true;
+    setTransientAutoSaveState("saving");
+
+    try {
+      await persistExistingWorkoutChanges();
+      setTransientAutoSaveState("saved");
+    } catch (error) {
+      console.error("[WorkoutBuilder] Autosave failed:", error);
+      setTransientAutoSaveState("error");
+    } finally {
+      autoSaveInFlightRef.current = false;
+      if (queuedAutoSaveRef.current) {
+        queuedAutoSaveRef.current = false;
+        if (buildDraftSnapshot() !== lastPersistedSnapshotRef.current) {
+          void triggerAutoSave();
+        }
+      }
+    }
+  }, [open, editWorkoutId, loading, saving, workoutName, buildDraftSnapshot, persistExistingWorkoutChanges, setTransientAutoSaveState]);
+
+  useEffect(() => {
+    if (!open) return;
+    hydratedRef.current = false;
+    syncedDuringSessionRef.current = false;
+    queuedAutoSaveRef.current = false;
+    setAutoSaveState("idle");
+
+    let cancelled = false;
+
+    const hydrateBuilder = async () => {
+      setLoading(Boolean(editWorkoutId));
+
+      try {
+        const rawDraft = sessionStorage.getItem(draftKey);
+        if (rawDraft) {
+          applyDraftState(JSON.parse(rawDraft));
+          lastPersistedSnapshotRef.current = editWorkoutId ? "" : rawDraft;
+          return;
+        }
+
+        if (!editWorkoutId) {
+          setWorkoutName("");
+          setInstructions("");
+          setExercises([]);
+          setUseRpe(false);
+          setUseTempo(false);
+          setUseRir(true);
+          lastPersistedSnapshotRef.current = "";
+          return;
+        }
+
+        const { data: workout, error: workoutErr } = await supabase
+          .from("workouts")
+          .select("name, instructions")
+          .eq("id", editWorkoutId)
+          .single();
+        if (workoutErr) throw workoutErr;
+
+        const { data: exRows, error: exerciseErr } = await supabase
+          .from("workout_exercises")
+          .select("id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id, exercises(name, youtube_thumbnail, youtube_url)")
+          .eq("workout_id", editWorkoutId)
+          .order("exercise_order");
+        if (exerciseErr) throw exerciseErr;
+
+        if (cancelled) return;
+
+        const loadedExercises = (exRows || []).map((exercise: any) => ({
+          id: exercise.id,
+          exerciseId: exercise.exercise_id,
+          exerciseName: exercise.exercises?.name || "Unknown",
+          thumbnail: exercise.exercises?.youtube_thumbnail || null,
+          youtubeUrl: exercise.exercises?.youtube_url || null,
+          exerciseOrder: exercise.exercise_order,
+          sets: exercise.sets || 3,
+          reps: exercise.reps || "10",
+          tempo: exercise.tempo || "",
+          restSeconds: exercise.rest_seconds || 60,
+          rir: exercise.rir?.toString() || "",
+          rpe: exercise.rpe_target?.toString() || "",
+          notes: exercise.notes || "",
+          groupingType: exercise.grouping_type || null,
+          groupingId: exercise.grouping_id || null,
+          selected: false,
+        }));
+
+        const loadedDraft = {
+          workoutName: workout?.name || "",
+          instructions: workout?.instructions || "",
+          exercises: loadedExercises,
+          useRpe: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.rpe)),
+          useTempo: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.tempo)),
+          useRir: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.rir)),
+        };
+
+        applyDraftState(loadedDraft);
+        lastPersistedSnapshotRef.current = JSON.stringify({
+          workoutName: loadedDraft.workoutName,
+          instructions: loadedDraft.instructions,
+          exercises: loadedExercises.map(({ selected, ...exercise }) => ({ ...exercise, selected: false })),
+          useRpe: loadedDraft.useRpe,
+          useTempo: loadedDraft.useTempo,
+          useRir: loadedDraft.useRir,
+        });
+      } catch (error: any) {
+        console.error("[WorkoutBuilder] Failed to hydrate builder:", error);
+        toast({ title: "Failed to load workout", description: error.message, variant: "destructive" });
+      } finally {
+        if (!cancelled) {
+          hydratedRef.current = true;
+          setLoading(false);
+        }
+      }
+    };
+
+    void hydrateBuilder();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, editWorkoutId, draftKey, applyDraftState, toast]);
+
+  useEffect(() => {
+    if (!open || !hydratedRef.current) return;
+    const timer = setTimeout(() => persistDraftToSession(), 250);
+    return () => clearTimeout(timer);
+  }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, persistDraftToSession]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const flushDraft = () => persistDraftToSession();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushDraft();
+        if (editWorkoutId) void triggerAutoSave();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", flushDraft);
+    window.addEventListener("beforeunload", flushDraft);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", flushDraft);
+      window.removeEventListener("beforeunload", flushDraft);
+    };
+  }, [open, editWorkoutId, persistDraftToSession, triggerAutoSave]);
+
+  useEffect(() => {
+    if (!open || !editWorkoutId || !hydratedRef.current || loading || saving) return;
+    if (buildDraftSnapshot() === lastPersistedSnapshotRef.current) return;
+
+    const timer = setTimeout(() => {
+      void triggerAutoSave();
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [open, editWorkoutId, loading, saving, workoutName, instructions, exercises, useRpe, useTempo, useRir, buildDraftSnapshot, triggerAutoSave]);
+
+  // Clear state only after a successful save/close — never on tab switch or focus loss.
   useEffect(() => {
     if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
@@ -263,8 +473,41 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
       setPreviewExerciseIdx(null);
       savedSuccessfullyRef.current = false;
+      hydratedRef.current = false;
+      lastPersistedSnapshotRef.current = "";
+      queuedAutoSaveRef.current = false;
+      autoSaveInFlightRef.current = false;
+      syncedDuringSessionRef.current = false;
+      if (autoSaveStatusTimeoutRef.current) clearTimeout(autoSaveStatusTimeoutRef.current);
+      setAutoSaveState("idle");
     }
   }, [open]);
+
+  const handleDialogClose = useCallback(async () => {
+    persistDraftToSession();
+
+    if (editWorkoutId && workoutName.trim() && buildDraftSnapshot() !== lastPersistedSnapshotRef.current) {
+      try {
+        await persistExistingWorkoutChanges();
+        setTransientAutoSaveState("saved");
+      } catch (error) {
+        console.error("[WorkoutBuilder] Final sync before close failed:", error);
+        setTransientAutoSaveState("error");
+      }
+    }
+
+    savedSuccessfullyRef.current = true;
+
+    if (editWorkoutId && syncedDuringSessionRef.current) {
+      try {
+        await onSave(editWorkoutId, workoutName.trim() || workoutName || "Workout");
+      } catch (error) {
+        console.error("[WorkoutBuilder] Parent sync after autosave failed:", error);
+      }
+    }
+
+    onClose();
+  }, [persistDraftToSession, editWorkoutId, workoutName, buildDraftSnapshot, persistExistingWorkoutChanges, setTransientAutoSaveState, onSave, onClose]);
 
   const discardAndClose = () => {
     try { sessionStorage.removeItem(draftKey); } catch {}
@@ -273,6 +516,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
     setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
     setPreviewExerciseIdx(null);
+    savedSuccessfullyRef.current = true;
     onClose();
   };
 
@@ -428,69 +672,81 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   // Save workout
   const handleSave = async () => {
-    if (!workoutName.trim()) {
+    const trimmedName = workoutName.trim();
+    if (!trimmedName) {
       toast({ title: "Workout name required", variant: "destructive" });
       return;
     }
+
     setSaving(true);
 
     try {
       let workoutId = editWorkoutId;
 
       if (editWorkoutId) {
-        const { error: updateErr } = await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", editWorkoutId);
-        if (updateErr) throw updateErr;
-        const { error: delErr } = await supabase.from("workout_exercises").delete().eq("workout_id", editWorkoutId);
-        if (delErr) throw delErr;
+        if (buildDraftSnapshot() !== lastPersistedSnapshotRef.current) {
+          await persistExistingWorkoutChanges();
+        }
       } else {
-        const { data: newW, error } = await supabase.from("workouts").insert({
-          coach_id: coachId, name: workoutName, instructions: instructions || null,
-          is_template: true, workout_type: "regular",
-        } as any).select().single();
-        if (error) throw error;
-        workoutId = newW.id;
-      }
+        const { data: newWorkout, error: workoutErr } = await supabase
+          .from("workouts")
+          .insert({
+            coach_id: coachId,
+            name: trimmedName,
+            instructions: instructions || null,
+            is_template: true,
+            workout_type: "regular",
+          })
+          .select()
+          .single();
+        if (workoutErr) throw workoutErr;
+        workoutId = newWorkout.id;
 
-      if (exercises.length > 0 && workoutId) {
-        const { data: insertedExercises } = await supabase.from("workout_exercises").insert(
-          exercises.map((ex, i) => ({
-            workout_id: workoutId!,
-            exercise_id: ex.exerciseId,
-            exercise_order: i + 1,
-            sets: ex.sets,
-            reps: ex.reps || null,
-            tempo: useTempo ? (ex.tempo || null) : null,
-            rest_seconds: ex.restSeconds || null,
-            rir: useRir ? (ex.rir ? parseInt(ex.rir) : null) : null,
-            rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
-            notes: ex.notes || null,
-            superset_group: null,
-            grouping_type: ex.groupingType || null,
-            grouping_id: ex.groupingId || null,
-          }))
-        ).select("id");
+        if (exercises.length > 0) {
+          const { data: insertedExercises, error: insertErr } = await supabase
+            .from("workout_exercises")
+            .insert(
+              exercises.map((exercise, index) => ({
+                workout_id: workoutId,
+                exercise_id: exercise.exerciseId,
+                exercise_order: index + 1,
+                sets: exercise.sets,
+                reps: exercise.reps || null,
+                tempo: useTempo ? (exercise.tempo || null) : null,
+                rest_seconds: exercise.restSeconds || null,
+                rir: useRir ? (exercise.rir ? parseInt(exercise.rir, 10) : null) : null,
+                rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+                notes: exercise.notes || null,
+                superset_group: null,
+                grouping_type: exercise.groupingType || null,
+                grouping_id: exercise.groupingId || null,
+              }))
+            )
+            .select("id");
+          if (insertErr) throw insertErr;
 
-        if (insertedExercises) {
-          const setRows: any[] = [];
-          insertedExercises.forEach((we, idx) => {
-            const ex = exercises[idx];
-            for (let s = 1; s <= ex.sets; s++) {
-              setRows.push({
-                workout_exercise_id: we.id,
-                set_number: s,
-                rep_target: ex.reps || null,
-                rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
-                set_type: "working",
-              });
-            }
+          const setRows = (insertedExercises || []).flatMap((workoutExercise, index) => {
+            const exercise = exercises[index];
+            return Array.from({ length: exercise.sets }, (_, setIndex) => ({
+              workout_exercise_id: workoutExercise.id,
+              set_number: setIndex + 1,
+              rep_target: exercise.reps || null,
+              rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+              set_type: "working",
+            }));
           });
-          if (setRows.length > 0) await supabase.from("workout_sets").insert(setRows);
+
+          if (setRows.length > 0) {
+            const { error: setErr } = await supabase.from("workout_sets").insert(setRows);
+            if (setErr) throw setErr;
+          }
         }
       }
 
       try { sessionStorage.removeItem(draftKey); } catch {}
       savedSuccessfullyRef.current = true;
-      await onSave(workoutId!, workoutName);
+      setTransientAutoSaveState("saved");
+      await onSave(workoutId!, trimmedName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
     } catch (err: any) {
       console.error("[WorkoutBuilder] Save failed:", err);
@@ -505,18 +761,27 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const previewEmbedUrl = previewEx ? getYouTubeEmbedUrl(previewEx.youtubeUrl) : null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) void handleDialogClose(); }}>
       <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-3 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-base">{editWorkoutId ? "Edit Workout" : "Build Workout"}</DialogTitle>
-              {exercises.length > 0 && (
-                <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" /> {exercises.length} exercise{exercises.length !== 1 ? "s" : ""}</span>
-                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Est. {estMinutes} min</span>
-                </div>
-              )}
+              <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground min-h-4">
+                {exercises.length > 0 && (
+                  <>
+                    <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" /> {exercises.length} exercise{exercises.length !== 1 ? "s" : ""}</span>
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Est. {estMinutes} min</span>
+                  </>
+                )}
+                {editWorkoutId && autoSaveState !== "idle" && (
+                  <span className={autoSaveState === "error" ? "text-destructive" : "text-muted-foreground"}>
+                    {autoSaveState === "saving" && "Autosaving..."}
+                    {autoSaveState === "saved" && "All changes saved"}
+                    {autoSaveState === "error" && "Autosave failed — draft kept locally"}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
