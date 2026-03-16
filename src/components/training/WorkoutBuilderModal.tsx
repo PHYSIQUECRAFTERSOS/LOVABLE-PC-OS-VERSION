@@ -761,18 +761,27 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const previewEmbedUrl = previewEx ? getYouTubeEmbedUrl(previewEx.youtubeUrl) : null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) void handleDialogClose(); }}>
       <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-3 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-base">{editWorkoutId ? "Edit Workout" : "Build Workout"}</DialogTitle>
-              {exercises.length > 0 && (
-                <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" /> {exercises.length} exercise{exercises.length !== 1 ? "s" : ""}</span>
-                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Est. {estMinutes} min</span>
-                </div>
-              )}
+              <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground min-h-4">
+                {exercises.length > 0 && (
+                  <>
+                    <span className="flex items-center gap-1"><Dumbbell className="h-3 w-3" /> {exercises.length} exercise{exercises.length !== 1 ? "s" : ""}</span>
+                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Est. {estMinutes} min</span>
+                  </>
+                )}
+                {editWorkoutId && autoSaveState !== "idle" && (
+                  <span className={autoSaveState === "error" ? "text-destructive" : "text-muted-foreground"}>
+                    {autoSaveState === "saving" && "Autosaving..."}
+                    {autoSaveState === "saved" && "All changes saved"}
+                    {autoSaveState === "error" && "Autosave failed — draft kept locally"}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
