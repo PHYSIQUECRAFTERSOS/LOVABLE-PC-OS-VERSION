@@ -865,19 +865,27 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Workout?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure you want to cancel?</AlertDialogTitle>
             <AlertDialogDescription>
-              All your saved sets here will be lost.
+              All your logged sets will not be saved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
-            <AlertDialogAction
+            <Button
               onClick={cancelWorkout}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full"
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
+              size="lg"
             >
               Cancel Workout
-            </AlertDialogAction>
-            <AlertDialogCancel className="w-full mt-0">Resume Workout</AlertDialogCancel>
+            </Button>
+            <Button
+              variant="default"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              size="lg"
+              onClick={() => setShowCancelDialog(false)}
+            >
+              Continue Workout
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
