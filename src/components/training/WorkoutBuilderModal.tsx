@@ -537,6 +537,10 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                 }} className="scale-75" />
                 <span>RIR</span>
               </div>
+              <Button variant="ghost" size="sm" onClick={discardAndClose} className="text-destructive hover:text-destructive">
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Discard
+              </Button>
               <Button onClick={handleSave} disabled={saving || !workoutName.trim()} size="sm">
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                 Save

@@ -689,9 +689,14 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                                   </div>
                                 ))
                               )}
-                              <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={() => openWorkoutPicker(phaseIdx, weekIdx)}>
-                                <Plus className="h-3 w-3 mr-1" /> Add Workout
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => openWorkoutPicker(phaseIdx, weekIdx)}>
+                                  <Plus className="h-3 w-3 mr-1" /> Build Workout
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setTargetPhaseIdx(phaseIdx); setTargetWeekIdx(weekIdx); setShowWorkoutPicker(true); }}>
+                                  <FileText className="h-3 w-3 mr-1" /> Import
+                                </Button>
+                              </div>
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
