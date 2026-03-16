@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 interface VoiceMessageRecorderProps {
   threadId: string;
   onSent: () => void;
+  onRecordingStateChange?: (isRecording: boolean) => void;
 }
 
 const MAX_DURATION = 120; // 2 minutes max
