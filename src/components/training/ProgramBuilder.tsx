@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,8 @@ import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layer
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import WorkoutBuilderModal from "./WorkoutBuilderModal";
+
+const WorkoutBuilderModal = lazy(() => import("./WorkoutBuilderModal"));
 
 const GOAL_TYPES = [
   { label: "Hypertrophy", value: "hypertrophy" },
