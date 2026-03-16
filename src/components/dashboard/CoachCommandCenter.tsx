@@ -84,6 +84,15 @@ interface YesterdayWorkoutClient {
   workoutTitle: string;
 }
 
+interface PhaseDeadlineClient {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  phaseName: string;
+  endDate: string;
+  daysLeft: number;
+}
+
 interface CommandCenterData {
   actionItems: ActionItem[];
   snapshot: ComplianceSnapshot;
@@ -92,6 +101,7 @@ interface CommandCenterData {
   unreadThreads: UnreadThread[];
   completedYesterday: YesterdayWorkoutClient[];
   missedYesterday: YesterdayWorkoutClient[];
+  phaseDeadlines: PhaseDeadlineClient[];
 }
 
 // ── Helpers ──
