@@ -183,6 +183,11 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const syncedDuringSessionRef = useRef(false);
   const autoSaveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ref-based snapshot for unmount-safe draft flushing (survives React component teardown)
+  const latestDraftRef = useRef<{ key: string; open: boolean; saved: boolean; snapshot: string }>({
+    key: draftKey, open, saved: false, snapshot: "",
+  });
+
   const buildDraftSnapshot = useCallback(() => JSON.stringify({
     workoutName,
     instructions,
@@ -426,11 +431,28 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     };
   }, [open, editWorkoutId, draftKey, applyDraftState, toast]);
 
+  // Keep ref in sync so unmount can flush latest state
+  useEffect(() => {
+    if (!open || !hydratedRef.current) return;
+    const snapshot = buildDraftSnapshot();
+    latestDraftRef.current = { key: draftKey, open, saved: savedSuccessfullyRef.current, snapshot };
+  });
+
   useEffect(() => {
     if (!open || !hydratedRef.current) return;
     const timer = setTimeout(() => persistDraftToSession(), 250);
     return () => clearTimeout(timer);
   }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, persistDraftToSession]);
+
+  // Flush draft to sessionStorage on unmount (covers parent component tab switches)
+  useEffect(() => {
+    return () => {
+      const { key, open: wasOpen, saved, snapshot } = latestDraftRef.current;
+      if (wasOpen && !saved && snapshot) {
+        try { sessionStorage.setItem(key, snapshot); } catch {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -478,10 +500,13 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       queuedAutoSaveRef.current = false;
       autoSaveInFlightRef.current = false;
       syncedDuringSessionRef.current = false;
+      latestDraftRef.current = { key: draftKey, open: false, saved: true, snapshot: "" };
       if (autoSaveStatusTimeoutRef.current) clearTimeout(autoSaveStatusTimeoutRef.current);
       setAutoSaveState("idle");
+      // Clean up sessionStorage draft for edited workouts (data is in DB)
+      if (editWorkoutId) { try { sessionStorage.removeItem(draftKey); } catch {} }
     }
-  }, [open]);
+  }, [open, draftKey, editWorkoutId]);
 
   const handleDialogClose = useCallback(async () => {
     persistDraftToSession();
@@ -497,6 +522,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     }
 
     savedSuccessfullyRef.current = true;
+    latestDraftRef.current.saved = true;
 
     if (editWorkoutId && syncedDuringSessionRef.current) {
       try {
@@ -517,6 +543,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
     setPreviewExerciseIdx(null);
     savedSuccessfullyRef.current = true;
+    latestDraftRef.current.saved = true;
     onClose();
   };
 
