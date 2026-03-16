@@ -138,12 +138,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     load();
   }, [workoutId, open]);
 
+  // Only reset state after a successful save — never on tab switch / focus loss
   useEffect(() => {
-    if (!open) {
+    if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all");
       setUseRpe(false); setUseTempo(false); setSelectionMode(false);
       setHasChanges(false);
+      savedSuccessfullyRef.current = false;
     }
   }, [open]);
 
