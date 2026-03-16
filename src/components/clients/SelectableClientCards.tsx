@@ -380,6 +380,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         {filteredClients.map((client) => {
           const isSelected = selectedIds.has(client.id);
           const comp = complianceMap[client.id];
+          const phase = phaseMap[client.id];
           return (
             <Card
               key={client.id}
