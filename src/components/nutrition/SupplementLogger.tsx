@@ -187,7 +187,7 @@ const SupplementLogger = () => {
             onSuppAdded={load}
           />
           {/* Manual Add */}
-          <Dialog open={showAdd} onOpenChange={(v) => { if (!v) resetForm(); else setShowAdd(true); }}>
+          <Dialog open={showAdd} onOpenChange={(v) => { if (v) setShowAdd(true); else setShowAdd(false); }}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <Plus className="h-3.5 w-3.5" />

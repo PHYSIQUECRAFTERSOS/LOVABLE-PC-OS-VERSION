@@ -298,7 +298,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
   const typeLabel = challengeType === "pr" ? "PR Challenge" : challengeType === "steps" ? "Steps Challenge" : "Custom Challenge";
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChange(v); else onOpenChange(v); }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg">Create Challenge</DialogTitle>
