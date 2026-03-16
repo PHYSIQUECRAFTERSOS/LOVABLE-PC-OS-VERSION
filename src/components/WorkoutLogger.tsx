@@ -486,6 +486,31 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(newEx);
   };
 
+  const deleteSet = async (exIdx: number, setIdx: number) => {
+    const ex = exercises[exIdx];
+    if (ex.logs.length <= 1) return; // Don't allow deleting the last set
+
+    const log = ex.logs[setIdx];
+
+    // If the set was already persisted, delete from DB
+    if (log.completed && sessionId) {
+      await supabase
+        .from("exercise_logs")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("exercise_id", ex.id)
+        .eq("set_number", log.setNumber);
+    }
+
+    const newEx = [...exercises];
+    newEx[exIdx].logs.splice(setIdx, 1);
+    // Re-number remaining sets
+    newEx[exIdx].logs.forEach((l, i) => { l.setNumber = i + 1; });
+    setExercises(newEx);
+
+    toast({ title: `Set deleted from ${ex.name}` });
+  };
+
   const handleAddExercise = (exercise: any) => {
     const newExercise: ExerciseLogForm = {
       id: exercise.id,
