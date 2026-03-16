@@ -236,9 +236,11 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     return () => clearTimeout(timer);
   }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, draftKey]);
 
-  // Restore draft on open (only for new workouts without editWorkoutId)
+  // Restore draft on open (for both new and edit workouts)
   useEffect(() => {
-    if (!open || editWorkoutId) return;
+    if (!open) return;
+    // For edit workouts, skip restore — DB load handles it
+    if (editWorkoutId) return;
     try {
       const raw = sessionStorage.getItem(draftKey);
       if (raw) {
