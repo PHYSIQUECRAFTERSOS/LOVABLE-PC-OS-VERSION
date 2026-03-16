@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
+import VoiceMessageRecorder from "./VoiceMessageRecorder";
 
 interface Message {
   id: string;
