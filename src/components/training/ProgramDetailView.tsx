@@ -764,7 +764,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     try {
       const totalDuration = phasesToSave.reduce((s, p) => s + p.durationWeeks, 0);
 
-      const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+      const updatedName = programDetails?.name || programName;
+      const { error: updateErr } = await supabase.from("programs").update({ duration_weeks: totalDuration, name: updatedName } as any).eq("id", programId);
       if (updateErr) throw updateErr;
 
       // Delete existing program_workouts linked to this program's phases
