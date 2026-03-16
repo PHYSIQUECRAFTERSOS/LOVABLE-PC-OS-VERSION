@@ -886,7 +886,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       </Dialog>
 
       {/* Finish Workout Confirmation */}
-      <AlertDialog open={showFinishModal} onOpenChange={(open) => { setShowFinishModal(open); if (!open) setShowDiscardConfirm(false); }}>
+      <AlertDialog open={showFinishModal} onOpenChange={setShowFinishModal}>
         <AlertDialogContent>
           <div className="flex flex-col items-center text-center space-y-4 py-2">
             <span className="text-4xl">💯</span>
