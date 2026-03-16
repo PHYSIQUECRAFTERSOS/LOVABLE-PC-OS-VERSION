@@ -35,6 +35,20 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
     enabled: !!user,
   });
 
+  const { data: assignedAt } = useQuery({
+    queryKey: ["client-assigned-at", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("coach_clients")
+        .select("assigned_at")
+        .eq("client_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      return data?.assigned_at || null;
+    },
+    enabled: !!user,
+  });
+
   // Check if already submitted this week
   const { data: alreadySubmitted } = useQuery({
     queryKey: ["weekly-checkin-status", user?.id],
@@ -57,10 +71,11 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   });
 
   const getWeekNumber = () => {
+    if (!assignedAt) return 1;
     const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
+    const start = new Date(assignedAt);
     const diff = now.getTime() - start.getTime();
-    return Math.ceil(diff / (7 * 24 * 60 * 60 * 1000));
+    return Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1);
   };
 
   const getPSTTime = () => {
