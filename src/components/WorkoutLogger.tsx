@@ -471,6 +471,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
+      unlockAudio(); // Prime iOS audio before rest timer starts
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
