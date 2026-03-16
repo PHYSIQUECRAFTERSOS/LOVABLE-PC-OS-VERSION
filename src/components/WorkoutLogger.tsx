@@ -360,8 +360,14 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const updateLog = (exIdx: number, setIdx: number, field: string, value: unknown) => {
     const newEx = [...exercises];
-    newEx[exIdx].logs[setIdx] = { ...newEx[exIdx].logs[setIdx], [field]: value };
+    const updatedLog = { ...newEx[exIdx].logs[setIdx], [field]: value };
+    newEx[exIdx].logs[setIdx] = updatedLog;
     setExercises(newEx);
+
+    // If RPE is updated on a completed set, re-persist immediately
+    if (field === "rpe" && updatedLog.completed) {
+      persistSet(newEx[exIdx].id, updatedLog);
+    }
   };
 
   const showSaveSuccess = () => {
