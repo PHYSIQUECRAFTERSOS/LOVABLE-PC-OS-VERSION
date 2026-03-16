@@ -780,12 +780,14 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
 
       {/* Full Workout Builder Modal */}
       {user && (
-        <WorkoutBuilderModal
-          open={showWorkoutBuilder}
-          onClose={() => setShowWorkoutBuilder(false)}
-          onSave={handleWorkoutBuilderSave}
-          coachId={user.id}
-        />
+        <Suspense fallback={null}>
+          <WorkoutBuilderModal
+            open={showWorkoutBuilder}
+            onClose={() => setShowWorkoutBuilder(false)}
+            onSave={handleWorkoutBuilderSave}
+            coachId={user.id}
+          />
+        </Suspense>
       )}
     </div>
   );
