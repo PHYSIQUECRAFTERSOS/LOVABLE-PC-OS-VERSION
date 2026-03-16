@@ -22,6 +22,8 @@ import {
   Activity,
   UtensilsCrossed,
   ClipboardCheck,
+  CalendarClock,
+  Clock,
 } from "lucide-react";
 
 // ── Types ──
