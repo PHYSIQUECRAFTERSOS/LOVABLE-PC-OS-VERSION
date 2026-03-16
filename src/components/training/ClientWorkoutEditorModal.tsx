@@ -503,7 +503,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { setShowDiscardDialog(false); setHasChanges(false); onClose(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={() => { setShowDiscardDialog(false); setHasChanges(false); discardAndClose(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Discard
             </AlertDialogAction>
           </AlertDialogFooter>
