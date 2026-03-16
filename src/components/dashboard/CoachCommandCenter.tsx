@@ -7,7 +7,7 @@ import UserAvatar from "@/components/profile/UserAvatar";
 import { useDataFetch } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { useNavigate } from "react-router-dom";
-import { format, subDays } from "date-fns";
+import { format, subDays, addDays, differenceInDays } from "date-fns";
 import {
   AlertTriangle,
   MessageSquare,
