@@ -85,6 +85,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   const [hasChanges, setHasChanges] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const initialStateRef = useRef<string>("");
+  const savedSuccessfullyRef = useRef(false);
 
   const [useRpe, setUseRpe] = useState(false);
   const [useTempo, setUseTempo] = useState(false);
