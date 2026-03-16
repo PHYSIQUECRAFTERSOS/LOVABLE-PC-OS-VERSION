@@ -219,7 +219,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   // ── sessionStorage draft persistence ──
   const draftKey = `workout_draft_${editWorkoutId || "new"}_${coachId}`;
-  const intentionalCloseRef = useRef(false);
+  const savedSuccessfullyRef = useRef(false);
 
   // Save draft on state changes (debounced)
   useEffect(() => {
@@ -236,9 +236,11 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     return () => clearTimeout(timer);
   }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, draftKey]);
 
-  // Restore draft on open (only for new workouts without editWorkoutId)
+  // Restore draft on open (for both new and edit workouts)
   useEffect(() => {
-    if (!open || editWorkoutId) return;
+    if (!open) return;
+    // For edit workouts, skip restore — DB load handles it
+    if (editWorkoutId) return;
     try {
       const raw = sessionStorage.getItem(draftKey);
       if (raw) {
@@ -253,20 +255,24 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     } catch { /* parse error — ignore */ }
   }, [open, editWorkoutId, draftKey]);
 
-  // Clear state only on intentional close
+  // Clear state only after a successful save
   useEffect(() => {
-    if (!open && intentionalCloseRef.current) {
+    if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
       setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
       setPreviewExerciseIdx(null);
-      intentionalCloseRef.current = false;
+      savedSuccessfullyRef.current = false;
     }
   }, [open]);
 
-  const clearDraftAndClose = () => {
+  const discardAndClose = () => {
     try { sessionStorage.removeItem(draftKey); } catch {}
-    intentionalCloseRef.current = true;
+    // Reset state immediately since user is intentionally discarding
+    setWorkoutName(""); setInstructions(""); setExercises([]);
+    setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
+    setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
+    setPreviewExerciseIdx(null);
     onClose();
   };
 
@@ -483,7 +489,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       }
 
       try { sessionStorage.removeItem(draftKey); } catch {}
-      intentionalCloseRef.current = true;
+      savedSuccessfullyRef.current = true;
       await onSave(workoutId!, workoutName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
     } catch (err: any) {
@@ -499,7 +505,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const previewEmbedUrl = previewEx ? getYouTubeEmbedUrl(previewEx.youtubeUrl) : null;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && clearDraftAndClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-6xl h-[85vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-3 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -531,6 +537,10 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                 }} className="scale-75" />
                 <span>RIR</span>
               </div>
+              <Button variant="ghost" size="sm" onClick={discardAndClose} className="text-destructive hover:text-destructive">
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Discard
+              </Button>
               <Button onClick={handleSave} disabled={saving || !workoutName.trim()} size="sm">
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                 Save

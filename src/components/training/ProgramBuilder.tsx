@@ -116,7 +116,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   ]);
   const [availableWorkouts, setAvailableWorkouts] = useState<any[]>([]);
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
-  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [_showAddChoice, _setShowAddChoice] = useState(false); // unused, kept for compat
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [targetPhaseIdx, setTargetPhaseIdx] = useState(0);
   const [targetWeekIdx, setTargetWeekIdx] = useState(0);
@@ -351,7 +351,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const openWorkoutPicker = (phaseIdx: number, weekIdx: number) => {
     setTargetPhaseIdx(phaseIdx);
     setTargetWeekIdx(weekIdx);
-    setShowAddChoice(true);
+    setShowWorkoutBuilder(true);
   };
 
   const handleWorkoutBuilderSave = (workoutId: string, workoutName: string) => {
@@ -689,9 +689,14 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                                   </div>
                                 ))
                               )}
-                              <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={() => openWorkoutPicker(phaseIdx, weekIdx)}>
-                                <Plus className="h-3 w-3 mr-1" /> Add Workout
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => openWorkoutPicker(phaseIdx, weekIdx)}>
+                                  <Plus className="h-3 w-3 mr-1" /> Build Workout
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setTargetPhaseIdx(phaseIdx); setTargetWeekIdx(weekIdx); setShowWorkoutPicker(true); }}>
+                                  <FileText className="h-3 w-3 mr-1" /> Import
+                                </Button>
+                              </div>
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
@@ -723,35 +728,6 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
         {editProgramId ? "Update Program" : "Create Program"}
       </Button>
-
-      {/* Add Workout Choice Dialog */}
-      <Dialog open={showAddChoice} onOpenChange={setShowAddChoice}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Add Workout</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <button
-              onClick={() => { setShowAddChoice(false); setShowWorkoutBuilder(true); }}
-              className="w-full text-left p-4 border rounded-lg hover:bg-muted/50 transition-colors flex items-center gap-3"
-            >
-              <Hammer className="h-5 w-5 text-primary flex-shrink-0" />
-              <div>
-                <p className="font-medium text-sm">Build from Scratch</p>
-                <p className="text-xs text-muted-foreground">Create a new workout with exercises</p>
-              </div>
-            </button>
-            <button
-              onClick={() => { setShowAddChoice(false); setShowWorkoutPicker(true); }}
-              className="w-full text-left p-4 border rounded-lg hover:bg-muted/50 transition-colors flex items-center gap-3"
-            >
-              <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-              <div>
-                <p className="font-medium text-sm">Import Existing Template</p>
-                <p className="text-xs text-muted-foreground">Use an existing workout template</p>
-              </div>
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Workout Template Picker */}
       <Dialog open={showWorkoutPicker} onOpenChange={setShowWorkoutPicker}>
