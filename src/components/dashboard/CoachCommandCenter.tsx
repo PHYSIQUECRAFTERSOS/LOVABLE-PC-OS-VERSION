@@ -605,6 +605,9 @@ const CoachCommandCenter = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* ─── SECTION 6: Weekly Check-In Dashboard ─── */}
+      <CheckinSubmissionDashboard />
     </div>
   );
 };
