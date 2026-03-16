@@ -181,7 +181,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const autoSaveInFlightRef = useRef(false);
   const queuedAutoSaveRef = useRef(false);
   const syncedDuringSessionRef = useRef(false);
-  const autoSaveStatusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const buildDraftSnapshot = useCallback(() => JSON.stringify({
     workoutName,
