@@ -489,7 +489,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       }
 
       try { sessionStorage.removeItem(draftKey); } catch {}
-      intentionalCloseRef.current = true;
+      savedSuccessfullyRef.current = true;
       await onSave(workoutId!, workoutName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
     } catch (err: any) {
