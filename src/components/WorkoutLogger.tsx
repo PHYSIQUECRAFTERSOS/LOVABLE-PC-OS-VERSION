@@ -696,21 +696,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     onComplete?.();
   };
 
-  const discardWorkout = async () => {
-    if (sessionId) {
-      await supabase.from("exercise_logs").delete().eq("session_id", sessionId);
-      await supabase.from("workout_sessions").delete().eq("id", sessionId);
-    }
-    clearRetryQueue();
-    setShowFinishModal(false);
-    setShowDiscardConfirm(false);
-    onComplete?.();
-  };
-
-  const finishAnyway = async () => {
-    setShowFinishModal(false);
-    await finishWorkout(true);
-  };
 
   if (showSummary) {
     return (
