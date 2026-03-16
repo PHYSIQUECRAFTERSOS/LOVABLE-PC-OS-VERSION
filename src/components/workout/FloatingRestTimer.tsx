@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { SkipForward } from "lucide-react";
+import {
+  startRestSession,
+  updateRestPosition,
+  playAlarm,
+  stopRestSession,
+} from "@/utils/restTimerAudio";
 
 interface FloatingRestTimerProps {
   seconds: number;
@@ -12,52 +18,35 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
   const [showComplete, setShowComplete] = useState(false);
   const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioRef = useRef<AudioContext | null>(null);
   const completedRef = useRef(false);
 
-  const playSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioRef.current = ctx;
-      const playTone = (freq: number, start: number, dur: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        osc.type = "sine";
-        gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
-        osc.start(ctx.currentTime + start);
-        osc.stop(ctx.currentTime + start + dur);
-      };
-      playTone(880, 0, 0.2);
-      playTone(1100, 0.15, 0.2);
-      playTone(1320, 0.3, 0.3);
-    } catch { /* Audio not available */ }
-  }, []);
-
-  // Date-based countdown — resilient to backgrounding on iOS
+  // Date-based countdown + audio session
   useEffect(() => {
     endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
+
+    startRestSession(initialSeconds);
 
     intervalRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
       setTimeRemaining(remaining);
 
+      const elapsed = initialSeconds - remaining;
+      updateRestPosition(elapsed, initialSeconds);
+
       if (remaining <= 0 && !completedRef.current) {
         completedRef.current = true;
         if (intervalRef.current) clearInterval(intervalRef.current);
-        playSound();
+        playAlarm();
         setShowComplete(true);
       }
     }, 500);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      stopRestSession();
     };
-  }, [initialSeconds, playSound]);
+  }, [initialSeconds]);
 
   // Auto-dismiss after completion flash
   useEffect(() => {
@@ -66,13 +55,9 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
     return () => clearTimeout(t);
   }, [showComplete, onComplete]);
 
-  // Cleanup audio
-  useEffect(() => {
-    return () => { audioRef.current?.close(); };
-  }, []);
-
   const handleSkip = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    stopRestSession();
     onComplete();
   }, [onComplete]);
 
