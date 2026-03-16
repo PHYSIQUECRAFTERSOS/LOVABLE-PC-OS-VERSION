@@ -116,7 +116,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   ]);
   const [availableWorkouts, setAvailableWorkouts] = useState<any[]>([]);
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
-  const [showAddChoice, setShowAddChoice] = useState(false);
+  const [_showAddChoice, _setShowAddChoice] = useState(false); // unused, kept for compat
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [targetPhaseIdx, setTargetPhaseIdx] = useState(0);
   const [targetWeekIdx, setTargetWeekIdx] = useState(0);
