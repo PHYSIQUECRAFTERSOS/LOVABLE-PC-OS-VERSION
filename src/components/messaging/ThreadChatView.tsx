@@ -274,21 +274,27 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
 
       {/* Input */}
       <div className="border-t border-border p-3">
-        <div className="flex gap-2">
-          <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            className="flex-1"
-          />
+        <div className="flex gap-2 items-center">
+          {!isRecording && <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />}
+          {!isRecording && (
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className="flex-1"
+            />
+          )}
           {newMessage.trim() ? (
             <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
               <Send className="h-4 w-4" />
             </Button>
           ) : (
-            <VoiceMessageRecorder threadId={threadId} onSent={fetchMessages} />
+            <VoiceMessageRecorder
+              threadId={threadId}
+              onSent={fetchMessages}
+              onRecordingStateChange={setIsRecording}
+            />
           )}
         </div>
       </div>
