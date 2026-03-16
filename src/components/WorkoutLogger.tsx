@@ -200,6 +200,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
                 weight: log.weight ?? undefined,
                 reps: log.reps ?? undefined,
                 rir: log.rir ?? undefined,
+                rpe: (log as any).rpe ?? undefined,
                 tempo: log.tempo ?? undefined,
                 notes: log.notes ?? undefined,
                 completed: true,
