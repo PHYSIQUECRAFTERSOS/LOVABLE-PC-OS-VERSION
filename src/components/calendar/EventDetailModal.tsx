@@ -64,6 +64,7 @@ interface EventDetailModalProps {
   onDelete: (event: CalendarEvent) => void;
   isCoach: boolean;
   onStartWorkout?: (workoutId: string) => void;
+  clientId?: string;
 }
 
 const formatDuration = (seconds: number) => {
