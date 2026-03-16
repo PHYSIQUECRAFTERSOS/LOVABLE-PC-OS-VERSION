@@ -500,10 +500,13 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       queuedAutoSaveRef.current = false;
       autoSaveInFlightRef.current = false;
       syncedDuringSessionRef.current = false;
+      latestDraftRef.current = { key: draftKey, open: false, saved: true, snapshot: "" };
       if (autoSaveStatusTimeoutRef.current) clearTimeout(autoSaveStatusTimeoutRef.current);
       setAutoSaveState("idle");
+      // Clean up sessionStorage draft for edited workouts (data is in DB)
+      if (editWorkoutId) { try { sessionStorage.removeItem(draftKey); } catch {} }
     }
-  }, [open]);
+  }, [open, draftKey, editWorkoutId]);
 
   const handleDialogClose = useCallback(async () => {
     persistDraftToSession();
