@@ -486,6 +486,31 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     setExercises(newEx);
   };
 
+  const deleteSet = async (exIdx: number, setIdx: number) => {
+    const ex = exercises[exIdx];
+    if (ex.logs.length <= 1) return; // Don't allow deleting the last set
+
+    const log = ex.logs[setIdx];
+
+    // If the set was already persisted, delete from DB
+    if (log.completed && sessionId) {
+      await supabase
+        .from("exercise_logs")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("exercise_id", ex.id)
+        .eq("set_number", log.setNumber);
+    }
+
+    const newEx = [...exercises];
+    newEx[exIdx].logs.splice(setIdx, 1);
+    // Re-number remaining sets
+    newEx[exIdx].logs.forEach((l, i) => { l.setNumber = i + 1; });
+    setExercises(newEx);
+
+    toast({ title: `Set deleted from ${ex.name}` });
+  };
+
   const handleAddExercise = (exercise: any) => {
     const newExercise: ExerciseLogForm = {
       id: exercise.id,
@@ -802,6 +827,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onUpdateLog={(setIdx, field, value) => updateLog(exIdx, setIdx, field, value)}
           onCompleteSet={(setIdx) => completeSet(exIdx, setIdx)}
           onAddSet={() => addSet(exIdx)}
+          onDeleteSet={(setIdx) => deleteSet(exIdx, setIdx)}
           onDeleteExercise={() => deleteExercise(exIdx)}
           onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
         />
@@ -817,20 +843,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
         <Button
-          onClick={handleFinishTap}
-          disabled={loading}
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-          size="lg"
-        >
-          {loading && <Loader2 className="animate-spin mr-2" />}
-          Finish Workout
-        </Button>
-        <Button
           variant="ghost"
           className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => setShowCancelDialog(true)}
         >
-          <X className="h-4 w-4 mr-1" /> Cancel Workout
+          Cancel Workout
         </Button>
       </div>
 
@@ -840,7 +857,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Workout?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this workout? All progress will be lost.
+              All your saved sets here will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
@@ -850,7 +867,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             >
               Cancel Workout
             </AlertDialogAction>
-            <AlertDialogCancel className="w-full mt-0">Resume</AlertDialogCancel>
+            <AlertDialogCancel className="w-full mt-0">Resume Workout</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
