@@ -257,8 +257,12 @@ const Calendar = () => {
   const handleDelete = async (event: CalendarEvent) => {
     if (event.id.startsWith("ws-") || event.id.startsWith("cl-")) { toast({ title: "Cannot delete synced events here" }); return; }
     try {
-      const { error } = await supabase.from("calendar_events").delete().eq("id", event.id);
+      const { error, count } = await supabase.from("calendar_events").delete({ count: "exact" }).eq("id", event.id);
       if (error) throw error;
+      if (count === 0) {
+        toast({ title: "Could not delete", description: "Event may have already been removed.", variant: "destructive" });
+        return;
+      }
       toast({ title: "Event deleted" });
       setShowEventDetail(false);
       reloadEvents();
