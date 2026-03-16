@@ -139,12 +139,13 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
     if (importedDays.length > 0) setExpandedDay(importedDays[0].id);
   };
 
+  const userId = user?.id;
   useEffect(() => {
-    if (!user || clientId || forceTemplate) return;
+    if (!userId || clientId || forceTemplate) return;
     supabase
       .from("coach_clients")
       .select("client_id")
-      .eq("coach_id", user.id)
+      .eq("coach_id", userId)
       .eq("status", "active")
       .then(async ({ data }) => {
         if (data && data.length > 0) {
@@ -155,16 +156,16 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           setClients((profiles as Client[]) || []);
         }
       });
-  }, [user, clientId, forceTemplate]);
+  }, [userId, clientId, forceTemplate]);
 
   useEffect(() => {
-    if (!clientId || !user) return;
+    if (!clientId || !userId) return;
     loadExistingPlan(clientId);
-  }, [clientId, user, dayType]);
+  }, [clientId, userId, dayType]);
 
   // Load template for editing
   useEffect(() => {
-    if (!editingTemplateId || !user) return;
+    if (!editingTemplateId || !userId) return;
     const loadTemplate = async () => {
       setLoadingExisting(true);
       try {
@@ -252,7 +253,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       }
     };
     loadTemplate();
-  }, [editingTemplateId, user]);
+  }, [editingTemplateId, userId]);
 
   const loadExistingPlan = async (cId: string) => {
     setLoadingExisting(true);
