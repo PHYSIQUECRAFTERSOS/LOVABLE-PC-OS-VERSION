@@ -431,11 +431,28 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     };
   }, [open, editWorkoutId, draftKey, applyDraftState, toast]);
 
+  // Keep ref in sync so unmount can flush latest state
+  useEffect(() => {
+    if (!open || !hydratedRef.current) return;
+    const snapshot = buildDraftSnapshot();
+    latestDraftRef.current = { key: draftKey, open, saved: savedSuccessfullyRef.current, snapshot };
+  });
+
   useEffect(() => {
     if (!open || !hydratedRef.current) return;
     const timer = setTimeout(() => persistDraftToSession(), 250);
     return () => clearTimeout(timer);
   }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, persistDraftToSession]);
+
+  // Flush draft to sessionStorage on unmount (covers parent component tab switches)
+  useEffect(() => {
+    return () => {
+      const { key, open: wasOpen, saved, snapshot } = latestDraftRef.current;
+      if (wasOpen && !saved && snapshot) {
+        try { sessionStorage.setItem(key, snapshot); } catch {}
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
