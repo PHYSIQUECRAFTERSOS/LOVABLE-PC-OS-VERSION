@@ -548,7 +548,11 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   };
 
   const filteredLibrary = libraryExercises.filter((ex) => {
-    const matchSearch = !searchQuery || ex.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = !searchQuery || (() => {
+      const name = ex.name.toLowerCase();
+      const tokens = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      return tokens.every(token => name.includes(token));
+    })();
     const matchMuscle = filterMuscle === "all" || ex.primary_muscle?.toLowerCase() === filterMuscle.toLowerCase();
     const matchEquip = filterEquipment === "all" || ex.equipment?.toLowerCase() === filterEquipment.toLowerCase();
     return matchSearch && matchMuscle && matchEquip;
