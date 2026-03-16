@@ -167,7 +167,11 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   };
 
   const filteredLibrary = libraryExercises.filter((ex) => {
-    const matchSearch = !searchQuery || ex.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = !searchQuery || (() => {
+      const name = ex.name.toLowerCase();
+      const tokens = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      return tokens.every(token => name.includes(token));
+    })();
     const matchMuscle = filterMuscle === "all" || ex.primary_muscle === filterMuscle;
     return matchSearch && matchMuscle;
   });
