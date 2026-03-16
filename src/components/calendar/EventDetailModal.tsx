@@ -76,7 +76,7 @@ const formatDuration = (seconds: number) => {
 };
 
 const EventDetailModal = ({
-  event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout,
+  event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout, clientId,
 }: EventDetailModalProps) => {
   const navigate = useNavigate();
   const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
