@@ -41,6 +41,10 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
   }, [audioUrl]);
 
   useEffect(() => {
+    onRecordingStateChange?.(state !== "idle");
+  }, [state, onRecordingStateChange]);
+
+  useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
