@@ -219,7 +219,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   // ── sessionStorage draft persistence ──
   const draftKey = `workout_draft_${editWorkoutId || "new"}_${coachId}`;
-  const intentionalCloseRef = useRef(false);
+  const savedSuccessfullyRef = useRef(false);
 
   // Save draft on state changes (debounced)
   useEffect(() => {
