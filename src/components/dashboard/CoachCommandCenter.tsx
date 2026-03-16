@@ -340,7 +340,61 @@ const CoachCommandCenter = () => {
         }
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday };
+      // ── Section 7: Phase Deadlines ──
+      const phaseDeadlines: PhaseDeadlineClient[] = [];
+      const { data: programAssignments } = await supabase
+        .from("client_program_assignments")
+        .select("client_id, program_id, current_phase_id, start_date")
+        .in("client_id", clientIds)
+        .in("status", ["active", "subscribed"]);
+
+      if (programAssignments?.length) {
+        const programIds = [...new Set(programAssignments.map((a) => a.program_id))];
+        const { data: allPhases } = await supabase
+          .from("program_phases")
+          .select("id, program_id, phase_order, duration_weeks, name")
+          .in("program_id", programIds)
+          .order("phase_order", { ascending: true });
+
+        if (allPhases?.length) {
+          const phasesByProgram = new Map<string, typeof allPhases>();
+          allPhases.forEach((p) => {
+            if (!phasesByProgram.has(p.program_id)) phasesByProgram.set(p.program_id, []);
+            phasesByProgram.get(p.program_id)!.push(p);
+          });
+
+          for (const a of programAssignments) {
+            const phases = phasesByProgram.get(a.program_id);
+            if (!phases?.length || !a.current_phase_id) continue;
+            const currentPhase = phases.find((p) => p.id === a.current_phase_id);
+            if (!currentPhase) continue;
+
+            let totalWeeks = 0;
+            for (const p of phases) {
+              totalWeeks += p.duration_weeks;
+              if (p.id === a.current_phase_id) break;
+            }
+
+            const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
+            const daysLeft = differenceInDays(endDate, now);
+            const profile = profileMap.get(a.client_id);
+
+            if (daysLeft <= 7) {
+              phaseDeadlines.push({
+                clientId: a.client_id,
+                clientName: profile?.full_name || "Client",
+                avatarUrl: profile?.avatar_url,
+                phaseName: currentPhase.name,
+                endDate: format(endDate, "MMM d, yyyy"),
+                daysLeft,
+              });
+            }
+          }
+          phaseDeadlines.sort((a, b) => a.daysLeft - b.daysLeft);
+        }
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines };
     },
   });
 
