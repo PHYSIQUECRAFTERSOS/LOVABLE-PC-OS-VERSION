@@ -147,7 +147,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
       .eq("data_source", "custom")
       .eq("created_by", user.id)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(200);
     if (data) setCustomFoods(data.map((f: any) => ({ ...f, source: "local" as const })));
   };
 
@@ -198,7 +198,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     serving_size: r.serving_size_g ?? 100,
     serving_unit: r.serving_unit ?? "g",
     is_verified: r.is_verified,
-    data_source: r.source ?? "open_food_facts",
+    data_source: r.is_custom ? "custom" : (r.source ?? "open_food_facts"),
     source: r.source === "open_food_facts" ? "off" as const : "local" as const,
     is_branded: r.is_branded,
   }));
@@ -312,10 +312,33 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
 
     let combined = [...localResults];
 
-    if (activeFilter === "favorites") combined = combined.filter(f => favorites.has(f.id));
-    else if (activeFilter === "custom") combined = combined.filter(f => f.data_source === "custom");
-    else if (activeFilter === "branded") combined = combined.filter(f => f.brand);
-    else if (activeFilter === "generic") combined = combined.filter(f => !f.brand);
+    if (activeFilter === "favorites") {
+      combined = combined.filter(f => favorites.has(f.id));
+    } else if (activeFilter === "custom") {
+      // Client-side filter on already-loaded customFoods array
+      const q = query.toLowerCase();
+      const matchingCustom = customFoods.filter(f =>
+        f.name.toLowerCase().includes(q) ||
+        (f.brand ?? "").toLowerCase().includes(q)
+      );
+      // Merge with any edge-function results tagged as custom (dedup by id)
+      const edgeCustom = localResults.filter(f => f.data_source === "custom");
+      const seenIds = new Set(matchingCustom.map(f => f.id));
+      combined = [...matchingCustom, ...edgeCustom.filter(f => !seenIds.has(f.id))];
+    } else if (activeFilter === "branded") {
+      combined = combined.filter(f => f.brand);
+    } else if (activeFilter === "generic") {
+      combined = combined.filter(f => !f.brand);
+    } else {
+      // "All" tab — boost custom foods matching the query to the top
+      const q = query.toLowerCase();
+      const matchingCustom = customFoods.filter(f =>
+        f.name.toLowerCase().includes(q) ||
+        (f.brand ?? "").toLowerCase().includes(q)
+      );
+      const customIds = new Set(matchingCustom.map(f => f.id));
+      combined = [...matchingCustom, ...combined.filter(f => !customIds.has(f.id))];
+    }
 
     combined.sort((a, b) => {
       const aFav = favorites.has(a.id) ? 1 : 0;
