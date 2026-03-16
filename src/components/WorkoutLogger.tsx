@@ -909,7 +909,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
               variant="secondary"
               className="w-full font-semibold"
               size="lg"
-              onClick={() => { setShowFinishModal(false); setShowDiscardConfirm(false); }}
+              onClick={() => setShowFinishModal(false)}
             >
               Resume Workout
             </Button>
