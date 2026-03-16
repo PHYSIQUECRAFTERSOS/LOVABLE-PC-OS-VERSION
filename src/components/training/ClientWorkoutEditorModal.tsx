@@ -158,7 +158,12 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
   const handleClose = () => {
     if (hasChanges) setShowDiscardDialog(true);
-    else onClose();
+    else { discardAndClose(); }
+  };
+
+  const discardAndClose = () => {
+    savedSuccessfullyRef.current = true; // allow the reset useEffect to fire
+    onClose();
   };
 
   const filteredLibrary = libraryExercises.filter((ex) => {
