@@ -255,20 +255,24 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     } catch { /* parse error — ignore */ }
   }, [open, editWorkoutId, draftKey]);
 
-  // Clear state only on intentional close
+  // Clear state only after a successful save
   useEffect(() => {
-    if (!open && intentionalCloseRef.current) {
+    if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
       setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
       setPreviewExerciseIdx(null);
-      intentionalCloseRef.current = false;
+      savedSuccessfullyRef.current = false;
     }
   }, [open]);
 
-  const clearDraftAndClose = () => {
+  const discardAndClose = () => {
     try { sessionStorage.removeItem(draftKey); } catch {}
-    intentionalCloseRef.current = true;
+    // Reset state immediately since user is intentionally discarding
+    setWorkoutName(""); setInstructions(""); setExercises([]);
+    setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
+    setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
+    setPreviewExerciseIdx(null);
     onClose();
   };
 
