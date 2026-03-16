@@ -119,6 +119,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
