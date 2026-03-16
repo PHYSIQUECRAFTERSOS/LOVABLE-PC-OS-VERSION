@@ -183,7 +183,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         // Restore previously logged sets
         const { data: logs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, notes, tempo")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo")
           .eq("session_id", resumeSessionId)
           .order("set_number");
         if (logs && logs.length > 0) {
