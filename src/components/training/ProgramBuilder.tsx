@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, GripVertical, ArrowUp, ArrowDown, Hammer, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import WorkoutBuilderModal from "./WorkoutBuilderModal";
 
 const GOAL_TYPES = [
   { label: "Hypertrophy", value: "hypertrophy" },
