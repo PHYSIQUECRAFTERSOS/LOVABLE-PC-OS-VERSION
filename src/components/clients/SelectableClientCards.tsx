@@ -73,6 +73,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [complianceMap, setComplianceMap] = useState<Record<string, NutritionCompliance>>({});
+  const [phaseMap, setPhaseMap] = useState<Record<string, PhaseInfo>>({});
 
   useEffect(() => {
     if (!user) return;
