@@ -455,7 +455,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   }, [open, editWorkoutId, persistDraftToSession, triggerAutoSave]);
 
   useEffect(() => {
-    if (!open || !editWorkoutId || !hydratedRef.current || loading) return;
+    if (!open || !editWorkoutId || !hydratedRef.current || loading || saving) return;
     if (buildDraftSnapshot() === lastPersistedSnapshotRef.current) return;
 
     const timer = setTimeout(() => {
@@ -463,7 +463,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [open, editWorkoutId, loading, workoutName, instructions, exercises, useRpe, useTempo, useRir, buildDraftSnapshot, triggerAutoSave]);
+  }, [open, editWorkoutId, loading, saving, workoutName, instructions, exercises, useRpe, useTempo, useRir, buildDraftSnapshot, triggerAutoSave]);
 
   // Clear state only after a successful save/close — never on tab switch or focus loss.
   useEffect(() => {
