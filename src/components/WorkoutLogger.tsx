@@ -831,7 +831,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Workout?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this workout? All progress will be lost.
+              All your saved sets here will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
@@ -841,7 +841,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             >
               Cancel Workout
             </AlertDialogAction>
-            <AlertDialogCancel className="w-full mt-0">Resume</AlertDialogCancel>
+            <AlertDialogCancel className="w-full mt-0">Resume Workout</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
