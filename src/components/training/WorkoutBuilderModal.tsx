@@ -217,15 +217,58 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     loadWorkout();
   }, [editWorkoutId, open]);
 
-  // Reset on close
+  // ── sessionStorage draft persistence ──
+  const draftKey = `workout_draft_${editWorkoutId || "new"}_${coachId}`;
+  const intentionalCloseRef = useRef(false);
+
+  // Save draft on state changes (debounced)
   useEffect(() => {
-    if (!open) {
+    if (!open) return;
+    const timer = setTimeout(() => {
+      if (workoutName || exercises.length > 0) {
+        try {
+          sessionStorage.setItem(draftKey, JSON.stringify({
+            workoutName, instructions, exercises, useRpe, useTempo, useRir,
+          }));
+        } catch { /* quota exceeded — ignore */ }
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [open, workoutName, instructions, exercises, useRpe, useTempo, useRir, draftKey]);
+
+  // Restore draft on open (only for new workouts without editWorkoutId)
+  useEffect(() => {
+    if (!open || editWorkoutId) return;
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.workoutName) setWorkoutName(draft.workoutName);
+        if (draft.instructions) setInstructions(draft.instructions);
+        if (draft.exercises?.length) setExercises(draft.exercises);
+        if (draft.useRpe !== undefined) setUseRpe(draft.useRpe);
+        if (draft.useTempo !== undefined) setUseTempo(draft.useTempo);
+        if (draft.useRir !== undefined) setUseRir(draft.useRir);
+      }
+    } catch { /* parse error — ignore */ }
+  }, [open, editWorkoutId, draftKey]);
+
+  // Clear state only on intentional close
+  useEffect(() => {
+    if (!open && intentionalCloseRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
       setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
       setPreviewExerciseIdx(null);
+      intentionalCloseRef.current = false;
     }
   }, [open]);
+
+  const clearDraftAndClose = () => {
+    try { sessionStorage.removeItem(draftKey); } catch {}
+    intentionalCloseRef.current = true;
+    onClose();
+  };
 
   const filteredLibrary = libraryExercises.filter((ex) => {
     const matchSearch = !searchQuery || ex.name.toLowerCase().includes(searchQuery.toLowerCase());

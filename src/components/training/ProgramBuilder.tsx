@@ -723,7 +723,36 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         {editProgramId ? "Update Program" : "Create Program"}
       </Button>
 
-      {/* Workout Picker */}
+      {/* Add Workout Choice Dialog */}
+      <Dialog open={showAddChoice} onOpenChange={setShowAddChoice}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Add Workout</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <button
+              onClick={() => { setShowAddChoice(false); setShowWorkoutBuilder(true); }}
+              className="w-full text-left p-4 border rounded-lg hover:bg-muted/50 transition-colors flex items-center gap-3"
+            >
+              <Hammer className="h-5 w-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Build from Scratch</p>
+                <p className="text-xs text-muted-foreground">Create a new workout with exercises</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { setShowAddChoice(false); setShowWorkoutPicker(true); }}
+              className="w-full text-left p-4 border rounded-lg hover:bg-muted/50 transition-colors flex items-center gap-3"
+            >
+              <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">Import Existing Template</p>
+                <p className="text-xs text-muted-foreground">Use an existing workout template</p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Workout Template Picker */}
       <Dialog open={showWorkoutPicker} onOpenChange={setShowWorkoutPicker}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Select Workout Template</DialogTitle></DialogHeader>
@@ -747,6 +776,16 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Full Workout Builder Modal */}
+      {user && (
+        <WorkoutBuilderModal
+          open={showWorkoutBuilder}
+          onClose={() => setShowWorkoutBuilder(false)}
+          onSave={handleWorkoutBuilderSave}
+          coachId={user.id}
+        />
+      )}
     </div>
   );
 };
