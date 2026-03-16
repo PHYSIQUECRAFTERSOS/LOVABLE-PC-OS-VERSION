@@ -198,7 +198,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     serving_size: r.serving_size_g ?? 100,
     serving_unit: r.serving_unit ?? "g",
     is_verified: r.is_verified,
-    data_source: r.source ?? "open_food_facts",
+    data_source: r.is_custom ? "custom" : (r.source ?? "open_food_facts"),
     source: r.source === "open_food_facts" ? "off" as const : "local" as const,
     is_branded: r.is_branded,
   }));
