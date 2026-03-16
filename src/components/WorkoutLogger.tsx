@@ -593,11 +593,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const handleFinishTap = () => {
-    if (hasIncompleteSets()) {
-      setShowFinishModal(true);
-    } else {
-      finishWorkout(false);
-    }
+    setShowFinishModal(true);
   };
 
   const finishWorkout = async (hadUnlogged: boolean = false) => {
