@@ -277,6 +277,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const saveStatusTimeout = useRef<NodeJS.Timeout | null>(null);
   const [phases, setPhases] = useState<ProgramPhase[]>([]);
   const [programDetails, setProgramDetails] = useState<any>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Workout builder modal
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
