@@ -350,7 +350,22 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const openWorkoutPicker = (phaseIdx: number, weekIdx: number) => {
     setTargetPhaseIdx(phaseIdx);
     setTargetWeekIdx(weekIdx);
-    setShowWorkoutPicker(true);
+    setShowAddChoice(true);
+  };
+
+  const handleWorkoutBuilderSave = (workoutId: string, workoutName: string) => {
+    const newPhases = [...phases];
+    const week = newPhases[targetPhaseIdx].weeks[targetWeekIdx];
+    const existingCount = week.workouts.length;
+    week.workouts.push({
+      workoutId,
+      workoutName,
+      dayOfWeek: Math.min(existingCount, 6),
+      dayLabel: DAY_LABELS[Math.min(existingCount, 6)],
+      sortOrder: existingCount,
+    });
+    setPhases(newPhases);
+    setShowWorkoutBuilder(false);
   };
 
   const addWorkoutToWeek = (workout: any) => {
