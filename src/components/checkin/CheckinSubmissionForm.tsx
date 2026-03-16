@@ -99,13 +99,17 @@ const CheckinSubmissionForm = () => {
       if (!user || !activeAssignment) throw new Error("No assignment selected");
 
       // Create submission
+      const now = new Date().toISOString();
       const { data: sub, error: subErr } = await supabase
         .from("checkin_submissions")
         .insert({
           assignment_id: activeAssignment.id,
           client_id: user.id,
+          template_id: activeAssignment.template_id,
           due_date: activeAssignment.next_due_date,
-          submitted_at: new Date().toISOString(),
+          submitted_at: now,
+          submitted_at_pst: getPSTTime(),
+          week_number: getWeekNumber(),
           status: "submitted",
         })
         .select()
