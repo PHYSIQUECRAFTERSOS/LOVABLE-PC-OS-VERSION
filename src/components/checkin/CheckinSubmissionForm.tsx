@@ -24,6 +24,33 @@ const CheckinSubmissionForm = () => {
   const [activeAssignment, setActiveAssignment] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
+  // Fetch join date for week number calculation
+  const { data: assignedAt } = useQuery({
+    queryKey: ["client-assigned-at", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("coach_clients")
+        .select("assigned_at")
+        .eq("client_id", user!.id)
+        .limit(1)
+        .maybeSingle();
+      return data?.assigned_at || null;
+    },
+    enabled: !!user,
+  });
+
+  const getWeekNumber = () => {
+    if (!assignedAt) return 1;
+    const now = new Date();
+    const start = new Date(assignedAt);
+    const diff = now.getTime() - start.getTime();
+    return Math.max(1, Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1);
+  };
+
+  const getPSTTime = () => {
+    return new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
+  };
+
   const { data: assignments } = useQuery({
     queryKey: ["client-checkin-assignments", user?.id],
     queryFn: async () => {
