@@ -540,9 +540,16 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   };
 
   const handleEventDelete = async (ev: CalendarEvent) => {
-    const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
+    // Workout sessions merged into the calendar can't be deleted from here
+    if ((ev as any).isSession) {
+      toast({ title: "Cannot delete workout sessions from calendar", variant: "destructive" });
+      return;
+    }
+    const { error, count } = await supabase.from("calendar_events").delete({ count: "exact" }).eq("id", ev.id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else if (count === 0) {
+      toast({ title: "Could not delete", description: "Event may have already been removed.", variant: "destructive" });
     } else {
       toast({ title: "Event deleted" });
       setShowEventDetail(false);
