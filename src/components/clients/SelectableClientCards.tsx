@@ -401,11 +401,20 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-foreground text-sm truncate">{client.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-muted-foreground">{client.compliance}% compliance</span>
                       {client.streak > 0 && (
                         <span className="text-xs text-primary font-medium flex items-center gap-0.5">
                           <Zap className="h-2.5 w-2.5" />{client.streak}d
+                        </span>
+                      )}
+                      {phase && (
+                        <span className={cn(
+                          "text-[10px] font-medium flex items-center gap-0.5",
+                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
+                        )}>
+                          <CalendarClock className="h-2.5 w-2.5" />
+                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`} · {phase.endDate}
                         </span>
                       )}
                     </div>
