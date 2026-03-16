@@ -1,122 +1,75 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Plan: Coach Workout Details, Phase End Dates, and Phase Deadline Alerts
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Problem Analysis
 
----
+**Issue 1 — Coach calendar workout details not loading**: The `EventDetailModal` queries `workout_sessions` but does NOT filter by `client_id`. When a coach views a client's calendar via `CalendarTab`, the session query only matches by `workout_id` — but RLS policies likely restrict the coach from seeing the client's sessions without explicitly filtering by client. The coach's own user ID doesn't match, so zero results return and no exercise data shows.
 
-## Phase 1 — MVP (Core Platform)
+**Issue 2 — No phase end date on client cards**: The Clients page (`SelectableClientCards`) shows compliance and streak but has no training phase information. Trainerize shows "Ends on [date]" and "X days left" per client.
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
-
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
-
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
-
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
-
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
-
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
-
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+**Issue 3 — No phase deadline section in Command Center**: The coach dashboard lacks awareness of upcoming phase expirations.
 
 ---
 
-## Phase 2 — Advanced Features
+## Solution
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+### 1. Fix Coach Calendar Workout Details
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+**File: `src/components/calendar/EventDetailModal.tsx`**
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+The `loadSessionData` function needs a `clientId` prop so it can filter sessions by the correct client. Currently it queries `workout_sessions` by `workout_id` only — when a coach views a client's event, the query needs `.eq("client_id", clientId)` to find the right session.
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
+Changes:
+- Add optional `clientId?: string` prop to `EventDetailModalProps`
+- Pass `clientId` into the session query: `.eq("client_id", clientId)` when provided
+- Also use it for the exercises load query filter (for safety)
 
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
+**File: `src/components/clients/workspace/CalendarTab.tsx`**
+
+- Pass `clientId` prop through to `EventDetailModal`
+
+**File: `src/pages/Calendar.tsx`**
+
+- Pass `user?.id` as `clientId` for the client's own calendar (already works via RLS, but for consistency)
+
+### 2. Add Phase End Date to Client Cards
+
+**File: `src/components/clients/SelectableClientCards.tsx`**
+
+- After fetching profiles, also fetch `client_program_assignments` (status=active/subscribed) with joined `program_phases(name, duration_weeks)` for each client
+- Compute phase end date: `start_date + sum of prior phases' duration_weeks + current_phase.duration_weeks`
+- Simpler approach: fetch assignment `start_date`, `current_phase_id`, and all phases for the program, compute the end date of the current phase
+- Display below compliance: "Phase ends [date]" with "X days left" badge, colored amber if ≤7 days, red if overdue
+
+### 3. Phase Deadline Section in Command Center
+
+**File: `src/components/dashboard/CoachCommandCenter.tsx`**
+
+- Add a new data type `PhaseDeadlineClient` with `clientId, clientName, avatarUrl, phaseName, endDate, daysLeft`
+- In the `queryFn`, fetch `client_program_assignments` for all active clients with `current_phase_id`, join `program_phases` to get `duration_weeks` and all phases for the program
+- Compute phase end date per client
+- Split into two groups: "Due Within 7 Days" (daysLeft 1-7) and "Overdue" (daysLeft ≤ 0)
+- Render this new section where "Compliance Snapshot" currently sits
+- Move "Compliance Snapshot" to below the Weekly Check-In Dashboard (bottom of page)
+
+**Phase End Date Calculation Logic:**
+```text
+1. Get assignment: start_date, current_phase_id, program_id
+2. Get all phases for program_id, ordered by phase_order
+3. Sum duration_weeks of all phases BEFORE the current phase
+4. Add current phase duration_weeks
+5. phase_end = start_date + total_weeks * 7 days
+```
 
 ---
 
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Files to Edit
+
+1. **`src/components/calendar/EventDetailModal.tsx`** — Add `clientId` prop, use in session query
+2. **`src/components/clients/workspace/CalendarTab.tsx`** — Pass `clientId` to EventDetailModal
+3. **`src/components/clients/SelectableClientCards.tsx`** — Fetch and display phase end dates
+4. **`src/components/dashboard/CoachCommandCenter.tsx`** — Add phase deadline section, move compliance snapshot to bottom
+
+No database changes needed — all data exists in `client_program_assignments` and `program_phases`.
 
