@@ -540,6 +540,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
     setPreviewExerciseIdx(null);
     savedSuccessfullyRef.current = true;
+    latestDraftRef.current.saved = true;
     onClose();
   };
 
