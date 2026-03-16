@@ -122,14 +122,16 @@ const EventDetailModal = ({
   const loadSessionData = async (workoutId: string, eventDate: string) => {
     setLoadingSession(true);
     try {
-      // Find the session for this workout on this date
-      const { data: sessions } = await supabase
+      // Find the session for this workout — use clientId if provided (coach viewing client)
+      let query = supabase
         .from("workout_sessions")
         .select("id, duration_seconds, sets_completed, total_volume, completed_at, status")
         .eq("workout_id", workoutId)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
         .limit(5);
+      if (clientId) query = query.eq("client_id", clientId);
+      const { data: sessions } = await query;
 
       if (!sessions || sessions.length === 0) {
         setLoadingSession(false);
