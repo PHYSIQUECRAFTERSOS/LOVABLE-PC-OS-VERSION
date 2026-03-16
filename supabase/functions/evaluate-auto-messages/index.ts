@@ -360,13 +360,11 @@ Deno.serve(async (req) => {
         });
 
         // Also deliver as a real message in their thread
-        // Find or create thread
         const { data: existingThread } = await supabase
           .from("message_threads")
           .select("id")
-          .or(
-            `and(participant_1.eq.${trigger.coach_id},participant_2.eq.${clientId}),and(participant_1.eq.${clientId},participant_2.eq.${trigger.coach_id})`
-          )
+          .eq("coach_id", trigger.coach_id)
+          .eq("client_id", clientId)
           .limit(1)
           .maybeSingle();
 
@@ -376,8 +374,8 @@ Deno.serve(async (req) => {
           const { data: newThread } = await supabase
             .from("message_threads")
             .insert({
-              participant_1: trigger.coach_id,
-              participant_2: clientId,
+              coach_id: trigger.coach_id,
+              client_id: clientId,
             })
             .select("id")
             .single();
