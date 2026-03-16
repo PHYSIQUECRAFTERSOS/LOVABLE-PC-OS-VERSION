@@ -1,122 +1,101 @@
+# Check-In Review Tracker: Replace Google Sheet
+
+## What We're Building
+
+A reviewer assignment and completion tracking system integrated into the existing Weekly Check-In Dashboard on the Command Center. This replaces the Google Sheet workflow entirely.
+
+### Core Features
+
+1. **Reviewer Management** — A small settings panel to create reviewers (you, Nicko, future staff) with custom names and colors
+2. **Client-Reviewer Assignment** — One-time tag per client linking them to a reviewer( make sure this only viewable as a coach log in side and not the client log in side)
+3. **Review Completion** — Tap-to-mark a check-in as "reviewed" with strikethrough in place + a completed count section
+4. **Color Coding** — Each client row shows their assigned reviewer's color as a left-border or badge( make sure this only viewable as a coach log in side and not the client log in side)
+
+## Database Changes
+
+### New table: `checkin_reviewers`
 
 
-# Physique Crafters — Transformation Operating System
+| Column     | Type        | Notes                                                |
+| ---------- | ----------- | ---------------------------------------------------- |
+| id         | uuid PK     | &nbsp;                                               |
+| coach_id   | uuid        | FK to auth.users, the coach who owns these reviewers |
+| name       | text        | "Me", "Nicko", etc.                                  |
+| color      | text        | hex color, e.g. "#FBBF24" (yellow), "#06B6D4" (cyan) |
+| sort_order | int         | display ordering                                     |
+| created_at | timestamptz | &nbsp;                                               |
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
 
----
+### New table: `client_reviewer_assignments`
 
-## Phase 1 — MVP (Core Platform)
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+| Column      | Type        | Notes                                   |
+| ----------- | ----------- | --------------------------------------- |
+| id          | uuid PK     | &nbsp;                                  |
+| client_id   | uuid        | FK to auth.users                        |
+| reviewer_id | uuid        | FK to checkin_reviewers                 |
+| coach_id    | uuid        | FK to auth.users (denormalized for RLS) |
+| created_at  | timestamptz | &nbsp;                                  |
+| UNIQUE      | (client_id) | one reviewer per client                 |
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+### Alter `checkin_submissions`
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+- Add column: `reviewed_by` (uuid, nullable, FK to `checkin_reviewers`)
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+RLS: Coach can read/write their own reviewers and assignments. Standard coach-client access patterns.
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+## UI Changes
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### File: `src/components/dashboard/CheckinSubmissionDashboard.tsx`
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+**Enhanced client rows:**
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+- Left color stripe on each row matching their assigned reviewer's color( make sure this only viewable as a coach log in side and not the client log in side)
+- Small reviewer name badge (e.g., "Nicko" in cyan, "Me" in yellow)( make sure this only viewable as a coach log in side and not the client log in side)
+- **Checkbox** on each submitted client row — tap to mark as "review complete"
+- When checked: name gets `line-through` + `opacity-60`, stays in its column
+- Counter in each column header: "3/5 reviewed"
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+**New "Completed" summary bar** below the 3-column grid:
 
----
+- Shows count of completed reviews with a progress ring
+- Collapsible list of all reviewed clients this week
 
-## Phase 2 — Advanced Features
+**Reviewer Settings button** (gear icon in header):
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+- Opens a small dialog to add/edit/remove reviewers with name + color picker
+- Shows current client assignments with ability to reassign
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+### File: `src/components/dashboard/ReviewerSettingsDialog.tsx` (new)
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+- List of reviewers with color swatches
+- Add reviewer form (name + color)
+- Client assignment section: dropdown per client or drag-to-assign
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
+### File: `src/components/dashboard/ClientReviewerAssignment.tsx` (new)
 
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
+- Used in client workspace or as part of settings dialog
+- Simple select dropdown to assign a reviewer to a client
 
----
+## Data Flow
 
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+```text
+Coach opens Command Center
+  → Dashboard fetches checkin data + reviewer assignments + reviewer profiles
+  → Each client row shows reviewer color + name badge
+  → Submitted clients show a checkbox
+  → Coach taps checkbox → optimistic strikethrough
+    → UPDATE checkin_submissions SET reviewed_at=now(), reviewed_by=reviewer_id
+  → Completed count updates in header + bottom summary
+  → Reviewer Settings (gear icon) → manage reviewers + assign clients
+```
 
+## Files Changed
+
+
+| File                                                      | Change                                                                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Migration                                                 | Create `checkin_reviewers`, `client_reviewer_assignments` tables; add `reviewed_by` to `checkin_submissions` |
+| `src/components/dashboard/CheckinSubmissionDashboard.tsx` | Add reviewer colors, checkboxes, strikethrough, completed section                                            |
+| `src/components/dashboard/ReviewerSettingsDialog.tsx`     | New — reviewer CRUD + client assignment UI                                                                   |
