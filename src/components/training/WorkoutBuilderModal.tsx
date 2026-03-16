@@ -183,6 +183,11 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const syncedDuringSessionRef = useRef(false);
   const autoSaveStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ref-based snapshot for unmount-safe draft flushing (survives React component teardown)
+  const latestDraftRef = useRef<{ key: string; open: boolean; saved: boolean; snapshot: string }>({
+    key: draftKey, open, saved: false, snapshot: "",
+  });
+
   const buildDraftSnapshot = useCallback(() => JSON.stringify({
     workoutName,
     instructions,
