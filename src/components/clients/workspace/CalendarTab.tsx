@@ -390,22 +390,35 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   };
 
   const generateRepeatDates = (baseDate: Date): string[] => {
-    const dates: string[] = [format(baseDate, "yyyy-MM-dd")];
+    const baseDateStr = format(baseDate, "yyyy-MM-dd");
+    const dates: string[] = [baseDateStr];
     if (!repeatEnabled) return dates;
+
     if (repeatFrequency === "daily") {
-      for (let i = 1; i < repeatForWeeks * 7; i++) dates.push(format(addDays(baseDate, i), "yyyy-MM-dd"));
+      for (let i = 1; i < repeatForWeeks * 7; i++)
+        dates.push(format(addDays(baseDate, i), "yyyy-MM-dd"));
     } else if (repeatFrequency === "weekly") {
-      for (let week = 0; week < repeatForWeeks; week++) {
-        const weekStart = addWeeks(baseDate, week * repeatEveryN);
-        for (const dayNum of repeatDays) {
-          const diff = (dayNum - weekStart.getDay() + 7) % 7;
-          const d = addDays(weekStart, diff === 0 && week === 0 ? 0 : diff || 7);
+      // Find Monday of the base date's week (Mon=0 system)
+      const jsDay = baseDate.getDay(); // Sun=0, Mon=1 ... Sat=6
+      const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
+      const baseMonday = addDays(baseDate, mondayOffset);
+
+      // Default to same weekday as base date if no specific days selected
+      const daysToRepeat = repeatDays.length > 0
+        ? repeatDays
+        : [jsDay === 0 ? 6 : jsDay - 1]; // convert JS day to Mon=0 system
+
+      for (let week = 1; week < repeatForWeeks; week++) {
+        const weekMonday = addWeeks(baseMonday, week * repeatEveryN);
+        for (const dayNum of daysToRepeat) {
+          const d = addDays(weekMonday, dayNum); // dayNum: 0=Mon, 1=Tue ... 6=Sun
           const dateStr = format(d, "yyyy-MM-dd");
-          if (!dates.includes(dateStr) && d > baseDate) dates.push(dateStr);
+          if (!dates.includes(dateStr)) dates.push(dateStr);
         }
       }
     } else if (repeatFrequency === "monthly") {
-      for (let i = 1; i <= repeatForWeeks; i++) dates.push(format(addMonths(baseDate, i), "yyyy-MM-dd"));
+      for (let i = 1; i <= repeatForWeeks; i++)
+        dates.push(format(addMonths(baseDate, i), "yyyy-MM-dd"));
     }
     return dates;
   };

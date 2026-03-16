@@ -234,33 +234,47 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
       const { error } = await supabase.from("calendar_events").insert(eventData);
       if (error) throw error;
 
-      // If recurring, generate occurrences for the next 12 weeks
+      // If recurring, generate occurrences
       if (isRecurring && recurrencePattern) {
         const occurrences: any[] = [];
-        const startDate = new Date(eventDate);
-        const endDate = recurrenceEndDate ? new Date(recurrenceEndDate) : new Date(startDate);
-        if (!recurrenceEndDate) endDate.setDate(endDate.getDate() + 84); // 12 weeks
+        const startDate = new Date(eventDate + "T12:00:00"); // noon to avoid TZ issues
+        const totalWeeks = recurrenceEndDate
+          ? Math.ceil((new Date(recurrenceEndDate).getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000))
+          : 12;
 
-        let current = new Date(startDate);
-        const increment = recurrencePattern === "daily" ? 1 : recurrencePattern === "weekly" ? 7 : recurrencePattern === "biweekly" ? 14 : 30;
-        current.setDate(current.getDate() + increment);
+        if (recurrencePattern === "daily") {
+          const maxDays = recurrenceEndDate
+            ? Math.ceil((new Date(recurrenceEndDate).getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
+            : 84;
+          for (let i = 1; i <= maxDays; i++) {
+            occurrences.push({ ...eventData, event_date: format(addDays(startDate, i), "yyyy-MM-dd") });
+          }
+        } else if (recurrencePattern === "weekly" || recurrencePattern === "biweekly") {
+          const step = recurrencePattern === "biweekly" ? 2 : 1;
+          // Find Monday of base week
+          const jsDay = startDate.getDay();
+          const mondayOffset = jsDay === 0 ? -6 : 1 - jsDay;
+          const baseMonday = addDays(startDate, mondayOffset);
 
-        while (current <= endDate) {
-          if (recurrencePattern === "weekly" && recurrenceDays.length > 0) {
-            // For weekly with specific days
-            const dayOfWeek = current.getDay();
-            const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Mon=0
-            if (!recurrenceDays.includes(adjustedDay)) {
-              current.setDate(current.getDate() + 1);
-              continue;
+          // Default to same weekday if no specific days chosen
+          const daysToRepeat = recurrenceDays.length > 0
+            ? recurrenceDays
+            : [jsDay === 0 ? 6 : jsDay - 1]; // Mon=0 system
+
+          for (let week = 1; week <= totalWeeks; week++) {
+            const weekMonday = addWeeks(baseMonday, week * step);
+            for (const dayNum of daysToRepeat) {
+              const d = addDays(weekMonday, dayNum);
+              if (recurrenceEndDate && d > new Date(recurrenceEndDate + "T23:59:59")) continue;
+              occurrences.push({ ...eventData, event_date: format(d, "yyyy-MM-dd") });
             }
           }
-
-          occurrences.push({
-            ...eventData,
-            event_date: format(current, "yyyy-MM-dd"),
-          });
-          current.setDate(current.getDate() + (recurrencePattern === "weekly" && recurrenceDays.length > 0 ? 1 : increment));
+        } else if (recurrencePattern === "monthly") {
+          for (let i = 1; i <= totalWeeks; i++) {
+            const d = addMonths(startDate, i);
+            if (recurrenceEndDate && d > new Date(recurrenceEndDate + "T23:59:59")) continue;
+            occurrences.push({ ...eventData, event_date: format(d, "yyyy-MM-dd") });
+          }
         }
 
         if (occurrences.length > 0) {
