@@ -232,9 +232,17 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             className="flex-1"
           />
-          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()} className="shrink-0">
-            <Send className="h-4 w-4" />
-          </Button>
+          {newMessage.trim() ? (
+            <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()} className="shrink-0">
+              <Send className="h-4 w-4" />
+            </Button>
+          ) : threadId ? (
+            <VoiceMessageRecorder threadId={threadId} onSent={() => threadId && loadMessages(threadId)} />
+          ) : (
+            <Button size="icon" disabled className="shrink-0">
+              <Send className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
