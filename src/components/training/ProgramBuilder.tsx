@@ -90,6 +90,7 @@ interface ProgramBuilderProps {
   editProgramId?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
