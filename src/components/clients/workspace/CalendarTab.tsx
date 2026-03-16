@@ -856,6 +856,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         onComplete={handleEventComplete}
         onDelete={handleEventDelete}
         isCoach={true}
+        clientId={clientId}
       />
 
       {/* Expanded Day Dialog */}

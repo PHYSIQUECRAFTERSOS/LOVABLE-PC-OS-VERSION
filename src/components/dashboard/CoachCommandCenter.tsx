@@ -7,7 +7,7 @@ import UserAvatar from "@/components/profile/UserAvatar";
 import { useDataFetch } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { useNavigate } from "react-router-dom";
-import { format, subDays } from "date-fns";
+import { format, subDays, addDays, differenceInDays } from "date-fns";
 import {
   AlertTriangle,
   MessageSquare,
@@ -22,6 +22,8 @@ import {
   Activity,
   UtensilsCrossed,
   ClipboardCheck,
+  CalendarClock,
+  Clock,
 } from "lucide-react";
 
 // ── Types ──
@@ -82,6 +84,15 @@ interface YesterdayWorkoutClient {
   workoutTitle: string;
 }
 
+interface PhaseDeadlineClient {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  phaseName: string;
+  endDate: string;
+  daysLeft: number;
+}
+
 interface CommandCenterData {
   actionItems: ActionItem[];
   snapshot: ComplianceSnapshot;
@@ -90,6 +101,7 @@ interface CommandCenterData {
   unreadThreads: UnreadThread[];
   completedYesterday: YesterdayWorkoutClient[];
   missedYesterday: YesterdayWorkoutClient[];
+  phaseDeadlines: PhaseDeadlineClient[];
 }
 
 // ── Helpers ──
@@ -124,7 +136,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -137,7 +149,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
@@ -328,7 +340,61 @@ const CoachCommandCenter = () => {
         }
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday };
+      // ── Section 7: Phase Deadlines ──
+      const phaseDeadlines: PhaseDeadlineClient[] = [];
+      const { data: programAssignments } = await supabase
+        .from("client_program_assignments")
+        .select("client_id, program_id, current_phase_id, start_date")
+        .in("client_id", clientIds)
+        .in("status", ["active", "subscribed"]);
+
+      if (programAssignments?.length) {
+        const programIds = [...new Set(programAssignments.map((a) => a.program_id))];
+        const { data: allPhases } = await supabase
+          .from("program_phases")
+          .select("id, program_id, phase_order, duration_weeks, name")
+          .in("program_id", programIds)
+          .order("phase_order", { ascending: true });
+
+        if (allPhases?.length) {
+          const phasesByProgram = new Map<string, typeof allPhases>();
+          allPhases.forEach((p) => {
+            if (!phasesByProgram.has(p.program_id)) phasesByProgram.set(p.program_id, []);
+            phasesByProgram.get(p.program_id)!.push(p);
+          });
+
+          for (const a of programAssignments) {
+            const phases = phasesByProgram.get(a.program_id);
+            if (!phases?.length || !a.current_phase_id) continue;
+            const currentPhase = phases.find((p) => p.id === a.current_phase_id);
+            if (!currentPhase) continue;
+
+            let totalWeeks = 0;
+            for (const p of phases) {
+              totalWeeks += p.duration_weeks;
+              if (p.id === a.current_phase_id) break;
+            }
+
+            const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
+            const daysLeft = differenceInDays(endDate, now);
+            const profile = profileMap.get(a.client_id);
+
+            if (daysLeft <= 7) {
+              phaseDeadlines.push({
+                clientId: a.client_id,
+                clientName: profile?.full_name || "Client",
+                avatarUrl: profile?.avatar_url,
+                phaseName: currentPhase.name,
+                endDate: format(endDate, "MMM d, yyyy"),
+                daysLeft,
+              });
+            }
+          }
+          phaseDeadlines.sort((a, b) => a.daysLeft - b.daysLeft);
+        }
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines };
     },
   });
 
@@ -336,7 +402,7 @@ const CoachCommandCenter = () => {
   if ((error || timedOut) && !data?.actionItems?.length) return <RetryBanner onRetry={refetch} />;
   if (!data) return null;
 
-  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday } = data;
+  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines } = data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -470,19 +536,88 @@ const CoachCommandCenter = () => {
         </Card>
       </div>
 
-      {/* ─── SECTION 3: Compliance Snapshot ─── */}
+      {/* ─── SECTION 3: Phase Deadline Alerts ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
-          <Activity className="h-5 w-5 text-primary" />
-          Compliance Snapshot
+          <CalendarClock className="h-5 w-5 text-primary" />
+          Training Phase Deadlines
         </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <MetricCard icon={Zap} label="Training" value={`${snapshot.trainingPct}%`} pct={snapshot.trainingPct} />
-          <MetricCard icon={UtensilsCrossed} label="Nutrition" value={`${snapshot.nutritionPct}%`} pct={snapshot.nutritionPct} />
-          <MetricCard icon={ClipboardCheck} label="Check-ins" value={`${snapshot.checkinPct}%`} pct={snapshot.checkinPct} />
-          <MetricCard icon={Users} label="Active" value={String(snapshot.activeClients)} />
-          <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
-        </div>
+        {phaseDeadlines.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center">
+              <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No phases ending within 7 days.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Overdue */}
+            {phaseDeadlines.some((c) => c.daysLeft <= 0) && (
+              <Card className="border-destructive/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-display flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    Overdue
+                    <span className="ml-1 rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">
+                      {phaseDeadlines.filter((c) => c.daysLeft <= 0).length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {phaseDeadlines.filter((c) => c.daysLeft <= 0).map((client) => (
+                    <div
+                      key={client.clientId}
+                      className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/clients/${client.clientId}`)}
+                    >
+                      <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ended {client.endDate}</p>
+                      </div>
+                      <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-destructive/20 text-destructive">
+                        {Math.abs(client.daysLeft)}d overdue
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Due within 7 days */}
+            {phaseDeadlines.some((c) => c.daysLeft > 0) && (
+              <Card className="border-amber-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-display flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-amber-400" />
+                    Due Within 7 Days
+                    <span className="ml-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                      {phaseDeadlines.filter((c) => c.daysLeft > 0).length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {phaseDeadlines.filter((c) => c.daysLeft > 0).map((client) => (
+                    <div
+                      key={client.clientId}
+                      className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/clients/${client.clientId}`)}
+                    >
+                      <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">{client.clientName}</p>
+                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ends {client.endDate}</p>
+                      </div>
+                      <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-amber-400/20 text-amber-400">
+                        {client.daysLeft}d left
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ─── SECTION 3 & 4: Leaderboard + At-Risk side by side ─── */}
@@ -608,6 +743,21 @@ const CoachCommandCenter = () => {
 
       {/* ─── SECTION 6: Weekly Check-In Dashboard ─── */}
       <CheckinSubmissionDashboard />
+
+      {/* ─── SECTION 7: Compliance Snapshot (moved to bottom) ─── */}
+      <div>
+        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+          <Activity className="h-5 w-5 text-primary" />
+          Compliance Snapshot
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <MetricCard icon={Zap} label="Training" value={`${snapshot.trainingPct}%`} pct={snapshot.trainingPct} />
+          <MetricCard icon={UtensilsCrossed} label="Nutrition" value={`${snapshot.nutritionPct}%`} pct={snapshot.nutritionPct} />
+          <MetricCard icon={ClipboardCheck} label="Check-ins" value={`${snapshot.checkinPct}%`} pct={snapshot.checkinPct} />
+          <MetricCard icon={Users} label="Active" value={String(snapshot.activeClients)} />
+          <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
+        </div>
+      </div>
     </div>
   );
 };

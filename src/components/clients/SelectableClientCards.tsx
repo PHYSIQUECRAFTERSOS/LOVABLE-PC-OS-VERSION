@@ -15,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
-import { subDays, format } from "date-fns";
+import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2, CalendarClock } from "lucide-react";
+import { subDays, format, addDays, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import ClientPreviewDialog from "./ClientPreviewDialog";
 
@@ -32,6 +32,12 @@ export interface SelectableClient {
 interface NutritionCompliance {
   pct: number | null;
   status: "on_target" | "close" | "missed" | "no_data";
+}
+
+interface PhaseInfo {
+  phaseName: string;
+  endDate: string;
+  daysLeft: number;
 }
 
 interface SelectableClientCardsProps {
@@ -67,6 +73,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [complianceMap, setComplianceMap] = useState<Record<string, NutritionCompliance>>({});
+  const [phaseMap, setPhaseMap] = useState<Record<string, PhaseInfo>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -186,6 +193,67 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     // Auto-refresh every 5 minutes
     const interval = setInterval(fetchCompliance, 5 * 60 * 1000);
     return () => clearInterval(interval);
+  }, [clients]);
+
+  /* ─── Batch load phase end dates for all clients ─── */
+  useEffect(() => {
+    if (clients.length === 0) return;
+    const ids = clients.map((c) => c.id);
+
+    const fetchPhases = async () => {
+      // Get active program assignments for all clients
+      const { data: assignments } = await supabase
+        .from("client_program_assignments")
+        .select("client_id, program_id, current_phase_id, start_date")
+        .in("client_id", ids)
+        .in("status", ["active", "subscribed"]);
+
+      if (!assignments?.length) return;
+
+      // Get all unique program IDs to fetch phases
+      const programIds = [...new Set(assignments.map((a) => a.program_id))];
+      const { data: allPhases } = await supabase
+        .from("program_phases")
+        .select("id, program_id, phase_order, duration_weeks, name")
+        .in("program_id", programIds)
+        .order("phase_order", { ascending: true });
+
+      if (!allPhases?.length) return;
+
+      const phasesByProgram = new Map<string, typeof allPhases>();
+      allPhases.forEach((p) => {
+        if (!phasesByProgram.has(p.program_id)) phasesByProgram.set(p.program_id, []);
+        phasesByProgram.get(p.program_id)!.push(p);
+      });
+
+      const map: Record<string, PhaseInfo> = {};
+      for (const a of assignments) {
+        const phases = phasesByProgram.get(a.program_id);
+        if (!phases?.length || !a.current_phase_id) continue;
+
+        const currentPhase = phases.find((p) => p.id === a.current_phase_id);
+        if (!currentPhase) continue;
+
+        // Sum weeks of prior phases + current phase
+        let totalWeeks = 0;
+        for (const p of phases) {
+          totalWeeks += p.duration_weeks;
+          if (p.id === a.current_phase_id) break;
+        }
+
+        const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
+        const daysLeft = differenceInDays(endDate, new Date());
+
+        map[a.client_id] = {
+          phaseName: currentPhase.name,
+          endDate: format(endDate, "MMM d"),
+          daysLeft,
+        };
+      }
+      setPhaseMap(map);
+    };
+
+    fetchPhases();
   }, [clients]);
 
   const allTags = useMemo(() => {
@@ -312,6 +380,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         {filteredClients.map((client) => {
           const isSelected = selectedIds.has(client.id);
           const comp = complianceMap[client.id];
+          const phase = phaseMap[client.id];
           return (
             <Card
               key={client.id}
@@ -332,11 +401,20 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-foreground text-sm truncate">{client.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-muted-foreground">{client.compliance}% compliance</span>
                       {client.streak > 0 && (
                         <span className="text-xs text-primary font-medium flex items-center gap-0.5">
                           <Zap className="h-2.5 w-2.5" />{client.streak}d
+                        </span>
+                      )}
+                      {phase && (
+                        <span className={cn(
+                          "text-[10px] font-medium flex items-center gap-0.5",
+                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
+                        )}>
+                          <CalendarClock className="h-2.5 w-2.5" />
+                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`} · {phase.endDate}
                         </span>
                       )}
                     </div>
