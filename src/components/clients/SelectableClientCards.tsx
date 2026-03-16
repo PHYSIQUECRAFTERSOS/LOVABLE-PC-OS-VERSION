@@ -15,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
-import { subDays, format } from "date-fns";
+import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2, CalendarClock } from "lucide-react";
+import { subDays, format, addDays, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import ClientPreviewDialog from "./ClientPreviewDialog";
 
