@@ -16,6 +16,7 @@ export interface ActiveSession {
  */
 export const useActiveSession = () => {
   const { user } = useAuth();
+  const userId = user?.id;
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [online, setOnline] = useState(navigator.onLine);
@@ -33,14 +34,14 @@ export const useActiveSession = () => {
   }, []);
 
   const checkForSession = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
+    if (!userId) { setLoading(false); return; }
     try {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
       const { data, error } = await supabase
         .from("workout_sessions")
         .select("id, workout_id, started_at, last_heartbeat, workouts(name)")
-        .eq("client_id", user.id)
+        .eq("client_id", userId)
         .eq("status", "in_progress")
         .gte("last_heartbeat", twoHoursAgo)
         .order("started_at", { ascending: false })
@@ -52,7 +53,7 @@ export const useActiveSession = () => {
         const { data: fallback } = await supabase
           .from("workout_sessions")
           .select("id, workout_id, started_at, workouts(name)")
-          .eq("client_id", user.id)
+          .eq("client_id", userId)
           .eq("status", "in_progress")
           .gte("started_at", twoHoursAgo)
           .order("started_at", { ascending: false })
@@ -80,24 +81,24 @@ export const useActiveSession = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => { checkForSession(); }, [checkForSession]);
 
   // Auto-abandon stale sessions (older than 2h) silently
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const cleanup = async () => {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       await supabase
         .from("workout_sessions")
         .update({ status: "abandoned" } as any)
-        .eq("client_id", user.id)
+        .eq("client_id", userId)
         .eq("status", "in_progress")
         .lt("started_at", twoHoursAgo);
     };
     cleanup();
-  }, [user]);
+  }, [userId]);
 
   const dismiss = useCallback(() => setActiveSession(null), []);
 

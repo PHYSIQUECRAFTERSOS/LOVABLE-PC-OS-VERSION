@@ -269,6 +269,7 @@ interface ProgramDetailViewProps {
 
 const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailViewProps) => {
   const { user } = useAuth();
+  const userId = user?.id;
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -343,7 +344,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   }, [toast]);
 
   const loadProgram = useCallback(async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
 
     try {
@@ -450,7 +451,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     } finally {
       setLoading(false);
     }
-  }, [programId, user]);
+  }, [programId, userId, toast]);
 
   useEffect(() => { loadProgram(); }, [loadProgram]);
 

@@ -57,6 +57,15 @@ function clearCachedRoles(userId?: string) {
   } catch {}
 }
 
+function areRolesEqual(current: AppRole[], next: AppRole[]) {
+  if (current.length !== next.length) return false;
+
+  const left = [...current].sort();
+  const right = [...next].sort();
+
+  return left.every((role, index) => role === right[index]);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -68,6 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const activeUserIdRef = useRef<string | null>(null);
   const autoAcceptAttempted = useRef(false);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
+  const rolesRef = useRef<AppRole[]>([]);
+
+  const setRolesIfChanged = useCallback((nextRoles: AppRole[]) => {
+    rolesRef.current = nextRoles;
+    setRoles((prev) => (areRolesEqual(prev, nextRoles) ? prev : nextRoles));
+  }, []);
 
   const fetchRoles = useCallback(async (userId: string): Promise<AppRole[]> => {
     try {
@@ -106,14 +121,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mountedRef.current || currentSession.user.id !== activeUserIdRef.current) return;
 
       if (freshRoles.length > 0) {
-        setRoles(freshRoles);
+        setRolesIfChanged(freshRoles);
         setCachedRoles(currentSession.user.id, freshRoles);
       }
       setRoleLoading(false);
     } catch (error) {
       console.error("[auth] auto-accept failed:", error);
     }
-  }, [fetchRoles]);
+  }, [fetchRoles, setRolesIfChanged]);
 
   const syncTimezone = useCallback(async (userId: string) => {
     try {
@@ -129,7 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .update({ timezone: tz } as any)
           .eq("user_id", userId);
       }
-    } catch { /* non-critical */ }
+    } catch {
+      /* non-critical */
+    }
   }, []);
 
   const resolveSession = useCallback(async (incomingSession: Session | null) => {
@@ -140,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setSession(null);
       setUser(null);
-      setRoles([]);
+      setRolesIfChanged([]);
       setRoleLoading(false);
       setLoading(false);
       activeUserIdRef.current = null;
@@ -153,46 +170,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const currentUserId = incomingSession.user.id;
+    const previousUserId = activeUserIdRef.current;
+    const isSameUser = previousUserId === currentUserId;
     activeUserIdRef.current = currentUserId;
 
-    setSession(incomingSession);
-    setUser(incomingSession.user);
+    setSession((prev) => {
+      if (
+        prev?.user?.id === currentUserId &&
+        prev.access_token === incomingSession.access_token &&
+        prev.refresh_token === incomingSession.refresh_token &&
+        prev.expires_at === incomingSession.expires_at
+      ) {
+        return prev;
+      }
+
+      return incomingSession;
+    });
+    setUser((prev) => (prev?.id === currentUserId ? prev : incomingSession.user));
     setLoading(false);
 
-    // Sync timezone on every session resolution (login, app load, token refresh)
-    syncTimezone(currentUserId);
+    if (!isSameUser) {
+      syncTimezone(currentUserId);
+    }
 
-    const cached = getCachedRoles(currentUserId);
-    if (cached.length > 0) {
-      setRoles(cached);
+    const cachedRoles = getCachedRoles(currentUserId);
+    const currentRoles = rolesRef.current;
+    const effectiveRoles = cachedRoles.length > 0 ? cachedRoles : currentRoles;
+
+    if (effectiveRoles.length > 0) {
+      setRolesIfChanged(effectiveRoles);
       setRoleLoading(false);
     } else {
       setRoleLoading(true);
     }
 
-    let fetchedRoles = await fetchRoles(currentUserId);
+    if (!isSameUser || currentRoles.length === 0) {
+      let fetchedRoles = await fetchRoles(currentUserId);
 
-    if (fetchedRoles.length === 0) {
-      await tryAutoAcceptInvite(incomingSession);
-      fetchedRoles = await fetchRoles(currentUserId);
-    }
+      if (fetchedRoles.length === 0) {
+        await tryAutoAcceptInvite(incomingSession);
+        fetchedRoles = await fetchRoles(currentUserId);
+      }
 
-    if (!mountedRef.current || activeUserIdRef.current !== currentUserId) return;
+      if (!mountedRef.current || activeUserIdRef.current !== currentUserId) return;
 
-    if (fetchedRoles.length > 0) {
-      setRoles(fetchedRoles);
-      setCachedRoles(currentUserId, fetchedRoles);
-    } else if (cached.length === 0) {
-      setRoles([]);
+      if (fetchedRoles.length > 0) {
+        setRolesIfChanged(fetchedRoles);
+        setCachedRoles(currentUserId, fetchedRoles);
+      } else if (cachedRoles.length === 0) {
+        setRolesIfChanged([]);
+      }
+
+      console.log("[auth] session resolved:", {
+        userId: currentUserId.slice(0, 8),
+        roles: fetchedRoles.length > 0 ? fetchedRoles : effectiveRoles,
+      });
+    } else {
+      console.log("[auth] session refreshed:", {
+        userId: currentUserId.slice(0, 8),
+        roles: effectiveRoles,
+      });
     }
 
     setRoleLoading(false);
-
-    console.log("[auth] session resolved:", {
-      userId: currentUserId.slice(0, 8),
-      roles: fetchedRoles.length > 0 ? fetchedRoles : cached,
-    });
-  }, [fetchRoles, tryAutoAcceptInvite]);
+  }, [fetchRoles, setRolesIfChanged, tryAutoAcceptInvite, syncTimezone]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -251,13 +292,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setRoles([]);
+    setRolesIfChanged([]);
     setLoading(false);
     setRoleLoading(false);
     autoAcceptAttempted.current = false;
     activeUserIdRef.current = null;
     if (userId) clearCachedRoles(userId);
-  }, []);
+  }, [setRolesIfChanged]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

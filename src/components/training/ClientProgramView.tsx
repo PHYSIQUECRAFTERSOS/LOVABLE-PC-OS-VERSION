@@ -47,6 +47,7 @@ interface PhaseDetail {
 
 const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const { user } = useAuth();
+  const userId = user?.id;
   const [assignments, setAssignments] = useState<ProgramAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null);
@@ -54,13 +55,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const load = async () => {
       // 1. Get assigned programs via client_program_assignments
       const { data: cpa } = await supabase
         .from("client_program_assignments")
         .select("id, program_id, start_date, status")
-        .eq("client_id", user.id)
+        .eq("client_id", userId)
         .in("status", ["active", "subscribed"])
         .order("created_at", { ascending: false });
 
@@ -69,7 +70,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         const { data: directPrograms } = await supabase
           .from("programs")
           .select("id, name, description, goal_type")
-          .eq("client_id", user.id)
+          .eq("client_id", userId)
           .eq("is_template", false)
           .order("created_at", { ascending: false });
 
@@ -114,7 +115,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [userId]);
 
   const toggleProgram = async (programId: string) => {
     if (expandedProgram === programId) {
@@ -181,7 +182,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         const { data: directWorkouts } = await supabase
           .from("workouts")
           .select("id, name")
-          .eq("client_id", user?.id || "")
+          .eq("client_id", userId || "")
           .order("created_at");
 
         if (directWorkouts && directWorkouts.length > 0) {
