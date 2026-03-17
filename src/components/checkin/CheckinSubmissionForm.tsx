@@ -140,6 +140,9 @@ const CheckinSubmissionForm = () => {
       queryClient.invalidateQueries({ queryKey: ["client-checkin-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
       toast({ title: "Check-in submitted ✅" });
+      if (user?.id) {
+        triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Check-in submitted").catch(console.error);
+      }
       setActiveAssignment(null);
       setAnswers({});
     },
