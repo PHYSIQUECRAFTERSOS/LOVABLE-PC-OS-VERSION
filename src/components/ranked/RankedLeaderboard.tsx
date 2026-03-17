@@ -391,7 +391,7 @@ const LeaderboardRow = ({
         </AvatarFallback>
       </Avatar>
 
-      <div className="h-8 w-8 shrink-0 flex items-center justify-center overflow-hidden">
+      <div className="h-12 w-12 shrink-0 flex items-center justify-center overflow-hidden">
         <TierBadge tier={entry.current_tier} size={90} />
       </div>
 

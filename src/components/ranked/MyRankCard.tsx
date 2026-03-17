@@ -31,7 +31,7 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       {/* Hero badge centered */}
       <div className="flex justify-center">
-        <div className="h-32 w-32 flex items-center justify-center overflow-hidden">
+        <div className="w-full max-w-[240px] aspect-square flex items-center justify-center overflow-hidden mx-auto">
           <TierBadge tier={profile.current_tier} size={240} />
         </div>
       </div>

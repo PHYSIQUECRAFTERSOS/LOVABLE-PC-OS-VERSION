@@ -48,7 +48,7 @@ const MyRankTab = () => {
       <Card className={`border ${tierBgMap[tierName] || tierBgMap.Bronze}`}>
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-4">
-            <div className={`h-16 w-16 shrink-0 rounded-full flex items-center justify-center overflow-hidden ${tierBgMap[tierName]}`}>
+            <div className={`h-24 w-24 shrink-0 rounded-full flex items-center justify-center overflow-hidden ${tierBgMap[tierName]}`}>
               <TierIcon name={tierName} size={200} />
             </div>
             <div className="flex-1">

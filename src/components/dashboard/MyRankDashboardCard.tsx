@@ -25,7 +25,7 @@ const MyRankDashboardCard = () => {
       onClick={() => navigate("/ranked")}
       className="w-full flex items-center gap-3 rounded-lg border border-primary/30 bg-card px-4 py-3 text-left transition-colors hover:bg-primary/5 overflow-hidden"
     >
-      <div className="h-12 w-12 shrink-0 flex items-center justify-center overflow-hidden">
+      <div className="h-20 w-20 shrink-0 flex items-center justify-center overflow-hidden">
         <TierBadge tier={profile.current_tier} size={120} />
       </div>
       <div className="flex-1 min-w-0">
