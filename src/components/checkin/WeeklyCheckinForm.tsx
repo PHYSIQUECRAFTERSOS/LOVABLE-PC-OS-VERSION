@@ -11,6 +11,8 @@ import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, CheckCircle, Loader2 } from "lucide-react";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 
 const DEFAULT_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
