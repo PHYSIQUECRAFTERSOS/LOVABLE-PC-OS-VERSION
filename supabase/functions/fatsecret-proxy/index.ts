@@ -162,16 +162,15 @@ serve(async (req) => {
       const data = await fatSecretAPI("foods.search.v3", {
         search_expression: query,
         max_results: String(Math.min(limit, 50)),
-        include_food_images: "true",
-        include_food_attributes: "true",
       }, token);
 
-      const rawFoods = data?.foods_search?.results?.food;
-      if (!rawFoods) {
-        return new Response(JSON.stringify({ foods: [] }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      console.log("[fatsecret-proxy] Search response keys:", JSON.stringify(Object.keys(data || {})));
+      const searchRoot = data?.foods_search ?? data?.foods ?? data;
+      console.log("[fatsecret-proxy] Search root keys:", JSON.stringify(Object.keys(searchRoot || {})));
+      
+      // FatSecret v3 may return foods_search.results.food OR foods_search.foods.food
+      const rawFoods = searchRoot?.results?.food ?? searchRoot?.foods?.food ?? searchRoot?.food;
+      console.log("[fatsecret-proxy] Raw foods count:", Array.isArray(rawFoods) ? rawFoods.length : rawFoods ? 1 : 0);
 
       const foodList = Array.isArray(rawFoods) ? rawFoods : [rawFoods];
 
