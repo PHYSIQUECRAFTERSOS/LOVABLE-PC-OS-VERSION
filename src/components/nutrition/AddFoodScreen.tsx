@@ -142,6 +142,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
   const [pcRecipeSearch, setPcRecipeSearch] = useState("");
 
+  // Custom Foods
+  const [customFoods, setCustomFoods] = useState<any[]>([]);
+  const [showCreateFood, setShowCreateFood] = useState(false);
+
   useEffect(() => {
     if (open) {
       setActiveTab("all");
