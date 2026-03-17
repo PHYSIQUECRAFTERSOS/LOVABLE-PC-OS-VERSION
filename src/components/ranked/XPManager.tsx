@@ -155,9 +155,11 @@ const StagnantSection = () => {
     <div className="rounded-xl border border-border bg-card divide-y divide-border/50">
       {data.map((c: any) => (
         <div key={c.user_id} className="flex items-center gap-3 px-4 py-3">
-          <TierBadge tier={c.current_tier} size={100} />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">{c.name}</p>
+          <div className="h-8 w-8 shrink-0 flex items-center justify-center overflow-hidden">
+            <TierBadge tier={c.current_tier} size={100} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{c.name}</p>
             <p className="text-[10px] text-muted-foreground">
               {getDivisionLabel(c.current_tier, c.current_division)}
             </p>

@@ -60,7 +60,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
             <div key={tier.id} className="flex items-center gap-1 flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
-                  className={`h-7 w-7 rounded-full flex items-center justify-center text-xs border-2 transition-all ${
+                  className={`h-7 w-7 rounded-full flex items-center justify-center border-2 transition-all overflow-hidden ${
                     isCurrent ? "scale-110 shadow-lg" : ""
                   }`}
                   style={{
@@ -69,7 +69,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
                     opacity: isActive ? 1 : 0.4,
                   }}
                 >
-                  <TierIcon name={tier.name} size={90} />
+                  <TierIcon name={tier.name} size={90} className="scale-[0.22]" />
                 </div>
                 <span
                   className="text-[9px] mt-1 font-medium"

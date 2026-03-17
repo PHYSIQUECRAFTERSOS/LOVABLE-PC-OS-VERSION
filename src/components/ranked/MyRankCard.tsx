@@ -29,9 +29,15 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      <div className="flex items-center gap-4">
-        <TierBadge tier={profile.current_tier} size={240} />
-        <div className="flex-1">
+      {/* Hero badge centered */}
+      <div className="flex justify-center">
+        <div className="h-32 w-32 flex items-center justify-center overflow-hidden">
+          <TierBadge tier={profile.current_tier} size={240} />
+        </div>
+      </div>
+      {/* Info row */}
+      <div className="flex items-center justify-between">
+        <div>
           <h2
             className="text-xl font-bold tracking-tight"
             style={{ color: tierColor }}
