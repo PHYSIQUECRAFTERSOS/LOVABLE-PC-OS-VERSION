@@ -83,6 +83,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const latestFetchRef = useRef(0);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [saveMealName, setSaveMealName] = useState("");
+  const [showSaveMealDialog, setShowSaveMealDialog] = useState(false);
+  const [savingMeal, setSavingMeal] = useState(false);
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
