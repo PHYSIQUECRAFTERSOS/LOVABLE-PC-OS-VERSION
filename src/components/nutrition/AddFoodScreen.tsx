@@ -207,6 +207,16 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setPcRecipes((data as any[]) || []);
   };
 
+  const fetchCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("client_custom_foods")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setCustomFoods(data || []);
+  };
+
   useEffect(() => { fetchHistory(); }, [historySort]);
 
   const FALLBACK_BRAND_ALIASES: Record<string, string[]> = {
