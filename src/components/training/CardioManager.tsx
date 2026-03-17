@@ -29,6 +29,7 @@ const CARDIO_TYPES = [
 const CardioManager = () => {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
   const isCoach = role === "coach" || role === "admin";
 
