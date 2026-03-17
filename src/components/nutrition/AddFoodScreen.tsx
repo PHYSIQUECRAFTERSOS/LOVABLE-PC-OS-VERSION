@@ -37,6 +37,7 @@ import SavedMealDetail from "@/components/nutrition/SavedMealDetail";
 import CreateMealSheet from "@/components/nutrition/CreateMealSheet";
 import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet";
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
+import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 
 interface FoodItem {
   id: string;
