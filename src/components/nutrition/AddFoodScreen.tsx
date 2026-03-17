@@ -626,6 +626,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
       onLogged();
     }
+  };
 
   const logCustomFood = async (food: any) => {
     if (!user) return;
