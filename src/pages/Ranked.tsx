@@ -6,6 +6,7 @@ import XPHistoryFeed from "@/components/ranked/XPHistoryFeed";
 import BadgeCollection from "@/components/ranked/BadgeCollection";
 import XPManager from "@/components/ranked/XPManager";
 import { useMyRank } from "@/hooks/useRanked";
+import HowRankedWorksModal from "@/components/ranked/HowRankedWorksModal";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -20,13 +21,16 @@ const Ranked = () => {
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            Physique Crafters Ranked
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Compete. Climb. Challenge yourself.
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              Physique Crafters Ranked
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Compete. Climb. Challenge yourself.
+            </p>
+          </div>
+          <HowRankedWorksModal />
         </div>
 
         {isCoach ? (
