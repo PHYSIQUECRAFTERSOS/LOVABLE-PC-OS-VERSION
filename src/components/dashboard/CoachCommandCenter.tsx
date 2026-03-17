@@ -159,7 +159,7 @@ const CoachCommandCenter = () => {
 
       // 2. Parallel data fetch — split to avoid deep type inference
       const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds).abortSignal(signal);
-      const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal);
+      const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal);
       const nutritionReq = supabase.from("nutrition_logs").select("client_id, logged_at").in("client_id", clientIds).gte("logged_at", `${last7Start}T00:00:00`).abortSignal(signal);
       const checkinsReq = supabase.from("weekly_checkins").select("client_id, week_date").in("client_id", clientIds).gte("week_date", last7Start).abortSignal(signal);
       const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false }).abortSignal(signal);
