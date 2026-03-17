@@ -195,7 +195,7 @@ const TierSection = ({
           className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer"
           style={{ borderLeft: `3px solid ${color}` }}
         >
-          <TierBadge tier={tier} size={22} />
+          <TierBadge tier={tier} size={110} />
           <span
             className="text-sm font-bold tracking-wide uppercase flex-1 text-left"
             style={{ color }}
