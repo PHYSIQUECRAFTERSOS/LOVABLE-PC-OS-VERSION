@@ -22,6 +22,7 @@ import Profile from "./pages/Profile";
 import Calendar from "./pages/Calendar";
 import Community from "./pages/Community";
 import Challenges from "./pages/Challenges";
+import Ranked from "./pages/Ranked";
 import Team from "./pages/Team";
 import Clients from "./pages/Clients";
 import MasterLibraries from "./pages/MasterLibraries";
