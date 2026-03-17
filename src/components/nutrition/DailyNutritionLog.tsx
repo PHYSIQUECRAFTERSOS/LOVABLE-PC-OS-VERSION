@@ -443,11 +443,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                       >
                         {/* Emoji Icon */}
                         <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
-                          {getFoodEmoji({ name: item.food_item_id ? foodNames[item.food_item_id] || "" : item.custom_name || "" })}
+                          {getFoodEmoji({ name: item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : "") || "" })}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium text-foreground truncate">
-                            {item.food_item_id ? foodNames[item.food_item_id] || "Food" : item.custom_name}
+                            {item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : null) || "Food"}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {item.quantity_display != null && item.quantity_display > 0

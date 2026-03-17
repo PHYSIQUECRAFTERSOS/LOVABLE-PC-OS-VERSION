@@ -440,10 +440,18 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (!user) return;
 
     let foodToLog = item;
-    if (item.source === "off") {
+    let foodItemId: string | null = null;
+
+    // Import external foods into food_items for FK reference
+    if (item.source === "off" || item.source === "usda" || !item.source || item.source !== "local") {
       const imported = await importOFFFood(item);
-      if (!imported) return;
-      foodToLog = imported;
+      if (imported) {
+        foodToLog = imported;
+        foodItemId = imported.id;
+      }
+      // If import fails, we still log with custom_name — don't return early
+    } else {
+      foodItemId = item.id;
     }
 
     const unit = servingUnits[item.id] || "g";
@@ -466,13 +474,13 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
     // Fetch micronutrient data from food_items if we have a food_item_id
     let micros: Record<string, number> = {};
-    if (foodToLog.id) {
+    if (foodItemId) {
       try {
         const { extractMicros } = await import("@/utils/micronutrientHelper");
         const { data: fullFood } = await supabase
           .from("food_items")
           .select("*")
-          .eq("id", foodToLog.id)
+          .eq("id", foodItemId)
           .maybeSingle();
         if (fullFood) {
           micros = extractMicros(fullFood, multiplier);
@@ -484,7 +492,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
-      food_item_id: foodToLog.id,
+      food_item_id: foodItemId,
+      custom_name: foodToLog.name, // ALWAYS set custom_name as fallback
       meal_type: mealType,
       servings: multiplier,
       calories: Math.round(foodToLog.calories * multiplier),
@@ -503,12 +512,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
     if (error) {
       console.error("[NutritionLog] Insert error:", error);
-      toast({ title: "Couldn't save this food. Please try again." });
+      toast({ title: "Couldn't save this food", description: error.message, variant: "destructive" });
     } else {
       toast({ title: `${foodToLog.name} logged` });
       // Log to user_food_history (fire-and-forget)
-      if (foodToLog.id) {
-        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodToLog.id }).then(() => {});
+      if (foodItemId) {
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
       }
       try {
         const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");

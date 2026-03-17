@@ -452,7 +452,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodItemId,
-      custom_name: foodItemId ? null : product.name,
+      custom_name: product.name, // ALWAYS set custom_name for display fallback
       meal_type: mealType,
       servings: numServings,
       calories: nutrition.calories,
