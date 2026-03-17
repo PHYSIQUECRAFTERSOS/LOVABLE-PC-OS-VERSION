@@ -15,6 +15,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 
 const CheckinSubmissionForm = () => {
   const { user } = useAuth();
