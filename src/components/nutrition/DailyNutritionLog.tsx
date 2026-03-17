@@ -425,15 +425,37 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        {logs.length > 0 && (
+        {logs.length > 0 && !editMode && (
+          <div className="flex gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => { setEditMode(true); setSelectedIds(new Set()); }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setCopyDialogOpen(true)}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy Day
+            </Button>
+          </div>
+        )}
+        {editMode && (
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setCopyDialogOpen(true)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => { setEditMode(false); setSelectedIds(new Set()); }}
           >
-            <Copy className="h-3.5 w-3.5" />
-            Copy Day
+            <X className="h-3.5 w-3.5 mr-1" />
+            Cancel
           </Button>
         )}
       </div>
