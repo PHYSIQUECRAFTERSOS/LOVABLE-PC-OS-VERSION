@@ -626,6 +626,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
       onLogged();
     }
+  };
 
   const logCustomFood = async (food: any) => {
     if (!user) return;
@@ -1446,7 +1447,5 @@ const QuickActionCard = ({ icon: Icon, label, onClick }: { icon: any; label: str
     <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
   </button>
 );
-
-}
 
 export default AddFoodScreen;
