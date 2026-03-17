@@ -5,6 +5,8 @@ import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "l
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Trophy } from "lucide-react";
