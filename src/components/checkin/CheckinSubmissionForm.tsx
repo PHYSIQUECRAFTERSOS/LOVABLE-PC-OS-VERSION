@@ -21,6 +21,7 @@ import { XP_VALUES } from "@/utils/rankedXP";
 const CheckinSubmissionForm = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
 
   const [activeAssignment, setActiveAssignment] = useState<any>(null);

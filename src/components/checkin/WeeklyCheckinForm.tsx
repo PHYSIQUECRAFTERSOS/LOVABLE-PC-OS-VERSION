@@ -154,6 +154,10 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
       queryClient.invalidateQueries({ queryKey: ["weekly-checkin-status"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
       toast({ title: "Check-in submitted! 💪" });
+      // Award Ranked XP
+      if (user?.id) {
+        triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Weekly check-in submitted").catch(console.error);
+      }
       setSubmitted(true);
       onSubmitted?.();
     },
