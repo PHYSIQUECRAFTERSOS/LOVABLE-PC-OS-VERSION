@@ -187,7 +187,7 @@ const EventDetailModal = ({
           sets_completed: session.sets_completed,
           total_volume: session.total_volume,
           completed_at: session.completed_at,
-          overall_rpe: (session as any).overall_rpe ?? null,
+          overall_rpe: null,
           logs: Array.from(exerciseMap.values()),
         });
       } catch (err) {
