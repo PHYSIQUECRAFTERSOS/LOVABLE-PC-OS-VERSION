@@ -524,30 +524,57 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               {/* Food Entries */}
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
-                  {items.map((item) => (
-                    <SwipeToDelete key={item.id} onDelete={() => { void deleteLog(item.id); }}>
-                      <button
-                        onClick={() => setEditingLog(item)}
-                        className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
-                      >
-                        {/* Emoji Icon */}
-                        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
-                          {getFoodEmoji({ name: item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : "") || "" })}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : null) || "Food"}
+                  {items.map((item) => {
+                    const isSelected = selectedIds.has(item.id);
+                    const foodName = item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : null) || "Food";
+
+                    if (editMode) {
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => toggleSelectId(item.id)}
+                          className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
+                        >
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground/40'}`}>
+                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.quantity_display != null && item.quantity_display > 0
-                              ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
-                              : ''
-                            }
-                            {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                          <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
+                            {getFoodEmoji({ name: foodName })}
                           </div>
-                        </div>
-                        <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
-                      </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <SwipeToDelete key={item.id} onDelete={() => { void deleteLog(item.id); }}>
+                        <button
+                          onClick={() => setEditingLog(item)}
+                          className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
+                            {getFoodEmoji({ name: foodName })}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.quantity_display != null && item.quantity_display > 0
+                                ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
+                                : ''
+                              }
+                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                            </div>
+                          </div>
+                          <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
+                        </button>
+                      </SwipeToDelete>
+                    );
+                  })}
                     </SwipeToDelete>
                   ))}
                 </div>
