@@ -572,7 +572,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                       className="h-8 w-8 rounded-full flex items-center justify-center border-2 shrink-0 overflow-hidden"
                       style={{ borderColor: tier.color, backgroundColor: `${tier.color}15` }}
                     >
-                      <TierIcon name={tier.name} size={100} className="scale-[0.28]" />
+                      <TierIcon name={tier.name} size={100} />
                     </div>
                     <Input
                       value={tier.name}
