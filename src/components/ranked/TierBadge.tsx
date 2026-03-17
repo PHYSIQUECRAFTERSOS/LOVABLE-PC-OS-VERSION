@@ -20,7 +20,7 @@ interface TierBadgeProps {
   className?: string;
 }
 
-const TierBadge = ({ tier, size = 72, className = "" }: TierBadgeProps) => {
+const TierBadge = ({ tier, size = 24, className = "" }: TierBadgeProps) => {
   const src = TIER_IMAGES[tier?.toLowerCase()] || TIER_IMAGES.bronze;
 
   return (
