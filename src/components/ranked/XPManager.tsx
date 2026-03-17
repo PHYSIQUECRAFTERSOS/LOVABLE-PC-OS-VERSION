@@ -90,7 +90,7 @@ const AtRiskSection = () => {
     <div className="rounded-xl border border-border bg-card divide-y divide-border/50">
       {data.map((c: any) => (
         <div key={c.user_id} className="flex items-center gap-3 px-4 py-3">
-          <TierBadge tier={c.current_tier} size={20} />
+          <TierBadge tier={c.current_tier} size={100} />
           <div className="flex-1">
             <p className="text-sm font-semibold">{c.name}</p>
             <p className="text-[10px] text-muted-foreground">
