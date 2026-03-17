@@ -443,7 +443,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     let foodItemId: string | null = null;
 
     // Import external foods into food_items for FK reference
-    if (item.source === "off" || item.source === "usda" || !item.source || item.source !== "local") {
+    if (item.source !== "local") {
       const imported = await importOFFFood(item);
       if (imported) {
         foodToLog = imported;
