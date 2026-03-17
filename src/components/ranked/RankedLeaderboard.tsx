@@ -123,17 +123,8 @@ const LeaderboardRow = ({
         isChampion && "bg-red-950/20 border-red-900/30"
       )}
     >
-      <span
-        className={cn(
-          "w-8 text-center text-sm font-bold",
-          entry.rank === 1 && "text-yellow-400",
-          entry.rank === 2 && "text-gray-300",
-          entry.rank === 3 && "text-amber-600"
-        )}
-      >
-        {entry.rank <= 3
-          ? ["🥇", "🥈", "🥉"][entry.rank - 1]
-          : `#${entry.rank}`}
+      <span className="w-8 text-center text-sm font-bold text-foreground">
+        #{entry.rank}
       </span>
 
       <TierBadge tier={entry.current_tier} size={20} />
