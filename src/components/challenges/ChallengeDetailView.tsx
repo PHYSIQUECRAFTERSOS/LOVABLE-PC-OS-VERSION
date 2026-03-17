@@ -260,8 +260,8 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                       key={p.id}
                       className={`flex items-center gap-2.5 rounded-lg p-2.5 ${isMe ? "border border-primary/30 bg-primary/5" : isTop3 ? "bg-secondary/50" : "bg-card"}`}
                     >
-                      <span className="w-6 text-center text-sm font-bold shrink-0">
-                        {isTop3 ? medals[i] : <span className="text-muted-foreground">#{i + 1}</span>}
+                      <span className="w-6 text-center text-sm font-bold text-muted-foreground shrink-0">
+                        #{i + 1}
                       </span>
                       <Avatar className="h-7 w-7">
                         {p.avatar_url && <AvatarImage src={p.avatar_url} />}

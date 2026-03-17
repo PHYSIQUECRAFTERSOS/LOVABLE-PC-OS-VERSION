@@ -60,8 +60,8 @@ const GlobalLeaderboard = () => {
                   isMe ? "border-primary/30 bg-primary/5" : isTop3 ? "border-primary/20 bg-primary/5" : "border-border bg-card"
                 }`}
               >
-                <span className="w-8 text-center font-bold text-lg shrink-0">
-                  {isTop3 && !search ? medals[entry.rank - 1] : <span className="text-muted-foreground text-sm">#{entry.rank}</span>}
+                <span className="w-8 text-center font-bold text-sm text-muted-foreground shrink-0">
+                  #{entry.rank}
                 </span>
 
                 <div className="relative">
