@@ -66,7 +66,7 @@ export function useRankedLeaderboard(tab: string) {
       await ensureAllClientsRanked();
 
       let q = db.from("ranked_profiles").select("*");
-      if (tab === "all_time") q = q.order("total_xp", { ascending: false });
+      if (tab === "all_time" || tab === "divisions") q = q.order("total_xp", { ascending: false });
       else if (tab === "this_week") q = q.order("weekly_xp", { ascending: false });
       else if (tab === "streak") q = q.order("current_streak", { ascending: false });
       else if (tab === "tier_climbers")
