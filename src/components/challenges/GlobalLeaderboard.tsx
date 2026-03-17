@@ -50,7 +50,7 @@ const GlobalLeaderboard = () => {
         <div className="space-y-2">
           {filtered.map((entry) => {
             const initials = (entry.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-            const isTop3 = entry.rank <= 3 && !search;
+            const isTop3 = entry.rank <= 3;
             const isMe = entry.user_id === user?.id;
 
             return (
