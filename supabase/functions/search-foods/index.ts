@@ -218,7 +218,7 @@ async function searchFatSecret(query: string, limit: number): Promise<any[]> {
       "Authorization": `Bearer ${anonKey}`,
     },
     body: JSON.stringify({ action: "search", query, limit }),
-    signal: AbortSignal.timeout(6000),
+    signal: AbortSignal.timeout(3000),
   });
 
   if (!res.ok) {

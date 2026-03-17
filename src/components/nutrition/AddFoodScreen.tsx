@@ -315,7 +315,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             is_verified: f.is_verified,
             data_source: f.source ?? "open_food_facts",
             category: null,
-            source: f.source === "usda" ? "usda" as const : f.source === "open_food_facts" ? "off" as const : "local" as const,
+            source: f.source === "usda" ? "usda" as const : (f.source === "local" ? "local" as const : "off" as const),
             is_branded: f.is_branded,
             image_url: f.image_url,
             _micros_per_100g: f.source === "usda" ? {
@@ -443,7 +443,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     let foodItemId: string | null = null;
 
     // Import external foods into food_items for FK reference
-    if (item.source === "off" || item.source === "usda" || !item.source || item.source !== "local") {
+    if (item.source !== "local") {
       const imported = await importOFFFood(item);
       if (imported) {
         foodToLog = imported;
