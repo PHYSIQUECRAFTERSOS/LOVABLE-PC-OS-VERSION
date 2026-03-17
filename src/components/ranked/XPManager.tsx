@@ -124,9 +124,11 @@ const TopMoversSection = () => {
           <span className="w-6 text-center text-sm font-bold text-muted-foreground">
             #{i + 1}
           </span>
-           <TierBadge tier={c.current_tier} size={100} />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">{c.name}</p>
+          <div className="h-8 w-8 shrink-0 flex items-center justify-center overflow-hidden">
+            <TierBadge tier={c.current_tier} size={100} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{c.name}</p>
             <p className="text-[10px] text-muted-foreground">
               {getDivisionLabel(c.current_tier, c.current_division)}
             </p>
