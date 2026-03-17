@@ -268,8 +268,8 @@ const EventDetailModal = ({
             <p className="text-sm text-foreground/80">{event.description}</p>
           )}
 
-          {/* Completed workout session details */}
-          {event.is_completed && event.event_type === "workout" && sessionData && (
+          {/* Completed workout session details — show whenever session data exists */}
+          {event.event_type === "workout" && sessionData && (
             <div className="space-y-3">
               {/* Session stats */}
               <div className="grid grid-cols-3 gap-2">
