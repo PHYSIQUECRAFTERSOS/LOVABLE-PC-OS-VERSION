@@ -86,7 +86,7 @@ const RankUpOverlay = ({ tier, division, type, onDismiss }: RankUpOverlayProps) 
           className="flex flex-col items-center gap-4"
           style={{ animation: isPromotion ? "rankUpEntry 0.6s ease-out" : "rankDownEntry 0.6s ease-out" }}
         >
-          <TierBadge tier={tier} size={type === "champion_in" ? 80 : 64} />
+          <TierBadge tier={tier} size={type === "champion_in" ? 400 : 320} />
           <h1
             className="text-3xl font-black tracking-wider"
             style={{ color: isPromotion ? color : undefined }}

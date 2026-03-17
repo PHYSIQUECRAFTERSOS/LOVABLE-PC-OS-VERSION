@@ -572,7 +572,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                       className="h-8 w-8 rounded-full flex items-center justify-center border-2 shrink-0"
                       style={{ borderColor: tier.color, backgroundColor: `${tier.color}15` }}
                     >
-                      <TierIcon name={tier.name} size={20} />
+                      <TierIcon name={tier.name} size={100} />
                     </div>
                     <Input
                       value={tier.name}
@@ -737,7 +737,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                 <div className="flex items-center gap-2 flex-wrap">
                   {challengeTiers.map((t) => (
                     <div key={t.name} className="flex items-center gap-1 text-xs">
-                      <TierIcon name={t.name} size={16} />
+                      <TierIcon name={t.name} size={80} />
                       <span style={{ color: t.color }} className="font-medium">{t.name}</span>
                       <span className="text-muted-foreground">({t.min_points}+)</span>
                     </div>
