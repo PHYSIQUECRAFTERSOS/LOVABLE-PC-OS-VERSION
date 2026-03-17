@@ -674,6 +674,21 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // Clear retry queue
       clearRetryQueue();
 
+      // Auto-score challenge points
+      try {
+        const { autoScoreChallengePoints } = await import("@/hooks/useChallenges");
+        const actions: { type: string; count: number }[] = [
+          { type: "workout_completed", count: 1 },
+        ];
+        if (prAlerts.length > 0) {
+          actions.push({ type: "personal_best", count: prAlerts.length });
+        }
+        await autoScoreChallengePoints(user.id, actions);
+      } catch (e) {
+        console.error("[WorkoutLogger] Challenge auto-score error:", e);
+        // Non-blocking: don't fail the workout
+      }
+
       setShowSummary(true);
     } catch (error: any) {
       console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });

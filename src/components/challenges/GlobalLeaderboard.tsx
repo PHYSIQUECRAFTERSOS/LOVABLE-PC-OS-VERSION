@@ -1,17 +1,15 @@
-import { useGlobalXPLeaderboard } from "@/hooks/useChallenges";
+import { useChallengeLeaderboard, type LeaderboardEntry } from "@/hooks/useChallenges";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Crown, Star, Search } from "lucide-react";
+import { Trophy, Search, Crown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import TierIcon from "./TierIcon";
 
 const medals = ["🥇", "🥈", "🥉"];
 
 const GlobalLeaderboard = () => {
-  const { data: leaders, isLoading } = useGlobalXPLeaderboard();
+  const { data: leaders, isLoading } = useChallengeLeaderboard();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
 
@@ -45,14 +43,14 @@ const GlobalLeaderboard = () => {
         <div className="text-center py-12">
           <Trophy className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
           <p className="text-sm text-muted-foreground">
-            {search ? "No matching members found." : "No XP data yet. Complete challenges to appear here!"}
+            {search ? "No matching members found." : "No challenge participants yet. Join a challenge to appear here!"}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((entry, i) => {
+          {filtered.map((entry) => {
             const initials = (entry.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-            const isTop3 = i < 3 && !search;
+            const isTop3 = entry.rank <= 3 && !search;
             const isMe = entry.user_id === user?.id;
 
             return (
@@ -63,7 +61,7 @@ const GlobalLeaderboard = () => {
                 }`}
               >
                 <span className="w-8 text-center font-bold text-lg shrink-0">
-                  {isTop3 ? medals[i] : <span className="text-muted-foreground text-sm">#{i + 1}</span>}
+                  {isTop3 && !search ? medals[entry.rank - 1] : <span className="text-muted-foreground text-sm">#{entry.rank}</span>}
                 </span>
 
                 <div className="relative">
@@ -73,27 +71,19 @@ const GlobalLeaderboard = () => {
                       {initials}
                     </AvatarFallback>
                   </Avatar>
-                  {i === 0 && !search && <Crown className="absolute -top-2 -right-1 h-4 w-4 text-primary" />}
+                  {entry.rank === 1 && !search && <Crown className="absolute -top-2 -right-1 h-4 w-4 text-primary" />}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground truncate">{entry.full_name}</span>
-                    <span className="flex items-center gap-1">
-                      <TierIcon name={entry.tier_name} size={16} />
-                      <Badge variant="outline" className="text-[8px] px-1.5 py-0" style={{ color: entry.tier_color, borderColor: `${entry.tier_color}40` }}>
-                        {entry.tier_name}
-                      </Badge>
-                    </span>
-                  </div>
+                  <span className="text-sm font-semibold text-foreground truncate block">{entry.full_name}</span>
                 </div>
 
                 <div className="text-right shrink-0">
                   <div className="flex items-center gap-1 text-primary font-bold text-sm">
-                    <Star className="h-3.5 w-3.5" />
-                    {entry.total_xp.toLocaleString()}
+                    <Trophy className="h-3.5 w-3.5" />
+                    {entry.total_points.toLocaleString()}
                   </div>
-                  <p className="text-[10px] text-muted-foreground">XP</p>
+                  <p className="text-[10px] text-muted-foreground">pts</p>
                 </div>
               </div>
             );
