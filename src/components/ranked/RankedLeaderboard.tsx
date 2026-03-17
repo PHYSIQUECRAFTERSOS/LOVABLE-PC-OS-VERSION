@@ -195,8 +195,8 @@ const TierSection = ({
           className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer"
           style={{ borderLeft: `3px solid ${color}` }}
         >
-          <div className="h-14 w-14 shrink-0 flex items-center justify-center overflow-hidden">
-            <TierBadge tier={tier} size={110} />
+          <div className="h-20 w-20 shrink-0 flex items-center justify-center overflow-hidden">
+            <TierBadge tier={tier} size={440} />
           </div>
           <span
             className="text-sm font-bold tracking-wide uppercase flex-1 text-left"
