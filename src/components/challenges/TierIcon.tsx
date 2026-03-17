@@ -34,7 +34,7 @@ const TierIcon = ({ name, size = 32, className = "" }: TierIconProps) => {
       width={size}
       height={size}
       alt={`${name} tier`}
-      className={className}
+      className={`max-w-none ${className}`}
       style={{ objectFit: "contain" }}
       draggable={false}
     />
