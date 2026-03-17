@@ -90,6 +90,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </RankedXPProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
