@@ -170,6 +170,9 @@ const CardioManager = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cardio-logs"] });
       toast({ title: "Cardio logged 💪" });
+      if (user?.id) {
+        triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Logged cardio session").catch(console.error);
+      }
       setShowLogForm(false);
       resetLogForm();
     },
