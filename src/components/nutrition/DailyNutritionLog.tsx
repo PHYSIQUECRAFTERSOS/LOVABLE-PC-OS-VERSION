@@ -334,6 +334,67 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     return getItemsForMealSection(activeDayId, mealKey).length > 0;
   };
 
+  const toggleSelectId = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedLogs = logs.filter(l => selectedIds.has(l.id));
+  const selectedTotals = selectedLogs.reduce((acc, l) => ({
+    calories: acc.calories + l.calories, protein: acc.protein + l.protein,
+    carbs: acc.carbs + l.carbs, fat: acc.fat + l.fat,
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+  const handleSaveMealFromTracker = async () => {
+    if (!user || selectedLogs.length === 0 || !saveMealName.trim()) return;
+    setSavingMeal(true);
+
+    const { data: meal, error } = await supabase
+      .from("saved_meals")
+      .insert({
+        client_id: user.id,
+        name: saveMealName.trim(),
+        meal_type: selectedLogs[0].meal_type,
+        calories: Math.round(selectedTotals.calories),
+        protein: Math.round(selectedTotals.protein),
+        carbs: Math.round(selectedTotals.carbs),
+        fat: Math.round(selectedTotals.fat),
+        servings: 1,
+      } as any)
+      .select()
+      .single();
+
+    if (error || !meal) {
+      toast({ title: "Couldn't save meal." });
+      setSavingMeal(false);
+      return;
+    }
+
+    const mealItems = selectedLogs.map(l => ({
+      saved_meal_id: meal.id,
+      food_item_id: l.food_item_id || null,
+      food_name: l.custom_name || (l.food_item_id ? foodNames[l.food_item_id] : null) || "Food",
+      quantity: l.servings || 1,
+      serving_unit: l.quantity_unit || "serving",
+      calories: Math.round(l.calories),
+      protein: Math.round(l.protein),
+      carbs: Math.round(l.carbs),
+      fat: Math.round(l.fat),
+    }));
+
+    await supabase.from("saved_meal_items" as any).insert(mealItems);
+    toast({ title: `"${saveMealName.trim()}" saved as meal!` });
+    setSavingMeal(false);
+    setShowSaveMealDialog(false);
+    setSaveMealName("");
+    setSelectedIds(new Set());
+    setEditMode(false);
+  };
+
   const isToday = getLocalDateString() === dateStr;
 
   return (
