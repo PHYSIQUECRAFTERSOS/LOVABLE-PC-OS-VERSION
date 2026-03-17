@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon, Pencil, Check, X, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -82,6 +83,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [editingLog, setEditingLog] = useState<NutritionLog | null>(null);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const latestFetchRef = useRef(0);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [saveMealName, setSaveMealName] = useState("");
+  const [showSaveMealDialog, setShowSaveMealDialog] = useState(false);
+  const [savingMeal, setSavingMeal] = useState(false);
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
@@ -328,6 +334,67 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     return getItemsForMealSection(activeDayId, mealKey).length > 0;
   };
 
+  const toggleSelectId = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedLogs = logs.filter(l => selectedIds.has(l.id));
+  const selectedTotals = selectedLogs.reduce((acc, l) => ({
+    calories: acc.calories + l.calories, protein: acc.protein + l.protein,
+    carbs: acc.carbs + l.carbs, fat: acc.fat + l.fat,
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+  const handleSaveMealFromTracker = async () => {
+    if (!user || selectedLogs.length === 0 || !saveMealName.trim()) return;
+    setSavingMeal(true);
+
+    const { data: meal, error } = await supabase
+      .from("saved_meals")
+      .insert({
+        client_id: user.id,
+        name: saveMealName.trim(),
+        meal_type: selectedLogs[0].meal_type,
+        calories: Math.round(selectedTotals.calories),
+        protein: Math.round(selectedTotals.protein),
+        carbs: Math.round(selectedTotals.carbs),
+        fat: Math.round(selectedTotals.fat),
+        servings: 1,
+      } as any)
+      .select()
+      .single();
+
+    if (error || !meal) {
+      toast({ title: "Couldn't save meal." });
+      setSavingMeal(false);
+      return;
+    }
+
+    const mealItems = selectedLogs.map(l => ({
+      saved_meal_id: meal.id,
+      food_item_id: l.food_item_id || null,
+      food_name: l.custom_name || (l.food_item_id ? foodNames[l.food_item_id] : null) || "Food",
+      quantity: l.servings || 1,
+      serving_unit: l.quantity_unit || "serving",
+      calories: Math.round(l.calories),
+      protein: Math.round(l.protein),
+      carbs: Math.round(l.carbs),
+      fat: Math.round(l.fat),
+    }));
+
+    await supabase.from("saved_meal_items" as any).insert(mealItems);
+    toast({ title: `"${saveMealName.trim()}" saved as meal!` });
+    setSavingMeal(false);
+    setShowSaveMealDialog(false);
+    setSaveMealName("");
+    setSelectedIds(new Set());
+    setEditMode(false);
+  };
+
   const isToday = getLocalDateString() === dateStr;
 
   return (
@@ -358,15 +425,37 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        {logs.length > 0 && (
+        {logs.length > 0 && !editMode && (
+          <div className="flex gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => { setEditMode(true); setSelectedIds(new Set()); }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setCopyDialogOpen(true)}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy Day
+            </Button>
+          </div>
+        )}
+        {editMode && (
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setCopyDialogOpen(true)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => { setEditMode(false); setSelectedIds(new Set()); }}
           >
-            <Copy className="h-3.5 w-3.5" />
-            Copy Day
+            <X className="h-3.5 w-3.5 mr-1" />
+            Cancel
           </Button>
         )}
       </div>
@@ -435,32 +524,57 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               {/* Food Entries */}
               {items.length > 0 && (
                 <div className="divide-y divide-border/30">
-                  {items.map((item) => (
-                    <SwipeToDelete key={item.id} onDelete={() => { void deleteLog(item.id); }}>
-                      <button
-                        onClick={() => setEditingLog(item)}
-                        className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
-                      >
-                        {/* Emoji Icon */}
-                        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
-                          {getFoodEmoji({ name: item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : "") || "" })}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : null) || "Food"}
+                  {items.map((item) => {
+                    const isSelected = selectedIds.has(item.id);
+                    const foodName = item.custom_name || (item.food_item_id ? foodNames[item.food_item_id] : null) || "Food";
+
+                    if (editMode) {
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => toggleSelectId(item.id)}
+                          className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
+                        >
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary border-primary' : 'border-muted-foreground/40'}`}>
+                            {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.quantity_display != null && item.quantity_display > 0
-                              ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
-                              : ''
-                            }
-                            {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                          <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
+                            {getFoodEmoji({ name: foodName })}
                           </div>
-                        </div>
-                        <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
-                      </button>
-                    </SwipeToDelete>
-                  ))}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <SwipeToDelete key={item.id} onDelete={() => { void deleteLog(item.id); }}>
+                        <button
+                          onClick={() => setEditingLog(item)}
+                          className="flex items-center gap-3 px-4 py-2.5 w-full text-left hover:bg-secondary/30 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
+                            {getFoodEmoji({ name: foodName })}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {item.quantity_display != null && item.quantity_display > 0
+                                ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
+                                : ''
+                              }
+                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                            </div>
+                          </div>
+                          <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
+                        </button>
+                      </SwipeToDelete>
+                    );
+                  })}
                 </div>
               )}
 
@@ -502,6 +616,46 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         onDeleteLog={deleteLog}
         onUpdated={() => { setEditingLog(null); fetchLogs(); }}
       />
+
+      {/* Edit Mode: Save Meal Sticky Bar */}
+      {editMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background border-t border-border z-[55]">
+          {showSaveMealDialog ? (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">Save as Meal</span>
+                <button onClick={() => setShowSaveMealDialog(false)} className="text-xs text-muted-foreground">Cancel</button>
+              </div>
+              <Input
+                placeholder="Meal name (e.g. My Breakfast)"
+                value={saveMealName}
+                onChange={e => setSaveMealName(e.target.value)}
+                className="h-10 text-sm bg-secondary border-0 rounded-lg"
+                autoFocus
+              />
+              <div className="text-xs text-muted-foreground">
+                {selectedIds.size} items · {Math.round(selectedTotals.calories)} cal · {Math.round(selectedTotals.protein)}P · {Math.round(selectedTotals.carbs)}C · {Math.round(selectedTotals.fat)}F
+              </div>
+              <Button
+                onClick={handleSaveMealFromTracker}
+                disabled={savingMeal || !saveMealName.trim()}
+                className="w-full h-11 text-sm font-semibold rounded-xl"
+              >
+                <Bookmark className="h-4 w-4 mr-2" />
+                {savingMeal ? "Saving..." : "Save Meal"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setShowSaveMealDialog(true)}
+              className="w-full h-11 text-sm font-semibold rounded-xl"
+            >
+              <Bookmark className="h-4 w-4 mr-2" />
+              Save as Meal ({selectedIds.size})
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

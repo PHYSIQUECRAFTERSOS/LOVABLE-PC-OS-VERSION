@@ -1,64 +1,122 @@
 
 
-# Nutrition UX Overhaul: Create Meal, Save from Tracker, Custom Foods
+# Physique Crafters — Transformation Operating System
 
-## Three Features
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-### 1. Create Meal — Quantity Editing + Macro Display
-**Problem**: `CreateMealSheet.tsx` adds foods with fixed quantity/macros from `addFoodToStaged()` (line 77-91). No way to adjust quantity or see updated macros per item.
+---
 
-**Fix**: Add per-item quantity editing and live macro recalculation in CreateMealSheet:
-- Add `serving_size` (base) to `StagedItem` interface so we can compute multiplier
-- For each staged item row, show an inline quantity input + serving unit label
-- When quantity changes, recalculate that item's macros: `newCals = baseCals * (newQty / baseQty)`
-- Show per-item macros in the row (cal · P · C · F)
-- Add an "edit" tap that expands the item inline with quantity/unit controls (similar to FoodRow's expanded state)
-- Allow item removal (already works) and reordering is not needed
+## Phase 1 — MVP (Core Platform)
 
-### 2. "Save Meal from Tracker" (MFP Edit Diary style)
-**Problem**: No way to select logged foods in the tracker and save them as a meal.
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-**Fix**: Add an "Edit" mode to `DailyNutritionLog.tsx`:
-- Add an "Edit" button in the date navigation header (top-left area)
-- When in edit mode, show checkboxes next to each food entry (per meal section)
-- Show a sticky bottom bar with "Save Meal" button (+ item count badge)
-- Tapping "Save Meal" opens a mini dialog/sheet: meal name input + list of selected items with macros
-- On save, insert into `saved_meals` + `saved_meal_items` using the selected log entries' data
-- "Cancel" exits edit mode, deselects all
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-Also fix `SavedMealDetail.tsx` for editing quantities:
-- Currently only allows renaming and deleting items, not editing quantities
-- Add per-item quantity editing: tap an item to expand inline editor with quantity input + live macro recalc
-- On save, update `saved_meal_items` row and recalculate parent `saved_meals` totals
-- Fix the bottom button being cut off: already has `pb-[calc(1rem+env(safe-area-inset-bottom))]` but the content area uses `pb-32` which may not be enough — increase to `pb-36` for safety
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-### 3. Client Custom Food Creator + Custom Foods Tab
-**Problem**: `CreateFoodScreen.tsx` exists but is only used in the coach meal plan builder. Clients have no way to create custom foods or browse them.
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-**Fix in `AddFoodScreen.tsx`**:
-- Add a "Custom" button next to the Barcode quick action card (in the top action row, replacing the 3-column grid with 4 columns: Barcode, Meal Scan, Quick Add, + Custom)
-- Add a new tab `"custom"` after "My Meals": `{ key: "custom", label: "Custom Foods" }`
-- The Custom tab shows all `client_custom_foods` for the current user, fetched on tab activation
-- Each row shows name, brand, macros, with tap-to-log and long-press to edit/delete
-- The "Custom" quick action button opens `CreateFoodScreen` (already built)
-- After creating a custom food, it appears in the Custom tab and is also searchable in All tab
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-**Custom food logging**: When user taps a custom food to log it, insert into `nutrition_logs` with `custom_name` = food name, macros from the custom food row. No `food_item_id` needed (these aren't in `food_items`).
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-## Files to Change
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-| File | Changes |
-|------|---------|
-| `src/components/nutrition/CreateMealSheet.tsx` | Add `serving_size` to StagedItem, per-item quantity editing with live macro recalc, update totals dynamically |
-| `src/components/nutrition/SavedMealDetail.tsx` | Add per-item quantity editing (expand inline), update item + parent totals on save, ensure bottom button visible with safe area |
-| `src/components/nutrition/DailyNutritionLog.tsx` | Add "Edit" mode with checkboxes, sticky "Save Meal" bar, meal creation from selected items |
-| `src/components/nutrition/AddFoodScreen.tsx` | Add "Custom" quick action + "Custom Foods" tab, fetch/display `client_custom_foods`, log custom foods, wire up CreateFoodScreen |
-| `src/components/nutrition/CreateFoodScreen.tsx` | Minor: add fiber/sugar/sodium fields (currently missing), ensure it works as a sub-screen within AddFoodScreen |
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-## Implementation Order
-1. CreateMealSheet quantity editing (unblocks meal creation UX)
-2. SavedMealDetail quantity editing (unblocks meal management)
-3. DailyNutritionLog edit mode + save meal flow
-4. AddFoodScreen custom food tab + CreateFoodScreen integration
-5. Code analysis pass for bugs and edge cases
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
+
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
+
+---
+
+## Phase 2 — Advanced Features
+
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
+
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
+
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
+
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
+
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
+
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 

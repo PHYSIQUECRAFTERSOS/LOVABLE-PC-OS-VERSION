@@ -15,7 +15,7 @@ import {
   ScanBarcode,
   Camera,
   Zap,
-  
+  UtensilsCrossed,
   Plus,
   ChevronDown,
   ChevronUp,
@@ -26,6 +26,7 @@ import {
   Youtube,
   Star,
   Info,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,7 @@ import SavedMealDetail from "@/components/nutrition/SavedMealDetail";
 import CreateMealSheet from "@/components/nutrition/CreateMealSheet";
 import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet";
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
+import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 
 interface FoodItem {
   id: string;
@@ -83,13 +85,14 @@ interface AddFoodScreenProps {
   onLogged: () => void;
 }
 
-type TabKey = "all" | "my-meals" | "pc-recipes";
+type TabKey = "all" | "my-meals" | "custom" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "my-meals", label: "My Meals" },
+  { key: "custom", label: "Custom Foods" },
   { key: "pc-recipes", label: "PC Recipes" },
 ];
 
@@ -140,6 +143,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [selectedPCRecipe, setSelectedPCRecipe] = useState<any>(null);
   const [pcRecipeSearch, setPcRecipeSearch] = useState("");
 
+  // Custom Foods
+  const [customFoods, setCustomFoods] = useState<any[]>([]);
+  const [showCreateFood, setShowCreateFood] = useState(false);
+
   useEffect(() => {
     if (open) {
       setActiveTab("all");
@@ -147,6 +154,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
+      fetchCustomFoods();
     }
   }, [open]);
 
@@ -198,6 +206,16 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       .eq("is_published", true)
       .order("name");
     setPcRecipes((data as any[]) || []);
+  };
+
+  const fetchCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("client_custom_foods")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setCustomFoods(data || []);
   };
 
   useEffect(() => { fetchHistory(); }, [historySort]);
@@ -608,6 +626,35 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
       onLogged();
     }
+
+  const logCustomFood = async (food: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: food.name + (food.brand ? ` (${food.brand})` : ""),
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(food.calories || 0),
+      protein: Math.round(food.protein || 0),
+      carbs: Math.round(food.carbs || 0),
+      fat: Math.round(food.fat || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+    if (error) {
+      toast({ title: "Couldn't save this food. Please try again." });
+    } else {
+      toast({ title: `${food.name} logged` });
+      onLogged();
+    }
+  };
+
+  const deleteCustomFood = async (id: string) => {
+    const { error } = await supabase.from("client_custom_foods").delete().eq("id", id);
+    if (!error) {
+      toast({ title: "Custom food deleted" });
+      fetchCustomFoods();
+    }
   };
 
   const toggleExpand = (id: string) => {
@@ -753,6 +800,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
+  if (showCreateFood) {
+    return (
+      <CreateFoodScreen
+        onClose={() => setShowCreateFood(false)}
+        onSaved={() => { setShowCreateFood(false); fetchCustomFoods(); }}
+      />
+    );
+  }
+
   if (selectedPCRecipe) {
     return (
       <PCRecipeDetail
@@ -803,6 +859,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const displayItems = search.length >= 2 ? allDisplayItems : [];
   const showHistory = search.length < 2 && activeTab === "all";
   const showMeals = activeTab === "my-meals";
+  const showCustom = activeTab === "custom";
   const showRecipes = activeTab === "pc-recipes";
 
   const filteredPCRecipes = pcRecipeSearch
@@ -874,10 +931,11 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {/* Quick Actions (All tab only) */}
         {search.length < 2 && activeTab === "all" && (
-          <div className="grid grid-cols-3 gap-2.5 py-3">
+          <div className="grid grid-cols-4 gap-2.5 py-3">
             <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
             <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
             <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
+            <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
           </div>
         )}
 
@@ -998,6 +1056,56 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                     >
                       <Plus className="h-4 w-4" />
                     </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ CUSTOM FOODS TAB ═══ */}
+        {showCustom && (
+          <div className="space-y-3 py-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateFood(true)}
+              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Create Custom Food
+            </Button>
+
+            {customFoods.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No custom foods yet</p>
+            ) : (
+              <div className="space-y-1.5">
+                {customFoods.map((food: any) => (
+                  <div key={food.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                    <button
+                      onClick={() => logCustomFood(food)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {food.name}
+                        {food.brand && <span className="text-muted-foreground font-normal"> · {food.brand}</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {food.serving_size} · {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
+                      </div>
+                    </button>
+                    <div className="flex gap-1 ml-2">
+                      <button
+                        onClick={() => logCustomFood(food)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteCustomFood(food.id)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1338,5 +1446,7 @@ const QuickActionCard = ({ icon: Icon, label, onClick }: { icon: any; label: str
     <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
   </button>
 );
+
+}
 
 export default AddFoodScreen;

@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, Trash2, Pencil, Plus, Minus } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -31,6 +31,8 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
   const [showDelete, setShowDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(meal.name);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [savingItem, setSavingItem] = useState(false);
 
   useEffect(() => {
     fetchItems();
@@ -58,7 +60,6 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
     if (!user || items.length === 0) return;
     setLogging(true);
 
-    // If no individual items, log as single entry with meal totals
     if (items.length === 0) {
       await supabase.from("nutrition_logs").insert({
         client_id: user.id,
@@ -73,7 +74,6 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
         tz_corrected: true,
       });
     } else {
-      // Log each item individually
       const entries = items.map(item => ({
         client_id: user.id,
         food_item_id: item.food_item_id || null,
@@ -90,7 +90,6 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
 
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
-        console.error("[SavedMealDetail] Log error:", error);
         toast({ title: "Couldn't log meal. Please try again." });
         setLogging(false);
         return;
@@ -121,9 +120,8 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
 
   const removeItem = async (itemId: string) => {
     await supabase.from("saved_meal_items" as any).delete().eq("id", itemId);
-    fetchItems();
-    // Update meal totals
     const remaining = items.filter(i => i.id !== itemId);
+    setItems(remaining);
     const newTotals = remaining.reduce((acc: any, item: any) => ({
       calories: acc.calories + (item.calories || 0),
       protein: acc.protein + (item.protein || 0),
@@ -132,6 +130,80 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
     await supabase.from("saved_meals").update(newTotals as any).eq("id", meal.id);
     onUpdated();
+  };
+
+  const updateItemQuantity = async (itemId: string, newQty: number) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const baseQty = item.base_quantity || item.quantity || 1;
+    const mult = baseQty > 0 ? newQty / baseQty : 1;
+    const baseCal = item.base_calories ?? item.calories ?? 0;
+    const basePro = item.base_protein ?? item.protein ?? 0;
+    const baseCarb = item.base_carbs ?? item.carbs ?? 0;
+    const baseFat = item.base_fat ?? item.fat ?? 0;
+
+    const updated = {
+      ...item,
+      quantity: newQty,
+      calories: Math.round(baseCal * mult),
+      protein: Math.round(basePro * mult * 10) / 10,
+      carbs: Math.round(baseCarb * mult * 10) / 10,
+      fat: Math.round(baseFat * mult * 10) / 10,
+    };
+
+    setItems(prev => prev.map(i => i.id === itemId ? updated : i));
+  };
+
+  const saveItemEdit = async (itemId: string) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    setSavingItem(true);
+
+    await supabase.from("saved_meal_items" as any).update({
+      quantity: item.quantity,
+      calories: Math.round(item.calories),
+      protein: Math.round(item.protein),
+      carbs: Math.round(item.carbs),
+      fat: Math.round(item.fat),
+    } as any).eq("id", itemId);
+
+    // Recalc parent totals
+    const newTotals = items.reduce((acc: any, it: any) => ({
+      calories: acc.calories + (it.calories || 0),
+      protein: acc.protein + (it.protein || 0),
+      carbs: acc.carbs + (it.carbs || 0),
+      fat: acc.fat + (it.fat || 0),
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+    await supabase.from("saved_meals").update({
+      calories: Math.round(newTotals.calories),
+      protein: Math.round(newTotals.protein),
+      carbs: Math.round(newTotals.carbs),
+      fat: Math.round(newTotals.fat),
+    } as any).eq("id", meal.id);
+
+    setSavingItem(false);
+    setEditingItemId(null);
+    onUpdated();
+  };
+
+  const adjustItemQty = (itemId: string, delta: number) => {
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const step = item.serving_unit === "g" ? 10 : 0.5;
+    const newQty = Math.max(0, (item.quantity || 0) + delta * step);
+    updateItemQuantity(itemId, newQty);
+  };
+
+  // Store base values when editing starts
+  const startEditItem = (itemId: string) => {
+    setItems(prev => prev.map(i => {
+      if (i.id === itemId && !i.base_quantity) {
+        return { ...i, base_quantity: i.quantity, base_calories: i.calories, base_protein: i.protein, base_carbs: i.carbs, base_fat: i.fat };
+      }
+      return i;
+    }));
+    setEditingItemId(itemId);
   };
 
   return (
@@ -186,7 +258,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
       </div>
 
       {/* Items */}
-      <div className="flex-1 overflow-y-auto px-4 pb-32">
+      <div className="flex-1 overflow-y-auto px-4 pb-36">
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -198,16 +270,70 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
         ) : (
           <div className="space-y-1.5 py-3">
             {items.map((item: any) => (
-              <div key={item.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-foreground truncate">{item.food_name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {item.quantity} {item.serving_unit} · {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
-                  </div>
+              <div key={item.id} className="rounded-xl bg-card border border-border/50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <button
+                    onClick={() => editingItemId === item.id ? setEditingItemId(null) : startEditItem(item.id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="text-sm font-medium text-foreground truncate">{item.food_name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {item.quantity} {item.serving_unit} · {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
+                    </div>
+                  </button>
+                  <button onClick={() => removeItem(item.id)} className="ml-2 p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </button>
                 </div>
-                <button onClick={() => removeItem(item.id)} className="ml-2 p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </button>
+
+                {/* Inline quantity editor */}
+                {editingItemId === item.id && (
+                  <div className="px-4 pb-3 pt-1 border-t border-border/30 animate-fade-in">
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() => adjustItemQty(item.id, -1)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
+                      >
+                        <Minus className="h-3.5 w-3.5 text-foreground" />
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.quantity || ""}
+                          placeholder="0"
+                          onFocus={e => e.target.select()}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            updateItemQuantity(item.id, val);
+                          }}
+                          className="h-8 w-20 text-sm text-center bg-secondary border-0 rounded-lg"
+                        />
+                        <span className="text-xs text-muted-foreground">{item.serving_unit}</span>
+                      </div>
+                      <button
+                        onClick={() => adjustItemQty(item.id, 1)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full bg-secondary hover:bg-secondary/80 transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5 text-foreground" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 mt-2 text-center text-xs">
+                      <div><span className="font-semibold text-foreground">{Math.round(item.calories)}</span><br /><span className="text-muted-foreground">Cal</span></div>
+                      <div><span className="font-semibold text-red-400">{Math.round(item.protein)}g</span><br /><span className="text-muted-foreground">P</span></div>
+                      <div><span className="font-semibold text-blue-400">{Math.round(item.carbs)}g</span><br /><span className="text-muted-foreground">C</span></div>
+                      <div><span className="font-semibold text-yellow-400">{Math.round(item.fat)}g</span><br /><span className="text-muted-foreground">F</span></div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => saveItemEdit(item.id)}
+                      disabled={savingItem}
+                      className="w-full mt-2 h-8 text-xs rounded-lg"
+                    >
+                      {savingItem ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
