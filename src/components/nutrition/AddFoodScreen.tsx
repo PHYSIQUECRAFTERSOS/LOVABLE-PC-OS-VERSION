@@ -808,6 +808,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
+  if (selectedPCRecipe) {
     return (
       <PCRecipeDetail
         recipe={selectedPCRecipe}
