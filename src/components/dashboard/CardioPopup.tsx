@@ -67,6 +67,8 @@ interface CardioPopupProps {
 
 const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }: CardioPopupProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { triggerXP } = useXPAward();
   const [completing, setCompleting] = useState(false);
 
   const handleComplete = async () => {
@@ -78,6 +80,15 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
         .eq("id", eventId);
 
       if (error) throw error;
+
+      // Award Ranked XP
+      if (user?.id) {
+        try {
+          await triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title);
+        } catch (e) {
+          console.error("[CardioPopup] Ranked XP error:", e);
+        }
+      }
 
       toast({ title: "Cardio completed! 🎉" });
       setTimeout(() => {
