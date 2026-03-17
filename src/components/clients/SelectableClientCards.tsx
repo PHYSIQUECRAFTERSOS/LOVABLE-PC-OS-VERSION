@@ -244,11 +244,13 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
         const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
         const daysLeft = differenceInDays(endDate, new Date());
+        const totalDays = differenceInDays(endDate, new Date(a.start_date));
 
         map[a.client_id] = {
           phaseName: currentPhase.name,
           endDate: format(endDate, "MMM d"),
           daysLeft,
+          totalDays: Math.max(totalDays, 1),
         };
       }
       setPhaseMap(map);
