@@ -1,122 +1,50 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Enlarge Tier Icon Containers to Match 5x Icon Sizes
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Problem
+The last change wrapped all tier icons in small fixed-size containers (`h-12 w-12`, `h-10 w-10`, `h-8 w-8`) with `overflow-hidden` + `max-w-full max-h-full` on the `<img>`. This clips the 5x icons down to the container size, making them tiny again -- the opposite of what was intended.
 
----
+## Fix Strategy
+Enlarge each container to match or closely match the icon's `size` prop so the full artwork is visible. Adjust surrounding layout (padding, flex direction, card heights) so nothing overflows or gets pushed off-screen on mobile.
 
-## Phase 1 — MVP (Core Platform)
+## Changes Per File
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+### 1. `src/components/dashboard/MyRankDashboardCard.tsx`
+- Container: `h-12 w-12` → `h-20 w-20` (80px, showing full 120px icon scaled down slightly via max-w/max-h)
+- Card: increase padding/height to accommodate; keep horizontal layout
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+### 2. `src/components/ranked/MyRankCard.tsx`
+- Container: `h-32 w-32` → `w-full max-w-[240px] aspect-square` (full 240px on wide screens, responsive on narrow)
+- Already centered vertically, just needs the container to stop clipping
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+### 3. `src/components/ranked/RankedLeaderboard.tsx`
+- **Tier section headers**: Container `h-10 w-10` → `h-14 w-14` (56px, enough to show 110px icon clearly)
+- **Flat leaderboard rows**: Container `h-8 w-8` → `h-12 w-12` (48px, shows 90px icon)
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+### 4. `src/components/ranked/HowRankedWorksModal.tsx`
+- Container `h-10 w-10` → `h-12 w-12` (shows 100px icon)
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### 5. `src/components/ranked/XPManager.tsx` (3 instances)
+- Container `h-8 w-8` → `h-10 w-10` (shows 100px icon)
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+### 6. `src/components/ranked/RankUpOverlay.tsx`
+- Already `w-[60vw] max-w-[320px]` -- this is fine, icons show large. No change needed.
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### 7. `src/components/challenges/ChallengeTierProgress.tsx`
+- Current tier container: `h-10 w-10` → `h-14 w-14`
+- Path step containers: existing small circles → `h-10 w-10`
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+### 8. `src/components/challenges/ChallengeDetailView.tsx`
+- Inline icon container: `h-4 w-4` → `h-6 w-6`
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+### 9. `src/components/challenges/CreateChallengeWizard.tsx`
+- Tier editor container → `h-12 w-12`
+- Preview container: `h-5 w-5` → `h-7 w-7`
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+### 10. `src/components/challenges/MyRankTab.tsx`
+- Container: `h-16 w-16` → `h-24 w-24` (shows 200px icon)
 
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Result
+Icons render at their full visual size (constrained only by `max-w-full max-h-full` inside proportionally-sized containers). Layout remains intact on mobile because containers are sized to fit within their parent rows/cards without overflow.
 
