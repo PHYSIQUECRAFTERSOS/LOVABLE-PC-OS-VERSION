@@ -46,13 +46,16 @@ const RankedLeaderboard = () => {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              "flex-1 min-w-[90px] px-3 py-2.5 text-xs font-semibold transition-colors whitespace-nowrap",
+              "flex-1 min-w-[90px] px-3 py-2.5 text-xs font-semibold transition-colors whitespace-nowrap flex flex-col items-center",
               tab === t.key
                 ? "text-primary border-b-2 border-primary bg-primary/5"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
             {t.label}
+            {"sublabel" in t && t.sublabel && (
+              <span className="text-[9px] font-normal text-muted-foreground">{t.sublabel}</span>
+            )}
           </button>
         ))}
       </div>
