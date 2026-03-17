@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-const medals = ["🥇", "🥈", "🥉"];
+
 
 const GlobalLeaderboard = () => {
   const { data: leaders, isLoading } = useChallengeLeaderboard();
@@ -50,7 +50,7 @@ const GlobalLeaderboard = () => {
         <div className="space-y-2">
           {filtered.map((entry) => {
             const initials = (entry.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-            const isTop3 = entry.rank <= 3 && !search;
+            const isTop3 = entry.rank <= 3;
             const isMe = entry.user_id === user?.id;
 
             return (
@@ -60,8 +60,8 @@ const GlobalLeaderboard = () => {
                   isMe ? "border-primary/30 bg-primary/5" : isTop3 ? "border-primary/20 bg-primary/5" : "border-border bg-card"
                 }`}
               >
-                <span className="w-8 text-center font-bold text-lg shrink-0">
-                  {isTop3 && !search ? medals[entry.rank - 1] : <span className="text-muted-foreground text-sm">#{entry.rank}</span>}
+                <span className="w-8 text-center font-bold text-sm text-muted-foreground shrink-0">
+                  #{entry.rank}
                 </span>
 
                 <div className="relative">
