@@ -1063,7 +1063,55 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {showHistory && !quickAddOpen && (
+        {/* ═══ CUSTOM FOODS TAB ═══ */}
+        {showCustom && (
+          <div className="space-y-3 py-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateFood(true)}
+              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Create Custom Food
+            </Button>
+
+            {customFoods.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No custom foods yet</p>
+            ) : (
+              <div className="space-y-1.5">
+                {customFoods.map((food: any) => (
+                  <div key={food.id} className="flex items-center justify-between rounded-xl bg-card border border-border/50 px-4 py-3">
+                    <button
+                      onClick={() => logCustomFood(food)}
+                      className="flex-1 min-w-0 text-left"
+                    >
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {food.name}
+                        {food.brand && <span className="text-muted-foreground font-normal"> · {food.brand}</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {food.serving_size} · {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
+                      </div>
+                    </button>
+                    <div className="flex gap-1 ml-2">
+                      <button
+                        onClick={() => logCustomFood(food)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteCustomFood(food.id)}
+                        className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-destructive/10 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
           <div className="py-2">
             <FrequentMealsSection
               mealName={mealType}
