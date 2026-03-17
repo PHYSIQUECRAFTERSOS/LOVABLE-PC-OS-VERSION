@@ -5,6 +5,8 @@ import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "l
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Trophy } from "lucide-react";
@@ -124,6 +126,7 @@ function clearRetryQueue() {
 
 const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId, calendarEventId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
+  const { triggerXP } = useXPAward();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -686,7 +689,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         await autoScoreChallengePoints(user.id, actions);
       } catch (e) {
         console.error("[WorkoutLogger] Challenge auto-score error:", e);
-        // Non-blocking: don't fail the workout
+      }
+
+      // Award Ranked XP for workout completion
+      try {
+        await triggerXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+      } catch (e) {
+        console.error("[WorkoutLogger] Ranked XP error:", e);
       }
 
       setShowSummary(true);

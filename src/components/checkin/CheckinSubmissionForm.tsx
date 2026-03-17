@@ -15,10 +15,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 
 const CheckinSubmissionForm = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
 
   const [activeAssignment, setActiveAssignment] = useState<any>(null);
@@ -137,6 +140,9 @@ const CheckinSubmissionForm = () => {
       queryClient.invalidateQueries({ queryKey: ["client-checkin-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
       toast({ title: "Check-in submitted ✅" });
+      if (user?.id) {
+        triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Check-in submitted").catch(console.error);
+      }
       setActiveAssignment(null);
       setAnswers({});
     },

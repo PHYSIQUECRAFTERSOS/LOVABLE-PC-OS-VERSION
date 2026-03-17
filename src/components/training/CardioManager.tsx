@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,7 @@ const CARDIO_TYPES = [
 const CardioManager = () => {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
   const isCoach = role === "coach" || role === "admin";
 
@@ -168,6 +171,9 @@ const CardioManager = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cardio-logs"] });
       toast({ title: "Cardio logged 💪" });
+      if (user?.id) {
+        triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Logged cardio session").catch(console.error);
+      }
       setShowLogForm(false);
       resetLogForm();
     },

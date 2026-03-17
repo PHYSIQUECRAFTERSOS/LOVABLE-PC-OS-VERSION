@@ -11,12 +11,15 @@ import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, CheckCircle, Loader2 } from "lucide-react";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 
 const DEFAULT_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
 const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -151,6 +154,10 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
       queryClient.invalidateQueries({ queryKey: ["weekly-checkin-status"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
       toast({ title: "Check-in submitted! 💪" });
+      // Award Ranked XP
+      if (user?.id) {
+        triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Weekly check-in submitted").catch(console.error);
+      }
       setSubmitted(true);
       onSubmitted?.();
     },

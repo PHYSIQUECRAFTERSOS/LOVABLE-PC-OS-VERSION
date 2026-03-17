@@ -4,6 +4,9 @@ import { Drawer, DrawerContent, DrawerFooter, DrawerClose } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Check, X, Footprints, Bike, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
   walking: <Footprints className="h-6 w-6 text-white" />,
@@ -67,6 +70,8 @@ interface CardioPopupProps {
 
 const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }: CardioPopupProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { triggerXP } = useXPAward();
   const [completing, setCompleting] = useState(false);
 
   const handleComplete = async () => {
@@ -78,6 +83,15 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
         .eq("id", eventId);
 
       if (error) throw error;
+
+      // Award Ranked XP
+      if (user?.id) {
+        try {
+          await triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title);
+        } catch (e) {
+          console.error("[CardioPopup] Ranked XP error:", e);
+        }
+      }
 
       toast({ title: "Cardio completed! 🎉" });
       setTimeout(() => {
