@@ -124,13 +124,14 @@ const EventDetailModal = ({
     setLoadingSession(true);
     try {
       // Find the session for this workout — use clientId if provided (coach viewing client)
+      // Search by session_date first (most reliable), then fallback to completed_at
       let query = supabase
         .from("workout_sessions")
-        .select("id, duration_seconds, sets_completed, total_volume, completed_at, status")
+        .select("id, duration_seconds, sets_completed, total_volume, completed_at, status, session_date")
         .eq("workout_id", workoutId)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
-        .limit(5);
+        .limit(10);
       if (clientId) query = query.eq("client_id", clientId);
       const { data: sessions } = await query;
 
@@ -139,8 +140,10 @@ const EventDetailModal = ({
         return;
       }
 
-      // Find best match by date
-      const session = sessions.find(s => s.completed_at?.startsWith(eventDate)) || sessions[0];
+      // Find best match by session_date (exact), then completed_at date, then most recent
+      const session = sessions.find(s => s.session_date === eventDate)
+        || sessions.find(s => s.completed_at?.startsWith(eventDate))
+        || sessions[0];
 
       // Load exercise logs for this session
       const { data: logs } = await supabase
