@@ -1,122 +1,68 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Implement Daily XP Evaluation Edge Function
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## What This Solves
 
----
+Currently, XP is only awarded in real-time when a client actively logs something (workout, cardio, check-in). The system is missing **end-of-day server-side evaluation** for:
 
-## Phase 1 — MVP (Core Platform)
+1. **Nutrition macro compliance XP** (+7 calories ±100, +1 each for protein/carbs/fats ±5g)
+2. **Missed workout penalty** (-4 XP, 24h after scheduled workout with no log)
+3. **Missed cardio penalty** (-2 XP, 24h after scheduled cardio with no log)
+4. **No nutrition logged penalty** (-5 XP, if zero food entries for the day)
+5. **Calories off by 300+** (-5 XP, if logged but off target by 300+, mutually exclusive with #4)
+6. **Missed check-in penalty** (-15 XP, 24h after scheduled check-in with no log)
+7. **7+ day inactivity decay** (-30 XP/day for each day beyond 7 consecutive inactive days)
+8. **Streak tracking** (update `current_streak`, `longest_streak`, `inactive_days` on `ranked_profiles`)
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+## Architecture
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+### New Edge Function: `supabase/functions/daily-xp-evaluation/index.ts`
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+A single edge function that processes **all clients** in one invocation. Designed to run on a cron schedule (once daily, or every few hours for safety).
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+**Logic flow per client:**
+1. Determine "yesterday" (the day being evaluated — always processes the previous day to allow the full 24h grace period)
+2. Check `xp_transactions` for existing entries on that date to prevent duplicate processing
+3. **Nutrition compliance**: Sum `nutrition_logs` for yesterday by `client_id` where `logged_at = yesterday`. Compare totals against latest `nutrition_targets`. Award/penalize accordingly.
+4. **Missed workouts**: Query `calendar_events` where `event_type = 'workout'`, `event_date = yesterday`, `is_completed = false`, `user_id = client_id`. Apply -4 XP per missed event.
+5. **Missed cardio**: Same pattern for `event_type = 'cardio'`. Apply -2 XP per missed event.
+6. **Missed check-in**: Same for `event_type = 'checkin'`. Apply -15 XP.
+7. **Inactivity decay**: If `ranked_profiles.inactive_days >= 7`, apply -30 XP.
+8. **Streak update**: If all scheduled events were completed AND nutrition was logged, increment streak. Otherwise reset to 0.
+9. Update `ranked_profiles` with new `total_xp`, tier/division recalculation, `current_streak`, `inactive_days`, `last_active_date`.
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### Duplicate Prevention
+Each XP transaction includes a `description` field with the date stamp (e.g., `"Nutrition compliance: 2026-03-16"`). Before processing, the function checks if any `xp_transactions` with matching `transaction_type` and date already exist for that user. Skips if found.
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+### Cron Schedule
+Set up via `pg_cron` + `pg_net` to invoke the function daily at 6:00 AM UTC (covers midnight for North American timezones). Uses the SQL insert tool (not migration) since it contains project-specific URLs/keys.
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+## Config Update
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+Add to `supabase/config.toml`:
+```toml
+[functions.daily-xp-evaluation]
+verify_jwt = false
+```
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+## Files
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+| File | Action |
+|------|--------|
+| `supabase/functions/daily-xp-evaluation/index.ts` | **Create** — full edge function |
+| `supabase/config.toml` | **Edit** — add function config |
 
----
+After deploying, a `pg_cron` job will be inserted via the SQL insert tool to schedule daily execution.
 
-## Phase 2 — Advanced Features
+## XP Award/Penalty Logic (Server-Side)
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+The edge function replicates the `awardXP` logic from `rankedXP.ts` server-side (tier calculation, demotion shield, multiplier application) since it uses `SUPABASE_SERVICE_ROLE_KEY` and runs outside the browser. It processes all clients in a batch loop, same pattern as `calculate-risk-scores`.
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Key Rules Enforced
+- No penalty on rest days (nothing scheduled = no penalty)
+- Calories off 300+ and no-nutrition are mutually exclusive
+- Streak multipliers apply to gains only, never losses
+- Demotion shield: can't drop tier unless `inactive_days >= 7`
+- XP floor at 0
 
