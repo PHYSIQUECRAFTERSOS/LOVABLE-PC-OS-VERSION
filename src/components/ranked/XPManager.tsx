@@ -122,7 +122,7 @@ const TopMoversSection = () => {
           <span className="w-6 text-center text-sm font-bold text-muted-foreground">
             #{i + 1}
           </span>
-          <TierBadge tier={c.current_tier} size={20} />
+           <TierBadge tier={c.current_tier} size={100} />
           <div className="flex-1">
             <p className="text-sm font-semibold">{c.name}</p>
             <p className="text-[10px] text-muted-foreground">
