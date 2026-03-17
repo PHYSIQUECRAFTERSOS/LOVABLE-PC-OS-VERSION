@@ -3,9 +3,8 @@ import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Trophy, Plus, Flame, Star, Award } from "lucide-react";
+import { Trophy, Plus, Flame, Star } from "lucide-react";
 import GlobalLeaderboard from "@/components/challenges/GlobalLeaderboard";
-import MyRankTab from "@/components/challenges/MyRankTab";
 import ChallengesTab from "@/components/challenges/ChallengesTab";
 import TeamPulseTab from "@/components/challenges/TeamPulseTab";
 import CreateChallengeWizard from "@/components/challenges/CreateChallengeWizard";
@@ -45,9 +44,6 @@ const Challenges = () => {
             <TabsTrigger value="leaderboard" className="flex-1 gap-1.5 text-xs">
               <Trophy className="h-3.5 w-3.5" /> Leaderboard
             </TabsTrigger>
-            <TabsTrigger value="rank" className="flex-1 gap-1.5 text-xs">
-              <Award className="h-3.5 w-3.5" /> My Rank
-            </TabsTrigger>
             <TabsTrigger value="challenges" className="flex-1 gap-1.5 text-xs">
               <Flame className="h-3.5 w-3.5" /> Challenges
             </TabsTrigger>
@@ -60,10 +56,6 @@ const Challenges = () => {
 
           <TabsContent value="leaderboard" className="mt-4">
             <GlobalLeaderboard />
-          </TabsContent>
-
-          <TabsContent value="rank" className="mt-4">
-            <MyRankTab />
           </TabsContent>
 
           <TabsContent value="challenges" className="mt-4">
