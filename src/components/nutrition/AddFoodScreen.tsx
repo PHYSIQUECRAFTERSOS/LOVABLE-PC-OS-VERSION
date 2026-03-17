@@ -799,7 +799,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (selectedPCRecipe) {
+  if (showCreateFood) {
+    return (
+      <CreateFoodScreen
+        onClose={() => setShowCreateFood(false)}
+        onSaved={() => { setShowCreateFood(false); fetchCustomFoods(); }}
+      />
+    );
+  }
+
     return (
       <PCRecipeDetail
         recipe={selectedPCRecipe}
