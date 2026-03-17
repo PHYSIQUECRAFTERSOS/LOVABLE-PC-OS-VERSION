@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.manage-client-status]
 verify_jwt = false
+
+[functions.daily-xp-evaluation]
+verify_jwt = false
