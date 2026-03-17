@@ -1,122 +1,75 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Fix Ranked Leaderboard + Add "How It Works" Guide
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Problems Identified
 
----
+1. **Only 1 person on leaderboard**: Only Kevin Wu has a `ranked_profiles` row. The 4 active clients (Kevin Client, Ryan Smith, Alley Raymond, Test Account) have no rows because `ensureRankedProfile` only runs when someone visits `/ranked` or earns XP. The leaderboard queries `ranked_profiles` directly, so missing rows = missing people.
 
-## Phase 1 — MVP (Core Platform)
+2. **No way for clients to understand the ranking system**: Clients see tiers and XP but have zero context on how it works, what tiers exist, how to earn XP, or how promotion works.
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
-
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
-
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
-
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
-
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
-
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
-
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+3. **"This Week" tab**: Currently tracks `weekly_xp` on `ranked_profiles` — shows who earned the most XP this week (resets Monday). This is actually useful for driving weekly competition. **Recommendation: Keep it.** It gives clients a fresh race every week so newcomers aren't demoralized by the All Time gap. However, it only works once XP is actively flowing.
 
 ---
 
-## Phase 2 — Advanced Features
+## Changes
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
+### 1. Auto-Populate All Clients into Ranked
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
+**Modify `useRankedLeaderboard`** in `src/hooks/useRanked.ts`:
+- Before querying leaderboard, fetch all active client IDs from `coach_clients`
+- For any client ID not already in `ranked_profiles`, batch-insert rows (Bronze V, 0 XP)
+- This ensures every client appears on the leaderboard immediately
 
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
+Also update `useMyRank` to do the same for the current user (already does via `ensureRankedProfile`, but the leaderboard hook needs to populate everyone).
 
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
+### 2. Add "How Ranked Works" Info Modal
 
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
+**Create `src/components/ranked/HowRankedWorksModal.tsx`**:
+- A full-screen sheet/drawer triggered by a button near the page header
+- Sections:
+  - **Tier Ladder**: Visual display of all 6 tiers (Bronze → Champion) with colors, division counts, and XP per division. Shows the full path from Bronze V to Champion.
+  - **How XP Works**: Table of all XP gains (+5 workout, +3 cardio, +7 calories on target, etc.) and losses (-4 missed workout, etc.)
+  - **Streak Multipliers**: 7-day = 1.25x, 30-day = 1.5x, gains only
+  - **Promotion Rules**: Auto-promote on division fill, demotion shield (can't drop tier unless 7+ days inactive), Champion = top 5 only
+  - **Divisions**: V → IV → III → II → I, then next tier
+
+**Add trigger button** to `src/pages/Ranked.tsx`:
+- Small info/question-mark button next to the page title, or a "How It Works" text button
+- Opens the modal
+
+### 3. Keep "This Week" Tab (with minor improvement)
+
+Keep the tab. It drives weekly competition. Add a small label showing "Resets Monday" so clients understand the cadence.
 
 ---
 
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Files
+
+| File | Action |
+|------|--------|
+| `src/hooks/useRanked.ts` | Edit — add `ensureAllClientsRanked()` helper, call it in leaderboard hook |
+| `src/components/ranked/HowRankedWorksModal.tsx` | Create — full explainer modal with tier ladder, XP table, rules |
+| `src/pages/Ranked.tsx` | Edit — add "How It Works" button triggering the modal |
+| `src/components/ranked/RankedLeaderboard.tsx` | Edit — add "Resets Monday" label to This Week tab |
+
+### Auto-Population Logic
+```text
+1. Coach loads /ranked → leaderboard hook fires
+2. Fetch all client_ids from coach_clients (active)
+3. Fetch existing ranked_profiles user_ids
+4. Diff → missing client_ids
+5. Batch insert into ranked_profiles (defaults: bronze, div 5, 0 XP)
+6. Then query leaderboard as normal
+```
+
+For clients: `useMyRank` already calls `ensureRankedProfile` which creates their own row on first visit. But to see ALL clients, the leaderboard needs the batch approach above.
+
+### "How It Works" Modal Design
+- Dark card style matching existing UI (#0a0a0a bg)
+- Tier ladder shown as vertical progression with colored badges
+- XP table with green/red color coding for gains/losses
+- Streak multiplier visual with fire icons
+- Champion section with crown icon explaining top-5 rule
+- Scrollable, dismissible via X or swipe
 
