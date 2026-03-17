@@ -51,12 +51,16 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
         const toastId = `${txType}-${Date.now()}`;
         setXpToasts((prev) => [...prev, { amount: result.xpAwarded, id: toastId }]);
 
-        // Check for badge unlocks (non-blocking)
-        checkAndAwardBadges(userId, {
-          total_xp: result.newTotal,
-          current_streak: 0, // We don't have streak here, but profile is fetched inside awardXP
-          current_tier: result.tier,
-        }, txType).catch(console.error);
+        // Check for badge unlocks using fresh profile data
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { data: freshProfile } = await (supabase as any)
+          .from("ranked_profiles")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (freshProfile) {
+          checkAndAwardBadges(userId, freshProfile, txType).catch(console.error);
+        }
 
         // Show rank change overlay
         if (
