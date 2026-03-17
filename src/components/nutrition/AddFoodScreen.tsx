@@ -1293,6 +1293,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     </div>
   );
 };
+}
 
 /* ── Food Row with Emoji Icons ── */
 
