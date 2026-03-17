@@ -19,6 +19,7 @@ const DEFAULT_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
