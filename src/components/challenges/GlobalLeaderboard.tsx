@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
-const medals = ["🥇", "🥈", "🥉"];
+
 
 const GlobalLeaderboard = () => {
   const { data: leaders, isLoading } = useChallengeLeaderboard();
