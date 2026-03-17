@@ -354,7 +354,7 @@ const EventDetailModal = ({
           )}
 
           {/* Workout exercises preview (not completed) */}
-          {event.event_type === "workout" && event.linked_workout_id && !event.is_completed && (
+          {event.event_type === "workout" && event.linked_workout_id && !sessionData && !event.is_completed && (
             <div className="space-y-1.5">
               {loadingExercises ? (
                 <div className="space-y-2">
