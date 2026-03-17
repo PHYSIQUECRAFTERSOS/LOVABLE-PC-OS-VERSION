@@ -389,7 +389,7 @@ const LeaderboardRow = ({
         </AvatarFallback>
       </Avatar>
 
-      <TierBadge tier={entry.current_tier} size={18} />
+      <TierBadge tier={entry.current_tier} size={90} />
 
       <div className="flex-1 min-w-0">
         <p

@@ -30,7 +30,7 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center gap-4">
-        <TierBadge tier={profile.current_tier} size={48} />
+        <TierBadge tier={profile.current_tier} size={240} />
         <div className="flex-1">
           <h2
             className="text-xl font-bold tracking-tight"
