@@ -2981,6 +2981,7 @@ export type Database = {
           created_at: string | null
           data_quality_score: number | null
           fat_per_100g: number | null
+          fatsecret_id: string | null
           fiber_per_100g: number | null
           has_complete_macros: boolean | null
           household_serving_fulltext: string | null
@@ -3015,6 +3016,7 @@ export type Database = {
           created_at?: string | null
           data_quality_score?: number | null
           fat_per_100g?: number | null
+          fatsecret_id?: string | null
           fiber_per_100g?: number | null
           has_complete_macros?: boolean | null
           household_serving_fulltext?: string | null
@@ -3049,6 +3051,7 @@ export type Database = {
           created_at?: string | null
           data_quality_score?: number | null
           fat_per_100g?: number | null
+          fatsecret_id?: string | null
           fiber_per_100g?: number | null
           has_complete_macros?: boolean | null
           household_serving_fulltext?: string | null
