@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2, CalendarClock } from "lucide-react";
+import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { subDays, format, addDays, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import ClientPreviewDialog from "./ClientPreviewDialog";
@@ -38,6 +39,7 @@ interface PhaseInfo {
   phaseName: string;
   endDate: string;
   daysLeft: number;
+  totalDays: number;
 }
 
 interface SelectableClientCardsProps {
@@ -243,11 +245,13 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
         const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
         const daysLeft = differenceInDays(endDate, new Date());
+        const totalDays = differenceInDays(endDate, new Date(a.start_date));
 
         map[a.client_id] = {
           phaseName: currentPhase.name,
           endDate: format(endDate, "MMM d"),
           daysLeft,
+          totalDays: Math.max(totalDays, 1),
         };
       }
       setPhaseMap(map);
@@ -408,15 +412,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                           <Zap className="h-2.5 w-2.5" />{client.streak}d
                         </span>
                       )}
-                      {phase && (
-                        <span className={cn(
-                          "text-[10px] font-medium flex items-center gap-0.5",
-                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
-                        )}>
-                          <CalendarClock className="h-2.5 w-2.5" />
-                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`} · {phase.endDate}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -429,6 +424,37 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     )}
                   </div>
                 </div>
+                {phase && (() => {
+                  const elapsedPct = Math.min(100, Math.max(0, Math.round(((phase.totalDays - phase.daysLeft) / phase.totalDays) * 100)));
+                  const barColor = phase.daysLeft <= 0 || elapsedPct > 90
+                    ? "hsl(var(--destructive))"
+                    : elapsedPct > 70
+                      ? "hsl(38 92% 50%)"
+                      : "hsl(152 69% 41%)";
+                  return (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {phase.phaseName} · Ends {phase.endDate}
+                        </span>
+                        <span className={cn(
+                          "text-[10px] font-bold whitespace-nowrap ml-2",
+                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
+                        )}>
+                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Progress
+                          value={elapsedPct}
+                          className="h-2 flex-1"
+                          style={{ '--progress-color': barColor } as React.CSSProperties}
+                        />
+                        <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">{elapsedPct}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           );
