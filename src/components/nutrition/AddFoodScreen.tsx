@@ -1448,4 +1448,6 @@ const QuickActionCard = ({ icon: Icon, label, onClick }: { icon: any; label: str
 
 }
 
+}
+
 export default AddFoodScreen;
