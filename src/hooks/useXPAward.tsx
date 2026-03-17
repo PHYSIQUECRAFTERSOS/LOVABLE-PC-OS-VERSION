@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { awardXP, XP_VALUES } from "@/utils/rankedXP";
+import { checkAndAwardBadges } from "@/utils/badgeChecker";
 import XPToast from "@/components/ranked/XPToast";
 import RankUpOverlay from "@/components/ranked/RankUpOverlay";
 
