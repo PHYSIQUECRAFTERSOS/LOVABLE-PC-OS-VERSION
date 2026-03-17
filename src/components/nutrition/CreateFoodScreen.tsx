@@ -24,6 +24,9 @@ const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
     protein: "",
     carbs: "",
     fat: "",
+    fiber: "",
+    sugar: "",
+    sodium: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -77,6 +80,9 @@ const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
     { key: "protein", label: "Protein", unit: "g" },
     { key: "carbs", label: "Carbs", unit: "g" },
     { key: "fat", label: "Fat", unit: "g" },
+    { key: "fiber", label: "Fiber", unit: "g" },
+    { key: "sugar", label: "Sugar", unit: "g" },
+    { key: "sodium", label: "Sodium", unit: "mg" },
   ];
 
   return (
@@ -96,7 +102,7 @@ const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pb-36">
         {/* Info fields */}
         <div className="divide-y divide-border/50">
           {infoFields.map(({ key, label, sublabel, placeholder, inputMode }) => (
