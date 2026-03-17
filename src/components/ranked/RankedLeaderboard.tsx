@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "all_time", label: "All Time" },
-  { key: "this_week", label: "This Week" },
+  { key: "this_week", label: "This Week", sublabel: "Resets Mon" },
   { key: "streak", label: "Streak Kings" },
   { key: "tier_climbers", label: "Tier Climbers" },
 ];

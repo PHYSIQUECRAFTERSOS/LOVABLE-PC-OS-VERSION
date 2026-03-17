@@ -32,11 +32,39 @@ export function useMyRank() {
   });
 }
 
+async function ensureAllClientsRanked() {
+  // Fetch all active client IDs
+  const { data: clients } = await db
+    .from("coach_clients")
+    .select("client_id")
+    .eq("status", "active");
+  if (!clients?.length) return;
+
+  const clientIds = clients.map((c: any) => c.client_id);
+
+  // Fetch existing ranked profile user_ids
+  const { data: existing } = await db
+    .from("ranked_profiles")
+    .select("user_id")
+    .in("user_id", clientIds);
+
+  const existingSet = new Set((existing || []).map((e: any) => e.user_id));
+  const missing = clientIds.filter((id: string) => !existingSet.has(id));
+
+  if (missing.length > 0) {
+    const rows = missing.map((id: string) => ({ user_id: id }));
+    await db.from("ranked_profiles").insert(rows);
+  }
+}
+
 export function useRankedLeaderboard(tab: string) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["ranked-leaderboard", tab],
     queryFn: async () => {
+      // Auto-populate all clients into ranked_profiles
+      await ensureAllClientsRanked();
+
       let q = db.from("ranked_profiles").select("*");
       if (tab === "all_time") q = q.order("total_xp", { ascending: false });
       else if (tab === "this_week") q = q.order("weekly_xp", { ascending: false });
