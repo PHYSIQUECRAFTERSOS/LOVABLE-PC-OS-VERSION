@@ -4864,6 +4864,167 @@ export type Database = {
         }
         Relationships: []
       }
+      ranked_badges: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string
+          display_name: string
+          icon_name: string
+          id: string
+          name: string
+          requirement_type: string
+          requirement_value: Json
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description: string
+          display_name: string
+          icon_name: string
+          id?: string
+          name: string
+          requirement_type: string
+          requirement_value?: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string
+          display_name?: string
+          icon_name?: string
+          id?: string
+          name?: string
+          requirement_type?: string
+          requirement_value?: Json
+        }
+        Relationships: []
+      }
+      ranked_notifications_queue: {
+        Row: {
+          body: string
+          created_at: string | null
+          data: Json | null
+          id: string
+          notification_type: string
+          sent_at: string | null
+          status: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          notification_type: string
+          sent_at?: string | null
+          status?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          notification_type?: string
+          sent_at?: string | null
+          status?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ranked_profiles: {
+        Row: {
+          created_at: string | null
+          current_division: number | null
+          current_division_xp: number
+          current_streak: number
+          current_tier: string
+          id: string
+          inactive_days: number
+          is_new_client_boost: boolean | null
+          last_active_date: string | null
+          last_rank_up_at: string | null
+          longest_streak: number
+          new_client_boost_expires: string | null
+          total_xp: number
+          updated_at: string | null
+          user_id: string
+          weekly_xp: number
+          weekly_xp_reset_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_division?: number | null
+          current_division_xp?: number
+          current_streak?: number
+          current_tier?: string
+          id?: string
+          inactive_days?: number
+          is_new_client_boost?: boolean | null
+          last_active_date?: string | null
+          last_rank_up_at?: string | null
+          longest_streak?: number
+          new_client_boost_expires?: string | null
+          total_xp?: number
+          updated_at?: string | null
+          user_id: string
+          weekly_xp?: number
+          weekly_xp_reset_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_division?: number | null
+          current_division_xp?: number
+          current_streak?: number
+          current_tier?: string
+          id?: string
+          inactive_days?: number
+          is_new_client_boost?: boolean | null
+          last_active_date?: string | null
+          last_rank_up_at?: string | null
+          longest_streak?: number
+          new_client_boost_expires?: string | null
+          total_xp?: number
+          updated_at?: string | null
+          user_id?: string
+          weekly_xp?: number
+          weekly_xp_reset_at?: string | null
+        }
+        Relationships: []
+      }
+      ranked_user_badges: {
+        Row: {
+          badge_id: string
+          earned_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          badge_id: string
+          earned_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          badge_id?: string
+          earned_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ranked_user_badges_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "ranked_badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recipe_ingredients: {
         Row: {
           created_at: string
@@ -6358,6 +6519,51 @@ export type Database = {
           source_id?: string | null
           source_type?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      xp_transactions: {
+        Row: {
+          base_amount: number
+          coach_award_preset: string | null
+          coach_id: string | null
+          coach_note: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          multiplier: number | null
+          related_event_id: string | null
+          transaction_type: string
+          user_id: string
+          xp_amount: number
+        }
+        Insert: {
+          base_amount: number
+          coach_award_preset?: string | null
+          coach_id?: string | null
+          coach_note?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          multiplier?: number | null
+          related_event_id?: string | null
+          transaction_type: string
+          user_id: string
+          xp_amount: number
+        }
+        Update: {
+          base_amount?: number
+          coach_award_preset?: string | null
+          coach_id?: string | null
+          coach_note?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          multiplier?: number | null
+          related_event_id?: string | null
+          transaction_type?: string
+          user_id?: string
+          xp_amount?: number
         }
         Relationships: []
       }

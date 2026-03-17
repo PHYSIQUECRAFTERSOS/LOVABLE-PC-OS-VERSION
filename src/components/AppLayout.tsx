@@ -91,6 +91,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/community", icon: UsersRound, label: "Community" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/challenges", icon: Flame, label: "Challenges" },
+    { to: "/ranked", icon: Trophy, label: "Ranked" },
     { to: "/profile", icon: User, label: "Settings" },
   ];
 
