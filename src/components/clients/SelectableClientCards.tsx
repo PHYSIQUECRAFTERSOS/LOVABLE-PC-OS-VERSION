@@ -38,6 +38,7 @@ interface PhaseInfo {
   phaseName: string;
   endDate: string;
   daysLeft: number;
+  totalDays: number;
 }
 
 interface SelectableClientCardsProps {
