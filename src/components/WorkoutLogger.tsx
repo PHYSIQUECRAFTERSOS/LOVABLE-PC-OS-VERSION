@@ -688,7 +688,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         await autoScoreChallengePoints(user.id, actions);
       } catch (e) {
         console.error("[WorkoutLogger] Challenge auto-score error:", e);
-        // Non-blocking: don't fail the workout
+      }
+
+      // Award Ranked XP for workout completion
+      try {
+        await triggerXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+      } catch (e) {
+        console.error("[WorkoutLogger] Ranked XP error:", e);
       }
 
       setShowSummary(true);
