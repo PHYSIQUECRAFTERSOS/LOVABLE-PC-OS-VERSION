@@ -139,7 +139,7 @@ const EventDetailModal = ({
       try {
         let query = supabase
           .from("workout_sessions")
-          .select("id, duration_seconds, sets_completed, total_volume, completed_at, status, session_date, overall_rpe")
+          .select("id, duration_seconds, sets_completed, total_volume, completed_at, status, session_date")
           .eq("workout_id", event.linked_workout_id!)
           .eq("status", "completed")
           .order("completed_at", { ascending: false })
