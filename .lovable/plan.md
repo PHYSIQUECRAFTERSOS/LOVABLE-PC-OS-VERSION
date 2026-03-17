@@ -1,122 +1,66 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Fix Challenge Leaderboard + Auto-Scoring + Remove My Rank Tab
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Root Cause Analysis
 
----
+The Leaderboard tab queries `user_xp_summary` (a global XP table that's only populated when a challenge ends via the lifecycle function). Nobody appears because:
+1. Points from workouts, PRs, and daily logging are **never auto-logged** to `challenge_logs` or `challenge_participants`
+2. The leaderboard queries the wrong table — it should show challenge participants ranked by points, not global XP
 
-## Phase 1 — MVP (Core Platform)
+## Changes
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+### 1. Auto-Score Challenge Points on Workout Completion
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+**Edit `src/components/WorkoutLogger.tsx`** — After `finishWorkout()` successfully completes:
+- Fetch all active challenges the user is enrolled in
+- For each challenge, fetch its `challenge_scoring_rules` (enabled only)
+- Award points for `workout_completed` (check daily cap against today's logs)
+- Award points for `personal_best` for each PR hit during the session (check daily cap)
+- Insert rows into `challenge_logs` and update `challenge_participants.current_value`
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+Create a helper function `autoScoreChallengePoints(userId, actions: {type, count}[])` in `src/hooks/useChallenges.ts` that:
+1. Fetches active challenges where user is a participant
+2. For each challenge, fetches scoring rules
+3. For each action type, checks today's existing logs against daily_cap
+4. Inserts `challenge_logs` entries and updates `challenge_participants.current_value`
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+### 2. Change Leaderboard to Show Challenge Participants
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+**Edit `src/hooks/useChallenges.ts`** — Replace `useGlobalXPLeaderboard()` with `useChallengeLeaderboard()` that:
+- Fetches all `challenge_participants` from active challenges
+- Aggregates `current_value` per user across all active challenges
+- Joins with profiles for names/avatars
+- Returns sorted by total points descending
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+**Edit `src/components/challenges/GlobalLeaderboard.tsx`** — Update to:
+- Use the new hook
+- Show rank as 1, 2, 3, 4, 5... (simple numbers, top 3 get medals)
+- Show total points instead of XP
+- Remove tier badges/icons (those are XP-based, not relevant here)
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### 3. Remove My Rank Tab
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+**Edit `src/pages/Challenges.tsx`** — Remove the "My Rank" tab and its TabsTrigger/TabsContent. Keep Leaderboard, Challenges, and Team Pulse tabs.
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+## Files to Edit
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+1. **`src/hooks/useChallenges.ts`** — Add `autoScoreChallengePoints()` helper, replace `useGlobalXPLeaderboard` with `useChallengeLeaderboard`
+2. **`src/components/WorkoutLogger.tsx`** — Call auto-scoring after workout finish (for workout_completed + personal_best actions)
+3. **`src/components/challenges/GlobalLeaderboard.tsx`** — Rewrite to show challenge participant rankings by points
+4. **`src/pages/Challenges.tsx`** — Remove My Rank tab
 
----
+## Auto-Scoring Logic Detail
 
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+```text
+After finishWorkout():
+1. Get active challenges where user is participant
+2. For each challenge:
+   a. Get enabled scoring rules
+   b. Count today's existing challenge_logs by action_type
+   c. For "workout_completed": if today's count < daily_cap, insert log with points
+   d. For "personal_best": for each PR hit, if today's count < daily_cap, insert log
+   e. Recalculate current_value = sum of all user's challenge_logs for this challenge
+   f. Update challenge_participants.current_value
+```
 
