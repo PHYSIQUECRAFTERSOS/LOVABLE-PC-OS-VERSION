@@ -301,42 +301,72 @@ export function useMyUserBadges() {
   });
 }
 
-export function useGlobalXPLeaderboard() {
+export interface LeaderboardEntry {
+  user_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  total_points: number;
+  rank: number;
+}
+
+export function useChallengeLeaderboard() {
   return useQuery({
-    queryKey: ["global-xp-leaderboard"],
+    queryKey: ["challenge-leaderboard"],
     queryFn: async () => {
-      const { data, error } = await db
-        .from("user_xp_summary")
-        .select("*")
-        .order("total_xp", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      if (!data?.length) return [];
+      // Get all active challenges
+      const { data: activeChallenges, error: cErr } = await db
+        .from("challenges")
+        .select("id")
+        .eq("status", "active");
+      if (cErr) throw cErr;
+      if (!activeChallenges?.length) return [];
 
-      const userIds = data.map((d: any) => d.user_id);
-      const [profilesRes, tiersRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds),
-        db.from("tiers").select("*").order("sort_order"),
-      ]);
+      const challengeIds = activeChallenges.map((c: any) => c.id);
 
-      const profileMap = Object.fromEntries((profilesRes.data || []).map((p: any) => [p.user_id, p]));
-      const tiers = tiersRes.data || [];
+      // Get all participants from active challenges
+      const { data: participants, error: pErr } = await db
+        .from("challenge_participants")
+        .select("user_id, current_value")
+        .in("challenge_id", challengeIds);
+      if (pErr) throw pErr;
+      if (!participants?.length) return [];
 
-      return data.map((d: any) => {
-        const tier = d.current_tier_id
-          ? tiers.find((t: any) => t.id === d.current_tier_id)
-          : tiers[0];
-        return {
-          ...d,
-          full_name: profileMap[d.user_id]?.full_name || "Unknown",
-          avatar_url: profileMap[d.user_id]?.avatar_url || null,
-          tier_name: tier?.name || "Bronze",
-          tier_color: tier?.color || "#CD7F32",
-        } as UserXPSummary;
+      // Aggregate points per user across all active challenges
+      const userPoints: Record<string, number> = {};
+      participants.forEach((p: any) => {
+        userPoints[p.user_id] = (userPoints[p.user_id] || 0) + (Number(p.current_value) || 0);
       });
+
+      const userIds = Object.keys(userPoints);
+      if (!userIds.length) return [];
+
+      // Get profiles
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, avatar_url")
+        .in("user_id", userIds);
+      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
+
+      // Build sorted leaderboard
+      const entries: LeaderboardEntry[] = userIds
+        .map((uid) => ({
+          user_id: uid,
+          full_name: profileMap[uid]?.full_name || "Unknown",
+          avatar_url: profileMap[uid]?.avatar_url || null,
+          total_points: userPoints[uid],
+          rank: 0,
+        }))
+        .sort((a, b) => b.total_points - a.total_points);
+
+      entries.forEach((e, i) => { e.rank = i + 1; });
+
+      return entries;
     },
   });
 }
+
+// Keep old export name as alias for backward compat
+export const useGlobalXPLeaderboard = useChallengeLeaderboard;
 
 // ---- Templates ----
 
