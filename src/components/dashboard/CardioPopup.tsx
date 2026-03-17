@@ -4,6 +4,9 @@ import { Drawer, DrawerContent, DrawerFooter, DrawerClose } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Check, X, Footprints, Bike, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useXPAward } from "@/hooks/useXPAward";
+import { XP_VALUES } from "@/utils/rankedXP";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
   walking: <Footprints className="h-6 w-6 text-white" />,
