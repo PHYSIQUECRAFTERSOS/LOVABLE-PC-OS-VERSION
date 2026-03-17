@@ -29,7 +29,7 @@ const TierBadge = ({ tier, size = 24, className = "" }: TierBadgeProps) => {
       width={size}
       height={size}
       alt={`${tier} tier`}
-      className={className}
+      className={`max-w-full max-h-full ${className}`}
       style={{ objectFit: "contain" }}
       draggable={false}
     />
