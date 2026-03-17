@@ -153,6 +153,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
+      fetchCustomFoods();
     }
   }, [open]);
 
