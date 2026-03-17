@@ -1,5 +1,18 @@
-import { Shield, Crown, Gem, Diamond } from "lucide-react";
-import { getTierColor } from "@/utils/rankedXP";
+import bronzeImg from "@/assets/tiers/bronze.png";
+import silverImg from "@/assets/tiers/silver.png";
+import goldImg from "@/assets/tiers/gold.png";
+import emeraldImg from "@/assets/tiers/emerald.png";
+import diamondImg from "@/assets/tiers/diamond.png";
+import championImg from "@/assets/tiers/champion.png";
+
+const TIER_IMAGES: Record<string, string> = {
+  bronze: bronzeImg,
+  silver: silverImg,
+  gold: goldImg,
+  emerald: emeraldImg,
+  diamond: diamondImg,
+  champion: championImg,
+};
 
 interface TierBadgeProps {
   tier: string;
@@ -8,24 +21,19 @@ interface TierBadgeProps {
 }
 
 const TierBadge = ({ tier, size = 24, className = "" }: TierBadgeProps) => {
-  const color = getTierColor(tier);
-  const iconProps = { size, className, style: { color } };
+  const src = TIER_IMAGES[tier?.toLowerCase()] || TIER_IMAGES.bronze;
 
-  switch (tier) {
-    case "champion":
-      return (
-        <Crown
-          {...iconProps}
-          style={{ color, filter: "drop-shadow(0 0 6px #FF0000)" }}
-        />
-      );
-    case "diamond":
-      return <Diamond {...iconProps} />;
-    case "emerald":
-      return <Gem {...iconProps} />;
-    default:
-      return <Shield {...iconProps} />;
-  }
+  return (
+    <img
+      src={src}
+      width={size}
+      height={size}
+      alt={`${tier} tier`}
+      className={className}
+      style={{ objectFit: "contain" }}
+      draggable={false}
+    />
+  );
 };
 
 export default TierBadge;
