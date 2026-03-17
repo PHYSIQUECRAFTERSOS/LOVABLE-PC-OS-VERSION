@@ -424,6 +424,37 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     )}
                   </div>
                 </div>
+                {phase && (() => {
+                  const elapsedPct = Math.min(100, Math.max(0, Math.round(((phase.totalDays - phase.daysLeft) / phase.totalDays) * 100)));
+                  const barColor = phase.daysLeft <= 0 || elapsedPct > 90
+                    ? "hsl(var(--destructive))"
+                    : elapsedPct > 70
+                      ? "hsl(38 92% 50%)"
+                      : "hsl(152 69% 41%)";
+                  return (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {phase.phaseName} · Ends {phase.endDate}
+                        </span>
+                        <span className={cn(
+                          "text-[10px] font-bold whitespace-nowrap ml-2",
+                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
+                        )}>
+                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Progress
+                          value={elapsedPct}
+                          className="h-2 flex-1"
+                          style={{ '--progress-color': barColor } as React.CSSProperties}
+                        />
+                        <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">{elapsedPct}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           );
