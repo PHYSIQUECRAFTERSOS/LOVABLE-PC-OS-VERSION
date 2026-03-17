@@ -676,7 +676,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
       // Auto-score challenge points
       try {
-        const { autoScoreChallengePoints } = await import("@/hooks/useChallenges");
+        const { autoScoreChallengePoints } = await import("@/utils/challengeAutoScore");
         const actions: { type: string; count: number }[] = [
           { type: "workout_completed", count: 1 },
         ];
