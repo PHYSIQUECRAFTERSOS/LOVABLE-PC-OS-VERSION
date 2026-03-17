@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CalendarEvent } from "./CalendarGrid";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Clock, Repeat, Trash2, Play, Dumbbell, Trophy, TrendingUp, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
@@ -53,6 +54,7 @@ interface SessionSummary {
   sets_completed: number | null;
   total_volume: number | null;
   completed_at: string | null;
+  overall_rpe: number | null;
   logs: SessionLog[];
 }
 
@@ -71,8 +73,17 @@ const formatDuration = (seconds: number) => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+};
+
+const getRPELabel = (rpe: number): string => {
+  if (rpe <= 5) return "easy";
+  if (rpe <= 6) return "moderate";
+  if (rpe <= 7) return "challenging";
+  if (rpe <= 8) return "hard";
+  if (rpe <= 9) return "very hard";
+  return "max effort";
 };
 
 const EventDetailModal = ({
@@ -83,124 +94,114 @@ const EventDetailModal = ({
   const [loadingExercises, setLoadingExercises] = useState(false);
   const [sessionData, setSessionData] = useState<SessionSummary | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
-  const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
+  const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null);
 
-  // Load exercises when opening a workout event
   useEffect(() => {
-    if (!open || !event || event.event_type !== "workout" || !event.linked_workout_id) {
+    if (!open || !event) {
       setWorkoutExercises([]);
       setSessionData(null);
+      setEstimatedMinutes(null);
       return;
     }
 
-    const load = async () => {
+    if (event.event_type !== "workout" || !event.linked_workout_id) return;
+
+    const loadExercises = async () => {
       setLoadingExercises(true);
-      const { data } = await supabase
-        .from("workout_exercises")
-        .select("sets, reps, rest_seconds, exercises(name)")
-        .eq("workout_id", event.linked_workout_id!)
-        .order("exercise_order");
-      setWorkoutExercises(
-        (data || []).map((we: any) => ({
+      try {
+        const { data } = await supabase
+          .from("workout_exercises")
+          .select("sets, reps, rest_seconds, exercises(name)")
+          .eq("workout_id", event.linked_workout_id!)
+          .order("exercise_order");
+
+        const exercises = (data || []).map((we: any) => ({
           name: we.exercises?.name || "Unknown",
           sets: we.sets,
           reps: we.reps,
           rest_seconds: we.rest_seconds,
-        }))
-      );
+        }));
+        setWorkoutExercises(exercises);
+
+        // Estimate duration: ~2 min per set + rest time
+        const totalSets = exercises.reduce((sum: number, ex: WorkoutExercise) => sum + (ex.sets || 0), 0);
+        const totalRest = exercises.reduce((sum: number, ex: WorkoutExercise) => sum + ((ex.rest_seconds || 0) * Math.max(0, (ex.sets || 1) - 1)), 0);
+        const est = Math.round((totalSets * 90 + totalRest) / 60);
+        setEstimatedMinutes(est > 0 ? est : null);
+      } catch (err) {
+        console.error("Failed to load workout exercises:", err);
+      }
       setLoadingExercises(false);
     };
 
-    load();
+    const loadSession = async () => {
+      setLoadingSession(true);
+      try {
+        let query = supabase
+          .from("workout_sessions")
+          .select("id, duration_seconds, sets_completed, total_volume, completed_at, status, session_date, overall_rpe")
+          .eq("workout_id", event.linked_workout_id!)
+          .eq("status", "completed")
+          .order("completed_at", { ascending: false })
+          .limit(10);
+        if (clientId) query = query.eq("client_id", clientId);
+        const { data: sessions } = await query;
 
-    // Always try to load session details for workout events (not just when is_completed)
-    // Sessions may exist even when calendar event isn't marked complete
-    if (event.linked_workout_id) {
-      loadSessionData(event.linked_workout_id, event.event_date);
-    }
-  }, [open, event]);
-
-  const loadSessionData = async (workoutId: string, eventDate: string) => {
-    setLoadingSession(true);
-    try {
-      // Find the session for this workout — use clientId if provided (coach viewing client)
-      // Search by session_date first (most reliable), then fallback to completed_at
-      let query = supabase
-        .from("workout_sessions")
-        .select("id, duration_seconds, sets_completed, total_volume, completed_at, status, session_date")
-        .eq("workout_id", workoutId)
-        .eq("status", "completed")
-        .order("completed_at", { ascending: false })
-        .limit(10);
-      if (clientId) query = query.eq("client_id", clientId);
-      const { data: sessions } = await query;
-
-      if (!sessions || sessions.length === 0) {
-        setLoadingSession(false);
-        return;
-      }
-
-      // Find best match by session_date (exact), then completed_at date, then most recent
-      const session = sessions.find(s => s.session_date === eventDate)
-        || sessions.find(s => s.completed_at?.startsWith(eventDate))
-        || sessions[0];
-
-      // Load exercise logs for this session
-      const { data: logs } = await supabase
-        .from("exercise_logs")
-        .select("exercise_id, set_number, weight, reps, rir, rpe, exercises(name)")
-        .eq("session_id", session.id)
-        .order("set_number");
-
-      // Group logs by exercise
-      const exerciseMap = new Map<string, SessionLog>();
-      (logs || []).forEach((log: any) => {
-        const exId = log.exercise_id;
-        if (!exerciseMap.has(exId)) {
-          exerciseMap.set(exId, {
-            exercise_id: exId,
-            exercise_name: log.exercises?.name || "Unknown",
-            sets: [],
-          });
+        if (!sessions || sessions.length === 0) {
+          setLoadingSession(false);
+          return;
         }
-        exerciseMap.get(exId)!.sets.push({
-          set_number: log.set_number,
-          weight: log.weight,
-          reps: log.reps,
-          rpe: log.rpe ?? null,
-          rir: log.rir,
+
+        const session = sessions.find(s => s.session_date === event.event_date)
+          || sessions.find(s => s.completed_at?.startsWith(event.event_date))
+          || sessions[0];
+
+        const { data: logs } = await supabase
+          .from("exercise_logs")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, exercises(name)")
+          .eq("session_id", session.id)
+          .order("set_number");
+
+        const exerciseMap = new Map<string, SessionLog>();
+        (logs || []).forEach((log: any) => {
+          const exId = log.exercise_id;
+          if (!exerciseMap.has(exId)) {
+            exerciseMap.set(exId, {
+              exercise_id: exId,
+              exercise_name: log.exercises?.name || "Unknown",
+              sets: [],
+            });
+          }
+          exerciseMap.get(exId)!.sets.push({
+            set_number: log.set_number,
+            weight: log.weight,
+            reps: log.reps,
+            rpe: log.rpe ?? null,
+            rir: log.rir,
+          });
         });
-      });
 
-      setSessionData({
-        id: session.id,
-        duration_seconds: session.duration_seconds,
-        sets_completed: session.sets_completed,
-        total_volume: session.total_volume,
-        completed_at: session.completed_at,
-        logs: Array.from(exerciseMap.values()),
-      });
+        setSessionData({
+          id: session.id,
+          duration_seconds: session.duration_seconds,
+          sets_completed: session.sets_completed,
+          total_volume: session.total_volume,
+          completed_at: session.completed_at,
+          overall_rpe: (session as any).overall_rpe ?? null,
+          logs: Array.from(exerciseMap.values()),
+        });
+      } catch (err) {
+        console.error("Failed to load session data:", err);
+      }
+      setLoadingSession(false);
+    };
 
-      // Auto-expand all exercises
-      setExpandedExercises(new Set(Array.from(exerciseMap.keys())));
-    } catch (err) {
-      console.error("Failed to load session data:", err);
-    }
-    setLoadingSession(false);
-  };
-
-  const toggleExercise = (exId: string) => {
-    setExpandedExercises(prev => {
-      const next = new Set(prev);
-      if (next.has(exId)) next.delete(exId);
-      else next.add(exId);
-      return next;
-    });
-  };
+    loadExercises();
+    loadSession();
+  }, [open, event, clientId]);
 
   if (!event) return null;
 
-  // Resolve effective type from event_type + title keywords
   const resolveEventType = (ev: CalendarEvent): string => {
     const t = ev.event_type;
     if (t === "body_stats" || t === "photos") return t;
@@ -212,6 +213,8 @@ const EventDetailModal = ({
   };
 
   const effectiveType = resolveEventType(event);
+  const isWorkout = event.event_type === "workout" && event.linked_workout_id;
+  const hasSession = !!sessionData && sessionData.logs.length > 0;
 
   const handleOpenAction = () => {
     onClose();
@@ -233,11 +236,56 @@ const EventDetailModal = ({
 
   const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
+  // Build exercise display: merge prescribed exercises with session logs
+  const exerciseDisplay = hasSession
+    ? sessionData!.logs.map(log => ({
+        name: log.exercise_name,
+        exercise_id: log.exercise_id,
+        prescribed: workoutExercises.find(we => we.name.toLowerCase() === log.exercise_name.toLowerCase()),
+        loggedSets: log.sets,
+      }))
+    : workoutExercises.map((we, i) => ({
+        name: we.name,
+        exercise_id: `prescribed-${i}`,
+        prescribed: we,
+        loggedSets: [] as SessionLog["sets"],
+      }));
+
   return (
-    <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
-        <SheetHeader className="text-left pb-2">
-          <div className="flex items-center gap-2 flex-wrap">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-background border-b border-border px-5 pt-5 pb-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-muted-foreground">
+              {format(new Date(event.event_date), "d MMM yyyy")}
+            </span>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-secondary transition-colors">
+              <X className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* Title row with status */}
+          <div className="flex items-start gap-3">
+            {event.is_completed ? (
+              <div className="mt-0.5 h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
+                <Check className="h-5 w-5 text-white" />
+              </div>
+            ) : (
+              <div className="mt-0.5 h-8 w-8 rounded-full border-2 border-border flex items-center justify-center shrink-0">
+                <Dumbbell className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-bold text-foreground leading-tight">{event.title}</h2>
+              <p className="text-sm text-muted-foreground">
+                {event.is_completed ? "Completed" : "Scheduled"}
+              </p>
+            </div>
+          </div>
+
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-wrap mt-3">
             <Badge className={cn("text-xs", TYPE_BADGE_COLORS[event.event_type] || TYPE_BADGE_COLORS.custom)}>
               {TYPE_LABELS[event.event_type] || event.event_type}
             </Badge>
@@ -252,147 +300,164 @@ const EventDetailModal = ({
               </Badge>
             )}
           </div>
-          <SheetTitle className="text-xl">{event.title}</SheetTitle>
-        </SheetHeader>
 
-        <div className="space-y-4 pt-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>{format(new Date(event.event_date), "EEEE, MMMM d, yyyy")}</span>
-            {event.event_time && (
-              <span className="text-foreground font-medium">
-                {event.event_time.slice(0, 5)}
-                {event.end_time && ` — ${event.end_time.slice(0, 5)}`}
+          {/* Workout meta line */}
+          {isWorkout && (
+            <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Dumbbell className="h-3 w-3" /> Regular workout
               </span>
-            )}
-          </div>
+              {hasSession && sessionData?.duration_seconds ? (
+                <span className="flex items-center gap-1">
+                  <Timer className="h-3 w-3" /> {formatDuration(sessionData.duration_seconds)}
+                </span>
+              ) : estimatedMinutes ? (
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> est. {estimatedMinutes} minutes
+                </span>
+              ) : null}
+              {hasSession && sessionData?.overall_rpe != null && (
+                <span className="flex items-center gap-1">
+                  <Flame className="h-3 w-3 text-orange-400" />
+                  RPE {sessionData.overall_rpe}/10 ({getRPELabel(sessionData.overall_rpe)})
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {/* Date & time */}
+          {(event.event_time || !isWorkout) && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>{format(new Date(event.event_date), "EEEE, MMMM d, yyyy")}</span>
+              {event.event_time && (
+                <span className="text-foreground font-medium">
+                  {event.event_time.slice(0, 5)}
+                  {event.end_time && ` — ${event.end_time.slice(0, 5)}`}
+                </span>
+              )}
+            </div>
+          )}
 
           {event.description && (
             <p className="text-sm text-foreground/80">{event.description}</p>
           )}
 
-          {/* Completed workout session details — show whenever session data exists */}
-          {event.event_type === "workout" && sessionData && (
-            <div className="space-y-3">
-              {/* Session stats */}
-              <div className="grid grid-cols-3 gap-2">
-                {sessionData.duration_seconds != null && (
-                  <div className="bg-secondary/50 rounded-lg p-2.5 text-center">
-                    <p className="text-xs text-muted-foreground">Duration</p>
-                    <p className="text-sm font-bold tabular-nums">{formatDuration(sessionData.duration_seconds)}</p>
-                  </div>
-                )}
-                {sessionData.sets_completed != null && (
-                  <div className="bg-secondary/50 rounded-lg p-2.5 text-center">
-                    <p className="text-xs text-muted-foreground">Sets</p>
-                    <p className="text-sm font-bold tabular-nums">{sessionData.sets_completed}</p>
-                  </div>
-                )}
-                {sessionData.total_volume != null && (
-                  <div className="bg-secondary/50 rounded-lg p-2.5 text-center">
-                    <p className="text-xs text-muted-foreground">Volume</p>
-                    <p className="text-sm font-bold tabular-nums">{sessionData.total_volume.toLocaleString()} lbs</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Exercise logs */}
-              <div className="space-y-2">
-                {sessionData.logs.map((ex) => {
-                  const isExpanded = expandedExercises.has(ex.exercise_id);
-                  const bestSet = ex.sets.reduce((best, s) =>
-                    (s.weight ?? 0) * (s.reps ?? 0) > (best.weight ?? 0) * (best.reps ?? 0) ? s : best
-                  , ex.sets[0]);
-
-                  return (
-                    <div key={ex.exercise_id} className="rounded-lg border border-border overflow-hidden">
-                      <button
-                        onClick={() => toggleExercise(ex.exercise_id)}
-                        className="w-full flex items-center gap-3 p-3 bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                      >
-                        <Dumbbell className="h-4 w-4 text-primary shrink-0" />
-                        <div className="flex-1 text-left min-w-0">
-                          <p className="text-sm font-medium truncate">{ex.exercise_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {ex.sets.length} sets · Best: {bestSet.weight ?? 0} lbs × {bestSet.reps ?? 0}
-                          </p>
-                        </div>
-                        {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                      </button>
-
-                      {isExpanded && (
-                        <div className="px-3 pb-2 pt-1 space-y-1">
-                          {/* Set header */}
-                          <div className="grid grid-cols-[2rem_1fr_1fr_1fr] gap-2 px-1">
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase">Set</span>
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase">lbs</span>
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase">Reps</span>
-                            <span className="text-[10px] font-medium text-muted-foreground uppercase">RPE</span>
-                          </div>
-                          {ex.sets.map((s) => (
-                            <div key={s.set_number} className="grid grid-cols-[2rem_1fr_1fr_1fr] gap-2 items-center p-1.5 rounded bg-card/50">
-                              <span className="text-xs font-medium text-center text-muted-foreground">{s.set_number}</span>
-                              <span className="text-sm font-medium tabular-nums">{s.weight === 0 ? "BW" : s.weight ?? "—"}</span>
-                              <span className="text-sm font-medium tabular-nums">{s.reps ?? "—"}</span>
-                              <span className="text-sm tabular-nums text-muted-foreground">
-                                {s.rpe != null ? `@${s.rpe}` : s.rir != null ? `RIR ${s.rir}` : "—"}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {loadingSession && (
-                <div className="space-y-2">
-                  {[1,2].map(i => (
-                    <div key={i} className="h-16 bg-secondary/50 rounded-lg animate-pulse" />
-                  ))}
+          {/* Session summary stats */}
+          {hasSession && (
+            <div className="grid grid-cols-3 gap-2">
+              {sessionData!.duration_seconds != null && (
+                <div className="bg-secondary/50 rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Duration</p>
+                  <p className="text-sm font-bold tabular-nums">{formatDuration(sessionData!.duration_seconds)}</p>
+                </div>
+              )}
+              {sessionData!.sets_completed != null && (
+                <div className="bg-secondary/50 rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Sets</p>
+                  <p className="text-sm font-bold tabular-nums">{sessionData!.sets_completed}</p>
+                </div>
+              )}
+              {sessionData!.total_volume != null && (
+                <div className="bg-secondary/50 rounded-lg p-2.5 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Volume</p>
+                  <p className="text-sm font-bold tabular-nums">{sessionData!.total_volume.toLocaleString()} lbs</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* Workout exercises preview (not completed) */}
-          {event.event_type === "workout" && event.linked_workout_id && !sessionData && !event.is_completed && (
-            <div className="space-y-1.5">
-              {loadingExercises ? (
-                <div className="space-y-2">
-                  {[1,2,3].map(i => (
-                    <div key={i} className="h-10 bg-secondary/50 rounded animate-pulse" />
-                  ))}
+          {/* Exercise list — Trainerize style */}
+          {isWorkout && (loadingExercises || loadingSession) && (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-6 w-3/4 rounded ml-4" />
+                  <Skeleton className="h-6 w-2/3 rounded ml-4" />
                 </div>
-              ) : workoutExercises.length > 0 ? (
-                workoutExercises.map((ex, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/40 border border-border">
-                    <Dumbbell className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{ex.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {ex.sets}s × {ex.reps}
-                        {ex.rest_seconds > 0 && ` · Rest: ${ex.rest_seconds}s`}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : null}
+              ))}
             </div>
           )}
 
+          {isWorkout && !loadingExercises && !loadingSession && exerciseDisplay.length > 0 && (
+            <div className="space-y-1">
+              {exerciseDisplay.map((ex) => (
+                <div key={ex.exercise_id} className="border-t border-border first:border-t-0">
+                  {/* Exercise header row — Trainerize style */}
+                  <div className="flex items-center gap-3 py-3">
+                    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                      <Dumbbell className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{ex.name}</p>
+                    </div>
+                    {ex.prescribed && (
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-muted-foreground">
+                          {ex.prescribed.sets} sets × {ex.prescribed.reps} reps
+                        </p>
+                      </div>
+                    )}
+                    {ex.prescribed && ex.prescribed.rest_seconds > 0 && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Flame className="h-3 w-3 text-orange-400" />
+                        <span className="text-xs text-muted-foreground">
+                          Rest {ex.prescribed.rest_seconds >= 60
+                            ? `${Math.floor(ex.prescribed.rest_seconds / 60)} min`
+                            : `${ex.prescribed.rest_seconds}s`} between sets
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Logged sets — shown inline like Trainerize */}
+                  {ex.loggedSets.length > 0 && (
+                    <div className="pl-[52px] pb-3 space-y-1.5">
+                      {ex.loggedSets.map((s) => (
+                        <div key={s.set_number} className="flex items-center gap-4">
+                          <span className="text-xs font-medium text-muted-foreground w-10">Set {s.set_number}</span>
+                          <span className="text-sm font-medium tabular-nums text-foreground">
+                            {s.reps ?? "—"} × {s.weight === 0 ? "BW" : s.weight != null ? `${s.weight} lbs` : "—"}
+                          </span>
+                          {s.rpe != null && (
+                            <span className="text-xs text-muted-foreground ml-auto">RPE {s.rpe}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* If no logged sets and workout is not completed, show "—" */}
+                  {ex.loggedSets.length === 0 && !event.is_completed && (
+                    <div className="pl-[52px] pb-3">
+                      <p className="text-xs text-muted-foreground italic">Not yet completed</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty state for non-workout events or workouts without linked_workout_id */}
+          {isWorkout && !loadingExercises && !loadingSession && exerciseDisplay.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">No exercise data available</p>
+          )}
+
           {event.notes && (
-            <div className="bg-secondary/50 rounded-md p-3">
+            <div className="bg-secondary/50 rounded-lg p-3">
               <p className="text-xs text-muted-foreground mb-1">Notes</p>
               <p className="text-sm">{event.notes}</p>
             </div>
           )}
 
-          <div className="flex flex-col gap-2 pt-2">
-            {/* Primary action */}
+          {/* Action buttons */}
+          <div className="flex flex-col gap-2 pt-2 pb-2">
             {!event.is_completed && hasActionRoute && (
-              <Button onClick={handleOpenAction} className="w-full gap-2 bg-primary hover:bg-primary/90" size="lg">
+              <Button onClick={handleOpenAction} className="w-full gap-2" size="lg">
                 <Play className="h-4 w-4" />
                 {event.event_type === "workout" ? "Start Workout"
                   : effectiveType === "body_stats" ? "Log Body Stats"
@@ -413,8 +478,8 @@ const EventDetailModal = ({
             )}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 };
 
