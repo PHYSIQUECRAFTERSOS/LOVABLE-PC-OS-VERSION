@@ -575,8 +575,6 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                       </SwipeToDelete>
                     );
                   })}
-                    </SwipeToDelete>
-                  ))}
                 </div>
               )}
 
