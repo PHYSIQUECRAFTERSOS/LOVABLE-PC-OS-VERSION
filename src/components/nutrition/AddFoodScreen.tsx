@@ -15,7 +15,7 @@ import {
   ScanBarcode,
   Camera,
   Zap,
-  
+  UtensilsCrossed,
   Plus,
   ChevronDown,
   ChevronUp,
@@ -26,6 +26,7 @@ import {
   Youtube,
   Star,
   Info,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
