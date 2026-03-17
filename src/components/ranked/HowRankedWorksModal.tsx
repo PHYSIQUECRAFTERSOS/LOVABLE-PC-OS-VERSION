@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Flame, Shield, Crown, Gem, Diamond, ChevronDown, ChevronUp, Zap, TrendingUp, TrendingDown } from "lucide-react";
+import { Flame, Shield, Crown, ChevronDown, ChevronUp, Zap, TrendingUp, TrendingDown, X } from "lucide-react";
 import TierBadge from "./TierBadge";
 import { TIER_CONFIG, TIER_ORDER, XP_VALUES } from "@/utils/rankedXP";
 
@@ -57,22 +57,32 @@ const HowRankedWorksModal = () => {
   return (
     <>
       <Button
-        variant="ghost"
-        size="icon"
+        variant="outline"
         onClick={() => setOpen(true)}
-        className="h-8 w-8 text-muted-foreground hover:text-primary"
+        className="border-primary/40 text-primary hover:bg-primary/10 hover:text-primary text-xs sm:text-sm px-3 sm:px-4 py-2 h-auto whitespace-nowrap w-fit"
       >
-        <HelpCircle className="h-5 w-5" />
+        <Zap className="h-4 w-4 mr-1.5 shrink-0" />
+        <span className="hidden sm:inline">Learn about PC Ranked System</span>
+        <span className="sm:hidden">How Ranked Works</span>
       </Button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto rounded-t-2xl bg-background p-0">
-          <SheetHeader className="sticky top-0 z-10 bg-background border-b border-border px-5 py-4">
-            <SheetTitle className="text-lg font-bold flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              How Ranked Works
-            </SheetTitle>
-          </SheetHeader>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-background border-border p-0">
+          {/* Sticky header with yellow X */}
+          <div className="sticky top-0 z-10 bg-background border-b border-border px-5 py-4 flex items-center justify-between">
+            <DialogHeader className="flex-1">
+              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                How Ranked Works
+              </DialogTitle>
+            </DialogHeader>
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-sm hover:opacity-80 transition-opacity ml-4 shrink-0"
+            >
+              <X className="h-6 w-6 text-primary" />
+            </button>
+          </div>
 
           <div className="px-5 py-4 space-y-4">
             {/* Tier Ladder */}
@@ -209,8 +219,8 @@ const HowRankedWorksModal = () => {
               </p>
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
