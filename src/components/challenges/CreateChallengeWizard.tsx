@@ -737,7 +737,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                 <div className="flex items-center gap-2 flex-wrap">
                   {challengeTiers.map((t) => (
                     <div key={t.name} className="flex items-center gap-1 text-xs">
-                      <TierIcon name={t.name} size={80} />
+                      <span className="inline-flex h-5 w-5 items-center justify-center overflow-hidden shrink-0"><TierIcon name={t.name} size={80} className="scale-[0.22]" /></span>
                       <span style={{ color: t.color }} className="font-medium">{t.name}</span>
                       <span className="text-muted-foreground">({t.min_points}+)</span>
                     </div>
