@@ -616,6 +616,46 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         onDeleteLog={deleteLog}
         onUpdated={() => { setEditingLog(null); fetchLogs(); }}
       />
+
+      {/* Edit Mode: Save Meal Sticky Bar */}
+      {editMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background border-t border-border z-[55]">
+          {showSaveMealDialog ? (
+            <div className="space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">Save as Meal</span>
+                <button onClick={() => setShowSaveMealDialog(false)} className="text-xs text-muted-foreground">Cancel</button>
+              </div>
+              <Input
+                placeholder="Meal name (e.g. My Breakfast)"
+                value={saveMealName}
+                onChange={e => setSaveMealName(e.target.value)}
+                className="h-10 text-sm bg-secondary border-0 rounded-lg"
+                autoFocus
+              />
+              <div className="text-xs text-muted-foreground">
+                {selectedIds.size} items · {Math.round(selectedTotals.calories)} cal · {Math.round(selectedTotals.protein)}P · {Math.round(selectedTotals.carbs)}C · {Math.round(selectedTotals.fat)}F
+              </div>
+              <Button
+                onClick={handleSaveMealFromTracker}
+                disabled={savingMeal || !saveMealName.trim()}
+                className="w-full h-11 text-sm font-semibold rounded-xl"
+              >
+                <Bookmark className="h-4 w-4 mr-2" />
+                {savingMeal ? "Saving..." : "Save Meal"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setShowSaveMealDialog(true)}
+              className="w-full h-11 text-sm font-semibold rounded-xl"
+            >
+              <Bookmark className="h-4 w-4 mr-2" />
+              Save as Meal ({selectedIds.size})
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
