@@ -195,7 +195,9 @@ const TierSection = ({
           className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer"
           style={{ borderLeft: `3px solid ${color}` }}
         >
-          <TierBadge tier={tier} size={110} />
+          <div className="h-10 w-10 shrink-0 flex items-center justify-center overflow-hidden">
+            <TierBadge tier={tier} size={110} />
+          </div>
           <span
             className="text-sm font-bold tracking-wide uppercase flex-1 text-left"
             style={{ color }}
@@ -389,7 +391,9 @@ const LeaderboardRow = ({
         </AvatarFallback>
       </Avatar>
 
-      <TierBadge tier={entry.current_tier} size={90} />
+      <div className="h-8 w-8 shrink-0 flex items-center justify-center overflow-hidden">
+        <TierBadge tier={entry.current_tier} size={90} />
+      </div>
 
       <div className="flex-1 min-w-0">
         <p

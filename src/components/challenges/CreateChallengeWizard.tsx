@@ -569,7 +569,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                     className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card"
                   >
                     <div
-                      className="h-8 w-8 rounded-full flex items-center justify-center border-2 shrink-0"
+                      className="h-8 w-8 rounded-full flex items-center justify-center border-2 shrink-0 overflow-hidden"
                       style={{ borderColor: tier.color, backgroundColor: `${tier.color}15` }}
                     >
                       <TierIcon name={tier.name} size={100} />
@@ -737,7 +737,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                 <div className="flex items-center gap-2 flex-wrap">
                   {challengeTiers.map((t) => (
                     <div key={t.name} className="flex items-center gap-1 text-xs">
-                      <TierIcon name={t.name} size={80} />
+                      <span className="inline-flex h-5 w-5 items-center justify-center overflow-hidden shrink-0"><TierIcon name={t.name} size={80} /></span>
                       <span style={{ color: t.color }} className="font-medium">{t.name}</span>
                       <span className="text-muted-foreground">({t.min_points}+)</span>
                     </div>
