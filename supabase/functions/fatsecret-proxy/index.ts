@@ -172,6 +172,12 @@ serve(async (req) => {
       const rawFoods = searchRoot?.results?.food ?? searchRoot?.foods?.food ?? searchRoot?.food;
       console.log("[fatsecret-proxy] Raw foods count:", Array.isArray(rawFoods) ? rawFoods.length : rawFoods ? 1 : 0);
 
+      if (!rawFoods) {
+        console.log("[fatsecret-proxy] Full response sample:", JSON.stringify(data).slice(0, 500));
+        return new Response(JSON.stringify({ foods: [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const foodList = Array.isArray(rawFoods) ? rawFoods : [rawFoods];
 
       // For each food, get full details with servings
