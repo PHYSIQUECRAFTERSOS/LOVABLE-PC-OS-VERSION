@@ -625,6 +625,35 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
       onLogged();
     }
+
+  const logCustomFood = async (food: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("nutrition_logs").insert({
+      client_id: user.id,
+      custom_name: food.name + (food.brand ? ` (${food.brand})` : ""),
+      meal_type: mealType,
+      servings: 1,
+      calories: Math.round(food.calories || 0),
+      protein: Math.round(food.protein || 0),
+      carbs: Math.round(food.carbs || 0),
+      fat: Math.round(food.fat || 0),
+      logged_at: effectiveDate,
+      tz_corrected: true,
+    });
+    if (error) {
+      toast({ title: "Couldn't save this food. Please try again." });
+    } else {
+      toast({ title: `${food.name} logged` });
+      onLogged();
+    }
+  };
+
+  const deleteCustomFood = async (id: string) => {
+    const { error } = await supabase.from("client_custom_foods").delete().eq("id", id);
+    if (!error) {
+      toast({ title: "Custom food deleted" });
+      fetchCustomFoods();
+    }
   };
 
   const toggleExpand = (id: string) => {
