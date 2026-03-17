@@ -312,6 +312,7 @@ const CoachCommandCenter = () => {
         });
 
       // ── Section 6: Yesterday's Workout Results ──
+      // Use BOTH calendar events AND workout_sessions to detect completions
       const yesterdayEvents = (yesterdayCalRes.data || [])
         .filter((e) => {
           const effectiveClient = e.target_client_id || e.user_id;
@@ -319,11 +320,34 @@ const CoachCommandCenter = () => {
         })
         .map((e) => ({ ...e, effectiveClientId: e.target_client_id || e.user_id }));
 
+      // Also check workout_sessions completed yesterday (primary source of truth)
+      const yesterdaySessions = sessions.filter((s) => {
+        if (!s.completed_at) return false;
+        const sessionDate = (s as any).session_date || format(new Date(s.completed_at), "yyyy-MM-dd");
+        return sessionDate === yesterday;
+      });
+
       const completedYesterday: YesterdayWorkoutClient[] = [];
       const missedYesterday: YesterdayWorkoutClient[] = [];
       const seenCompleted = new Set<string>();
       const seenMissed = new Set<string>();
 
+      // First: add clients with completed workout_sessions yesterday
+      for (const sess of yesterdaySessions) {
+        const cid = sess.client_id;
+        if (!clientIds.includes(cid) || seenCompleted.has(cid)) continue;
+        const profile = profileMap.get(cid);
+        const workoutName = (sess as any).workouts?.name || "Workout";
+        completedYesterday.push({
+          clientId: cid,
+          clientName: profile?.full_name || "Client",
+          avatarUrl: profile?.avatar_url,
+          workoutTitle: workoutName,
+        });
+        seenCompleted.add(cid);
+      }
+
+      // Then: supplement with calendar events (for completed calendar events not caught by sessions)
       for (const ev of yesterdayEvents) {
         const cid = ev.effectiveClientId;
         const profile = profileMap.get(cid);
@@ -336,7 +360,8 @@ const CoachCommandCenter = () => {
         if (ev.is_completed) {
           if (!seenCompleted.has(cid)) { completedYesterday.push(entry); seenCompleted.add(cid); }
         } else {
-          if (!seenMissed.has(cid)) { missedYesterday.push(entry); seenMissed.add(cid); }
+          // Only mark as missed if the client didn't complete a session yesterday
+          if (!seenCompleted.has(cid) && !seenMissed.has(cid)) { missedYesterday.push(entry); seenMissed.add(cid); }
         }
       }
 

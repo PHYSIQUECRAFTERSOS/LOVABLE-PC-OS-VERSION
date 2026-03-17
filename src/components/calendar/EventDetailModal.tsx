@@ -113,8 +113,9 @@ const EventDetailModal = ({
 
     load();
 
-    // If completed, also load session details
-    if (event.is_completed && event.linked_workout_id) {
+    // Always try to load session details for workout events (not just when is_completed)
+    // Sessions may exist even when calendar event isn't marked complete
+    if (event.linked_workout_id) {
       loadSessionData(event.linked_workout_id, event.event_date);
     }
   }, [open, event]);
