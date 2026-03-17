@@ -412,15 +412,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                           <Zap className="h-2.5 w-2.5" />{client.streak}d
                         </span>
                       )}
-                      {phase && (
-                        <span className={cn(
-                          "text-[10px] font-medium flex items-center gap-0.5",
-                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
-                        )}>
-                          <CalendarClock className="h-2.5 w-2.5" />
-                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`} · {phase.endDate}
-                        </span>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
