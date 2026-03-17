@@ -1294,6 +1294,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={effectiveDate} onLogged={onLogged} />
     </div>
   );
+};
 
 /* ── Food Row with Emoji Icons ── */
 
