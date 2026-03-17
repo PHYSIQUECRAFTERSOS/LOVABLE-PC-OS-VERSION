@@ -53,7 +53,7 @@ async function fatSecretAPI(method: string, params: Record<string, string>, toke
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: searchParams.toString(),
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(3000),
   });
 
   if (!res.ok) {
