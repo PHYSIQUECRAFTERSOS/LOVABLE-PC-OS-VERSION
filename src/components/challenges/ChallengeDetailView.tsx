@@ -20,7 +20,7 @@ interface Props {
   onOpenChange: (v: boolean) => void;
 }
 
-const medals = ["🥇", "🥈", "🥉"];
+
 
 const SCORING_ACTION_LABELS: Record<string, { label: string; icon: React.ElementType }> = {
   workout_completed: { label: "Workout Completed", icon: Dumbbell },
