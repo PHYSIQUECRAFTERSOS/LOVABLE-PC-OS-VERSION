@@ -1112,6 +1112,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             )}
           </div>
         )}
+
+        {showHistory && !quickAddOpen && (
           <div className="py-2">
             <FrequentMealsSection
               mealName={mealType}
