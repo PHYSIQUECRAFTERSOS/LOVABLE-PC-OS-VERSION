@@ -5196,41 +5196,56 @@ export type Database = {
       saved_meal_items: {
         Row: {
           calories: number
+          calories_per_100g: number | null
           carbs: number
+          carbs_per_100g: number | null
           created_at: string
           fat: number
+          fat_per_100g: number | null
           food_item_id: string | null
           food_name: string
           id: string
           protein: number
+          protein_per_100g: number | null
           quantity: number
           saved_meal_id: string
+          serving_size_g: number | null
           serving_unit: string
         }
         Insert: {
           calories?: number
+          calories_per_100g?: number | null
           carbs?: number
+          carbs_per_100g?: number | null
           created_at?: string
           fat?: number
+          fat_per_100g?: number | null
           food_item_id?: string | null
           food_name: string
           id?: string
           protein?: number
+          protein_per_100g?: number | null
           quantity?: number
           saved_meal_id: string
+          serving_size_g?: number | null
           serving_unit?: string
         }
         Update: {
           calories?: number
+          calories_per_100g?: number | null
           carbs?: number
+          carbs_per_100g?: number | null
           created_at?: string
           fat?: number
+          fat_per_100g?: number | null
           food_item_id?: string | null
           food_name?: string
           id?: string
           protein?: number
+          protein_per_100g?: number | null
           quantity?: number
           saved_meal_id?: string
+          serving_size_g?: number | null
           serving_unit?: string
         }
         Relationships: [
