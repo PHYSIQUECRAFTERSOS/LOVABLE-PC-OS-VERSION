@@ -366,8 +366,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     newEx[exIdx].logs[setIdx] = updatedLog;
     setExercises(newEx);
 
-    // If RPE is updated on a completed set, re-persist immediately
-    if (field === "rpe" && updatedLog.completed) {
+    // If RPE or reps is updated on a completed set, re-persist immediately
+    if ((field === "rpe" || field === "reps") && updatedLog.completed) {
       persistSet(newEx[exIdx].id, updatedLog);
     }
   };
@@ -849,7 +849,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       ))}
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <Button
           variant="outline"
           className="w-full gap-2"
@@ -857,41 +857,39 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         >
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
-        <div className="mt-6">
-          <Button
-            variant="ghost"
-            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20"
-            onClick={() => setShowCancelDialog(true)}
-          >
-            Cancel Workout
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          className="w-full mt-4 text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20 font-semibold"
+          onClick={() => setShowCancelDialog(true)}
+        >
+          Cancel Workout
+        </Button>
       </div>
 
       {/* Cancel Confirmation */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to cancel?</AlertDialogTitle>
-            <AlertDialogDescription>
-              All your logged sets will not be saved.
+        <AlertDialogContent className="max-w-sm mx-auto rounded-2xl">
+          <AlertDialogHeader className="text-center">
+            <AlertDialogTitle className="text-xl font-bold">Cancel Workout?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              Are you sure you want to cancel this workout? All progress will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+          <AlertDialogFooter className="flex-col gap-3 sm:flex-col mt-2">
             <Button
               onClick={cancelWorkout}
-              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold text-base"
               size="lg"
             >
               Cancel Workout
             </Button>
             <Button
-              variant="default"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              variant="secondary"
+              className="w-full font-semibold text-base"
               size="lg"
               onClick={() => setShowCancelDialog(false)}
             >
-              Continue Workout
+              Resume
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
