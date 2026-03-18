@@ -541,9 +541,14 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
                     <style>{`@keyframes scanLine { from { top: calc(50% - 60px); } to { top: calc(50% + 60px); } }`}</style>
                   </div>
                   <p className="text-xs text-muted-foreground text-center">Point camera at barcode — it scans instantly</p>
-                  <Button variant="outline" onClick={stopScanner} className="w-full gap-2">
-                    <X className="h-4 w-4" /> Stop Scanner
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={stopScanner} className="flex-1 gap-2">
+                      <X className="h-4 w-4" /> Stop
+                    </Button>
+                    <Button variant="ghost" onClick={() => { stopScanner(); }} className="flex-1 gap-2 text-xs text-muted-foreground">
+                      Type barcode manually
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">

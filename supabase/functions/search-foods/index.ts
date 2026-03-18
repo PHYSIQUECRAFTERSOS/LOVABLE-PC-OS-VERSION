@@ -8,6 +8,7 @@ const corsHeaders = {
 
 // ── Brand aliases ──────────────────────────────────────────────────────
 const BRAND_ALIASES: Record<string, string[]> = {
+  // Grocery / warehouse
   costco: ["kirkland", "kirkland signature"],
   kirkland: ["costco"], "kirkland signature": ["costco"],
   trader: ["trader joe's", "trader joes"],
@@ -15,11 +16,49 @@ const BRAND_ALIASES: Record<string, string[]> = {
   walmart: ["great value"], "great value": ["walmart"],
   target: ["good & gather", "market pantry"],
   "good & gather": ["target"], "market pantry": ["target"],
+  aldi: ["fit & active", "simply nature"],
+  // Protein / fitness brands
   quest: [], "optimum nutrition": [], fairlife: [], fage: [], chobani: [],
   "premier protein": [], rxbar: [], clif: [], kind: [], "nature valley": [],
   "dave's killer bread": [], grenade: [], "muscle milk": [], "built bar": [],
   lenny: ["lenny & larry's", "lenny and larry's"], "lenny & larry's": ["lenny"],
   barebells: [], "think!": [], oikos: [], "siggi's": [], siggi: ["siggi's"],
+  // Bakery / bread brands
+  "thomas'": ["thomas"], thomas: ["thomas'"],
+  "sara lee": [], "pepperidge farm": [], "nature's own": [], oroweat: [],
+  "arnold": [], "wonder": [], "dave's": ["dave's killer bread"],
+  // Restaurant chains
+  dominos: ["domino's"], "domino's": ["dominos"],
+  mcdonalds: ["mcdonald's"], "mcdonald's": ["mcdonalds"],
+  "chick-fil-a": ["chickfila", "chick fil a"], chickfila: ["chick-fil-a"],
+  chipotle: [], subway: [], starbucks: [],
+  "wendy's": ["wendys"], wendys: ["wendy's"],
+  "taco bell": [], "panda express": [], "five guys": [],
+  "pizza hut": [], "burger king": [], kfc: [], "popeyes": [],
+  dunkin: ["dunkin'", "dunkin donuts"], "dunkin'": ["dunkin"],
+  "tim hortons": [], "panera": ["panera bread"], "panera bread": ["panera"],
+  "chili's": ["chilis"], chilis: ["chili's"],
+  "olive garden": [], "applebee's": ["applebees"], applebees: ["applebee's"],
+  "buffalo wild wings": ["bww"], bww: ["buffalo wild wings"],
+  "in-n-out": ["in n out"], "in n out": ["in-n-out"],
+  "jack in the box": [], "sonic": [], "arby's": ["arbys"], arbys: ["arby's"],
+  "wingstop": [], "jersey mike's": ["jersey mikes"], "jersey mikes": ["jersey mike's"],
+  "raising cane's": ["raising canes", "canes"], canes: ["raising cane's"],
+  "whataburger": [], "carl's jr": ["carls jr"], "carls jr": ["carl's jr"],
+  "hardee's": ["hardees"], hardees: ["hardee's"],
+  "el pollo loco": [], "del taco": [], "qdoba": [],
+  "firehouse subs": [], "jimmy john's": ["jimmy johns"], "jimmy johns": ["jimmy john's"],
+  "tropical smoothie": [], "jamba": ["jamba juice"], "jamba juice": ["jamba"],
+  "smoothie king": [], "noodles & company": [],
+  "sweetgreen": [], "cava": [],
+  "crumbl": [], "insomnia cookies": [],
+  // Additional grocery brands
+  "oscar mayer": [], "hormel": [], "tyson": [], "perdue": [],
+  "mission": [], "old el paso": [], "green giant": [],
+  "birds eye": [], "stouffer's": ["stouffers"], stouffers: ["stouffer's"],
+  "lean cuisine": [], "healthy choice": [], "amy's": ["amys"], amys: ["amy's"],
+  "annie's": ["annies"], annies: ["annie's"],
+  "bob's red mill": [], "kodiak": ["kodiak cakes"], "kodiak cakes": ["kodiak"],
 };
 
 function expandBrandAliases(tokens: string[]): string[] {
@@ -76,10 +115,10 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   const foodPhrase = foodTokens.join(" ");
 
   if (hasBrandIntent && hasFoodIntent) {
-    if (brandMatchesDirect && allFoodTokensInName) { score += 200; if (foodPhrase && nameLower.includes(foodPhrase)) score += 40; }
-    else if (brandMatchesAlias && allFoodTokensInName) { score += 180; if (foodPhrase && nameLower.includes(foodPhrase)) score += 30; }
+    if (brandMatchesDirect && allFoodTokensInName) { score += 200; if (foodPhrase && nameLower.includes(foodPhrase)) score += 50; }
+    else if (brandMatchesAlias && allFoodTokensInName) { score += 180; if (foodPhrase && nameLower.includes(foodPhrase)) score += 40; }
     else if (brandMatched && foodTokensInName > 0 && !allFoodTokensInName) score += 100 + foodTokensInName * 20;
-    else if (!brandMatched && allFoodTokensInName) { score += 80; if (foodPhrase && nameLower.includes(foodPhrase)) score += 20; }
+    else if (!brandMatched && allFoodTokensInName) { score += 80; if (foodPhrase && nameLower.includes(foodPhrase)) score += 30; }
     else if (brandMatched && foodTokensInName === 0) score += 10;
     else if (!brandMatched && foodTokensInName > 0) score += 40 + foodTokensInName * 10;
     else score += 5;
@@ -89,9 +128,16 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
     else if (brandMatchesAlias) score += 90;
     if (nameLower.includes(query)) score += 30;
   } else {
+    // No brand intent — pure food query
     if (nameLower === query) score += 120;
     else if (nameLower.includes(query)) score += 100;
-    else if (allFoodTokensInName) score += 80;
+    // Phrase match bonus: contiguous multi-word match in name (e.g. "everything bagel")
+    else if (tokens.length > 1 && nameLower.includes(query)) score += 100;
+    else if (allFoodTokensInName) {
+      score += 80;
+      // Bonus for contiguous phrase match within food tokens
+      if (foodPhrase && foodPhrase.length > 3 && nameLower.includes(foodPhrase)) score += 50;
+    }
     else if (foodTokensInName > 0) score += 40 + foodTokensInName * 10;
     if (brandLower && brandLower.includes(query)) score += 50;
     const brandTokenHits = tokens.filter(t => brandLower.includes(t)).length;
@@ -191,7 +237,8 @@ function applyHistoryBoost(results: any[], historyMap: Map<string, HistoryEntry>
     if (!history) return food;
     const daysSinceLogged = Math.floor((Date.now() - new Date(history.last_logged_at).getTime()) / 86400000);
     const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
-    const historyBoost = (history.is_favorite ? 15.0 : 0) + Math.min(history.log_count, 20) * 0.5 + recencyFactor * 5.0;
+    // Boosted values: favorites +40, per-log +1.5 capped at 30, recency +15
+    const historyBoost = (history.is_favorite ? 40.0 : 0) + Math.min(history.log_count, 20) * 1.5 + recencyFactor * 15.0;
     return { ...food, _relevance: (food._relevance ?? 0) + historyBoost, is_recent: true, is_favorite: history.is_favorite, log_count: history.log_count };
   }).sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
 }
@@ -211,10 +258,65 @@ async function searchOpenFoodFacts(query: string, limit: number): Promise<any[]>
   const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=${Math.min(limit, 40)}&sort_by=unique_scans_n&fields=code,product_name,product_name_en,brands,nutriments,serving_size,categories_tags,image_front_small_url,image_url`;
 
   const resp = await fetch(url, {
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(3000),
     headers: { "Accept": "application/json" },
   });
   if (!resp.ok) throw new Error(`OFF API error: ${resp.status}`);
+
+  const data = await safeJson(resp);
+  if (!data?.products) return [];
+
+  return data.products
+    .filter((p: any) => (p.product_name_en || p.product_name))
+    .map((p: any) => {
+      const n = p.nutriments ?? {};
+      const energyKcal = n["energy-kcal_100g"] ?? (n["energy_100g"] != null ? n["energy_100g"] / 4.184 : null);
+      const protein = n.proteins_100g ?? null;
+      const carbs = n.carbohydrates_100g ?? null;
+      const fat = n.fat_100g ?? null;
+      if ((protein ?? 0) + (carbs ?? 0) + (fat ?? 0) === 0) return null;
+
+      const rawServing = p.serving_size ?? "";
+      const servingG = parseServingGrams(rawServing) ?? 100;
+      const rawBrand = p.brands ? p.brands.split(",")[0].trim() : null;
+
+      return {
+        off_id: p.code || null,
+        name: p.product_name_en || p.product_name,
+        brand: rawBrand,
+        calories_per_100g: energyKcal != null ? Math.round(energyKcal) : null,
+        protein_per_100g: protein != null ? Math.round(protein * 10) / 10 : null,
+        carbs_per_100g: carbs != null ? Math.round(carbs * 10) / 10 : null,
+        fat_per_100g: fat != null ? Math.round(fat * 10) / 10 : null,
+        fiber_per_100g: n.fiber_100g != null ? Math.round(n.fiber_100g * 10) / 10 : null,
+        sugar_per_100g: n.sugars_100g != null ? Math.round(n.sugars_100g * 10) / 10 : null,
+        sodium_per_100g: n.sodium_100g != null ? Math.round(n.sodium_100g * 1000) : null,
+        serving_size_g: servingG,
+        serving_unit: "g",
+        serving_description: rawServing || `${servingG}g`,
+        barcode: p.code || null,
+        image_url: p.image_front_small_url || p.image_url || null,
+        is_branded: !!rawBrand,
+        is_verified: false,
+        is_custom: false,
+        source: "open_food_facts",
+        has_complete_macros: true,
+        data_quality_score: 40,
+        popularity_score: 3,
+      };
+    })
+    .filter(Boolean);
+}
+
+/** Branded OFF search — uses brand tag filter for better precision */
+async function searchOpenFoodFactsBranded(brandName: string, foodQuery: string, limit: number): Promise<any[]> {
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(foodQuery)}&tagtype_0=brands&tag_contains_0=contains&tag_0=${encodeURIComponent(brandName)}&search_simple=1&action=process&json=1&page_size=${Math.min(limit, 30)}&sort_by=unique_scans_n&fields=code,product_name,product_name_en,brands,nutriments,serving_size,categories_tags,image_front_small_url,image_url`;
+
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(3000),
+    headers: { "Accept": "application/json" },
+  });
+  if (!resp.ok) throw new Error(`OFF branded API error: ${resp.status}`);
 
   const data = await safeJson(resp);
   if (!data?.products) return [];
@@ -303,68 +405,31 @@ serve(async (req) => {
     const hasFoodIntent = foodTokens.length > 0;
     const isCompoundQuery = hasBrandIntent && hasFoodIntent;
 
-    const synonymPromise = expandWithSynonyms(supabase, query);
-    const historyPromise = userId ? getUserFoodHistory(supabase, userId) : Promise.resolve(new Map<string, HistoryEntry>());
-
-    // ── Step 1: Local cache search ───────────────────────────────────
+    // ── Fire ALL data sources in parallel from the start ─────────────
     const orConditions = tokens.map(t => `name.ilike.%${t}%,brand.ilike.%${t}%`).join(",");
     const aliasConditions = aliases.map(a => `brand.ilike.%${a}%`).join(",");
     const allConditions = aliasConditions ? `${orConditions},${aliasConditions}` : orConditions;
 
-    const { data: localResults } = await supabase
-      .from("foods").select("*").or(allConditions)
-      .not("calories_per_100g", "is", null)
-      .order("data_quality_score", { ascending: false })
-      .order("popularity_score", { ascending: false })
-      .limit(50);
-
-    let localFoods = (localResults ?? []).filter((f: any) =>
-      (f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0) > 0
-    );
-
-    const synonymTerms = await synonymPromise;
-    const historyMap = await historyPromise;
-
-    if (synonymTerms.length > 0) {
-      const synConditions = synonymTerms.map(s => `name.ilike.%${s}%,brand.ilike.%${s}%`).join(",");
-      try {
-        const { data: synResults } = await supabase.from("foods").select("*").or(synConditions).not("calories_per_100g", "is", null).limit(20);
-        if (synResults) {
-          const existingIds = new Set(localFoods.map((f: any) => f.id));
-          localFoods = [...localFoods, ...synResults.filter((f: any) => !existingIds.has(f.id))];
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    console.log(`[search-foods] Local cache: ${localFoods.length} results for "${query}"`);
-
-    if (isCompoundQuery && localFoods.length > 0) {
-      const filtered = localFoods.filter((f: any) => {
-        const n = (f.name ?? "").toLowerCase();
-        const b = (f.brand ?? "").toLowerCase();
-        return foodTokens.every(ft => n.includes(ft) || b.includes(ft));
-      });
-      if (filtered.length > 0) localFoods = filtered;
-    }
-
-    // Short-circuit only for simple queries with abundant local results
-    if (!isCompoundQuery && !hasBrandIntent && localFoods.length >= 8) {
-      const scored = localFoods.map((f: any) => ({ ...f, _relevance: brandRelevanceScore(f, query, tokens, aliases, synonymTerms) }));
-      scored.sort((a: any, b: any) => b._relevance - a._relevance);
-      const boosted = applyHistoryBoost(scored, historyMap);
-      const foods = boosted.slice(0, limit);
-      logSearchAnalytics(supabase, userId, query, foods.length, "cache", brandTokens[0] ?? null, Math.min(5, foods.length));
-      return new Response(JSON.stringify({ foods, bestMatches: foods.slice(0, 5), moreResults: foods.slice(5), source: "cache", wasWidened: false }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ── Step 2: External APIs in PARALLEL (OpenFoodFacts + USDA) ────
     const usdaPageSize = hasBrandIntent ? 30 : 20;
     const sourceStatus: Record<string, string> = {};
 
-    const [offResult, usdaResult] = await Promise.allSettled([
-      // OpenFoodFacts (free, worldwide database)
+    // Fire local, synonyms, history, OFF, USDA, and branded OFF all in parallel
+    const [localPromise, synonymPromise, historyPromise, offResult, offBrandedResult, usdaResult] = await Promise.allSettled([
+      // Local DB
+      supabase.from("foods").select("*").or(allConditions)
+        .not("calories_per_100g", "is", null)
+        .order("data_quality_score", { ascending: false })
+        .order("popularity_score", { ascending: false })
+        .limit(50)
+        .then((res: any) => {
+          sourceStatus.local = `ok:${(res.data ?? []).length}`;
+          return res.data ?? [];
+        }),
+      // Synonyms
+      expandWithSynonyms(supabase, query),
+      // History
+      userId ? getUserFoodHistory(supabase, userId) : Promise.resolve(new Map<string, HistoryEntry>()),
+      // OpenFoodFacts generic
       searchOpenFoodFacts(query, 25).then(foods => {
         sourceStatus.off = `ok:${foods.length}`;
         return foods;
@@ -373,12 +438,22 @@ serve(async (req) => {
         console.warn("[search-foods] OpenFoodFacts failed:", e.message || e);
         return [] as any[];
       }),
-      // USDA (fallback)
+      // OpenFoodFacts branded (only fires if brand intent detected)
+      (hasBrandIntent && hasFoodIntent)
+        ? searchOpenFoodFactsBranded(brandTokens[0], foodTokens.join(" "), 20).then(foods => {
+            sourceStatus.off_branded = `ok:${foods.length}`;
+            return foods;
+          }).catch((e: any) => {
+            sourceStatus.off_branded = e.name === "TimeoutError" ? "timeout" : "error";
+            return [] as any[];
+          })
+        : Promise.resolve([] as any[]),
+      // USDA
       (async () => {
         if (!usdaApiKey) { sourceStatus.usda = "no_key"; return [] as any[]; }
         const res = await fetch(
           `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=${usdaPageSize}&api_key=${usdaApiKey}`,
-          { signal: AbortSignal.timeout(5000) }
+          { signal: AbortSignal.timeout(3000) }
         );
         if (!res.ok) { sourceStatus.usda = `http_${res.status}`; return [] as any[]; }
         const data = await safeJson(res);
@@ -393,24 +468,58 @@ serve(async (req) => {
       }),
     ]);
 
+    let localFoods: any[] = localPromise.status === "fulfilled" ? localPromise.value : [];
+    const synonymTerms: string[] = synonymPromise.status === "fulfilled" ? synonymPromise.value : [];
+    const historyMap: Map<string, HistoryEntry> = historyPromise.status === "fulfilled" ? historyPromise.value : new Map();
     const offFoods: any[] = offResult.status === "fulfilled" ? offResult.value : [];
+    const offBrandedFoods: any[] = offBrandedResult.status === "fulfilled" ? offBrandedResult.value : [];
     const usdaFoods: any[] = usdaResult.status === "fulfilled" ? usdaResult.value : [];
 
-    console.log(`[search-foods] Sources: ${JSON.stringify(sourceStatus)} | OFF:${offFoods.length} USDA:${usdaFoods.length}`);
+    // Filter local foods for valid macros
+    localFoods = localFoods.filter((f: any) =>
+      (f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0) > 0
+    );
 
-    // ── Step 3: Cache results ────────────────────────────────────────
+    // Synonym expansion for local results
+    if (synonymTerms.length > 0) {
+      const synConditions = synonymTerms.map(s => `name.ilike.%${s}%,brand.ilike.%${s}%`).join(",");
+      try {
+        const { data: synResults } = await supabase.from("foods").select("*").or(synConditions).not("calories_per_100g", "is", null).limit(20);
+        if (synResults) {
+          const existingIds = new Set(localFoods.map((f: any) => f.id));
+          localFoods = [...localFoods, ...synResults.filter((f: any) => !existingIds.has(f.id))];
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    console.log(`[search-foods] Sources: ${JSON.stringify(sourceStatus)} | Local:${localFoods.length} OFF:${offFoods.length} OFF-branded:${offBrandedFoods.length} USDA:${usdaFoods.length}`);
+
+    if (isCompoundQuery && localFoods.length > 0) {
+      const filtered = localFoods.filter((f: any) => {
+        const n = (f.name ?? "").toLowerCase();
+        const b = (f.brand ?? "").toLowerCase();
+        return foodTokens.every(ft => n.includes(ft) || b.includes(ft));
+      });
+      if (filtered.length > 0) localFoods = filtered;
+    }
+
+    // ── Cache USDA results ───────────────────────────────────────────
     try {
       if (usdaFoods.length > 0) {
         await supabase.from("foods").upsert(usdaFoods, { onConflict: "usda_fdc_id", ignoreDuplicates: false });
       }
     } catch { /* non-fatal */ }
 
-    // ── Step 4: Merge, score, deduplicate ────────────────────────────
+    // ── Merge, score, deduplicate ────────────────────────────────────
     const existingUsdaIds = new Set(localFoods.map((f: any) => f.usda_fdc_id).filter(Boolean));
     const existingNames = new Set(localFoods.map((f: any) => `${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
     const newUsda = usdaFoods.filter((f) => !existingUsdaIds.has(f.usda_fdc_id));
     const newOff = offFoods.filter((f) => !existingNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
-    const allResultsRaw = [...localFoods, ...newOff, ...newUsda].filter((f) =>
+    // Merge branded OFF results (deduplicated against existing)
+    const allOffNames = new Set([...existingNames, ...newOff.map((f) => `${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`)]);
+    const newOffBranded = offBrandedFoods.filter((f) => !allOffNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
+    
+    const allResultsRaw = [...localFoods, ...newOff, ...newOffBranded, ...newUsda].filter((f) =>
       f.has_complete_macros !== false && ((f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0)) > 0
     );
 
@@ -477,7 +586,7 @@ serve(async (req) => {
       }
     }
 
-    // ── Step 5: Group ────────────────────────────────────────────────
+    // ── Group ────────────────────────────────────────────────────────
     const BEST_MATCH_THRESHOLD = isCompoundQuery ? 150 : 80;
     const bestMatches = merged.filter((f) => (f._relevance ?? 0) >= BEST_MATCH_THRESHOLD);
     const moreResults = merged.filter((f) => (f._relevance ?? 0) < BEST_MATCH_THRESHOLD);

@@ -86,7 +86,7 @@ export function useFoodSearch() {
 
     debounceTimer.current = setTimeout(() => {
       search(query);
-    }, 300);
+    }, 200);
 
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
