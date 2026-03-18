@@ -263,12 +263,16 @@ async function searchOpenFoodFacts(query: string, limit: number): Promise<any[]>
 
 function parseServingGrams(raw: string): number | null {
   if (!raw) return null;
-  const paren = raw.match(/\((\d+(?:\.\d+)?)\s*g\)/i);
-  if (paren) return parseFloat(paren[1]);
+  const parenG = raw.match(/\((\d+(?:\.\d+)?)\s*g\)/i);
+  if (parenG) return parseFloat(parenG[1]);
+  const parenMl = raw.match(/\((\d+(?:\.\d+)?)\s*ml\)/i);
+  if (parenMl) return parseFloat(parenMl[1]);
   const plain = raw.match(/^(\d+(?:\.\d+)?)\s*g$/i);
   if (plain) return parseFloat(plain[1]);
   const ml = raw.match(/^(\d+(?:\.\d+)?)\s*ml$/i);
   if (ml) return parseFloat(ml[1]);
+  const numOnly = raw.match(/(\d+(?:\.\d+)?)\s*(?:g|ml)/i);
+  if (numOnly) return parseFloat(numOnly[1]);
   return null;
 }
 
