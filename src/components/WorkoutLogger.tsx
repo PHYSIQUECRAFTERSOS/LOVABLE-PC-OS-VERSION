@@ -704,10 +704,20 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // Award Ranked XP for workout completion & capture result for summary
       let xpResult: any = null;
       try {
-        const { awardXP: directAwardXP } = await import("@/utils/rankedXP");
+        const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
         xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
-        // Also trigger the visual toast/overlay via context
-        await triggerXP(user.id, "workout_completed", 0, ""); // amount=0 so no double-award, just triggers UI refresh
+        // Check for badge unlocks
+        const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
+        if (xpResult) {
+          const { data: freshProfile } = await (supabase as any)
+            .from("ranked_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (freshProfile) {
+            checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+          }
+        }
       } catch (e) {
         console.error("[WorkoutLogger] Ranked XP error:", e);
       }
