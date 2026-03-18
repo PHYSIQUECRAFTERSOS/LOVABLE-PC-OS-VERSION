@@ -420,7 +420,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           weight: log.weight ?? null,
           reps: log.reps || null,
           tempo: log.tempo || null,
-          rir: log.rir ?? (log.rpe ? Math.round((10 - log.rpe) * 10) / 10 : null),
+          rir: log.rir ?? (log.rpe ? Math.round(10 - log.rpe) : null),
           rpe: log.rpe ?? null,
           notes: log.notes || null,
           logged_at: new Date().toISOString(),
