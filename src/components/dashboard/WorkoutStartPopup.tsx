@@ -73,12 +73,13 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
       const mapped: ExercisePreview[] = (exRes.data || []).map((we: any) => ({
         id: we.exercises?.id || "",
         name: we.exercises?.name || "Unknown",
-        muscle_group: we.exercises?.muscle_group || null,
+        muscle_group: we.exercises?.primary_muscle || null,
         sets: we.sets,
         reps: we.reps,
         rest_seconds: we.rest_seconds,
         rir: we.rir,
         video_url: we.exercises?.youtube_url || we.exercises?.video_url || null,
+        thumbnail_url: we.exercises?.youtube_thumbnail || null,
       }));
       setExercises(mapped);
 
