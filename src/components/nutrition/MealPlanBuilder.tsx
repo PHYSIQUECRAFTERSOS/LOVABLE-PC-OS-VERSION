@@ -368,8 +368,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
   // ... all the add/remove/rename/duplicate/grams handlers
   const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
-    const ss = food.serving_size || 100;
+    const ss = Math.max(food.serving_size || 100, 1);
     const unit = food.serving_unit || "g";
+
+    // Use per-100g values directly if available (from foods table via search)
+    // Otherwise compute from per-serving values with safe denominator
+    const fr = food as any;
+    const cal_per_100 = fr.calories_per_100 != null ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100;
+    const protein_per_100 = fr.protein_per_100 != null ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100;
+    const carbs_per_100 = fr.carbs_per_100 != null ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100;
+    const fat_per_100 = fr.fat_per_100 != null ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100;
+    const fiber_per_100 = fr.fiber_per_100 != null ? fr.fiber_per_100 : ((food.fiber || 0) / ss) * 100;
+    const sugar_per_100 = fr.sugar_per_100 != null ? fr.sugar_per_100 : ((food.sugar || 0) / ss) * 100;
+
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
@@ -387,12 +398,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           food_name: food.name,
                           brand: food.brand,
                           gram_amount: ss,
-                          cal_per_100: (food.calories / ss) * 100,
-                          protein_per_100: (food.protein / ss) * 100,
-                          carbs_per_100: (food.carbs / ss) * 100,
-                          fat_per_100: (food.fat / ss) * 100,
-                          fiber_per_100: ((food.fiber || 0) / ss) * 100,
-                          sugar_per_100: ((food.sugar || 0) / ss) * 100,
+                          cal_per_100,
+                          protein_per_100,
+                          carbs_per_100,
+                          fat_per_100,
+                          fiber_per_100,
+                          sugar_per_100,
                           serving_unit: unit,
                           serving_size_g: ss,
                         },
