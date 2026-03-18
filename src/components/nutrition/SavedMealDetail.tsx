@@ -278,10 +278,6 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
     toast({ title: `${food.name} added` });
   };
 
-  const handleBarcodeFound = (food: any) => {
-    setBarcodeOpen(false);
-    if (food) addNewFood(food);
-  };
 
   // --- Existing item operations ---
   const addToLog = async () => {
