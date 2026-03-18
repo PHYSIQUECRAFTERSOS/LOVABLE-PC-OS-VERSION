@@ -1,12 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { SkipForward } from "lucide-react";
-import {
-  startRestSession,
-  updateRestPosition,
-  playAlarm,
-  stopRestSession,
-} from "@/utils/restTimerAudio";
+import { playCountdownSound, stopCountdownSound } from "@/utils/restTimerAudio";
 
 interface FloatingRestTimerProps {
   seconds: number;
@@ -19,32 +14,32 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
   const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
+  const countdownFiredRef = useRef(false);
 
-  // Date-based countdown + audio session
   useEffect(() => {
     endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
-
-    startRestSession(initialSeconds);
+    countdownFiredRef.current = false;
 
     intervalRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
       setTimeRemaining(remaining);
 
-      const elapsed = initialSeconds - remaining;
-      updateRestPosition(elapsed, initialSeconds);
+      // Play countdown sound at 3 seconds remaining
+      if (remaining <= 3 && remaining > 0 && !countdownFiredRef.current) {
+        countdownFiredRef.current = true;
+        playCountdownSound();
+      }
 
       if (remaining <= 0 && !completedRef.current) {
         completedRef.current = true;
         if (intervalRef.current) clearInterval(intervalRef.current);
-        playAlarm();
         setShowComplete(true);
       }
     }, 500);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      stopRestSession();
     };
   }, [initialSeconds]);
 
@@ -57,7 +52,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
 
   const handleSkip = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
-    stopRestSession();
+    stopCountdownSound();
     onComplete();
   }, [onComplete]);
 
