@@ -690,7 +690,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       {/* ── Today's Actions ── */}
       {actions.length > 0 && (
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Today's Actions</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">{isToday(selectedDate) ? "Today's Actions" : `Actions — ${format(selectedDate, "MMM d")}`}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {actions.map((a) => (
               <div key={a.id} className="flex items-center gap-3 py-1.5">
