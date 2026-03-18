@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { getFoodEmoji } from "@/utils/foodEmoji";
-import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
 import {
-  ArrowLeft, Trash2, Pencil, Plus, Minus, Search, Loader2, Clock, ScanBarcode,
+  ArrowLeft, Trash2, Pencil, Plus, Minus, Search, Loader2, Clock,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,

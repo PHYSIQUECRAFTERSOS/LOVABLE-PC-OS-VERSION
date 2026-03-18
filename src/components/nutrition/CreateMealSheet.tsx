@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getFoodEmoji } from "@/utils/foodEmoji";
-import BarcodeScanner from "@/components/nutrition/BarcodeScanner";
 import {
   ArrowLeft, Plus, X, Search, Loader2, Minus, ScanBarcode, Clock, Star, ChevronDown,
 } from "lucide-react";
