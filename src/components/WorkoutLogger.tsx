@@ -701,11 +701,30 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         console.error("[WorkoutLogger] Challenge auto-score error:", e);
       }
 
-      // Award Ranked XP for workout completion
+      // Award Ranked XP for workout completion & capture result for summary
+      let xpResult: any = null;
       try {
-        await triggerXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+        const { awardXP: directAwardXP } = await import("@/utils/rankedXP");
+        xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+        // Also trigger the visual toast/overlay via context
+        await triggerXP(user.id, "workout_completed", 0, ""); // amount=0 so no double-award, just triggers UI refresh
       } catch (e) {
         console.error("[WorkoutLogger] Ranked XP error:", e);
+      }
+
+      // Freeze the duration at completion time
+      setFrozenDuration(durationSeconds);
+
+      // Set rank data for summary
+      if (xpResult) {
+        setSummaryRankData({
+          xpEarned: xpResult.xpAwarded,
+          tier: xpResult.tier,
+          division: xpResult.division,
+          divisionXP: xpResult.divisionXP,
+          xpNeeded: xpResult.xpNeeded,
+          totalXP: xpResult.newTotal,
+        });
       }
 
       setShowSummary(true);
