@@ -43,15 +43,31 @@ export function getFoodEmoji(food: {
   if (/potato|fries/.test(combined)) return '🥔';
   if (/corn/.test(combined)) return '🌽';
 
-  // Fruits
+  // Fruits — specific BEFORE generic (order matters!)
+  if (/pineapple/.test(combined)) return '🍍';
   if (/banana/.test(combined)) return '🍌';
   if (/apple(?!.*cider)/.test(combined)) return '🍎';
   if (/orange/.test(combined)) return '🍊';
-  if (/berry|strawberr|blueberr|raspberr/.test(combined)) return '🍓';
-  if (/grape/.test(combined)) return '🍇';
+  if (/blueberr/.test(combined)) return '🫐';
+  if (/raspberr/.test(combined)) return '🫐';
+  if (/blackberr/.test(combined)) return '🫐';
+  if (/strawberr/.test(combined)) return '🍓';
+  if (/cranberr/.test(combined)) return '🫐';
+  if (/berry/.test(combined)) return '🍓';
+  if (/grape(?!fruit)/.test(combined)) return '🍇';
+  if (/grapefruit/.test(combined)) return '🍊';
   if (/mango/.test(combined)) return '🥭';
   if (/avocado|guacamole/.test(combined)) return '🥑';
-  if (/fruit|peach|pear|melon|pineapple/.test(combined)) return '🍑';
+  if (/watermelon/.test(combined)) return '🍉';
+  if (/melon|cantaloupe|honeydew/.test(combined)) return '🍈';
+  if (/peach|nectarine/.test(combined)) return '🍑';
+  if (/pear/.test(combined)) return '🍐';
+  if (/cherry|cherries/.test(combined)) return '🍒';
+  if (/coconut/.test(combined)) return '🥥';
+  if (/lemon/.test(combined)) return '🍋';
+  if (/lime/.test(combined)) return '🍋';
+  if (/kiwi/.test(combined)) return '🥝';
+  if (/fruit/.test(combined)) return '🍑';
 
   // Vegetables
   if (/broccoli/.test(combined)) return '🥦';
@@ -60,6 +76,10 @@ export function getFoodEmoji(food: {
   if (/tomato/.test(combined)) return '🍅';
   if (/pepper/.test(combined)) return '🫑';
   if (/onion|garlic/.test(combined)) return '🧅';
+  if (/mushroom/.test(combined)) return '🍄';
+  if (/cucumber/.test(combined)) return '🥒';
+  if (/eggplant|aubergine/.test(combined)) return '🍆';
+  if (/sweet potato|yam/.test(combined)) return '🍠';
   if (/salad/.test(combined)) return '🥗';
   if (/vegetable|veggie/.test(combined)) return '🥦';
 
@@ -85,6 +105,7 @@ export function getFoodEmoji(food: {
   if (/sandwich|sub/.test(combined)) return '🥪';
   if (/soup|stew|chili/.test(combined)) return '🍲';
   if (/taco|burrito/.test(combined)) return '🌮';
+  if (/sushi/.test(combined)) return '🍣';
 
   // Condiments / Sauces
   if (/sauce|ketchup|mayo|mustard|dressing/.test(combined)) return '🫙';

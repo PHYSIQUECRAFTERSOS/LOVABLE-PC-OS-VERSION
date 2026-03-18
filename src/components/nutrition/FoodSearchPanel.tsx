@@ -48,6 +48,13 @@ export interface FoodResult {
   fdcId?: number;
   isFavorite?: boolean;
   relevance_score?: number;
+  /** per-100g values passed through from foods table — used for accurate macro scaling */
+  calories_per_100?: number | null;
+  protein_per_100?: number | null;
+  carbs_per_100?: number | null;
+  fat_per_100?: number | null;
+  fiber_per_100?: number | null;
+  sugar_per_100?: number | null;
 }
 
 interface FoodSearchPanelProps {
@@ -201,6 +208,13 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
     data_source: r.is_custom ? "custom" : (r.source ?? "open_food_facts"),
     source: r.source === "open_food_facts" ? "off" as const : "local" as const,
     is_branded: r.is_branded,
+    // Pass per-100g values directly for accurate macro scaling in MealPlanBuilder
+    calories_per_100: r.calories_per_100g ?? null,
+    protein_per_100: r.protein_per_100g ?? null,
+    carbs_per_100: r.carbs_per_100g ?? null,
+    fat_per_100: r.fat_per_100g ?? null,
+    fiber_per_100: r.fiber_per_100g ?? null,
+    sugar_per_100: r.sugar_per_100g ?? null,
   }));
 
   const handleSelect = async (food: FoodResult) => {

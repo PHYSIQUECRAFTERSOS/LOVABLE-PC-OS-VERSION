@@ -220,7 +220,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                 name: mealName,
                 foods: groupItems.map((item: any) => {
                   const fi = item.food_items as any;
-                  const ss = fi?.serving_size || 100;
+                  const ss = Math.max(fi?.serving_size || 100, 1);
                   const unit = fi?.serving_unit || "g";
                   return {
                     id: uid(),
@@ -228,10 +228,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                     food_name: item.custom_name || fi?.name || "Unknown",
                     brand: fi?.brand || null,
                     gram_amount: item.gram_amount || ss,
-                    cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / (item.gram_amount || 100)) * 100,
-                    protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / (item.gram_amount || 100)) * 100,
-                    carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / (item.gram_amount || 100)) * 100,
-                    fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
+                    cal_per_100: fi ? ((fi.calories || 0) / ss) * 100 : (item.calories / Math.max(item.gram_amount || 100, 1)) * 100,
+                    protein_per_100: fi ? ((fi.protein || 0) / ss) * 100 : (item.protein / Math.max(item.gram_amount || 100, 1)) * 100,
+                    carbs_per_100: fi ? ((fi.carbs || 0) / ss) * 100 : (item.carbs / Math.max(item.gram_amount || 100, 1)) * 100,
+                    fat_per_100: fi ? ((fi.fat || 0) / ss) * 100 : (item.fat / Math.max(item.gram_amount || 100, 1)) * 100,
                     fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                     sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                     serving_unit: unit,
@@ -368,8 +368,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
   // ... all the add/remove/rename/duplicate/grams handlers
   const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
-    const ss = food.serving_size || 100;
+    const ss = Math.max(food.serving_size || 100, 1);
     const unit = food.serving_unit || "g";
+
+    // Use per-100g values directly if available (from foods table via search)
+    // Otherwise compute from per-serving values with safe denominator
+    const fr = food as any;
+    const cal_per_100 = fr.calories_per_100 != null ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100;
+    const protein_per_100 = fr.protein_per_100 != null ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100;
+    const carbs_per_100 = fr.carbs_per_100 != null ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100;
+    const fat_per_100 = fr.fat_per_100 != null ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100;
+    const fiber_per_100 = fr.fiber_per_100 != null ? fr.fiber_per_100 : ((food.fiber || 0) / ss) * 100;
+    const sugar_per_100 = fr.sugar_per_100 != null ? fr.sugar_per_100 : ((food.sugar || 0) / ss) * 100;
+
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
@@ -387,12 +398,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           food_name: food.name,
                           brand: food.brand,
                           gram_amount: ss,
-                          cal_per_100: (food.calories / ss) * 100,
-                          protein_per_100: (food.protein / ss) * 100,
-                          carbs_per_100: (food.carbs / ss) * 100,
-                          fat_per_100: (food.fat / ss) * 100,
-                          fiber_per_100: ((food.fiber || 0) / ss) * 100,
-                          sugar_per_100: ((food.sugar || 0) / ss) * 100,
+                          cal_per_100,
+                          protein_per_100,
+                          carbs_per_100,
+                          fat_per_100,
+                          fiber_per_100,
+                          sugar_per_100,
                           serving_unit: unit,
                           serving_size_g: ss,
                         },
@@ -598,7 +609,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           meal.foods.map((food, fi) => ({
             meal_plan_id: planId!,
             day_id: dayRow.id,
-            food_item_id: food.food_item_id,
+            food_item_id: null, // Always null to avoid FK violations — food identity stored in custom_name
             custom_name: food.food_name,
             meal_name: meal.name,
             meal_type: "custom",
@@ -677,7 +688,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           meal.foods.map((food, fi) => ({
             meal_plan_id: plan.id,
             day_id: dayRow.id,
-            food_item_id: food.food_item_id,
+            food_item_id: null,
             custom_name: food.food_name,
             meal_name: meal.name,
             meal_type: "custom",
