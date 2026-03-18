@@ -38,6 +38,7 @@ interface ExercisePreview {
   rest_seconds: number | null;
   rir: number | null;
   video_url: string | null;
+  thumbnail_url: string | null;
 }
 
 const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEventId, onStartWorkout }: WorkoutStartPopupProps) => {
