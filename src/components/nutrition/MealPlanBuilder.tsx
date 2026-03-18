@@ -688,7 +688,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           meal.foods.map((food, fi) => ({
             meal_plan_id: plan.id,
             day_id: dayRow.id,
-            food_item_id: food.food_item_id,
+            food_item_id: null,
             custom_name: food.food_name,
             meal_name: meal.name,
             meal_type: "custom",
