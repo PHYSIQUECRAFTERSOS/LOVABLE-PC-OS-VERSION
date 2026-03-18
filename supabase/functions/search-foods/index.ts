@@ -355,21 +355,21 @@ serve(async (req) => {
       });
     }
 
-    // ── Step 2: External APIs in PARALLEL (FatSecret + USDA) ─────────
+    // ── Step 2: External APIs in PARALLEL (OpenFoodFacts + USDA) ────
     const usdaPageSize = hasBrandIntent ? 30 : 20;
     const sourceStatus: Record<string, string> = {};
 
-    const [fatSecretResult, usdaResult] = await Promise.allSettled([
-      // FatSecret (replaces OFF)
-      searchFatSecret(query, 20).then(foods => {
-        sourceStatus.fatsecret = `ok:${foods.length}`;
+    const [offResult, usdaResult] = await Promise.allSettled([
+      // OpenFoodFacts (free, worldwide database)
+      searchOpenFoodFacts(query, 25).then(foods => {
+        sourceStatus.off = `ok:${foods.length}`;
         return foods;
       }).catch((e: any) => {
-        sourceStatus.fatsecret = e.name === "TimeoutError" ? "timeout" : "error";
-        console.warn("[search-foods] FatSecret failed:", e.message || e);
+        sourceStatus.off = e.name === "TimeoutError" ? "timeout" : "error";
+        console.warn("[search-foods] OpenFoodFacts failed:", e.message || e);
         return [] as any[];
       }),
-      // USDA
+      // USDA (fallback)
       (async () => {
         if (!usdaApiKey) { sourceStatus.usda = "no_key"; return [] as any[]; }
         const res = await fetch(
