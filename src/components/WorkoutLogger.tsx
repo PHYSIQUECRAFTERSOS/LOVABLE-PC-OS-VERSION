@@ -366,8 +366,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     newEx[exIdx].logs[setIdx] = updatedLog;
     setExercises(newEx);
 
-    // If RPE is updated on a completed set, re-persist immediately
-    if (field === "rpe" && updatedLog.completed) {
+    // If RPE or reps is updated on a completed set, re-persist immediately
+    if ((field === "rpe" || field === "reps") && updatedLog.completed) {
       persistSet(newEx[exIdx].id, updatedLog);
     }
   };
