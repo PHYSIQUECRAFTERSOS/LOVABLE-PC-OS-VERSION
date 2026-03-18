@@ -75,7 +75,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
   const [searching, setSearching] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [barcodeOpen, setBarcodeOpen] = useState(false);
+  
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
