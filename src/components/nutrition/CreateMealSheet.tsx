@@ -203,10 +203,6 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
     setShowFoodSearch(false);
   };
 
-  const handleBarcodeFound = (food: any) => {
-    setBarcodeOpen(false);
-    if (food) addFoodToStaged(food);
-  };
 
   const removeItem = (index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
