@@ -138,6 +138,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
+  const [frozenDuration, setFrozenDuration] = useState(0);
+  const [summaryRankData, setSummaryRankData] = useState<{
+    xpEarned: number;
+    tier: string;
+    division: number;
+    divisionXP: number;
+    xpNeeded: number;
+    totalXP: number;
+  } | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
