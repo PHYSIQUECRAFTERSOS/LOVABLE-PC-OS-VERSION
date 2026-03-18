@@ -31,6 +31,7 @@ import ClientDetail from "./pages/ClientDetail";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import DeleteAccount from "./pages/DeleteAccount";
+import Support from "./pages/Support";
 import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/delete-account" element={<DeleteAccount />} />
+            <Route path="/support" element={<Support />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
