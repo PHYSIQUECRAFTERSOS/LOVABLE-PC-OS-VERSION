@@ -434,27 +434,52 @@ const ExerciseCard = ({
                 )}
               </div>
 
-              {/* Reps field — tappable for RPE after completion */}
+              {/* Reps field — editable even after completion, with RPE selector */}
               <div className="relative">
                 {log.completed ? (
-                  <RPESelector
-                    currentRPE={log.rpe}
-                    onSelect={(rpe) => onUpdateLog(setIdx, "rpe", rpe)}
-                  >
-                    <button className="w-full h-8 rounded-md border border-border bg-secondary/40 text-sm font-medium tabular-nums flex items-center justify-center gap-1 hover:bg-secondary transition-colors">
-                      {log.reps}
-                      {log.rpe != null ? (
-                        <span className="text-[10px] text-primary font-semibold">@{log.rpe}</span>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground/50">RPE</span>
-                      )}
-                    </button>
-                  </RPESelector>
+                  <div className="flex items-center gap-0.5">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={log.reps ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "") {
+                          onUpdateLog(setIdx, "reps", undefined);
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
+                        }
+                      }}
+                      className="text-sm h-8 w-[52px] text-center tabular-nums"
+                    />
+                    <RPESelector
+                      currentRPE={log.rpe}
+                      onSelect={(rpe) => onUpdateLog(setIdx, "rpe", rpe)}
+                    >
+                      <button className="h-8 px-1.5 rounded-md border border-border bg-secondary/40 text-[10px] font-semibold flex items-center justify-center hover:bg-secondary transition-colors shrink-0">
+                        {log.rpe != null ? (
+                          <span className="text-primary">@{log.rpe}</span>
+                        ) : (
+                          <span className="text-muted-foreground/60">RPE</span>
+                        )}
+                      </button>
+                    </RPESelector>
+                  </div>
                 ) : (
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={log.reps ?? ""}
-                    onChange={(e) => onUpdateLog(setIdx, "reps", e.target.value ? parseInt(e.target.value) : undefined)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        onUpdateLog(setIdx, "reps", undefined);
+                      } else {
+                        const num = parseInt(val);
+                        if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
+                      }
+                    }}
                     placeholder="0"
                     className="text-sm h-8"
                   />

@@ -127,17 +127,24 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
             ) : exercises.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No exercises found</p>
             ) : (
-              exercises.map((ex) => (
-                <div key={ex.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
-                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-muted-foreground">{getMuscleInitial(ex.muscle_group)}</span>
-                  </div>
+              exercises.map((ex, idx) => (
+                <div key={`${ex.id}-${idx}`} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
+                  {ex.thumbnail_url ? (
+                    <img
+                      src={ex.thumbnail_url}
+                      alt={ex.name}
+                      className="h-10 w-10 rounded-lg object-cover shrink-0 bg-muted"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-muted-foreground">{getMuscleInitial(ex.muscle_group)}</span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{ex.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {ex.sets}s × {ex.reps || "?"}
-                      {ex.rir != null && <span>  •  RIR {ex.rir}</span>}
-                      {ex.rest_seconds ? <span>  •  Rest: {ex.rest_seconds}s</span> : null}
+                      {ex.sets} sets × {ex.reps || "?"}
+                      {ex.rest_seconds ? `, ${Math.floor(ex.rest_seconds / 60)}m rest between sets` : ""}
                     </p>
                   </div>
                   {ex.video_url && (

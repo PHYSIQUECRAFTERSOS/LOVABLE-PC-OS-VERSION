@@ -868,28 +868,28 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
       {/* Cancel Confirmation */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to cancel?</AlertDialogTitle>
-            <AlertDialogDescription>
-              All your logged sets will not be saved.
+        <AlertDialogContent className="max-w-sm mx-auto rounded-2xl">
+          <AlertDialogHeader className="text-center">
+            <AlertDialogTitle className="text-xl font-bold">Cancel Workout?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              Are you sure you want to cancel this workout? All progress will be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+          <AlertDialogFooter className="flex-col gap-3 sm:flex-col mt-2">
             <Button
               onClick={cancelWorkout}
-              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
+              className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold text-base"
               size="lg"
             >
               Cancel Workout
             </Button>
             <Button
-              variant="default"
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              variant="secondary"
+              className="w-full font-semibold text-base"
               size="lg"
               onClick={() => setShowCancelDialog(false)}
             >
-              Continue Workout
+              Resume
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
