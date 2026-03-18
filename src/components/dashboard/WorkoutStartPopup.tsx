@@ -12,6 +12,7 @@ const MUSCLE_INITIALS: Record<string, string> = {
   chest: "C", shoulders: "S", back: "B", legs: "L", arms: "A", core: "Co",
   biceps: "A", triceps: "A", quads: "L", hamstrings: "L", glutes: "L", calves: "L",
   traps: "B", lats: "B", delts: "S", abs: "Co", forearms: "A",
+  push: "P", pull: "Pu", upper: "U", lower: "Lo", full: "F",
 };
 
 function getYouTubeId(url: string): string | null {
