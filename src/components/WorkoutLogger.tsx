@@ -753,15 +753,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     return (
       <WorkoutSummary
         workoutName={workoutName}
-        durationSeconds={Math.floor((Date.now() - startTime) / 1000)}
+        durationSeconds={frozenDuration}
         totalSets={totalSets}
         completedSets={completedSets}
         totalVolume={totalVolume}
         exerciseCount={exercises.filter(e => e.logs.some(l => l.completed)).length}
         prs={prAlerts}
         isFirstSession={isFirstSession}
+        rankData={summaryRankData}
         onDone={() => {
-          // Clear session storage and navigate to dashboard
           clearRetryQueue();
           onComplete?.();
           navigate("/");
