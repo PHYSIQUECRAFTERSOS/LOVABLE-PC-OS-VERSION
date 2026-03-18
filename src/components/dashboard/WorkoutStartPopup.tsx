@@ -110,6 +110,12 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
                 <p className="text-xs text-muted-foreground mt-1">
                   {lastPerformed ? `Last performed: ${lastPerformed}` : "Never performed"}
                 </p>
+                {!loading && exercises.length > 0 && (
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                    <span>🏋️ {exercises.length} Exercises</span>
+                    <span>⏱ est. {Math.round(exercises.reduce((sum, e) => sum + (e.sets * 1.5) + ((e.rest_seconds || 60) * e.sets / 60), 0))} min</span>
+                  </div>
+                )}
               </div>
               <DrawerClose asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8">
