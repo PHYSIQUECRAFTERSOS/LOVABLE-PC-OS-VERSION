@@ -251,8 +251,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
-                    capture="environment"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                     onChange={handlePhotoCapture}
                     className="hidden"
                   />

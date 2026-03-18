@@ -218,8 +218,7 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
-          capture="environment"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           className="hidden"
           onChange={handleFile}
         />

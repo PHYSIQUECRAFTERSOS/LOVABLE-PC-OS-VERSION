@@ -173,7 +173,9 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
         <Button
           variant="outline"
           size="sm"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => {
+            try { inputRef.current?.click(); } catch (e) { console.warn("[AvatarUpload] File picker error:", e); }
+          }}
           disabled={uploading}
           className="gap-2"
         >

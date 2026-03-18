@@ -83,8 +83,7 @@ const ProgressPhotoUpload = ({ onUploaded }: { onUploaded?: () => void }) => {
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
-          capture="environment"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           className="hidden"
           onChange={onFileChange}
         />
