@@ -1,13 +1,24 @@
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Trophy, Clock, Dumbbell, TrendingUp, Flame, Share2, Rocket } from "lucide-react";
+import { Trophy, Clock, Dumbbell, TrendingUp, Flame, Share2, Zap, ChevronUp } from "lucide-react";
+import TierBadge from "@/components/ranked/TierBadge";
+import { getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 
 interface PRDetail {
   exerciseName: string;
   weight: number;
   reps: number;
   type: "weight" | "rep" | "volume";
+}
+
+interface RankData {
+  xpEarned: number;
+  tier: string;
+  division: number;
+  divisionXP: number;
+  xpNeeded: number;
+  totalXP: number;
 }
 
 interface WorkoutSummaryProps {
@@ -19,6 +30,7 @@ interface WorkoutSummaryProps {
   exerciseCount: number;
   prs: PRDetail[];
   isFirstSession?: boolean;
+  rankData?: RankData | null;
   onDone: () => void;
 }
 
@@ -47,6 +59,7 @@ const WorkoutSummary = ({
   exerciseCount,
   prs,
   isFirstSession,
+  rankData,
   onDone,
 }: WorkoutSummaryProps) => {
   const message = useMemo(() => {
@@ -55,6 +68,10 @@ const WorkoutSummary = ({
     if (prs.length === 1) return "You hit a new PR today! Keep pushing! 💪";
     return POSITIVE_MESSAGES[Math.floor(Math.random() * POSITIVE_MESSAGES.length)];
   }, [prs.length, isFirstSession]);
+
+  const rankProgress = rankData && rankData.xpNeeded > 0
+    ? (rankData.divisionXP / rankData.xpNeeded) * 100
+    : rankData ? 100 : 0;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-6 bg-background animate-fade-in">
@@ -112,6 +129,66 @@ const WorkoutSummary = ({
                 </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* XP & Rank Section */}
+      {rankData && (
+        <Card className="w-full max-w-sm border-primary/30">
+          <CardContent className="p-4 space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" /> Ranked Progress
+            </h3>
+            
+            {/* XP Earned */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">XP Earned</span>
+              <span className="text-lg font-bold text-primary tabular-nums">
+                +{rankData.xpEarned} XP
+              </span>
+            </div>
+
+            {/* Current Rank */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 flex items-center justify-center">
+                <TierBadge tier={rankData.tier} size={40} />
+              </div>
+              <div className="flex-1">
+                <p
+                  className="text-sm font-bold"
+                  style={{ color: getTierColor(rankData.tier) }}
+                >
+                  {getDivisionLabel(rankData.tier, rankData.division)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {rankData.totalXP.toLocaleString()} total XP
+                </p>
+              </div>
+            </div>
+
+            {/* Progress to next division */}
+            {rankData.tier !== "champion" && rankData.xpNeeded > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <ChevronUp className="h-3 w-3" /> Next Division
+                  </span>
+                  <span className="tabular-nums">
+                    {rankData.xpNeeded - rankData.divisionXP} XP to go
+                  </span>
+                </div>
+                <div className="h-2.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${rankProgress}%`,
+                      backgroundColor: getTierColor(rankData.tier),
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

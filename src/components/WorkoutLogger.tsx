@@ -138,6 +138,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
+  const [frozenDuration, setFrozenDuration] = useState(0);
+  const [summaryRankData, setSummaryRankData] = useState<{
+    xpEarned: number;
+    tier: string;
+    division: number;
+    divisionXP: number;
+    xpNeeded: number;
+    totalXP: number;
+  } | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(resumeSessionId || null);
@@ -692,11 +701,40 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         console.error("[WorkoutLogger] Challenge auto-score error:", e);
       }
 
-      // Award Ranked XP for workout completion
+      // Award Ranked XP for workout completion & capture result for summary
+      let xpResult: any = null;
       try {
-        await triggerXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+        const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
+        xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+        // Check for badge unlocks
+        const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
+        if (xpResult) {
+          const { data: freshProfile } = await (supabase as any)
+            .from("ranked_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (freshProfile) {
+            checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+          }
+        }
       } catch (e) {
         console.error("[WorkoutLogger] Ranked XP error:", e);
+      }
+
+      // Freeze the duration at completion time
+      setFrozenDuration(durationSeconds);
+
+      // Set rank data for summary
+      if (xpResult) {
+        setSummaryRankData({
+          xpEarned: xpResult.xpAwarded,
+          tier: xpResult.tier,
+          division: xpResult.division,
+          divisionXP: xpResult.divisionXP,
+          xpNeeded: xpResult.xpNeeded,
+          totalXP: xpResult.newTotal,
+        });
       }
 
       setShowSummary(true);
@@ -725,15 +763,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     return (
       <WorkoutSummary
         workoutName={workoutName}
-        durationSeconds={Math.floor((Date.now() - startTime) / 1000)}
+        durationSeconds={frozenDuration}
         totalSets={totalSets}
         completedSets={completedSets}
         totalVolume={totalVolume}
         exerciseCount={exercises.filter(e => e.logs.some(l => l.completed)).length}
         prs={prAlerts}
         isFirstSession={isFirstSession}
+        rankData={summaryRankData}
         onDone={() => {
-          // Clear session storage and navigate to dashboard
           clearRetryQueue();
           onComplete?.();
           navigate("/");
