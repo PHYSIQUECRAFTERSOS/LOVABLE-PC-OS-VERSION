@@ -206,29 +206,70 @@ async function expandWithSynonyms(supabase: any, originalQuery: string): Promise
   } catch { return []; }
 }
 
-// ── FatSecret proxy call ───────────────────────────────────────────────
-async function searchFatSecret(query: string, limit: number): Promise<any[]> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+// ── OpenFoodFacts search ───────────────────────────────────────────────
+async function searchOpenFoodFacts(query: string, limit: number): Promise<any[]> {
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=${Math.min(limit, 40)}&sort_by=unique_scans_n&fields=code,product_name,product_name_en,brands,nutriments,serving_size,categories_tags,image_front_small_url,image_url`;
 
-  const res = await fetch(`${supabaseUrl}/functions/v1/fatsecret-proxy`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${anonKey}`,
-    },
-    body: JSON.stringify({ action: "search", query, limit }),
-    signal: AbortSignal.timeout(3000),
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(5000),
+    headers: { "Accept": "application/json" },
   });
+  if (!resp.ok) throw new Error(`OFF API error: ${resp.status}`);
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.warn("[search-foods] FatSecret proxy failed:", res.status, text);
-    return [];
-  }
+  const data = await safeJson(resp);
+  if (!data?.products) return [];
 
-  const data = await safeJson(res);
-  return data?.foods ?? [];
+  return data.products
+    .filter((p: any) => (p.product_name_en || p.product_name))
+    .map((p: any) => {
+      const n = p.nutriments ?? {};
+      const energyKcal = n["energy-kcal_100g"] ?? (n["energy_100g"] != null ? n["energy_100g"] / 4.184 : null);
+      const protein = n.proteins_100g ?? null;
+      const carbs = n.carbohydrates_100g ?? null;
+      const fat = n.fat_100g ?? null;
+      if ((protein ?? 0) + (carbs ?? 0) + (fat ?? 0) === 0) return null;
+
+      const rawServing = p.serving_size ?? "";
+      const servingG = parseServingGrams(rawServing) ?? 100;
+      const rawBrand = p.brands ? p.brands.split(",")[0].trim() : null;
+
+      return {
+        off_id: p.code || null,
+        name: p.product_name_en || p.product_name,
+        brand: rawBrand,
+        calories_per_100g: energyKcal != null ? Math.round(energyKcal) : null,
+        protein_per_100g: protein != null ? Math.round(protein * 10) / 10 : null,
+        carbs_per_100g: carbs != null ? Math.round(carbs * 10) / 10 : null,
+        fat_per_100g: fat != null ? Math.round(fat * 10) / 10 : null,
+        fiber_per_100g: n.fiber_100g != null ? Math.round(n.fiber_100g * 10) / 10 : null,
+        sugar_per_100g: n.sugars_100g != null ? Math.round(n.sugars_100g * 10) / 10 : null,
+        sodium_per_100g: n.sodium_100g != null ? Math.round(n.sodium_100g * 1000) : null,
+        serving_size_g: servingG,
+        serving_unit: "g",
+        serving_description: rawServing || `${servingG}g`,
+        barcode: p.code || null,
+        image_url: p.image_front_small_url || p.image_url || null,
+        is_branded: !!rawBrand,
+        is_verified: false,
+        is_custom: false,
+        source: "open_food_facts",
+        has_complete_macros: true,
+        data_quality_score: 40,
+        popularity_score: 3,
+      };
+    })
+    .filter(Boolean);
+}
+
+function parseServingGrams(raw: string): number | null {
+  if (!raw) return null;
+  const paren = raw.match(/\((\d+(?:\.\d+)?)\s*g\)/i);
+  if (paren) return parseFloat(paren[1]);
+  const plain = raw.match(/^(\d+(?:\.\d+)?)\s*g$/i);
+  if (plain) return parseFloat(plain[1]);
+  const ml = raw.match(/^(\d+(?:\.\d+)?)\s*ml$/i);
+  if (ml) return parseFloat(ml[1]);
+  return null;
 }
 
 // ── Main handler ───────────────────────────────────────────────────────
