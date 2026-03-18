@@ -246,7 +246,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
 
     // Update parent totals
     const updatedItems = [...items, {
-      ...inserted,
+      ...(inserted as any),
       serving_label: servingLabel,
       active_unit: activeUnit,
       calories_per_100g: cal100,
