@@ -355,7 +355,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res] =
         await Promise.all([
           supabase.from("calendar_events").select("id, event_type, title, is_completed")
-            .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", today),
+            .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", selectedDateStr),
           supabase.from("progress_photos").select("id, storage_path, created_at")
             .eq("client_id", clientId).order("created_at", { ascending: false }).limit(3),
           supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
