@@ -1,122 +1,47 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Plan: Fix Rest Timer to Not Interrupt Spotify/Apple Music
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Root Cause
 
----
+The current `restTimerAudio.ts` plays a **silent WAV file via an `<audio>` HTML element** for the entire rest duration. On iOS, this takes exclusive control of the audio session and **pauses Spotify/Apple Music**. The Media Session API further hijacks the lock screen Now Playing widget.
 
-## Phase 1 — MVP (Core Platform)
+## Solution
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+Remove the `<audio>` element and Media Session API entirely. Switch to **AudioContext only**, which mixes with other apps' audio instead of interrupting them. Use the uploaded 3-second countdown MP3 as the alarm sound.
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+## Changes
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+### 1. Copy uploaded sound to project
+- Copy `Rest_Timer_3_Seconds.mp3` → `public/assets/sounds/rest-timer-countdown.mp3`
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+### 2. Rewrite `src/utils/restTimerAudio.ts`
+- **Remove**: Silent WAV generation, `<audio>` element, Media Session API, `unlockAudio`, `startRestSession`, `updateRestPosition`, `stopRestSession`
+- **Replace with**:
+  - `initAudioContext()` — creates/resumes an AudioContext on first user gesture
+  - `preloadCountdownSound()` — fetches and decodes the MP3 into an AudioBuffer on init
+  - `playCountdownSound()` — plays the 3-second countdown MP3 via AudioContext (mixes with Spotify)
+  - `stopCountdownSound()` — stops playback on skip
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### 3. Update `InlineRestTimer.tsx`
+- Remove calls to `startRestSession`, `updateRestPosition`, `stopRestSession`
+- At **3 seconds remaining**, call `playCountdownSound()` (the MP3 is a 3-second countdown that naturally ends when the timer hits 0)
+- On skip, call `stopCountdownSound()`
+- Timer remains purely visual + JS interval (no audio session hijack)
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+### 4. Update `FloatingRestTimer.tsx`
+- Same changes as InlineRestTimer
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+### 5. Update `RestTimer.tsx`
+- Replace the old `playSound()` oscillator with `playCountdownSound()` at 3 seconds remaining
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+## Why This Works
+- **AudioContext** plays sounds that **mix** with Spotify/Apple Music — it doesn't take over the audio session
+- No `<audio>` element = no iOS audio session hijack
+- No Media Session API = Spotify keeps its lock screen controls
+- The 3-second countdown MP3 plays at exactly the right moment as a notification-style sound
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+## Trade-off
+- No lock screen countdown widget (user agreed this is acceptable)
+- Timer only works while the app is in the foreground (same as most workout apps)
 
