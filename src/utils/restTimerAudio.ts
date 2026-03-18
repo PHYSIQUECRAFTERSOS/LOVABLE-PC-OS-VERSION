@@ -14,7 +14,14 @@
 let audioCtx: AudioContext | null = null;
 let countdownBuffer: AudioBuffer | null = null;
 let activeSource: AudioBufferSourceNode | null = null;
+let gainNode: GainNode | null = null;
 let preloading = false;
+
+/**
+ * Overlay volume relative to music (0.0–1.0).
+ * 0.6 = clearly audible over music without being jarring.
+ */
+const OVERLAY_VOLUME = 0.6;
 
 /**
  * Create or resume the AudioContext. Must be called from a user gesture
@@ -23,6 +30,10 @@ let preloading = false;
 export function initAudioContext(): void {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Create a persistent gain node for volume control
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = OVERLAY_VOLUME;
+    gainNode.connect(audioCtx.destination);
   }
   if (audioCtx.state === "suspended") {
     audioCtx.resume().catch(() => {});
@@ -40,12 +51,17 @@ export async function preloadCountdownSound(): Promise<void> {
   try {
     initAudioContext();
     const response = await fetch("/assets/sounds/rest-timer-countdown.mp3");
+    if (!response.ok) {
+      console.warn("[Audio] Failed to fetch countdown sound:", response.status);
+      return;
+    }
     const arrayBuffer = await response.arrayBuffer();
     if (audioCtx) {
       countdownBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      console.log("[Audio] Countdown sound preloaded successfully");
     }
-  } catch {
-    /* Sound unavailable — timer still works visually */
+  } catch (err) {
+    console.warn("[Audio] Sound preload failed:", err);
   } finally {
     preloading = false;
   }
@@ -55,7 +71,10 @@ export async function preloadCountdownSound(): Promise<void> {
  * Play the 3-second countdown sound. Mixes with Spotify/Apple Music.
  */
 export function playCountdownSound(): void {
-  if (!audioCtx || !countdownBuffer) return;
+  if (!audioCtx || !countdownBuffer || !gainNode) {
+    console.warn("[Audio] Cannot play — ctx:", !!audioCtx, "buffer:", !!countdownBuffer, "gain:", !!gainNode);
+    return;
+  }
 
   // Stop any currently playing countdown
   stopCountdownSound();
@@ -67,12 +86,13 @@ export function playCountdownSound(): void {
 
   const source = audioCtx.createBufferSource();
   source.buffer = countdownBuffer;
-  source.connect(audioCtx.destination);
+  source.connect(gainNode);
   source.onended = () => {
     if (activeSource === source) activeSource = null;
   };
   source.start(0);
   activeSource = source;
+  console.log("[Audio] Countdown sound playing at volume", OVERLAY_VOLUME);
 }
 
 /**
