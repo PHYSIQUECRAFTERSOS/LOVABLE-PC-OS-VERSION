@@ -321,16 +321,6 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
             />
             {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 text-xs rounded-lg gap-1.5 flex-1"
-              onClick={() => setBarcodeOpen(true)}
-            >
-              <ScanBarcode className="h-3.5 w-3.5" /> Barcode Scan
-            </Button>
-          </div>
         </div>
 
         {/* Section Label */}
