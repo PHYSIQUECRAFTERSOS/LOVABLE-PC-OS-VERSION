@@ -34,6 +34,7 @@ import {
 import StepTrendModal from "@/components/dashboard/StepTrendModal";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
+import DateNavigator from "@/components/dashboard/DateNavigator";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -251,6 +252,10 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Date navigator state
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+
   // Extended data
   const [actions, setActions] = useState<CalendarAction[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -350,13 +355,13 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res] =
         await Promise.all([
           supabase.from("calendar_events").select("id, event_type, title, is_completed")
-            .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", today),
+            .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", selectedDateStr),
           supabase.from("progress_photos").select("id, storage_path, created_at")
             .eq("client_id", clientId).order("created_at", { ascending: false }).limit(3),
           supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
             .eq("client_id", clientId).order("effective_date", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
-            .eq("client_id", clientId).eq("logged_at", today),
+            .eq("client_id", clientId).eq("logged_at", selectedDateStr),
           supabase.from("weight_logs").select("weight, logged_at")
             .eq("client_id", clientId).gte("logged_at", format(subDays(new Date(), 30), "yyyy-MM-dd"))
             .order("logged_at", { ascending: true }),
@@ -469,7 +474,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     };
 
     loadExtended();
-  }, [clientId, user, today]);
+  }, [clientId, user, selectedDateStr]);
 
   /* ─── Load steps data for client ─── */
   useEffect(() => {
@@ -602,6 +607,9 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
   return (
     <div className="space-y-6">
+      {/* ── Date Navigator ── */}
+      <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
+
       {/* ── Quick Stats ── */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -682,7 +690,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       {/* ── Today's Actions ── */}
       {actions.length > 0 && (
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Today's Actions</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">{isToday(selectedDate) ? "Today's Actions" : `Actions — ${format(selectedDate, "MMM d")}`}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {actions.map((a) => (
               <div key={a.id} className="flex items-center gap-3 py-1.5">
@@ -763,8 +771,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">Macros Today</CardTitle>
-            <span className="text-xs text-muted-foreground">{format(new Date(), "MMM d, yyyy")}</span>
+            <CardTitle className="text-sm">{isToday(selectedDate) ? "Macros Today" : `Macros — ${format(selectedDate, "MMM d")}`}</CardTitle>
+            <span className="text-xs text-muted-foreground">{format(selectedDate, "MMM d, yyyy")}</span>
           </div>
         </CardHeader>
         <CardContent>
