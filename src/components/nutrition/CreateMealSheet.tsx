@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import {
-  ArrowLeft, Plus, X, Search, Loader2, Minus, ScanBarcode, Clock, Star, ChevronDown,
+  ArrowLeft, Plus, X, Search, Loader2, Minus, Clock,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
