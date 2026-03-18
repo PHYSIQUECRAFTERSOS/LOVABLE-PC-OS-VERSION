@@ -361,7 +361,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
             .eq("client_id", clientId).order("effective_date", { ascending: false }).limit(1).maybeSingle(),
           supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
-            .eq("client_id", clientId).eq("logged_at", today),
+            .eq("client_id", clientId).eq("logged_at", selectedDateStr),
           supabase.from("weight_logs").select("weight, logged_at")
             .eq("client_id", clientId).gte("logged_at", format(subDays(new Date(), 30), "yyyy-MM-dd"))
             .order("logged_at", { ascending: true }),
