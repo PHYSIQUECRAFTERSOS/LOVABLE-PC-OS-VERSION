@@ -180,6 +180,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
+    // Pre-init audio on session start so countdown sound is ready
+    initAudioContext();
+    preloadCountdownSound();
     const initSession = async () => {
       if (resumeSessionId) {
         // Resuming: restore startTime from DB
@@ -420,7 +423,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           weight: log.weight ?? null,
           reps: log.reps || null,
           tempo: log.tempo || null,
-          rir: log.rir ?? (log.rpe ? Math.round((10 - log.rpe) * 10) / 10 : null),
+          rir: log.rir ?? (log.rpe ? Math.round(10 - log.rpe) : null),
           rpe: log.rpe ?? null,
           notes: log.notes || null,
           logged_at: new Date().toISOString(),
@@ -623,7 +626,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           weight: log.weight ?? 0,
           reps: log.reps || null,
           tempo: log.tempo || null,
-          rir: log.rir ?? (log.rpe ? (10 - (log.rpe || 0)) : null),
+          rir: log.rir ?? (log.rpe ? Math.round(10 - (log.rpe || 0)) : null),
+          rpe: log.rpe ?? null,
           notes: log.notes || null,
           logged_at: new Date().toISOString(),
         }))
