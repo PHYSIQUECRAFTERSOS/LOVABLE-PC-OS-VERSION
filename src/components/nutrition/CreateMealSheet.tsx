@@ -299,9 +299,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
   const displayList = searchQuery.length >= 2 ? searchResults : history;
 
-  if (barcodeOpen) {
-    return <BarcodeScanner onClose={() => setBarcodeOpen(false)} onFoodFound={handleBarcodeFound} />;
-  }
+  // Barcode removed for now — uses different API pattern
 
   if (showFoodSearch) {
     return (

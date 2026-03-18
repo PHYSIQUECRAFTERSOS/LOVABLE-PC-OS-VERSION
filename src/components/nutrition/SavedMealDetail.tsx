@@ -409,9 +409,6 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
   };
 
   // --- Render ---
-  if (barcodeOpen) {
-    return <BarcodeScanner onClose={() => setBarcodeOpen(false)} onFoodFound={handleBarcodeFound} />;
-  }
 
   if (showAddFood) {
     const displayList = searchQuery.length >= 2 ? searchResults : history;
@@ -436,9 +433,6 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
             />
             {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
-          <Button variant="outline" size="sm" className="h-9 text-xs rounded-lg gap-1.5 w-full" onClick={() => setBarcodeOpen(true)}>
-            <ScanBarcode className="h-3.5 w-3.5" /> Barcode Scan
-          </Button>
         </div>
         {searchQuery.length < 2 && displayList.length > 0 && (
           <div className="flex items-center gap-1.5 px-4 pt-1 pb-1">
