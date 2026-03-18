@@ -55,7 +55,7 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
       const [exRes, sessionRes] = await Promise.all([
         supabase
           .from("workout_exercises")
-          .select("sets, reps, rest_seconds, rir, exercises:exercise_id(id, name, muscle_group, youtube_url, video_url)")
+          .select("sets, reps, rest_seconds, rir, exercises:exercise_id(id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail)")
           .eq("workout_id", workoutId)
           .order("exercise_order", { ascending: true }),
         supabase
