@@ -849,7 +849,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       ))}
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <Button
           variant="outline"
           className="w-full gap-2"
@@ -857,15 +857,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         >
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
-        <div className="mt-6">
-          <Button
-            variant="ghost"
-            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20"
-            onClick={() => setShowCancelDialog(true)}
-          >
-            Cancel Workout
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          className="w-full mt-4 text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20 font-semibold"
+          onClick={() => setShowCancelDialog(true)}
+        >
+          Cancel Workout
+        </Button>
       </div>
 
       {/* Cancel Confirmation */}
