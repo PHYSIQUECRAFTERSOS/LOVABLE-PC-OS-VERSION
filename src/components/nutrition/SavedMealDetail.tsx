@@ -155,7 +155,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
     const foodIds = [...new Set(data.map(d => d.food_item_id!))].slice(0, 20);
     const { data: foods } = await supabase
       .from("food_items")
-      .select("id, name, brand, serving_size, serving_unit, serving_description, calories, protein, carbs, fat, is_verified, data_source")
+      .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, is_verified, data_source")
       .in("id", foodIds);
     if (foods) {
       const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean);
