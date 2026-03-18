@@ -474,7 +474,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     };
 
     loadExtended();
-  }, [clientId, user, today]);
+  }, [clientId, user, selectedDateStr]);
 
   /* ─── Load steps data for client ─── */
   useEffect(() => {
