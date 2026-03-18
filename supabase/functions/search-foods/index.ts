@@ -103,7 +103,7 @@ function brandRelevanceScore(food: any, query: string, tokens: string[], aliases
   }
 
   if (food.source === "usda") score += 15;
-  if (food.source === "fatsecret") score += 12;
+  if (food.source === "open_food_facts") score += 12;
   if (food.is_branded || brandLower) score += 10;
   if (food.has_complete_macros !== false) score += 5;
   score += Math.min(food.popularity_score ?? 0, 20);
