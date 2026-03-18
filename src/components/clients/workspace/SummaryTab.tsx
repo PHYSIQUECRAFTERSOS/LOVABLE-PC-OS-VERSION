@@ -252,6 +252,10 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Date navigator state
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+
   // Extended data
   const [actions, setActions] = useState<CalendarAction[]>([]);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
