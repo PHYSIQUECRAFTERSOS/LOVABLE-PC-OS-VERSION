@@ -1,122 +1,42 @@
 
 
-# Physique Crafters — Transformation Operating System
+# Nutrition Tracker Improvements — No FatSecret
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+## Current State
+The system already uses Local DB + OpenFoodFacts + USDA in parallel. FatSecret is NOT used in any active search or barcode flow — only an unused proxy edge function exists. No changes needed to remove it.
 
----
+## Plan
 
-## Phase 1 — MVP (Core Platform)
+### 1. Search Relevance — Branded & Restaurant Foods
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+**File: `supabase/functions/search-foods/index.ts`**
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+- **Expand brand dictionary** with ~40 restaurant chains (Dominos, McDonald's, Chick-fil-A, Chipotle, Subway, Starbucks, Wendy's, Taco Bell, Panda Express, Five Guys, Pizza Hut, Burger King, KFC, Popeyes, Dunkin, Tim Hortons, etc.) and ~20 more grocery brands (Thomas', Sara Lee, Pepperidge Farm, Nature's Own, Dave's Killer Bread, etc.)
+- **Add phrase match bonus** (+50) when the full food phrase (e.g. "everything bagel", "brooklyn pizza") appears as a contiguous substring in the food name — currently tokens are scored independently which hurts multi-word food queries
+- **Improve OFF query for branded searches**: when brand intent is detected, fire a second OFF request filtered by brand tag (`&tagtype_0=brands&tag_contains_0=contains&tag_0=dominos`) in parallel with the generic query
+- **Always fire external APIs**: remove the short-circuit at line 351 that skips OFF/USDA when local has >= 8 results for non-brand queries — this causes stale results. Instead, always run all sources in parallel
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+### 2. Search Speed (sub-3 seconds)
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+- Reduce external API timeouts from 5s to 3s
+- Run local DB query, synonym expansion, and history fetch all in parallel (currently synonyms block before external APIs)
+- Reduce client-side debounce from 300ms to 200ms in `src/hooks/useFoodSearch.ts`
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### 3. Barcode Scanner Verification
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+**File: `supabase/functions/barcode-lookup/index.ts`** — already uses Local → OFF → USDA chain (no FatSecret). Verify it still works correctly with current `foods` table schema. No structural changes needed.
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+**File: `src/components/nutrition/BarcodeScanner.tsx`** — add a visible "Type barcode manually" link during the scanning state (currently only appears after scan failure)
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+### 4. Boost Previously Used & Favorite Foods
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+**File: `supabase/functions/search-foods/index.ts`**
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+- Increase history boost values: favorites from +15 to +40, per-log from +0.5 to +1.5 (capped at 30), recency from +5 to +15
+- Ensure previously logged foods matching the query always appear in "Best Matches"
 
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
+### Files Modified
+1. `supabase/functions/search-foods/index.ts` — brand dictionary, scoring, parallel execution, history boosts
+2. `src/hooks/useFoodSearch.ts` — reduce debounce to 200ms
+3. `src/components/nutrition/BarcodeScanner.tsx` — show manual barcode entry during scanning
 
