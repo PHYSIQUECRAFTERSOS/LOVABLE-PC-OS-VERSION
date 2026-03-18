@@ -771,8 +771,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">Macros Today</CardTitle>
-            <span className="text-xs text-muted-foreground">{format(new Date(), "MMM d, yyyy")}</span>
+            <CardTitle className="text-sm">{isToday(selectedDate) ? "Macros Today" : `Macros — ${format(selectedDate, "MMM d")}`}</CardTitle>
+            <span className="text-xs text-muted-foreground">{format(selectedDate, "MMM d, yyyy")}</span>
           </div>
         </CardHeader>
         <CardContent>
