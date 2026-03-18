@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { unlockAudio } from "@/utils/restTimerAudio";
+import { initAudioContext, preloadCountdownSound } from "@/utils/restTimerAudio";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -481,7 +481,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      unlockAudio(); // Prime iOS audio before rest timer starts
+      initAudioContext(); // Prime iOS audio on user gesture
+      preloadCountdownSound(); // Pre-fetch countdown sound
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
