@@ -48,6 +48,13 @@ export interface FoodResult {
   fdcId?: number;
   isFavorite?: boolean;
   relevance_score?: number;
+  /** per-100g values passed through from foods table — used for accurate macro scaling */
+  calories_per_100?: number | null;
+  protein_per_100?: number | null;
+  carbs_per_100?: number | null;
+  fat_per_100?: number | null;
+  fiber_per_100?: number | null;
+  sugar_per_100?: number | null;
 }
 
 interface FoodSearchPanelProps {
