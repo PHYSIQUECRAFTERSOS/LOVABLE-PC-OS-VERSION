@@ -389,10 +389,10 @@ serve(async (req) => {
       }),
     ]);
 
-    const fatSecretFoods: any[] = fatSecretResult.status === "fulfilled" ? fatSecretResult.value : [];
+    const offFoods: any[] = offResult.status === "fulfilled" ? offResult.value : [];
     const usdaFoods: any[] = usdaResult.status === "fulfilled" ? usdaResult.value : [];
 
-    console.log(`[search-foods] Sources: ${JSON.stringify(sourceStatus)} | FatSecret:${fatSecretFoods.length} USDA:${usdaFoods.length}`);
+    console.log(`[search-foods] Sources: ${JSON.stringify(sourceStatus)} | OFF:${offFoods.length} USDA:${usdaFoods.length}`);
 
     // ── Step 3: Cache results ────────────────────────────────────────
     try {
@@ -401,19 +401,12 @@ serve(async (req) => {
       }
     } catch { /* non-fatal */ }
 
-    try {
-      const fsWithIds = fatSecretFoods.filter((f: any) => f.fatsecret_id);
-      if (fsWithIds.length > 0) {
-        await supabase.from("foods").upsert(fsWithIds, { onConflict: "fatsecret_id", ignoreDuplicates: true });
-      }
-    } catch { /* non-fatal */ }
-
     // ── Step 4: Merge, score, deduplicate ────────────────────────────
     const existingUsdaIds = new Set(localFoods.map((f: any) => f.usda_fdc_id).filter(Boolean));
-    const existingFsIds = new Set(localFoods.map((f: any) => f.fatsecret_id).filter(Boolean));
+    const existingNames = new Set(localFoods.map((f: any) => `${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
     const newUsda = usdaFoods.filter((f) => !existingUsdaIds.has(f.usda_fdc_id));
-    const newFs = fatSecretFoods.filter((f) => !existingFsIds.has(f.fatsecret_id));
-    const allResultsRaw = [...localFoods, ...newFs, ...newUsda].filter((f) =>
+    const newOff = offFoods.filter((f) => !existingNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
+    const allResultsRaw = [...localFoods, ...newOff, ...newUsda].filter((f) =>
       f.has_complete_macros !== false && ((f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0)) > 0
     );
 
