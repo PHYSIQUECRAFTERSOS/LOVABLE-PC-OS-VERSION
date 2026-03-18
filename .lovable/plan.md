@@ -1,122 +1,87 @@
+# Apple App Store Compliance Fix Plan
 
+## Three Issues from Apple Review
 
-# Physique Crafters — Transformation Operating System
+### Issue 1: App Crash — Profile > "Take Photo" (Guideline 2.1a)
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+**Root cause**: The `AvatarUpload` component uses `<input type="file">` which triggers the iOS system picker. On iPadOS inside a Capacitor WKWebView, tapping "Take Photo" in the picker invokes the device camera. If the native iOS project lacks `NSCameraUsageDescription` and `NSPhotoLibraryUsageDescription` in `Info.plist`, iOS **kills the app immediately** — no error, just a crash.
 
----
+Since this is a Capacitor app served via a remote URL (`capacitor.config.ts` points to the Lovable project URL), the iOS native shell still needs these entitlements. However, Lovable cannot modify native iOS project files (`Info.plist`).
 
-## Phase 1 — MVP (Core Platform)
+**Fix approach — defensive web-side guard**:
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+1. Wrap the file input click in `AvatarUpload.tsx` with a `try/catch` and a permissions check using `navigator.permissions.query({ name: 'camera' })` (where supported)
+2. On iOS/iPadOS, remove the implicit camera option by changing `accept="image/*"` to `accept="image/jpeg,image/png,image/webp,image/heic"` — this prevents the "Take Photo" option from appearing in the picker on some iOS versions
+3. Add a global `ErrorBoundary` wrapper specifically around file-input-triggering components to catch any unhandled crash and show a recovery UI instead of a white screen
+4. Apply the same defensive pattern to ALL other `<input type="file">` components that use `capture="environment"` (ProgressPhotoUpload, MealScanCapture, SupplementScanFlow) — remove the `capture="environment"` attribute since it forces camera-only mode which will crash without native permissions
+5. **Critical**: Update `capacitor.config.ts` to include iOS-specific plugin configuration that signals the needed permissions (these get picked up during `npx cap sync`):
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+```text
+// capacitor.config.ts addition
+plugins: {
+  Camera: {
+    permissions: ['camera', 'photos']
+  }
+}
+```
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+**Files to modify**:
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+- `src/components/profile/AvatarUpload.tsx` — wrap click in try/catch, guard accept types
+- `src/components/biofeedback/ProgressPhotoUpload.tsx` — remove `capture="environment"`
+- `src/components/nutrition/MealScanCapture.tsx` — remove `capture="environment"`
+- `src/components/nutrition/SupplementScanFlow.tsx` — remove `capture="environment"`
+- `capacitor.config.ts` — add iOS plugin permissions config
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### Issue 2: Support URL (Guideline 1.5)
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
+**Problem**: The Support URL in App Store Connect is `https://app.physiquecrafters.com/dashboard` which requires login and shows no support info.
 
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
+**Fix**: Create a public `/support` page with:
 
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
+- Contact email ([kevinwu@physiquecrafter.com](mailto:support@physiquecrafters.com) 
+- FAQ section covering common questions
+- No login required
 
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
+**Files to create/modify**:
 
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
+- `src/pages/Support.tsx` — new public page
+- `src/App.tsx` — add `/support` route (public, not behind ProtectedRoute)
+
+Then update the Support URL in App Store Connect to `https://app.physiquecrafters.com/support`.
+
+### Issue 3: Business Model Questions (Guideline 2.1b)
+
+This requires a written response to Apple, not code changes. Here's the recommended response template based on your app's architecture:
+
+```text
+1. Users: Coaching clients who have been invited by their fitness coach.
+2. Purchase location: All purchases are made outside the app through the 
+   Physique Crafters website (physiquecrafters.com) via Stripe. No purchases 
+   occur within the app.
+3. Accessible content: Clients access their pre-purchased coaching program 
+   which includes workout tracking, nutrition logging, progress photos, and 
+   messaging with their coach.
+4. No paid content is unlocked within the app. The app is a companion tool 
+   for an existing coaching relationship. All payments are processed externally.
+5. Accounts are created via coach invitation only. Clients do not pay a fee 
+   to create an account — they pay for their coaching program externally, and 
+   the coach invites them to the app.
+```
+
+This positions your app as a "reader app" / "client access app" for externally purchased services, which is compliant with Apple's guidelines (similar to how Netflix, Kindle, etc. work).
 
 ---
 
-## Phase 2 — Advanced Features
+## Summary of Code Changes
 
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
 
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
-
+| File                                                 | Change                                              |
+| ---------------------------------------------------- | --------------------------------------------------- |
+| `src/components/profile/AvatarUpload.tsx`            | Try/catch around file click, defensive accept types |
+| `src/components/biofeedback/ProgressPhotoUpload.tsx` | Remove `capture="environment"`                      |
+| `src/components/nutrition/MealScanCapture.tsx`       | Remove `capture="environment"`                      |
+| `src/components/nutrition/SupplementScanFlow.tsx`    | Remove `capture="environment"`                      |
+| `capacitor.config.ts`                                | Add iOS permissions config                          |
+| `src/pages/Support.tsx`                              | New public support/contact page                     |
+| `src/App.tsx`                                        | Add `/support` route                                |
