@@ -233,15 +233,29 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
       fat_per_100g: fat100,
     };
 
-    const { data: inserted, error } = await supabase
+    let inserted: any = null;
+    const { data: ins1, error: err1 } = await supabase
       .from("saved_meal_items" as any)
       .insert(newItem)
       .select()
       .single();
 
-    if (error) {
-      toast({ title: "Couldn't add food." });
-      return;
+    if (err1) {
+      // FK violation likely — food_id from cache table, not food_items. Retry without FK.
+      console.warn("[addNewFood] Insert failed, retrying without food_item_id:", err1.message);
+      const { data: ins2, error: err2 } = await supabase
+        .from("saved_meal_items" as any)
+        .insert({ ...newItem, food_item_id: null })
+        .select()
+        .single();
+      if (err2) {
+        console.error("[addNewFood] Retry also failed:", err2.message);
+        toast({ title: "Couldn't add food.", description: err2.message, variant: "destructive" });
+        return;
+      }
+      inserted = ins2;
+    } else {
+      inserted = ins1;
     }
 
     // Update parent totals

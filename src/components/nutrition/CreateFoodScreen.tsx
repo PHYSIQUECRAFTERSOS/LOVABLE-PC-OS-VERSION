@@ -9,24 +9,38 @@ import { ArrowLeft, UtensilsCrossed } from "lucide-react";
 interface CreateFoodScreenProps {
   onClose: () => void;
   onSaved: () => void;
+  editFood?: {
+    id: string;
+    name: string;
+    brand?: string | null;
+    serving_size?: string | null;
+    servings_per_container?: number | null;
+    calories?: number | null;
+    protein?: number | null;
+    carbs?: number | null;
+    fat?: number | null;
+    fiber?: number | null;
+    sugar?: number | null;
+    sodium?: number | null;
+  } | null;
 }
 
-const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
+const CreateFoodScreen = ({ onClose, onSaved, editFood }: CreateFoodScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [form, setForm] = useState({
-    brand: "",
-    name: "",
-    serving_size: "",
-    servings_per_container: "1",
-    calories: "",
-    protein: "",
-    carbs: "",
-    fat: "",
-    fiber: "",
-    sugar: "",
-    sodium: "",
+    brand: editFood?.brand || "",
+    name: editFood?.name || "",
+    serving_size: editFood?.serving_size || "",
+    servings_per_container: String(editFood?.servings_per_container ?? "1"),
+    calories: editFood?.calories != null ? String(editFood.calories) : "",
+    protein: editFood?.protein != null ? String(editFood.protein) : "",
+    carbs: editFood?.carbs != null ? String(editFood.carbs) : "",
+    fat: editFood?.fat != null ? String(editFood.fat) : "",
+    fiber: editFood?.fiber != null ? String(editFood.fiber) : "",
+    sugar: editFood?.sugar != null ? String(editFood.sugar) : "",
+    sodium: editFood?.sodium != null ? String(editFood.sodium) : "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
