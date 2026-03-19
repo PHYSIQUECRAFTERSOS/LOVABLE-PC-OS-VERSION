@@ -113,7 +113,7 @@ const Support = () => {
           <CardContent>
             {sent ? (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <CheckCircle2 className="h-12 w-12 text-green-500" />
+                <CheckCircle2 className="h-12 w-12 text-primary" />
                 <h3 className="text-lg font-semibold text-foreground">Message Sent!</h3>
                 <p className="text-sm text-muted-foreground">
                   We typically respond within 24 hours. Check your email for a reply.
