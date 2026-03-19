@@ -812,15 +812,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (showCreateFood) {
-    return (
-      <CreateFoodScreen
-        onClose={() => { setShowCreateFood(false); setEditingCustomFood(null); }}
-        onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
-        editFood={editingCustomFood}
-      />
-    );
-  }
+  // CreateFoodScreen is now a dialog, rendered inline below - not a sub-screen
 
   if (selectedPCRecipe) {
     return (
