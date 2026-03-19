@@ -460,44 +460,61 @@ const CheckinSubmissionDashboard = () => {
         </Card>
       </div>
 
-      {/* ── Completed Summary ── */}
+      {/* ── Finished Check-In Review ── */}
       {totalSubmitted > 0 && (
         <Card className="mt-4 border-primary/20">
           <CardContent className="py-3">
-            <div
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => setCompletedExpanded(!completedExpanded)}
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Reviews Completed</span>
-                  <span className="text-xs text-muted-foreground">
-                    {reviewedCount}/{totalSubmitted}
-                  </span>
-                </div>
-                <Progress value={reviewProgress} className="h-2" />
-              </div>
-              {completedExpanded ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Finished Check-In Review</span>
+              <span className="text-xs text-muted-foreground">
+                {reviewedCount}/{totalSubmitted}
+              </span>
             </div>
-            {completedExpanded && reviewedClients.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-border space-y-1">
+            <Progress value={reviewProgress} className="h-2 mb-3" />
+            {reviewedClients.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No reviews completed yet — check off clients above.
+              </p>
+            ) : (
+              <div className="space-y-1">
                 {reviewedClients.map((c) => (
-                  <div key={c.clientId} className="flex items-center gap-2 py-1 px-2 opacity-60">
-                    <UserAvatar src={c.avatarUrl} name={c.clientName} className="h-5 w-5" />
-                    <span className="text-xs text-foreground line-through truncate">{c.clientName}</span>
-                    {c.reviewerName && (
-                      <span
-                        className="text-[8px] px-1 py-0.5 rounded-full font-semibold ml-auto shrink-0"
-                        style={{ backgroundColor: (c.reviewerColor || "#888") + "33", color: c.reviewerColor || undefined }}
-                      >
-                        {c.reviewerName}
-                      </span>
-                    )}
+                  <div
+                    key={c.clientId}
+                    className="flex items-center gap-2 py-2 px-2 rounded hover:bg-secondary/50 transition-colors"
+                    style={{ borderLeft: c.reviewerColor ? `3px solid ${c.reviewerColor}` : undefined }}
+                  >
+                    <Checkbox
+                      checked={true}
+                      onCheckedChange={() => {
+                        if (!c.submissionId) return;
+                        markReviewed.mutate({ submissionId: c.submissionId, reviewed: false });
+                      }}
+                      className="shrink-0"
+                    />
+                    <div
+                      className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                      onClick={() => navigate(`/clients/${c.clientId}?tab=checkin`)}
+                    >
+                      <UserAvatar src={c.avatarUrl} name={c.clientName} className="h-7 w-7" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm text-foreground truncate line-through opacity-60">
+                            {c.clientName}
+                          </p>
+                          {c.reviewerName && (
+                            <span
+                              className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0"
+                              style={{ backgroundColor: (c.reviewerColor || "#888") + "33", color: c.reviewerColor || undefined }}
+                            >
+                              {c.reviewerName}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">{c.formattedTime}</span>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   </div>
                 ))}
               </div>
