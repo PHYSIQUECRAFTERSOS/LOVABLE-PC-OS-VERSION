@@ -379,9 +379,10 @@ const CheckinSubmissionDashboard = () => {
       <div className={`grid grid-cols-1 gap-4 ${buckets.length + 1 <= 3 ? `lg:grid-cols-${buckets.length + 1}` : "lg:grid-cols-4"}`}
         style={{ gridTemplateColumns: `repeat(${Math.min(buckets.length + 1, 4)}, minmax(0, 1fr))` }}
       >
-        {/* Dynamic submission day columns */}
+        {/* Dynamic submission day columns — hide reviewed clients */}
         {buckets.map((bucket, idx) => {
           const style = COLUMN_STYLES[idx % COLUMN_STYLES.length];
+          const unreviewedClients = bucket.clients.filter(c => !isClientReviewed(c));
           return (
             <SubmissionColumn
               key={bucket.config.id}
@@ -389,8 +390,8 @@ const CheckinSubmissionDashboard = () => {
               icon={style.icon}
               borderClass={style.borderClass}
               badgeColor={style.badgeColor}
-              clients={bucket.clients}
-              reviewedCount={getColumnReviewedCount(bucket.clients)}
+              clients={unreviewedClients}
+              reviewedCount={0}
               navigate={navigate}
               isClientReviewed={isClientReviewed}
               onToggleReview={(client) => {
