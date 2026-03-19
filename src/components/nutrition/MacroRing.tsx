@@ -15,8 +15,8 @@ const MacroRing = ({ label, current, target, color, unit = "g" }: MacroRingProps
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center gap-1 min-w-0">
-      <div className="relative h-[72px] w-[72px] sm:h-20 sm:w-20">
+    <div className="flex flex-col items-center gap-1 min-w-0 w-full">
+      <div className="relative w-full aspect-square max-w-[80px]">
         <svg className="h-full w-full -rotate-90" viewBox="0 0 80 80">
           <circle
             cx="40" cy="40" r={radius}
@@ -40,7 +40,7 @@ const MacroRing = ({ label, current, target, color, unit = "g" }: MacroRingProps
           <span className="text-[9px] sm:text-[10px] text-muted-foreground">/ {target}</span>
         </div>
       </div>
-      <span className="text-[10px] sm:text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate max-w-full">{label}</span>
     </div>
   );
 };

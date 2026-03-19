@@ -44,10 +44,10 @@ const MacroSummary = () => {
   const { totals, targets } = data || { totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }, targets: { calories: 2000, protein: 150, carbs: 200, fat: 70 } };
 
   return (
-    <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5" /> Macros Today</CardTitle></CardHeader>
+    <Card className="overflow-hidden">
+      <CardHeader><CardTitle className="flex items-center gap-2"><UtensilsCrossed className="h-5 w-5 shrink-0" /> Macros Today</CardTitle></CardHeader>
       <CardContent>
-        <div className="flex justify-around">
+        <div className="grid grid-cols-4 gap-2">
           <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
           <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(0 70% 55%)" />
           <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(200 70% 55%)" />

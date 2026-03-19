@@ -24,14 +24,14 @@ const ComplianceMomentum = ({ data }: ComplianceMomentumProps) => {
     : 0;
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            30-Day Compliance
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2 min-w-0">
+            <BarChart3 className="h-4 w-4 shrink-0" />
+            <span className="truncate">30-Day Compliance</span>
           </CardTitle>
-          <span className="text-sm font-bold text-foreground">{avgScore}% avg</span>
+          <span className="text-sm font-bold text-foreground shrink-0">{avgScore}% avg</span>
         </div>
       </CardHeader>
       <CardContent>

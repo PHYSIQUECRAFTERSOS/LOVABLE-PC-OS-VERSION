@@ -108,7 +108,7 @@ const ProgressMomentum = () => {
   ];
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           Progress Momentum
@@ -116,17 +116,17 @@ const ProgressMomentum = () => {
       </CardHeader>
       <CardContent className="space-y-3">
         {metrics.map((m, i) => (
-          <div key={i} className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-muted-foreground">
+          <div key={i} className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-muted-foreground min-w-0 shrink-0">
               {m.icon}
-              <span className="text-xs">{m.label}</span>
+              <span className="text-xs whitespace-nowrap">{m.label}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm font-bold text-foreground">{m.value}</span>
-              {m.sub && <span className="text-xs text-muted-foreground">{m.sub}</span>}
-              {m.trend === "up" && <TrendingUp className="h-3.5 w-3.5 text-green-500" />}
-              {m.trend === "down" && <TrendingDown className="h-3.5 w-3.5 text-red-400" />}
-              {m.trend === "flat" && <Minus className="h-3.5 w-3.5 text-yellow-500" />}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-sm font-bold text-foreground whitespace-nowrap">{m.value}</span>
+              {m.sub && <span className="text-xs text-muted-foreground whitespace-nowrap">{m.sub}</span>}
+              {m.trend === "up" && <TrendingUp className="h-3.5 w-3.5 text-green-500 shrink-0" />}
+              {m.trend === "down" && <TrendingDown className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+              {m.trend === "flat" && <Minus className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
             </div>
           </div>
         ))}
