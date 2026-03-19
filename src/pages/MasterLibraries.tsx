@@ -33,6 +33,7 @@ import ExerciseLibrary from "@/components/libraries/ExerciseLibrary";
 import { format } from "date-fns";
 import MealPlanTemplateLibrary from "@/components/nutrition/MealPlanTemplateLibrary";
 import PCRecipeLibrary from "@/components/nutrition/PCRecipeLibrary";
+import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
