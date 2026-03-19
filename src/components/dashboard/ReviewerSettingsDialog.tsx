@@ -405,8 +405,38 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
         <div className="space-y-2">
           <Label className="text-sm font-medium">Client Assignments</Label>
           <p className="text-xs text-muted-foreground">Assign each client to a reviewer for color coding.</p>
+
+          {/* Coach filter for admins */}
+          {role === "admin" && coaches.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              <button
+                onClick={() => setCoachFilter("all")}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                  coachFilter === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                }`}
+              >
+                All
+              </button>
+              {coaches.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCoachFilter(c.id)}
+                  className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                    coachFilter === c.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {c.name?.split(" ")[0] || "Coach"}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-1.5 max-h-60 overflow-y-auto">
-            {clientAssignments.map((ca) => (
+            {filteredAssignments.map((ca) => (
               <div key={ca.client_id} className="flex items-center gap-2 py-1.5">
                 <UserAvatar src={ca.avatar_url} name={ca.full_name} className="h-6 w-6" />
                 <span className="text-sm flex-1 truncate">{ca.full_name}</span>
@@ -436,6 +466,9 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
                 </Select>
               </div>
             ))}
+            {filteredAssignments.length === 0 && (
+              <p className="text-xs text-muted-foreground py-3 text-center">No clients found.</p>
+            )}
           </div>
         </div>
       </DialogContent>
