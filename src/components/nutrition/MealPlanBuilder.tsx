@@ -627,6 +627,8 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             protein: Math.round((food.protein_per_100 * food.gram_amount) / 100),
             carbs: Math.round((food.carbs_per_100 * food.gram_amount) / 100),
             fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
+            serving_unit: food.serving_unit || "g",
+            serving_size: food.serving_size_g || food.gram_amount || 100,
             item_order: fi,
             meal_order: mi,
           }))
