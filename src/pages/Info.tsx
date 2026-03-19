@@ -161,6 +161,7 @@ const Info = () => {
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 text-center text-xs text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
           <span>© {new Date().getFullYear()} Physique Crafters LLC. All rights reserved.</span>
           <div className="flex gap-5">
+            <Link to="/pricing" className="hover:text-foreground transition-colors">Programs & Pricing</Link>
             <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
             <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
             <Link to="/support" className="hover:text-foreground transition-colors">Support</Link>

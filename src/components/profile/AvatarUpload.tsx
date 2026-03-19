@@ -174,7 +174,7 @@ const AvatarUpload = ({ currentUrl, fullName, onUploaded }: AvatarUploadProps) =
           variant="outline"
           size="sm"
           onClick={() => {
-            try { inputRef.current?.click(); } catch (e) { console.warn("[AvatarUpload] File picker error:", e); }
+            try { setTimeout(() => { try { inputRef.current?.click(); } catch (e) { console.warn("[AvatarUpload] File picker error:", e); } }, 0); } catch (e) { console.warn("[AvatarUpload] File picker error:", e); }
           }}
           disabled={uploading}
           className="gap-2"

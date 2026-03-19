@@ -89,7 +89,7 @@ const ProgressPhotoUpload = ({ onUploaded }: { onUploaded?: () => void }) => {
         />
 
         <Button
-          onClick={() => fileRef.current?.click()}
+          onClick={() => { try { setTimeout(() => fileRef.current?.click(), 0); } catch (e) { console.warn("[ProgressPhoto] File picker error:", e); } }}
           disabled={uploading}
           variant="outline"
           className="w-full gap-2"

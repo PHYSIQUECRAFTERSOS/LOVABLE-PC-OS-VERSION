@@ -164,7 +164,7 @@ const OnboardingTrainingEnv = ({ data, updateField, validationErrors }: Props) =
               ))}
 
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => { try { setTimeout(() => fileInputRef.current?.click(), 0); } catch (e) { console.warn("[TrainingEnv] picker error:", e); } }}
                 className="aspect-square rounded-lg border-2 border-dashed border-border bg-card hover:border-muted-foreground/30 flex flex-col items-center justify-center gap-1 transition-colors"
               >
                 <Camera className="h-5 w-5 text-muted-foreground" />
