@@ -805,8 +805,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   if (showCreateFood) {
     return (
       <CreateFoodScreen
-        onClose={() => setShowCreateFood(false)}
-        onSaved={() => { setShowCreateFood(false); fetchCustomFoods(); }}
+        onClose={() => { setShowCreateFood(false); setEditingCustomFood(null); }}
+        onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
+        editFood={editingCustomFood}
       />
     );
   }
