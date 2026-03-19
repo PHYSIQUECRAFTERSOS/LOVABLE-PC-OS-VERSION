@@ -364,7 +364,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     const loadExtended = async () => {
       const [actionsRes, photosRes, targetsRes, todayLogsRes, weight30Res, workouts7Res, compliance7Res] =
         await Promise.all([
-          supabase.from("calendar_events").select("id, event_type, title, is_completed")
+          supabase.from("calendar_events").select("id, event_type, title, is_completed, linked_workout_id, event_date, description, notes, event_time, end_time, is_recurring, recurrence_pattern, color, completed_at")
             .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`).eq("event_date", selectedDateStr),
           supabase.from("progress_photos").select("id, storage_path, created_at")
             .eq("client_id", clientId).order("created_at", { ascending: false }).limit(3),
