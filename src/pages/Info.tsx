@@ -23,7 +23,6 @@ const screenshots = [
   { src: "/screenshots/iphone-2.png", alt: "Workout logging with rest timer" },
   { src: "/screenshots/iphone-3.png", alt: "Weight tracking transformation" },
   { src: "/screenshots/iphone-4.png", alt: "Weekly schedule planned by coach" },
-  { src: "/screenshots/iphone-5.png", alt: "Direct coach messaging" },
 ];
 
 const Info = () => {
@@ -151,7 +150,6 @@ const Info = () => {
               </Button>
             </a>
             <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No commitment</span>
               <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Application-based</span>
             </div>
           </div>
