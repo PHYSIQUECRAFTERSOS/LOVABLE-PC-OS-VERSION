@@ -19,10 +19,11 @@ const features = [
 ];
 
 const screenshots = [
-  { src: "/screenshots/screenshot-narrow.png", alt: "App dashboard view" },
-  { src: "/screenshots/screenshot-1.png", alt: "Training view" },
-  { src: "/screenshots/screenshot-2.png", alt: "Nutrition tracking" },
-  { src: "/screenshots/screenshot-wide.png", alt: "Progress tracking" },
+  { src: "/screenshots/iphone-1.png", alt: "Coach's plan delivered daily" },
+  { src: "/screenshots/iphone-2.png", alt: "Workout logging with rest timer" },
+  { src: "/screenshots/iphone-3.png", alt: "Weight tracking transformation" },
+  { src: "/screenshots/iphone-4.png", alt: "Weekly schedule planned by coach" },
+  { src: "/screenshots/iphone-5.png", alt: "Direct coach messaging" },
 ];
 
 const Info = () => {
@@ -68,15 +69,13 @@ const Info = () => {
         </div>
 
         {/* Phone mockup */}
-        <div className="mx-auto mt-14 max-w-xs">
-          <div className="rounded-[2.5rem] border-[3px] border-border/60 bg-card p-2 shadow-2xl shadow-primary/5">
-            <img
-              src="/screenshots/screenshot-narrow.png"
-              alt="Physique Crafters app preview"
-              className="w-full rounded-[2rem]"
-              loading="eager"
-            />
-          </div>
+        <div className="mx-auto mt-14 max-w-[280px]">
+          <img
+            src="/screenshots/iphone-1.png"
+            alt="Physique Crafters app preview"
+            className="w-full rounded-2xl shadow-2xl shadow-primary/10"
+            loading="eager"
+          />
         </div>
       </section>
 
@@ -128,12 +127,10 @@ const Info = () => {
       <section className="border-t border-border/40 bg-card/50 px-5 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-2xl font-bold md:text-3xl">See It in Action</h2>
-          <div className="mt-10 flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+          <div className="mt-10 flex gap-5 overflow-x-auto pb-4 no-scrollbar justify-start">
             {screenshots.map((s) => (
-              <div key={s.alt} className="flex-shrink-0">
-                <div className="w-56 rounded-2xl border border-border/40 bg-card p-1.5 shadow-lg md:w-64">
-                  <img src={s.src} alt={s.alt} className="w-full rounded-xl" loading="lazy" />
-                </div>
+              <div key={s.alt} className="flex-shrink-0 w-52 md:w-60">
+                <img src={s.src} alt={s.alt} className="w-full rounded-xl shadow-lg" loading="lazy" />
               </div>
             ))}
           </div>
