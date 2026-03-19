@@ -92,7 +92,7 @@ const Progress = () => {
 
           <TabsContent value="forms" className="space-y-6 mt-4">
             {isCoach ? (
-              <CheckinFormBuilder />
+              <StandaloneFormBuilder />
             ) : (
               <CheckinSubmissionForm />
             )}
