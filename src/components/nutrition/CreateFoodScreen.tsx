@@ -127,7 +127,7 @@ const CreateFoodScreen = ({ onClose, onSaved, editFood }: CreateFoodScreenProps)
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
-        <h1 className="flex-1 text-center text-base font-semibold text-foreground">Create Food</h1>
+        <h1 className="flex-1 text-center text-base font-semibold text-foreground">{editFood ? "Edit Food" : "Create Food"}</h1>
         <button
           onClick={handleSave}
           disabled={saving}
