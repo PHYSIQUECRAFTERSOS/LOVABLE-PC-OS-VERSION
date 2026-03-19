@@ -728,7 +728,30 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           <CardHeader className="pb-3"><CardTitle className="text-sm">{isToday(selectedDate) ? "Today's Actions" : `Actions — ${format(selectedDate, "MMM d")}`}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {actions.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 py-1.5">
+              <button
+                key={a.id}
+                onClick={() => {
+                  const calEvent: CalendarEvent = {
+                    id: a.id,
+                    title: a.title,
+                    event_date: a.event_date || selectedDateStr,
+                    event_type: a.event_type,
+                    is_completed: a.is_completed,
+                    color: a.color || null,
+                    event_time: a.event_time || null,
+                    end_time: a.end_time || null,
+                    description: a.description || null,
+                    notes: a.notes || null,
+                    linked_workout_id: a.linked_workout_id || null,
+                    is_recurring: a.is_recurring || false,
+                    recurrence_pattern: a.recurrence_pattern || null,
+                    completed_at: a.completed_at || null,
+                  };
+                  setSelectedAction(calEvent);
+                  setShowEventDetail(true);
+                }}
+                className="flex items-center gap-3 py-1.5 w-full text-left hover:bg-secondary/50 rounded-md px-2 -mx-2 transition-colors"
+              >
                 {a.is_completed ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" /> : <Circle className="h-5 w-5 text-muted-foreground shrink-0" />}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {a.event_type === "workout" && <Dumbbell className="h-3.5 w-3.5 text-primary shrink-0" />}
@@ -736,11 +759,34 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                   {a.event_type === "photo" && <Camera className="h-3.5 w-3.5 text-primary shrink-0" />}
                   <span className="text-sm text-foreground truncate">{a.title}</span>
                 </div>
-              </div>
+              </button>
             ))}
           </CardContent>
         </Card>
       )}
+
+      {/* Event Detail Modal */}
+      <EventDetailModal
+        event={selectedAction}
+        open={showEventDetail}
+        onClose={() => { setShowEventDetail(false); setSelectedAction(null); }}
+        onComplete={async (ev) => {
+          const { error } = await supabase.from("calendar_events").update({ is_completed: true, completed_at: new Date().toISOString() }).eq("id", ev.id);
+          if (error) { toast.error("Failed to mark complete"); return; }
+          setActions(prev => prev.map(a => a.id === ev.id ? { ...a, is_completed: true } : a));
+          setShowEventDetail(false);
+          setSelectedAction(null);
+        }}
+        onDelete={async (ev) => {
+          const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
+          if (error) { toast.error("Failed to delete event"); return; }
+          setActions(prev => prev.filter(a => a.id !== ev.id));
+          setShowEventDetail(false);
+          setSelectedAction(null);
+        }}
+        isCoach={true}
+        clientId={clientId}
+      />
 
       {/* ── Client Stats Row ── */}
       <div className="grid gap-4 md:grid-cols-3">
