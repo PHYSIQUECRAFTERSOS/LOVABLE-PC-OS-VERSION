@@ -159,6 +159,16 @@ const CheckinSubmissionForm = () => {
 
       const { error: rErr } = await supabase.from("checkin_responses").insert(responses);
       if (rErr) throw rErr;
+
+      // Mark calendar check-in event as completed for today
+      const today = new Date().toLocaleDateString("en-CA");
+      await supabase
+        .from("calendar_events")
+        .update({ is_completed: true, completed_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("event_date", today)
+        .eq("event_type", "checkin")
+        .eq("is_completed", false);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-checkin-assignments"] });
