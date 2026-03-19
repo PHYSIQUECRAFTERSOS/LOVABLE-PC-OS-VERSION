@@ -173,9 +173,12 @@ const CheckinSubmissionForm = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-checkin-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["today-actions"] });
       toast({ title: "Check-in submitted ✅" });
       if (user?.id) {
         triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Check-in submitted").catch(console.error);
+        invalidateCache(`today-actions-${user.id}-${new Date().toLocaleDateString("en-CA")}`);
       }
       setActiveAssignment(null);
       setAnswers({});

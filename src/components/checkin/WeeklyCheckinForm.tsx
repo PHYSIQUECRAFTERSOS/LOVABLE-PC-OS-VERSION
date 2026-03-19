@@ -196,9 +196,12 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["weekly-checkin-status"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["today-actions"] });
       toast({ title: "Check-in submitted! 💪" });
       if (user?.id) {
         triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Weekly check-in submitted").catch(console.error);
+        invalidateCache(`today-actions-${user.id}-${new Date().toLocaleDateString("en-CA")}`);
       }
       setSubmitted(true);
       onSubmitted?.();
