@@ -62,7 +62,7 @@ const UpcomingEvents = () => {
   if (loading || events.length === 0) return null;
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <CalendarDays className="h-4 w-4" />
