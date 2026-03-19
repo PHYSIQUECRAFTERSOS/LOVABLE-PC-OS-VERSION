@@ -325,18 +325,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
               name: mealName,
               foods: groupItems.map((item: any) => {
                 const fi = item.food_items as any;
-                const ss = fi?.serving_size || 100;
-                const unit = fi?.serving_unit || "g";
+                const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
+                const unit = fi?.serving_unit || item.serving_unit || "g";
+                const ga = item.gram_amount || ss;
                 return {
                   id: uid(),
                   food_item_id: item.food_item_id || "",
                   food_name: item.custom_name || fi?.name || "Unknown",
                   brand: fi?.brand || null,
-                  gram_amount: item.gram_amount || ss,
-                  cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / (item.gram_amount || 100)) * 100,
-                  protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / (item.gram_amount || 100)) * 100,
-                  carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / (item.gram_amount || 100)) * 100,
-                  fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
+                  gram_amount: ga,
+                  cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / Math.max(ga, 1)) * 100,
+                  protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / Math.max(ga, 1)) * 100,
+                  carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / Math.max(ga, 1)) * 100,
+                  fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / Math.max(ga, 1)) * 100,
                   fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                   sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                   serving_unit: unit,
