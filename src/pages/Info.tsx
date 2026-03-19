@@ -69,15 +69,13 @@ const Info = () => {
         </div>
 
         {/* Phone mockup */}
-        <div className="mx-auto mt-14 max-w-xs">
-          <div className="rounded-[2.5rem] border-[3px] border-border/60 bg-card p-2 shadow-2xl shadow-primary/5">
-            <img
-              src="/screenshots/screenshot-narrow.png"
-              alt="Physique Crafters app preview"
-              className="w-full rounded-[2rem]"
-              loading="eager"
-            />
-          </div>
+        <div className="mx-auto mt-14 max-w-[280px]">
+          <img
+            src="/screenshots/iphone-1.png"
+            alt="Physique Crafters app preview"
+            className="w-full rounded-2xl shadow-2xl shadow-primary/10"
+            loading="eager"
+          />
         </div>
       </section>
 
