@@ -39,25 +39,25 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
   return (
     <button
       onClick={onClick}
-      className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30 w-full"
+      className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 w-full overflow-hidden"
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <Scale className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">Current Weight</span>
+        <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="text-xs text-muted-foreground truncate">Current Weight</span>
       </div>
       {loading ? (
         <div className="h-7 w-20 bg-muted animate-pulse rounded" />
       ) : latest ? (
         <>
-          <div className="text-xl font-bold text-foreground tabular-nums">
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
             {latest.weight} lbs
           </div>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
               As of {format(new Date(latest.logged_at + "T00:00:00"), "MMM d")}
             </span>
             {diff !== null && diff !== 0 ? (
-              <span className={`text-[10px] font-medium flex items-center gap-0.5 ${diff > 0 ? "text-red-400" : "text-green-400"}`}>
+              <span className={`text-[10px] font-medium flex items-center gap-0.5 whitespace-nowrap ${diff > 0 ? "text-red-400" : "text-green-400"}`}>
                 {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {diff > 0 ? "+" : ""}{diff} lbs
               </span>

@@ -28,18 +28,18 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
         : 1.0;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      {/* Hero badge centered */}
+    <div className="rounded-xl border border-border bg-card p-4 sm:p-5 space-y-4 overflow-hidden">
+      {/* Hero badge centered — full width */}
       <div className="flex justify-center">
-        <div className="w-full max-w-[240px] aspect-square flex items-center justify-center overflow-hidden mx-auto">
-          <TierBadge tier={profile.current_tier} size={240} />
+        <div className="w-full max-w-[320px] aspect-[4/3] flex items-center justify-center overflow-hidden mx-auto">
+          <TierBadge tier={profile.current_tier} size={320} />
         </div>
       </div>
       {/* Info row */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
           <h2
-            className="text-xl font-bold tracking-tight"
+            className="text-xl font-bold tracking-tight truncate"
             style={{ color: tierColor }}
           >
             {label}
@@ -48,8 +48,8 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
             #{profile.position} of {profile.totalPlayers}
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-lg font-bold text-foreground">
+        <div className="text-right shrink-0">
+          <p className="text-lg font-bold text-foreground tabular-nums">
             {profile.total_xp.toLocaleString()} XP
           </p>
         </div>
@@ -58,9 +58,9 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
       {/* XP Progress Bar */}
       {profile.current_tier !== "champion" && (
         <div className="space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Division Progress</span>
-            <span>
+          <div className="flex justify-between text-xs text-muted-foreground gap-2">
+            <span className="shrink-0">Division Progress</span>
+            <span className="shrink-0 tabular-nums">
               {divisionXP} / {xpNeeded} XP
             </span>
           </div>
@@ -74,17 +74,17 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
       )}
 
       {/* Streak + Multiplier */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
         <div className="flex items-center gap-1.5">
-          <Flame className="h-4 w-4 text-orange-500" />
-          <span className="text-sm font-semibold">
+          <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+          <span className="text-sm font-semibold whitespace-nowrap">
             {profile.current_streak} day streak
           </span>
         </div>
         {multiplier > 1 && (
           <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1">
-            <TrendingUp className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-bold text-primary">
+            <TrendingUp className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span className="text-xs font-bold text-primary whitespace-nowrap">
               {multiplier}x Bonus
             </span>
           </div>
