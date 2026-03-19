@@ -552,7 +552,7 @@ const CoachCommandCenter = () => {
                     size="sm"
                     variant="ghost"
                     className="h-7 px-2 text-xs text-destructive hover:text-destructive/80"
-                    onClick={() => navigate("/messages")}
+                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: "" })}
                   >
                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                     Check In
