@@ -34,6 +34,7 @@ import DeleteAccount from "./pages/DeleteAccount";
 import Support from "./pages/Support";
 import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
+import Info from "./pages/Info";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 
@@ -69,6 +70,7 @@ const App = () => (
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/info" element={<Info />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
