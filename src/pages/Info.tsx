@@ -150,7 +150,6 @@ const Info = () => {
               </Button>
             </a>
             <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No commitment</span>
               <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Application-based</span>
             </div>
           </div>
