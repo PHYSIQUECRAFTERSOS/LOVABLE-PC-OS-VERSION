@@ -54,6 +54,30 @@ const CheckinSubmissionForm = () => {
     return new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles" });
   };
 
+  // Fetch assignments - also check coach's default template
+  const { data: coachDefaultTemplateId } = useQuery({
+    queryKey: ["resolved-checkin-template", user?.id],
+    queryFn: async () => {
+      const { data: coachRel } = await supabase
+        .from("coach_clients")
+        .select("coach_id")
+        .eq("client_id", user!.id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (coachRel?.coach_id) {
+        const { data: prefs } = await supabase
+          .from("coach_checkin_preferences")
+          .select("default_template_id")
+          .eq("coach_id", coachRel.coach_id)
+          .maybeSingle();
+        if (prefs?.default_template_id) return prefs.default_template_id;
+      }
+      return null;
+    },
+    enabled: !!user,
+  });
+
   const { data: assignments } = useQuery({
     queryKey: ["client-checkin-assignments", user?.id],
     queryFn: async () => {

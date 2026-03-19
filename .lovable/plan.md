@@ -1,102 +1,122 @@
 
 
-# Adjustable Check-In Dashboard Days + Custom Form Builder
+# Physique Crafters — Transformation Operating System
 
-## What We're Building
+## Brand & Design System
+- Dark mode only with matte black background, subtle gold accents
+- Clean sans-serif typography, premium biotech aesthetic
+- Masculine, sharp, minimal navigation — no clutter
+- Tagline: "The Triple O Method" featured throughout
+- Custom icon set (no cartoonish icons)
 
-### Feature 1: Configurable Submission Day Columns (per coach)
+---
 
-Currently the dashboard hardcodes "Submitted Wednesday" and "Submitted Thursday" columns. We'll make each coach able to define flexible day buckets (1-4 columns), each with a custom label and day-of-week range.
+## Phase 1 — MVP (Core Platform)
 
-**Database**: New `coach_checkin_day_config` table:
-- `id`, `coach_id`, `label` (text, e.g. "Friday"), `day_of_week` (int, 0=Sun - 6=Sat), `sort_order`, `color_class` (optional, for border styling)
-- Default rows seeded for existing coaches: Wednesday (day 3) and Thursday (day 4)
-- RLS: coaches manage their own rows
+### 1. Authentication & Onboarding
+- Secure login/signup with email (Supabase Auth)
+- Role-based access: **Admin**, **Coach**, **Client**
+- Client onboarding flow with contract e-sign agreement
+- Coach invitation system (small team of 2-5 coaches)
 
-**Settings UI**: Add a "Submission Days" section inside the existing `ReviewerSettingsDialog` (gear icon). Coaches can:
-- Add/remove day columns (max 4)
-- Pick a day of week + label for each
-- Reorder them
+### 2. Coach Dashboard
+- Overview of all assigned clients with status indicators
+- Client compliance %, training streaks, macro adherence at a glance
+- Ability to assign/edit workouts and nutrition plans in real-time
+- Quick access to messaging and check-in reviews
 
-**Dashboard Logic** (`CheckinSubmissionDashboard.tsx`):
-- Fetch `coach_checkin_day_config` for the logged-in coach
-- If none exist, fall back to the current Wed/Thu defaults
-- Replace hardcoded `submittedWednesday`/`submittedThursday` with a dynamic array of buckets based on the coach's config
-- Submissions are sorted into buckets by matching the submission's PST day-of-week to the configured day. Submissions on earlier days go to the first matching bucket; later days to later buckets. "Not Submitted" remains the catch-all.
-- Column titles, icons, and colors are driven by the config
+### 3. Client Dashboard
+- Today's workout, macros remaining, daily check-in prompt
+- Progress stats (weight trend, streaks, compliance score)
+- Quick navigation to training, nutrition, and messaging
 
-### Feature 2: Enhanced Form Builder (New Standalone)
+### 4. Training System
+- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
+- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
+- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
+- **PR Tracking**: Automatic personal record detection per exercise
+- **Rest Timer**: Built-in countdown timer during workouts
+- **Templates**: Duplicate and assign workout templates, organize by periodization phases
+- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
+- **Progression Suggestions**: Automatic recommendations based on logged performance
 
-A new standalone form builder page/section with Google Forms-style question types.
+### 5. Nutrition System
+- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
+- **Meal Plan Builder** (Coach): Create and assign custom meal plans
+- **Food Database**: Searchable food database for quick logging
+- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
+- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
+- **Water & Supplement Tracking**: Daily water intake and supplement checklist
 
-**Question Types** (expanding existing `QUESTION_TYPES`):
-- Short answer (text, single line)
-- Paragraph (text, multi-line)
-- Multiple choice (radio, single select)
-- Checkbox (multi-select)
-- Dropdown (select)
-- Linear scale (1-5, 1-10, customizable range + labels)
-- Rating (star rating, 1-5)
-- Numeric entry (number input)
+### 6. Basic Biofeedback System
+- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
+- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
+- **Circumference Measurements**: Track body measurements over time
+- **Weight Tracking**: Daily/weekly weight with trend visualization
+- **Dashboard**: Charts showing trends over time for all biofeedback metrics
 
-No minimum character requirements. Unlimited questions. Each question has a required/not-required toggle.
+### 7. Messaging
+- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
+- **Message Read Receipts**: See when messages are read
+- **Broadcast Announcements**: Coach can send announcements to all clients
+- **Group Chat**: Team-wide or group conversations
 
-**Database changes**:
-- Add `question_type` values: `paragraph`, `checkbox`, `rating` to the existing `checkin_questions` table (already stores as text, no schema change needed)
-- Add `default_template_id` column to a new `coach_checkin_preferences` table (or reuse the day config table as a broader preferences table)
+### 8. Payments (Stripe Integration)
+- Payment plans and one-time purchases
+- Tiered membership options
+- Client payment status tracking
+- Revenue dashboard for admin
+- Cancellation request form (no auto-renewals)
 
-**Auto-assignment**: Add a `default_template_id` column to a `coach_checkin_preferences` table. When a client submits a check-in:
-- Look up their coach via `coach_clients`
-- Fetch the coach's `default_template_id` from preferences
-- If none set, fall back to the hardcoded `DEFAULT_TEMPLATE_ID`
-- The client's `WeeklyCheckinForm` and `CheckinSubmissionForm` both use this resolved template
+### 9. Admin Panel
+- View all coaches and clients
+- Retention rate, churn rate, compliance rate, engagement rate
+- Most active clients and at-risk client flagging
+- Send bulk notifications
+- Average program duration tracking
 
-**New Builder Component** (`src/components/checkin/StandaloneFormBuilder.tsx`):
-- Full-page form builder accessible from Progress > Forms (for coaches)
-- Google Forms-style drag-to-reorder questions
-- Live preview panel
-- "Set as Default" button to make it the coach's default template
-- Edit existing templates (load questions, modify, save)
+### 10. App Store Distribution
+- Capacitor wrapper for iOS and Android
+- App Store and Google Play submission-ready build
 
-**Isolation**: Each coach only sees their own templates. Clients only see questions from their coach's default (or assigned) template.
+---
 
-## Files to Create/Modify
+## Phase 2 — Advanced Features
 
-1. **Migration**: New `coach_checkin_preferences` table (`coach_id`, `default_template_id`, `submission_day_configs` or separate table), plus `coach_checkin_day_config` table
-2. **`src/components/dashboard/ReviewerSettingsDialog.tsx`**: Add "Submission Days" config section
-3. **`src/components/dashboard/CheckinSubmissionDashboard.tsx`**: Replace hardcoded Wed/Thu with dynamic day buckets from config
-4. **`src/components/checkin/StandaloneFormBuilder.tsx`**: New full-page builder with all question types
-5. **`src/components/checkin/WeeklyCheckinForm.tsx`**: Resolve template from coach preferences instead of hardcoded ID
-6. **`src/components/checkin/CheckinSubmissionForm.tsx`**: Same template resolution
-7. **`src/pages/Progress.tsx`**: Wire up new builder in the Forms tab for coaches
+### 11. Gamification & Identity System
+- Leaderboards (steps, workout streaks, compliance)
+- Streak tracking with visual indicators
+- Habit compliance scoring
+- Monthly challenge system
+- Badges and milestone unlocks
+- Transformation Levels 1–10 progression
+- Public recognition wall inside app
 
-## Technical Details
+### 12. Advanced Communication
+- Voice note messages
+- Video reply messages
+- Push notification reminders (Capacitor Push Notifications)
 
-### Day Config Table Schema
-```sql
-CREATE TABLE public.coach_checkin_day_config (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  coach_id uuid NOT NULL,
-  label text NOT NULL,
-  day_of_week integer NOT NULL, -- 0=Sun, 1=Mon...6=Sat
-  sort_order integer NOT NULL DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.coach_checkin_day_config ENABLE ROW LEVEL SECURITY;
-```
+### 13. Deep Analytics & Risk Flagging
+- Advanced trend analysis across all biofeedback metrics
+- Risk flag system: auto-flag clients when metrics drop
+- Detailed engagement scoring
+- Coach performance analytics
 
-### Preferences Table Schema
-```sql
-CREATE TABLE public.coach_checkin_preferences (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  coach_id uuid NOT NULL UNIQUE,
-  default_template_id uuid REFERENCES public.checkin_templates(id),
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE public.coach_checkin_preferences ENABLE ROW LEVEL SECURITY;
-```
+### 14. Apple Health Integration
+- Sync weight, steps, and sleep data from Apple Health
+- Step tracking leaderboard integration
 
-### Bucket Assignment Logic
-For each submission, find which configured day it falls on or closest-before. Example: if coach has Friday (5) and Saturday (6), a submission on Friday goes to "Friday" bucket, Saturday goes to "Saturday" bucket, Wednesday goes to earliest bucket.
+### 15. Barcode Scanner
+- Scan food barcodes for quick nutrition logging
+
+---
+
+## Technical Architecture
+- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
+- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
+- **Payments**: Stripe integration
+- **Real-time**: Supabase Realtime for live data sync and messaging
+- **Storage**: Supabase Storage for exercise videos, progress photos
+- **Multi-coach support**: Role-based access for admin, coaches, and clients
 
