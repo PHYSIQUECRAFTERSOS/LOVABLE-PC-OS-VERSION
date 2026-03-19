@@ -225,6 +225,12 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  // Filter clients by coach for admin
+  const filteredAssignments = useMemo(() => {
+    if (coachFilter === "all") return clientAssignments;
+    return clientAssignments.filter((ca: any) => ca.coach_id === coachFilter);
+  }, [clientAssignments, coachFilter]);
+
   // Add day config
   const addDayConfig = useMutation({
     mutationFn: async () => {
