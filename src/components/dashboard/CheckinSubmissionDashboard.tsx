@@ -124,7 +124,7 @@ const CheckinSubmissionDashboard = () => {
   const reactQueryClient = useQueryClient();
   const [realtimeKey, setRealtimeKey] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [completedExpanded, setCompletedExpanded] = useState(false);
+  const [_completedExpanded, _setCompletedExpanded] = useState(false); // unused, kept for hook order
   const [optimisticReviewed, setOptimisticReviewed] = useState<Record<string, boolean>>({});
 
   // Fetch coach day configs
