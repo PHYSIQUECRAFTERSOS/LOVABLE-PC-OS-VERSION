@@ -1,122 +1,40 @@
+# Marketing Landing Page at `/info`
 
+Create a public, unauthenticated marketing page at `https://app.physiquecrafters.com/info` that serves as the Apple App Store **Marketing URL**. Designed for conversion and Apple compliance.
 
-# Physique Crafters — Transformation Operating System
+## Page Structure
 
-## Brand & Design System
-- Dark mode only with matte black background, subtle gold accents
-- Clean sans-serif typography, premium biotech aesthetic
-- Masculine, sharp, minimal navigation — no clutter
-- Tagline: "The Triple O Method" featured throughout
-- Custom icon set (no cartoonish icons)
+A single-page scroll with these sections:
 
----
+1. **Hero** -- Bold headline ("Your Body. Your Coach. One App."), subtitle about personalized coaching, and a CTA button linking to my typeform where they can apply  [https://bit.ly/LOSETHEGUT](https://bit.ly/LOSETHEGUT) or `/auth` as fallback). Use the existing screenshots from `public/screenshots/` as a phone mockup visual.
+2. **How It Works** -- 3-step visual flow:
+  - Step 1: " Apply for coaching , must get accepted" -- Your coach sends you an invite
+  - Step 2: "Follow Your Plan" -- Workouts, nutrition, and check-ins assigned by your coach
+  - Step 3: "Track & Improve" -- Progress photos, body stats, and ranked challenges
+3. **Key Features** -- Grid of 6 feature cards with icons:
+  - Personalized Training Programs
+  - Nutrition Tracking & Meal Plans
+  - Progress Photos & Body Composition
+  - Direct Coach Messaging
+  - Weekly Check-Ins
+  - Ranked Challenges & Leaderboards
+4. **App Screenshots** -- Horizontal scrollable gallery using the existing screenshots in `public/screenshots/`
+5. **Footer** -- Links to Privacy Policy (`/privacy-policy`), Terms of Service (`/terms-of-service`), Support (`/support`), and copyright line for Physique Crafters LLC.
 
-## Phase 1 — MVP (Core Platform)
+## Technical Details
 
-### 1. Authentication & Onboarding
-- Secure login/signup with email (Supabase Auth)
-- Role-based access: **Admin**, **Coach**, **Client**
-- Client onboarding flow with contract e-sign agreement
-- Coach invitation system (small team of 2-5 coaches)
+### Files to create:
 
-### 2. Coach Dashboard
-- Overview of all assigned clients with status indicators
-- Client compliance %, training streaks, macro adherence at a glance
-- Ability to assign/edit workouts and nutrition plans in real-time
-- Quick access to messaging and check-in reviews
+- `**src/pages/Info.tsx**` -- The full marketing landing page. Public route, no auth required. Clean dark-themed design matching the app's existing color palette. Fully responsive (mobile-first for iPhone/iPad).
 
-### 3. Client Dashboard
-- Today's workout, macros remaining, daily check-in prompt
-- Progress stats (weight trend, streaks, compliance score)
-- Quick navigation to training, nutrition, and messaging
+### Files to modify:
 
-### 4. Training System
-- **Workout Builder** (Coach): Create custom workouts with exercises, sets, reps, tempo, RIR, rest periods, and notes
-- **Exercise Database**: Searchable library with uploaded video demos (Supabase Storage)
-- **Client Logging**: Log weight, reps, tempo, RIR per set with real-time sync to coach
-- **PR Tracking**: Automatic personal record detection per exercise
-- **Rest Timer**: Built-in countdown timer during workouts
-- **Templates**: Duplicate and assign workout templates, organize by periodization phases
-- **Exercise Swap Suggestions**: Coach can suggest alternative exercises
-- **Progression Suggestions**: Automatic recommendations based on logged performance
+- `**src/App.tsx**` -- Add `<Route path="/info" element={<Info />} />` as a public route (no `ProtectedRoute` wrapper).
 
-### 5. Nutrition System
-- **Macro Tracker**: Daily calorie/protein/carb/fat logging against targets
-- **Meal Plan Builder** (Coach): Create and assign custom meal plans
-- **Food Database**: Searchable food database for quick logging
-- **Coach Controls**: Push macro target updates instantly, toggle refeed/high days
-- **Compliance Tracking**: Weekly macro adherence %, average weekly intake view
-- **Water & Supplement Tracking**: Daily water intake and supplement checklist
+### Design approach:
 
-### 6. Basic Biofeedback System
-- **Weekly Check-In Form**: Weight, sleep, stress, energy, digestion, libido, mood ratings
-- **Progress Photos**: Secure upload and timeline view (Supabase Storage)
-- **Circumference Measurements**: Track body measurements over time
-- **Weight Tracking**: Daily/weekly weight with trend visualization
-- **Dashboard**: Charts showing trends over time for all biofeedback metrics
-
-### 7. Messaging
-- **In-App Chat**: Real-time 1-on-1 messaging between coach and client
-- **Message Read Receipts**: See when messages are read
-- **Broadcast Announcements**: Coach can send announcements to all clients
-- **Group Chat**: Team-wide or group conversations
-
-### 8. Payments (Stripe Integration)
-- Payment plans and one-time purchases
-- Tiered membership options
-- Client payment status tracking
-- Revenue dashboard for admin
-- Cancellation request form (no auto-renewals)
-
-### 9. Admin Panel
-- View all coaches and clients
-- Retention rate, churn rate, compliance rate, engagement rate
-- Most active clients and at-risk client flagging
-- Send bulk notifications
-- Average program duration tracking
-
-### 10. App Store Distribution
-- Capacitor wrapper for iOS and Android
-- App Store and Google Play submission-ready build
-
----
-
-## Phase 2 — Advanced Features
-
-### 11. Gamification & Identity System
-- Leaderboards (steps, workout streaks, compliance)
-- Streak tracking with visual indicators
-- Habit compliance scoring
-- Monthly challenge system
-- Badges and milestone unlocks
-- Transformation Levels 1–10 progression
-- Public recognition wall inside app
-
-### 12. Advanced Communication
-- Voice note messages
-- Video reply messages
-- Push notification reminders (Capacitor Push Notifications)
-
-### 13. Deep Analytics & Risk Flagging
-- Advanced trend analysis across all biofeedback metrics
-- Risk flag system: auto-flag clients when metrics drop
-- Detailed engagement scoring
-- Coach performance analytics
-
-### 14. Apple Health Integration
-- Sync weight, steps, and sleep data from Apple Health
-- Step tracking leaderboard integration
-
-### 15. Barcode Scanner
-- Scan food barcodes for quick nutrition logging
-
----
-
-## Technical Architecture
-- **Frontend**: React + TypeScript + Tailwind CSS (Capacitor for native)
-- **Backend**: Lovable Cloud (Supabase) — database, auth, storage, edge functions
-- **Payments**: Stripe integration
-- **Real-time**: Supabase Realtime for live data sync and messaging
-- **Storage**: Supabase Storage for exercise videos, progress photos
-- **Multi-coach support**: Role-based access for admin, coaches, and clients
-
+- Uses existing Tailwind theme tokens (`bg-background`, `text-foreground`, `text-primary`, etc.)
+- No external dependencies needed -- pure Tailwind + existing UI components (Button, Card)
+- Mobile-first responsive layout with `max-w-6xl` container
+- Screenshots displayed in rounded phone-frame style containers
+- Smooth scroll
