@@ -17,6 +17,7 @@ import { CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
+import { invalidateCache } from "@/hooks/useDataFetch";
 
 const CheckinSubmissionForm = () => {
   const { user } = useAuth();

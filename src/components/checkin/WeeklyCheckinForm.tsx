@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, CheckCircle, Loader2, Star } from "lucide-react";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
+import { invalidateCache } from "@/hooks/useDataFetch";
 
 const HARDCODED_FALLBACK_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
