@@ -211,7 +211,7 @@ const CheckinSubmissionDashboard = () => {
           .in("client_id", clientIds)
           .gte("submitted_at", `${mondayStr}T00:00:00`)
           .lte("submitted_at", `${sundayStr}T23:59:59`)
-          .eq("status", "submitted").abortSignal(signal),
+          .in("status", ["submitted", "reviewed"]).abortSignal(signal),
         supabase.from("profiles").select("user_id, full_name, avatar_url, timezone")
           .in("user_id", clientIds).abortSignal(signal),
       ]);
