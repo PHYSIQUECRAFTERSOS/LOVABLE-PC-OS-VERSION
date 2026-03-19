@@ -95,18 +95,53 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
     enabled: !!user && open,
   });
 
-  // Fetch clients + their assignments
-  const { data: clientAssignments = [] } = useQuery({
-    queryKey: ["client-reviewer-assignments", user?.id],
+  // Fetch all coaches (for admin filter)
+  const { data: coaches = [] } = useQuery({
+    queryKey: ["all-coaches-for-filter", user?.id],
     queryFn: async () => {
-      const { data: clients } = await supabase
+      // Get all coach_clients grouped by coach, then fetch coach profiles
+      const { data: coachClientRows } = await supabase
         .from("coach_clients")
-        .select("client_id")
-        .eq("coach_id", user!.id)
+        .select("coach_id")
         .eq("status", "active");
-      if (!clients?.length) return [];
+      const uniqueCoachIds = [...new Set((coachClientRows || []).map(r => r.coach_id))];
+      if (uniqueCoachIds.length === 0) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", uniqueCoachIds);
+      return (profiles || []).map(p => ({ id: p.user_id, name: p.full_name || "Coach" }));
+    },
+    enabled: !!user && open && role === "admin",
+  });
 
-      const clientIds = clients.map((c) => c.client_id);
+  // Fetch clients + their assignments (admin sees all, coach sees own)
+  const { data: clientAssignments = [] } = useQuery({
+    queryKey: ["client-reviewer-assignments", user?.id, role],
+    queryFn: async () => {
+      let clientRows: { client_id: string; coach_id: string }[] = [];
+
+      if (role === "admin") {
+        // Admin: fetch ALL active clients across all coaches
+        const { data } = await supabase
+          .from("coach_clients")
+          .select("client_id, coach_id")
+          .eq("status", "active");
+        clientRows = data || [];
+      } else {
+        // Coach: fetch only own clients
+        const { data } = await supabase
+          .from("coach_clients")
+          .select("client_id, coach_id")
+          .eq("coach_id", user!.id)
+          .eq("status", "active");
+        clientRows = data || [];
+      }
+
+      if (!clientRows.length) return [];
+
+      const clientIds = clientRows.map((c) => c.client_id);
+      const clientCoachMap = new Map(clientRows.map(c => [c.client_id, c.coach_id]));
 
       const [profilesRes, assignmentsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds),
@@ -123,8 +158,9 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
           full_name: p.full_name || "Client",
           avatar_url: p.avatar_url,
           reviewer_id: assignMap.get(p.user_id) || null,
+          coach_id: clientCoachMap.get(p.user_id) || null,
         }))
-        .sort((a, b) => a.full_name.localeCompare(b.full_name)) as ClientAssignment[];
+        .sort((a, b) => a.full_name.localeCompare(b.full_name)) as (ClientAssignment & { coach_id: string | null })[];
     },
     enabled: !!user && open,
   });
