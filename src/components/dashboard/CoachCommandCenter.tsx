@@ -786,6 +786,15 @@ const CoachCommandCenter = () => {
           <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
         </div>
       </div>
+
+      <QuickMessageDialog
+        open={!!quickMsgClient}
+        onOpenChange={(open) => { if (!open) setQuickMsgClient(null); }}
+        clientId={quickMsgClient?.id || ""}
+        clientName={quickMsgClient?.name || ""}
+        clientAvatar={quickMsgClient?.avatar}
+        prefillMessage={quickMsgClient?.prefill}
+      />
     </div>
   );
 };
