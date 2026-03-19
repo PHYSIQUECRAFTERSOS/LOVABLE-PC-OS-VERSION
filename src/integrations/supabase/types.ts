@@ -3569,6 +3569,8 @@ export type Database = {
           meal_plan_id: string
           meal_type: string
           protein: number
+          serving_size: number | null
+          serving_unit: string | null
           servings: number
         }
         Insert: {
@@ -3587,6 +3589,8 @@ export type Database = {
           meal_plan_id: string
           meal_type?: string
           protein?: number
+          serving_size?: number | null
+          serving_unit?: string | null
           servings?: number
         }
         Update: {
@@ -3605,6 +3609,8 @@ export type Database = {
           meal_plan_id?: string
           meal_type?: string
           protein?: number
+          serving_size?: number | null
+          serving_unit?: string | null
           servings?: number
         }
         Relationships: [

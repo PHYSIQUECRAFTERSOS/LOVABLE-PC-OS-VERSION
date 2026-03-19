@@ -220,18 +220,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                 name: mealName,
                 foods: groupItems.map((item: any) => {
                   const fi = item.food_items as any;
-                  const ss = Math.max(fi?.serving_size || 100, 1);
-                  const unit = fi?.serving_unit || "g";
+                  const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
+                  const unit = fi?.serving_unit || item.serving_unit || "g";
+                  const ga = item.gram_amount || ss;
                   return {
                     id: uid(),
                     food_item_id: item.food_item_id || "",
                     food_name: item.custom_name || fi?.name || "Unknown",
                     brand: fi?.brand || null,
-                    gram_amount: item.gram_amount || ss,
-                    cal_per_100: fi ? ((fi.calories || 0) / ss) * 100 : (item.calories / Math.max(item.gram_amount || 100, 1)) * 100,
-                    protein_per_100: fi ? ((fi.protein || 0) / ss) * 100 : (item.protein / Math.max(item.gram_amount || 100, 1)) * 100,
-                    carbs_per_100: fi ? ((fi.carbs || 0) / ss) * 100 : (item.carbs / Math.max(item.gram_amount || 100, 1)) * 100,
-                    fat_per_100: fi ? ((fi.fat || 0) / ss) * 100 : (item.fat / Math.max(item.gram_amount || 100, 1)) * 100,
+                    gram_amount: ga,
+                    cal_per_100: fi ? ((fi.calories || 0) / ss) * 100 : (item.calories / Math.max(ga, 1)) * 100,
+                    protein_per_100: fi ? ((fi.protein || 0) / ss) * 100 : (item.protein / Math.max(ga, 1)) * 100,
+                    carbs_per_100: fi ? ((fi.carbs || 0) / ss) * 100 : (item.carbs / Math.max(ga, 1)) * 100,
+                    fat_per_100: fi ? ((fi.fat || 0) / ss) * 100 : (item.fat / Math.max(ga, 1)) * 100,
                     fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                     sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                     serving_unit: unit,
@@ -325,18 +326,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
               name: mealName,
               foods: groupItems.map((item: any) => {
                 const fi = item.food_items as any;
-                const ss = fi?.serving_size || 100;
-                const unit = fi?.serving_unit || "g";
+                const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
+                const unit = fi?.serving_unit || item.serving_unit || "g";
+                const ga = item.gram_amount || ss;
                 return {
                   id: uid(),
                   food_item_id: item.food_item_id || "",
                   food_name: item.custom_name || fi?.name || "Unknown",
                   brand: fi?.brand || null,
-                  gram_amount: item.gram_amount || ss,
-                  cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / (item.gram_amount || 100)) * 100,
-                  protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / (item.gram_amount || 100)) * 100,
-                  carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / (item.gram_amount || 100)) * 100,
-                  fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / (item.gram_amount || 100)) * 100,
+                  gram_amount: ga,
+                  cal_per_100: fi ? (fi.calories / ss) * 100 : (item.calories / Math.max(ga, 1)) * 100,
+                  protein_per_100: fi ? (fi.protein / ss) * 100 : (item.protein / Math.max(ga, 1)) * 100,
+                  carbs_per_100: fi ? (fi.carbs / ss) * 100 : (item.carbs / Math.max(ga, 1)) * 100,
+                  fat_per_100: fi ? (fi.fat / ss) * 100 : (item.fat / Math.max(ga, 1)) * 100,
                   fiber_per_100: fi ? ((fi.fiber || 0) / ss) * 100 : 0,
                   sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                   serving_unit: unit,
@@ -368,18 +370,26 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
   // ... all the add/remove/rename/duplicate/grams handlers
   const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
-    const ss = Math.max(food.serving_size || 100, 1);
-    const unit = food.serving_unit || "g";
+    const rawSS = (food as any).serving_size ?? (food as any).serving_size_g ?? 100;
+    const ss = Math.max(typeof rawSS === 'string' ? parseFloat(rawSS) || 100 : rawSS || 100, 1);
+    const unit = (food as any).serving_unit || "g";
 
     // Use per-100g values directly if available (from foods table via search)
     // Otherwise compute from per-serving values with safe denominator
     const fr = food as any;
-    const cal_per_100 = fr.calories_per_100 != null ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100;
-    const protein_per_100 = fr.protein_per_100 != null ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100;
-    const carbs_per_100 = fr.carbs_per_100 != null ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100;
-    const fat_per_100 = fr.fat_per_100 != null ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100;
-    const fiber_per_100 = fr.fiber_per_100 != null ? fr.fiber_per_100 : ((food.fiber || 0) / ss) * 100;
-    const sugar_per_100 = fr.sugar_per_100 != null ? fr.sugar_per_100 : ((food.sugar || 0) / ss) * 100;
+    const hasPer100 = fr.calories_per_100 != null && fr.calories_per_100 > 0;
+    const cal_per_100 = hasPer100 ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100;
+    const protein_per_100 = (hasPer100 && fr.protein_per_100 != null) ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100;
+    const carbs_per_100 = (hasPer100 && fr.carbs_per_100 != null) ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100;
+    const fat_per_100 = (hasPer100 && fr.fat_per_100 != null) ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100;
+    const fiber_per_100 = (hasPer100 && fr.fiber_per_100 != null) ? fr.fiber_per_100 : ((food.fiber || 0) / ss) * 100;
+    const sugar_per_100 = (hasPer100 && fr.sugar_per_100 != null) ? fr.sugar_per_100 : ((food.sugar || 0) / ss) * 100;
+
+    // Sanity check: if computed calories seem unreasonable, log for debugging
+    const displayCal = Math.round(cal_per_100 * ss / 100);
+    if (displayCal > (food.calories || 0) * 1.5 && (food.calories || 0) > 0) {
+      console.warn("[MealPlan] Macro sanity check failed — recalculating. Expected ~", food.calories, "got", displayCal, "ss=", ss, "cal_per_100=", cal_per_100);
+    }
 
     setDays((prev) =>
       prev.map((d) =>
@@ -619,6 +629,8 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             protein: Math.round((food.protein_per_100 * food.gram_amount) / 100),
             carbs: Math.round((food.carbs_per_100 * food.gram_amount) / 100),
             fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
+            serving_unit: food.serving_unit || "g",
+            serving_size: food.serving_size_g || food.gram_amount || 100,
             item_order: fi,
             meal_order: mi,
           }))
