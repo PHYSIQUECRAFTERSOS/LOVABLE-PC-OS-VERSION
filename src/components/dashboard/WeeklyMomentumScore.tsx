@@ -51,10 +51,10 @@ const WeeklyMomentumScore = () => {
   const color = (score || 0) >= 80 ? "text-green-500" : (score || 0) >= 50 ? "text-yellow-500" : "text-red-400";
 
   return (
-    <Card className="bg-card">
+    <Card className="bg-card overflow-hidden">
       <CardContent className="flex items-center gap-3 py-4 px-4">
-        <Trophy className={cn("h-5 w-5", color)} />
-        <div>
+        <Trophy className={cn("h-5 w-5 shrink-0", color)} />
+        <div className="min-w-0">
           <p className="text-xs text-muted-foreground font-medium">Week Score</p>
           <p className={cn("text-lg font-bold", color)}>{score || 0}%</p>
         </div>

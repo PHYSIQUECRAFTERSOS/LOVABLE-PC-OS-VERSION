@@ -29,38 +29,30 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 sm:p-5 space-y-4 overflow-hidden">
-      {/* Hero badge centered — full width */}
-      <div className="flex justify-center">
-        <div className="w-full max-w-[320px] aspect-[4/3] flex items-center justify-center overflow-hidden mx-auto">
-          <TierBadge tier={profile.current_tier} size={320} />
-        </div>
+      {/* Hero badge — fills card width */}
+      <div className="w-full aspect-square max-w-full flex items-center justify-center overflow-hidden mx-auto">
+        <TierBadge tier={profile.current_tier} size={400} />
       </div>
+
       {/* Info row */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <h2
-            className="text-xl font-bold tracking-tight truncate"
-            style={{ color: tierColor }}
-          >
-            {label}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            #{profile.position} of {profile.totalPlayers}
-          </p>
-        </div>
-        <div className="text-right shrink-0">
-          <p className="text-lg font-bold text-foreground tabular-nums">
-            {profile.total_xp.toLocaleString()} XP
-          </p>
-        </div>
+      <div className="space-y-1">
+        <h2
+          className="text-xl sm:text-2xl font-bold tracking-tight"
+          style={{ color: tierColor }}
+        >
+          {label}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          #{profile.position} of {profile.totalPlayers}
+        </p>
       </div>
 
       {/* XP Progress Bar */}
       {profile.current_tier !== "champion" && (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-muted-foreground gap-2">
-            <span className="shrink-0">Division Progress</span>
-            <span className="shrink-0 tabular-nums">
+            <span>Division Progress</span>
+            <span className="tabular-nums">
               {divisionXP} / {xpNeeded} XP
             </span>
           </div>
