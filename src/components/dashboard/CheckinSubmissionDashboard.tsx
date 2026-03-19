@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import {
   ClipboardCheck, AlertTriangle, CheckCircle2, Clock,
-  CalendarClock, ArrowRight, Settings, ChevronDown, ChevronUp,
+  CalendarClock, ArrowRight, Settings,
 } from "lucide-react";
 import ReviewerSettingsDialog from "./ReviewerSettingsDialog";
 
