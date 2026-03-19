@@ -35,6 +35,7 @@ import Support from "./pages/Support";
 import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
 import Info from "./pages/Info";
+import Pricing from "./pages/Pricing";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 
