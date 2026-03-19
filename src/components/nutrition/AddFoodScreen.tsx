@@ -1094,7 +1094,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                         {food.brand && <span className="text-muted-foreground font-normal"> · {food.brand}</span>}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {food.serving_size} · {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
+                        {food.serving_size}{food.serving_unit && food.serving_unit !== 'g' ? food.serving_unit : 'g'} · {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
                       </div>
                     </button>
                     <div className="flex gap-1 ml-2">
