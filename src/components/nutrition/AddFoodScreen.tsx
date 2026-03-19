@@ -630,20 +630,29 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
-  const logCustomFood = async (food: any) => {
+  const logCustomFood = async (food: any, quantity?: number) => {
     if (!user) return;
+    const ss = parseFloat(food.serving_size) || 100;
+    const qty = quantity ?? 1;
+    const multiplier = qty;
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       custom_name: food.name + (food.brand ? ` (${food.brand})` : ""),
       meal_type: mealType,
-      servings: 1,
-      calories: Math.round(food.calories || 0),
-      protein: Math.round(food.protein || 0),
-      carbs: Math.round(food.carbs || 0),
-      fat: Math.round(food.fat || 0),
+      servings: multiplier,
+      calories: Math.round((food.calories || 0) * multiplier),
+      protein: Math.round((food.protein || 0) * multiplier),
+      carbs: Math.round((food.carbs || 0) * multiplier),
+      fat: Math.round((food.fat || 0) * multiplier),
+      fiber: Math.round((food.fiber || 0) * multiplier),
+      sugar: Math.round((food.sugar || 0) * multiplier),
+      sodium: Math.round((food.sodium || 0) * multiplier),
+      quantity_display: qty,
+      quantity_unit: food.serving_unit || "serving",
       logged_at: effectiveDate,
       tz_corrected: true,
-    });
+    } as any);
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
