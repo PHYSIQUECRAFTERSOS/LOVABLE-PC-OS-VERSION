@@ -25,6 +25,8 @@ import {
   CalendarClock,
   Clock,
 } from "lucide-react";
+import { useState } from "react";
+import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
 
 // ── Types ──
 
