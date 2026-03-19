@@ -127,12 +127,10 @@ const Info = () => {
       <section className="border-t border-border/40 bg-card/50 px-5 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-2xl font-bold md:text-3xl">See It in Action</h2>
-          <div className="mt-10 flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+          <div className="mt-10 flex gap-5 overflow-x-auto pb-4 no-scrollbar justify-start">
             {screenshots.map((s) => (
-              <div key={s.alt} className="flex-shrink-0">
-                <div className="w-56 rounded-2xl border border-border/40 bg-card p-1.5 shadow-lg md:w-64">
-                  <img src={s.src} alt={s.alt} className="w-full rounded-xl" loading="lazy" />
-                </div>
+              <div key={s.alt} className="flex-shrink-0 w-52 md:w-60">
+                <img src={s.src} alt={s.alt} className="w-full rounded-xl shadow-lg" loading="lazy" />
               </div>
             ))}
           </div>
