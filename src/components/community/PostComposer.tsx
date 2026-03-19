@@ -98,7 +98,7 @@ const PostComposer = ({ postType = "feed" }: PostComposerProps) => {
 
       <div className="flex items-center justify-between">
         <div className="flex gap-1">
-          <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileUpload} />
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm" className="hidden" onChange={handleFileUpload} />
           <Button
             variant="ghost"
             size="sm"

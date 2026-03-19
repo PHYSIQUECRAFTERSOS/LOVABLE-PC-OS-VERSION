@@ -52,7 +52,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  console.log("[AppLayout] Rendering with role:", role);
+  
 
   const handleSignOut = async () => {
     await signOut();
