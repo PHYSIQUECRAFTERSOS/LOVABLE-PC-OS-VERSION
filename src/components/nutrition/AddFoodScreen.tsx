@@ -146,6 +146,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   // Custom Foods
   const [customFoods, setCustomFoods] = useState<any[]>([]);
   const [showCreateFood, setShowCreateFood] = useState(false);
+  const [editingCustomFood, setEditingCustomFood] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
