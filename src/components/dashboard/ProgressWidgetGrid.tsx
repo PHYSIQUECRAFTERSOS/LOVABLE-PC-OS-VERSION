@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
@@ -14,32 +14,36 @@ interface SparkData {
   value: number;
 }
 
-const MiniSparkline = ({ data, color = "hsl(var(--gold))" }: { data: SparkData[]; color?: string }) => {
-  if (data.length < 2) return null;
-  const max = Math.max(...data.map(d => d.value), 1);
-  const min = Math.min(...data.map(d => d.value), 0);
-  const range = max - min || 1;
-  const w = 80;
-  const h = 24;
-  const points = data.map((d, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((d.value - min) / range) * h;
-    return `${x},${y}`;
-  }).join(" ");
+const MiniSparkline = forwardRef<SVGSVGElement, { data: SparkData[]; color?: string }>(
+  ({ data, color = "hsl(var(--gold))" }, ref) => {
+    if (data.length < 2) return null;
+    const max = Math.max(...data.map(d => d.value), 1);
+    const min = Math.min(...data.map(d => d.value), 0);
+    const range = max - min || 1;
+    const w = 80;
+    const h = 24;
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((d.value - min) / range) * h;
+      return `${x},${y}`;
+    }).join(" ");
 
-  return (
-    <svg width={w} height={h} className="mt-1">
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={points}
-      />
-    </svg>
-  );
-};
+    return (
+      <svg ref={ref} width={w} height={h} className="mt-1">
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={points}
+        />
+      </svg>
+    );
+  }
+);
+
+MiniSparkline.displayName = "MiniSparkline";
 
 const ProgressWidgetGrid = () => {
   const { user } = useAuth();
