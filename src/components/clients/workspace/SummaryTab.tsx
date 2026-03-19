@@ -35,8 +35,11 @@ import StepTrendModal from "@/components/dashboard/StepTrendModal";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import DateNavigator from "@/components/dashboard/DateNavigator";
+import EventDetailModal from "@/components/calendar/EventDetailModal";
+import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 /* ─── types ─── */
 interface SummaryData {
