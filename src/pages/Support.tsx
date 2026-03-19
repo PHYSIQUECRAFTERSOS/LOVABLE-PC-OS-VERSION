@@ -35,7 +35,7 @@ const faqs = [
   },
   {
     q: "How do I cancel or manage my coaching subscription?",
-    a: "All billing is handled outside of the app through the Physique Crafters website. Please contact your coach or email us for billing inquiries.",
+    a: "All billing is handled outside of the Physique Crafters app. Please contact your coach or email us for billing inquiries.",
   },
 ];
 
