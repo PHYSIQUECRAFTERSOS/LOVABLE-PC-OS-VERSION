@@ -56,13 +56,14 @@ interface Props {
 }
 
 export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [newDayLabel, setNewDayLabel] = useState("");
   const [newDayOfWeek, setNewDayOfWeek] = useState("3");
+  const [coachFilter, setCoachFilter] = useState<string>("all");
 
   // Fetch reviewers
   const { data: reviewers = [] } = useQuery({
