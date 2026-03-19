@@ -134,13 +134,13 @@ const ProgressWidgetGrid = () => {
         {/* Steps */}
         <button
           onClick={() => setStepTrendOpen(true)}
-          className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <Footprints className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Steps</span>
+            <Footprints className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Steps</span>
           </div>
-          <div className="text-xl font-bold text-foreground tabular-nums">
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
             {isConnected && steps !== null ? steps.toLocaleString() : manualSteps !== null ? manualSteps.toLocaleString() : "–"}
           </div>
           {isConnected || manualSteps !== null ? (
@@ -156,11 +156,11 @@ const ProgressWidgetGrid = () => {
         {/* Progress Photos */}
         <button
           onClick={() => setPhotosModalOpen(true)}
-          className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Progress Photos</span>
+            <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Progress Photos</span>
           </div>
           {photoUrls.length > 0 ? (
             <div className="flex gap-1.5 mt-1">
@@ -182,13 +182,13 @@ const ProgressWidgetGrid = () => {
         {/* Caloric Intake */}
         <button
           onClick={() => navigate("/nutrition")}
-          className="rounded-xl bg-card border border-border p-4 text-left transition-colors hover:bg-secondary/30"
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <Flame className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Calories Today</span>
+            <Flame className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Calories Today</span>
           </div>
-          <div className="text-xl font-bold text-foreground tabular-nums">
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
             {todayCals > 0 ? todayCals.toLocaleString() : "–"}
           </div>
           <MiniSparkline data={calSpark} />
