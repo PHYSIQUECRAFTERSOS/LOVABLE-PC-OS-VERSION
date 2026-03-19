@@ -54,6 +54,16 @@ interface CalendarAction {
   event_type: string;
   title: string;
   is_completed: boolean;
+  linked_workout_id?: string | null;
+  event_date?: string;
+  description?: string | null;
+  notes?: string | null;
+  event_time?: string | null;
+  end_time?: string | null;
+  is_recurring?: boolean;
+  recurrence_pattern?: string | null;
+  color?: string | null;
+  completed_at?: string | null;
 }
 
 interface NutritionTargets {
