@@ -17,14 +17,32 @@ let countdownBufferPromise: Promise<AudioBuffer | null> | null = null;
 let activeSource: AudioBufferSourceNode | OscillatorNode | null = null;
 let gainNode: GainNode | null = null;
 
+type ManagedAudioContextState = AudioContextState | "interrupted";
+
 /**
  * Overlay volume relative to music (0.0–1.0).
  * Kept high enough to be audible over Spotify/Apple Music without taking over playback.
  */
 const OVERLAY_VOLUME = 0.9;
-const COUNTDOWN_SOUND_URL = "/assets/sounds/rest-timer-countdown.mp3";
+const COUNTDOWN_SOUND_URL = "/assets/sounds/rest-timer-countdown-v2.mp3";
 
-function createAudioContext(): AudioContext | null {
+function disposeAudioContext(): void {
+  stopCountdownSound();
+  gainNode?.disconnect();
+  gainNode = null;
+  countdownBuffer = null;
+  countdownBufferPromise = null;
+
+  if (audioCtx && audioCtx.state !== "closed") {
+    void audioCtx.close().catch(() => {
+      // ignore cleanup failures
+    });
+  }
+
+  audioCtx = null;
+}
+
+function createAudioContext(forceReset = false): AudioContext | null {
   if (typeof window === "undefined") return null;
 
   const AudioContextCtor = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -33,7 +51,11 @@ function createAudioContext(): AudioContext | null {
     return null;
   }
 
-  if (!audioCtx) {
+  if (forceReset) {
+    disposeAudioContext();
+  }
+
+  if (!audioCtx || (audioCtx.state as ManagedAudioContextState) === "closed") {
     audioCtx = new AudioContextCtor();
     gainNode = audioCtx.createGain();
     gainNode.gain.value = OVERLAY_VOLUME;
@@ -43,19 +65,36 @@ function createAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-async function ensureRunningAudioContext(): Promise<AudioContext | null> {
-  const ctx = createAudioContext();
-  if (!ctx) return null;
+async function resumeAudioContext(ctx: AudioContext): Promise<boolean> {
+  if ((ctx.state as ManagedAudioContextState) === "running") return true;
 
-  if (ctx.state === "suspended") {
-    try {
-      await ctx.resume();
-    } catch (error) {
-      console.warn("[Audio] Failed to resume audio context:", error);
-    }
+  try {
+    await ctx.resume();
+  } catch (error) {
+    console.warn("[Audio] Failed to resume audio context:", error);
   }
 
-  return ctx;
+  return (ctx.state as ManagedAudioContextState) === "running";
+}
+
+async function ensureRunningAudioContext(): Promise<AudioContext | null> {
+  let ctx = createAudioContext();
+  if (!ctx) return null;
+
+  if (await resumeAudioContext(ctx)) {
+    return ctx;
+  }
+
+  console.warn("[Audio] Audio context stuck, recreating:", ctx.state);
+  ctx = createAudioContext(true);
+  if (!ctx) return null;
+
+  if (await resumeAudioContext(ctx)) {
+    return ctx;
+  }
+
+  console.warn("[Audio] Audio context unavailable after recreation:", ctx.state);
+  return null;
 }
 
 async function loadCountdownBuffer(): Promise<AudioBuffer | null> {
