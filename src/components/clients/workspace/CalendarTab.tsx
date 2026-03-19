@@ -356,7 +356,26 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const getEventsForDay = (day: Date) => {
     const dateStr = format(day, "yyyy-MM-dd");
     const dayEvents = events.filter(e => e.event_date === dateStr);
-    const daySessions = sessions.filter(s => format(new Date(s.created_at), "yyyy-MM-dd") === dateStr)
+    const daySessions = sessions.filter(s => format(new Date(s.created_at), "yyyy-MM-dd") === dateStr);
+
+    // Merge session completion status into matching calendar events
+    const linkedWorkoutIds = new Set<string>();
+    const mergedEvents = dayEvents.map(e => {
+      if (e.event_type === "workout" && e.linked_workout_id) {
+        const matchingSession = daySessions.find(s => s.workout_id === e.linked_workout_id);
+        if (matchingSession) {
+          linkedWorkoutIds.add(matchingSession.workout_id);
+          if (!e.is_completed && matchingSession.completed_at) {
+            return { ...e, is_completed: true, completed_at: matchingSession.completed_at };
+          }
+        }
+      }
+      return e;
+    });
+
+    // Only include sessions that DON'T have a matching calendar event
+    const orphanSessions = daySessions
+      .filter(s => !linkedWorkoutIds.has(s.workout_id))
       .map(s => ({
         id: s.id,
         title: (s.workouts as any)?.name || "Workout",
@@ -367,7 +386,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         color: null,
         event_time: null,
       }));
-    return [...daySessions, ...dayEvents];
+
+    return [...orphanSessions, ...mergedEvents];
   };
 
   const handleDayClick = (day: Date) => {
