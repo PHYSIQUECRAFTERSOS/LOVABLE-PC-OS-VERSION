@@ -132,6 +132,7 @@ function riskBadge(score: number) {
 const CoachCommandCenter = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [quickMsgClient, setQuickMsgClient] = useState<{ id: string; name: string; avatar?: string | null; prefill?: string } | null>(null);
 
   const { data, loading, error, timedOut, refetch } = useDataFetch<CommandCenterData>({
     queryKey: `coach-command-center-${user?.id}`,
