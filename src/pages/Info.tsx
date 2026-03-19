@@ -23,7 +23,6 @@ const screenshots = [
   { src: "/screenshots/iphone-2.png", alt: "Workout logging with rest timer" },
   { src: "/screenshots/iphone-3.png", alt: "Weight tracking transformation" },
   { src: "/screenshots/iphone-4.png", alt: "Weekly schedule planned by coach" },
-  { src: "/screenshots/iphone-5.png", alt: "Direct coach messaging" },
 ];
 
 const Info = () => {
