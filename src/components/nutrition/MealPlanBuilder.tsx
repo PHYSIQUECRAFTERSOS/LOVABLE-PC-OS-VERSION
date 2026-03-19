@@ -368,18 +368,26 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
   // ... all the add/remove/rename/duplicate/grams handlers
   const addFoodToMeal = (dayId: string, mealId: string, food: FoodItem | FoodResult) => {
-    const ss = Math.max(food.serving_size || 100, 1);
-    const unit = food.serving_unit || "g";
+    const rawSS = (food as any).serving_size ?? (food as any).serving_size_g ?? 100;
+    const ss = Math.max(typeof rawSS === 'string' ? parseFloat(rawSS) || 100 : rawSS || 100, 1);
+    const unit = (food as any).serving_unit || "g";
 
     // Use per-100g values directly if available (from foods table via search)
     // Otherwise compute from per-serving values with safe denominator
     const fr = food as any;
-    const cal_per_100 = fr.calories_per_100 != null ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100;
-    const protein_per_100 = fr.protein_per_100 != null ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100;
-    const carbs_per_100 = fr.carbs_per_100 != null ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100;
-    const fat_per_100 = fr.fat_per_100 != null ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100;
-    const fiber_per_100 = fr.fiber_per_100 != null ? fr.fiber_per_100 : ((food.fiber || 0) / ss) * 100;
-    const sugar_per_100 = fr.sugar_per_100 != null ? fr.sugar_per_100 : ((food.sugar || 0) / ss) * 100;
+    const hasPer100 = fr.calories_per_100 != null && fr.calories_per_100 > 0;
+    const cal_per_100 = hasPer100 ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100;
+    const protein_per_100 = (hasPer100 && fr.protein_per_100 != null) ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100;
+    const carbs_per_100 = (hasPer100 && fr.carbs_per_100 != null) ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100;
+    const fat_per_100 = (hasPer100 && fr.fat_per_100 != null) ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100;
+    const fiber_per_100 = (hasPer100 && fr.fiber_per_100 != null) ? fr.fiber_per_100 : ((food.fiber || 0) / ss) * 100;
+    const sugar_per_100 = (hasPer100 && fr.sugar_per_100 != null) ? fr.sugar_per_100 : ((food.sugar || 0) / ss) * 100;
+
+    // Sanity check: if computed calories seem unreasonable, log for debugging
+    const displayCal = Math.round(cal_per_100 * ss / 100);
+    if (displayCal > (food.calories || 0) * 1.5 && (food.calories || 0) > 0) {
+      console.warn("[MealPlan] Macro sanity check failed — recalculating. Expected ~", food.calories, "got", displayCal, "ss=", ss, "cal_per_100=", cal_per_100);
+    }
 
     setDays((prev) =>
       prev.map((d) =>
