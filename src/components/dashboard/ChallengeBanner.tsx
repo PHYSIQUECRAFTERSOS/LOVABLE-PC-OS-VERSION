@@ -21,9 +21,9 @@ const ChallengeBanner = () => {
           >
             <Icon className="h-5 w-5 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{c.title}</p>
+              <p className="text-sm font-semibold text-foreground truncate pr-5">{c.title}</p>
               {c.description && (
-                <p className="text-xs text-muted-foreground truncate">{c.description}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
               )}
             </div>
             <Button
