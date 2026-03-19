@@ -1788,6 +1788,65 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_checkin_day_config: {
+        Row: {
+          coach_id: string
+          created_at: string | null
+          day_of_week: number
+          id: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string | null
+          day_of_week: number
+          id?: string
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string | null
+          day_of_week?: number
+          id?: string
+          label?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      coach_checkin_preferences: {
+        Row: {
+          coach_id: string
+          created_at: string | null
+          default_template_id: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string | null
+          default_template_id?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string | null
+          default_template_id?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_checkin_preferences_default_template_id_fkey"
+            columns: ["default_template_id"]
+            isOneToOne: false
+            referencedRelation: "checkin_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_clients: {
         Row: {
           assigned_at: string
