@@ -857,7 +857,34 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
+  // Prepend matching custom foods to search results for top priority
+  const matchingCustomFoods: FoodItem[] = search.length >= 2
+    ? customFoods
+        .filter((cf: any) => cf.name.toLowerCase().includes(search.toLowerCase()) || (cf.brand && cf.brand.toLowerCase().includes(search.toLowerCase())))
+        .map((cf: any) => ({
+          id: `custom-${cf.id}`,
+          name: cf.name + (cf.brand ? ` (${cf.brand})` : ""),
+          brand: cf.brand || null,
+          serving_size: parseFloat(cf.serving_size) || 100,
+          serving_unit: cf.serving_unit || "g",
+          calories: cf.calories || 0,
+          protein: cf.protein || 0,
+          carbs: cf.carbs || 0,
+          fat: cf.fat || 0,
+          fiber: cf.fiber || 0,
+          sugar: cf.sugar || 0,
+          sodium: cf.sodium || 0,
+          source: "local" as const,
+          is_verified: false,
+          data_source: "custom",
+          category: "Custom Food",
+          _isClientCustom: true,
+          _customFoodRef: cf,
+        } as FoodItem & { _isClientCustom?: boolean; _customFoodRef?: any }))
+    : [];
+
   const allDisplayItems = [
+    ...matchingCustomFoods,
     ...results,
     ...offResults.filter(o => !results.some(r => r.name.toLowerCase() === o.name.toLowerCase())),
   ];
