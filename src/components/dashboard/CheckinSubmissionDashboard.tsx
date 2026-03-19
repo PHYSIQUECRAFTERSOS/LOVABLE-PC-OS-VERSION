@@ -386,7 +386,7 @@ const CheckinSubmissionDashboard = () => {
           return (
             <SubmissionColumn
               key={bucket.config.id}
-              title={`Submitted ${bucket.config.label}`}
+              title={bucket.config.label}
               icon={style.icon}
               borderClass={style.borderClass}
               badgeColor={style.badgeColor}
