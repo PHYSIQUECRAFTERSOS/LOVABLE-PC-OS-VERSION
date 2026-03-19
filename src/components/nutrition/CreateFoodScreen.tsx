@@ -56,23 +56,44 @@ const CreateFoodScreen = ({ onClose, onSaved, editFood }: CreateFoodScreenProps)
     setSaving(true);
     setError("");
     try {
-      const { error: saveError } = await supabase
-        .from("client_custom_foods")
-        .insert({
-          client_id: user.id,
-          name: form.name.trim(),
-          brand: form.brand.trim() || null,
-          serving_size: form.serving_size.trim(),
-          servings_per_container: parseFloat(form.servings_per_container) || 1,
-          calories: parseFloat(form.calories) || 0,
-          protein: parseFloat(form.protein) || 0,
-          carbs: parseFloat(form.carbs) || 0,
-          fat: parseFloat(form.fat) || 0,
-        } as any);
+      if (editFood?.id) {
+        // Update existing custom food
+        const { error: saveError } = await supabase
+          .from("client_custom_foods")
+          .update({
+            name: form.name.trim(),
+            brand: form.brand.trim() || null,
+            serving_size: form.serving_size.trim(),
+            servings_per_container: parseFloat(form.servings_per_container) || 1,
+            calories: parseFloat(form.calories) || 0,
+            protein: parseFloat(form.protein) || 0,
+            carbs: parseFloat(form.carbs) || 0,
+            fat: parseFloat(form.fat) || 0,
+          } as any)
+          .eq("id", editFood.id)
+          .eq("client_id", user.id);
 
-      if (saveError) throw saveError;
+        if (saveError) throw saveError;
+        toast({ title: "Food updated!" });
+      } else {
+        // Create new custom food
+        const { error: saveError } = await supabase
+          .from("client_custom_foods")
+          .insert({
+            client_id: user.id,
+            name: form.name.trim(),
+            brand: form.brand.trim() || null,
+            serving_size: form.serving_size.trim(),
+            servings_per_container: parseFloat(form.servings_per_container) || 1,
+            calories: parseFloat(form.calories) || 0,
+            protein: parseFloat(form.protein) || 0,
+            carbs: parseFloat(form.carbs) || 0,
+            fat: parseFloat(form.fat) || 0,
+          } as any);
 
-      toast({ title: "Food saved!" });
+        if (saveError) throw saveError;
+        toast({ title: "Food saved!" });
+      }
       onSaved();
     } catch (err: any) {
       console.error("Save food error:", err);
