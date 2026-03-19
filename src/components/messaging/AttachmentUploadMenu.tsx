@@ -140,8 +140,8 @@ const AttachmentUploadMenu = ({ threadId, onSent }: AttachmentUploadMenuProps) =
 
   return (
     <>
-      <input ref={imageRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect("image")} />
-      <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect("video")} />
+      <input ref={imageRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="hidden" onChange={handleFileSelect("image")} />
+      <input ref={videoRef} type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden" onChange={handleFileSelect("video")} />
       <input ref={pdfRef} type="file" accept="application/pdf" className="hidden" onChange={handleFileSelect("pdf")} />
 
       <Popover open={open} onOpenChange={setOpen}>

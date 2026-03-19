@@ -175,7 +175,7 @@ const OnboardingTrainingEnv = ({ data, updateField, validationErrors }: Props) =
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               multiple
               className="hidden"
               onChange={(e) => e.target.files && handlePhotoUpload(e.target.files)}

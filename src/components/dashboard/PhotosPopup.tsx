@@ -214,7 +214,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                 <input
                   ref={inputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
