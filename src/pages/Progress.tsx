@@ -69,14 +69,14 @@ const Progress = () => {
         <h1 className="font-display text-2xl font-bold text-foreground">Progress</h1>
 
         <Tabs defaultValue={defaultTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-7">
-            <TabsTrigger value="checkin">Check-In</TabsTrigger>
-            <TabsTrigger value="forms">Forms</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="weight">Weight</TabsTrigger>
-            <TabsTrigger value="photos">Photos</TabsTrigger>
-            <TabsTrigger value="steps">Steps</TabsTrigger>
-            <TabsTrigger value="trends">Trends</TabsTrigger>
+          <TabsList className="w-full flex overflow-x-auto no-scrollbar">
+            <TabsTrigger value="checkin" className="flex-shrink-0 text-xs px-2.5">Check-In</TabsTrigger>
+            <TabsTrigger value="forms" className="flex-shrink-0 text-xs px-2.5">Forms</TabsTrigger>
+            <TabsTrigger value="dashboard" className="flex-shrink-0 text-xs px-2.5">Dashboard</TabsTrigger>
+            <TabsTrigger value="weight" className="flex-shrink-0 text-xs px-2.5">Weight</TabsTrigger>
+            <TabsTrigger value="photos" className="flex-shrink-0 text-xs px-2.5">Photos</TabsTrigger>
+            <TabsTrigger value="steps" className="flex-shrink-0 text-xs px-2.5">Steps</TabsTrigger>
+            <TabsTrigger value="trends" className="flex-shrink-0 text-xs px-2.5">Trends</TabsTrigger>
           </TabsList>
 
           <TabsContent value="checkin" className="space-y-6 mt-4">

@@ -20,11 +20,14 @@ interface TierBadgeProps {
   className?: string;
 }
 
-const TierBadge = ({ tier, size = 24, className = "" }: TierBadgeProps) => {
+import { forwardRef } from "react";
+
+const TierBadge = forwardRef<HTMLImageElement, TierBadgeProps>(({ tier, size = 24, className = "" }, ref) => {
   const src = TIER_IMAGES[tier?.toLowerCase()] || TIER_IMAGES.bronze;
 
   return (
     <img
+      ref={ref}
       src={src}
       width={size}
       height={size}
@@ -34,6 +37,8 @@ const TierBadge = ({ tier, size = 24, className = "" }: TierBadgeProps) => {
       draggable={false}
     />
   );
-};
+});
+
+TierBadge.displayName = "TierBadge";
 
 export default TierBadge;
