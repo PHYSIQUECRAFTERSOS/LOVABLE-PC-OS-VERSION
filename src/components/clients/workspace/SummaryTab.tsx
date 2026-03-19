@@ -743,6 +743,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                     description: a.description || null,
                     notes: a.notes || null,
                     linked_workout_id: a.linked_workout_id || null,
+                    user_id: clientId,
                     is_recurring: a.is_recurring || false,
                     recurrence_pattern: a.recurrence_pattern || null,
                     completed_at: a.completed_at || null,
