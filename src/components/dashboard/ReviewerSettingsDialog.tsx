@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -56,13 +56,14 @@ interface Props {
 }
 
 export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [newDayLabel, setNewDayLabel] = useState("");
   const [newDayOfWeek, setNewDayOfWeek] = useState("3");
+  const [coachFilter, setCoachFilter] = useState<string>("all");
 
   // Fetch reviewers
   const { data: reviewers = [] } = useQuery({
@@ -94,18 +95,53 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
     enabled: !!user && open,
   });
 
-  // Fetch clients + their assignments
-  const { data: clientAssignments = [] } = useQuery({
-    queryKey: ["client-reviewer-assignments", user?.id],
+  // Fetch all coaches (for admin filter)
+  const { data: coaches = [] } = useQuery({
+    queryKey: ["all-coaches-for-filter", user?.id],
     queryFn: async () => {
-      const { data: clients } = await supabase
+      // Get all coach_clients grouped by coach, then fetch coach profiles
+      const { data: coachClientRows } = await supabase
         .from("coach_clients")
-        .select("client_id")
-        .eq("coach_id", user!.id)
+        .select("coach_id")
         .eq("status", "active");
-      if (!clients?.length) return [];
+      const uniqueCoachIds = [...new Set((coachClientRows || []).map(r => r.coach_id))];
+      if (uniqueCoachIds.length === 0) return [];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", uniqueCoachIds);
+      return (profiles || []).map(p => ({ id: p.user_id, name: p.full_name || "Coach" }));
+    },
+    enabled: !!user && open && role === "admin",
+  });
 
-      const clientIds = clients.map((c) => c.client_id);
+  // Fetch clients + their assignments (admin sees all, coach sees own)
+  const { data: clientAssignments = [] } = useQuery({
+    queryKey: ["client-reviewer-assignments", user?.id, role],
+    queryFn: async () => {
+      let clientRows: { client_id: string; coach_id: string }[] = [];
+
+      if (role === "admin") {
+        // Admin: fetch ALL active clients across all coaches
+        const { data } = await supabase
+          .from("coach_clients")
+          .select("client_id, coach_id")
+          .eq("status", "active");
+        clientRows = data || [];
+      } else {
+        // Coach: fetch only own clients
+        const { data } = await supabase
+          .from("coach_clients")
+          .select("client_id, coach_id")
+          .eq("coach_id", user!.id)
+          .eq("status", "active");
+        clientRows = data || [];
+      }
+
+      if (!clientRows.length) return [];
+
+      const clientIds = clientRows.map((c) => c.client_id);
+      const clientCoachMap = new Map(clientRows.map(c => [c.client_id, c.coach_id]));
 
       const [profilesRes, assignmentsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds),
@@ -122,8 +158,9 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
           full_name: p.full_name || "Client",
           avatar_url: p.avatar_url,
           reviewer_id: assignMap.get(p.user_id) || null,
+          coach_id: clientCoachMap.get(p.user_id) || null,
         }))
-        .sort((a, b) => a.full_name.localeCompare(b.full_name)) as ClientAssignment[];
+        .sort((a, b) => a.full_name.localeCompare(b.full_name)) as (ClientAssignment & { coach_id: string | null })[];
     },
     enabled: !!user && open,
   });
@@ -187,6 +224,12 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  // Filter clients by coach for admin
+  const filteredAssignments = useMemo(() => {
+    if (coachFilter === "all") return clientAssignments;
+    return clientAssignments.filter((ca: any) => ca.coach_id === coachFilter);
+  }, [clientAssignments, coachFilter]);
 
   // Add day config
   const addDayConfig = useMutation({
@@ -368,8 +411,38 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
         <div className="space-y-2">
           <Label className="text-sm font-medium">Client Assignments</Label>
           <p className="text-xs text-muted-foreground">Assign each client to a reviewer for color coding.</p>
+
+          {/* Coach filter for admins */}
+          {role === "admin" && coaches.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              <button
+                onClick={() => setCoachFilter("all")}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                  coachFilter === "all"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                }`}
+              >
+                All
+              </button>
+              {coaches.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCoachFilter(c.id)}
+                  className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                    coachFilter === c.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {c.name?.split(" ")[0] || "Coach"}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-1.5 max-h-60 overflow-y-auto">
-            {clientAssignments.map((ca) => (
+            {filteredAssignments.map((ca) => (
               <div key={ca.client_id} className="flex items-center gap-2 py-1.5">
                 <UserAvatar src={ca.avatar_url} name={ca.full_name} className="h-6 w-6" />
                 <span className="text-sm flex-1 truncate">{ca.full_name}</span>
@@ -399,6 +472,9 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
                 </Select>
               </div>
             ))}
+            {filteredAssignments.length === 0 && (
+              <p className="text-xs text-muted-foreground py-3 text-center">No clients found.</p>
+            )}
           </div>
         </div>
       </DialogContent>
