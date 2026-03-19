@@ -17,6 +17,7 @@ import { CheckCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
+import { invalidateCache } from "@/hooks/useDataFetch";
 
 const CheckinSubmissionForm = () => {
   const { user } = useAuth();
@@ -159,13 +160,26 @@ const CheckinSubmissionForm = () => {
 
       const { error: rErr } = await supabase.from("checkin_responses").insert(responses);
       if (rErr) throw rErr;
+
+      // Mark calendar check-in event as completed for today
+      const today = new Date().toLocaleDateString("en-CA");
+      await supabase
+        .from("calendar_events")
+        .update({ is_completed: true, completed_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("event_date", today)
+        .eq("event_type", "checkin")
+        .eq("is_completed", false);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-checkin-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["today-actions"] });
       toast({ title: "Check-in submitted ✅" });
       if (user?.id) {
         triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Check-in submitted").catch(console.error);
+        invalidateCache(`today-actions-${user.id}-${new Date().toLocaleDateString("en-CA")}`);
       }
       setActiveAssignment(null);
       setAnswers({});

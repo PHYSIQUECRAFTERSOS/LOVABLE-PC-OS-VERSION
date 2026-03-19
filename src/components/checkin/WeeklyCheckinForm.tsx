@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ClipboardCheck, CheckCircle, Loader2, Star } from "lucide-react";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
+import { invalidateCache } from "@/hooks/useDataFetch";
 
 const HARDCODED_FALLBACK_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -182,13 +183,26 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
           }, { onConflict: "client_id,logged_at" });
         }
       }
+
+      // Mark calendar check-in event as completed for today
+      const today = new Date().toLocaleDateString("en-CA");
+      await supabase
+        .from("calendar_events")
+        .update({ is_completed: true, completed_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("event_date", today)
+        .eq("event_type", "checkin")
+        .eq("is_completed", false);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["weekly-checkin-status"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["today-actions"] });
       toast({ title: "Check-in submitted! 💪" });
       if (user?.id) {
         triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Weekly check-in submitted").catch(console.error);
+        invalidateCache(`today-actions-${user.id}-${new Date().toLocaleDateString("en-CA")}`);
       }
       setSubmitted(true);
       onSubmitted?.();
