@@ -285,7 +285,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
                 type="button"
                 variant="outline"
                 className="w-full h-20 border-dashed"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => { try { setTimeout(() => fileRef.current?.click(), 0); } catch (e) { console.warn("[AddExercise] picker error:", e); } }}
                 disabled={uploading}
               >
                 {uploading ? (

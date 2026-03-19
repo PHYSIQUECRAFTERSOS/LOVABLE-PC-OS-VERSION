@@ -153,21 +153,21 @@ const AttachmentUploadMenu = ({ threadId, onSent }: AttachmentUploadMenuProps) =
         <PopoverContent side="top" align="start" className="w-48 p-1">
           <button
             className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-            onClick={() => { setOpen(false); imageRef.current?.click(); }}
+            onClick={() => { setOpen(false); setTimeout(() => { try { imageRef.current?.click(); } catch (e) { console.warn("[Attach] picker error:", e); } }, 0); }}
           >
             <Image className="h-4 w-4 text-primary" />
             Upload Photo
           </button>
           <button
             className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-            onClick={() => { setOpen(false); videoRef.current?.click(); }}
+            onClick={() => { setOpen(false); setTimeout(() => { try { videoRef.current?.click(); } catch (e) { console.warn("[Attach] picker error:", e); } }, 0); }}
           >
             <Video className="h-4 w-4 text-primary" />
             Upload Video
           </button>
           <button
             className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-            onClick={() => { setOpen(false); pdfRef.current?.click(); }}
+            onClick={() => { setOpen(false); setTimeout(() => { try { pdfRef.current?.click(); } catch (e) { console.warn("[Attach] picker error:", e); } }, 0); }}
           >
             <FileText className="h-4 w-4 text-primary" />
             Upload PDF

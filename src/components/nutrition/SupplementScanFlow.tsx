@@ -255,7 +255,7 @@ const SupplementScanFlow = ({ open, onOpenChange, onSuppAdded }: SupplementScanF
                     onChange={handlePhotoCapture}
                     className="hidden"
                   />
-                  <Button onClick={() => fileInputRef.current?.click()} className="gap-2">
+                  <Button onClick={() => { try { setTimeout(() => fileInputRef.current?.click(), 0); } catch (e) { console.warn("[SuppScan] picker error:", e); } }} className="gap-2">
                     <Camera className="h-4 w-4" />
                     Open Camera
                   </Button>

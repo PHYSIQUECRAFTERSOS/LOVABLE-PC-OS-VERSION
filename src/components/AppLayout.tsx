@@ -18,6 +18,7 @@ import {
   Settings,
   UsersRound,
   Menu,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -74,6 +75,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const coachSecondaryNav: NavItem[] = [
+    { to: "/pricing", icon: CreditCard, label: "Programs" },
     { to: "/profile", icon: Settings, label: "Settings" },
   ];
 
@@ -92,6 +94,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/challenges", icon: Flame, label: "Challenges" },
     { to: "/ranked", icon: Trophy, label: "Ranked" },
+    { to: "/pricing", icon: CreditCard, label: "Programs" },
     { to: "/profile", icon: User, label: "Settings" },
   ];
 

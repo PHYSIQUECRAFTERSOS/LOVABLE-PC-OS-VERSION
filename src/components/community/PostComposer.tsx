@@ -103,7 +103,7 @@ const PostComposer = ({ postType = "feed" }: PostComposerProps) => {
             variant="ghost"
             size="sm"
             className="text-muted-foreground gap-1.5 text-xs"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => { try { setTimeout(() => fileRef.current?.click(), 0); } catch (e) { console.warn("[PostComposer] File picker error:", e); } }}
             disabled={uploading}
           >
             <ImagePlus className="h-4 w-4" />

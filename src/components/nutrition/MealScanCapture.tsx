@@ -63,7 +63,7 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
 
   const handleCapture = () => {
     console.log("[MealScan] Capture triggered");
-    fileRef.current?.click();
+    try { setTimeout(() => fileRef.current?.click(), 0); } catch (e) { console.warn("[MealScan] File picker error:", e); }
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {

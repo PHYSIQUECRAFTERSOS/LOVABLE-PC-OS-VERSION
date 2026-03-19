@@ -207,7 +207,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
               <div className="px-5 pb-5">
                 <Button
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base h-12"
-                  onClick={() => inputRef.current?.click()}
+                  onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                 >
                   Upload Photo
                 </Button>
