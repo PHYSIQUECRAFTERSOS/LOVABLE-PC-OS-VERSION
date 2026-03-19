@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,10 +130,13 @@ serve(async (req) => {
         return json({ error: "Failed to create invite" }, 500);
       }
 
-      // Send invite email via Auth admin
+      // Send invite email
       const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
       const setupUrl = `${origin}/accept-invite?token=${token}`;
 
+      let emailSent = true;
+
+      // Try Auth admin invite first
       const { error: emailErr } = await supabase.auth.admin.inviteUserByEmail(
         email.toLowerCase(),
         {
@@ -145,10 +149,44 @@ serve(async (req) => {
         }
       );
 
-      let emailSent = true;
       if (emailErr) {
-        console.error("[staff-invite] Email error:", emailErr.message);
-        emailSent = false;
+        console.warn("[staff-invite] inviteUserByEmail failed:", emailErr.message);
+
+        // If user already exists, send invite email directly via Lovable Email API
+        if (emailErr.message?.includes("already been registered")) {
+          console.log("[staff-invite] User exists, sending direct email via Lovable API");
+          try {
+            const roleName = role === "admin" ? "Manager" : "Coach";
+            const html = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #0a0a0a; color: #e5e5e5;">
+                <h1 style="color: #D4A017; font-size: 24px; margin-bottom: 16px;">You're Invited to Join Physique Crafters</h1>
+                <p style="font-size: 16px; line-height: 1.6; margin-bottom: 8px;">Hi ${first_name},</p>
+                <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">You've been invited to join the Physique Crafters team as a <strong style="color: #D4A017;">${roleName}</strong>.</p>
+                <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">Click the button below to set up your account. This link expires in 48 hours.</p>
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${setupUrl}" style="display: inline-block; padding: 14px 32px; background-color: #D4A017; color: #0a0a0a; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">Accept Invitation</a>
+                </div>
+                <p style="font-size: 14px; color: #888; margin-top: 32px;">If you didn't expect this invite, you can safely ignore this email.</p>
+              </div>
+            `;
+
+            await sendLovableEmail({
+              to: email.toLowerCase(),
+              from: `Physique Crafters <noreply@notify.physiquecrafters.com>`,
+              sender_domain: "notify.physiquecrafters.com",
+              subject: `You're invited to join Physique Crafters as a ${roleName}`,
+              html,
+              purpose: "transactional",
+              label: "staff_invite",
+            });
+            console.log("[staff-invite] Direct email sent successfully to:", email.toLowerCase());
+          } catch (directErr) {
+            console.error("[staff-invite] Direct email send failed:", directErr);
+            emailSent = false;
+          }
+        } else {
+          emailSent = false;
+        }
       }
 
       return json({
