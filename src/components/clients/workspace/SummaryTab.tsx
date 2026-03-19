@@ -383,7 +383,27 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             .eq("client_id", clientId).in("logged_at", last7dates),
         ]);
 
-      setActions((actionsRes.data || []) as CalendarAction[]);
+      // Cross-reference workout actions with workout_sessions to fix completion status
+      const rawActions = (actionsRes.data || []) as CalendarAction[];
+      const workoutActions = rawActions.filter(a => a.event_type === "workout" && a.linked_workout_id && !a.is_completed);
+      if (workoutActions.length > 0) {
+        const workoutIds = workoutActions.map(a => a.linked_workout_id!);
+        const { data: sessionsForDay } = await supabase.from("workout_sessions")
+          .select("workout_id, completed_at, status")
+          .eq("client_id", clientId)
+          .eq("status", "completed")
+          .in("workout_id", workoutIds);
+        const completedWorkoutIds = new Set((sessionsForDay || []).map(s => s.workout_id));
+        const mergedActions = rawActions.map(a => {
+          if (a.event_type === "workout" && a.linked_workout_id && completedWorkoutIds.has(a.linked_workout_id)) {
+            return { ...a, is_completed: true };
+          }
+          return a;
+        });
+        setActions(mergedActions);
+      } else {
+        setActions(rawActions);
+      }
 
       // Photos
       const photos = photosRes.data || [];
