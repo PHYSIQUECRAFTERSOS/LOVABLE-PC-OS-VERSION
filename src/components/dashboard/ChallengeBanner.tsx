@@ -17,7 +17,7 @@ const ChallengeBanner = () => {
         return (
           <div
             key={c.id}
-            className="relative flex items-center gap-3 rounded-lg border-l-4 border-l-primary border border-border bg-card px-4 py-3"
+            className="relative flex items-center gap-3 rounded-lg border-l-4 border-l-primary border border-border bg-card px-3 sm:px-4 py-3 overflow-hidden"
           >
             <Icon className="h-5 w-5 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
