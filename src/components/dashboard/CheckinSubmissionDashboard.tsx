@@ -211,7 +211,7 @@ const CheckinSubmissionDashboard = () => {
           .in("client_id", clientIds)
           .gte("submitted_at", `${mondayStr}T00:00:00`)
           .lte("submitted_at", `${sundayStr}T23:59:59`)
-          .eq("status", "submitted").abortSignal(signal),
+          .in("status", ["submitted", "reviewed"]).abortSignal(signal),
         supabase.from("profiles").select("user_id, full_name, avatar_url, timezone")
           .in("user_id", clientIds).abortSignal(signal),
       ]);
@@ -386,7 +386,7 @@ const CheckinSubmissionDashboard = () => {
           return (
             <SubmissionColumn
               key={bucket.config.id}
-              title={`Submitted ${bucket.config.label}`}
+              title={bucket.config.label}
               icon={style.icon}
               borderClass={style.borderClass}
               badgeColor={style.badgeColor}
@@ -477,11 +477,11 @@ const CheckinSubmissionDashboard = () => {
                 No reviews completed yet — check off clients above.
               </p>
             ) : (
-              <div className="space-y-1">
+              <div className="flex flex-wrap gap-3">
                 {reviewedClients.map((c) => (
                   <div
                     key={c.clientId}
-                    className="flex items-center gap-2 py-2 px-2 rounded hover:bg-secondary/50 transition-colors"
+                    className="flex items-center gap-2 py-2 px-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
                     style={{ borderLeft: c.reviewerColor ? `3px solid ${c.reviewerColor}` : undefined }}
                   >
                     <Checkbox
@@ -493,28 +493,25 @@ const CheckinSubmissionDashboard = () => {
                       className="shrink-0"
                     />
                     <div
-                      className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                      className="flex items-center gap-2 cursor-pointer"
                       onClick={() => navigate(`/clients/${c.clientId}?tab=checkin`)}
                     >
                       <UserAvatar src={c.avatarUrl} name={c.clientName} className="h-7 w-7" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm text-foreground truncate line-through opacity-60">
-                            {c.clientName}
-                          </p>
-                          {c.reviewerName && (
-                            <span
-                              className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0"
-                              style={{ backgroundColor: (c.reviewerColor || "#888") + "33", color: c.reviewerColor || undefined }}
-                            >
-                              {c.reviewerName}
-                            </span>
-                          )}
-                        </div>
+                      <div>
+                        <p className="text-sm text-foreground line-through opacity-60 whitespace-nowrap">
+                          {c.clientName}
+                        </p>
                         <span className="text-[10px] text-muted-foreground">{c.formattedTime}</span>
                       </div>
                     </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    {c.reviewerName && (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold shrink-0"
+                        style={{ backgroundColor: (c.reviewerColor || "#888") + "33", color: c.reviewerColor || undefined }}
+                      >
+                        {c.reviewerName}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
