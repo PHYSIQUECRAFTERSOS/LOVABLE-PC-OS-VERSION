@@ -70,6 +70,7 @@ const App = () => (
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/delete-account" element={<DeleteAccount />} />
             <Route path="/support" element={<Support />} />
+            <Route path="/info" element={<Info />} />
             <Route path="/setup" element={<Setup />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
