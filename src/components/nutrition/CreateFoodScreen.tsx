@@ -9,24 +9,38 @@ import { ArrowLeft, UtensilsCrossed } from "lucide-react";
 interface CreateFoodScreenProps {
   onClose: () => void;
   onSaved: () => void;
+  editFood?: {
+    id: string;
+    name: string;
+    brand?: string | null;
+    serving_size?: string | null;
+    servings_per_container?: number | null;
+    calories?: number | null;
+    protein?: number | null;
+    carbs?: number | null;
+    fat?: number | null;
+    fiber?: number | null;
+    sugar?: number | null;
+    sodium?: number | null;
+  } | null;
 }
 
-const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
+const CreateFoodScreen = ({ onClose, onSaved, editFood }: CreateFoodScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [form, setForm] = useState({
-    brand: "",
-    name: "",
-    serving_size: "",
-    servings_per_container: "1",
-    calories: "",
-    protein: "",
-    carbs: "",
-    fat: "",
-    fiber: "",
-    sugar: "",
-    sodium: "",
+    brand: editFood?.brand || "",
+    name: editFood?.name || "",
+    serving_size: editFood?.serving_size || "",
+    servings_per_container: String(editFood?.servings_per_container ?? "1"),
+    calories: editFood?.calories != null ? String(editFood.calories) : "",
+    protein: editFood?.protein != null ? String(editFood.protein) : "",
+    carbs: editFood?.carbs != null ? String(editFood.carbs) : "",
+    fat: editFood?.fat != null ? String(editFood.fat) : "",
+    fiber: editFood?.fiber != null ? String(editFood.fiber) : "",
+    sugar: editFood?.sugar != null ? String(editFood.sugar) : "",
+    sodium: editFood?.sodium != null ? String(editFood.sodium) : "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -42,23 +56,44 @@ const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
     setSaving(true);
     setError("");
     try {
-      const { error: saveError } = await supabase
-        .from("client_custom_foods")
-        .insert({
-          client_id: user.id,
-          name: form.name.trim(),
-          brand: form.brand.trim() || null,
-          serving_size: form.serving_size.trim(),
-          servings_per_container: parseFloat(form.servings_per_container) || 1,
-          calories: parseFloat(form.calories) || 0,
-          protein: parseFloat(form.protein) || 0,
-          carbs: parseFloat(form.carbs) || 0,
-          fat: parseFloat(form.fat) || 0,
-        } as any);
+      if (editFood?.id) {
+        // Update existing custom food
+        const { error: saveError } = await supabase
+          .from("client_custom_foods")
+          .update({
+            name: form.name.trim(),
+            brand: form.brand.trim() || null,
+            serving_size: form.serving_size.trim(),
+            servings_per_container: parseFloat(form.servings_per_container) || 1,
+            calories: parseFloat(form.calories) || 0,
+            protein: parseFloat(form.protein) || 0,
+            carbs: parseFloat(form.carbs) || 0,
+            fat: parseFloat(form.fat) || 0,
+          } as any)
+          .eq("id", editFood.id)
+          .eq("client_id", user.id);
 
-      if (saveError) throw saveError;
+        if (saveError) throw saveError;
+        toast({ title: "Food updated!" });
+      } else {
+        // Create new custom food
+        const { error: saveError } = await supabase
+          .from("client_custom_foods")
+          .insert({
+            client_id: user.id,
+            name: form.name.trim(),
+            brand: form.brand.trim() || null,
+            serving_size: form.serving_size.trim(),
+            servings_per_container: parseFloat(form.servings_per_container) || 1,
+            calories: parseFloat(form.calories) || 0,
+            protein: parseFloat(form.protein) || 0,
+            carbs: parseFloat(form.carbs) || 0,
+            fat: parseFloat(form.fat) || 0,
+          } as any);
 
-      toast({ title: "Food saved!" });
+        if (saveError) throw saveError;
+        toast({ title: "Food saved!" });
+      }
       onSaved();
     } catch (err: any) {
       console.error("Save food error:", err);
@@ -92,7 +127,7 @@ const CreateFoodScreen = ({ onClose, onSaved }: CreateFoodScreenProps) => {
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
-        <h1 className="flex-1 text-center text-base font-semibold text-foreground">Create Food</h1>
+        <h1 className="flex-1 text-center text-base font-semibold text-foreground">{editFood ? "Edit Food" : "Create Food"}</h1>
         <button
           onClick={handleSave}
           disabled={saving}

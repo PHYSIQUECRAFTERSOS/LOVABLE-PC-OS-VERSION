@@ -27,6 +27,7 @@ import {
   Star,
   Info,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -146,6 +147,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   // Custom Foods
   const [customFoods, setCustomFoods] = useState<any[]>([]);
   const [showCreateFood, setShowCreateFood] = useState(false);
+  const [editingCustomFood, setEditingCustomFood] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
@@ -804,8 +806,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   if (showCreateFood) {
     return (
       <CreateFoodScreen
-        onClose={() => setShowCreateFood(false)}
-        onSaved={() => { setShowCreateFood(false); fetchCustomFoods(); }}
+        onClose={() => { setShowCreateFood(false); setEditingCustomFood(null); }}
+        onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
+        editFood={editingCustomFood}
       />
     );
   }
@@ -1099,6 +1102,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                         className="h-8 w-8 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                       >
                         <Plus className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => { setEditingCustomFood(food); setShowCreateFood(true); }}
+                        className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-secondary transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
                       <button
                         onClick={() => deleteCustomFood(food.id)}
