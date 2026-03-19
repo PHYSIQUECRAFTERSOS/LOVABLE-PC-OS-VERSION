@@ -1104,6 +1104,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                         <Plus className="h-4 w-4" />
                       </button>
                       <button
+                        onClick={() => { setEditingCustomFood(food); setShowCreateFood(true); }}
+                        className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-secondary transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
                         onClick={() => deleteCustomFood(food.id)}
                         className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-destructive/10 transition-colors"
                       >
