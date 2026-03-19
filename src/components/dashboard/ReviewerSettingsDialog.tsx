@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,17 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import UserAvatar from "@/components/profile/UserAvatar";
-import { Plus, Trash2, Palette } from "lucide-react";
+import { Plus, Trash2, Palette, CalendarDays } from "lucide-react";
 
 const PRESET_COLORS = [
-  "#FBBF24", // yellow
-  "#06B6D4", // cyan
-  "#10B981", // emerald
-  "#F97316", // orange
-  "#8B5CF6", // violet
-  "#EF4444", // red
-  "#EC4899", // pink
-  "#D4A017", // gold
+  "#FBBF24", "#06B6D4", "#10B981", "#F97316",
+  "#8B5CF6", "#EF4444", "#EC4899", "#D4A017",
+];
+
+const DAY_NAMES = [
+  { value: "0", label: "Sunday" },
+  { value: "1", label: "Monday" },
+  { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" },
+  { value: "4", label: "Thursday" },
+  { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
 ];
 
 interface Reviewer {
@@ -39,6 +43,13 @@ interface ClientAssignment {
   reviewer_id: string | null;
 }
 
+interface DayConfig {
+  id: string;
+  label: string;
+  day_of_week: number;
+  sort_order: number;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,6 +61,8 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [newDayLabel, setNewDayLabel] = useState("");
+  const [newDayOfWeek, setNewDayOfWeek] = useState("3");
 
   // Fetch reviewers
   const { data: reviewers = [] } = useQuery({
@@ -62,6 +75,21 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
         .order("sort_order");
       if (error) throw error;
       return data as Reviewer[];
+    },
+    enabled: !!user && open,
+  });
+
+  // Fetch day configs
+  const { data: dayConfigs = [] } = useQuery({
+    queryKey: ["checkin-day-config", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coach_checkin_day_config")
+        .select("*")
+        .eq("coach_id", user!.id)
+        .order("sort_order");
+      if (error) throw error;
+      return data as DayConfig[];
     },
     enabled: !!user && open,
   });
@@ -137,7 +165,6 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
   const assignClient = useMutation({
     mutationFn: async ({ clientId, reviewerId }: { clientId: string; reviewerId: string | null }) => {
       if (!reviewerId || reviewerId === "none") {
-        // Remove assignment
         const { error } = await supabase
           .from("client_reviewer_assignments")
           .delete()
@@ -145,7 +172,6 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
           .eq("coach_id", user!.id);
         if (error) throw error;
       } else {
-        // Upsert assignment
         const { error } = await supabase
           .from("client_reviewer_assignments")
           .upsert(
@@ -162,18 +188,110 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  // Add day config
+  const addDayConfig = useMutation({
+    mutationFn: async () => {
+      const label = newDayLabel.trim() || DAY_NAMES.find(d => d.value === newDayOfWeek)?.label || "Day";
+      if (dayConfigs.length >= 4) throw new Error("Maximum 4 submission day columns");
+      const { error } = await supabase.from("coach_checkin_day_config").insert({
+        coach_id: user!.id,
+        label,
+        day_of_week: parseInt(newDayOfWeek),
+        sort_order: dayConfigs.length,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["checkin-day-config"] });
+      queryClient.invalidateQueries({ queryKey: ["checkin-dashboard"] });
+      setNewDayLabel("");
+      toast({ title: "Submission day added ✅" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Delete day config
+  const deleteDayConfig = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("coach_checkin_day_config").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["checkin-day-config"] });
+      queryClient.invalidateQueries({ queryKey: ["checkin-dashboard"] });
+      toast({ title: "Submission day removed" });
+    },
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-primary" />
-            Reviewer Settings
+            Dashboard Settings
           </DialogTitle>
           <DialogDescription>
-            Manage reviewers and assign clients for check-in tracking.
+            Configure submission day columns, reviewers, and client assignments.
           </DialogDescription>
         </DialogHeader>
+
+        {/* ── Submission Days ── */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            Submission Day Columns
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Define which days appear as columns on your check-in dashboard (max 4). If none are set, defaults to Wednesday & Thursday.
+          </p>
+
+          {/* Existing day configs */}
+          {dayConfigs.map((dc) => (
+            <div key={dc.id} className="flex items-center gap-3 py-2 px-3 rounded-lg bg-secondary/30">
+              <CalendarDays className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm flex-1">{dc.label}</span>
+              <span className="text-xs text-muted-foreground">
+                {DAY_NAMES.find(d => d.value === String(dc.day_of_week))?.label}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => deleteDayConfig.mutate(dc.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+
+          {/* Add new day */}
+          {dayConfigs.length < 4 && (
+            <div className="flex gap-2">
+              <Input
+                placeholder="Label (e.g. Friday)"
+                value={newDayLabel}
+                onChange={(e) => setNewDayLabel(e.target.value)}
+                className="flex-1"
+              />
+              <Select value={newDayOfWeek} onValueChange={setNewDayOfWeek}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAY_NAMES.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={() => addDayConfig.mutate()}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <Separator />
 
         {/* ── Add Reviewer ── */}
         <div className="space-y-3">
@@ -204,7 +322,6 @@ export default function ReviewerSettingsDialog({ open, onOpenChange }: Props) {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
-          {/* More colors row */}
           <div className="flex gap-1">
             {PRESET_COLORS.slice(4).map((c) => (
               <button

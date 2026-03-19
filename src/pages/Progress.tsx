@@ -12,7 +12,7 @@ import ProgressMetricsDashboard from "@/components/biofeedback/ProgressMetricsDa
 import BodyFatEstimation from "@/components/biofeedback/BodyFatEstimation";
 import WeightTracker from "@/components/biofeedback/WeightTracker";
 import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
-import CheckinFormBuilder from "@/components/checkin/CheckinFormBuilder";
+import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import CheckinSubmissionForm from "@/components/checkin/CheckinSubmissionForm";
 import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard";
 import StepsScreen from "@/components/biofeedback/StepsScreen";

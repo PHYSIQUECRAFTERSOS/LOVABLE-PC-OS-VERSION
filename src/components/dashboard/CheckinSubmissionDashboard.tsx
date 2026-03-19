@@ -37,11 +37,8 @@ function getPSTWeekWindow() {
   const sunday = new Date(monday);
   sunday.setDate(sunday.getDate() + 6);
   const sundayStr = sunday.toISOString().split("T")[0];
-  const thursday = new Date(monday);
-  thursday.setDate(thursday.getDate() + 3);
-  const thursdayStr = thursday.toISOString().split("T")[0];
   const currentDayOfWeek = day;
-  return { mondayStr, sundayStr, thursdayStr, currentDayOfWeek };
+  return { mondayStr, sundayStr, currentDayOfWeek };
 }
 
 function getDayOfWeekPST(dateStr: string): number {
@@ -62,7 +59,28 @@ function formatTimestampInTz(isoStr: string, tz: string | null): string {
   }
 }
 
+// ── Default day config (fallback) ──
+const DEFAULT_DAY_CONFIGS = [
+  { id: "default-wed", label: "Submitted Wednesday", day_of_week: 3, sort_order: 0 },
+  { id: "default-thu", label: "Submitted Thursday", day_of_week: 4, sort_order: 1 },
+];
+
+// Colors/icons for dynamic columns
+const COLUMN_STYLES = [
+  { borderClass: "border-l-emerald-500", badgeColor: "bg-emerald-400/20 text-emerald-400", icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" /> },
+  { borderClass: "border-l-blue-500", badgeColor: "bg-blue-400/20 text-blue-400", icon: <Clock className="h-4 w-4 text-blue-400" /> },
+  { borderClass: "border-l-violet-500", badgeColor: "bg-violet-400/20 text-violet-400", icon: <CheckCircle2 className="h-4 w-4 text-violet-400" /> },
+  { borderClass: "border-l-amber-500", badgeColor: "bg-amber-400/20 text-amber-400", icon: <Clock className="h-4 w-4 text-amber-400" /> },
+];
+
 // ── Types ──
+
+interface DayConfig {
+  id: string;
+  label: string;
+  day_of_week: number;
+  sort_order: number;
+}
 
 interface CheckinClient {
   clientId: string;
@@ -79,12 +97,16 @@ interface CheckinClient {
   reviewerName: string | null;
 }
 
+interface DayBucket {
+  config: DayConfig;
+  clients: CheckinClient[];
+}
+
 interface CheckinDashboardData {
-  submittedWednesday: CheckinClient[];
-  submittedThursday: CheckinClient[];
+  buckets: DayBucket[];
   notSubmitted: CheckinClient[];
   offWeek: CheckinClient[];
-  isPastThursday: boolean;
+  isPastLastDay: boolean;
 }
 
 interface Reviewer {
@@ -103,10 +125,26 @@ const CheckinSubmissionDashboard = () => {
   const [realtimeKey, setRealtimeKey] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
-  // Track optimistic reviewed state: submissionId -> true
   const [optimisticReviewed, setOptimisticReviewed] = useState<Record<string, boolean>>({});
 
-  const queryKey = `checkin-dashboard-${user?.id}-${realtimeKey}`;
+  // Fetch coach day configs
+  const { data: coachDayConfigs = [] } = useQuery({
+    queryKey: ["checkin-day-config", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coach_checkin_day_config")
+        .select("*")
+        .eq("coach_id", user!.id)
+        .order("sort_order");
+      if (error) throw error;
+      return data as DayConfig[];
+    },
+    enabled: !!user,
+  });
+
+  const activeDayConfigs = coachDayConfigs.length > 0 ? coachDayConfigs : DEFAULT_DAY_CONFIGS;
+
+  const queryKey = `checkin-dashboard-${user?.id}-${realtimeKey}-${activeDayConfigs.map(d => d.day_of_week).join(",")}`;
 
   // Fetch reviewer data
   const { data: reviewers = [] } = useQuery({
@@ -136,7 +174,6 @@ const CheckinSubmissionDashboard = () => {
     enabled: !!user,
   });
 
-  // Build lookup maps
   const reviewerMap = useMemo(() => new Map(reviewers.map((r) => [r.id, r])), [reviewers]);
   const clientReviewerMap = useMemo(
     () => new Map(reviewerAssignments.map((a) => [a.client_id, a.reviewer_id])),
@@ -148,18 +185,22 @@ const CheckinSubmissionDashboard = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { submittedWednesday: [], submittedThursday: [], notSubmitted: [], offWeek: [], isPastThursday: false },
+    fallback: { buckets: [], notSubmitted: [], offWeek: [], isPastLastDay: false },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
       const { mondayStr, sundayStr, currentDayOfWeek } = getPSTWeekWindow();
-      const isPastThursday = currentDayOfWeek >= 5 || currentDayOfWeek === 0;
+
+      // Determine if we're past the last configured day
+      const sortedDays = [...activeDayConfigs].sort((a, b) => a.sort_order - b.sort_order);
+      const maxDay = Math.max(...sortedDays.map(d => d.day_of_week));
+      const isPastLastDay = currentDayOfWeek > maxDay || currentDayOfWeek === 0;
 
       const { data: assignments } = await supabase
         .from("coach_clients").select("client_id")
         .eq("coach_id", user.id).eq("status", "active").abortSignal(signal);
 
       if (!assignments?.length)
-        return { submittedWednesday: [], submittedThursday: [], notSubmitted: [], offWeek: [], isPastThursday };
+        return { buckets: [], notSubmitted: [], offWeek: [], isPastLastDay };
 
       const clientIds = assignments.map((a) => a.client_id);
 
@@ -188,8 +229,8 @@ const CheckinSubmissionDashboard = () => {
         }
       }
 
-      const submittedWednesday: CheckinClient[] = [];
-      const submittedThursday: CheckinClient[] = [];
+      // Initialize buckets
+      const buckets: DayBucket[] = sortedDays.map(config => ({ config, clients: [] }));
       const notSubmitted: CheckinClient[] = [];
       const offWeek: CheckinClient[] = [];
 
@@ -230,21 +271,32 @@ const CheckinSubmissionDashboard = () => {
         }
 
         if (submission?.submitted_at) {
-          const dayOfWeek = getDayOfWeekPST(submission.submitted_at);
-          if (dayOfWeek <= 3) submittedWednesday.push(baseClient);
-          else submittedThursday.push(baseClient);
+          const submissionDay = getDayOfWeekPST(submission.submitted_at);
+          // Find which bucket this submission belongs to
+          // Sort configs by day_of_week descending, find first where submissionDay >= config day
+          let placed = false;
+          for (let i = sortedDays.length - 1; i >= 0; i--) {
+            if (submissionDay >= sortedDays[i].day_of_week) {
+              buckets[i].clients.push(baseClient);
+              placed = true;
+              break;
+            }
+          }
+          // If submitted before the first configured day, put in first bucket
+          if (!placed && buckets.length > 0) {
+            buckets[0].clients.push(baseClient);
+          }
         } else {
           notSubmitted.push(baseClient);
         }
       }
 
       const sortByName = (a: CheckinClient, b: CheckinClient) => a.clientName.localeCompare(b.clientName);
-      submittedWednesday.sort(sortByName);
-      submittedThursday.sort(sortByName);
+      buckets.forEach(b => b.clients.sort(sortByName));
       notSubmitted.sort(sortByName);
       offWeek.sort(sortByName);
 
-      return { submittedWednesday, submittedThursday, notSubmitted, offWeek, isPastThursday };
+      return { buckets, notSubmitted, offWeek, isPastLastDay };
     },
   });
 
@@ -285,14 +337,13 @@ const CheckinSubmissionDashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, queryKey]);
 
-  if (loading && !data?.submittedWednesday?.length) return <GridSkeleton cards={3} />;
+  if (loading && !data?.buckets?.length) return <GridSkeleton cards={3} />;
   if (!data) return null;
 
-  const { submittedWednesday, submittedThursday, notSubmitted, offWeek, isPastThursday } = data;
-  const totalAssigned = submittedWednesday.length + submittedThursday.length + notSubmitted.length;
+  const { buckets, notSubmitted, offWeek, isPastLastDay } = data;
+  const totalAssigned = buckets.reduce((sum, b) => sum + b.clients.length, 0) + notSubmitted.length;
   if (totalAssigned === 0 && offWeek.length === 0) return null;
 
-  // Helper: check if reviewed (optimistic or from data)
   const isClientReviewed = (client: CheckinClient) => {
     if (client.submissionId && optimisticReviewed[client.submissionId] !== undefined) {
       return optimisticReviewed[client.submissionId];
@@ -300,8 +351,7 @@ const CheckinSubmissionDashboard = () => {
     return client.isReviewed;
   };
 
-  // Compute reviewed counts
-  const allSubmitted = [...submittedWednesday, ...submittedThursday];
+  const allSubmitted = buckets.flatMap(b => b.clients);
   const reviewedClients = allSubmitted.filter(isClientReviewed);
   const reviewedCount = reviewedClients.length;
   const totalSubmitted = allSubmitted.length;
@@ -326,40 +376,31 @@ const CheckinSubmissionDashboard = () => {
         </Button>
       </h2>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* ── Submitted Wednesday ── */}
-        <SubmissionColumn
-          title="Submitted Wednesday"
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-400" />}
-          borderClass="border-l-emerald-500"
-          badgeColor="bg-emerald-400/20 text-emerald-400"
-          clients={submittedWednesday}
-          reviewedCount={getColumnReviewedCount(submittedWednesday)}
-          navigate={navigate}
-          isClientReviewed={isClientReviewed}
-          onToggleReview={(client) => {
-            if (!client.submissionId) return;
-            markReviewed.mutate({ submissionId: client.submissionId, reviewed: !isClientReviewed(client) });
-          }}
-          emptyText="No submissions yet."
-        />
-
-        {/* ── Submitted Thursday ── */}
-        <SubmissionColumn
-          title="Submitted Thursday"
-          icon={<Clock className="h-4 w-4 text-blue-400" />}
-          borderClass="border-l-blue-500"
-          badgeColor="bg-blue-400/20 text-blue-400"
-          clients={submittedThursday}
-          reviewedCount={getColumnReviewedCount(submittedThursday)}
-          navigate={navigate}
-          isClientReviewed={isClientReviewed}
-          onToggleReview={(client) => {
-            if (!client.submissionId) return;
-            markReviewed.mutate({ submissionId: client.submissionId, reviewed: !isClientReviewed(client) });
-          }}
-          emptyText="No Thursday submissions."
-        />
+      <div className={`grid grid-cols-1 gap-4 ${buckets.length + 1 <= 3 ? `lg:grid-cols-${buckets.length + 1}` : "lg:grid-cols-4"}`}
+        style={{ gridTemplateColumns: `repeat(${Math.min(buckets.length + 1, 4)}, minmax(0, 1fr))` }}
+      >
+        {/* Dynamic submission day columns */}
+        {buckets.map((bucket, idx) => {
+          const style = COLUMN_STYLES[idx % COLUMN_STYLES.length];
+          return (
+            <SubmissionColumn
+              key={bucket.config.id}
+              title={`Submitted ${bucket.config.label}`}
+              icon={style.icon}
+              borderClass={style.borderClass}
+              badgeColor={style.badgeColor}
+              clients={bucket.clients}
+              reviewedCount={getColumnReviewedCount(bucket.clients)}
+              navigate={navigate}
+              isClientReviewed={isClientReviewed}
+              onToggleReview={(client) => {
+                if (!client.submissionId) return;
+                markReviewed.mutate({ submissionId: client.submissionId, reviewed: !isClientReviewed(client) });
+              }}
+              emptyText={`No ${bucket.config.label} submissions.`}
+            />
+          );
+        })}
 
         {/* ── Not Submitted ── */}
         <Card className="border-l-2 border-l-destructive">
@@ -402,7 +443,7 @@ const CheckinSubmissionDashboard = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      {isPastThursday && (
+                      {isPastLastDay && (
                         <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4">Overdue</Badge>
                       )}
                       {client.recurrence === "biweekly" && (

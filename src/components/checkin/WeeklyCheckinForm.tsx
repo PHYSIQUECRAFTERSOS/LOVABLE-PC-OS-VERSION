@@ -8,13 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardCheck, CheckCircle, Loader2 } from "lucide-react";
+import { ClipboardCheck, CheckCircle, Loader2, Star } from "lucide-react";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
 
-const DEFAULT_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
+const HARDCODED_FALLBACK_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
 const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const { user } = useAuth();
@@ -24,18 +27,48 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
 
+  // Resolve the template: look up coach's default first, then fallback
+  const { data: resolvedTemplateId, isLoading: templateResolving } = useQuery({
+    queryKey: ["resolved-checkin-template", user?.id],
+    queryFn: async () => {
+      // Find this client's coach
+      const { data: coachRel } = await supabase
+        .from("coach_clients")
+        .select("coach_id")
+        .eq("client_id", user!.id)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+
+      if (coachRel?.coach_id) {
+        // Check coach's preferences for a default template
+        const { data: prefs } = await supabase
+          .from("coach_checkin_preferences")
+          .select("default_template_id")
+          .eq("coach_id", coachRel.coach_id)
+          .maybeSingle();
+
+        if (prefs?.default_template_id) {
+          return prefs.default_template_id;
+        }
+      }
+      return HARDCODED_FALLBACK_TEMPLATE_ID;
+    },
+    enabled: !!user,
+  });
+
   const { data: questions, isLoading: questionsLoading } = useQuery({
-    queryKey: ["weekly-checkin-questions"],
+    queryKey: ["weekly-checkin-questions", resolvedTemplateId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("checkin_questions")
         .select("*")
-        .eq("template_id", DEFAULT_TEMPLATE_ID)
+        .eq("template_id", resolvedTemplateId!)
         .order("question_order");
       if (error) throw error;
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !!resolvedTemplateId,
   });
 
   const { data: assignedAt } = useQuery({
@@ -52,9 +85,9 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
     enabled: !!user,
   });
 
-  // Check if already submitted this week (Monday 00:00 PST reset)
+  // Check if already submitted this week
   const { data: alreadySubmitted } = useQuery({
-    queryKey: ["weekly-checkin-status", user?.id],
+    queryKey: ["weekly-checkin-status", user?.id, resolvedTemplateId],
     queryFn: async () => {
       const now = new Date();
       const pstFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -63,7 +96,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
       });
       const pstDateStr = pstFormatter.format(now);
       const pstDate = new Date(pstDateStr + "T00:00:00");
-      const day = pstDate.getDay(); // 0=Sun
+      const day = pstDate.getDay();
       const diffToMonday = day === 0 ? -6 : 1 - day;
       const monday = new Date(pstDate);
       monday.setDate(monday.getDate() + diffToMonday);
@@ -73,12 +106,12 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         .from("checkin_submissions")
         .select("id")
         .eq("client_id", user!.id)
-        .eq("template_id", DEFAULT_TEMPLATE_ID)
+        .eq("template_id", resolvedTemplateId!)
         .gte("submitted_at", `${mondayStr}T00:00:00Z`)
         .limit(1);
       return (data || []).length > 0;
     },
-    enabled: !!user,
+    enabled: !!user && !!resolvedTemplateId,
   });
 
   const getWeekNumber = () => {
@@ -95,9 +128,8 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      if (!user || !questions) throw new Error("Not ready");
+      if (!user || !questions || !resolvedTemplateId) throw new Error("Not ready");
 
-      // Validate required fields
       const missing = questions.filter(
         (q) => q.is_required && (!answers[q.id] || (typeof answers[q.id] === "string" && answers[q.id].trim() === ""))
       );
@@ -110,7 +142,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         .from("checkin_submissions")
         .insert({
           client_id: user.id,
-          template_id: DEFAULT_TEMPLATE_ID,
+          template_id: resolvedTemplateId,
           due_date: new Date().toISOString().split("T")[0],
           submitted_at: now,
           submitted_at_pst: getPSTTime(),
@@ -121,24 +153,25 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         .single();
       if (subErr) throw subErr;
 
-      // Insert all responses
       const responses = questions.map((q) => {
         const ans = answers[q.id];
         return {
           submission_id: sub.id,
           question_id: q.id,
-          answer_text: q.question_type === "text" ? (ans || null) : null,
+          answer_text: ["text", "paragraph"].includes(q.question_type) ? (ans || null) : null,
           answer_numeric: q.question_type === "numeric" ? (ans ? parseFloat(ans) : null) : null,
-          answer_scale: q.question_type === "scale" ? (Array.isArray(ans) ? ans[0] : ans || null) : null,
+          answer_scale: ["scale", "rating"].includes(q.question_type) ? (Array.isArray(ans) ? ans[0] : ans || null) : null,
           answer_boolean: q.question_type === "yes_no" ? ans : null,
-          answer_choice: q.question_type === "multiple_choice" ? (ans || null) : null,
+          answer_choice: ["multiple_choice", "dropdown", "checkbox"].includes(q.question_type)
+            ? (Array.isArray(ans) ? JSON.stringify(ans) : (ans || null))
+            : null,
         };
       });
 
       const { error: rErr } = await supabase.from("checkin_responses").insert(responses);
       if (rErr) throw rErr;
 
-      // Also log weight if the weight question was answered
+      // Log weight if applicable
       const weightQ = questions.find((q) => q.question_order === 10);
       if (weightQ && answers[weightQ.id]) {
         const w = parseFloat(answers[weightQ.id]);
@@ -154,7 +187,6 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
       queryClient.invalidateQueries({ queryKey: ["weekly-checkin-status"] });
       queryClient.invalidateQueries({ queryKey: ["client-submissions"] });
       toast({ title: "Check-in submitted! 💪" });
-      // Award Ranked XP
       if (user?.id) {
         triggerXP(user.id, "checkin_submitted", XP_VALUES.checkin_submitted, "Weekly check-in submitted").catch(console.error);
       }
@@ -169,6 +201,14 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const renderInput = (q: any) => {
     switch (q.question_type) {
       case "text":
+        return (
+          <Input
+            value={answers[q.id] || ""}
+            onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+            placeholder="Type your response..."
+          />
+        );
+      case "paragraph":
         return (
           <Textarea
             value={answers[q.id] || ""}
@@ -208,7 +248,37 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
             </div>
           </div>
         );
-      case "multiple_choice":
+      case "rating": {
+        const max = q.scale_max ?? 5;
+        const current = answers[q.id] ?? 0;
+        return (
+          <div className="flex gap-1">
+            {Array.from({ length: max }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: i + 1 }))}
+                className="transition-colors"
+              >
+                <Star
+                  className={`h-7 w-7 ${i < current ? "text-primary fill-primary" : "text-muted-foreground/30"}`}
+                />
+              </button>
+            ))}
+          </div>
+        );
+      }
+      case "yes_no":
+        return (
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={answers[q.id] || false}
+              onCheckedChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}
+            />
+            <span className="text-sm">{answers[q.id] ? "Yes" : "No"}</span>
+          </div>
+        );
+      case "multiple_choice": {
         const options = (q.options as string[]) || [];
         return (
           <RadioGroup
@@ -224,6 +294,44 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
             ))}
           </RadioGroup>
         );
+      }
+      case "checkbox": {
+        const options = (q.options as string[]) || [];
+        const selected: string[] = answers[q.id] || [];
+        return (
+          <div className="space-y-2">
+            {options.map((opt, i) => (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors">
+                <Checkbox
+                  checked={selected.includes(opt)}
+                  onCheckedChange={(checked) => {
+                    setAnswers((prev) => ({
+                      ...prev,
+                      [q.id]: checked
+                        ? [...(prev[q.id] || []), opt]
+                        : (prev[q.id] || []).filter((s: string) => s !== opt),
+                    }));
+                  }}
+                />
+                <Label className="text-sm cursor-pointer flex-1">{opt}</Label>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      case "dropdown": {
+        const options = (q.options as string[]) || [];
+        return (
+          <Select value={answers[q.id] || ""} onValueChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: v }))}>
+            <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>
+              {options.map((opt, i) => (
+                <SelectItem key={i} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
       default:
         return null;
     }
@@ -241,7 +349,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
     );
   }
 
-  if (questionsLoading) {
+  if (questionsLoading || templateResolving) {
     return (
       <Card>
         <CardContent className="pt-6 flex items-center justify-center py-10">
