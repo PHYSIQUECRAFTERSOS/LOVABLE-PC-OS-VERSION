@@ -25,6 +25,8 @@ import {
   CalendarClock,
   Clock,
 } from "lucide-react";
+import { useState } from "react";
+import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
 
 // ── Types ──
 
@@ -130,6 +132,7 @@ function riskBadge(score: number) {
 const CoachCommandCenter = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [quickMsgClient, setQuickMsgClient] = useState<{ id: string; name: string; avatar?: string | null; prefill?: string } | null>(null);
 
   const { data, loading, error, timedOut, refetch } = useDataFetch<CommandCenterData>({
     queryKey: `coach-command-center-${user?.id}`,
@@ -510,7 +513,7 @@ const CoachCommandCenter = () => {
                     size="sm"
                     variant="ghost"
                     className="h-7 px-2 text-xs text-emerald-400 hover:text-emerald-300"
-                    onClick={() => navigate("/messages")}
+                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: `Great work on "${client.workoutTitle}" yesterday! 💪` })}
                   >
                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                     Congrats
@@ -549,7 +552,7 @@ const CoachCommandCenter = () => {
                     size="sm"
                     variant="ghost"
                     className="h-7 px-2 text-xs text-destructive hover:text-destructive/80"
-                    onClick={() => navigate("/messages")}
+                    onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: "" })}
                   >
                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
                     Check In
@@ -783,6 +786,15 @@ const CoachCommandCenter = () => {
           <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
         </div>
       </div>
+
+      <QuickMessageDialog
+        open={!!quickMsgClient}
+        onOpenChange={(open) => { if (!open) setQuickMsgClient(null); }}
+        clientId={quickMsgClient?.id || ""}
+        clientName={quickMsgClient?.name || ""}
+        clientAvatar={quickMsgClient?.avatar}
+        prefillMessage={quickMsgClient?.prefill}
+      />
     </div>
   );
 };
