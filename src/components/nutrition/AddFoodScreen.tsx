@@ -630,20 +630,29 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
-  const logCustomFood = async (food: any) => {
+  const logCustomFood = async (food: any, quantity?: number) => {
     if (!user) return;
+    const ss = parseFloat(food.serving_size) || 100;
+    const qty = quantity ?? 1;
+    const multiplier = qty;
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       custom_name: food.name + (food.brand ? ` (${food.brand})` : ""),
       meal_type: mealType,
-      servings: 1,
-      calories: Math.round(food.calories || 0),
-      protein: Math.round(food.protein || 0),
-      carbs: Math.round(food.carbs || 0),
-      fat: Math.round(food.fat || 0),
+      servings: multiplier,
+      calories: Math.round((food.calories || 0) * multiplier),
+      protein: Math.round((food.protein || 0) * multiplier),
+      carbs: Math.round((food.carbs || 0) * multiplier),
+      fat: Math.round((food.fat || 0) * multiplier),
+      fiber: Math.round((food.fiber || 0) * multiplier),
+      sugar: Math.round((food.sugar || 0) * multiplier),
+      sodium: Math.round((food.sodium || 0) * multiplier),
+      quantity_display: qty,
+      quantity_unit: food.serving_unit || "serving",
       logged_at: effectiveDate,
       tz_corrected: true,
-    });
+    } as any);
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
@@ -803,15 +812,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
-  if (showCreateFood) {
-    return (
-      <CreateFoodScreen
-        onClose={() => { setShowCreateFood(false); setEditingCustomFood(null); }}
-        onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
-        editFood={editingCustomFood}
-      />
-    );
-  }
+  // CreateFoodScreen is now a dialog, rendered inline below - not a sub-screen
 
   if (selectedPCRecipe) {
     return (
@@ -856,7 +857,34 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     );
   }
 
+  // Prepend matching custom foods to search results for top priority
+  const matchingCustomFoods: FoodItem[] = search.length >= 2
+    ? customFoods
+        .filter((cf: any) => cf.name.toLowerCase().includes(search.toLowerCase()) || (cf.brand && cf.brand.toLowerCase().includes(search.toLowerCase())))
+        .map((cf: any) => ({
+          id: `custom-${cf.id}`,
+          name: cf.name + (cf.brand ? ` (${cf.brand})` : ""),
+          brand: cf.brand || null,
+          serving_size: parseFloat(cf.serving_size) || 100,
+          serving_unit: cf.serving_unit || "g",
+          calories: cf.calories || 0,
+          protein: cf.protein || 0,
+          carbs: cf.carbs || 0,
+          fat: cf.fat || 0,
+          fiber: cf.fiber || 0,
+          sugar: cf.sugar || 0,
+          sodium: cf.sodium || 0,
+          source: "local" as const,
+          is_verified: false,
+          data_source: "custom",
+          category: "Custom Food",
+          _isClientCustom: true,
+          _customFoodRef: cf,
+        } as FoodItem & { _isClientCustom?: boolean; _customFoodRef?: any }))
+    : [];
+
   const allDisplayItems = [
+    ...matchingCustomFoods,
     ...results,
     ...offResults.filter(o => !results.some(r => r.name.toLowerCase() === o.name.toLowerCase())),
   ];
@@ -1093,7 +1121,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                         {food.brand && <span className="text-muted-foreground font-normal"> · {food.brand}</span>}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {food.serving_size} · {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
+                        {food.serving_size}{food.serving_unit && food.serving_unit !== 'g' ? food.serving_unit : 'g'} · {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
                       </div>
                     </button>
                     <div className="flex gap-1 ml-2">
@@ -1302,6 +1330,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
       <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} defaultMealType={mealType} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
       <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={effectiveDate} onLogged={onLogged} />
+      <CreateFoodScreen
+        open={showCreateFood}
+        onOpenChange={(v) => { if (!v) { setShowCreateFood(false); setEditingCustomFood(null); } }}
+        onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
+        editFood={editingCustomFood}
+      />
     </div>
   );
 };

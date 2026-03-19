@@ -1,203 +1,248 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, UtensilsCrossed } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-interface CreateFoodScreenProps {
-  onClose: () => void;
-  onSaved: () => void;
-  editFood?: {
-    id: string;
-    name: string;
-    brand?: string | null;
-    serving_size?: string | null;
-    servings_per_container?: number | null;
-    calories?: number | null;
-    protein?: number | null;
-    carbs?: number | null;
-    fat?: number | null;
-    fiber?: number | null;
-    sugar?: number | null;
-    sodium?: number | null;
-  } | null;
+const SERVING_UNIT_OPTIONS = [
+  "g", "bar", "bottle", "unit", "cup", "ml", "oz", "scoop", "slice", "tsp", "tbsp",
+] as const;
+
+export interface ClientCustomFoodData {
+  id?: string;
+  name: string;
+  brand?: string | null;
+  serving_size?: string | null;
+  serving_unit?: string | null;
+  servings_per_container?: number | null;
+  calories?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+  fiber?: number | null;
+  sugar?: number | null;
+  sodium?: number | null;
 }
 
-const CreateFoodScreen = ({ onClose, onSaved, editFood }: CreateFoodScreenProps) => {
+interface CreateFoodScreenProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  editFood?: ClientCustomFoodData | null;
+}
+
+const CreateFoodScreen = ({ open, onOpenChange, onSaved, editFood }: CreateFoodScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [form, setForm] = useState({
-    brand: editFood?.brand || "",
-    name: editFood?.name || "",
-    serving_size: editFood?.serving_size || "",
-    servings_per_container: String(editFood?.servings_per_container ?? "1"),
-    calories: editFood?.calories != null ? String(editFood.calories) : "",
-    protein: editFood?.protein != null ? String(editFood.protein) : "",
-    carbs: editFood?.carbs != null ? String(editFood.carbs) : "",
-    fat: editFood?.fat != null ? String(editFood.fat) : "",
-    fiber: editFood?.fiber != null ? String(editFood.fiber) : "",
-    sugar: editFood?.sugar != null ? String(editFood.sugar) : "",
-    sodium: editFood?.sodium != null ? String(editFood.sodium) : "",
-  });
+  const [name, setName] = useState("");
+  const [brand, setBrand] = useState("");
+  const [servingSize, setServingSize] = useState("100");
+  const [servingUnit, setServingUnit] = useState("g");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+  const [fiber, setFiber] = useState("");
+  const [sugar, setSugar] = useState("");
+  const [sodium, setSodium] = useState("");
+  const [showMicros, setShowMicros] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
 
-  const update = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  const isEditing = !!editFood?.id;
+
+  useEffect(() => {
+    if (editFood) {
+      setName(editFood.name || "");
+      setBrand(editFood.brand || "");
+      // Parse serving_size - could be "240ml" or "240" or numeric
+      const rawSS = String(editFood.serving_size ?? "100");
+      const numMatch = rawSS.match(/^([\d.]+)/);
+      setServingSize(numMatch ? numMatch[1] : "100");
+      setServingUnit(editFood.serving_unit || "g");
+      setCalories(editFood.calories ? String(editFood.calories) : "");
+      setProtein(editFood.protein ? String(editFood.protein) : "");
+      setCarbs(editFood.carbs ? String(editFood.carbs) : "");
+      setFat(editFood.fat ? String(editFood.fat) : "");
+      setFiber(editFood.fiber ? String(editFood.fiber) : "");
+      setSugar(editFood.sugar ? String(editFood.sugar) : "");
+      setSodium(editFood.sodium ? String(editFood.sodium) : "");
+    } else {
+      resetForm();
+    }
+  }, [editFood, open]);
+
+  const resetForm = () => {
+    setName(""); setBrand(""); setServingSize("100"); setServingUnit("g");
+    setCalories(""); setProtein(""); setCarbs(""); setFat("");
+    setFiber(""); setSugar(""); setSodium(""); setShowMicros(false);
+  };
 
   const handleSave = async () => {
     if (!user) return;
-    if (!form.name.trim()) { setError("Description is required"); return; }
-    if (!form.serving_size.trim()) { setError("Serving size is required"); return; }
-    if (!form.calories) { setError("Calories is required"); return; }
+    if (!name.trim()) {
+      toast({ title: "Food name is required", variant: "destructive" });
+      return;
+    }
 
     setSaving(true);
-    setError("");
+
+    const ss = parseFloat(servingSize) || 100;
+    const p = parseFloat(protein) || 0;
+    const c = parseFloat(carbs) || 0;
+    const f = parseFloat(fat) || 0;
+    const cal = parseFloat(calories) || Math.round(p * 4 + c * 4 + f * 9);
+
+    const payload = {
+      name: name.trim(),
+      brand: brand.trim() || null,
+      serving_size: String(ss),
+      serving_unit: servingUnit,
+      servings_per_container: 1,
+      calories: cal,
+      protein: p,
+      carbs: c,
+      fat: f,
+      fiber: parseFloat(fiber) || 0,
+      sugar: parseFloat(sugar) || 0,
+      sodium: parseFloat(sodium) || 0,
+    };
+
     try {
-      if (editFood?.id) {
-        // Update existing custom food
-        const { error: saveError } = await supabase
+      if (isEditing) {
+        const { error } = await supabase
           .from("client_custom_foods")
-          .update({
-            name: form.name.trim(),
-            brand: form.brand.trim() || null,
-            serving_size: form.serving_size.trim(),
-            servings_per_container: parseFloat(form.servings_per_container) || 1,
-            calories: parseFloat(form.calories) || 0,
-            protein: parseFloat(form.protein) || 0,
-            carbs: parseFloat(form.carbs) || 0,
-            fat: parseFloat(form.fat) || 0,
-          } as any)
-          .eq("id", editFood.id)
+          .update(payload as any)
+          .eq("id", editFood!.id!)
           .eq("client_id", user.id);
 
-        if (saveError) throw saveError;
-        toast({ title: "Food updated!" });
+        if (error) throw error;
+        toast({ title: `${name} updated!` });
       } else {
-        // Create new custom food
-        const { error: saveError } = await supabase
+        const { error } = await supabase
           .from("client_custom_foods")
-          .insert({
-            client_id: user.id,
-            name: form.name.trim(),
-            brand: form.brand.trim() || null,
-            serving_size: form.serving_size.trim(),
-            servings_per_container: parseFloat(form.servings_per_container) || 1,
-            calories: parseFloat(form.calories) || 0,
-            protein: parseFloat(form.protein) || 0,
-            carbs: parseFloat(form.carbs) || 0,
-            fat: parseFloat(form.fat) || 0,
-          } as any);
+          .insert({ ...payload, client_id: user.id } as any);
 
-        if (saveError) throw saveError;
-        toast({ title: "Food saved!" });
+        if (error) throw error;
+        toast({ title: `${name} saved!` });
       }
       onSaved();
+      onOpenChange(false);
+      resetForm();
     } catch (err: any) {
       console.error("Save food error:", err);
-      setError(err.message || "Failed to save food");
+      toast({ title: "Failed to save food", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
-  const infoFields = [
-    { key: "brand", label: "Brand Name", sublabel: "Optional", placeholder: "ex. Campbell's", inputMode: "text" as const },
-    { key: "name", label: "Description", sublabel: "Required", placeholder: "ex. Chicken Soup", inputMode: "text" as const },
-    { key: "serving_size", label: "Serving Size", sublabel: "Required", placeholder: "ex. 1 cup", inputMode: "text" as const },
-    { key: "servings_per_container", label: "Servings / container", sublabel: "Optional", placeholder: "1", inputMode: "decimal" as const },
-  ];
-
-  const nutritionFields = [
-    { key: "calories", label: "Calories", unit: "" },
-    { key: "protein", label: "Protein", unit: "g" },
-    { key: "carbs", label: "Carbs", unit: "g" },
-    { key: "fat", label: "Fat", unit: "g" },
-    { key: "fiber", label: "Fiber", unit: "g" },
-    { key: "sugar", label: "Sugar", unit: "g" },
-    { key: "sodium", label: "Sodium", unit: "mg" },
-  ];
-
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
-        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
-          <ArrowLeft className="h-5 w-5 text-foreground" />
-        </button>
-        <h1 className="flex-1 text-center text-base font-semibold text-foreground">{editFood ? "Edit Food" : "Create Food"}</h1>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="text-sm font-semibold text-primary disabled:text-muted-foreground"
-        >
-          {saving ? "..." : "Save"}
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto pb-36">
-        {/* Info fields */}
-        <div className="divide-y divide-border/50">
-          {infoFields.map(({ key, label, sublabel, placeholder, inputMode }) => (
-            <div key={key} className="flex items-center justify-between px-4 py-3.5">
-              <div>
-                <div className="text-sm text-foreground">{label}</div>
-                <div className="text-[10px] text-muted-foreground">{sublabel}</div>
-              </div>
-              <Input
-                type="text"
-                inputMode={inputMode}
-                placeholder={placeholder}
-                value={form[key as keyof typeof form]}
-                onChange={(e) => update(key, e.target.value)}
-                className="max-w-[180px] h-8 text-sm text-right bg-transparent border-0 focus-visible:ring-0 placeholder:text-muted-foreground"
-              />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Custom Food" : "Create Custom Food"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Food Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Homemade Granola" autoFocus />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Brand (optional)</Label>
+              <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Kirkland" />
             </div>
-          ))}
-        </div>
-
-        {/* Nutrition Facts */}
-        <div className="px-4 py-2 bg-secondary/30 mt-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nutrition Facts (per serving)</span>
-        </div>
-        <div className="divide-y divide-border/50">
-          {nutritionFields.map(({ key, label, unit }) => (
-            <div key={key} className="flex items-center justify-between px-4 py-3.5">
-              <span className="text-sm text-foreground">{label}</span>
-              <div className="flex items-center gap-1">
+            <div>
+              <Label>Serving Size</Label>
+              <div className="flex gap-2">
                 <Input
-                  type="text"
+                  type="number"
                   inputMode="decimal"
-                  placeholder="0"
-                  value={form[key as keyof typeof form]}
-                  onChange={(e) => update(key, e.target.value)}
-                  className="max-w-[80px] h-8 text-sm text-right bg-transparent border-0 focus-visible:ring-0"
+                  value={servingSize}
+                  onChange={(e) => setServingSize(e.target.value)}
+                  className="flex-1"
                 />
-                {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+                <Select value={servingUnit} onValueChange={setServingUnit}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVING_UNIT_OPTIONS.map((u) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Calories</Label>
+              <Input type="number" inputMode="decimal" value={calories} onChange={(e) => setCalories(e.target.value)} placeholder="Auto from macros" />
+            </div>
+            <div>
+              <Label>Protein (g)</Label>
+              <Input type="number" inputMode="decimal" value={protein} onChange={(e) => setProtein(e.target.value)} />
+            </div>
+            <div>
+              <Label>Carbs (g)</Label>
+              <Input type="number" inputMode="decimal" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+            </div>
+            <div>
+              <Label>Fat (g)</Label>
+              <Input type="number" inputMode="decimal" value={fat} onChange={(e) => setFat(e.target.value)} />
+            </div>
+            <div>
+              <Label>Fiber (g)</Label>
+              <Input type="number" inputMode="decimal" value={fiber} onChange={(e) => setFiber(e.target.value)} />
+            </div>
+            <div>
+              <Label>Sugar (g)</Label>
+              <Input type="number" inputMode="decimal" value={sugar} onChange={(e) => setSugar(e.target.value)} />
+            </div>
+            <div>
+              <Label>Sodium (mg)</Label>
+              <Input type="number" inputMode="decimal" value={sodium} onChange={(e) => setSodium(e.target.value)} />
+            </div>
+          </div>
 
-        {error && (
-          <p className="text-sm text-destructive px-4 pt-3">{error}</p>
-        )}
+          <div className="flex items-center gap-2">
+            <Switch checked={showMicros} onCheckedChange={setShowMicros} />
+            <Label className="text-sm">Advanced Micronutrients</Label>
+          </div>
 
-        {/* Save Button */}
-        <div className="px-4 py-6">
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full h-12 text-base font-bold rounded-xl"
-          >
-            <UtensilsCrossed className="h-5 w-5 mr-2" />
-            {saving ? "Saving..." : "Save Food"}
+          {showMicros && (
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground mb-2">
+                Micronutrients are tracked automatically when you log foods from the database. 
+                Custom foods will use the macro values entered above.
+              </p>
+            </div>
+          )}
+
+          <Button onClick={handleSave} disabled={saving || !name.trim()} className="w-full">
+            {saving ? "Saving..." : isEditing ? "Update Food" : "Save to Database"}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

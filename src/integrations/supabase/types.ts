@@ -1199,11 +1199,15 @@ export type Database = {
           client_id: string
           created_at: string | null
           fat: number | null
+          fiber: number | null
           id: string
           name: string
           protein: number | null
           serving_size: string | null
+          serving_unit: string | null
           servings_per_container: number | null
+          sodium: number | null
+          sugar: number | null
         }
         Insert: {
           brand?: string | null
@@ -1212,11 +1216,15 @@ export type Database = {
           client_id: string
           created_at?: string | null
           fat?: number | null
+          fiber?: number | null
           id?: string
           name: string
           protein?: number | null
           serving_size?: string | null
+          serving_unit?: string | null
           servings_per_container?: number | null
+          sodium?: number | null
+          sugar?: number | null
         }
         Update: {
           brand?: string | null
@@ -1225,11 +1233,15 @@ export type Database = {
           client_id?: string
           created_at?: string | null
           fat?: number | null
+          fiber?: number | null
           id?: string
           name?: string
           protein?: number | null
           serving_size?: string | null
+          serving_unit?: string | null
           servings_per_container?: number | null
+          sodium?: number | null
+          sugar?: number | null
         }
         Relationships: []
       }
