@@ -23,10 +23,10 @@ const MyRankDashboardCard = () => {
   return (
     <button
       onClick={() => navigate("/ranked")}
-      className="w-full flex items-center gap-3 rounded-lg border border-primary/30 bg-card px-3 sm:px-4 py-3 text-left transition-colors hover:bg-primary/5 overflow-hidden"
+      className="w-full flex items-center gap-2 rounded-lg border border-primary/30 bg-card px-3 py-3 text-left transition-colors hover:bg-primary/5 overflow-hidden"
     >
-      <div className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 flex items-center justify-center overflow-hidden">
-        <TierBadge tier={profile.current_tier} size={100} />
+      <div className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 flex items-center justify-center overflow-hidden">
+        <TierBadge tier={profile.current_tier} size={80} />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">{label}</p>

@@ -805,16 +805,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       )}
 
       {/* Sticky Header — Timer + Finish + Save Status */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 pt-2 pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 pt-2 pb-3 overflow-hidden">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => {}}
               className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
-            {/* Save Status Indicator */}
             <SaveStatusIndicator status={saveStatus} />
           </div>
           <span className="text-lg font-bold tabular-nums text-foreground">{elapsed}</span>
@@ -822,7 +821,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             size="sm"
             onClick={handleFinishTap}
             disabled={loading}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-5"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-4 shrink-0"
           >
             {loading && <Loader2 className="animate-spin mr-1 h-3.5 w-3.5" />}
             Finish

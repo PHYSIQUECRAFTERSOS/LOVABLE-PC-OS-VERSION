@@ -17,11 +17,11 @@ const ChallengeBanner = () => {
         return (
           <div
             key={c.id}
-            className="relative flex items-center gap-3 rounded-lg border-l-4 border-l-primary border border-border bg-card px-3 sm:px-4 py-3 overflow-hidden"
+            className="relative flex items-center gap-2 rounded-lg border-l-4 border-l-primary border border-border bg-card px-3 py-3 overflow-hidden"
           >
             <Icon className="h-5 w-5 text-primary shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate pr-5">{c.title}</p>
+            <div className="flex-1 min-w-0 pr-5">
+              <p className="text-sm font-semibold text-foreground truncate">{c.title}</p>
               {c.description && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
               )}
@@ -29,14 +29,14 @@ const ChallengeBanner = () => {
             <Button
               size="sm"
               variant="default"
-              className="shrink-0"
+              className="shrink-0 text-xs px-3"
               onClick={() => navigate("/challenges")}
             >
               View
             </Button>
             <button
               onClick={(e) => { e.stopPropagation(); dismiss.mutate(c.id); }}
-              className="absolute top-2 right-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute top-1.5 right-1.5 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Dismiss"
             >
               <X className="h-3.5 w-3.5" />

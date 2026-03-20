@@ -149,7 +149,7 @@ const CalendarDayList = ({ events, onEventClick }: CalendarDayListProps) => {
                         event.is_completed ? "opacity-60" : "hover:bg-secondary/40"
                       )}
                     >
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
                         {/* Status icon */}
                         <div className="mt-0.5 shrink-0">
                           {event.is_completed ? (
