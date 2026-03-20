@@ -1,50 +1,78 @@
 
 
-# Fix: "Previous" Column Not Showing Last Performance Data
+# Subscription Flow for Physique Crafters iOS App
 
-## Problem
-The "Previous" column in the workout logger always shows "—" instead of the client's last logged weight × reps for each exercise.
+## Overview
 
-## Root Cause
-**Lines 337-361 of `WorkoutLogger.tsx`**: The current logic fetches the last completed session *for the same workout_id*, then pulls exercise logs from that single session. This fails when:
-- The client has never completed this exact workout before (common for new program phases)
-- Exercises appear across multiple workouts (e.g., "Bench Press" in Push A and Push B)
-- Exercises were switched in a previous session
+Create a full Apple-compliant subscription flow: a premium Paywall page, a success overlay, subscription status management in Settings, and a global subscription context — all communicating with the native StoreKit plugin via Capacitor's bridge.
 
-## Fix
-Replace the per-workout-session lookup with a **per-exercise lookup** — for each exercise in the current workout, find its most recent `exercise_logs` entry across ALL completed sessions, regardless of which workout it belonged to.
+## New Files
 
-### Implementation (single file change)
+### 1. `src/pages/Subscribe.tsx` — Paywall Page
+- Full-screen page (no AppLayout wrapper) with dark background
+- Header: "PHYSIQUE" white + "CRAFTERS" gold, subtitle "Choose Your Plan"
+- Three selectable plan cards with gold borders, checkmarks, and pricing
+  - Weekly Updates ($399.99/mo) — default selected, "MOST POPULAR" badge
+  - Bi-Weekly Updates ($299.99/mo)
+  - Training Only ($174.99/2mo)
+- "Subscribe Now" button calls `window.Capacitor.Plugins.StoreKit.showPaywall()` on iOS, shows web fallback message otherwise
+- "Restore Purchases" link calls `StoreKit.restorePurchases()`
+- Apple-required legal text + links to existing Terms/Privacy pages
+- On success: shows the SuccessOverlay component
 
-**File: `src/components/WorkoutLogger.tsx` — lines 337-362**
+### 2. `src/components/subscription/SuccessOverlay.tsx`
+- Full-screen semi-transparent overlay with centered card
+- Animated gold checkmark (CSS scale-in with bounce)
+- Staggered fade-in: checkmark → title/subtitle → feature list → button
+- "Welcome to Physique Crafters!" title, plan name in subtitle
+- Feature bullets: training, meal plans, messaging, progress tracking
+- Gold "Get Started" button → navigates to `/dashboard`
 
-Replace the two-step query (find last session → get logs from it) with a single query pattern:
+### 3. `src/components/subscription/SubscriptionCard.tsx`
+- Used on the Settings/Profile page
+- Checks subscription status via StoreKit on mount (falls back to localStorage)
+- **Active state**: shows plan name + green "Active" badge, renewal info, "Manage Subscription" button (opens Apple subscription management URL)
+- **Inactive state**: "Subscribe to unlock all features" + gold "Subscribe" button → navigates to `/subscribe`
+- "Restore Purchases" text link in both states
 
+### 4. `src/hooks/useSubscription.ts` — Global Subscription Context
+- Provides `{ isSubscribed, tier, loading, checkSubscription, restorePurchases }` via React context
+- On mount: checks `window.Capacitor.Plugins.StoreKit.checkSubscription()`, falls back to localStorage
+- Listens for `subscriptionUpdate` custom events from native side
+- Tier map: `com.physiquecrafters.app.monthly` → "Weekly Updates", etc.
+- Persists to localStorage as cache; native StoreKit is source of truth
+
+## Modified Files
+
+### 5. `src/App.tsx`
+- Import `Subscribe` page and `SubscriptionProvider`
+- Add route: `<Route path="/subscribe" element={<ProtectedRoute><Subscribe /></ProtectedRoute>} />`
+- Wrap app in `<SubscriptionProvider>`
+
+### 6. `src/pages/Profile.tsx`
+- Import and render `<SubscriptionCard />` at the top of the "profile" tab content, above "Your Information"
+
+### 7. `src/components/AppLayout.tsx`
+- Add global `subscriptionUpdate` event listener setup (in useEffect)
+- No visual changes needed; the listener updates the context
+
+## Technical Notes
+
+- StoreKit detection: `const isCapacitor = !!(window.Capacitor?.Plugins?.StoreKit)`
+- TypeScript: add `Capacitor` to `Window` interface in a `.d.ts` or inline declaration
+- No database tables needed — subscription state is managed by Apple/StoreKit, cached in localStorage
+- The paywall page is NOT gated behind subscription (obviously) — it's the entry point
+- Features are NOT hard-gated behind subscription (per Apple review guidelines) — the card in Settings is informational, and coaches can still manage clients freely
+
+## User Flow
+```text
+Settings → Subscription Card → "Subscribe" button
+  → /subscribe (Paywall page)
+  → Tap plan card to select
+  → "Subscribe Now" → Native StoreKit sheet
+  → Payment completes → Success Overlay
+  → "Get Started" → /dashboard
+  
+Settings shows "Active" badge + "Manage Subscription"
 ```
-For each exercise_id in the current workout:
-  SELECT exercise_id, set_number, weight, reps, rir
-  FROM exercise_logs
-  WHERE exercise_id IN (...all current exercise IDs)
-    AND session_id IN (
-      -- Get the latest completed session per exercise
-      SELECT DISTINCT ON (el.exercise_id) ws.id
-      FROM exercise_logs el
-      JOIN workout_sessions ws ON ws.id = el.session_id
-      WHERE ws.client_id = user.id
-        AND ws.status = 'completed'
-        AND el.exercise_id IN (...ids)
-      ORDER BY el.exercise_id, ws.created_at DESC
-    )
-```
-
-Since Supabase JS client doesn't support subqueries, the practical approach:
-1. Query `exercise_logs` joined with `workout_sessions` for all exercise IDs, filtered by `client_id` and `status = 'completed'`, ordered by `created_at DESC`
-2. In JS, group by `exercise_id` and keep only the logs from each exercise's most recent session
-
-This ensures "Previous" shows data even if the exercise was last performed in a completely different workout.
-
-### Technical Detail
-- Query all `exercise_logs` for the user's completed sessions matching any of the current exercise IDs
-- Group results by `exercise_id`, then by `session_id`, keeping only the most recent session's logs per exercise
-- No database migration needed — uses existing tables and indexes
 
