@@ -23,6 +23,12 @@ interface StagedIngredient {
   protein: number;
   carbs: number;
   fat: number;
+  // Base values at original serving size for accurate scaling
+  base_quantity: number;
+  base_calories: number;
+  base_protein: number;
+  base_carbs: number;
+  base_fat: number;
 }
 
 interface StagedInstruction {
