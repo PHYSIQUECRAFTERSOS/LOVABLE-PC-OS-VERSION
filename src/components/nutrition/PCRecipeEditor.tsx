@@ -384,15 +384,18 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
                         value={ing.quantity}
                         onChange={e => {
                           const newQ = parseFloat(e.target.value) || 0;
-                          const ratio = ing.quantity > 0 ? newQ / ing.quantity : 1;
-                          setIngredients(prev => prev.map((item, j) => j === i ? {
-                            ...item,
-                            quantity: newQ,
-                            calories: Math.round(item.calories * ratio),
-                            protein: Math.round(item.protein * ratio),
-                            carbs: Math.round(item.carbs * ratio),
-                            fat: Math.round(item.fat * ratio),
-                          } : item));
+                          setIngredients(prev => prev.map((item, j) => {
+                            if (j !== i) return item;
+                            const scale = item.base_quantity > 0 ? newQ / item.base_quantity : 0;
+                            return {
+                              ...item,
+                              quantity: newQ,
+                              calories: Math.round(item.base_calories * scale * 100) / 100,
+                              protein: Math.round(item.base_protein * scale * 100) / 100,
+                              carbs: Math.round(item.base_carbs * scale * 100) / 100,
+                              fat: Math.round(item.base_fat * scale * 100) / 100,
+                            };
+                          }));
                         }}
                         className="h-6 w-16 text-xs bg-secondary border-0 text-center"
                       />
