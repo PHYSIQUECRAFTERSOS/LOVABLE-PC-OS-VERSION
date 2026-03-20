@@ -184,9 +184,9 @@ const ProgressMetricsDashboard = () => {
       {/* Charts */}
       <Tabs defaultValue="weight" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="weight">Weight</TabsTrigger>
-          <TabsTrigger value="bodyfat">Body Fat</TabsTrigger>
-          <TabsTrigger value="measurements">Measurements</TabsTrigger>
+          <TabsTrigger value="weight" className="text-xs sm:text-sm">Weight</TabsTrigger>
+          <TabsTrigger value="bodyfat" className="text-xs sm:text-sm">Body Fat</TabsTrigger>
+          <TabsTrigger value="measurements" className="text-xs sm:text-sm">Measures</TabsTrigger>
         </TabsList>
 
         <TabsContent value="weight" className="mt-4">
