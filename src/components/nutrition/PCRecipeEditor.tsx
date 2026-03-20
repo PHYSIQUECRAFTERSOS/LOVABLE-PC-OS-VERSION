@@ -23,6 +23,12 @@ interface StagedIngredient {
   protein: number;
   carbs: number;
   fat: number;
+  // Base values at original serving size for accurate scaling
+  base_quantity: number;
+  base_calories: number;
+  base_protein: number;
+  base_carbs: number;
+  base_fat: number;
 }
 
 interface StagedInstruction {
@@ -90,16 +96,24 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
       supabase.from("pc_recipe_ingredients" as any).select("*").eq("recipe_id", editRecipe.id).order("sort_order"),
       supabase.from("pc_recipe_instructions" as any).select("*").eq("recipe_id", editRecipe.id).order("step_number"),
     ]);
-    setIngredients((ings as any[] || []).map((i: any) => ({
-      food_item_id: i.food_item_id,
-      food_name: i.food_name,
-      quantity: i.quantity,
-      serving_unit: i.serving_unit,
-      calories: i.calories,
-      protein: i.protein,
-      carbs: i.carbs,
-      fat: i.fat,
-    })));
+    setIngredients((ings as any[] || []).map((i: any) => {
+      const qty = i.quantity || 1;
+      return {
+        food_item_id: i.food_item_id,
+        food_name: i.food_name,
+        quantity: qty,
+        serving_unit: i.serving_unit,
+        calories: i.calories,
+        protein: i.protein,
+        carbs: i.carbs,
+        fat: i.fat,
+        base_quantity: qty,
+        base_calories: i.calories || 0,
+        base_protein: i.protein || 0,
+        base_carbs: i.carbs || 0,
+        base_fat: i.fat || 0,
+      };
+    }));
     setInstructions((insts as any[] || []).map((i: any) => ({
       step_number: i.step_number,
       instruction_text: i.instruction_text,
@@ -125,15 +139,25 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
   };
 
   const addIngredient = (food: any) => {
+    const qty = food.serving_size || 100;
+    const cal = food.calories || 0;
+    const pro = food.protein || 0;
+    const car = food.carbs || 0;
+    const f = food.fat || 0;
     setIngredients(prev => [...prev, {
       food_item_id: food.id,
       food_name: food.name,
-      quantity: food.serving_size || 100,
+      quantity: qty,
       serving_unit: food.serving_unit || "g",
-      calories: food.calories || 0,
-      protein: food.protein || 0,
-      carbs: food.carbs || 0,
-      fat: food.fat || 0,
+      calories: cal,
+      protein: pro,
+      carbs: car,
+      fat: f,
+      base_quantity: qty,
+      base_calories: cal,
+      base_protein: pro,
+      base_carbs: car,
+      base_fat: f,
     }]);
     setShowFoodSearch(false);
     setSearchQuery("");
@@ -360,15 +384,18 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
                         value={ing.quantity}
                         onChange={e => {
                           const newQ = parseFloat(e.target.value) || 0;
-                          const ratio = ing.quantity > 0 ? newQ / ing.quantity : 1;
-                          setIngredients(prev => prev.map((item, j) => j === i ? {
-                            ...item,
-                            quantity: newQ,
-                            calories: Math.round(item.calories * ratio),
-                            protein: Math.round(item.protein * ratio),
-                            carbs: Math.round(item.carbs * ratio),
-                            fat: Math.round(item.fat * ratio),
-                          } : item));
+                          setIngredients(prev => prev.map((item, j) => {
+                            if (j !== i) return item;
+                            const scale = item.base_quantity > 0 ? newQ / item.base_quantity : 0;
+                            return {
+                              ...item,
+                              quantity: newQ,
+                              calories: Math.round(item.base_calories * scale * 100) / 100,
+                              protein: Math.round(item.base_protein * scale * 100) / 100,
+                              carbs: Math.round(item.base_carbs * scale * 100) / 100,
+                              fat: Math.round(item.base_fat * scale * 100) / 100,
+                            };
+                          }));
                         }}
                         className="h-6 w-16 text-xs bg-secondary border-0 text-center"
                       />
