@@ -140,26 +140,21 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       ]);
 
       const items: ActionItem[] = [];
-      const linkedWorkoutIds = new Set<string>();
 
       const workoutNameMap = new Map<string, string>();
-      (linkedWorkoutsRes.data || []).forEach((w: any) => {
+      (workoutNamesRes.data || []).forEach((w: any) => {
         workoutNameMap.set(w.id, w.name);
       });
 
       (calRes.data || []).forEach((e) => {
-        if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
-
         let completed = e.is_completed;
         let title = e.title;
 
         if (e.event_type === "workout" && e.linked_workout_id) {
-          const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
+          const session = sessRes.data?.find((s: any) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
-          const sessionName = (session as any)?.workouts?.name;
           const directName = workoutNameMap.get(e.linked_workout_id);
-          const workoutName = sessionName || directName;
-          if (workoutName) title = workoutName;
+          if (directName) title = directName;
         }
         if (e.event_type === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
@@ -174,18 +169,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
         });
-      });
-
-      sessRes.data?.forEach((s: any) => {
-        if (!linkedWorkoutIds.has(s.workout_id)) {
-          items.push({
-            id: `ws-${s.id}`,
-            title: s.workouts?.name || "Workout",
-            type: "workout",
-            completed: !!s.completed_at,
-            linkedWorkoutId: s.workout_id,
-          });
-        }
       });
 
       cardioRes.data?.forEach((c) => {
