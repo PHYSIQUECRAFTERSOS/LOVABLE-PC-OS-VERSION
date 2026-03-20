@@ -117,23 +117,19 @@ const ProgressMetricsDashboard = () => {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-hidden">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Scale className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Weight</p>
-                  <p className="text-2xl font-bold">
-                    {weights.length > 0 ? `${weights[weights.length - 1].weight}` : "—"}
-                  </p>
-                </div>
-              </div>
+          <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4">
+            <div className="flex flex-col items-center text-center gap-1">
+              <Scale className="h-4 w-4 text-primary" />
+              <p className="text-[10px] sm:text-sm text-muted-foreground">Weight</p>
+              <p className="text-lg sm:text-2xl font-bold truncate max-w-full">
+                {weights.length > 0 ? `${weights[weights.length - 1].weight}` : "—"}
+              </p>
               {weightChange !== null && (
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-0.5 text-xs">
                   <TrendIcon val={weightChange} />
                   <span className={weightChange < 0 ? "text-primary" : weightChange > 0 ? "text-destructive" : "text-muted-foreground"}>
                     {weightChange > 0 ? "+" : ""}{weightChange.toFixed(1)}
@@ -145,19 +141,15 @@ const ProgressMetricsDashboard = () => {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Body Fat</p>
-                  <p className="text-2xl font-bold">
-                    {bfData.length > 0 ? `${bfData[bfData.length - 1].body_fat_pct}%` : "—"}
-                  </p>
-                </div>
-              </div>
+          <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4">
+            <div className="flex flex-col items-center text-center gap-1">
+              <Activity className="h-4 w-4 text-primary" />
+              <p className="text-[10px] sm:text-sm text-muted-foreground">Body Fat</p>
+              <p className="text-lg sm:text-2xl font-bold truncate max-w-full">
+                {bfData.length > 0 ? `${bfData[bfData.length - 1].body_fat_pct}%` : "—"}
+              </p>
               {bfChange !== null && (
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-0.5 text-xs">
                   <TrendIcon val={bfChange} />
                   <span className={bfChange < 0 ? "text-primary" : bfChange > 0 ? "text-destructive" : "text-muted-foreground"}>
                     {bfChange > 0 ? "+" : ""}{bfChange.toFixed(1)}%
@@ -169,22 +161,18 @@ const ProgressMetricsDashboard = () => {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Ruler className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Waist</p>
-                  <p className="text-2xl font-bold">
-                    {waistData.length > 0 ? `${waistData[waistData.length - 1].waist} cm` : "—"}
-                  </p>
-                </div>
-              </div>
+          <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4">
+            <div className="flex flex-col items-center text-center gap-1">
+              <Ruler className="h-4 w-4 text-primary" />
+              <p className="text-[10px] sm:text-sm text-muted-foreground">Waist</p>
+              <p className="text-lg sm:text-2xl font-bold truncate max-w-full">
+                {waistData.length > 0 ? `${waistData[waistData.length - 1].waist} cm` : "—"}
+              </p>
               {waistChange !== null && (
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-0.5 text-xs">
                   <TrendIcon val={waistChange} />
                   <span className={waistChange < 0 ? "text-primary" : waistChange > 0 ? "text-destructive" : "text-muted-foreground"}>
-                    {waistChange > 0 ? "+" : ""}{waistChange.toFixed(1)} cm
+                    {waistChange > 0 ? "+" : ""}{waistChange.toFixed(1)}
                   </span>
                 </div>
               )}
@@ -196,9 +184,9 @@ const ProgressMetricsDashboard = () => {
       {/* Charts */}
       <Tabs defaultValue="weight" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="weight">Weight</TabsTrigger>
-          <TabsTrigger value="bodyfat">Body Fat</TabsTrigger>
-          <TabsTrigger value="measurements">Measurements</TabsTrigger>
+          <TabsTrigger value="weight" className="text-xs sm:text-sm">Weight</TabsTrigger>
+          <TabsTrigger value="bodyfat" className="text-xs sm:text-sm">Body Fat</TabsTrigger>
+          <TabsTrigger value="measurements" className="text-xs sm:text-sm">Measures</TabsTrigger>
         </TabsList>
 
         <TabsContent value="weight" className="mt-4">
@@ -209,7 +197,7 @@ const ProgressMetricsDashboard = () => {
             <CardContent>
               {weightChartData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={weightChartData}>
+                  <AreaChart data={weightChartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -217,9 +205,12 @@ const ProgressMetricsDashboard = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={40} />
+                    <Tooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      wrapperStyle={{ zIndex: 10, maxWidth: "90vw" }}
+                    />
                     <Area type="monotone" dataKey="weight" stroke="hsl(var(--primary))" fill="url(#weightGrad)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -238,7 +229,7 @@ const ProgressMetricsDashboard = () => {
             <CardContent>
               {bfChartData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={bfChartData}>
+                  <AreaChart data={bfChartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="bfGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -246,9 +237,12 @@ const ProgressMetricsDashboard = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={35} />
+                    <Tooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      wrapperStyle={{ zIndex: 10, maxWidth: "90vw" }}
+                    />
                     <Area type="monotone" dataKey="bodyFat" stroke="hsl(var(--primary))" fill="url(#bfGrad)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -267,11 +261,14 @@ const ProgressMetricsDashboard = () => {
             <CardContent>
               {measurementChartData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={measurementChartData}>
+                  <LineChart data={measurementChartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={35} />
+                    <Tooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      wrapperStyle={{ zIndex: 10, maxWidth: "90vw" }}
+                    />
                     <Line type="monotone" dataKey="waist" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Waist" />
                     <Line type="monotone" dataKey="chest" stroke="hsl(var(--accent-foreground))" strokeWidth={2} dot={false} name="Chest" />
                     <Line type="monotone" dataKey="hips" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={false} name="Hips" />
@@ -289,13 +286,13 @@ const ProgressMetricsDashboard = () => {
 
       {/* AI Insights */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Sparkles className="h-5 w-5 text-primary" /> AI Insights
+        <CardHeader className="px-4 sm:px-6">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg shrink-0">
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" /> AI Insights
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={fetchInsights} disabled={loadingInsights}>
-              {loadingInsights ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            <Button variant="outline" size="sm" onClick={fetchInsights} disabled={loadingInsights} className="shrink-0 text-xs">
+              {loadingInsights ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               <span className="ml-1">{insights ? "Refresh" : "Generate"}</span>
             </Button>
           </div>
