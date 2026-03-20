@@ -139,15 +139,25 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
   };
 
   const addIngredient = (food: any) => {
+    const qty = food.serving_size || 100;
+    const cal = food.calories || 0;
+    const pro = food.protein || 0;
+    const car = food.carbs || 0;
+    const f = food.fat || 0;
     setIngredients(prev => [...prev, {
       food_item_id: food.id,
       food_name: food.name,
-      quantity: food.serving_size || 100,
+      quantity: qty,
       serving_unit: food.serving_unit || "g",
-      calories: food.calories || 0,
-      protein: food.protein || 0,
-      carbs: food.carbs || 0,
-      fat: food.fat || 0,
+      calories: cal,
+      protein: pro,
+      carbs: car,
+      fat: f,
+      base_quantity: qty,
+      base_calories: cal,
+      base_protein: pro,
+      base_carbs: car,
+      base_fat: f,
     }]);
     setShowFoodSearch(false);
     setSearchQuery("");
