@@ -49,30 +49,53 @@ const TodayWorkout = () => {
           .abortSignal(signal),
       ]);
 
-      // Priority 1: Active workout session (already started)
-      const session = sessionsRes.data?.[0];
-      if (session) {
-        const workoutId = (session.workouts as any)?.id || session.workout_id;
-        const workoutName = (session.workouts as any)?.name;
+      // Priority 1: Scheduled calendar event for today (calendar is source of truth)
+      const calEvent = calendarRes.data?.[0];
+      if (calEvent) {
+        let exercises: { name: string; sets: number; reps?: string }[] = [];
+        let workoutName = calEvent.title;
+        let phase: string | undefined;
+        let completed = calEvent.is_completed;
 
-        const { data: exercises } = await supabase
-          .from("workout_exercises")
-          .select("sets, reps, exercises:exercise_id(name)")
-          .eq("workout_id", workoutId)
-          .order("exercise_order", { ascending: true })
-          .abortSignal(signal);
+        if (calEvent.linked_workout_id) {
+          // Check if a session exists for this workout (for completion status)
+          const matchingSession = sessionsRes.data?.find(
+            (s: any) => s.workout_id === calEvent.linked_workout_id
+          );
+          if (matchingSession?.completed_at) completed = true;
 
-        return {
-          id: workoutId,
-          name: workoutName || "Workout",
-          phase: (session.workouts as any)?.phase,
-          completed: !!session.completed_at,
-          source: "session" as const,
-          exercises: (exercises || []).map((e: any) => ({
+          const [workoutRes, exRes] = await Promise.all([
+            supabase
+              .from("workouts")
+              .select("id, name, phase")
+              .eq("id", calEvent.linked_workout_id)
+              .single(),
+            supabase
+              .from("workout_exercises")
+              .select("sets, reps, exercises:exercise_id(name)")
+              .eq("workout_id", calEvent.linked_workout_id)
+              .order("exercise_order", { ascending: true })
+              .abortSignal(signal),
+          ]);
+
+          if (workoutRes.data) {
+            workoutName = workoutRes.data.name || calEvent.title;
+            phase = workoutRes.data.phase;
+          }
+          exercises = (exRes.data || []).map((e: any) => ({
             name: e.exercises?.name || "",
             sets: e.sets,
             reps: e.reps,
-          })),
+          }));
+        }
+
+        return {
+          id: calEvent.linked_workout_id || calEvent.id,
+          name: workoutName,
+          phase,
+          completed,
+          source: "calendar" as const,
+          exercises,
         };
       }
 
