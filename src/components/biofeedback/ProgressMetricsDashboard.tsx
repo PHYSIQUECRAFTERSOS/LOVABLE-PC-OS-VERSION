@@ -229,7 +229,7 @@ const ProgressMetricsDashboard = () => {
             <CardContent>
               {bfChartData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={bfChartData}>
+                  <AreaChart data={bfChartData} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="bfGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -237,9 +237,12 @@ const ProgressMetricsDashboard = () => {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={35} />
+                    <Tooltip
+                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      wrapperStyle={{ zIndex: 10, maxWidth: "90vw" }}
+                    />
                     <Area type="monotone" dataKey="bodyFat" stroke="hsl(var(--primary))" fill="url(#bfGrad)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
