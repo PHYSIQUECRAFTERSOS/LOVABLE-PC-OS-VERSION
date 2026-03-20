@@ -117,23 +117,19 @@ const ProgressMetricsDashboard = () => {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-hidden">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Scale className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Weight</p>
-                  <p className="text-2xl font-bold">
-                    {weights.length > 0 ? `${weights[weights.length - 1].weight}` : "—"}
-                  </p>
-                </div>
-              </div>
+          <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4">
+            <div className="flex flex-col items-center text-center gap-1">
+              <Scale className="h-4 w-4 text-primary" />
+              <p className="text-[10px] sm:text-sm text-muted-foreground">Weight</p>
+              <p className="text-lg sm:text-2xl font-bold truncate max-w-full">
+                {weights.length > 0 ? `${weights[weights.length - 1].weight}` : "—"}
+              </p>
               {weightChange !== null && (
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-0.5 text-xs">
                   <TrendIcon val={weightChange} />
                   <span className={weightChange < 0 ? "text-primary" : weightChange > 0 ? "text-destructive" : "text-muted-foreground"}>
                     {weightChange > 0 ? "+" : ""}{weightChange.toFixed(1)}
@@ -145,19 +141,15 @@ const ProgressMetricsDashboard = () => {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Body Fat</p>
-                  <p className="text-2xl font-bold">
-                    {bfData.length > 0 ? `${bfData[bfData.length - 1].body_fat_pct}%` : "—"}
-                  </p>
-                </div>
-              </div>
+          <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4">
+            <div className="flex flex-col items-center text-center gap-1">
+              <Activity className="h-4 w-4 text-primary" />
+              <p className="text-[10px] sm:text-sm text-muted-foreground">Body Fat</p>
+              <p className="text-lg sm:text-2xl font-bold truncate max-w-full">
+                {bfData.length > 0 ? `${bfData[bfData.length - 1].body_fat_pct}%` : "—"}
+              </p>
               {bfChange !== null && (
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-0.5 text-xs">
                   <TrendIcon val={bfChange} />
                   <span className={bfChange < 0 ? "text-primary" : bfChange > 0 ? "text-destructive" : "text-muted-foreground"}>
                     {bfChange > 0 ? "+" : ""}{bfChange.toFixed(1)}%
@@ -169,22 +161,18 @@ const ProgressMetricsDashboard = () => {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Ruler className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Waist</p>
-                  <p className="text-2xl font-bold">
-                    {waistData.length > 0 ? `${waistData[waistData.length - 1].waist} cm` : "—"}
-                  </p>
-                </div>
-              </div>
+          <CardContent className="pt-4 sm:pt-6 px-2 sm:px-4">
+            <div className="flex flex-col items-center text-center gap-1">
+              <Ruler className="h-4 w-4 text-primary" />
+              <p className="text-[10px] sm:text-sm text-muted-foreground">Waist</p>
+              <p className="text-lg sm:text-2xl font-bold truncate max-w-full">
+                {waistData.length > 0 ? `${waistData[waistData.length - 1].waist} cm` : "—"}
+              </p>
               {waistChange !== null && (
-                <div className="flex items-center gap-1 text-sm">
+                <div className="flex items-center gap-0.5 text-xs">
                   <TrendIcon val={waistChange} />
                   <span className={waistChange < 0 ? "text-primary" : waistChange > 0 ? "text-destructive" : "text-muted-foreground"}>
-                    {waistChange > 0 ? "+" : ""}{waistChange.toFixed(1)} cm
+                    {waistChange > 0 ? "+" : ""}{waistChange.toFixed(1)}
                   </span>
                 </div>
               )}
