@@ -96,16 +96,24 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
       supabase.from("pc_recipe_ingredients" as any).select("*").eq("recipe_id", editRecipe.id).order("sort_order"),
       supabase.from("pc_recipe_instructions" as any).select("*").eq("recipe_id", editRecipe.id).order("step_number"),
     ]);
-    setIngredients((ings as any[] || []).map((i: any) => ({
-      food_item_id: i.food_item_id,
-      food_name: i.food_name,
-      quantity: i.quantity,
-      serving_unit: i.serving_unit,
-      calories: i.calories,
-      protein: i.protein,
-      carbs: i.carbs,
-      fat: i.fat,
-    })));
+    setIngredients((ings as any[] || []).map((i: any) => {
+      const qty = i.quantity || 1;
+      return {
+        food_item_id: i.food_item_id,
+        food_name: i.food_name,
+        quantity: qty,
+        serving_unit: i.serving_unit,
+        calories: i.calories,
+        protein: i.protein,
+        carbs: i.carbs,
+        fat: i.fat,
+        base_quantity: qty,
+        base_calories: i.calories || 0,
+        base_protein: i.protein || 0,
+        base_carbs: i.carbs || 0,
+        base_fat: i.fat || 0,
+      };
+    }));
     setInstructions((insts as any[] || []).map((i: any) => ({
       step_number: i.step_number,
       instruction_text: i.instruction_text,
