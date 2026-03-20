@@ -99,49 +99,7 @@ const TodayWorkout = () => {
         };
       }
 
-      // Priority 2: Scheduled calendar event for today
-      const calEvent = calendarRes.data?.[0];
-      if (calEvent) {
-        let exercises: { name: string; sets: number; reps?: string }[] = [];
-        let workoutName = calEvent.title;
-        let phase: string | undefined;
 
-        // If linked to a workout, pull the real name & exercises
-        if (calEvent.linked_workout_id) {
-          const [workoutRes, exRes] = await Promise.all([
-            supabase
-              .from("workouts")
-              .select("id, name, phase")
-              .eq("id", calEvent.linked_workout_id)
-              .single(),
-            supabase
-              .from("workout_exercises")
-              .select("sets, reps, exercises:exercise_id(name)")
-              .eq("workout_id", calEvent.linked_workout_id)
-              .order("exercise_order", { ascending: true })
-              .abortSignal(signal),
-          ]);
-
-          if (workoutRes.data) {
-            workoutName = workoutRes.data.name || calEvent.title;
-            phase = workoutRes.data.phase;
-          }
-          exercises = (exRes.data || []).map((e: any) => ({
-            name: e.exercises?.name || "",
-            sets: e.sets,
-            reps: e.reps,
-          }));
-        }
-
-        return {
-          id: calEvent.linked_workout_id || calEvent.id,
-          name: workoutName,
-          phase,
-          completed: calEvent.is_completed,
-          source: "calendar" as const,
-          exercises,
-        };
-      }
 
       return null;
     },
