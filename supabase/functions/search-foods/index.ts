@@ -422,8 +422,8 @@ serve(async (req) => {
     const usdaPageSize = hasBrandIntent ? 30 : 20;
     const sourceStatus: Record<string, string> = {};
 
-    // Fire local, synonyms, history, OFF, USDA, and branded OFF all in parallel
-    const [localPromise, synonymPromise, historyPromise, offResult, offBrandedResult, usdaResult] = await Promise.allSettled([
+    // Fire local, synonyms, history, FatSecret, and USDA all in parallel
+    const [localPromise, synonymPromise, historyPromise, fsResult, usdaResult] = await Promise.allSettled([
       // Local DB
       supabase.from("foods").select("*").or(allConditions)
         .not("calories_per_100g", "is", null)
@@ -438,25 +438,15 @@ serve(async (req) => {
       expandWithSynonyms(supabase, query),
       // History
       userId ? getUserFoodHistory(supabase, userId) : Promise.resolve(new Map<string, HistoryEntry>()),
-      // OpenFoodFacts generic
-      searchOpenFoodFacts(query, 25).then(foods => {
-        sourceStatus.off = `ok:${foods.length}`;
+      // FatSecret (replaces OpenFoodFacts — much better branded food coverage)
+      searchFatSecret(query, 25).then(foods => {
+        sourceStatus.fatsecret = `ok:${foods.length}`;
         return foods;
       }).catch((e: any) => {
-        sourceStatus.off = e.name === "TimeoutError" ? "timeout" : "error";
-        console.warn("[search-foods] OpenFoodFacts failed:", e.message || e);
+        sourceStatus.fatsecret = e.name === "TimeoutError" ? "timeout" : `error:${e.message?.slice(0, 60)}`;
+        console.warn("[search-foods] FatSecret failed:", e.message || e);
         return [] as any[];
       }),
-      // OpenFoodFacts branded (only fires if brand intent detected)
-      (hasBrandIntent && hasFoodIntent)
-        ? searchOpenFoodFactsBranded(brandTokens[0], foodTokens.join(" "), 20).then(foods => {
-            sourceStatus.off_branded = `ok:${foods.length}`;
-            return foods;
-          }).catch((e: any) => {
-            sourceStatus.off_branded = e.name === "TimeoutError" ? "timeout" : "error";
-            return [] as any[];
-          })
-        : Promise.resolve([] as any[]),
       // USDA
       (async () => {
         if (!usdaApiKey) { sourceStatus.usda = "no_key"; return [] as any[]; }
@@ -480,8 +470,7 @@ serve(async (req) => {
     let localFoods: any[] = localPromise.status === "fulfilled" ? localPromise.value : [];
     const synonymTerms: string[] = synonymPromise.status === "fulfilled" ? synonymPromise.value : [];
     const historyMap: Map<string, HistoryEntry> = historyPromise.status === "fulfilled" ? historyPromise.value : new Map();
-    const offFoods: any[] = offResult.status === "fulfilled" ? offResult.value : [];
-    const offBrandedFoods: any[] = offBrandedResult.status === "fulfilled" ? offBrandedResult.value : [];
+    const fsFoods: any[] = fsResult.status === "fulfilled" ? fsResult.value : [];
     const usdaFoods: any[] = usdaResult.status === "fulfilled" ? usdaResult.value : [];
 
     // Filter local foods for valid macros
@@ -501,7 +490,7 @@ serve(async (req) => {
       } catch { /* non-fatal */ }
     }
 
-    console.log(`[search-foods] Sources: ${JSON.stringify(sourceStatus)} | Local:${localFoods.length} OFF:${offFoods.length} OFF-branded:${offBrandedFoods.length} USDA:${usdaFoods.length}`);
+    console.log(`[search-foods] Sources: ${JSON.stringify(sourceStatus)} | Local:${localFoods.length} FS:${fsFoods.length} USDA:${usdaFoods.length}`);
 
     if (isCompoundQuery && localFoods.length > 0) {
       const filtered = localFoods.filter((f: any) => {
@@ -523,10 +512,7 @@ serve(async (req) => {
     const existingUsdaIds = new Set(localFoods.map((f: any) => f.usda_fdc_id).filter(Boolean));
     const existingNames = new Set(localFoods.map((f: any) => `${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
     const newUsda = usdaFoods.filter((f) => !existingUsdaIds.has(f.usda_fdc_id));
-    const newOff = offFoods.filter((f) => !existingNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
-    // Merge branded OFF results (deduplicated against existing)
-    const allOffNames = new Set([...existingNames, ...newOff.map((f) => `${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`)]);
-    const newOffBranded = offBrandedFoods.filter((f) => !allOffNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
+    const newFs = fsFoods.filter((f) => !existingNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
     
     const allResultsRaw = [...localFoods, ...newOff, ...newOffBranded, ...newUsda].filter((f) =>
       f.has_complete_macros !== false && ((f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0)) > 0
