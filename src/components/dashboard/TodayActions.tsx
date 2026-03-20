@@ -91,20 +91,14 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     queryFn: async (signal) => {
       if (!user) return [];
 
-      const [calRes, sessRes, cardioRes, nutritionRes, linkedWorkoutsRes] = await Promise.all([
+      // Calendar is the source of truth — only show items scheduled for this date
+      const [calRes, cardioRes, nutritionRes] = await Promise.all([
         supabase
           .from("calendar_events")
           .select("id, title, event_type, is_completed, linked_workout_id, description")
           .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .eq("event_date", targetDate)
           .order("event_time", { ascending: true })
-          .abortSignal(signal),
-        supabase
-          .from("workout_sessions")
-          .select("id, workout_id, completed_at, workouts:workout_id(name)")
-          .eq("client_id", user.id)
-          .gte("created_at", `${targetDate}T00:00:00`)
-          .lte("created_at", `${targetDate}T23:59:59`)
           .abortSignal(signal),
         supabase
           .from("cardio_logs")
@@ -119,33 +113,48 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           .eq("logged_at", targetDate)
           .limit(1)
           .abortSignal(signal),
-        supabase
-          .from("workouts")
-          .select("id, name")
-          .abortSignal(signal),
+      ]);
+
+      // Collect linked workout IDs from today's calendar events to check completion
+      const calWorkoutIds = (calRes.data || [])
+        .filter(e => e.event_type === "workout" && e.linked_workout_id)
+        .map(e => e.linked_workout_id!);
+
+      // Fetch workout sessions + names only for workouts actually scheduled today
+      const [sessRes, workoutNamesRes] = await Promise.all([
+        calWorkoutIds.length > 0
+          ? supabase
+              .from("workout_sessions")
+              .select("id, workout_id, completed_at")
+              .eq("client_id", user.id)
+              .in("workout_id", calWorkoutIds)
+              .abortSignal(signal)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        calWorkoutIds.length > 0
+          ? supabase
+              .from("workouts")
+              .select("id, name")
+              .in("id", calWorkoutIds)
+              .abortSignal(signal)
+          : Promise.resolve({ data: [] as any[], error: null }),
       ]);
 
       const items: ActionItem[] = [];
-      const linkedWorkoutIds = new Set<string>();
 
       const workoutNameMap = new Map<string, string>();
-      (linkedWorkoutsRes.data || []).forEach((w: any) => {
+      (workoutNamesRes.data || []).forEach((w: any) => {
         workoutNameMap.set(w.id, w.name);
       });
 
       (calRes.data || []).forEach((e) => {
-        if (e.linked_workout_id) linkedWorkoutIds.add(e.linked_workout_id);
-
         let completed = e.is_completed;
         let title = e.title;
 
         if (e.event_type === "workout" && e.linked_workout_id) {
-          const session = sessRes.data?.find((s) => s.workout_id === e.linked_workout_id);
+          const session = sessRes.data?.find((s: any) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
-          const sessionName = (session as any)?.workouts?.name;
           const directName = workoutNameMap.get(e.linked_workout_id);
-          const workoutName = sessionName || directName;
-          if (workoutName) title = workoutName;
+          if (directName) title = directName;
         }
         if (e.event_type === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
@@ -160,18 +169,6 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
         });
-      });
-
-      sessRes.data?.forEach((s: any) => {
-        if (!linkedWorkoutIds.has(s.workout_id)) {
-          items.push({
-            id: `ws-${s.id}`,
-            title: s.workouts?.name || "Workout",
-            type: "workout",
-            completed: !!s.completed_at,
-            linkedWorkoutId: s.workout_id,
-          });
-        }
       });
 
       cardioRes.data?.forEach((c) => {

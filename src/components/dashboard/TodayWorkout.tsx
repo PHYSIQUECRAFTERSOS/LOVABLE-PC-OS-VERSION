@@ -28,63 +28,42 @@ const TodayWorkout = () => {
     queryFn: async (signal) => {
       if (!user) return null;
 
-      // Query both workout_sessions AND calendar_events in parallel
-      const [sessionsRes, calendarRes] = await Promise.all([
-        supabase
-          .from("workout_sessions")
-          .select("id, workout_id, completed_at, workouts:workout_id(id, name, phase)")
-          .eq("client_id", user.id)
-          .gte("created_at", `${today}T00:00:00`)
-          .lte("created_at", `${today}T23:59:59`)
-          .limit(1)
-          .abortSignal(signal),
+      // Calendar is the source of truth — check calendar first, then sessions
+      const [calendarRes, sessionsRes] = await Promise.all([
         supabase
           .from("calendar_events")
           .select("id, title, linked_workout_id, is_completed, completed_at")
-          .eq("user_id", user.id)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .eq("event_date", today)
           .eq("event_type", "workout")
           .order("event_time", { ascending: true })
           .limit(3)
           .abortSignal(signal),
+        supabase
+          .from("workout_sessions")
+          .select("id, workout_id, completed_at")
+          .eq("client_id", user.id)
+          .gte("session_date", today)
+          .lte("session_date", today)
+          .limit(5)
+          .abortSignal(signal),
       ]);
 
-      // Priority 1: Active workout session (already started)
-      const session = sessionsRes.data?.[0];
-      if (session) {
-        const workoutId = (session.workouts as any)?.id || session.workout_id;
-        const workoutName = (session.workouts as any)?.name;
-
-        const { data: exercises } = await supabase
-          .from("workout_exercises")
-          .select("sets, reps, exercises:exercise_id(name)")
-          .eq("workout_id", workoutId)
-          .order("exercise_order", { ascending: true })
-          .abortSignal(signal);
-
-        return {
-          id: workoutId,
-          name: workoutName || "Workout",
-          phase: (session.workouts as any)?.phase,
-          completed: !!session.completed_at,
-          source: "session" as const,
-          exercises: (exercises || []).map((e: any) => ({
-            name: e.exercises?.name || "",
-            sets: e.sets,
-            reps: e.reps,
-          })),
-        };
-      }
-
-      // Priority 2: Scheduled calendar event for today
+      // Priority 1: Scheduled calendar event for today (calendar is source of truth)
       const calEvent = calendarRes.data?.[0];
       if (calEvent) {
         let exercises: { name: string; sets: number; reps?: string }[] = [];
         let workoutName = calEvent.title;
         let phase: string | undefined;
+        let completed = calEvent.is_completed;
 
-        // If linked to a workout, pull the real name & exercises
         if (calEvent.linked_workout_id) {
+          // Check if a session exists for this workout (for completion status)
+          const matchingSession = sessionsRes.data?.find(
+            (s: any) => s.workout_id === calEvent.linked_workout_id
+          );
+          if (matchingSession?.completed_at) completed = true;
+
           const [workoutRes, exRes] = await Promise.all([
             supabase
               .from("workouts")
@@ -114,11 +93,13 @@ const TodayWorkout = () => {
           id: calEvent.linked_workout_id || calEvent.id,
           name: workoutName,
           phase,
-          completed: calEvent.is_completed,
+          completed,
           source: "calendar" as const,
           exercises,
         };
       }
+
+
 
       return null;
     },
