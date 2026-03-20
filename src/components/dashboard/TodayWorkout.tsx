@@ -28,24 +28,24 @@ const TodayWorkout = () => {
     queryFn: async (signal) => {
       if (!user) return null;
 
-      // Query both workout_sessions AND calendar_events in parallel
-      const [sessionsRes, calendarRes] = await Promise.all([
-        supabase
-          .from("workout_sessions")
-          .select("id, workout_id, completed_at, workouts:workout_id(id, name, phase)")
-          .eq("client_id", user.id)
-          .gte("created_at", `${today}T00:00:00`)
-          .lte("created_at", `${today}T23:59:59`)
-          .limit(1)
-          .abortSignal(signal),
+      // Calendar is the source of truth — check calendar first, then sessions
+      const [calendarRes, sessionsRes] = await Promise.all([
         supabase
           .from("calendar_events")
           .select("id, title, linked_workout_id, is_completed, completed_at")
-          .eq("user_id", user.id)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .eq("event_date", today)
           .eq("event_type", "workout")
           .order("event_time", { ascending: true })
           .limit(3)
+          .abortSignal(signal),
+        supabase
+          .from("workout_sessions")
+          .select("id, workout_id, completed_at")
+          .eq("client_id", user.id)
+          .gte("session_date", today)
+          .lte("session_date", today)
+          .limit(5)
           .abortSignal(signal),
       ]);
 
