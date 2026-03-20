@@ -292,7 +292,12 @@ function mapFatSecretFood(food: any): any | null {
   const servings = food.servings?.serving;
   if (!servings) return null;
   const servingList = Array.isArray(servings) ? servings : [servings];
-  let metricServing = servingList.find((s: any) => s.metric_serving_unit === "g" || s.metric_serving_unit === "ml");
+  // Prefer a gram-based serving with a reasonable amount (>10g) for accurate per-100g conversion
+  let metricServing = servingList.find((s: any) =>
+    (s.metric_serving_unit === "g" || s.metric_serving_unit === "ml") &&
+    parseFloat(s.metric_serving_amount) >= 10
+  );
+  if (!metricServing) metricServing = servingList.find((s: any) => s.metric_serving_unit === "g" || s.metric_serving_unit === "ml");
   if (!metricServing) metricServing = servingList[0];
   if (!metricServing) return null;
   const metricAmount = parseFloat(metricServing.metric_serving_amount) || 100;
@@ -302,6 +307,9 @@ function mapFatSecretFood(food: any): any | null {
   const carbs = parseFloat(metricServing.carbohydrate) || 0;
   const fat = parseFloat(metricServing.fat) || 0;
   if (protein + carbs + fat === 0) return null;
+  // Sanity check: calories_per_100g > 900 is physically impossible (pure fat = ~900)
+  const calsPer100 = Math.round(calories * factor);
+  if (calsPer100 > 900) return null;
 
   const additional: Array<{ description: string; size_g: number }> = [];
   for (const s of servingList) {
