@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { RankedXPProvider } from "@/hooks/useXPAward";
+import { SubscriptionProvider } from "@/hooks/useSubscription";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -34,6 +35,7 @@ import DeleteAccount from "./pages/DeleteAccount";
 import Support from "./pages/Support";
 import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
+import Subscribe from "./pages/Subscribe";
 import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -57,6 +59,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
+        <SubscriptionProvider>
         <RankedXPProvider>
         <Toaster />
         <Sonner />
@@ -93,10 +96,12 @@ const App = () => (
             <Route path="/libraries" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><MasterLibraries /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><Admin /></ProtectedRoute>} />
             <Route path="/body-stats" element={<ProtectedRoute><BodyStats /></ProtectedRoute>} />
+            <Route path="/subscribe" element={<ProtectedRoute><Subscribe /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
         </RankedXPProvider>
+        </SubscriptionProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

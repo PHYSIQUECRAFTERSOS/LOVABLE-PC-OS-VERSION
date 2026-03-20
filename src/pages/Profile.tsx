@@ -14,6 +14,7 @@ import HealthIntegrations from "@/components/settings/HealthIntegrations";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
 import SignatureRecordsTable from "@/components/signing/SignatureRecordsTable";
+import SubscriptionCard from "@/components/subscription/SubscriptionCard";
 
 const Profile = () => {
   const { user, role, roles } = useAuth();
@@ -81,6 +82,7 @@ const Profile = () => {
           </TabsList>
 
           <TabsContent value="profile" className="space-y-6 mt-4">
+            <SubscriptionCard />
             <Card>
               <CardHeader>
                 <CardTitle>Your Information</CardTitle>
