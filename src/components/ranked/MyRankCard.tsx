@@ -35,24 +35,24 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
       </div>
 
       {/* Info row */}
-      <div className="space-y-1">
+      <div className="space-y-1 min-w-0">
         <h2
-          className="text-xl sm:text-2xl font-bold tracking-tight"
+          className="text-xl sm:text-2xl font-bold tracking-tight truncate"
           style={{ color: tierColor }}
         >
           {label}
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground truncate">
           #{profile.position} of {profile.totalPlayers}
         </p>
       </div>
 
       {/* XP Progress Bar */}
       {profile.current_tier !== "champion" && (
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-muted-foreground gap-2">
-            <span>Division Progress</span>
-            <span className="tabular-nums">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex justify-between text-xs text-muted-foreground gap-2 min-w-0">
+            <span className="shrink-0">Division Progress</span>
+            <span className="tabular-nums truncate">
               {divisionXP} / {xpNeeded} XP
             </span>
           </div>
@@ -66,8 +66,8 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
       )}
 
       {/* Streak + Multiplier */}
-      <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-3 sm:gap-4 flex-wrap min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <Flame className="h-4 w-4 text-orange-500 shrink-0" />
           <span className="text-sm font-semibold whitespace-nowrap">
             {profile.current_streak} day streak
