@@ -35,6 +35,7 @@ import DeleteAccount from "./pages/DeleteAccount";
 import Support from "./pages/Support";
 import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
+import Subscribe from "./pages/Subscribe";
 import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
 import ProtectedRoute from "./components/ProtectedRoute";
