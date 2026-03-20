@@ -28,6 +28,8 @@ interface EditFoodModalProps {
     sugar?: number;
     sodium?: number;
     servings: number;
+    quantity_display?: number | null;
+    quantity_unit?: string | null;
   } | null;
   foodName: string;
   onUpdated: () => void;
@@ -40,6 +42,8 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
   const { toast } = useToast();
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState<Unit>("g");
+  const [isCustom, setIsCustom] = useState(false);
+  const [customUnit, setCustomUnit] = useState("serving");
   const [baseMacros, setBaseMacros] = useState<{
     calories: number; protein: number; carbs: number; fat: number;
     fiber: number; sugar: number; sodium: number; serving_size: number;
@@ -48,8 +52,10 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
 
   useEffect(() => {
     if (!open || !logEntry) return;
-    // Load base food macros if food_item_id exists
+
     if (logEntry.food_item_id) {
+      // Food has a food_items reference — load base macros from there
+      setIsCustom(false);
       supabase
         .from("food_items")
         .select("calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit")
@@ -67,32 +73,52 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
               sodium: data.sodium || 0,
               serving_size: data.serving_size,
             });
-            // Set initial quantity to current servings * serving_size
-            const qty = Math.round(logEntry.servings * data.serving_size * 10) / 10;
-            setQuantity(String(qty));
+
+            // Use quantity_display from log if available, otherwise compute from servings * serving_size
+            if (logEntry.quantity_display != null && logEntry.quantity_display > 0) {
+              setQuantity(String(logEntry.quantity_display));
+              setUnit((logEntry.quantity_unit === "oz" ? "oz" : "g") as Unit);
+            } else {
+              const qty = Math.round(logEntry.servings * data.serving_size * 10) / 10;
+              setQuantity(String(qty));
+              setUnit("g");
+            }
           }
         });
     } else {
-      // Custom food — use logged values directly as base (1 serving)
+      // Custom food — no food_items reference
+      // Normalize to "per 1 serving" base by dividing by the number of servings logged
+      setIsCustom(true);
+      const loggedServings = logEntry.servings || 1;
       setBaseMacros({
-        calories: logEntry.calories,
-        protein: logEntry.protein,
-        carbs: logEntry.carbs,
-        fat: logEntry.fat,
-        fiber: logEntry.fiber || 0,
-        sugar: logEntry.sugar || 0,
-        sodium: logEntry.sodium || 0,
+        calories: logEntry.calories / loggedServings,
+        protein: logEntry.protein / loggedServings,
+        carbs: logEntry.carbs / loggedServings,
+        fat: logEntry.fat / loggedServings,
+        fiber: (logEntry.fiber || 0) / loggedServings,
+        sugar: (logEntry.sugar || 0) / loggedServings,
+        sodium: (logEntry.sodium || 0) / loggedServings,
         serving_size: 1,
       });
-      setQuantity(String(logEntry.servings));
+
+      // Show the original quantity from the log
+      if (logEntry.quantity_display != null && logEntry.quantity_display > 0) {
+        setQuantity(String(logEntry.quantity_display));
+      } else {
+        setQuantity(String(loggedServings));
+      }
+      setCustomUnit(logEntry.quantity_unit || "serving");
     }
-    setUnit("g");
   }, [open, logEntry]);
 
   const getMultiplier = () => {
     if (!baseMacros) return 0;
     const val = parseFloat(quantity) || 0;
-    if (!logEntry?.food_item_id) return val; // custom: servings multiplier
+    if (isCustom) {
+      // Custom foods: multiplier is simply the number of servings
+      return val;
+    }
+    // Food items: convert to grams then divide by serving_size
     const qtyInG = unit === "oz" ? val * 28.3495 : val;
     return qtyInG / baseMacros.serving_size;
   };
@@ -110,10 +136,11 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
     if (!logEntry) return;
     setSaving(true);
     const qtyDisplay = parseFloat(quantity) || 0;
+
     const { error } = await supabase
       .from("nutrition_logs")
       .update({
-        servings: logEntry.food_item_id ? multiplier : parseFloat(quantity) || 1,
+        servings: isCustom ? qtyDisplay : multiplier,
         calories: liveCalories,
         protein: liveProtein,
         carbs: liveCarbs,
@@ -122,7 +149,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
         sugar: liveSugar,
         sodium: liveSodium,
         quantity_display: qtyDisplay,
-        quantity_unit: logEntry.food_item_id ? unit : "serving",
+        quantity_unit: isCustom ? customUnit : (logEntry.food_item_id ? unit : "serving"),
       })
       .eq("id", logEntry.id);
     setSaving(false);
@@ -170,6 +197,9 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
     onUpdated();
   };
 
+  // Format the unit label for custom foods
+  const customUnitLabel = customUnit === "g" ? "g" : customUnit === "oz" ? "oz" : customUnit === "ml" ? "ml" : customUnit;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
@@ -180,7 +210,9 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
           {/* Quantity + Unit */}
           <div className="flex items-end gap-3">
             <div className="flex-1">
-              <Label className="text-xs">Quantity</Label>
+              <Label className="text-xs">
+                {isCustom ? `Quantity (${customUnitLabel})` : "Quantity"}
+              </Label>
               <Input
                 type="number"
                 inputMode="decimal"
@@ -193,7 +225,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
                 className="h-10 text-center text-lg font-semibold"
               />
             </div>
-            {logEntry?.food_item_id && (
+            {logEntry?.food_item_id && !isCustom && (
               <div className="flex rounded-lg overflow-hidden border border-border">
                 {(["g", "oz"] as Unit[]).map((u) => (
                   <button

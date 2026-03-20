@@ -564,7 +564,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
                               {item.quantity_display != null && item.quantity_display > 0
-                                ? `${item.quantity_display}${item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'} · `
+                                ? `${item.quantity_display}${item.quantity_unit && item.quantity_unit !== 'g' ? ` ${item.quantity_unit}` : 'g'} · `
                                 : ''
                               }
                               {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
