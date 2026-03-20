@@ -14,6 +14,7 @@ import HealthIntegrations from "@/components/settings/HealthIntegrations";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
 import SignatureRecordsTable from "@/components/signing/SignatureRecordsTable";
+import SubscriptionCard from "@/components/subscription/SubscriptionCard";
 
 const Profile = () => {
   const { user, role, roles } = useAuth();
