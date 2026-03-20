@@ -334,28 +334,39 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         .eq("status", "completed");
       setIsFirstSession((count || 0) === 0);
 
-      const { data: lastSession } = await supabase
-        .from("workout_sessions")
-        .select("id")
-        .eq("client_id", user.id)
-        .eq("workout_id", workoutId)
-        .eq("status", "completed")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (lastSession) {
-        const { data: logs } = await supabase
+      // Fetch previous performance per exercise across ALL completed sessions
+      if (exerciseIds.length > 0) {
+        const { data: allLogs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir")
-          .eq("session_id", lastSession.id)
-          .order("set_number");
+          .select("exercise_id, set_number, weight, reps, rir, session_id, workout_sessions!inner(created_at, status)")
+          .in("exercise_id", exerciseIds)
+          .eq("workout_sessions.client_id", user.id)
+          .eq("workout_sessions.status", "completed")
+          .order("set_number", { ascending: true });
 
-        if (logs) {
+        if (allLogs && allLogs.length > 0) {
+          // Group by exercise_id, then find most recent session per exercise
+          const byExercise: Record<string, Record<string, { created_at: string; logs: any[] }>> = {};
+          allLogs.forEach((l: any) => {
+            const eid = l.exercise_id;
+            const sid = l.session_id;
+            const sessionCreated = l.workout_sessions?.created_at || "";
+            if (!byExercise[eid]) byExercise[eid] = {};
+            if (!byExercise[eid][sid]) byExercise[eid][sid] = { created_at: sessionCreated, logs: [] };
+            byExercise[eid][sid].logs.push(l);
+          });
+
           const grouped: Record<string, any[]> = {};
-          logs.forEach(l => {
-            if (!grouped[l.exercise_id]) grouped[l.exercise_id] = [];
-            grouped[l.exercise_id].push(l);
+          Object.entries(byExercise).forEach(([eid, sessions]) => {
+            // Find the most recent session for this exercise
+            const latestSession = Object.values(sessions).sort(
+              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            )[0];
+            if (latestSession) {
+              grouped[eid] = latestSession.logs.sort(
+                (a: any, b: any) => (a.set_number || 0) - (b.set_number || 0)
+              );
+            }
           });
           setPreviousPerformance(grouped);
         }
