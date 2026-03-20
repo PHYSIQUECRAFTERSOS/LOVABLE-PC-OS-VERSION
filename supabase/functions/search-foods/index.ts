@@ -327,7 +327,7 @@ function mapFatSecretFood(food: any): any | null {
     fatsecret_id: String(food.food_id),
     name: food.food_name?.trim() || "Unknown",
     brand: food.brand_name?.trim() || null,
-    calories_per_100g: Math.round(calories * factor),
+    calories_per_100g: calsPer100,
     protein_per_100g: Math.round(protein * factor * 10) / 10,
     carbs_per_100g: Math.round(carbs * factor * 10) / 10,
     fat_per_100g: Math.round(fat * factor * 10) / 10,
