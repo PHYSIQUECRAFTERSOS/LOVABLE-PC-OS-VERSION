@@ -172,9 +172,9 @@ const StepsScreen = () => {
       {/* Chart */}
       <Card>
         <CardContent className="pt-4">
-          <div className="h-48">
+          <div className="h-48 overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+              <AreaChart data={data} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -183,16 +183,16 @@ const StepsScreen = () => {
                 </defs>
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
                   axisLine={false}
                   interval={Math.max(0, Math.floor(data.length / 7) - 1)}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
                   axisLine={false}
-                  width={35}
+                  width={32}
                   tickFormatter={(v) => v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)}
                 />
                 <Tooltip
@@ -200,8 +200,9 @@ const StepsScreen = () => {
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
                     borderRadius: "8px",
-                    fontSize: 12,
+                    fontSize: 11,
                   }}
+                  wrapperStyle={{ zIndex: 10, maxWidth: "85vw" }}
                   formatter={(value: number) => [value.toLocaleString(), "Steps"]}
                 />
                 <Area

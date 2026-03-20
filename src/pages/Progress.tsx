@@ -110,9 +110,9 @@ const Progress = () => {
             <ProgressPhotoUpload onUploaded={refresh} />
             <Tabs defaultValue="gallery" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="gallery">Gallery</TabsTrigger>
-                <TabsTrigger value="compare">Comparison</TabsTrigger>
-                <TabsTrigger value="bodyfat">AI Body Fat</TabsTrigger>
+                <TabsTrigger value="gallery" className="text-xs">Gallery</TabsTrigger>
+                <TabsTrigger value="compare" className="text-xs">Compare</TabsTrigger>
+                <TabsTrigger value="bodyfat" className="text-xs">AI Body Fat</TabsTrigger>
               </TabsList>
               <TabsContent value="gallery" className="mt-4">
                 <PhotoTimeline key={refreshKey} />

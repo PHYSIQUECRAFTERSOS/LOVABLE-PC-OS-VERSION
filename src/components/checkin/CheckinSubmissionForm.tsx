@@ -332,17 +332,17 @@ const CheckinSubmissionForm = () => {
           <CardContent>
             <div className="space-y-2">
               {pastSubmissions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-primary" />
-                    <span className="text-sm">Check-in for {s.due_date}</span>
+                <div key={s.id} className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 overflow-hidden">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm truncate">Check-in for {s.due_date}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={s.status === "reviewed" ? "default" : "secondary"} className="text-xs">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge variant={s.status === "reviewed" ? "default" : "secondary"} className="text-[10px] px-1.5">
                       {s.status}
                     </Badge>
                     {s.submitted_at && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                         {format(new Date(s.submitted_at), "MMM d")}
                       </span>
                     )}
