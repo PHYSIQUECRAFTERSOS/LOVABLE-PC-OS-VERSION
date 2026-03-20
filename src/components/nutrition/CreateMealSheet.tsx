@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getFoodEmoji } from "@/utils/foodEmoji";
+import { lookupBarcode } from "@/utils/barcodeService";
+import { BrowserMultiFormatReader, NotFoundException, DecodeHintType, BarcodeFormat } from "@zxing/library";
 import {
-  ArrowLeft, Plus, X, Search, Loader2, Minus, Clock,
+  ArrowLeft, Plus, X, Search, Loader2, Minus, Clock, ScanBarcode, UtensilsCrossed,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -18,6 +20,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 export interface StagedItem {
   food_item_id?: string;
@@ -43,11 +46,6 @@ interface CreateMealSheetProps {
   onSaved: () => void;
 }
 
-/**
- * Compute macros from per-100g values, quantity, and unit mode.
- * serving mode: quantity = number of servings, grams = quantity * serving_size_g
- * gram mode: quantity = grams directly
- */
 const computeMacros = (item: StagedItem, newQty: number, unit: "serving" | "g"): StagedItem => {
   const grams = unit === "g" ? newQty : newQty * item.serving_size_g;
   const factor = grams / 100;
@@ -62,6 +60,8 @@ const computeMacros = (item: StagedItem, newQty: number, unit: "serving" | "g"):
   };
 };
 
+type SearchTab = "search" | "custom" | "barcode";
+
 const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -75,6 +75,19 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
   const [searching, setSearching] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [searchTab, setSearchTab] = useState<SearchTab>("search");
+
+  // Custom foods state
+  const [customFoods, setCustomFoods] = useState<any[]>([]);
+
+  // Barcode state
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [barcodeScanning, setBarcodeScanning] = useState(false);
+  const barcodeVideoRef = useRef<HTMLVideoElement>(null);
+  const barcodeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const barcodeStreamRef = useRef<MediaStream | null>(null);
+  const barcodeDetectedRef = useRef(false);
   
   const searchRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,11 +99,15 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
     fat: acc.fat + item.fat,
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
-  // Load history when food search opens
   useEffect(() => {
     if (showFoodSearch && user) {
       fetchHistory();
+      fetchCustomFoods();
+      setSearchTab("search");
       setTimeout(() => searchRef.current?.focus(), 150);
+    }
+    if (!showFoodSearch) {
+      stopBarcodeScanner();
     }
   }, [showFoodSearch, user]);
 
@@ -115,6 +132,16 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
     }
   };
 
+  const fetchCustomFoods = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("client_custom_foods")
+      .select("*")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    setCustomFoods(data || []);
+  };
+
   const handleSearch = useCallback(async (q: string) => {
     setSearchQuery(q);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -129,7 +156,6 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
         if (!error && data?.foods?.length > 0) {
           setSearchResults(data.foods);
         } else {
-          // Fallback to RPC
           const { data: rpcData } = await supabase.rpc("search_foods", { search_query: q, result_limit: 15 });
           setSearchResults((rpcData || []).map((f: any) => ({
             ...f,
@@ -149,14 +175,12 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
   }, [user]);
 
   const mapFoodToStaged = (food: any): StagedItem => {
-    // Determine per-100g values
     let cal100 = food.calories_per_100g ?? food.calories_per_100 ?? 0;
     let pro100 = food.protein_per_100g ?? food.protein_per_100 ?? 0;
     let carb100 = food.carbs_per_100g ?? food.carbs_per_100 ?? 0;
     let fat100 = food.fat_per_100g ?? food.fat_per_100 ?? 0;
     const servingSizeG = food.serving_size_g ?? food.serving_size ?? 100;
 
-    // If no per-100g values, compute from per-serving
     if (cal100 === 0 && food.calories > 0 && servingSizeG > 0) {
       cal100 = food.calories / servingSizeG * 100;
       pro100 = (food.protein || 0) / servingSizeG * 100;
@@ -164,13 +188,11 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
       fat100 = (food.fat || 0) / servingSizeG * 100;
     }
 
-    // Determine serving label
     const servingDesc = food.serving_description || food.serving_label || null;
     const rawUnit = food.serving_unit ?? "g";
     let servingLabel = servingDesc || (rawUnit !== "g" ? `1 ${rawUnit}` : `${servingSizeG}g`);
     const isNativeServing = rawUnit !== "g" || !!servingDesc;
 
-    // Start with 1 serving if native, or serving_size_g if grams
     const initialUnit: "serving" | "g" = isNativeServing ? "serving" : "g";
     const initialQty = isNativeServing ? 1 : servingSizeG;
     const grams = isNativeServing ? servingSizeG : servingSizeG;
@@ -203,6 +225,151 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
     setShowFoodSearch(false);
   };
 
+  const addCustomFoodToStaged = (food: any) => {
+    const ss = parseFloat(food.serving_size) || 100;
+    const servingUnit = food.serving_unit || "serving";
+    // Convert per-serving macros to per-100g for consistent math
+    const cal100 = ss > 0 ? ((food.calories || 0) / ss) * 100 : (food.calories || 0);
+    const pro100 = ss > 0 ? ((food.protein || 0) / ss) * 100 : (food.protein || 0);
+    const carb100 = ss > 0 ? ((food.carbs || 0) / ss) * 100 : (food.carbs || 0);
+    const fat100 = ss > 0 ? ((food.fat || 0) / ss) * 100 : (food.fat || 0);
+
+    const servingLabel = servingUnit !== "g" ? `1 ${servingUnit}` : `${ss}g`;
+    const isNativeServing = servingUnit !== "g";
+    const initialUnit: "serving" | "g" = isNativeServing ? "serving" : "g";
+    const initialQty = isNativeServing ? 1 : ss;
+    const grams = ss;
+    const factor = grams / 100;
+
+    const staged: StagedItem = {
+      food_item_id: undefined,
+      food_name: food.name + (food.brand ? ` (${food.brand})` : ""),
+      brand: food.brand || null,
+      quantity: initialQty,
+      serving_unit: initialUnit,
+      serving_size_g: ss,
+      serving_label: servingLabel,
+      calories_per_100g: cal100,
+      protein_per_100g: pro100,
+      carbs_per_100g: carb100,
+      fat_per_100g: fat100,
+      calories: Math.round(cal100 * factor),
+      protein: Math.round(pro100 * factor * 10) / 10,
+      carbs: Math.round(carb100 * factor * 10) / 10,
+      fat: Math.round(fat100 * factor * 10) / 10,
+    };
+    setItems(prev => [...prev, staged]);
+    setShowFoodSearch(false);
+  };
+
+  // Barcode lookup
+  const handleBarcodeLookupForMeal = async (barcode: string) => {
+    if (!barcode.trim()) return;
+    setBarcodeLoading(true);
+    try {
+      const result = await lookupBarcode(barcode.trim());
+      if (result) {
+        const ss = result.serving_size || 100;
+        const staged = mapFoodToStaged({
+          name: result.name,
+          brand: result.brand,
+          serving_size: ss,
+          serving_size_g: ss,
+          serving_unit: result.serving_unit || "g",
+          serving_label: result.serving_label,
+          calories_per_100g: result.calories_per_100g,
+          protein_per_100g: result.protein_per_100g,
+          carbs_per_100g: result.carbs_per_100g,
+          fat_per_100g: result.fat_per_100g,
+        });
+        setItems(prev => [...prev, staged]);
+        setShowFoodSearch(false);
+        toast({ title: `${result.name} added` });
+      } else {
+        toast({ title: "Product not found", description: "Try entering the barcode manually.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Lookup failed" });
+    } finally {
+      setBarcodeLoading(false);
+      setBarcodeInput("");
+    }
+  };
+
+  // Camera barcode scanner
+  const stopBarcodeScanner = useCallback(() => {
+    if (barcodeStreamRef.current) {
+      barcodeStreamRef.current.getTracks().forEach(t => t.stop());
+      barcodeStreamRef.current = null;
+    }
+    if (barcodeReaderRef.current) {
+      try { barcodeReaderRef.current.reset(); } catch {}
+      barcodeReaderRef.current = null;
+    }
+    barcodeDetectedRef.current = false;
+    setBarcodeScanning(false);
+  }, []);
+
+  const startBarcodeScanner = async () => {
+    barcodeDetectedRef.current = false;
+    setBarcodeScanning(true);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      barcodeStreamRef.current = stream;
+
+      // Wait for video element
+      await new Promise(r => setTimeout(r, 200));
+      const video = barcodeVideoRef.current;
+      if (!video) { stopBarcodeScanner(); return; }
+      video.srcObject = stream;
+      try { await video.play(); } catch {}
+
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+      ]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      const reader = new BrowserMultiFormatReader(hints, 90);
+      barcodeReaderRef.current = reader;
+
+      reader.decodeFromStream(stream, video, (result, err) => {
+        if (result && !barcodeDetectedRef.current) {
+          barcodeDetectedRef.current = true;
+          if (navigator.vibrate) navigator.vibrate(100);
+          stopBarcodeScanner();
+          handleBarcodeLookupForMeal(result.getText());
+        }
+        if (err && !(err instanceof NotFoundException)) {
+          console.warn("[CreateMeal Barcode] Error:", err);
+        }
+      }).catch(err => {
+        console.error("[CreateMeal Barcode] Decode failed:", err);
+        stopBarcodeScanner();
+        toast({ title: "Scanner unavailable", description: "Please allow camera access.", variant: "destructive" });
+      });
+    } catch (err) {
+      console.error("[CreateMeal Barcode] Camera failed:", err);
+      stopBarcodeScanner();
+      toast({ title: "Camera access denied", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    return () => { stopBarcodeScanner(); };
+  }, [stopBarcodeScanner]);
+
+  // Cleanup scanner when switching tabs
+  useEffect(() => {
+    if (searchTab !== "barcode") {
+      stopBarcodeScanner();
+    }
+  }, [searchTab, stopBarcodeScanner]);
 
   const removeItem = (index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
@@ -216,7 +383,6 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
   const changeUnit = (index: number, newUnit: "serving" | "g") => {
     setItems(prev => prev.map((item, i) => {
       if (i !== index) return item;
-      // Convert quantity between units
       let newQty: number;
       if (newUnit === "g") {
         newQty = Math.round(item.quantity * item.serving_size_g);
@@ -295,81 +461,212 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
   const displayList = searchQuery.length >= 2 ? searchResults : history;
 
-  // Barcode removed for now — uses different API pattern
-
   if (showFoodSearch) {
     return (
       <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in">
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
-          <button onClick={() => setShowFoodSearch(false)} className="p-1.5 rounded-lg hover:bg-secondary">
+          <button onClick={() => { setShowFoodSearch(false); stopBarcodeScanner(); }} className="p-1.5 rounded-lg hover:bg-secondary">
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </button>
           <h1 className="text-base font-semibold text-foreground">Add Ingredient</h1>
         </div>
 
-        {/* Search + Barcode */}
-        <div className="px-4 pt-3 pb-2 space-y-2">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              placeholder="Search foods..."
-              value={searchQuery}
-              onChange={e => handleSearch(e.target.value)}
-              className="pl-10 h-11 rounded-xl bg-secondary border-0"
-              autoFocus
-            />
-            {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
-          </div>
+        {/* Tab Bar */}
+        <div className="flex border-b border-border">
+          {([
+            { key: "search" as SearchTab, label: "Search", icon: Search },
+            { key: "custom" as SearchTab, label: "Custom", icon: UtensilsCrossed },
+            { key: "barcode" as SearchTab, label: "Barcode", icon: ScanBarcode },
+          ]).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setSearchTab(key)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-b-2",
+                searchTab === key
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
 
-        {/* Section Label */}
-        {searchQuery.length < 2 && displayList.length > 0 && (
-          <div className="flex items-center gap-1.5 px-4 pt-1 pb-1">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">History</span>
+        {/* Search Tab */}
+        {searchTab === "search" && (
+          <>
+            <div className="px-4 pt-3 pb-2 space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  ref={searchRef}
+                  placeholder="Search foods..."
+                  value={searchQuery}
+                  onChange={e => handleSearch(e.target.value)}
+                  className="pl-10 h-11 rounded-xl bg-secondary border-0"
+                  autoFocus
+                />
+                {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
+              </div>
+            </div>
+
+            {searchQuery.length < 2 && displayList.length > 0 && (
+              <div className="flex items-center gap-1.5 px-4 pt-1 pb-1">
+                <Clock className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">History</span>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              {displayList.length === 0 && !searching && (
+                <p className="text-center text-sm text-muted-foreground py-8">
+                  {searchQuery.length >= 2 ? `No results for "${searchQuery}"` : "Start typing to search foods"}
+                </p>
+              )}
+              {displayList.map((food: any) => {
+                const servingSize = food.serving_size_g ?? food.serving_size ?? 100;
+                const cal = food.calories_per_100g
+                  ? Math.round(food.calories_per_100g * servingSize / 100)
+                  : (food.calories || 0);
+                const pro = food.protein_per_100g
+                  ? Math.round(food.protein_per_100g * servingSize / 100)
+                  : (food.protein || 0);
+                const servingDesc = food.serving_description || food.serving_label || null;
+                const unitLabel = servingDesc || `${servingSize}${food.serving_unit ?? "g"}`;
+
+                return (
+                  <button
+                    key={food.id}
+                    onClick={() => addFoodToStaged(food)}
+                    className="w-full text-left rounded-xl bg-card border border-border/50 px-4 py-3 mb-1.5 hover:bg-secondary transition-colors flex items-center gap-3"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
+                      {getFoodEmoji(food)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {cal} cal · {pro}P · {unitLabel}
+                        {food.brand && <span className="ml-1 opacity-70">· {food.brand}</span>}
+                      </div>
+                    </div>
+                    <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Custom Foods Tab */}
+        {searchTab === "custom" && (
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3">
+            {customFoods.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">
+                No custom foods yet. Create them in the Custom Foods tab.
+              </p>
+            ) : (
+              customFoods.map((food: any) => {
+                const ss = parseFloat(food.serving_size) || 100;
+                const unitLabel = food.serving_unit && food.serving_unit !== "g"
+                  ? `1 ${food.serving_unit}`
+                  : `${ss}g`;
+                return (
+                  <button
+                    key={food.id}
+                    onClick={() => addCustomFoodToStaged(food)}
+                    className="w-full text-left rounded-xl bg-card border border-border/50 px-4 py-3 mb-1.5 hover:bg-secondary transition-colors flex items-center gap-3"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
+                      {getFoodEmoji(food)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {food.name}
+                        {food.brand && <span className="text-muted-foreground font-normal"> · {food.brand}</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {food.calories || 0} cal · {food.protein || 0}P · {food.carbs || 0}C · {food.fat || 0}F · {unitLabel}
+                      </div>
+                    </div>
+                    <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
+                );
+              })
+            )}
           </div>
         )}
 
-        {/* Results */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          {displayList.length === 0 && !searching && (
-            <p className="text-center text-sm text-muted-foreground py-8">
-              {searchQuery.length >= 2 ? `No results for "${searchQuery}"` : "Start typing to search foods"}
-            </p>
-          )}
-          {displayList.map((food: any) => {
-            const servingSize = food.serving_size_g ?? food.serving_size ?? 100;
-            const cal = food.calories_per_100g
-              ? Math.round(food.calories_per_100g * servingSize / 100)
-              : (food.calories || 0);
-            const pro = food.protein_per_100g
-              ? Math.round(food.protein_per_100g * servingSize / 100)
-              : (food.protein || 0);
-            const servingDesc = food.serving_description || food.serving_label || null;
-            const unitLabel = servingDesc || `${servingSize}${food.serving_unit ?? "g"}`;
-
-            return (
-              <button
-                key={food.id}
-                onClick={() => addFoodToStaged(food)}
-                className="w-full text-left rounded-xl bg-card border border-border/50 px-4 py-3 mb-1.5 hover:bg-secondary transition-colors flex items-center gap-3"
-              >
-                <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-lg">
-                  {getFoodEmoji(food)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {cal} cal · {pro}P · {unitLabel}
-                    {food.brand && <span className="ml-1 opacity-70">· {food.brand}</span>}
+        {/* Barcode Tab */}
+        {searchTab === "barcode" && (
+          <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3 space-y-4">
+            {/* Camera Scanner */}
+            {barcodeScanning ? (
+              <div className="space-y-3">
+                <div className="relative rounded-xl overflow-hidden bg-black aspect-[4/3]">
+                  <video
+                    ref={barcodeVideoRef}
+                    className="w-full h-full object-cover"
+                    playsInline
+                    muted
+                    autoPlay
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-3/4 h-16 border-2 border-primary/60 rounded-lg" />
                   </div>
                 </div>
-                <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
-              </button>
-            );
-          })}
-        </div>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={stopBarcodeScanner}
+                >
+                  Stop Scanner
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full h-12 gap-2"
+                onClick={startBarcodeScanner}
+                disabled={barcodeLoading}
+              >
+                <ScanBarcode className="h-5 w-5" />
+                Start Camera Scanner
+              </Button>
+            )}
+
+            {/* Manual Barcode Input */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Or type barcode manually</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter barcode number"
+                  value={barcodeInput}
+                  onChange={e => setBarcodeInput(e.target.value)}
+                  inputMode="numeric"
+                  className="flex-1 h-10 bg-secondary border-0 rounded-lg"
+                  onKeyDown={e => { if (e.key === "Enter") handleBarcodeLookupForMeal(barcodeInput); }}
+                />
+                <Button
+                  onClick={() => handleBarcodeLookupForMeal(barcodeInput)}
+                  disabled={barcodeLoading || !barcodeInput.trim()}
+                  className="h-10 px-4"
+                >
+                  {barcodeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Look Up"}
+                </Button>
+              </div>
+            </div>
+
+            {barcodeLoading && (
+              <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Looking up product...
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

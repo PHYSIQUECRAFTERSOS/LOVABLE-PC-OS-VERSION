@@ -633,12 +633,56 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const logCustomFood = async (food: any, quantity?: number) => {
     if (!user) return;
     const ss = parseFloat(food.serving_size) || 100;
+    const servingUnit = food.serving_unit || "serving";
     const qty = quantity ?? 1;
     const multiplier = qty;
 
+    // Find or create a food_items entry so EditFoodModal can properly scale macros
+    let foodItemId: string | null = null;
+    try {
+      const { data: existing } = await supabase
+        .from("food_items")
+        .select("id")
+        .eq("name", food.name)
+        .eq("created_by", user.id)
+        .eq("data_source", "custom")
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        foodItemId = existing[0].id;
+      } else {
+        const { data: newItem } = await supabase
+          .from("food_items")
+          .insert({
+            name: food.name,
+            brand: food.brand || null,
+            serving_size: ss,
+            serving_unit: servingUnit,
+            calories: food.calories || 0,
+            protein: food.protein || 0,
+            carbs: food.carbs || 0,
+            fat: food.fat || 0,
+            fiber: food.fiber || 0,
+            sugar: food.sugar || 0,
+            sodium: food.sodium || 0,
+            data_source: "custom",
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (newItem) foodItemId = newItem.id;
+      }
+    } catch (err) {
+      console.warn("[logCustomFood] Could not create food_items entry:", err);
+    }
+
+    const displayName = food.name + (food.brand ? ` (${food.brand})` : "");
+    const quantityDisplay = qty * ss;
+
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
-      custom_name: food.name + (food.brand ? ` (${food.brand})` : ""),
+      food_item_id: foodItemId,
+      custom_name: displayName,
       meal_type: mealType,
       servings: multiplier,
       calories: Math.round((food.calories || 0) * multiplier),
@@ -648,8 +692,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fiber: Math.round((food.fiber || 0) * multiplier),
       sugar: Math.round((food.sugar || 0) * multiplier),
       sodium: Math.round((food.sodium || 0) * multiplier),
-      quantity_display: qty,
-      quantity_unit: food.serving_unit || "serving",
+      quantity_display: quantityDisplay,
+      quantity_unit: servingUnit === "g" ? "g" : servingUnit,
       logged_at: effectiveDate,
       tz_corrected: true,
     } as any);
@@ -657,6 +701,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
       toast({ title: `${food.name} logged` });
+      if (foodItemId) {
+        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
+      }
       onLogged();
     }
   };
