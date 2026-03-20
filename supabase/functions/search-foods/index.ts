@@ -514,7 +514,7 @@ serve(async (req) => {
     const newUsda = usdaFoods.filter((f) => !existingUsdaIds.has(f.usda_fdc_id));
     const newFs = fsFoods.filter((f) => !existingNames.has(`${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
     
-    const allResultsRaw = [...localFoods, ...newOff, ...newOffBranded, ...newUsda].filter((f) =>
+    const allResultsRaw = [...localFoods, ...newFs, ...newUsda].filter((f) =>
       f.has_complete_macros !== false && ((f.protein_per_100g ?? 0) + (f.carbs_per_100g ?? 0) + (f.fat_per_100g ?? 0)) > 0
     );
 
