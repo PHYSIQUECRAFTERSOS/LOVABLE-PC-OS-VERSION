@@ -1,37 +1,53 @@
 
 
-# Fix iOS Native Shell UI Issues
+# Fix: TestFlight App Showing Stale/Old UI
 
-## Problem
-The app is zoomed in on iOS native (Capacitor), content is cut off by the Dynamic Island, the hamburger menu is hard to find, and Apple reviewers can't locate Settings/Subscription.
+## Root Cause
 
-## Changes
+The TestFlight app loads your web code from the Lovable preview URL (correct), but the **Service Worker** (`public/sw.js`) is caching old versions of `index.html` and JS bundles inside WKWebView. Once cached, the SW serves stale assets even though the server has new code. This is why Safari/Chrome show the latest UI (no SW or fresh SW) while the TestFlight build shows the old layout.
 
-### 1. `index.html` — Fix viewport meta tag
-Replace the current viewport meta with the exact tag requested:
+## Solution
+
+Two changes to ensure the native Capacitor shell always gets fresh code:
+
+### 1. `public/sw.js` — Skip SW entirely inside Capacitor
+
+Add a check at the top of the `fetch` listener: if running inside Capacitor's native WebView, bypass all caching and go straight to the network. Also bump the cache version so any existing stale cache is purged on next activation.
+
+- Change `CACHE_NAME` from `'physique-crafters-v2'` to `'physique-crafters-v3'` (forces old cache deletion on activate)
+- In the `fetch` handler, detect Capacitor via `navigator.userAgent` containing `Capacitor` and skip caching entirely
+- This means the native shell always fetches fresh code from the server
+
+### 2. `index.html` — Unregister SW inside Capacitor shell
+
+Add a script block that detects the Capacitor environment and **unregisters** any existing Service Worker. This clears the stale cache immediately on next app launch:
+
 ```html
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<script>
+  if (window.Capacitor || navigator.userAgent.includes('Capacitor')) {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        registrations.forEach(function(reg) { reg.unregister(); });
+      });
+      caches.keys().then(function(names) {
+        names.forEach(function(name) { caches.delete(name); });
+      });
+    }
+  } else if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+</script>
 ```
 
-### 2. `src/components/AppLayout.tsx` — Bottom tab bar with Settings tab
-The mobile bottom nav currently shows 5 tabs but does NOT include Settings for clients. Fix:
-
-**Client bottom tabs** → change from `[Home, Calendar, Training, Nutrition, Messages]` to `[Home, Calendar, Training, Nutrition, Settings]`. This puts Settings (which contains Subscription) directly in the bottom tab bar — one tap away.
-
-**Coach bottom tabs** → change from `[Overview, Clients, Messages, Community]` to `[Overview, Clients, Messages, Community, Settings]`. Same reasoning.
-
-Also increase tap targets on the bottom nav icons (currently `pt-2 pb-1` is tight on iOS). Make icons `h-6 w-6` instead of `h-5 w-5` and increase vertical padding.
-
-### 3. `src/components/AppLayout.tsx` — Safe area on root container
-Add `safe-top safe-bottom safe-left safe-right` classes to the root container div so the entire app respects iOS safe areas. The mobile header already has `safe-top` and the bottom nav has `safe-bottom`, but the root wrapper should also enforce `safe-left` and `safe-right` for landscape/iPad.
-
-### 4. `src/pages/Profile.tsx` — Subscription prominence
-Already has `<SubscriptionCard />` at top and Legal section. No changes needed — it's correctly structured.
-
-### 5. `src/pages/Subscribe.tsx` — Already has safe area classes
-Already uses `safe-top safe-bottom` and `100dvh`. No changes needed.
+This replaces the current unconditional SW registration. In the native shell, it actively unregisters and clears caches. In browsers, it registers normally.
 
 ### Summary of file changes
-- **`index.html`** — viewport meta tag update (1 line)
-- **`src/components/AppLayout.tsx`** — Add Settings to mobile bottom tabs for both client and coach, increase tap targets, add safe-area to root
+- **`public/sw.js`** — Bump cache version to v3; skip caching for Capacitor user agents
+- **`index.html`** — Conditionally unregister SW + clear caches when running in Capacitor, otherwise register normally
+
+### After deploying
+You will need to:
+1. Force-close the TestFlight app completely
+2. Reopen it — the first load will clear the old SW/cache and fetch fresh code
+3. All future updates from Lovable will appear immediately in the native app
 
