@@ -802,7 +802,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   }
 
   return (
-    <div className="space-y-4 pb-52">
+    <div className="space-y-4 pb-56">
       {/* Recovery Banner */}
       {showRecoveryBanner && (
         <div className="mx-0 rounded-lg border-l-4 border-l-primary bg-primary/10 border border-primary/20 p-3 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
@@ -907,7 +907,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       ))}
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <Button
           variant="outline"
           className="w-full gap-2"
@@ -917,7 +917,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         </Button>
         <Button
           variant="ghost"
-          className="w-full mt-4 text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20 font-semibold"
+          className="w-full mt-3 text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20 font-semibold"
           onClick={() => setShowCancelDialog(true)}
         >
           Cancel Workout
