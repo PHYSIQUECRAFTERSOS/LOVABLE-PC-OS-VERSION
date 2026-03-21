@@ -37,7 +37,7 @@ export default function PWAInstallPrompt() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-xl border border-border bg-card p-4 shadow-lg">
+    <div className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-xl border border-border bg-card p-4 shadow-lg safe-bottom">
       <button onClick={handleDismiss} className="absolute right-2 top-2 text-muted-foreground">
         <X className="h-4 w-4" />
       </button>

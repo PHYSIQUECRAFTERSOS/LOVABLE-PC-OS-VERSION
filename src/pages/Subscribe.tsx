@@ -112,7 +112,7 @@ const Subscribe = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col safe-top safe-bottom">
       {/* Back button */}
       <div className="p-4">
         <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
@@ -120,7 +120,7 @@ const Subscribe = () => {
         </button>
       </div>
 
-      <div className="flex-1 px-4 pb-8 max-w-md mx-auto w-full space-y-6">
+      <div className="flex-1 px-4 pb-8 max-w-md mx-auto w-full space-y-6 overflow-y-auto">
         {/* Header */}
         <div className="text-center space-y-1">
           <h1 className="text-3xl font-bold tracking-wider">
