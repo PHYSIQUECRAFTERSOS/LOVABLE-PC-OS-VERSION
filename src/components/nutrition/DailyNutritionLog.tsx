@@ -288,10 +288,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const getMealTotals = (items: NutritionLog[]) =>
     items.reduce(
       (acc, l) => ({
-        calories: acc.calories + l.calories,
-        protein: acc.protein + l.protein,
-        carbs: acc.carbs + l.carbs,
-        fat: acc.fat + l.fat,
+        calories: Math.round(acc.calories + l.calories),
+        protein: Math.round(acc.protein + l.protein),
+        carbs: Math.round(acc.carbs + l.carbs),
+        fat: Math.round(acc.fat + l.fat),
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
