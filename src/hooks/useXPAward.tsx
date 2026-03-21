@@ -13,6 +13,7 @@ interface RankEvent {
   tier: string;
   division: number;
   type: "division_up" | "tier_up" | "champion_in" | "division_down" | "tier_down";
+  previousTier?: string;
 }
 
 interface XPContextType {
@@ -74,6 +75,7 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
             tier: result.tier as string,
             division: result.division,
             type: result.rankChange as RankEvent["type"],
+            previousTier: result.previousTier as string | undefined,
           });
         }
       } catch (e) {
@@ -98,6 +100,7 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
           tier={rankEvent.tier}
           division={rankEvent.division}
           type={rankEvent.type}
+          previousTier={rankEvent.previousTier}
           onDismiss={() => setRankEvent(null)}
         />
       )}
