@@ -1,58 +1,46 @@
 
 
-# Workout Summary — Premium Animated Celebration
+# Fix Serving Size Display — Meal Plan Copy & Saved Meal Items
 
-## What We're Building
+## Two Problems
 
-Transform the static workout summary into a cinematic, Apple Fitness+-inspired reveal sequence with smooth staggered entrances, count-up number animations, gold confetti for PR sessions, shimmer effects on PR rows, a trophy burst animation, and a live-filling XP progress bar with tier badge glow pulse.
+**Problem 1: Meal plan → tracker copy loses serving size.** When items are copied via "Copy from meal plan", "Add to Food Tracker", or "Auto Track", the `nutrition_logs` insert does NOT include `quantity_display` or `quantity_unit`. The meal plan items table has `gram_amount`, `serving_size`, and `serving_unit` columns — but the copy logic ignores them. So the tracker shows "520 cal" with no "400g" prefix like it does for foods logged via search.
 
-## Animation Sequence Timeline
+**Problem 2: Saved meal detail shows "1g" for all items.** When a meal is saved from tracker logs that were copied from the meal plan (which lack `quantity_display`/`quantity_unit`), the `saved_meal_items` rows get `quantity: 1` and `serving_unit: "serving"` (or default). The SavedMealDetail then renders `1g` because the `active_unit` falls back to "g" and `quantity` is 1. The root cause is the same: no serving metadata flows from meal plan → nutrition_logs → saved_meal_items.
 
-```text
-0.0s  — Screen fades in (existing)
-0.3s  — Hero emoji scales up with bounce
-0.5s  — "Workout Complete!" title fades in
-0.7s  — Workout name fades in
-0.9s  — Stat cards stagger in (top-left → top-right → bottom-left → bottom-right)
-1.0s  — Each stat number counts up from 0 to final value over ~800ms, bounces on land
-1.8s  — If PRs exist: gold confetti burst fires (40-60 particles)
-2.0s  — PR card fades in, trophy icon does a scale-rotate burst
-2.2s+ — PR rows stagger in one-by-one (200ms apart), each with a gold shimmer sweep
-3.0s  — XP card fades in
-3.2s  — "+X XP" counter ticks up rapidly
-3.5s  — XP progress bar fills from previous position to new position
-3.8s  — Tier badge pulses with a glow ring
-4.0s  — Motivational message + action buttons fade in
-```
+## Fix Strategy
 
-## Technical Approach
+### Fix 1: Pass serving data when copying meal plan items to tracker
 
-### 1. Animated Number Counter Component
-Create a reusable `AnimatedNumber` component using `requestAnimationFrame` with easing. Numbers count from 0 to target over ~800ms, then do a CSS scale bounce (1.0 → 1.15 → 1.0) when they land.
+**Files:** `src/hooks/useMealPlanTracker.ts`, `src/components/nutrition/ClientStructuredMealPlan.tsx`
 
-### 2. Staggered Entry System
-Use CSS `@keyframes` with inline `animation-delay` on each element. Each stat card, PR row, and section gets an increasing delay. No external library needed — pure CSS animations with Tailwind utility classes added to `index.css`.
+1. Update `MealPlanFood` interface to include `serving_size` and `serving_unit` (already in the DB table).
+2. In `copyMealToTracker` and `copyEntireDayToTracker`, add `quantity_display` and `quantity_unit` to each insert entry:
+   - `quantity_display = item.gram_amount || item.serving_size || null`
+   - `quantity_unit = item.serving_unit || "g"`
+3. In `handleAddSingleItem` (ClientStructuredMealPlan.tsx), do the same.
 
-### 3. Gold Confetti (PR sessions only)
-A lightweight canvas-based confetti burst (~50 gold/amber particles) that fires once at the 1.8s mark. Self-contained in a `ConfettiBurst` component — no npm dependency. Particles use physics (gravity + drift) and fade out over ~2s.
+### Fix 2: Pass serving data when saving tracker logs as a meal
 
-### 4. PR Row Shimmer + Trophy Burst
-- Each PR row gets a CSS `shimmer` animation: a diagonal gold gradient that sweeps left-to-right once
-- Trophy icon does a scale-up + rotate animation on entry
+**File:** `src/components/nutrition/DailyNutritionLog.tsx`
 
-### 5. XP Progress Bar Fill
-- Bar starts at 0% width and animates to the calculated percentage using CSS `transition` with a 700ms ease-out, triggered after a delay
-- The `+XP` number uses the same count-up component
-- Tier badge gets a pulsing glow ring via `box-shadow` animation
+In `handleSaveMealFromTracker`, include `serving_size_g` in the `saved_meal_items` insert so the SavedMealDetail can display proper amounts:
+- `quantity` should use `l.quantity_display || l.servings || 1`
+- `serving_unit` should use `l.quantity_unit || "serving"`
+- `serving_size_g` should map from `l.quantity_display` when unit is "g"
 
-### Files Changed
+### Fix 3: SavedMealDetail fallback display
+
+**File:** `src/components/nutrition/SavedMealDetail.tsx`
+
+Improve the enrichment logic at line 89-123 so that when `quantity` is 1 and `serving_unit` is generic, it falls back to the food_item's actual `serving_size`/`serving_unit` by fetching those columns alongside the items. This handles existing saved meals that were created before this fix.
+
+## Files Changed
 
 | File | Change |
 |---|---|
-| `src/components/workout/WorkoutSummary.tsx` | Add animation delays, use `AnimatedNumber`, add `ConfettiBurst`, shimmer classes, staggered PR rows, animated XP bar |
-| `src/components/workout/AnimatedNumber.tsx` | New — reusable count-up component with bounce |
-| `src/components/workout/ConfettiBurst.tsx` | New — canvas-based gold confetti, fires once |
-| `src/index.css` | Add `@keyframes` for shimmer, bounce-land, trophy-burst, glow-pulse, stagger-fade-in |
-
-No external dependencies. Pure CSS + `requestAnimationFrame` + canvas. Lightweight and performant on mobile Safari.
+| `src/hooks/useMealPlanTracker.ts` | Add `serving_size`, `serving_unit` to `MealPlanFood` interface; include `quantity_display`/`quantity_unit` in both copy functions |
+| `src/components/nutrition/ClientStructuredMealPlan.tsx` | Include `quantity_display`/`quantity_unit` in `handleAddSingleItem` insert |
+| `src/components/nutrition/DailyNutritionLog.tsx` | Pass proper `quantity`/`serving_unit`/`serving_size_g` in `handleSaveMealFromTracker` |
+| `src/components/nutrition/SavedMealDetail.tsx` | Enrich items with food_items serving data as fallback for legacy "1g" entries |
 
