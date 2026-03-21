@@ -82,7 +82,7 @@ const Profile = () => {
           </TabsList>
 
           <TabsContent value="profile" className="space-y-6 mt-4">
-            <SubscriptionCard />
+            {role === "client" && <SubscriptionCard />}
             <Card>
               <CardHeader>
                 <CardTitle>Your Information</CardTitle>
