@@ -13,7 +13,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
   const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
-  const countdownFiredRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
@@ -21,7 +20,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     setTimeRemaining(initialSeconds);
     endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
-    countdownFiredRef.current = false;
     if (initialSeconds > 0) {
       void scheduleCountdownSoundForDuration(initialSeconds);
     }

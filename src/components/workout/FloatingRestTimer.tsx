@@ -14,14 +14,12 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
   const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
-  const countdownFiredRef = useRef(false);
 
   useEffect(() => {
     setTimeRemaining(initialSeconds);
     setShowComplete(false);
     endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
-    countdownFiredRef.current = false;
     if (initialSeconds > 0) {
       void scheduleCountdownSoundForDuration(initialSeconds);
     }
