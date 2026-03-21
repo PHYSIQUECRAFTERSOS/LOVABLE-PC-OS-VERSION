@@ -78,6 +78,11 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Skip all caching inside Capacitor native shell — always fetch fresh
+  if (self.navigator && self.navigator.userAgent && self.navigator.userAgent.includes('Capacitor')) {
+    return;
+  }
+
   if (event.request.method !== 'GET' || !isCacheableRequest(event.request)) {
     return;
   }

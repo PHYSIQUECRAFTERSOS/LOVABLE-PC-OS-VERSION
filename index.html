@@ -32,8 +32,17 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch((err) => {
+      if (window.Capacitor || (navigator.userAgent && navigator.userAgent.includes('Capacitor'))) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(reg) { reg.unregister(); });
+          });
+          caches.keys().then(function(names) {
+            names.forEach(function(name) { caches.delete(name); });
+          });
+        }
+      } else if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(err) {
           console.warn('Service Worker registration failed:', err);
         });
       }
