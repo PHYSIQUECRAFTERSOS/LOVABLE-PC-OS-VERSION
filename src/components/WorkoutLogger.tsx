@@ -802,7 +802,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   }
 
   return (
-    <div className="space-y-4 pb-52">
+    <div className="space-y-4 pb-56">
       {/* Recovery Banner */}
       {showRecoveryBanner && (
         <div className="mx-0 rounded-lg border-l-4 border-l-primary bg-primary/10 border border-primary/20 p-3 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
