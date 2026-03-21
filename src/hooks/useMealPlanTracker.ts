@@ -18,6 +18,8 @@ export interface MealPlanFood {
   meal_order: number;
   item_order: number;
   day_id: string | null;
+  serving_size: number | null;
+  serving_unit: string | null;
 }
 
 export interface MealPlanDay {
@@ -248,6 +250,8 @@ export function useMealPlanTracker(selectedDate?: Date) {
         fat: item.fat,
         logged_at: dateStr,
         tz_corrected: true,
+        quantity_display: item.gram_amount || item.serving_size || null,
+        quantity_unit: item.serving_unit || "g",
         ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
       const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
@@ -310,6 +314,8 @@ export function useMealPlanTracker(selectedDate?: Date) {
         fat: item.fat,
         logged_at: dateStr,
         tz_corrected: true,
+        quantity_display: item.gram_amount || item.serving_size || null,
+        quantity_unit: item.serving_unit || "g",
         ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
       }));
       const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
