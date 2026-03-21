@@ -71,21 +71,11 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
           result.rankChange === "division_down" ||
           result.rankChange === "tier_down"
         ) {
-          // Fetch the previous tier from the profile before the update
-          const previousTier = (await (async () => {
-            const { data: pre } = await (supabase as any)
-              .from("ranked_profiles")
-              .select("current_tier")
-              .eq("user_id", userId)
-              .maybeSingle();
-            return pre?.current_tier;
-          })()) ?? undefined;
-
           setRankEvent({
             tier: result.tier as string,
             division: result.division,
             type: result.rankChange as RankEvent["type"],
-            previousTier,
+            previousTier: result.previousTier as string | undefined,
           });
         }
       } catch (e) {

@@ -233,6 +233,7 @@ export async function awardXP(
       divisionXP: finalDivXP,
       xpNeeded: calc.xpNeeded,
       rankChange,
+      previousTier: oldTier,
     };
   } catch (e) {
     console.error("[Ranked] awardXP:", e);
