@@ -487,7 +487,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-[70] bg-background flex flex-col animate-fade-in">
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="h-5 w-5 text-foreground" />
