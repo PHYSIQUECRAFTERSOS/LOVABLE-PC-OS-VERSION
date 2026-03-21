@@ -180,9 +180,11 @@ const CreateFoodScreen = ({ open, onOpenChange, onSaved, editFood }: CreateFoodS
                 <Input
                   type="number"
                   inputMode="decimal"
+                  min="0.01"
                   value={servingSize}
                   onChange={(e) => setServingSize(e.target.value)}
                   className="flex-1"
+                  placeholder="e.g. 250"
                 />
                 <Select value={servingUnit} onValueChange={setServingUnit}>
                   <SelectTrigger className="w-24">
