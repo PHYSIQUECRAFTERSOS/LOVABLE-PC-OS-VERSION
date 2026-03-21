@@ -545,7 +545,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
-                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                              {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
                             </div>
                           </div>
                         </button>
