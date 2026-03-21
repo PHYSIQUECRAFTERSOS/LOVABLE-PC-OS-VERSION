@@ -11,7 +11,10 @@ export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
+
   useEffect(() => {
+    if (isCapacitor) return;
     if (localStorage.getItem("pwa-install-dismissed")) return;
 
     const handler = (e: Event) => {
@@ -20,9 +23,9 @@ export default function PWAInstallPrompt() {
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+  }, [isCapacitor]);
 
-  if (!deferredPrompt || dismissed) return null;
+  if (isCapacitor || !deferredPrompt || dismissed) return null;
 
   const handleInstall = async () => {
     await deferredPrompt.prompt();
@@ -37,7 +40,7 @@ export default function PWAInstallPrompt() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md rounded-xl border border-border bg-card p-4 shadow-lg">
+    <div className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md rounded-xl border border-border bg-card p-4 shadow-lg safe-bottom">
       <button onClick={handleDismiss} className="absolute right-2 top-2 text-muted-foreground">
         <X className="h-4 w-4" />
       </button>

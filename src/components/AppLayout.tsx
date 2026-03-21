@@ -5,7 +5,6 @@ import {
   UtensilsCrossed,
   MessageSquare,
   BarChart3,
-  Activity,
   User,
   LogOut,
   LayoutDashboard,
@@ -44,7 +43,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
 
-  // Never render layout until role is confirmed — prevents cross-rendering
   if (roleLoading || !role) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -53,8 +51,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  
-
   const handleSignOut = async () => {
     await signOut();
     navigate("/auth");
@@ -62,7 +58,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   const isCoach = role === "coach" || role === "admin";
 
-  // Coach/Admin navigation — Trainerize-style
   const coachNav: NavItem[] = [
     { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
@@ -83,7 +78,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     coachSecondaryNav.push({ to: "/admin", icon: Shield, label: "Admin" });
   }
 
-  // Client navigation — mobile-first
   const clientNav: NavItem[] = [
     { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/calendar", icon: CalendarDays, label: "Calendar" },
@@ -98,7 +92,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/profile", icon: User, label: "Settings" },
   ];
 
-  // Pick bottom nav items for mobile
   const mobileBottomItems: NavItem[] = isCoach
     ? [
         { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
@@ -137,7 +130,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card">
         <div className="flex h-16 items-center px-6 border-b border-border">
@@ -172,61 +165,71 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       {/* Main Content */}
-      <div className="flex flex-1 flex-col">
-        {/* Mobile Header */}
-        <header className="flex md:hidden items-center justify-between h-14 px-4 border-b border-border bg-card">
-          <h1 className="font-display text-base font-bold tracking-tight">
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Mobile Header — safe-area aware */}
+        <header className="flex md:hidden items-center justify-between h-auto min-h-[56px] px-4 border-b border-border bg-card safe-top">
+          <h1 className="font-display text-base font-bold tracking-tight min-w-0 truncate">
             PHYSIQUE <span className="text-gradient-gold">CRAFTERS</span>
           </h1>
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <SheetTrigger asChild>
-              <button className="p-2 text-muted-foreground hover:text-foreground">
-                <Menu className="h-5 w-5" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-64 bg-card p-0">
-              <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <nav className="flex flex-col h-full">
-                <div className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-                  {sidebarItems.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
-                  {secondaryItems.length > 0 && (
-                    <>
-                      <div className="my-3 border-t border-border" />
-                      {secondaryItems.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
-                    </>
-                  )}
-                </div>
-                <div className="border-t border-border p-3">
-                  <button
-                    onClick={() => { setMobileOpen(false); handleSignOut(); }}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                  </button>
-                </div>
-              </nav>
-            </SheetContent>
-          </Sheet>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Direct Settings shortcut for discoverability */}
+            <button
+              onClick={() => navigate("/profile")}
+              className="p-2 text-muted-foreground hover:text-foreground"
+              aria-label="Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger asChild>
+                <button className="p-2 text-muted-foreground hover:text-foreground">
+                  <Menu className="h-5 w-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-64 bg-card p-0">
+                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                <nav className="flex flex-col h-full">
+                  <div className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+                    {sidebarItems.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
+                    {secondaryItems.length > 0 && (
+                      <>
+                        <div className="my-3 border-t border-border" />
+                        {secondaryItems.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
+                      </>
+                    )}
+                  </div>
+                  <div className="border-t border-border p-3">
+                    <button
+                      onClick={() => { setMobileOpen(false); handleSignOut(); }}
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
+          </div>
         </header>
 
         {activeSession && (
           <UnfinishedWorkoutBanner session={activeSession} online={online} onDismiss={dismissBanner} />
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           {children}
         </main>
 
-        {/* Mobile Bottom Nav */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm">
+        {/* Mobile Bottom Nav — safe-area aware */}
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm safe-bottom">
           {mobileBottomItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
+                  "flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
