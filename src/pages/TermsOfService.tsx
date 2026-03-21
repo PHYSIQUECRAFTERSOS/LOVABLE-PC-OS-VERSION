@@ -75,9 +75,15 @@ const TermsOfService = () => {
         <section className="space-y-3">
           <h2 className="text-primary font-display text-base font-semibold">7. Payment Terms</h2>
           <p className="text-sm text-foreground/80 leading-relaxed">
-            Subscription fees are charged according to the plan selected at enrollment. Subscriptions auto-renew
-            unless cancelled before the renewal date. Cancellation policies as agreed at time of purchase apply.
-            Refunds are handled on a case-by-case basis.
+            This app offers the following auto-renewable subscription plans, available for purchase through Apple's In-App Purchase system:
+          </p>
+          <ul className="text-sm text-foreground/80 leading-relaxed list-disc pl-6 space-y-2">
+            <li><strong>Weekly Updates:</strong> $399.99 USD per month. Includes weekly progress updates, customized training program, customized meal plan, and customized supplement plan.</li>
+            <li><strong>Bi-Weekly Updates:</strong> $299.99 USD per month. Includes bi-weekly progress updates, customized training program, customized meal plan, and customized supplement plan.</li>
+            <li><strong>Training Only:</strong> $174.99 USD per 2 months. Includes customized training program.</li>
+          </ul>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Payment will be charged to your Apple ID account at confirmation of purchase. Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period at the rate of your selected plan. You can manage and cancel your subscriptions by going to your Account Settings on the App Store after purchase. Any unused portion of a free trial period, if offered, will be forfeited when you purchase a subscription. Prices are in USD and may vary in other countries. All prices are subject to change, and price changes will take effect at the start of the next subscription period following the date of the price change. Refunds are handled according to Apple's refund policies.
           </p>
         </section>
 
