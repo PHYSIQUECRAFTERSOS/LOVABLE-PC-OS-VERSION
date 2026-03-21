@@ -230,12 +230,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors",
+                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-6 w-6" />
               {item.label}
             </NavLink>
           ))}
