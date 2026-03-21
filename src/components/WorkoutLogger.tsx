@@ -506,8 +506,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      initAudioContext(); // Prime iOS audio on user gesture
-      preloadCountdownSound(); // Pre-fetch countdown sound
+      restTimerAudio.unlock(); // Prime iOS audio on user gesture
+      restTimerAudio.preload(); // Pre-fetch countdown sound
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
