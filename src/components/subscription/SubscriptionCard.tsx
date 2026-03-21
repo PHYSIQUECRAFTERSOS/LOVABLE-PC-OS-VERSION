@@ -29,6 +29,7 @@ const SubscriptionCard = () => {
     }
   };
 
+  // Never hide the card — show a brief loader but cap it so Apple reviewers always see content
   if (loading) {
     return (
       <Card>
