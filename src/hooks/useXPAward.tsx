@@ -110,6 +110,7 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
           tier={rankEvent.tier}
           division={rankEvent.division}
           type={rankEvent.type}
+          previousTier={rankEvent.previousTier}
           onDismiss={() => setRankEvent(null)}
         />
       )}
