@@ -13,6 +13,7 @@ interface RankEvent {
   tier: string;
   division: number;
   type: "division_up" | "tier_up" | "champion_in" | "division_down" | "tier_down";
+  previousTier?: string;
 }
 
 interface XPContextType {
