@@ -183,8 +183,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   useEffect(() => {
     if (!user) return;
     // Pre-init audio on session start so countdown sound is ready
-    initAudioContext();
-    preloadCountdownSound();
+    restTimerAudio.unlock();
+    restTimerAudio.preload();
     const initSession = async () => {
       if (resumeSessionId) {
         // Resuming: restore startTime from DB
