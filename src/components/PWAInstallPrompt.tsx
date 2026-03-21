@@ -11,7 +11,10 @@ export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.();
+
   useEffect(() => {
+    if (isCapacitor) return;
     if (localStorage.getItem("pwa-install-dismissed")) return;
 
     const handler = (e: Event) => {
@@ -20,7 +23,7 @@ export default function PWAInstallPrompt() {
     };
     window.addEventListener("beforeinstallprompt", handler);
     return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+  }, [isCapacitor]);
 
   if (isCapacitor || !deferredPrompt || dismissed) return null;
 

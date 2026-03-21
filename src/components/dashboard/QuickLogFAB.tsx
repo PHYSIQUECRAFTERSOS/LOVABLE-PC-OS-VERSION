@@ -68,7 +68,7 @@ const QuickLogFAB = () => {
   return (
     <>
       {/* FAB */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col-reverse items-center gap-2">
+      <div className="fixed bottom-20 right-5 z-50 flex flex-col-reverse items-center gap-2 md:bottom-6 md:right-6">
         {expanded && (
           <div className="flex flex-col gap-2 animate-fade-in">
             {actions.map((action) => (
