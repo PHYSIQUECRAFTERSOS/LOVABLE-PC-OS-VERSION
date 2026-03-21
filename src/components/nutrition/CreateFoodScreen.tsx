@@ -101,12 +101,17 @@ const CreateFoodScreen = ({ open, onOpenChange, onSaved, editFood }: CreateFoodS
       return;
     }
 
+    const ss = parseFloat(servingSize) || 0;
+    if (ss <= 0) {
+      toast({ title: "Serving size must be greater than 0", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
 
-    const ss = parseFloat(servingSize) || 100;
-    const p = parseFloat(protein) || 0;
-    const c = parseFloat(carbs) || 0;
-    const f = parseFloat(fat) || 0;
+    const p = Math.max(0, parseFloat(protein) || 0);
+    const c = Math.max(0, parseFloat(carbs) || 0);
+    const f = Math.max(0, parseFloat(fat) || 0);
     const cal = parseFloat(calories) || Math.round(p * 4 + c * 4 + f * 9);
 
     const payload = {
@@ -175,9 +180,11 @@ const CreateFoodScreen = ({ open, onOpenChange, onSaved, editFood }: CreateFoodS
                 <Input
                   type="number"
                   inputMode="decimal"
+                  min="0.01"
                   value={servingSize}
                   onChange={(e) => setServingSize(e.target.value)}
                   className="flex-1"
+                  placeholder="e.g. 250"
                 />
                 <Select value={servingUnit} onValueChange={setServingUnit}>
                   <SelectTrigger className="w-24">

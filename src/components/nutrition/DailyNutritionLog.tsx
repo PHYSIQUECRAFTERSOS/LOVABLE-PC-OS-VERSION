@@ -288,10 +288,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const getMealTotals = (items: NutritionLog[]) =>
     items.reduce(
       (acc, l) => ({
-        calories: acc.calories + l.calories,
-        protein: acc.protein + l.protein,
-        carbs: acc.carbs + l.carbs,
-        fat: acc.fat + l.fat,
+        calories: Math.round(acc.calories + l.calories),
+        protein: Math.round(acc.protein + l.protein),
+        carbs: Math.round(acc.carbs + l.carbs),
+        fat: Math.round(acc.fat + l.fat),
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
@@ -545,7 +545,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
-                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                              {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
                             </div>
                           </div>
                         </button>
@@ -565,10 +565,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
                               {item.quantity_display != null && item.quantity_display > 0
-                                ? `${item.quantity_display}${item.quantity_unit && item.quantity_unit !== 'g' ? ` ${item.quantity_unit}` : 'g'} · `
+                                ? `${Math.round(item.quantity_display * 10) / 10}${item.quantity_unit && item.quantity_unit !== 'g' ? ` ${item.quantity_unit}` : 'g'} · `
                                 : ''
                               }
-                              {item.calories} cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                              {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
                             </div>
                           </div>
                           <ChevronRightIcon className="h-4 w-4 text-muted-foreground/50 shrink-0 ml-2" />
