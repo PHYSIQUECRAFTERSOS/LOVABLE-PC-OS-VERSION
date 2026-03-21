@@ -22,7 +22,7 @@ export default function PWAInstallPrompt() {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (!deferredPrompt || dismissed) return null;
+  if (isCapacitor || !deferredPrompt || dismissed) return null;
 
   const handleInstall = async () => {
     await deferredPrompt.prompt();
