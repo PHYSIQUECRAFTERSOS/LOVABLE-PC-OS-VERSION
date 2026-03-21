@@ -189,7 +189,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               </SheetTrigger>
               <SheetContent side="right" className="w-64 bg-card p-0">
                 <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-                <nav className="flex flex-col h-full">
+                <nav className="flex flex-col h-full max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))]">
                   <div className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
                     {sidebarItems.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
                     {secondaryItems.length > 0 && (
