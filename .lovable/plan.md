@@ -1,53 +1,91 @@
 
 
-# Fix: TestFlight App Showing Stale/Old UI
+# Why TestFlight Shows Old UI — and How to Fix It
 
-## Root Cause
+## The Problem
 
-The TestFlight app loads your web code from the Lovable preview URL (correct), but the **Service Worker** (`public/sw.js`) is caching old versions of `index.html` and JS bundles inside WKWebView. Once cached, the SW serves stale assets even though the server has new code. This is why Safari/Chrome show the latest UI (no SW or fresh SW) while the TestFlight build shows the old layout.
+Your Capacitor config points the native app to the **live Lovable preview URL** — so in theory, every time the app opens, it loads the latest web code from the server. However, **WKWebView** (the browser engine inside your iOS app) has its own internal HTTP/disk cache that is completely separate from the Service Worker cache. Even though we added SW-busting logic, WKWebView itself is still serving a stale copy of the HTML/JS/CSS from its own cache.
 
-## Solution
+The code changes we made in Lovable (bottom tabs, subscription card, legal links, no hamburger menu) **are live on the server** — but your iOS app's WebView never re-fetched them because of WKWebView's aggressive disk cache.
 
-Two changes to ensure the native Capacitor shell always gets fresh code:
+## The Fix — Two Parts
 
-### 1. `public/sw.js` — Skip SW entirely inside Capacitor
+### Part 1: Lovable-side change (I will make)
 
-Add a check at the top of the `fetch` listener: if running inside Capacitor's native WebView, bypass all caching and go straight to the network. Also bump the cache version so any existing stale cache is purged on next activation.
+Add a **cache-busting query parameter** to the Capacitor server URL so WKWebView treats it as a brand-new resource and cannot serve stale content. Change `capacitor.config.ts`:
 
-- Change `CACHE_NAME` from `'physique-crafters-v2'` to `'physique-crafters-v3'` (forces old cache deletion on activate)
-- In the `fetch` handler, detect Capacitor via `navigator.userAgent` containing `Capacitor` and skip caching entirely
-- This means the native shell always fetches fresh code from the server
-
-### 2. `index.html` — Unregister SW inside Capacitor shell
-
-Add a script block that detects the Capacitor environment and **unregisters** any existing Service Worker. This clears the stale cache immediately on next app launch:
-
-```html
-<script>
-  if (window.Capacitor || navigator.userAgent.includes('Capacitor')) {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        registrations.forEach(function(reg) { reg.unregister(); });
-      });
-      caches.keys().then(function(names) {
-        names.forEach(function(name) { caches.delete(name); });
-      });
-    }
-  } else if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
-  }
-</script>
+```
+server.url: "https://418c5cb3-6f92-4243-9691-d28363e319a3.lovableproject.com?forceHideBadge=true&v=6"
 ```
 
-This replaces the current unconditional SW registration. In the native shell, it actively unregisters and clears caches. In browsers, it registers normally.
+Every time we push a major UI update, we bump `v=N` to force a fresh load. Additionally, I'll add WKWebView cache-clearing configuration:
 
-### Summary of file changes
-- **`public/sw.js`** — Bump cache version to v3; skip caching for Capacitor user agents
-- **`index.html`** — Conditionally unregister SW + clear caches when running in Capacitor, otherwise register normally
+```typescript
+ios: {
+  contentInset: 'automatic',
+  allowsLinkPreview: false,
+},
+server: {
+  url: '...',
+  cleartext: true,
+  // Tell Capacitor to clear WKWebView cache on each app launch
+},
+```
 
-### After deploying
-You will need to:
-1. Force-close the TestFlight app completely
-2. Reopen it — the first load will clear the old SW/cache and fetch fresh code
-3. All future updates from Lovable will appear immediately in the native app
+### Part 2: You rebuild in Xcode (exact steps below)
+
+Since `capacitor.config.ts` is baked into the native binary at build time, **you must rebuild and upload a new TestFlight build** for any config change to take effect. Here are the exact steps:
+
+1. **Pull the latest code from GitHub**
+   ```bash
+   cd /path/to/your/project
+   git pull origin main
+   ```
+
+2. **Install dependencies** (in case any changed)
+   ```bash
+   npm install
+   ```
+
+3. **Build the web app**
+   ```bash
+   npm run build
+   ```
+
+4. **Sync Capacitor** (copies config + web assets to the iOS project)
+   ```bash
+   npx cap sync ios
+   ```
+
+5. **Open in Xcode**
+   ```bash
+   npx cap open ios
+   ```
+
+6. **In Xcode:**
+   - Bump the **Build Number** (e.g. from 5 → 6) in the target's General tab
+   - Select **Any iOS Device (arm64)** as the build target
+   - Go to **Product → Archive**
+   - Once archived, click **Distribute App → App Store Connect → Upload**
+   - Wait ~15 minutes for TestFlight processing
+
+7. **On your phone:**
+   - Open TestFlight → tap Update on the new build
+   - The app will now load from a fresh WKWebView cache with the latest UI
+
+### Why previous restarts didn't work
+
+Force-closing the app and rebooting your phone does **not** clear WKWebView's disk cache. The only reliable ways to clear it are:
+- Delete and reinstall the app (but TestFlight reinstalls from the same binary = same config)
+- Change the URL the native shell loads (what we're doing)
+- Add native Swift code to programmatically clear WKWebView cache (overkill)
+
+### Summary of changes
+
+| Change | Where | Who |
+|---|---|---|
+| Bump cache-bust param in `capacitor.config.ts` | Lovable | Me |
+| Rebuild + upload new TestFlight build | Xcode | You (steps above) |
+
+After this, every future Lovable change will appear instantly in the TestFlight app without needing another Xcode rebuild — until WKWebView caches aggressively again, at which point we just bump `v=N`.
 
