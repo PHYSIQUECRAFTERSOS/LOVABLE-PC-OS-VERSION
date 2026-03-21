@@ -98,13 +98,14 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         { to: "/clients", icon: Users, label: "Clients" },
         { to: "/messages", icon: MessageSquare, label: "Messages" },
         { to: "/community", icon: UsersRound, label: "Community" },
+        { to: "/profile", icon: Settings, label: "Settings" },
       ]
     : [
         { to: "/dashboard", icon: LayoutDashboard, label: "Home" },
         { to: "/calendar", icon: CalendarDays, label: "Calendar" },
         { to: "/training", icon: Dumbbell, label: "Training" },
         { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
-        { to: "/messages", icon: MessageSquare, label: "Messages" },
+        { to: "/profile", icon: Settings, label: "Settings" },
       ];
 
   const sidebarItems = isCoach ? coachNav : clientNav;
@@ -130,7 +131,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background safe-left safe-right">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card">
         <div className="flex h-16 items-center px-6 border-b border-border">
@@ -229,12 +230,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors",
+                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-6 w-6" />
               {item.label}
             </NavLink>
           ))}
