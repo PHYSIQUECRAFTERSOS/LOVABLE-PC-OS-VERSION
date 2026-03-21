@@ -150,7 +150,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
     const { error } = await supabase
       .from("nutrition_logs")
       .update({
-        servings: isCustom ? qtyDisplay : multiplier,
+        servings: multiplier,
         calories: liveCalories,
         protein: liveProtein,
         carbs: liveCarbs,
