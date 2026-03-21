@@ -86,13 +86,42 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
       .eq("saved_meal_id", meal.id)
       .order("created_at");
 
-    const enriched = (data as any[] || []).map((item: any) => {
+    const rawItems = (data as any[] || []);
+
+    // Fetch food_items metadata for fallback serving info on legacy items
+    const foodIds = rawItems.map(i => i.food_item_id).filter(Boolean) as string[];
+    let foodMetaMap: Record<string, { serving_size: number | null; serving_unit: string | null }> = {};
+    if (foodIds.length > 0) {
+      const { data: foodMeta } = await supabase
+        .from("food_items")
+        .select("id, serving_size, serving_unit")
+        .in("id", foodIds);
+      if (foodMeta) {
+        foodMeta.forEach((f: any) => { foodMetaMap[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit }; });
+      }
+    }
+
+    const enriched = rawItems.map((item: any) => {
       // If per-100g values are stored, use them. Otherwise, compute from per-serving.
       let cal100 = item.calories_per_100g ?? 0;
       let pro100 = item.protein_per_100g ?? 0;
       let carb100 = item.carbs_per_100g ?? 0;
       let fat100 = item.fat_per_100g ?? 0;
-      const servingSizeG = item.serving_size_g || 100;
+      let servingSizeG = item.serving_size_g || 100;
+
+      // Fallback: if quantity is 1 and serving_unit is generic, use food_items metadata
+      const isLegacyItem = (item.quantity === 1 || !item.quantity) && (!item.serving_unit || item.serving_unit === "serving" || item.serving_unit === "g") && !item.serving_size_g;
+      if (isLegacyItem && item.food_item_id && foodMetaMap[item.food_item_id]) {
+        const meta = foodMetaMap[item.food_item_id];
+        if (meta.serving_size && meta.serving_size > 0) {
+          servingSizeG = meta.serving_size;
+          // Recalculate quantity from stored macros if we have a real serving size
+          if (!item.serving_unit || item.serving_unit === "serving" || item.serving_unit === "g") {
+            item.quantity = meta.serving_size;
+            item.serving_unit = meta.serving_unit || "g";
+          }
+        }
+      }
 
       if (cal100 === 0 && item.calories > 0) {
         // Derive from stored serving data: macros are for quantity of serving_unit

@@ -166,6 +166,8 @@ const ClientStructuredMealPlan = ({
       fat: item.fat,
       logged_at: dateStr,
       tz_corrected: true,
+      quantity_display: item.gram_amount || item.serving_size || null,
+      quantity_unit: item.serving_unit || "g",
     }).select();
     if (error) {
       console.error("[handleAddSingleItem] Insert error:", error);
