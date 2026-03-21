@@ -112,6 +112,19 @@ const Profile = () => {
               </CardContent>
             </Card>
             <HealthIntegrations />
+            <Card>
+              <CardHeader>
+                <CardTitle>Legal</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <Button variant="outline" className="justify-start" asChild>
+                  <a href="/terms-of-service">Terms of Use</a>
+                </Button>
+                <Button variant="outline" className="justify-start" asChild>
+                  <a href="/privacy-policy">Privacy Policy</a>
+                </Button>
+              </CardContent>
+            </Card>
             <DeleteAccountSection />
           </TabsContent>
 
