@@ -164,32 +164,6 @@ function playFallbackTone(ctx: AudioContext): void {
   console.warn("[Audio] Using fallback countdown tone");
 }
 
-function scheduleFallbackTone(ctx: AudioContext, startAt: number): void {
-  if (!gainNode) return;
-
-  const oscillator = ctx.createOscillator();
-  const localGain = ctx.createGain();
-
-  oscillator.type = "sine";
-  oscillator.frequency.value = 880;
-
-  localGain.gain.setValueAtTime(0.0001, startAt);
-  localGain.gain.exponentialRampToValueAtTime(0.45, startAt + 0.02);
-  localGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
-
-  oscillator.connect(localGain);
-  localGain.connect(gainNode);
-
-  registerActiveSource(oscillator, () => {
-    oscillator.disconnect();
-    localGain.disconnect();
-  });
-
-  oscillator.start(startAt);
-  oscillator.stop(startAt + 0.24);
-  console.warn("[Audio] Scheduled fallback countdown tone");
-}
-
 /**
  * Create or resume the AudioContext. Must be called from a user gesture
  * (tap/click) at least once to satisfy iOS autoplay policy.
@@ -204,64 +178,6 @@ export function initAudioContext(): void {
  */
 export async function preloadCountdownSound(): Promise<void> {
   await loadCountdownBuffer();
-}
-
-/**
- * Schedule the countdown sound when a rest timer begins instead of waiting for
- * JS intervals to hit exactly 3 seconds remaining. This is more reliable on iOS,
- * especially when Safari throttles timers during app switches or screen lock.
- */
-export async function scheduleCountdownSoundForDuration(
-  totalSeconds: number,
-  countdownLeadSeconds = 3,
-): Promise<void> {
-  if (totalSeconds <= 0) return;
-
-  const scheduledAtMs = Date.now();
-  const playAtMs = scheduledAtMs + Math.max(totalSeconds - countdownLeadSeconds, 0) * 1000;
-  const expiresAtMs = scheduledAtMs + totalSeconds * 1000;
-
-  const ctx = await ensureRunningAudioContext();
-  const buffer = countdownBuffer ?? await loadCountdownBuffer();
-
-  if (!ctx || !gainNode) {
-    console.warn("[Audio] Cannot schedule countdown — audio context unavailable");
-    return;
-  }
-
-  stopCountdownSound();
-
-  const now = Date.now();
-  if (expiresAtMs <= now) {
-    console.warn("[Audio] Skipping countdown schedule — timer already expired");
-    return;
-  }
-
-  const startAt = ctx.currentTime + Math.max(0, (playAtMs - now) / 1000);
-
-  if (!buffer) {
-    scheduleFallbackTone(ctx, startAt);
-    return;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(gainNode);
-  registerActiveSource(source, () => {
-    source.disconnect();
-  });
-
-  try {
-    source.start(startAt);
-    console.log("[Audio] Countdown sound scheduled", {
-      startsInSeconds: Math.max(0, (playAtMs - now) / 1000),
-      expiresInSeconds: Math.max(0, (expiresAtMs - now) / 1000),
-    });
-  } catch (error) {
-    console.warn("[Audio] Failed to schedule countdown sound, using fallback tone:", error);
-    source.disconnect();
-    scheduleFallbackTone(ctx, startAt);
-  }
 }
 
 /**

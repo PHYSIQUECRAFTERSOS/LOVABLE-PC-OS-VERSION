@@ -98,6 +98,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           .select("id, title, event_type, is_completed, linked_workout_id, description")
           .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
           .eq("event_date", targetDate)
+          .neq("event_type", "auto_message")
           .order("event_time", { ascending: true })
           .abortSignal(signal),
         supabase
@@ -127,7 +128,10 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
               .from("workout_sessions")
               .select("id, workout_id, completed_at")
               .eq("client_id", user.id)
+              .eq("status", "completed")
               .in("workout_id", calWorkoutIds)
+              .gte("created_at", `${targetDate}T00:00:00`)
+              .lte("created_at", `${targetDate}T23:59:59`)
               .abortSignal(signal)
           : Promise.resolve({ data: [] as any[], error: null }),
         calWorkoutIds.length > 0

@@ -120,6 +120,7 @@ const Calendar = () => {
         .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
         .gte("event_date", startStr)
         .lte("event_date", endStr)
+        .neq("event_type", "auto_message")
         .abortSignal(signal);
 
       const sessionsPromise = role === "client"

@@ -30,6 +30,8 @@ import ExerciseCard from "@/components/workout/ExerciseCard";
 import WorkoutSummary from "@/components/workout/WorkoutSummary";
 import ExerciseLibrary from "@/components/training/ExerciseLibrary";
 import { useNavigate } from "react-router-dom";
+import { invalidateCache } from "@/hooks/useDataFetch";
+import { format } from "date-fns";
 
 interface ProgressionSettings {
   progressionType: string;
@@ -698,6 +700,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .update({ is_completed: true, completed_at: new Date().toISOString() })
           .eq("id", calendarEventId);
       }
+
+      // Invalidate dashboard + calendar caches so completion shows immediately
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      invalidateCache(`today-actions-${user.id}-${todayStr}`);
 
       // Clear retry queue
       clearRetryQueue();
