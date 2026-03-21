@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SkipForward } from "lucide-react";
-import { playCountdownSound, stopCountdownSound } from "@/utils/restTimerAudio";
+import { restTimerAudio } from "@/services/RestTimerAudioService";
+import { createTimerWorker } from "@/services/timerWorker";
 
 interface InlineRestTimerProps {
   seconds: number;
@@ -10,37 +11,84 @@ interface InlineRestTimerProps {
 
 const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: InlineRestTimerProps) => {
   const [timeRemaining, setTimeRemaining] = useState(initialSeconds);
-  const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const workerRef = useRef<Worker | null>(null);
   const completedRef = useRef(false);
+  const countdownFiredRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
   useEffect(() => {
     setTimeRemaining(initialSeconds);
-    endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
+    countdownFiredRef.current = false;
 
-    intervalRef.current = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
-      setTimeRemaining(remaining);
+    const endTime = Date.now() + initialSeconds * 1000;
+    const worker = createTimerWorker();
+    workerRef.current = worker;
 
-      if (remaining <= 0 && !completedRef.current) {
+    worker.onmessage = (e) => {
+      const msg = e.data;
+
+      if (msg.type === "tick") {
+        setTimeRemaining(msg.remaining);
+
+        // Trigger countdown audio at <= 3 seconds remaining
+        if (msg.remainingMs <= 3000 && msg.remainingMs > 0 && !countdownFiredRef.current) {
+          countdownFiredRef.current = true;
+          restTimerAudio.playCountdown();
+        }
+      }
+
+      if (msg.type === "done" && !completedRef.current) {
         completedRef.current = true;
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        playCountdownSound();
+        setTimeRemaining(0);
+        // Fire countdown if it never fired (e.g., timer was < 3s)
+        if (!countdownFiredRef.current) {
+          countdownFiredRef.current = true;
+          restTimerAudio.playCountdown();
+        }
         setTimeout(() => onCompleteRef.current(), 800);
       }
-    }, 250);
+    };
+
+    worker.postMessage({ type: "start", endTime });
+
+    // Visibility change handler — recalculate on return
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        // Resume AudioContext
+        restTimerAudio.unlock();
+        // Worker is still running, but force a re-check
+        const remainingMs = Math.max(0, endTime - Date.now());
+        if (remainingMs <= 3000 && remainingMs > 0 && !countdownFiredRef.current) {
+          countdownFiredRef.current = true;
+          restTimerAudio.playCountdown();
+        }
+        if (remainingMs <= 0 && !completedRef.current) {
+          completedRef.current = true;
+          setTimeRemaining(0);
+          worker.postMessage({ type: "stop" });
+          setTimeout(() => onCompleteRef.current(), 800);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      worker.postMessage({ type: "stop" });
+      worker.terminate();
+      workerRef.current = null;
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [initialSeconds]);
 
   const handleSkip = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    stopCountdownSound();
+    if (workerRef.current) {
+      workerRef.current.postMessage({ type: "stop" });
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+    restTimerAudio.stopCountdown();
     onSkip();
   }, [onSkip]);
 

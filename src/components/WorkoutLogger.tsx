@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { initAudioContext, preloadCountdownSound } from "@/utils/restTimerAudio";
+import { restTimerAudio } from "@/services/RestTimerAudioService";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -183,8 +183,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   useEffect(() => {
     if (!user) return;
     // Pre-init audio on session start so countdown sound is ready
-    initAudioContext();
-    preloadCountdownSound();
+    restTimerAudio.unlock();
+    restTimerAudio.preload();
     const initSession = async () => {
       if (resumeSessionId) {
         // Resuming: restore startTime from DB
@@ -506,8 +506,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      initAudioContext(); // Prime iOS audio on user gesture
-      preloadCountdownSound(); // Pre-fetch countdown sound
+      restTimerAudio.unlock(); // Prime iOS audio on user gesture
+      restTimerAudio.preload(); // Pre-fetch countdown sound
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
