@@ -48,12 +48,22 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   const checkSubscription = useCallback(async () => {
     const sk = getStoreKit();
-    if (sk) {
+    if (sk && typeof sk.checkSubscription === "function") {
       try {
-        const result = await sk.checkSubscription();
-        applyResult(result.hasSubscription, result.productIDs?.[0]);
+        // Race against a timeout to prevent hanging in broken native shells
+        const result = await Promise.race([
+          sk.checkSubscription(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (result && typeof result === "object") {
+          applyResult(result.hasSubscription, result.productIDs?.[0]);
+        } else {
+          // Timed out or invalid result — fall back to cache
+          const saved = localStorage.getItem("subscriptionActive") === "true";
+          setIsSubscribed(saved);
+          setTier(saved ? localStorage.getItem("subscriptionTier") : null);
+        }
       } catch {
-        // fallback to localStorage
         const saved = localStorage.getItem("subscriptionActive") === "true";
         setIsSubscribed(saved);
         setTier(saved ? localStorage.getItem("subscriptionTier") : null);
@@ -88,9 +98,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("subscriptionUpdate", handler);
   }, [applyResult]);
 
-  // Check on mount
+  // Check on mount + safety timeout so loading never hangs
   useEffect(() => {
     checkSubscription();
+    const safety = setTimeout(() => setLoading(false), 6000);
+    return () => clearTimeout(safety);
   }, [checkSubscription]);
 
   const tierLabel = tier ? (TIER_MAP[tier]?.label || "Active Plan") : null;
