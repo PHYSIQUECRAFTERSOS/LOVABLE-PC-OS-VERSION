@@ -1,91 +1,58 @@
 
 
-# Why TestFlight Shows Old UI — and How to Fix It
+# Workout Summary — Premium Animated Celebration
 
-## The Problem
+## What We're Building
 
-Your Capacitor config points the native app to the **live Lovable preview URL** — so in theory, every time the app opens, it loads the latest web code from the server. However, **WKWebView** (the browser engine inside your iOS app) has its own internal HTTP/disk cache that is completely separate from the Service Worker cache. Even though we added SW-busting logic, WKWebView itself is still serving a stale copy of the HTML/JS/CSS from its own cache.
+Transform the static workout summary into a cinematic, Apple Fitness+-inspired reveal sequence with smooth staggered entrances, count-up number animations, gold confetti for PR sessions, shimmer effects on PR rows, a trophy burst animation, and a live-filling XP progress bar with tier badge glow pulse.
 
-The code changes we made in Lovable (bottom tabs, subscription card, legal links, no hamburger menu) **are live on the server** — but your iOS app's WebView never re-fetched them because of WKWebView's aggressive disk cache.
+## Animation Sequence Timeline
 
-## The Fix — Two Parts
-
-### Part 1: Lovable-side change (I will make)
-
-Add a **cache-busting query parameter** to the Capacitor server URL so WKWebView treats it as a brand-new resource and cannot serve stale content. Change `capacitor.config.ts`:
-
-```
-server.url: "https://418c5cb3-6f92-4243-9691-d28363e319a3.lovableproject.com?forceHideBadge=true&v=6"
-```
-
-Every time we push a major UI update, we bump `v=N` to force a fresh load. Additionally, I'll add WKWebView cache-clearing configuration:
-
-```typescript
-ios: {
-  contentInset: 'automatic',
-  allowsLinkPreview: false,
-},
-server: {
-  url: '...',
-  cleartext: true,
-  // Tell Capacitor to clear WKWebView cache on each app launch
-},
+```text
+0.0s  — Screen fades in (existing)
+0.3s  — Hero emoji scales up with bounce
+0.5s  — "Workout Complete!" title fades in
+0.7s  — Workout name fades in
+0.9s  — Stat cards stagger in (top-left → top-right → bottom-left → bottom-right)
+1.0s  — Each stat number counts up from 0 to final value over ~800ms, bounces on land
+1.8s  — If PRs exist: gold confetti burst fires (40-60 particles)
+2.0s  — PR card fades in, trophy icon does a scale-rotate burst
+2.2s+ — PR rows stagger in one-by-one (200ms apart), each with a gold shimmer sweep
+3.0s  — XP card fades in
+3.2s  — "+X XP" counter ticks up rapidly
+3.5s  — XP progress bar fills from previous position to new position
+3.8s  — Tier badge pulses with a glow ring
+4.0s  — Motivational message + action buttons fade in
 ```
 
-### Part 2: You rebuild in Xcode (exact steps below)
+## Technical Approach
 
-Since `capacitor.config.ts` is baked into the native binary at build time, **you must rebuild and upload a new TestFlight build** for any config change to take effect. Here are the exact steps:
+### 1. Animated Number Counter Component
+Create a reusable `AnimatedNumber` component using `requestAnimationFrame` with easing. Numbers count from 0 to target over ~800ms, then do a CSS scale bounce (1.0 → 1.15 → 1.0) when they land.
 
-1. **Pull the latest code from GitHub**
-   ```bash
-   cd /path/to/your/project
-   git pull origin main
-   ```
+### 2. Staggered Entry System
+Use CSS `@keyframes` with inline `animation-delay` on each element. Each stat card, PR row, and section gets an increasing delay. No external library needed — pure CSS animations with Tailwind utility classes added to `index.css`.
 
-2. **Install dependencies** (in case any changed)
-   ```bash
-   npm install
-   ```
+### 3. Gold Confetti (PR sessions only)
+A lightweight canvas-based confetti burst (~50 gold/amber particles) that fires once at the 1.8s mark. Self-contained in a `ConfettiBurst` component — no npm dependency. Particles use physics (gravity + drift) and fade out over ~2s.
 
-3. **Build the web app**
-   ```bash
-   npm run build
-   ```
+### 4. PR Row Shimmer + Trophy Burst
+- Each PR row gets a CSS `shimmer` animation: a diagonal gold gradient that sweeps left-to-right once
+- Trophy icon does a scale-up + rotate animation on entry
 
-4. **Sync Capacitor** (copies config + web assets to the iOS project)
-   ```bash
-   npx cap sync ios
-   ```
+### 5. XP Progress Bar Fill
+- Bar starts at 0% width and animates to the calculated percentage using CSS `transition` with a 700ms ease-out, triggered after a delay
+- The `+XP` number uses the same count-up component
+- Tier badge gets a pulsing glow ring via `box-shadow` animation
 
-5. **Open in Xcode**
-   ```bash
-   npx cap open ios
-   ```
+### Files Changed
 
-6. **In Xcode:**
-   - Bump the **Build Number** (e.g. from 5 → 6) in the target's General tab
-   - Select **Any iOS Device (arm64)** as the build target
-   - Go to **Product → Archive**
-   - Once archived, click **Distribute App → App Store Connect → Upload**
-   - Wait ~15 minutes for TestFlight processing
+| File | Change |
+|---|---|
+| `src/components/workout/WorkoutSummary.tsx` | Add animation delays, use `AnimatedNumber`, add `ConfettiBurst`, shimmer classes, staggered PR rows, animated XP bar |
+| `src/components/workout/AnimatedNumber.tsx` | New — reusable count-up component with bounce |
+| `src/components/workout/ConfettiBurst.tsx` | New — canvas-based gold confetti, fires once |
+| `src/index.css` | Add `@keyframes` for shimmer, bounce-land, trophy-burst, glow-pulse, stagger-fade-in |
 
-7. **On your phone:**
-   - Open TestFlight → tap Update on the new build
-   - The app will now load from a fresh WKWebView cache with the latest UI
-
-### Why previous restarts didn't work
-
-Force-closing the app and rebooting your phone does **not** clear WKWebView's disk cache. The only reliable ways to clear it are:
-- Delete and reinstall the app (but TestFlight reinstalls from the same binary = same config)
-- Change the URL the native shell loads (what we're doing)
-- Add native Swift code to programmatically clear WKWebView cache (overkill)
-
-### Summary of changes
-
-| Change | Where | Who |
-|---|---|---|
-| Bump cache-bust param in `capacitor.config.ts` | Lovable | Me |
-| Rebuild + upload new TestFlight build | Xcode | You (steps above) |
-
-After this, every future Lovable change will appear instantly in the TestFlight app without needing another Xcode rebuild — until WKWebView caches aggressively again, at which point we just bump `v=N`.
+No external dependencies. Pure CSS + `requestAnimationFrame` + canvas. Lightweight and performant on mobile Safari.
 
