@@ -26,6 +26,15 @@ type ManagedAudioContextState = AudioContextState | "interrupted";
 const OVERLAY_VOLUME = 0.9;
 const COUNTDOWN_SOUND_URL = "/assets/sounds/rest-timer-countdown-v2.mp3";
 
+function registerActiveSource(source: AudioBufferSourceNode | OscillatorNode, onEnded?: () => void): void {
+  source.onended = () => {
+    if (activeSource === source) activeSource = null;
+    onEnded?.();
+  };
+
+  activeSource = source;
+}
+
 function disposeAudioContext(): void {
   stopCountdownSound();
   gainNode?.disconnect();
@@ -133,27 +142,52 @@ function playFallbackTone(ctx: AudioContext): void {
 
   const oscillator = ctx.createOscillator();
   const localGain = ctx.createGain();
+  const startAt = ctx.currentTime;
 
   oscillator.type = "sine";
   oscillator.frequency.value = 880;
 
-  localGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-  localGain.gain.exponentialRampToValueAtTime(0.45, ctx.currentTime + 0.02);
-  localGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+  localGain.gain.setValueAtTime(0.0001, startAt);
+  localGain.gain.exponentialRampToValueAtTime(0.45, startAt + 0.02);
+  localGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
 
   oscillator.connect(localGain);
   localGain.connect(gainNode);
 
-  oscillator.onended = () => {
-    if (activeSource === oscillator) activeSource = null;
+  registerActiveSource(oscillator, () => {
     oscillator.disconnect();
     localGain.disconnect();
-  };
+  });
 
-  oscillator.start(ctx.currentTime);
-  oscillator.stop(ctx.currentTime + 0.24);
-  activeSource = oscillator;
+  oscillator.start(startAt);
+  oscillator.stop(startAt + 0.24);
   console.warn("[Audio] Using fallback countdown tone");
+}
+
+function scheduleFallbackTone(ctx: AudioContext, startAt: number): void {
+  if (!gainNode) return;
+
+  const oscillator = ctx.createOscillator();
+  const localGain = ctx.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.value = 880;
+
+  localGain.gain.setValueAtTime(0.0001, startAt);
+  localGain.gain.exponentialRampToValueAtTime(0.45, startAt + 0.02);
+  localGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
+
+  oscillator.connect(localGain);
+  localGain.connect(gainNode);
+
+  registerActiveSource(oscillator, () => {
+    oscillator.disconnect();
+    localGain.disconnect();
+  });
+
+  oscillator.start(startAt);
+  oscillator.stop(startAt + 0.24);
+  console.warn("[Audio] Scheduled fallback countdown tone");
 }
 
 /**
@@ -170,6 +204,64 @@ export function initAudioContext(): void {
  */
 export async function preloadCountdownSound(): Promise<void> {
   await loadCountdownBuffer();
+}
+
+/**
+ * Schedule the countdown sound when a rest timer begins instead of waiting for
+ * JS intervals to hit exactly 3 seconds remaining. This is more reliable on iOS,
+ * especially when Safari throttles timers during app switches or screen lock.
+ */
+export async function scheduleCountdownSoundForDuration(
+  totalSeconds: number,
+  countdownLeadSeconds = 3,
+): Promise<void> {
+  if (totalSeconds <= 0) return;
+
+  const scheduledAtMs = Date.now();
+  const playAtMs = scheduledAtMs + Math.max(totalSeconds - countdownLeadSeconds, 0) * 1000;
+  const expiresAtMs = scheduledAtMs + totalSeconds * 1000;
+
+  const ctx = await ensureRunningAudioContext();
+  const buffer = countdownBuffer ?? await loadCountdownBuffer();
+
+  if (!ctx || !gainNode) {
+    console.warn("[Audio] Cannot schedule countdown — audio context unavailable");
+    return;
+  }
+
+  stopCountdownSound();
+
+  const now = Date.now();
+  if (expiresAtMs <= now) {
+    console.warn("[Audio] Skipping countdown schedule — timer already expired");
+    return;
+  }
+
+  const startAt = ctx.currentTime + Math.max(0, (playAtMs - now) / 1000);
+
+  if (!buffer) {
+    scheduleFallbackTone(ctx, startAt);
+    return;
+  }
+
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(gainNode);
+  registerActiveSource(source, () => {
+    source.disconnect();
+  });
+
+  try {
+    source.start(startAt);
+    console.log("[Audio] Countdown sound scheduled", {
+      startsInSeconds: Math.max(0, (playAtMs - now) / 1000),
+      expiresInSeconds: Math.max(0, (expiresAtMs - now) / 1000),
+    });
+  } catch (error) {
+    console.warn("[Audio] Failed to schedule countdown sound, using fallback tone:", error);
+    source.disconnect();
+    scheduleFallbackTone(ctx, startAt);
+  }
 }
 
 /**
@@ -195,14 +287,12 @@ export async function playCountdownSound(): Promise<void> {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
   source.connect(gainNode);
-  source.onended = () => {
-    if (activeSource === source) activeSource = null;
+  registerActiveSource(source, () => {
     source.disconnect();
-  };
+  });
 
   try {
     source.start(0);
-    activeSource = source;
     console.log("[Audio] Countdown sound playing at volume", OVERLAY_VOLUME);
   } catch (error) {
     console.warn("[Audio] Countdown playback failed, using fallback tone:", error);

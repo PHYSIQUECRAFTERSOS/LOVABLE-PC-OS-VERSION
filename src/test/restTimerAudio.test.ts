@@ -63,6 +63,7 @@ describe("restTimerAudio", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.useRealTimers();
     createdContexts.length = 0;
     createdSources.length = 0;
     MockAudioContext.nextState = "running";
@@ -90,6 +91,30 @@ describe("restTimerAudio", () => {
 
     expect(createdContexts[0].resume).toHaveBeenCalled();
     expect(createdSources[0]?.start).toHaveBeenCalledWith(0);
+  });
+
+  it("schedules the countdown sound from the start of the rest timer", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-21T12:00:00Z"));
+
+    const audio = await import("@/utils/restTimerAudio");
+    await audio.preloadCountdownSound();
+    await audio.scheduleCountdownSoundForDuration(10);
+
+    expect(createdSources[0]?.start).toHaveBeenCalledTimes(1);
+    const scheduledAt = (createdSources[0]?.start as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(scheduledAt).toBeGreaterThanOrEqual(6.9);
+    expect(scheduledAt).toBeLessThanOrEqual(7.1);
+  });
+
+  it("cancels a scheduled countdown when the timer is stopped", async () => {
+    const audio = await import("@/utils/restTimerAudio");
+    await audio.preloadCountdownSound();
+    await audio.scheduleCountdownSoundForDuration(10);
+
+    audio.stopCountdownSound();
+
+    expect(createdSources[0]?.stop).toHaveBeenCalled();
   });
 
   it("falls back to an oscillator tone when the mp3 cannot load", async () => {
