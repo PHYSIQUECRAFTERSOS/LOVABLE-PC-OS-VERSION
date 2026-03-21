@@ -90,6 +90,14 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
       // Normalize to "per 1 serving" base by dividing by the number of servings logged
       setIsCustom(true);
       const loggedServings = logEntry.servings || 1;
+
+      // Compute the base serving size: if we have quantity_display, the ratio
+      // quantity_display / loggedServings gives us how many units = 1 serving
+      // e.g. 250ml logged with servings=1 → baseServingSize=250
+      const baseServingSize = (logEntry.quantity_display != null && logEntry.quantity_display > 0 && loggedServings > 0)
+        ? logEntry.quantity_display / loggedServings
+        : 1;
+
       setBaseMacros({
         calories: logEntry.calories / loggedServings,
         protein: logEntry.protein / loggedServings,
@@ -98,7 +106,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
         fiber: (logEntry.fiber || 0) / loggedServings,
         sugar: (logEntry.sugar || 0) / loggedServings,
         sodium: (logEntry.sodium || 0) / loggedServings,
-        serving_size: 1,
+        serving_size: baseServingSize,
       });
 
       // Show the original quantity from the log
@@ -114,13 +122,15 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
   const getMultiplier = () => {
     if (!baseMacros) return 0;
     const val = parseFloat(quantity) || 0;
+    const ss = baseMacros.serving_size && baseMacros.serving_size > 0 ? baseMacros.serving_size : 1;
     if (isCustom) {
-      // Custom foods: multiplier is simply the number of servings
-      return val;
+      // Custom foods: divide entered quantity by the base serving size
+      // e.g. 250ml entered / 250ml per serving = 1x multiplier
+      return val / ss;
     }
     // Food items: convert to grams then divide by serving_size
     const qtyInG = unit === "oz" ? val * 28.3495 : val;
-    return qtyInG / baseMacros.serving_size;
+    return qtyInG / ss;
   };
 
   const multiplier = getMultiplier();

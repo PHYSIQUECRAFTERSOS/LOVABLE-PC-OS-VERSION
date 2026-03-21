@@ -101,13 +101,19 @@ const CustomFoodCreator = ({ open, onOpenChange, onCreated, editFood }: CustomFo
 
   const handleSave = async () => {
     if (!user || !name) return;
+
+    const ss = parseFloat(servingSize) || 0;
+    if (ss <= 0) {
+      toast({ title: "Serving size must be greater than 0", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
 
-    const ss = parseFloat(servingSize) || 100;
     const cal = parseFloat(calories) || 0;
-    const p = parseFloat(protein) || 0;
-    const c = parseFloat(carbs) || 0;
-    const f = parseFloat(fat) || 0;
+    const p = Math.max(0, parseFloat(protein) || 0);
+    const c = Math.max(0, parseFloat(carbs) || 0);
+    const f = Math.max(0, parseFloat(fat) || 0);
 
     const autoCalories = cal || Math.round(p * 4 + c * 4 + f * 9);
 
