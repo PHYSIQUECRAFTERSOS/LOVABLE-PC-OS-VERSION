@@ -100,6 +100,34 @@ const PrivacyPolicy = () => {
         </section>
 
         <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">9a. Apple In-App Purchases</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            Subscription payments are processed securely through Apple's In-App Purchase system. Physique Crafters
+            does not collect, store, or have access to your credit card or Apple ID payment details. All payment
+            processing is handled entirely by Apple. For information about how Apple handles your payment data,
+            please refer to Apple's Privacy Policy at{" "}
+            <a
+              href="https://www.apple.com/legal/privacy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              https://www.apple.com/legal/privacy/
+            </a>.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">9b. Camera and Photo Library</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            The app requests access to your device camera to take progress photos and profile pictures. The app
+            requests access to your photo library to upload existing photos. These permissions are optional. You can
+            grant or revoke camera and photo access at any time through your device Settings. The app will function
+            without these permissions, but photo features will be unavailable.
+          </p>
+        </section>
+
+        <section className="space-y-3">
           <h2 className="text-primary font-display text-base font-semibold">10. Health Device Integrations</h2>
           <p className="text-sm text-foreground/80 leading-relaxed">
             Physique Crafters offers optional integrations with third-party health and fitness platforms,
