@@ -98,9 +98,11 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("subscriptionUpdate", handler);
   }, [applyResult]);
 
-  // Check on mount
+  // Check on mount + safety timeout so loading never hangs
   useEffect(() => {
     checkSubscription();
+    const safety = setTimeout(() => setLoading(false), 6000);
+    return () => clearTimeout(safety);
   }, [checkSubscription]);
 
   const tierLabel = tier ? (TIER_MAP[tier]?.label || "Active Plan") : null;
