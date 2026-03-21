@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SkipForward } from "lucide-react";
-import { scheduleCountdownSoundForDuration, stopCountdownSound } from "@/utils/restTimerAudio";
+import { playCountdownSound, stopCountdownSound } from "@/utils/restTimerAudio";
 
 interface InlineRestTimerProps {
   seconds: number;
@@ -20,9 +20,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     setTimeRemaining(initialSeconds);
     endTimeRef.current = Date.now() + initialSeconds * 1000;
     completedRef.current = false;
-    if (initialSeconds > 0) {
-      void scheduleCountdownSoundForDuration(initialSeconds);
-    }
 
     intervalRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((endTimeRef.current - Date.now()) / 1000));
@@ -30,15 +27,14 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
       if (remaining <= 0 && !completedRef.current) {
         completedRef.current = true;
-        stopCountdownSound();
         if (intervalRef.current) clearInterval(intervalRef.current);
+        playCountdownSound();
         setTimeout(() => onCompleteRef.current(), 800);
       }
     }, 250);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      stopCountdownSound();
     };
   }, [initialSeconds]);
 
