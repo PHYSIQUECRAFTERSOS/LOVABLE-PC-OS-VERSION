@@ -96,14 +96,19 @@ const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied
     if (!user) return;
     setCopying(true);
 
-    const { data } = await supabase
-    // Fetch micros from source logs that have micro data
+    // Fetch full source logs including micro data
     const { data: sourceWithMicros } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", date)
       .eq("meal_type", slot);
+
+    if (!sourceWithMicros || sourceWithMicros.length === 0) {
+      toast({ title: "No items to copy." });
+      setCopying(false);
+      return;
+    }
 
     const microKeys = [
       "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "vitamin_k_mcg",
@@ -116,7 +121,7 @@ const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied
       "added_sugars", "net_carbs",
     ];
 
-    const entries = (sourceWithMicros || data || []).map((item: any) => {
+    const entries = sourceWithMicros.map((item: any) => {
       const entry: Record<string, any> = {
         client_id: user.id,
         food_item_id: item.food_item_id,
