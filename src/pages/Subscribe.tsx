@@ -4,6 +4,8 @@ import { Check, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
+import { Capacitor } from "@capacitor/core";
+import StoreKit from "@/plugins/StoreKitPlugin";
 import SuccessOverlay from "@/components/subscription/SuccessOverlay";
 
 interface Plan {
@@ -50,9 +52,7 @@ const PLANS: Plan[] = [
   },
 ];
 
-function getStoreKit() {
-  return (window as any).Capacitor?.Plugins?.StoreKit ?? null;
-}
+const isNative = Capacitor.isNativePlatform();
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -65,16 +65,15 @@ const Subscribe = () => {
   const [successPlan, setSuccessPlan] = useState("");
 
   const handleSubscribe = async () => {
-    const sk = getStoreKit();
-    if (!sk) {
+    if (!isNative) {
       window.open("https://physiquecrafters.com", "_blank");
       return;
     }
 
     setSubscribing(true);
     try {
-      await sk.showPaywall();
-      const result = await sk.checkSubscription();
+      await StoreKit.showPaywall();
+      const result = await StoreKit.checkSubscription();
       if (result.hasSubscription) {
         await checkSubscription();
         const plan = PLANS.find((p) => p.id === selected);
@@ -90,8 +89,7 @@ const Subscribe = () => {
   };
 
   const handleRestore = async () => {
-    const sk = getStoreKit();
-    if (!sk) {
+    if (!isNative) {
       toast({ title: "Not available", description: "Restore is available in the iOS app." });
       return;
     }
@@ -113,7 +111,6 @@ const Subscribe = () => {
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground flex flex-col safe-top safe-bottom">
-      {/* Back button */}
       <div className="p-4">
         <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-6 w-6" />
@@ -121,7 +118,6 @@ const Subscribe = () => {
       </div>
 
       <div className="flex-1 px-4 pb-8 max-w-md mx-auto w-full space-y-6 overflow-y-auto">
-        {/* Header */}
         <div className="text-center space-y-1">
           <h1 className="text-3xl font-bold tracking-wider">
             <span className="text-foreground">PHYSIQUE </span>
@@ -130,7 +126,6 @@ const Subscribe = () => {
           <p className="text-muted-foreground text-sm">Choose Your Plan</p>
         </div>
 
-        {/* Plan cards */}
         <div className="space-y-3">
           {PLANS.map((plan) => {
             const isSelected = selected === plan.id;
@@ -166,7 +161,6 @@ const Subscribe = () => {
           })}
         </div>
 
-        {/* Subscribe button */}
         <Button
           onClick={handleSubscribe}
           disabled={subscribing}
@@ -176,7 +170,6 @@ const Subscribe = () => {
           Subscribe Now
         </Button>
 
-        {/* Restore */}
         <button
           onClick={handleRestore}
           disabled={restoring}
@@ -185,7 +178,6 @@ const Subscribe = () => {
           {restoring ? "Restoring…" : "Restore Purchases"}
         </button>
 
-        {/* Legal text */}
         <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
           Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
           automatically renews unless canceled at least 24 hours before the end of the current period.
