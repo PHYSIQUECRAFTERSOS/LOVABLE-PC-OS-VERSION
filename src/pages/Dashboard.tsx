@@ -20,6 +20,7 @@ import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
 import { Skeleton } from "@/components/ui/skeleton";
 import ChallengeBanner from "@/components/dashboard/ChallengeBanner";
 import MyRankDashboardCard from "@/components/dashboard/MyRankDashboardCard";
+import DailyRewardsPopup from "@/components/ranked/DailyRewardsPopup";
 const Dashboard = () => {
   const { role } = useAuth();
   const isClient = role === "client";
