@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Award,
   TrendingDown,
+  Clock,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -29,6 +30,8 @@ const ICONS: Record<string, any> = {
   calories_off_300: AlertTriangle,
   missed_checkin: AlertTriangle,
   decay: TrendingDown,
+  daily_eval: Clock,
+  decay_per_day: TrendingDown,
 };
 
 interface XPHistoryFeedProps {
@@ -64,27 +67,32 @@ const XPHistoryFeed = ({ userId }: XPHistoryFeedProps) => {
           const Icon = ICONS[tx.transaction_type] || Trophy;
           const isGain = tx.xp_amount > 0;
           const isCoach = tx.transaction_type === "coach_award";
+          const isDailyEval = tx.transaction_type === "daily_eval";
 
           return (
             <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
               <div
                 className={cn(
                   "flex items-center justify-center h-8 w-8 rounded-full shrink-0",
-                  isCoach
-                    ? "bg-primary/10"
-                    : isGain
-                      ? "bg-emerald-500/10"
-                      : "bg-red-500/10"
+                  isDailyEval
+                    ? "bg-muted/30"
+                    : isCoach
+                      ? "bg-primary/10"
+                      : isGain
+                        ? "bg-emerald-500/10"
+                        : "bg-red-500/10"
                 )}
               >
                 <Icon
                   className={cn(
                     "h-4 w-4",
-                    isCoach
-                      ? "text-primary"
-                      : isGain
-                        ? "text-emerald-500"
-                        : "text-red-500"
+                    isDailyEval
+                      ? "text-muted-foreground"
+                      : isCoach
+                        ? "text-primary"
+                        : isGain
+                          ? "text-emerald-500"
+                          : "text-red-500"
                   )}
                 />
               </div>
@@ -97,11 +105,13 @@ const XPHistoryFeed = ({ userId }: XPHistoryFeedProps) => {
               <span
                 className={cn(
                   "text-sm font-bold shrink-0",
-                  isCoach
-                    ? "text-primary"
-                    : isGain
-                      ? "text-emerald-500"
-                      : "text-red-500"
+                  isDailyEval
+                    ? "text-white"
+                    : isCoach
+                      ? "text-primary"
+                      : isGain
+                        ? "text-emerald-500"
+                        : "text-red-500"
                 )}
               >
                 {isGain ? "+" : ""}

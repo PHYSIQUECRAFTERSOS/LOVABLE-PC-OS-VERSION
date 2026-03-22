@@ -699,6 +699,24 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .from("calendar_events")
           .update({ is_completed: true, completed_at: new Date().toISOString() })
           .eq("id", calendarEventId);
+      } else if (workoutId) {
+        // Fallback: find today's calendar event linked to this workout
+        const todayLocal = new Date().toLocaleDateString("en-CA");
+        const { data: calEvents } = await supabase
+          .from("calendar_events")
+          .select("id")
+          .eq("linked_workout_id", workoutId)
+          .eq("event_date", todayLocal)
+          .eq("event_type", "workout")
+          .eq("is_completed", false)
+          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+          .limit(1);
+        if (calEvents?.length) {
+          await supabase
+            .from("calendar_events")
+            .update({ is_completed: true, completed_at: new Date().toISOString() })
+            .eq("id", calEvents[0].id);
+        }
       }
 
       // Invalidate dashboard + calendar caches so completion shows immediately
