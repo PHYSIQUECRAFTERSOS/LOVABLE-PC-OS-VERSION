@@ -4,6 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
 import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon, Pencil, Check, X, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Calendar } from "@/components/ui/calendar";
