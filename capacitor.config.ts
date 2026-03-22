@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'physique-crafters-os',
   webDir: 'dist',
   server: {
-    url: 'https://418c5cb3-6f92-4243-9691-d28363e319a3.lovableproject.com?forceHideBadge=true&v=8',
+    url: 'https://418c5cb3-6f92-4243-9691-d28363e319a3.lovableproject.com?forceHideBadge=true&v=9',
     cleartext: true,
   },
   ios: {
