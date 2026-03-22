@@ -3,6 +3,7 @@ import { awardXP, XP_VALUES } from "@/utils/rankedXP";
 import { checkAndAwardBadges } from "@/utils/badgeChecker";
 import XPToast from "@/components/ranked/XPToast";
 import RankUpOverlay from "@/components/ranked/RankUpOverlay";
+import XPCelebrationOverlay from "@/components/ranked/XPCelebrationOverlay";
 
 interface XPEvent {
   amount: number;
@@ -16,6 +17,13 @@ interface RankEvent {
   previousTier?: string;
 }
 
+interface CelebrationEvent {
+  type: "cardio" | "nutrition";
+  totalXP: number;
+  breakdown: { label: string; xp: number }[];
+  id: string;
+}
+
 interface XPContextType {
   triggerXP: (
     userId: string,
@@ -24,10 +32,16 @@ interface XPContextType {
     description: string,
     opts?: { relatedEventId?: string }
   ) => Promise<void>;
+  triggerCelebration: (
+    type: "cardio" | "nutrition",
+    totalXP: number,
+    breakdown: { label: string; xp: number }[]
+  ) => void;
 }
 
 const XPContext = createContext<XPContextType>({
   triggerXP: async () => {},
+  triggerCelebration: () => {},
 });
 
 export const useXPAward = () => useContext(XPContext);
@@ -35,6 +49,14 @@ export const useXPAward = () => useContext(XPContext);
 export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
   const [xpToasts, setXpToasts] = useState<XPEvent[]>([]);
   const [rankEvent, setRankEvent] = useState<RankEvent | null>(null);
+  const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
+
+  const triggerCelebration = useCallback(
+    (type: "cardio" | "nutrition", totalXP: number, breakdown: { label: string; xp: number }[]) => {
+      setCelebration({ type, totalXP, breakdown, id: `${type}-${Date.now()}` });
+    },
+    []
+  );
 
   const triggerXP = useCallback(
     async (
@@ -48,11 +70,13 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
         const result = await awardXP(userId, txType, baseAmount, description, opts);
         if (!result) return;
 
-        // Show XP toast
-        const toastId = `${txType}-${Date.now()}`;
-        setXpToasts((prev) => [...prev, { amount: result.xpAwarded, id: toastId }]);
+        // For cardio, the CardioPopup handles celebration directly — skip toast
+        if (txType !== "cardio_completed") {
+          const toastId = `${txType}-${Date.now()}`;
+          setXpToasts((prev) => [...prev, { amount: result.xpAwarded, id: toastId }]);
+        }
 
-        // Check for badge unlocks using fresh profile data
+        // Check for badge unlocks
         const { supabase } = await import("@/integrations/supabase/client");
         const { data: freshProfile } = await (supabase as any)
           .from("ranked_profiles")
@@ -90,7 +114,7 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <XPContext.Provider value={{ triggerXP }}>
+    <XPContext.Provider value={{ triggerXP, triggerCelebration }}>
       {children}
       {xpToasts.map((t) => (
         <XPToast key={t.id} amount={t.amount} onDone={() => removeToast(t.id)} />
@@ -102,6 +126,15 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
           type={rankEvent.type}
           previousTier={rankEvent.previousTier}
           onDismiss={() => setRankEvent(null)}
+        />
+      )}
+      {celebration && (
+        <XPCelebrationOverlay
+          key={celebration.id}
+          type={celebration.type}
+          totalXP={celebration.totalXP}
+          breakdown={celebration.breakdown}
+          onDismiss={() => setCelebration(null)}
         />
       )}
     </XPContext.Provider>
