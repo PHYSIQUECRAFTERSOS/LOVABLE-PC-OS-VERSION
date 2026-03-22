@@ -30,6 +30,8 @@ const ICONS: Record<string, any> = {
   calories_off_300: AlertTriangle,
   missed_checkin: AlertTriangle,
   decay: TrendingDown,
+  daily_eval: Clock,
+  decay_per_day: TrendingDown,
 };
 
 interface XPHistoryFeedProps {
