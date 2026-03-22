@@ -655,7 +655,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         onUpdated={() => { setEditingLog(null); fetchLogs(); }}
       />
 
-      {/* Edit Mode: Save Meal Sticky Bar */}
+      {/* Edit Mode: Action Sticky Bar */}
       {editMode && selectedIds.size > 0 && (
         <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background border-t border-border z-[55]">
           {showSaveMealDialog ? (
@@ -684,16 +684,48 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               </Button>
             </div>
           ) : (
-            <Button
-              onClick={() => setShowSaveMealDialog(true)}
-              className="w-full h-11 text-sm font-semibold rounded-xl"
-            >
-              <Bookmark className="h-4 w-4 mr-2" />
-              Save as Meal ({selectedIds.size})
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => setDeleteConfirmOpen(true)}
+                className="flex-1 h-11 text-sm font-semibold rounded-xl gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete ({selectedIds.size})
+              </Button>
+              <Button
+                onClick={() => setShowSaveMealDialog(true)}
+                className="flex-1 h-11 text-sm font-semibold rounded-xl gap-2"
+              >
+                <Bookmark className="h-4 w-4" />
+                Save as Meal ({selectedIds.size})
+              </Button>
+            </div>
           )}
         </div>
       )}
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="z-[70]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedIds.size} item{selectedIds.size > 1 ? "s" : ""} will be permanently removed from your food log.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSelected}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={deletingSelected}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingSelected ? "Deleting..." : "Delete Now"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

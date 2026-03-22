@@ -692,14 +692,14 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
       </div>
 
       <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[80]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {meal.name}?</AlertDialogTitle>
-            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle>Are you sure you want to delete?</AlertDialogTitle>
+            <AlertDialogDescription>"{meal.name}" will be permanently removed from your saved meals. This cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteMeal} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={deleteMeal} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Now</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
