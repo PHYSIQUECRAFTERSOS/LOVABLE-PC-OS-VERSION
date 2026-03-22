@@ -75,7 +75,7 @@ const Progress = () => {
             <TabsTrigger value="weight" className="flex-shrink-0 text-xs px-2.5">Weight</TabsTrigger>
             <TabsTrigger value="photos" className="flex-shrink-0 text-xs px-2.5">Photos</TabsTrigger>
             <TabsTrigger value="steps" className="flex-shrink-0 text-xs px-2.5">Steps</TabsTrigger>
-            <TabsTrigger value="trends" className="flex-shrink-0 text-xs px-2.5">Trends</TabsTrigger>
+            
           </TabsList>
 
           <TabsContent value="checkin" className="space-y-6 mt-4">
