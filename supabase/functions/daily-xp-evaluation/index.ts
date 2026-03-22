@@ -55,6 +55,11 @@ const XP = {
   decay_per_day: -30,
 };
 
+// Helper: build OR filter for user_id / target_client_id
+function clientFilter(clientId: string) {
+  return `user_id.eq.${clientId},target_client_id.eq.${clientId}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -65,15 +70,13 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const db = createClient(supabaseUrl, serviceKey);
 
-    // Evaluate yesterday
     const now = new Date();
     const yesterday = new Date(now);
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    const evalDate = yesterday.toISOString().split("T")[0]; // YYYY-MM-DD
+    const evalDate = yesterday.toISOString().split("T")[0];
 
     console.log(`[daily-xp] Evaluating date: ${evalDate}`);
 
-    // Get all active clients (from coach_clients with status = active)
     const { data: activeClients } = await db
       .from("coach_clients")
       .select("client_id")
@@ -143,11 +146,7 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
   }
   if (!profile) return { skipped: true, reason: "no_profile" };
 
-  const txBatch: Array<{
-    txType: string;
-    base: number;
-    desc: string;
-  }> = [];
+  const txBatch: Array<{ txType: string; base: number; desc: string }> = [];
 
   // ── 3. Nutrition compliance ────────────────────────────────────
   const { data: nutritionLogs } = await db
@@ -159,14 +158,8 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
   const hasNutrition = nutritionLogs && nutritionLogs.length > 0;
 
   if (!hasNutrition) {
-    // No nutrition logged at all
-    txBatch.push({
-      txType: "no_nutrition",
-      base: XP.no_nutrition,
-      desc: `No nutrition logged: ${evalDate}`,
-    });
+    txBatch.push({ txType: "no_nutrition", base: XP.no_nutrition, desc: `No nutrition logged: ${evalDate}` });
   } else {
-    // Sum totals
     const totals = nutritionLogs.reduce(
       (acc: any, log: any) => ({
         calories: acc.calories + (log.calories || 0),
@@ -177,7 +170,6 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
 
-    // Get latest nutrition target
     const { data: target } = await db
       .from("nutrition_targets")
       .select("calories, protein, carbs, fat")
@@ -190,116 +182,121 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
 
     if (target) {
       const calDiff = Math.abs(totals.calories - target.calories);
-
       if (calDiff <= 100) {
-        txBatch.push({
-          txType: "calories_on_target",
-          base: XP.calories_on_target,
-          desc: `Calories on target (±${calDiff}): ${evalDate}`,
-        });
+        txBatch.push({ txType: "calories_on_target", base: XP.calories_on_target, desc: `Calories on target (±${calDiff}): ${evalDate}` });
       } else if (calDiff >= 300) {
-        txBatch.push({
-          txType: "calories_off_300",
-          base: XP.calories_off_300,
-          desc: `Calories off by ${calDiff}: ${evalDate}`,
-        });
+        txBatch.push({ txType: "calories_off_300", base: XP.calories_off_300, desc: `Calories off by ${calDiff}: ${evalDate}` });
       }
-
-      // Macro compliance (±5g each)
       if (Math.abs(totals.protein - target.protein) <= 5) {
-        txBatch.push({
-          txType: "protein_on_target",
-          base: XP.protein_on_target,
-          desc: `Protein on target: ${evalDate}`,
-        });
+        txBatch.push({ txType: "protein_on_target", base: XP.protein_on_target, desc: `Protein on target: ${evalDate}` });
       }
       if (Math.abs(totals.carbs - target.carbs) <= 5) {
-        txBatch.push({
-          txType: "carbs_on_target",
-          base: XP.carbs_on_target,
-          desc: `Carbs on target: ${evalDate}`,
-        });
+        txBatch.push({ txType: "carbs_on_target", base: XP.carbs_on_target, desc: `Carbs on target: ${evalDate}` });
       }
       if (Math.abs(totals.fat - target.fat) <= 5) {
-        txBatch.push({
-          txType: "fats_on_target",
-          base: XP.fats_on_target,
-          desc: `Fats on target: ${evalDate}`,
-        });
+        txBatch.push({ txType: "fats_on_target", base: XP.fats_on_target, desc: `Fats on target: ${evalDate}` });
       }
     }
   }
 
-  // ── 4. Missed workouts ─────────────────────────────────────────
+  // ── 4. Pre-fetch completed workout sessions for cross-check ───
+  const { data: completedSessions } = await db
+    .from("workout_sessions")
+    .select("workout_id")
+    .eq("client_id", clientId)
+    .eq("session_date", evalDate)
+    .eq("status", "completed");
+
+  const completedWorkoutIds = new Set(
+    (completedSessions || []).map((s: any) => s.workout_id)
+  );
+
+  // ── 5. Pre-fetch completed cardio logs for cross-check ────────
+  const { data: completedCardioLogs } = await db
+    .from("cardio_logs")
+    .select("assignment_id")
+    .eq("client_id", clientId)
+    .eq("logged_at", evalDate)
+    .eq("completed", true);
+
+  const completedCardioAssignmentIds = new Set(
+    (completedCardioLogs || []).filter((c: any) => c.assignment_id).map((c: any) => c.assignment_id)
+  );
+
+  // ── 6. Missed workouts (with cross-check) ─────────────────────
   const { data: missedWorkouts } = await db
     .from("calendar_events")
-    .select("id")
-    .eq("user_id", clientId)
+    .select("id, linked_workout_id")
+    .or(clientFilter(clientId))
     .eq("event_date", evalDate)
     .eq("event_type", "workout")
     .eq("is_completed", false);
 
   if (missedWorkouts && missedWorkouts.length > 0) {
     for (const w of missedWorkouts) {
-      txBatch.push({
-        txType: "missed_workout",
-        base: XP.missed_workout,
-        desc: `Missed workout: ${evalDate}`,
-      });
+      // Cross-check: was the workout actually completed in workout_sessions?
+      if (w.linked_workout_id && completedWorkoutIds.has(w.linked_workout_id)) {
+        // Auto-fix the calendar event
+        await db.from("calendar_events")
+          .update({ is_completed: true, completed_at: `${evalDate}T23:59:59Z` })
+          .eq("id", w.id);
+        console.log(`[daily-xp] Auto-fixed calendar event ${w.id} — workout was completed`);
+      } else {
+        txBatch.push({ txType: "missed_workout", base: XP.missed_workout, desc: `Missed workout: ${evalDate}` });
+      }
     }
   }
 
-  // ── 5. Missed cardio ──────────────────────────────────────────
+  // ── 7. Missed cardio (with cross-check) ───────────────────────
   const { data: missedCardio } = await db
     .from("calendar_events")
-    .select("id")
-    .eq("user_id", clientId)
+    .select("id, linked_cardio_id")
+    .or(clientFilter(clientId))
     .eq("event_date", evalDate)
     .eq("event_type", "cardio")
     .eq("is_completed", false);
 
   if (missedCardio && missedCardio.length > 0) {
     for (const c of missedCardio) {
-      txBatch.push({
-        txType: "missed_cardio",
-        base: XP.missed_cardio,
-        desc: `Missed cardio: ${evalDate}`,
-      });
+      // Cross-check: was cardio actually logged?
+      if (c.linked_cardio_id && completedCardioAssignmentIds.has(c.linked_cardio_id)) {
+        await db.from("calendar_events")
+          .update({ is_completed: true, completed_at: `${evalDate}T23:59:59Z` })
+          .eq("id", c.id);
+        console.log(`[daily-xp] Auto-fixed calendar event ${c.id} — cardio was completed`);
+      } else {
+        txBatch.push({ txType: "missed_cardio", base: XP.missed_cardio, desc: `Missed cardio: ${evalDate}` });
+      }
     }
   }
 
-  // ── 6. Missed check-ins ───────────────────────────────────────
+  // ── 8. Missed check-ins ───────────────────────────────────────
   const { data: missedCheckins } = await db
     .from("calendar_events")
     .select("id")
-    .eq("user_id", clientId)
+    .or(clientFilter(clientId))
     .eq("event_date", evalDate)
     .eq("event_type", "checkin")
     .eq("is_completed", false);
 
   if (missedCheckins && missedCheckins.length > 0) {
     for (const ci of missedCheckins) {
-      txBatch.push({
-        txType: "missed_checkin",
-        base: XP.missed_checkin,
-        desc: `Missed check-in: ${evalDate}`,
-      });
+      txBatch.push({ txType: "missed_checkin", base: XP.missed_checkin, desc: `Missed check-in: ${evalDate}` });
     }
   }
 
-  // ── 7. Determine activity for the day ─────────────────────────
-  // "Active" means: completed at least one scheduled event OR logged nutrition
+  // ── 9. Determine activity for the day ─────────────────────────
   const { data: completedEvents } = await db
     .from("calendar_events")
     .select("id")
-    .eq("user_id", clientId)
+    .or(clientFilter(clientId))
     .eq("event_date", evalDate)
     .eq("is_completed", true)
     .limit(1);
 
-  const wasActive = hasNutrition || (completedEvents && completedEvents.length > 0);
+  const wasActive = hasNutrition || (completedEvents && completedEvents.length > 0) || completedWorkoutIds.size > 0;
 
-  // ── 8. Streak & inactivity ────────────────────────────────────
+  // ── 10. Streak & inactivity ───────────────────────────────────
   let newStreak = profile.current_streak || 0;
   let newInactiveDays = profile.inactive_days || 0;
   let newLastActiveDate = profile.last_active_date;
@@ -309,45 +306,33 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     newInactiveDays = 0;
     newLastActiveDate = evalDate;
   } else {
-    // Check if they had any scheduled events (rest day = no penalty)
     const { data: scheduledEvents } = await db
       .from("calendar_events")
       .select("id")
-      .eq("user_id", clientId)
+      .or(clientFilter(clientId))
       .eq("event_date", evalDate)
       .limit(1);
 
     const hadScheduledEvents = scheduledEvents && scheduledEvents.length > 0;
 
     if (hadScheduledEvents) {
-      // They had stuff to do but didn't do it
       newStreak = 0;
       newInactiveDays += 1;
     }
-    // If no scheduled events (rest day), streak stays, inactive_days stays
   }
 
-  // ── 9. Inactivity decay ───────────────────────────────────────
+  // ── 11. Inactivity decay ──────────────────────────────────────
   if (newInactiveDays >= 7) {
-    txBatch.push({
-      txType: "decay_per_day",
-      base: XP.decay_per_day,
-      desc: `Inactivity decay (${newInactiveDays} days): ${evalDate}`,
-    });
+    txBatch.push({ txType: "decay_per_day", base: XP.decay_per_day, desc: `Inactivity decay (${newInactiveDays} days): ${evalDate}` });
   }
 
-  // ── 10. Process XP transactions ───────────────────────────────
+  // ── 12. Process XP transactions ───────────────────────────────
   let totalXPChange = 0;
 
   for (const tx of txBatch) {
-    const mult =
-      tx.base > 0
-        ? getMultiplier(
-            profile.current_streak,
-            profile.is_new_client_boost,
-            profile.new_client_boost_expires
-          )
-        : 1.0;
+    const mult = tx.base > 0
+      ? getMultiplier(profile.current_streak, profile.is_new_client_boost, profile.new_client_boost_expires)
+      : 1.0;
     const finalAmt = tx.base > 0 ? Math.ceil(tx.base * mult) : tx.base;
 
     await db.from("xp_transactions").insert({
@@ -362,7 +347,7 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     totalXPChange += finalAmt;
   }
 
-  // Also insert a marker transaction for duplicate prevention
+  // Marker transaction for duplicate prevention
   if (txBatch.length > 0) {
     await db.from("xp_transactions").insert({
       user_id: clientId,
@@ -374,11 +359,10 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     });
   }
 
-  // ── 11. Update ranked_profiles ────────────────────────────────
+  // ── 13. Update ranked_profiles ────────────────────────────────
   const newTotal = Math.max(0, profile.total_xp + totalXPChange);
   const calc = calculateTierAndDivision(newTotal);
 
-  // Demotion shield
   let finalTier = calc.tier;
   let finalDiv = calc.division;
   let finalDivXP = calc.divisionXP;
@@ -393,11 +377,8 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     }
   }
 
-  // Weekly XP tracking
   const lastMonday = getLastMonday();
-  const resetAt = profile.weekly_xp_reset_at
-    ? new Date(profile.weekly_xp_reset_at)
-    : new Date(0);
+  const resetAt = profile.weekly_xp_reset_at ? new Date(profile.weekly_xp_reset_at) : new Date(0);
   let weeklyXP = resetAt < lastMonday ? 0 : profile.weekly_xp || 0;
   if (totalXPChange > 0) weeklyXP += totalXPChange;
 
@@ -415,8 +396,7 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
       inactive_days: newInactiveDays,
       last_active_date: newLastActiveDate,
       weekly_xp: weeklyXP,
-      weekly_xp_reset_at:
-        resetAt < lastMonday ? lastMonday.toISOString() : profile.weekly_xp_reset_at,
+      weekly_xp_reset_at: resetAt < lastMonday ? lastMonday.toISOString() : profile.weekly_xp_reset_at,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", clientId);
