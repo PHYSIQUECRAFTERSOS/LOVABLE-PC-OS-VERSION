@@ -11,7 +11,7 @@ import PhotoComparisonSlider from "@/components/biofeedback/PhotoComparisonSlide
 import ProgressMetricsDashboard from "@/components/biofeedback/ProgressMetricsDashboard";
 import BodyFatEstimation from "@/components/biofeedback/BodyFatEstimation";
 import WeightTracker from "@/components/biofeedback/WeightTracker";
-import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
+
 import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import CheckinSubmissionForm from "@/components/checkin/CheckinSubmissionForm";
 import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard";
