@@ -129,9 +129,6 @@ const Progress = () => {
             <StepsScreen />
           </TabsContent>
 
-          <TabsContent value="trends" className="mt-4">
-            <BiofeedbackTrends key={refreshKey} />
-          </TabsContent>
         </Tabs>
       </div>
 

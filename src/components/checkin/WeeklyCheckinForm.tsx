@@ -184,15 +184,25 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         }
       }
 
-      // Mark calendar check-in event as completed for today
+      // Mark calendar check-in event as completed for today (both user-created and coach-scheduled)
       const today = new Date().toLocaleDateString("en-CA");
-      await supabase
-        .from("calendar_events")
-        .update({ is_completed: true, completed_at: new Date().toISOString() })
-        .eq("user_id", user.id)
-        .eq("event_date", today)
-        .eq("event_type", "checkin")
-        .eq("is_completed", false);
+      const completionPayload = { is_completed: true, completed_at: new Date().toISOString() };
+      await Promise.all([
+        supabase
+          .from("calendar_events")
+          .update(completionPayload)
+          .eq("user_id", user.id)
+          .eq("event_date", today)
+          .eq("event_type", "checkin")
+          .eq("is_completed", false),
+        supabase
+          .from("calendar_events")
+          .update(completionPayload)
+          .eq("target_client_id", user.id)
+          .eq("event_date", today)
+          .eq("event_type", "checkin")
+          .eq("is_completed", false),
+      ]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["weekly-checkin-status"] });
