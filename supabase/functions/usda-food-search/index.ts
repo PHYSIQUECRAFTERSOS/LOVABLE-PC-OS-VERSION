@@ -5,9 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// USDA FoodData Central API (free, no key required for basic search)
+// USDA FoodData Central API
 const USDA_BASE = "https://api.nal.usda.gov/fdc/v1";
-const USDA_API_KEY = "DEMO_KEY"; // Free tier, sufficient for moderate usage
+const USDA_API_KEY = Deno.env.get("USDA_API_KEY") || "DEMO_KEY";
 
 // Nutrient ID mapping from USDA FoodData Central
 const NUTRIENT_MAP: Record<number, string> = {
