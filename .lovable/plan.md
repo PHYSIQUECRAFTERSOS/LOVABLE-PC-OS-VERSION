@@ -1,47 +1,88 @@
 
 
-# Fix Check-In Completion + Remove Biofeedback Trends + Fix Photo Compare
+# Epic XP Celebration System — Cardio + Nutrition Daily Rewards
 
-## Problem 1: Check-in doesn't cross off dashboard/calendar
+## Game Design Decision: Nutrition XP Timing
 
-The root cause: when a coach schedules a check-in event for a client, the event is stored with `target_client_id = client_id` (not `user_id = client_id`). But both `WeeklyCheckinForm` and `CheckinSubmissionForm` only update events matching `.eq("user_id", user.id)`, which never matches coach-scheduled events. The fix is to also update events where `target_client_id` matches.
+Real-time macro celebrations with clawback would create negative emotions — imagine celebrating "Protein Target Hit! +1 XP" then 30 minutes later seeing "-1 XP: Protein Over Target". That is anti-dopamine and trains users to AVOID logging food (the opposite of what we want). In game design, **loss aversion is 2x stronger than gains** — one clawback undoes two celebrations emotionally.
 
-**Files:** `src/components/checkin/WeeklyCheckinForm.tsx`, `src/components/checkin/CheckinSubmissionForm.tsx`
+**The winning strategy**: Keep nutrition XP as end-of-day evaluation (existing server logic). Build a "Daily Rewards" celebration popup that fires when the client opens the app after their daily evaluation has run. This creates a **loot-box moment** — they open the app wondering "what did I earn?" — which is the most addictive loop in mobile gaming.
 
-Change: Replace the single calendar update call with two calls — one for `user_id` match and one for `target_client_id` match. This covers both self-created and coach-scheduled check-in events.
+Cardio stays real-time since it is a binary complete/not-complete action with no overshoot risk.
+
+## What We Are Building
+
+1. **Cardio Completion Celebration** — The drawer transforms into a victory state with the crystal runner icon, confetti, animated XP counter, and audio chime
+2. **Daily Nutrition Rewards Popup** — A cinematic bottom sheet that fires on app open showing all nutrition XP earned/lost from the previous day's evaluation, using the fork/knife icon
+3. **Custom icon assets** — Copy the uploaded cardio and macro icons into the project
+
+## Plan
+
+### 1. Copy Icon Assets
+Copy `Cardio_icon.png` and `macro_icon.png` to `src/assets/` for use as ES6 imports in celebration components.
+
+### 2. New Component: `XPCelebrationOverlay`
+**File:** `src/components/ranked/XPCelebrationOverlay.tsx`
+
+Bottom-sheet style popup (~45% screen height) with:
+- The custom icon image (cardio runner or macro fork/knife) with pulsing glow
+- Animated XP counter counting from 0 to total using requestAnimationFrame
+- Breakdown lines with staggered fade-in ("Calories on target: +7 XP", "Protein: +1 XP")
+- Canvas confetti burst in emerald/gold palette
+- Haptic feedback on show
+- Auto-dismiss after 4s or tap to dismiss
+- Red styling for penalty items (missed targets shown as losses)
 
 ```typescript
-// Update both user_id and target_client_id matches
-await Promise.all([
-  supabase.from("calendar_events")
-    .update({ is_completed: true, completed_at: now })
-    .eq("user_id", user.id).eq("event_date", today)
-    .eq("event_type", "checkin").eq("is_completed", false),
-  supabase.from("calendar_events")
-    .update({ is_completed: true, completed_at: now })
-    .eq("target_client_id", user.id).eq("event_date", today)
-    .eq("event_type", "checkin").eq("is_completed", false),
-]);
+interface XPCelebrationProps {
+  type: "cardio" | "nutrition";
+  totalXP: number;
+  breakdown: { label: string; xp: number }[];
+  onDismiss: () => void;
+}
 ```
 
-## Problem 2: Remove Biofeedback Trends tab
+### 3. Add `playXPChime()` to `RankUpAudioService`
+**File:** `src/services/RankUpAudioService.ts`
 
-**File:** `src/pages/Progress.tsx`
+Quick 2-note ascending chime (C5 to E5), 0.4s duration, gain 0.2. Lightweight and satisfying.
 
-- Remove the "Trends" `TabsTrigger`
-- Remove the `TabsContent value="trends"` block
-- Remove the `BiofeedbackTrends` import
-- Remove `trends` from `TAB_MAP`
+### 4. Update `useXPAward` Context
+**File:** `src/hooks/useXPAward.tsx`
 
-## Problem 3: Fix Side-by-Side photo comparison layout
+- Add `triggerCelebration(type, breakdown)` method to context
+- Renders `XPCelebrationOverlay` when triggered
+- Keep `XPToast` for small/routine XP events
 
-The current layout stacks the two comparison photos vertically on mobile (`grid-cols-1 md:grid-cols-2`), and the week selectors take up too much space. The user wants both photos always side-by-side with the date underneath each photo.
+### 5. Transform `CardioPopup` Post-Completion
+**File:** `src/components/dashboard/CardioPopup.tsx`
 
-**File:** `src/components/biofeedback/PhotoComparisonSlider.tsx`
+After "Mark as Complete" succeeds:
+- Transition drawer content to celebration state (no close, no new modal)
+- Show the crystal runner icon with scale-bounce animation
+- Animated "+3 XP" counter with confetti burst inside drawer
+- Play XP chime
+- Auto-close after 3.5s
 
-Changes to the Side-by-Side tab:
-- Change the comparison grid from `grid-cols-1 md:grid-cols-2` to always `grid-cols-2` so photos are always side-by-side on mobile
-- Remove the `aspect-[3/4]` constraint and use a more compact layout so both fit on screen
-- Keep the date label beneath each photo (already present)
-- Simplify the week selector area — make the selectors more compact with smaller buttons
+### 6. Daily Nutrition Rewards Popup
+**File:** `src/components/ranked/DailyRewardsPopup.tsx`
 
+New component that:
+- On mount (wrapped in Dashboard), queries `xp_transactions` for the user where `transaction_type = 'daily_eval'` and the description contains yesterday's date, AND where the user hasn't seen it yet (check `localStorage` key `last_xp_review_date`)
+- If unseen nutrition XP transactions exist, show the celebration overlay with the macro icon
+- Groups transactions into breakdown lines: "Calories on target: +7 XP", "Protein: +1 XP", "Missed cardio: -2 XP"
+- Gains shown in emerald, losses shown in red
+- Sets `localStorage` flag after dismissal so it only shows once
+
+### 7. Mount `DailyRewardsPopup` in Dashboard
+**File:** `src/pages/Dashboard.tsx`
+
+Add `<DailyRewardsPopup />` inside the client dashboard so it fires on login/app open.
+
+## Files Changed
+
+| File | Change |
+|---|---|
+| `src/assets/Cardio_icon.png` | **New** — copied from upload |
+| `src/assets/macro_icon.png` | **New** — copied from upload |
+| `src/components/ranked/
