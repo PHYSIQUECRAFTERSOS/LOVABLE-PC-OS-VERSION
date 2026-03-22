@@ -11,6 +11,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     allowsLinkPreview: false,
+    packageClassList: ['StoreKitPlugin'],
   },
   plugins: {
     Camera: {
