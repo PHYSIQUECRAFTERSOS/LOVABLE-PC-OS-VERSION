@@ -109,7 +109,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const { user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [planName, setPlanName] = useState("");
+  const [planName, setPlanName] = useState(clientId && dayTypeLabel ? dayTypeLabel : "");
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState("");
   const DEFAULT_MEALS = (): Meal[] => [

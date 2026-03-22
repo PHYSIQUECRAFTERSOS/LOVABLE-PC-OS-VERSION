@@ -70,7 +70,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const coachSecondaryNav: NavItem[] = [
-    { to: "/pricing", icon: CreditCard, label: "Programs" },
     { to: "/profile", icon: Settings, label: "Settings" },
   ];
 
