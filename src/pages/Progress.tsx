@@ -27,7 +27,6 @@ const TAB_MAP: Record<string, string> = {
   checkin: "checkin",
   forms: "forms",
   dashboard: "dashboard",
-  trends: "trends",
 };
 
 const Progress = () => {
