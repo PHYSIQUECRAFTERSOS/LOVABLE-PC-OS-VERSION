@@ -51,19 +51,48 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
     if (!user || ingredients.length === 0) return;
     setLogging(true);
 
-    const entries = ingredients.map(ing => ({
-      client_id: user.id,
-      food_item_id: ing.food_item_id || null,
-      custom_name: ing.food_item_id ? null : `🍳 ${ing.food_name}`,
-      meal_type: mealType,
-      servings: Math.round(ing.quantity * S * 100) / 100,
-      calories: Math.round((ing.calories || 0) * S),
-      protein: Math.round((ing.protein || 0) * S),
-      carbs: Math.round((ing.carbs || 0) * S),
-      fat: Math.round((ing.fat || 0) * S),
-      logged_at: logDate,
-      tz_corrected: true,
-    }));
+    // Fetch micros for ingredients with food_item_ids
+    const foodItemIds = ingredients.filter(i => i.food_item_id).map(i => i.food_item_id);
+    const microsMap: Record<string, Record<string, number>> = {};
+    if (foodItemIds.length > 0) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: foodItems } = await supabase
+          .from("food_items")
+          .select("*")
+          .in("id", foodItemIds);
+        if (foodItems) {
+          foodItems.forEach((fi: any) => {
+            microsMap[fi.id] = extractMicros(fi, 1);
+          });
+        }
+      } catch (err) {
+        console.warn("[PCRecipeDetail] Could not fetch micros:", err);
+      }
+    }
+
+    const entries = ingredients.map(ing => {
+      const servings = Math.round(ing.quantity * S * 100) / 100;
+      const itemMicros = ing.food_item_id && microsMap[ing.food_item_id]
+        ? Object.fromEntries(
+            Object.entries(microsMap[ing.food_item_id]).map(([k, v]) => [k, Math.round(v * servings * 100) / 100])
+          )
+        : {};
+      return {
+        client_id: user.id,
+        food_item_id: ing.food_item_id || null,
+        custom_name: ing.food_item_id ? null : `🍳 ${ing.food_name}`,
+        meal_type: mealType,
+        servings,
+        calories: Math.round((ing.calories || 0) * S),
+        protein: Math.round((ing.protein || 0) * S),
+        carbs: Math.round((ing.carbs || 0) * S),
+        fat: Math.round((ing.fat || 0) * S),
+        logged_at: logDate,
+        tz_corrected: true,
+        ...itemMicros,
+      };
+    });
 
     const { error } = await supabase.from("nutrition_logs").insert(entries);
     if (error) {

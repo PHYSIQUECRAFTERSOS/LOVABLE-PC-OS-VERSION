@@ -96,39 +96,60 @@ const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied
     if (!user) return;
     setCopying(true);
 
-    const { data } = await supabase
+    // Fetch full source logs including micro data
+    const { data: sourceWithMicros } = await supabase
       .from("nutrition_logs")
-      .select("food_item_id, custom_name, meal_type, servings, calories, protein, carbs, fat, fiber, sugar, sodium, quantity_display, quantity_unit")
+      .select("*")
       .eq("client_id", user.id)
       .eq("logged_at", date)
       .eq("meal_type", slot);
 
-    if (!data || data.length === 0) {
+    if (!sourceWithMicros || sourceWithMicros.length === 0) {
       toast({ title: "No items to copy." });
       setCopying(false);
       return;
     }
 
-    const entries = data.map((item: any) => ({
-      client_id: user.id,
-      food_item_id: item.food_item_id,
-      custom_name: item.custom_name,
-      meal_type: mealType,
-      servings: item.servings,
-      calories: item.calories,
-      protein: item.protein,
-      carbs: item.carbs,
-      fat: item.fat,
-      fiber: item.fiber,
-      sugar: item.sugar,
-      sodium: item.sodium,
-      quantity_display: item.quantity_display,
-      quantity_unit: item.quantity_unit,
-      logged_at: logDate,
-      tz_corrected: true,
-    }));
+    const microKeys = [
+      "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "vitamin_k_mcg",
+      "vitamin_b1_mg", "vitamin_b2_mg", "vitamin_b3_mg", "vitamin_b5_mg", "vitamin_b6_mg",
+      "vitamin_b7_mcg", "vitamin_b9_mcg", "vitamin_b12_mcg",
+      "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg", "potassium_mg",
+      "zinc_mg", "copper_mg", "manganese_mg", "selenium_mcg", "chromium_mcg",
+      "molybdenum_mcg", "iodine_mcg", "omega_3", "omega_6",
+      "cholesterol", "saturated_fat", "trans_fat", "monounsaturated_fat", "polyunsaturated_fat",
+      "added_sugars", "net_carbs",
+    ];
 
-    const { error } = await supabase.from("nutrition_logs").insert(entries);
+    const entries = sourceWithMicros.map((item: any) => {
+      const entry: Record<string, any> = {
+        client_id: user.id,
+        food_item_id: item.food_item_id,
+        custom_name: item.custom_name,
+        meal_type: mealType,
+        servings: item.servings,
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        fiber: item.fiber,
+        sugar: item.sugar,
+        sodium: item.sodium,
+        quantity_display: item.quantity_display,
+        quantity_unit: item.quantity_unit,
+        logged_at: logDate,
+        tz_corrected: true,
+      };
+      // Copy micro values from source log
+      for (const key of microKeys) {
+        if (item[key] != null && typeof item[key] === "number" && item[key] > 0) {
+          entry[key] = item[key];
+        }
+      }
+      return entry;
+    });
+
+    const { error } = await supabase.from("nutrition_logs").insert(entries as any);
     if (error) {
       toast({ title: "Couldn't copy meal." });
     } else {

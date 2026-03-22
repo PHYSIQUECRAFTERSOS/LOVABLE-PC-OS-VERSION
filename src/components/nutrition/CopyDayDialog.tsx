@@ -66,7 +66,7 @@ const CopyDayDialog = ({ sourceDate, open, onOpenChange, onCopied }: CopyDayDial
       // Fetch source day logs
       const { data: sourceLogs } = await supabase
         .from("nutrition_logs")
-        .select("food_item_id, custom_name, meal_type, calories, protein, carbs, fat, sugar, sodium, servings")
+        .select("*")
         .eq("client_id", user.id)
         .eq("logged_at", sourceDateStr)
         .order("created_at", { ascending: true });
@@ -76,6 +76,17 @@ const CopyDayDialog = ({ sourceDate, open, onOpenChange, onCopied }: CopyDayDial
         setCopying(false);
         return;
       }
+
+      const microKeys = [
+        "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "vitamin_k_mcg",
+        "vitamin_b1_mg", "vitamin_b2_mg", "vitamin_b3_mg", "vitamin_b5_mg", "vitamin_b6_mg",
+        "vitamin_b7_mcg", "vitamin_b9_mcg", "vitamin_b12_mcg",
+        "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg", "potassium_mg",
+        "zinc_mg", "copper_mg", "manganese_mg", "selenium_mcg", "chromium_mcg",
+        "molybdenum_mcg", "iodine_mcg", "omega_3", "omega_6",
+        "cholesterol", "saturated_fat", "trans_fat", "monounsaturated_fat", "polyunsaturated_fat",
+        "added_sugars", "net_carbs",
+      ];
 
       const targetDateStrs = selectedDates.map(d => format(d, "yyyy-MM-dd"));
 
@@ -90,26 +101,35 @@ const CopyDayDialog = ({ sourceDate, open, onOpenChange, onCopied }: CopyDayDial
         }
       }
 
-      // Create inserts for all target dates
+      // Create inserts for all target dates, including micro data
       const inserts = targetDateStrs.flatMap(targetDate =>
-        sourceLogs.map(log => ({
-          client_id: user.id,
-          food_item_id: log.food_item_id,
-          custom_name: log.custom_name,
-          meal_type: log.meal_type,
-          calories: log.calories,
-          protein: log.protein,
-          carbs: log.carbs,
-          fat: log.fat,
-          sugar: log.sugar || 0,
-          sodium: log.sodium || 0,
-          servings: log.servings,
-          logged_at: targetDate,
-          tz_corrected: true,
-        }))
+        sourceLogs.map(log => {
+          const entry: Record<string, any> = {
+            client_id: user.id,
+            food_item_id: log.food_item_id,
+            custom_name: log.custom_name,
+            meal_type: log.meal_type,
+            calories: log.calories,
+            protein: log.protein,
+            carbs: log.carbs,
+            fat: log.fat,
+            sugar: log.sugar || 0,
+            sodium: log.sodium || 0,
+            servings: log.servings,
+            logged_at: targetDate,
+            tz_corrected: true,
+          };
+          // Copy micro values from source log
+          for (const key of microKeys) {
+            if (log[key] != null && typeof log[key] === "number" && log[key] > 0) {
+              entry[key] = log[key];
+            }
+          }
+          return entry;
+        })
       );
 
-      const { error } = await supabase.from("nutrition_logs").insert(inserts);
+      const { error } = await supabase.from("nutrition_logs").insert(inserts as any);
 
       if (error) {
         toast({ title: "Error copying", description: error.message, variant: "destructive" });
