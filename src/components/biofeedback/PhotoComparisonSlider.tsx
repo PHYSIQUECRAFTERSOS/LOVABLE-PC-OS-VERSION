@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format, startOfWeek, getWeek, isAfter } from "date-fns";
+import { format, startOfWeek, getWeek } from "date-fns";
 import { ImageIcon, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Photo {
@@ -72,14 +72,8 @@ const PhotoComparisonSlider = () => {
       const startDate = startOfWeek(photoDate);
 
       if (!groups.has(key)) {
-        groups.set(key, {
-          week,
-          year,
-          startDate,
-          photos: [],
-        });
+        groups.set(key, { week, year, startDate, photos: [] });
       }
-
       groups.get(key)!.photos.push(photo);
     });
 
@@ -169,21 +163,11 @@ const PhotoComparisonSlider = () => {
             <CardContent className="space-y-4">
               {/* Zoom Controls */}
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setZoomLevel(Math.max(50, zoomLevel - 25))}
-                  disabled={zoomLevel <= 50}
-                >
+                <Button variant="outline" size="sm" onClick={() => setZoomLevel(Math.max(50, zoomLevel - 25))} disabled={zoomLevel <= 50}>
                   <ZoomOut className="h-4 w-4" />
                 </Button>
                 <span className="text-sm font-medium w-12">{zoomLevel}%</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setZoomLevel(Math.min(200, zoomLevel + 25))}
-                  disabled={zoomLevel >= 200}
-                >
+                <Button variant="outline" size="sm" onClick={() => setZoomLevel(Math.min(200, zoomLevel + 25))} disabled={zoomLevel >= 200}>
                   <ZoomIn className="h-4 w-4" />
                 </Button>
               </div>
@@ -244,144 +228,104 @@ const PhotoComparisonSlider = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="sidebyside" className="space-y-4 mt-4">
+        <TabsContent value="sidebyside" className="space-y-3 mt-4">
           {/* Pose Filter */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
             {poseOptions.map((pose) => (
               <Button
                 key={pose}
                 variant={selectedPose === pose ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedPose(pose)}
-                className="capitalize whitespace-nowrap"
+                className="capitalize whitespace-nowrap text-xs h-7 px-2"
               >
                 {pose.replace("-", " ")}
               </Button>
             ))}
           </div>
 
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setZoomLevel(Math.max(50, zoomLevel - 25))}
-              disabled={zoomLevel <= 50}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-medium w-12">{zoomLevel}%</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setZoomLevel(Math.min(200, zoomLevel + 25))}
-              disabled={zoomLevel >= 200}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Week Selection for Comparison */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Compare Weeks</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {/* Week 1 Selector */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Earlier Week</p>
-                  <div className="border border-border rounded-lg p-3">
-                    <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
-                      {weekGroups.map((week, idx) => {
-                        const weekPhotos = week.photos.filter((p) => p.pose === selectedPose);
-                        const isSelected = idx === selectedComparisonWeeks[0];
-                        return (
-                          <button
-                            key={`w1-${week.year}-W${week.week}`}
-                            onClick={() => setSelectedComparisonWeeks([idx, selectedComparisonWeeks[1]])}
-                            className={`p-2 rounded border text-xs transition-all ${
-                              isSelected
-                                ? "border-primary bg-primary/10 font-medium"
-                                : "border-border hover:border-primary/50"
-                            } ${weekPhotos.length === 0 ? "opacity-50" : ""}`}
-                            disabled={weekPhotos.length === 0}
-                          >
-                            <p>W{week.week}</p>
-                            <p className="text-[10px] text-muted-foreground">{week.year}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Week 2 Selector */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Recent Week</p>
-                  <div className="border border-border rounded-lg p-3">
-                    <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto">
-                      {weekGroups.map((week, idx) => {
-                        const weekPhotos = week.photos.filter((p) => p.pose === selectedPose);
-                        const isSelected = idx === selectedComparisonWeeks[1];
-                        return (
-                          <button
-                            key={`w2-${week.year}-W${week.week}`}
-                            onClick={() => setSelectedComparisonWeeks([selectedComparisonWeeks[0], idx])}
-                            className={`p-2 rounded border text-xs transition-all ${
-                              isSelected
-                                ? "border-primary bg-primary/10 font-medium"
-                                : "border-border hover:border-primary/50"
-                            } ${weekPhotos.length === 0 ? "opacity-50" : ""}`}
-                            disabled={weekPhotos.length === 0}
-                          >
-                            <p>W{week.week}</p>
-                            <p className="text-[10px] text-muted-foreground">{week.year}</p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Side-by-Side Comparison */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                {[0, 1].map((idx) => {
-                  const weekIndex = selectedComparisonWeeks[idx];
-                  const week = weekGroups[weekIndex];
-                  const photo = week?.photos.find((p) => p.pose === selectedPose);
-
+          {/* Compact Week Selectors */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Earlier</p>
+              <div className="flex flex-wrap gap-1 max-h-[80px] overflow-y-auto">
+                {weekGroups.map((week, idx) => {
+                  const weekPhotos = week.photos.filter((p) => p.pose === selectedPose);
+                  const isSelected = idx === selectedComparisonWeeks[0];
                   return (
-                    <div key={idx} className="space-y-2">
-                      <div className="text-sm font-medium">
-                        Week {week?.week}, {week?.year}
-                      </div>
-                      <div className="border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center aspect-[3/4]">
-                        {photo ? (
-                          <div className="w-full h-full flex items-center justify-center p-4">
-                            <img
-                              src={photo.url}
-                              alt={`${photo.pose} pose`}
-                              style={{ width: `${zoomLevel}%`, height: "auto", maxHeight: "100%" }}
-                              className="object-contain"
-                            />
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No photo available</p>
-                        )}
-                      </div>
-                      {photo && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          {format(new Date(photo.photo_date), "MMM d, yyyy")}
-                        </p>
-                      )}
-                    </div>
+                    <button
+                      key={`w1-${week.year}-W${week.week}`}
+                      onClick={() => setSelectedComparisonWeeks([idx, selectedComparisonWeeks[1]])}
+                      className={`px-1.5 py-0.5 rounded text-[10px] border transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/10 font-medium"
+                          : "border-border hover:border-primary/50"
+                      } ${weekPhotos.length === 0 ? "opacity-30" : ""}`}
+                      disabled={weekPhotos.length === 0}
+                    >
+                      W{week.week}
+                    </button>
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Recent</p>
+              <div className="flex flex-wrap gap-1 max-h-[80px] overflow-y-auto">
+                {weekGroups.map((week, idx) => {
+                  const weekPhotos = week.photos.filter((p) => p.pose === selectedPose);
+                  const isSelected = idx === selectedComparisonWeeks[1];
+                  return (
+                    <button
+                      key={`w2-${week.year}-W${week.week}`}
+                      onClick={() => setSelectedComparisonWeeks([selectedComparisonWeeks[0], idx])}
+                      className={`px-1.5 py-0.5 rounded text-[10px] border transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/10 font-medium"
+                          : "border-border hover:border-primary/50"
+                      } ${weekPhotos.length === 0 ? "opacity-30" : ""}`}
+                      disabled={weekPhotos.length === 0}
+                    >
+                      W{week.week}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Side-by-Side Photos — always 2 columns */}
+          <div className="grid grid-cols-2 gap-2">
+            {[0, 1].map((idx) => {
+              const weekIndex = selectedComparisonWeeks[idx];
+              const week = weekGroups[weekIndex];
+              const photo = week?.photos.find((p) => p.pose === selectedPose);
+
+              return (
+                <div key={idx} className="space-y-1">
+                  <p className="text-[10px] font-medium text-muted-foreground text-center truncate">
+                    Week {week?.week}, {week?.year}
+                  </p>
+                  <div className="border border-border rounded-lg overflow-hidden bg-muted flex items-center justify-center min-h-[200px]">
+                    {photo ? (
+                      <img
+                        src={photo.url}
+                        alt={`${photo.pose} pose`}
+                        className="w-full h-auto object-contain"
+                      />
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground p-2 text-center">No photo</p>
+                    )}
+                  </div>
+                  {photo && (
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      {format(new Date(photo.photo_date), "MMM d, yyyy")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
