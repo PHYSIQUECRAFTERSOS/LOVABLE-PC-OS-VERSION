@@ -93,6 +93,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [saveMealName, setSaveMealName] = useState("");
   const [showSaveMealDialog, setShowSaveMealDialog] = useState(false);
   const [savingMeal, setSavingMeal] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingSelected, setDeletingSelected] = useState(false);
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
