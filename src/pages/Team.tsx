@@ -16,6 +16,7 @@ import { UserPlus, Shield, Users, Activity, Loader2, Send, Crown, Trash2 } from 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import AddClientWithAssignmentDialog from "@/components/clients/AddClientWithAssignmentDialog";
 
 interface StaffMember {
   user_id: string;
@@ -35,10 +36,11 @@ interface PendingInvite {
   expires_at: string;
 }
 
-const rolePriority: Record<string, number> = { admin: 0, coach: 2 };
-const roleLabels: Record<string, string> = { admin: "Owner", coach: "Coach" };
+const rolePriority: Record<string, number> = { admin: 0, manager: 1, coach: 2 };
+const roleLabels: Record<string, string> = { admin: "Owner", manager: "Manager", coach: "Coach" };
 const roleColors: Record<string, string> = {
   admin: "bg-primary/20 text-primary",
+  manager: "bg-primary/10 text-primary",
   coach: "bg-accent/20 text-accent-foreground",
 };
 
@@ -49,6 +51,7 @@ const Team = () => {
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [addClientOpen, setAddClientOpen] = useState(false);
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -58,11 +61,11 @@ const Team = () => {
   const fetchStaff = useCallback(async () => {
     setLoading(true);
     try {
-      // Get all admin and coach users
+      // Get all admin, manager, and coach users
       const { data: roleRows } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["admin", "coach"]);
+        .in("role", ["admin", "manager", "coach"]);
 
       if (!roleRows || roleRows.length === 0) {
         setStaff([]);
@@ -110,7 +113,7 @@ const Team = () => {
         };
       });
 
-      // Sort: admin first, then coaches
+      // Sort: admin first, then manager, then coaches
       members.sort((a, b) => {
         const aPri = Math.min(...a.roles.map((r) => rolePriority[r] ?? 10));
         const bPri = Math.min(...b.roles.map((r) => rolePriority[r] ?? 10));
@@ -192,6 +195,7 @@ const Team = () => {
 
   const primaryRole = (roles: string[]) => {
     if (roles.includes("admin")) return "admin";
+    if (roles.includes("manager")) return "manager";
     return roles[0] || "coach";
   };
 
@@ -203,9 +207,14 @@ const Team = () => {
             <h1 className="font-display text-2xl font-bold text-foreground">Team</h1>
             <p className="mt-1 text-sm text-muted-foreground">Manage your coaching staff and permissions.</p>
           </div>
-          <Button onClick={() => setInviteOpen(true)}>
-            <UserPlus className="h-4 w-4 mr-1" /> Invite Coach
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setAddClientOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-1" /> Add Client
+            </Button>
+            <Button onClick={() => setInviteOpen(true)}>
+              <UserPlus className="h-4 w-4 mr-1" /> Invite Staff
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -317,7 +326,7 @@ const Team = () => {
         )}
       </div>
 
-      {/* Invite Modal */}
+      {/* Invite Staff Modal */}
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -366,7 +375,8 @@ const Team = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="coach">Coach</SelectItem>
-                  <SelectItem value="admin">Manager</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="admin">Owner</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -377,6 +387,13 @@ const Team = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Client with Assignment Dialog */}
+      <AddClientWithAssignmentDialog
+        open={addClientOpen}
+        onOpenChange={setAddClientOpen}
+        onInviteSent={fetchStaff}
+      />
     </AppLayout>
   );
 };
