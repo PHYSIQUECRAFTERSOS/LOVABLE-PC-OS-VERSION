@@ -79,7 +79,7 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
       const { data: roleRows } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["admin", "manager", "coach"]);
+        .in("role", ["admin", "manager", "coach"] as any);
 
       if (!roleRows || roleRows.length === 0) return;
 
