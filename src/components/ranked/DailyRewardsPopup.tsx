@@ -34,7 +34,7 @@ const DailyRewardsPopup = () => {
     if (!user?.id) return;
 
     const checkDailyRewards = async () => {
-      const yesterday = getLocalDateString(subDays(new Date(), 1));
+      const yesterday = toLocalDateString(subDays(new Date(), 1));
       const storageKey = `xp_rewards_seen_${user.id}`;
       const lastSeen = localStorage.getItem(storageKey);
       if (lastSeen === yesterday) return;

@@ -64,6 +64,9 @@ const ClientDashboard = () => {
 
   return (
     <>
+      {/* Daily Nutrition XP Rewards Popup */}
+      <DailyRewardsPopup />
+
       {/* Challenge Banner */}
       <ChallengeBanner />
 
