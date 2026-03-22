@@ -907,7 +907,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       ))}
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background/95 backdrop-blur-sm border-t border-border px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      <div className="fixed bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur-sm border-t border-border px-4 pt-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <Button
           variant="outline"
           className="w-full gap-2"
