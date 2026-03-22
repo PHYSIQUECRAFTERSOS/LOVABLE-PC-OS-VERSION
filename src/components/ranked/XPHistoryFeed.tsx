@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Award,
   TrendingDown,
+  Clock,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
