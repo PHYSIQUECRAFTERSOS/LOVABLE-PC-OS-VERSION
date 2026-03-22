@@ -673,6 +673,24 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       console.warn("[logCustomFood] Could not create food_items entry:", err);
     }
 
+    // Fetch micros from food_items if available
+    let micros: Record<string, number> = {};
+    if (foodItemId) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: fullFood } = await supabase
+          .from("food_items")
+          .select("*")
+          .eq("id", foodItemId)
+          .maybeSingle();
+        if (fullFood) {
+          micros = extractMicros(fullFood, multiplier);
+        }
+      } catch (err) {
+        console.warn("[logCustomFood] Could not fetch micros:", err);
+      }
+    }
+
     const displayName = food.name + (food.brand ? ` (${food.brand})` : "");
     const quantityDisplay = qty * ss;
 
@@ -693,6 +711,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       quantity_unit: servingUnit === "g" ? "g" : servingUnit,
       logged_at: effectiveDate,
       tz_corrected: true,
+      ...micros,
     } as any);
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
