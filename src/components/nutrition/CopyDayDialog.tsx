@@ -129,7 +129,7 @@ const CopyDayDialog = ({ sourceDate, open, onOpenChange, onCopied }: CopyDayDial
         })
       );
 
-      const { error } = await supabase.from("nutrition_logs").insert(inserts);
+      const { error } = await supabase.from("nutrition_logs").insert(inserts as any);
 
       if (error) {
         toast({ title: "Error copying", description: error.message, variant: "destructive" });

@@ -149,7 +149,7 @@ const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied
       return entry;
     });
 
-    const { error } = await supabase.from("nutrition_logs").insert(entries);
+    const { error } = await supabase.from("nutrition_logs").insert(entries as any);
     if (error) {
       toast({ title: "Couldn't copy meal." });
     } else {
