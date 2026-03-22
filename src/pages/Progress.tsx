@@ -11,7 +11,7 @@ import PhotoComparisonSlider from "@/components/biofeedback/PhotoComparisonSlide
 import ProgressMetricsDashboard from "@/components/biofeedback/ProgressMetricsDashboard";
 import BodyFatEstimation from "@/components/biofeedback/BodyFatEstimation";
 import WeightTracker from "@/components/biofeedback/WeightTracker";
-import BiofeedbackTrends from "@/components/biofeedback/BiofeedbackTrends";
+
 import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import CheckinSubmissionForm from "@/components/checkin/CheckinSubmissionForm";
 import CheckinReviewDashboard from "@/components/checkin/CheckinReviewDashboard";
@@ -27,7 +27,6 @@ const TAB_MAP: Record<string, string> = {
   checkin: "checkin",
   forms: "forms",
   dashboard: "dashboard",
-  trends: "trends",
 };
 
 const Progress = () => {
@@ -76,7 +75,7 @@ const Progress = () => {
             <TabsTrigger value="weight" className="flex-shrink-0 text-xs px-2.5">Weight</TabsTrigger>
             <TabsTrigger value="photos" className="flex-shrink-0 text-xs px-2.5">Photos</TabsTrigger>
             <TabsTrigger value="steps" className="flex-shrink-0 text-xs px-2.5">Steps</TabsTrigger>
-            <TabsTrigger value="trends" className="flex-shrink-0 text-xs px-2.5">Trends</TabsTrigger>
+            
           </TabsList>
 
           <TabsContent value="checkin" className="space-y-6 mt-4">
@@ -130,9 +129,6 @@ const Progress = () => {
             <StepsScreen />
           </TabsContent>
 
-          <TabsContent value="trends" className="mt-4">
-            <BiofeedbackTrends key={refreshKey} />
-          </TabsContent>
         </Tabs>
       </div>
 
