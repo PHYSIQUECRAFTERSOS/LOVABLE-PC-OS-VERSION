@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import XPCelebrationOverlay from "./XPCelebrationOverlay";
-import { getLocalDateString } from "@/utils/localDate";
+import { toLocalDateString } from "@/utils/localDate";
 import { subDays } from "date-fns";
 
 interface BreakdownItem {
