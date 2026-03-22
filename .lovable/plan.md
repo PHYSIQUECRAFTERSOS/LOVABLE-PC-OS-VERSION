@@ -1,64 +1,60 @@
 
 
-# Fix Daily Eval Styling + Missed Workout False Positive Bug
+## Diagnosis
 
-## Issues Found
+Your TestFlight white screen is caused by **two compounding issues**:
 
-### 1. Daily Evaluation Styling
-The `daily_eval` transaction type (0 XP marker) currently falls into the red/loss styling because `xp_amount` is 0 (not > 0). Need to add a special case for `daily_eval` with grey icon background and white XP text.
+### Issue 1: Duplicate React Instance (Runtime Crash)
+The active runtime error `TypeError: null is not an object (evaluating 'dispatcher.useRef')` means React hooks are failing at the very first component (`TooltipProvider` in `App.tsx`). This is a classic "two copies of React loaded" problem. The `dedupe` config was added to `vite.config.ts` but the error persists — this means the bundler dedup alone isn't sufficient and we need to also ensure a single React copy at the module resolution level.
 
-### 2. False "Missed Workout" Penalty — Root Cause
-The user completed workout `dbff7f91` on March 21 (confirmed: `workout_sessions` shows `status=completed, completed_at=18:26`). But the calendar event linking to that same workout still has `is_completed=false`. This caused the daily evaluation to penalize -4 XP.
+### Issue 2: Publishing Gap
+Your `capacitor.config.ts` points to `https://app.physiquecrafters.com?v=10` — the **published** URL. TestFlight loads whatever version is currently published. If you publish code that has the dual-React crash, TestFlight gets a white screen. The fix must land in code, then be **published** before TestFlight will show the corrected version.
 
-**Why the calendar event wasn't marked complete**: The `WorkoutLogger` only marks a calendar event complete when `calendarEventId` is explicitly passed as a prop. If the user starts a workout from the Training page's "My Workouts" list (line 206 of Training.tsx) or from `ClientProgramView`, **no `calendarEventId` is passed**, so the calendar event stays `is_completed=false` even though the workout was completed.
+### Why the live site appears to work in a browser
+When I fetched `app.physiquecrafters.com`, the sign-in page renders. This may be because the currently published version is older (pre-crash), or because the crash only triggers under certain conditions (authenticated routes, WKWebView environment). Either way, the runtime error is real and must be fixed.
 
-**Two fixes needed:**
-
-**Fix A — WorkoutLogger fallback lookup**: When `calendarEventId` is not provided but the workout completes, look up today's calendar event by `linked_workout_id` + `user_id`/`target_client_id` and mark it completed. This prevents future occurrences.
-
-**Fix B — Daily evaluation cross-check**: Before penalizing a "missed workout", check `workout_sessions` to see if the linked workout was actually completed that day. If a completed session exists for that workout, skip the penalty and mark the calendar event as completed. This makes the evaluation resilient regardless of how the workout was started.
+---
 
 ## Plan
 
-### File 1: `src/components/ranked/XPHistoryFeed.tsx`
-- Add `daily_eval` to the ICONS map (use `Trophy` or a neutral icon like `Clock`)
-- Add a check: if `tx.transaction_type === "daily_eval"`, use `bg-muted/30` for icon background, `text-muted-foreground` for icon color, and `text-white` for XP amount text
+### Step 1: Fix the duplicate React crash
+**File: `vite.config.ts`**
+- The current `dedupe: ["react", "react-dom"]` is necessary but not sufficient. We need to also add explicit `alias` entries that force all imports of `react` and `react-dom` to resolve to the exact same file, preventing any library from pulling in a second copy.
 
-### File 2: `src/components/WorkoutLogger.tsx`
-- In the `finishWorkout` function, after the existing `calendarEventId` update block, add a fallback:
-  ```typescript
-  if (!calendarEventId && user) {
-    // Find today's calendar event linked to this workout
-    const today = format(new Date(), "yyyy-MM-dd");
-    const { data: calEvents } = await supabase
-      .from("calendar_events")
-      .select("id")
-      .eq("linked_workout_id", workoutId)
-      .eq("event_date", today)
-      .eq("event_type", "workout")
-      .eq("is_completed", false)
-      .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
-      .limit(1);
-    if (calEvents?.length) {
-      await supabase.from("calendar_events")
-        .update({ is_completed: true, completed_at: new Date().toISOString() })
-        .eq("id", calEvents[0].id);
-    }
-  }
-  ```
+```typescript
+resolve: {
+  alias: {
+    "@": path.resolve(__dirname, "./src"),
+    "react": path.resolve(__dirname, "node_modules/react"),
+    "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+  },
+  dedupe: ["react", "react-dom"],
+},
+```
 
-### File 3: `supabase/functions/daily-xp-evaluation/index.ts`
-- In the missed workouts section (lines 233-250), before penalizing, cross-reference `workout_sessions` for each incomplete calendar event:
-  - Query `workout_sessions` where `client_id = clientId`, `session_date = evalDate`, `status = 'completed'`
-  - For each calendar event with `is_completed=false`, check if its `linked_workout_id` has a completed session. If yes, auto-fix the calendar event and skip the penalty
-- Apply the same cross-check pattern for missed cardio (check `cardio_logs` or completed cardio events)
-- Also update the `target_client_id` queries: change `.eq("user_id", clientId)` to `.or(\`user_id.eq.${clientId},target_client_id.eq.${clientId}\`)` for all calendar event lookups (missed workouts, missed cardio, missed checkins, completed events check)
+### Step 2: Bump cache-buster to v=11
+**File: `capacitor.config.ts`**
+- Change `?v=10` to `?v=11` so WKWebView is forced to fetch the fresh build after publishing.
 
-### Files Changed
+### Step 3: Add no-cache headers hint in index.html
+**File: `index.html`**
+- Add a `<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">` tag in the `<head>` to discourage WKWebView from aggressively caching the HTML shell.
 
-| File | Change |
-|---|---|
-| `src/components/ranked/XPHistoryFeed.tsx` | Grey/white styling for `daily_eval` entries |
-| `src/components/WorkoutLogger.tsx` | Fallback calendar event lookup when `calendarEventId` not provided |
-| `supabase/functions/daily-xp-evaluation/index.ts` | Cross-check workout_sessions before penalizing + support `target_client_id` |
+---
+
+## After Implementation (Your Steps)
+
+1. **Publish** the latest version from Lovable (this deploys to `app.physiquecrafters.com`)
+2. On your Mac, `git pull` the latest code
+3. Run `npm install` (in case lockfile changed)
+4. Run `npx cap sync ios`
+5. Open Xcode, **confirm** no `CAPBridgeViewControllerExtension.swift` or URLCache lines exist
+6. Clean build (Product → Clean Build Folder)
+7. Archive and upload to TestFlight
+
+### Technical Details
+
+The `dispatcher.useRef is null` error occurs when a Radix UI component (like `TooltipProvider`) imports React from a different module instance than the one `createRoot` used. By aliasing `react` and `react-dom` to absolute paths in the project's own `node_modules`, every library resolves to the same singleton — eliminating the crash.
+
+The cache-busting `?v=11` parameter forces WKWebView to treat the URL as new, bypassing any disk cache from previous builds. The meta cache-control tag provides an additional signal to the WebView not to cache the HTML document.
 
