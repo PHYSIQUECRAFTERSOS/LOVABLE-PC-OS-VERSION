@@ -1,33 +1,62 @@
+# Plan: Trainerize-Style Team Page with Client Assignment
 
+## What Changes
 
-# Plan: Three Coach-Side Improvements
+### 1. Team Page — Show all roles properly
 
-## 1. Remove "Programs" from Coach Navigation
+**File: `src/pages/Team.tsx**`
 
-The coach sidebar currently shows a "Programs" link (pointing to `/pricing`) in `coachSecondaryNav`. This is a client-facing pricing page and should not appear for coaches.
+- Add "manager" to the role query filter (currently only queries `admin` and `coach`)
+- Add role labels/colors for "manager" alongside existing admin/coach. Make sure that when my coaches log in they can see all other coaches/ and team members including the owner/manger (me) currently when my coach aaron on my team logs in he does not see my name
+- Update `rolePriority` to include manager (between admin and coach) 
 
-**File: `src/components/AppLayout.tsx`**
-- Remove `{ to: "/pricing", icon: CreditCard, label: "Programs" }` from `coachSecondaryNav` (line 73).
-- Keep it in `clientNav` since clients need it.
+### 2. Team Page — Add "Add Client" button with coach assignment
+
+**File: `src/pages/Team.tsx**`
+
+- Add an "Add Client" button next to the existing "Invite Coach" button in the header
+- Open a new `AddClientWithAssignmentDialog` that includes all existing AddClientDialog fields plus an "Assign To" dropdown listing all staff members (coaches, admins, managers)
+
+### 3. New Component: AddClientWithAssignmentDialog
+
+**New file: `src/components/clients/AddClientWithAssignmentDialog.tsx**`
+
+- Clone the existing `AddClientDialog` logic but add an "Assign To" `<Select>` dropdown
+- On mount, fetch all staff (admin/coach/manager roles) from `user_roles` + `profiles`
+- Default selection: the current logged-in user
+- Pass the selected `assigned_coach_id` to the edge function instead of relying on `user.id`
+
+### 4. Edge Function Update: Accept `assigned_coach_id`
+
+**File: `supabase/functions/send-client-invite/index.ts**`
+
+- Accept an optional `assigned_coach_id` from the request body
+- If provided (and the caller is a valid coach/admin/manager), use it instead of `user.id` for the `assigned_coach_id` field in the invite record
+- If not provided, fall back to `user.id` (backward compatible)
 
 ---
 
-## 2. Fix Meal Plan Saving in Client Profile
+## Technical Details
 
-The `MealPlanBuilder` already has full save logic that works when `clientId` is passed. After investigating the code, the save function at line 539 looks correct — it handles both new inserts and updates to existing plans.
+**Edge function change** (line 108 of `send-client-invite/index.ts`):
 
-The likely issue is that `planName` is empty when building from the client profile, because the builder initializes `planName` to `""` and the save guard `if (!user || !planName) return` silently blocks the save.
+```typescript
+// Before:
+assigned_coach_id: user.id,
 
-**File: `src/components/nutrition/MealPlanBuilder.tsx`**
-- When `clientId` and `dayTypeLabel` are provided (client profile context), auto-set `planName` to the `dayTypeLabel` (e.g., "Training Day") so the save button works without requiring the coach to manually type a name.
-- Make the plan name field pre-populated with the day type label when in client context.
+// After:
+assigned_coach_id: body.assigned_coach_id || user.id,
+```
 
----
+**Staff fetch for the "Assign To" dropdown** uses the same pattern as Team.tsx:
 
-## 3. Add "Build from Scratch" Option in Client Training Tab
+1. Query `user_roles` for `admin`, `coach`, `manager` roles
+2. Fetch matching `profiles` for display names
+3. Render as `<Select>` options
 
-Currently, the Training tab only allows assigning from existing master programs. When no program is assigned, the only option is "Assign Program" which opens a dialog to pick a master template.
+**Role labels map update**:
 
-**File: `src/components/clients/workspace/TrainingTab.tsx`**
-- Add a "Build from Scratch" button alongside "Assign Program" in the empty state.
-- "
+```typescript
+const roleLabels = { admin: "Owner", manager: "Manager", coach: "Coach" };
+const rolePriority = { admin: 0, manager: 1, coach: 2 };
+```
