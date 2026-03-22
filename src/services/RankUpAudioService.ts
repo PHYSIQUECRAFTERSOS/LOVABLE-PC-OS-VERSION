@@ -221,6 +221,45 @@ class RankUpAudioService {
       }
     });
   }
+
+  /** XP Chime — quick 2-note ascending chime for XP celebrations, ~0.4s */
+  async playXPChime(): Promise<void> {
+    const ctx = await this.resume();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.2, now);
+    master.gain.linearRampToValueAtTime(0, now + 0.6);
+    master.connect(ctx.destination);
+
+    // C5 → E5 ascending
+    [523.25, 659.25].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.12);
+      g.gain.setValueAtTime(0, now + i * 0.12);
+      g.gain.linearRampToValueAtTime(0.4, now + i * 0.12 + 0.03);
+      g.gain.linearRampToValueAtTime(0, now + i * 0.12 + 0.35);
+      osc.connect(g);
+      g.connect(master);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.4);
+    });
+
+    // Tiny shimmer
+    const s = ctx.createOscillator();
+    const sg = ctx.createGain();
+    s.type = "triangle";
+    s.frequency.setValueAtTime(1318.5, now + 0.2);
+    sg.gain.setValueAtTime(0, now + 0.2);
+    sg.gain.linearRampToValueAtTime(0.08, now + 0.25);
+    sg.gain.linearRampToValueAtTime(0, now + 0.5);
+    s.connect(sg);
+    sg.connect(master);
+    s.start(now + 0.2);
+    s.stop(now + 0.55);
+  }
 }
 
 export const rankUpAudio = new RankUpAudioService();
