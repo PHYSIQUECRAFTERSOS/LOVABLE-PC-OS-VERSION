@@ -1,38 +1,33 @@
 
 
-# Fix: StoreKit Plugin Not Found in TestFlight
+# Plan: Three Coach-Side Improvements
 
-## Problem
-The `Subscribe` page, `SubscriptionCard`, and `useSubscription` hook all access the StoreKit plugin via:
-```typescript
-(window as any).Capacitor?.Plugins?.StoreKit
-```
-This is a **legacy Capacitor 2 pattern**. In Capacitor 4+, custom native plugins must be registered using `registerPlugin()` from `@capacitor/core`. The plugin exists in your Xcode project but the JS side cannot find it, so the code falls back to `window.open("https://physiquecrafters.com")`.
+## 1. Remove "Programs" from Coach Navigation
 
-## Fix
+The coach sidebar currently shows a "Programs" link (pointing to `/pricing`) in `coachSecondaryNav`. This is a client-facing pricing page and should not appear for coaches.
 
-### Step 1: Create a StoreKit plugin bridge file
-**New file: `src/plugins/StoreKitPlugin.ts`**
+**File: `src/components/AppLayout.tsx`**
+- Remove `{ to: "/pricing", icon: CreditCard, label: "Programs" }` from `coachSecondaryNav` (line 73).
+- Keep it in `clientNav` since clients need it.
 
-Use `registerPlugin` from `@capacitor/core` to create a typed JS bridge for the native StoreKit plugin:
-```typescript
-import { registerPlugin } from '@capacitor/core';
+---
 
-export interface StoreKitPlugin {
-  showPaywall(): Promise<void>;
-  checkSubscription(): Promise<{ hasSubscription: boolean; productIDs?: string[] }>;
-  restorePurchases(): Promise<{ hasSubscription: boolean; productIDs?: string[] }>;
-}
+## 2. Fix Meal Plan Saving in Client Profile
 
-const StoreKit = registerPlugin<StoreKitPlugin>('StoreKit');
-export default StoreKit;
-```
+The `MealPlanBuilder` already has full save logic that works when `clientId` is passed. After investigating the code, the save function at line 539 looks correct — it handles both new inserts and updates to existing plans.
 
-### Step 2: Update `useSubscription.tsx`
-Replace the `getStoreKit()` function that uses `window.Capacitor?.Plugins?.StoreKit` with an import of the registered plugin, and use `Capacitor.isNativePlatform()` to gate native-only calls.
+The likely issue is that `planName` is empty when building from the client profile, because the builder initializes `planName` to `""` and the save guard `if (!user || !planName) return` silently blocks the save.
 
-### Step 3: Update `Subscribe.tsx`
-Same change — import the registered plugin and use `Capacitor.isNativePlatform()` instead of checking if `getStoreKit()` returns null.
+**File: `src/components/nutrition/MealPlanBuilder.tsx`**
+- When `clientId` and `dayTypeLabel` are provided (client profile context), auto-set `planName` to the `dayTypeLabel` (e.g., "Training Day") so the save button works without requiring the coach to manually type a name.
+- Make the plan name field pre-populated with the day type label when in client context.
 
-### Step 4: Update `SubscriptionCard.tsx`
-Replace the inline `window.Capacitor?.Plugins?.Store
+---
+
+## 3. Add "Build from Scratch" Option in Client Training Tab
+
+Currently, the Training tab only allows assigning from existing master programs. When no program is assigned, the only option is "Assign Program" which opens a dialog to pick a master template.
+
+**File: `src/components/clients/workspace/TrainingTab.tsx`**
+- Add a "Build from Scratch" button alongside "Assign Program" in the empty state.
+- "
