@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CreditCard, Loader2 } from "lucide-react";
 import { useSubscription, TIER_MAP } from "@/hooks/useSubscription";
 import { useToast } from "@/hooks/use-toast";
+import { Capacitor } from "@capacitor/core";
 
 const SubscriptionCard = () => {
   const navigate = useNavigate();
@@ -12,8 +13,7 @@ const SubscriptionCard = () => {
   const { isSubscribed, tier, tierLabel, loading, restorePurchases } = useSubscription();
 
   const handleManage = () => {
-    const sk = (window as any).Capacitor?.Plugins?.StoreKit;
-    if (sk) {
+    if (Capacitor.isNativePlatform()) {
       window.open("https://apps.apple.com/account/subscriptions", "_blank");
     } else {
       toast({ title: "Manage your subscription in the iOS app" });
@@ -29,7 +29,6 @@ const SubscriptionCard = () => {
     }
   };
 
-  // Never hide the card — show a brief loader but cap it so Apple reviewers always see content
   if (loading) {
     return (
       <Card>

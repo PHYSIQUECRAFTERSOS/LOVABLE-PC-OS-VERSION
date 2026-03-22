@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { Capacitor } from "@capacitor/core";
+import StoreKit from "@/plugins/StoreKitPlugin";
 
 interface SubscriptionState {
   isSubscribed: boolean;
@@ -24,9 +26,7 @@ const SubscriptionContext = createContext<SubscriptionState>({
   restorePurchases: async () => false,
 });
 
-function getStoreKit() {
-  return (window as any).Capacitor?.Plugins?.StoreKit ?? null;
-}
+const isNative = Capacitor.isNativePlatform();
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [isSubscribed, setIsSubscribed] = useState(false);
@@ -47,18 +47,15 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const checkSubscription = useCallback(async () => {
-    const sk = getStoreKit();
-    if (sk && typeof sk.checkSubscription === "function") {
+    if (isNative) {
       try {
-        // Race against a timeout to prevent hanging in broken native shells
         const result = await Promise.race([
-          sk.checkSubscription(),
+          StoreKit.checkSubscription(),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
         ]);
         if (result && typeof result === "object") {
           applyResult(result.hasSubscription, result.productIDs?.[0]);
         } else {
-          // Timed out or invalid result — fall back to cache
           const saved = localStorage.getItem("subscriptionActive") === "true";
           setIsSubscribed(saved);
           setTier(saved ? localStorage.getItem("subscriptionTier") : null);
@@ -77,10 +74,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   }, [applyResult]);
 
   const restorePurchases = useCallback(async (): Promise<boolean> => {
-    const sk = getStoreKit();
-    if (!sk) return false;
+    if (!isNative) return false;
     try {
-      const result = await sk.restorePurchases();
+      const result = await StoreKit.restorePurchases();
       applyResult(result.hasSubscription, result.productIDs?.[0]);
       return result.hasSubscription;
     } catch {
@@ -88,7 +84,6 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
   }, [applyResult]);
 
-  // Listen for native subscription events
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -98,7 +93,6 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("subscriptionUpdate", handler);
   }, [applyResult]);
 
-  // Check on mount + safety timeout so loading never hangs
   useEffect(() => {
     checkSubscription();
     const safety = setTimeout(() => setLoading(false), 6000);
