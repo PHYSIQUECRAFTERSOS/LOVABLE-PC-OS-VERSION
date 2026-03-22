@@ -425,12 +425,49 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   if (loading) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>;
 
   if (!assignment || !program) {
+    const handleBuildFromScratch = async () => {
+      if (!user) return;
+      setAssigning(true);
+      try {
+        const { data: newProg, error: progErr } = await supabase.from("programs").insert({
+          coach_id: user.id, client_id: clientId, name: "Custom Program",
+          is_template: false, is_master: false,
+        } as any).select().single();
+        if (progErr || !newProg) throw progErr || new Error("Failed to create program");
+
+        const { data: newPhase } = await supabase.from("program_phases").insert({
+          program_id: newProg.id, name: "Phase 1", phase_order: 1, duration_weeks: 4,
+        }).select().single();
+
+        await supabase.from("client_program_assignments").update({ status: "completed" })
+          .eq("client_id", clientId).eq("status", "active");
+
+        await supabase.from("client_program_assignments").insert({
+          client_id: clientId, coach_id: user.id, program_id: newProg.id,
+          current_phase_id: newPhase?.id || null, status: "active",
+          is_linked_to_master: false, master_version_number: 1,
+        });
+
+        toast({ title: "Program created", description: "Start adding workouts to your new program." });
+        loadClientProgram();
+      } catch (err: any) {
+        toast({ title: "Error", description: err?.message || "Failed to create program", variant: "destructive" });
+      } finally {
+        setAssigning(false);
+      }
+    };
+
     return (
       <Card>
         <CardContent className="pt-6 text-center space-y-4">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto"><Dumbbell className="h-8 w-8 text-muted-foreground" /></div>
           <p className="text-muted-foreground">No training program assigned yet.</p>
-          <Button onClick={openAssignDialog}><Plus className="h-4 w-4 mr-2" /> Assign Program</Button>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <Button onClick={openAssignDialog}><Plus className="h-4 w-4 mr-2" /> Assign Program</Button>
+            <Button variant="outline" onClick={handleBuildFromScratch} disabled={assigning}>
+              <Dumbbell className="h-4 w-4 mr-2" /> Build from Scratch
+            </Button>
+          </div>
           <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
             selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
             loading={assigning} mode={assignMode} onModeChange={setAssignMode} />
