@@ -403,6 +403,36 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     setEditMode(false);
   };
 
+  const handleBulkDelete = async () => {
+    if (!user || selectedIds.size === 0) return;
+    setDeletingSelected(true);
+
+    const idsToDelete = Array.from(selectedIds);
+    const previous = logs;
+    setLogs(current => current.filter(log => !selectedIds.has(log.id)));
+
+    const { error } = await supabase
+      .from("nutrition_logs")
+      .delete()
+      .in("id", idsToDelete)
+      .eq("client_id", user.id);
+
+    if (error) {
+      setLogs(previous);
+      toast({ title: "Couldn't delete items", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `${idsToDelete.length} item${idsToDelete.length > 1 ? "s" : ""} deleted` });
+      window.dispatchEvent(new CustomEvent("nutrition-logs-updated", { detail: { date: dateStr } }));
+      refreshSuggestions();
+    }
+
+    setDeletingSelected(false);
+    setDeleteConfirmOpen(false);
+    setSelectedIds(new Set());
+    setEditMode(false);
+    await fetchLogs();
+  };
+
   const isToday = getLocalDateString() === dateStr;
 
   return (
