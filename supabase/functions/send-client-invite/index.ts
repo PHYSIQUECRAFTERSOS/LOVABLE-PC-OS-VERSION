@@ -52,7 +52,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, first_name, last_name, phone, client_type, tags, invite_id, tier_id, tier_name } = body;
+    const { email, first_name, last_name, phone, client_type, tags, invite_id, tier_id, tier_name, assigned_coach_id } = body;
 
     if (!email || !first_name || !last_name) {
       return new Response(
@@ -105,7 +105,7 @@ serve(async (req) => {
         last_name,
         phone: phone || null,
         client_type: client_type || "full_access",
-        assigned_coach_id: user.id,
+        assigned_coach_id: assigned_coach_id || user.id,
         invite_token: token,
         invite_status: "pending",
         expires_at: expiresAt,
