@@ -105,7 +105,7 @@ serve(async (req) => {
         last_name,
         phone: phone || null,
         client_type: client_type || "full_access",
-        assigned_coach_id: user.id,
+        assigned_coach_id: assigned_coach_id || user.id,
         invite_token: token,
         invite_status: "pending",
         expires_at: expiresAt,
