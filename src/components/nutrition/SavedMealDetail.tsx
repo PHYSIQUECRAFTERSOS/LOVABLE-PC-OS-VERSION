@@ -327,19 +327,48 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
     if (!user || items.length === 0) return;
     setLogging(true);
 
-    const entries = items.map(item => ({
-      client_id: user.id,
-      food_item_id: item.food_item_id || null,
-      custom_name: item.food_item_id ? null : item.food_name,
-      meal_type: mealType,
-      servings: item.quantity || 1,
-      calories: Math.round(item.calories || 0),
-      protein: Math.round(item.protein || 0),
-      carbs: Math.round(item.carbs || 0),
-      fat: Math.round(item.fat || 0),
-      logged_at: logDate,
-      tz_corrected: true,
-    }));
+    // Fetch micros for items that have food_item_ids
+    const foodItemIds = items.filter(i => i.food_item_id).map(i => i.food_item_id);
+    const microsMap: Record<string, Record<string, number>> = {};
+    if (foodItemIds.length > 0) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: foodItems } = await supabase
+          .from("food_items")
+          .select("*")
+          .in("id", foodItemIds);
+        if (foodItems) {
+          foodItems.forEach((fi: any) => {
+            microsMap[fi.id] = extractMicros(fi, 1);
+          });
+        }
+      } catch (err) {
+        console.warn("[SavedMealDetail] Could not fetch micros:", err);
+      }
+    }
+
+    const entries = items.map(item => {
+      const servings = item.quantity || 1;
+      const itemMicros = item.food_item_id && microsMap[item.food_item_id]
+        ? Object.fromEntries(
+            Object.entries(microsMap[item.food_item_id]).map(([k, v]) => [k, Math.round(v * servings * 100) / 100])
+          )
+        : {};
+      return {
+        client_id: user.id,
+        food_item_id: item.food_item_id || null,
+        custom_name: item.food_item_id ? null : item.food_name,
+        meal_type: mealType,
+        servings,
+        calories: Math.round(item.calories || 0),
+        protein: Math.round(item.protein || 0),
+        carbs: Math.round(item.carbs || 0),
+        fat: Math.round(item.fat || 0),
+        logged_at: logDate,
+        tz_corrected: true,
+        ...itemMicros,
+      };
+    });
 
     const { error } = await supabase.from("nutrition_logs").insert(entries);
     if (error) {

@@ -448,11 +448,29 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
       if (newItem) foodItemId = newItem.id;
     }
 
+    // Fetch micros from food_items if available
+    let micros: Record<string, number> = {};
+    if (foodItemId) {
+      try {
+        const { extractMicros } = await import("@/utils/micronutrientHelper");
+        const { data: fullFood } = await supabase
+          .from("food_items")
+          .select("*")
+          .eq("id", foodItemId)
+          .maybeSingle();
+        if (fullFood) {
+          micros = extractMicros(fullFood, numServings);
+        }
+      } catch (err) {
+        console.warn("[BarcodeScanner] Could not fetch micros:", err);
+      }
+    }
+
     const { getLocalDateString } = await import("@/utils/localDate");
     const { error } = await supabase.from("nutrition_logs").insert({
       client_id: user.id,
       food_item_id: foodItemId,
-      custom_name: product.name, // ALWAYS set custom_name for display fallback
+      custom_name: product.name,
       meal_type: mealType,
       servings: numServings,
       calories: nutrition.calories,
@@ -463,7 +481,8 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
       quantity_unit: "g",
       logged_at: getLocalDateString(),
       tz_corrected: true,
-    });
+      ...micros,
+    } as any);
 
     setLogging(false);
 
