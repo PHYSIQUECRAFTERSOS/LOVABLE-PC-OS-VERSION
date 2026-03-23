@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Capacitor } from "@capacitor/core";
@@ -21,6 +21,22 @@ export interface DailyMetrics {
   source: string;
 }
 
+// ── Timeout wrapper for native plugin calls ──
+// Capacitor plugin calls can hang forever if the native bridge isn't
+// properly registered. This ensures the UI always unblocks.
+function pluginTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms / 1000}s. Make sure HealthKit is enabled in Xcode.`));
+    }, ms);
+
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 export function useHealthSync() {
   const { user } = useAuth();
   const [connection, setConnection] = useState<HealthConnection | null>(null);
@@ -29,9 +45,17 @@ export function useHealthSync() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
+  // Keep a ref to the latest connection so syncNow never reads stale state
+  const connectionRef = useRef<HealthConnection | null>(null);
+
   const isNative = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
   const provider = platform === "ios" ? "apple_health" : "google_fit";
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    connectionRef.current = connection;
+  }, [connection]);
 
   const fetchConnection = useCallback(async () => {
     if (!user) return;
@@ -42,7 +66,9 @@ export function useHealthSync() {
       .eq("provider", provider)
       .maybeSingle();
 
-    setConnection(data as HealthConnection | null);
+    const conn = data as HealthConnection | null;
+    setConnection(conn);
+    connectionRef.current = conn;
   }, [user, provider]);
 
   const fetchMetrics = useCallback(async () => {
@@ -107,33 +133,58 @@ export function useHealthSync() {
     return mod.default;
   };
 
-  const connect = useCallback(async () => {
-    if (!user) return;
+  /**
+   * Connect to Apple Health (or Google Fit placeholder).
+   * Returns the created/updated connection record so the caller
+   * can pass it to syncNow without waiting for React state.
+   * THROWS on failure — caller must catch.
+   */
+  const connect = useCallback(async (): Promise<HealthConnection> => {
+    if (!user) throw new Error("Not authenticated");
 
     if (isNative && platform === "ios") {
+      console.log("[HealthSync] Starting Apple Health connect flow…");
+
+      let HealthKit: Awaited<ReturnType<typeof getHealthKitPlugin>>;
       try {
-        const HealthKit = await getHealthKitPlugin();
-        const { available } = await HealthKit.isAvailable();
-        if (!available) {
-          console.error("[HealthSync] HealthKit not available on this device");
-          return;
-        }
-        await HealthKit.requestAuthorization();
-        console.log("[HealthSync] HealthKit authorization requested");
+        HealthKit = await pluginTimeout(getHealthKitPlugin(), 5000, "HealthKit plugin load");
       } catch (err) {
-        console.error("[HealthSync] HealthKit authorization failed:", err);
-        return;
+        console.error("[HealthSync] Failed to load HealthKit plugin:", err);
+        throw new Error("HealthKit plugin failed to load. Ensure the native plugin is registered in Xcode.");
+      }
+
+      // 1. Check availability (5s timeout)
+      console.log("[HealthSync] Checking HealthKit availability…");
+      let available = false;
+      try {
+        const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
+        available = result.available;
+        console.log("[HealthSync] HealthKit available:", available);
+      } catch (err) {
+        console.error("[HealthSync] isAvailable failed:", err);
+        throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+      }
+
+      if (!available) {
+        throw new Error("HealthKit is not available on this device.");
+      }
+
+      // 2. Request authorization (30s timeout — user interacts with dialog)
+      console.log("[HealthSync] Requesting HealthKit authorization…");
+      try {
+        const authResult = await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
+        console.log("[HealthSync] Authorization result:", authResult);
+      } catch (err) {
+        console.error("[HealthSync] Authorization failed:", err);
+        throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
       }
     } else if (isNative) {
       // Android: placeholder for Google Fit native integration
-      try {
-        console.log(`[HealthSync] Requesting ${provider} permissions on native device...`);
-      } catch (err) {
-        console.error("[HealthSync] Permission request failed:", err);
-        return;
-      }
+      console.log(`[HealthSync] Requesting ${provider} permissions on native device (placeholder)…`);
     }
 
+    // 3. Upsert connection record
+    console.log("[HealthSync] Saving connection to database…");
     const { data, error } = await supabase
       .from("health_connections")
       .upsert(
@@ -151,9 +202,17 @@ export function useHealthSync() {
       .select()
       .single();
 
-    if (!error && data) {
-      setConnection(data as HealthConnection);
+    if (error) {
+      console.error("[HealthSync] DB upsert failed:", error);
+      throw new Error("Failed to save connection. Please try again.");
     }
+
+    const conn = data as HealthConnection;
+    setConnection(conn);
+    connectionRef.current = conn;
+    console.log("[HealthSync] Connection saved successfully:", conn.id);
+
+    return conn;
   }, [user, isNative, platform, provider]);
 
   const disconnect = useCallback(async () => {
@@ -171,29 +230,44 @@ export function useHealthSync() {
     setConnection((prev) =>
       prev ? { ...prev, is_connected: false } : null
     );
+    connectionRef.current = null;
   }, [user, connection]);
 
-  const syncNow = useCallback(async () => {
-    if (!user || !connection?.is_connected) return;
+  /**
+   * Sync health data now.
+   * Accepts an optional connectionOverride to bypass the React state
+   * race condition when called immediately after connect().
+   */
+  const syncNow = useCallback(async (connectionOverride?: HealthConnection) => {
+    const conn = connectionOverride ?? connectionRef.current;
+    if (!user || !conn?.is_connected) {
+      console.warn("[HealthSync] syncNow skipped — no connected health connection", {
+        hasUser: !!user,
+        connId: conn?.id,
+        isConnected: conn?.is_connected,
+      });
+      return;
+    }
     setSyncing(true);
 
     try {
       await supabase
         .from("health_connections")
         .update({ sync_status: "syncing" })
-        .eq("id", connection.id);
+        .eq("id", conn.id);
 
       const today = new Date().toISOString().split("T")[0];
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
 
       if (isNative && platform === "ios") {
         // Native iOS: query real HealthKit data
+        console.log("[HealthSync] Querying HealthKit data…");
         const HealthKit = await getHealthKitPlugin();
 
         const [stepsResult, energyResult, distanceResult] = await Promise.all([
-          HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
-          HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
-          HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
+          pluginTimeout(HealthKit.querySteps({ startDate: weekAgo, endDate: today }), 15000, "querySteps"),
+          pluginTimeout(HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }), 15000, "queryActiveEnergy"),
+          pluginTimeout(HealthKit.queryDistance({ startDate: weekAgo, endDate: today }), 15000, "queryDistance"),
         ]);
 
         // Build a map of date → metrics
@@ -259,7 +333,7 @@ export function useHealthSync() {
           sync_status: "idle",
           last_sync_at: new Date().toISOString(),
         })
-        .eq("id", connection.id);
+        .eq("id", conn.id);
 
       await Promise.all([fetchConnection(), fetchMetrics()]);
     } catch (err) {
@@ -270,11 +344,12 @@ export function useHealthSync() {
           sync_status: "error",
           sync_error: String(err),
         })
-        .eq("id", connection.id);
+        .eq("id", conn.id);
+      throw err; // Re-throw so caller can show error toast
     } finally {
       setSyncing(false);
     }
-  }, [user, connection, isNative, platform, fetchConnection, fetchMetrics]);
+  }, [user, isNative, platform, fetchConnection, fetchMetrics]);
 
   const updateStepGoal = useCallback(
     async (goal: number) => {

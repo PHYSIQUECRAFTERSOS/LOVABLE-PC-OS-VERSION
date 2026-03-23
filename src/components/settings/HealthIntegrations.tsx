@@ -173,12 +173,20 @@ const HealthIntegrations = () => {
   const handleConnectAppleHealth = async () => {
     setConnectingProvider("apple_health");
     try {
-      await healthSync.connect();
+      // connect() now returns the connection record and THROWS on failure
+      const conn = await healthSync.connect();
       toast({ title: "Apple Health connected!", description: "Syncing your health data now." });
-      // Trigger initial sync after connecting
-      await healthSync.syncNow();
+
+      // Pass connection directly to avoid React state race condition
+      try {
+        await healthSync.syncNow(conn);
+      } catch (syncErr: any) {
+        console.warn("[HealthIntegrations] Initial sync failed (connection succeeded):", syncErr);
+        toast({ title: "Sync warning", description: "Connected, but initial sync failed. Try syncing again.", variant: "destructive" });
+      }
     } catch (err: any) {
-      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
+      console.error("[HealthIntegrations] Apple Health connect failed:", err);
+      toast({ title: "Connection failed", description: err.message || "Unable to connect to Apple Health.", variant: "destructive" });
     } finally {
       setConnectingProvider(null);
     }
