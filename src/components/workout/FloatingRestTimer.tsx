@@ -51,6 +51,9 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
 
     worker.postMessage({ type: "start", endTime });
 
+    // Start keepalive to prevent iOS from suspending AudioContext
+    restTimerAudio.startKeepAlive();
+
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         restTimerAudio.unlock();
