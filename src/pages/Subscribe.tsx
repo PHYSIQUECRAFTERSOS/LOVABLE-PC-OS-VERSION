@@ -14,6 +14,7 @@ interface Plan {
   productId: string;
   title: string;
   price: string;
+  duration: string;
   badge?: string;
   features: string[];
 }
@@ -23,10 +24,11 @@ const DEFAULT_PLANS: Plan[] = [
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
     title: "Weekly Updates",
-    price: "$399.99/mo",
+    price: "$399.99/month",
+    duration: "1 month · Auto-renewable",
     badge: "MOST POPULAR",
     features: [
-      "Weekly progress updates",
+      "Weekly progress updates each week reviewing over your progress and we make changes to your program as necessary",
       "Customized Training Program",
       "Customized Meal Plan",
       "Customized Supplement Plan",
@@ -36,9 +38,10 @@ const DEFAULT_PLANS: Plan[] = [
     id: "biweekly",
     productId: "com.physiquecrafters.app.biweekly",
     title: "Bi-Weekly Updates",
-    price: "$299.99/mo",
+    price: "$299.99/month",
+    duration: "1 month · Auto-renewable",
     features: [
-      "Bi-Weekly progress updates",
+      "Bi-weekly progress updates every other week reviewing over your progress and we make changes to your program as necessary",
       "Customized Training Program",
       "Customized Meal Plan",
       "Customized Supplement Plan",
@@ -48,8 +51,9 @@ const DEFAULT_PLANS: Plan[] = [
     id: "training",
     productId: "com.physiquecrafters.app.training",
     title: "Training Only",
-    price: "$174.99/2mo",
-    features: ["Customized Training Program"],
+    price: "$174.99/2 months",
+    duration: "2 months · Auto-renewable",
+    features: ["Customized Training Program updated every 2 months"],
   },
 ];
 
@@ -186,10 +190,11 @@ const Subscribe = () => {
                     : "border-border bg-card hover:border-primary/40"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-foreground">{plan.title}</span>
                   <span className="text-primary font-bold">{plan.price}</span>
                 </div>
+                <span className="text-[10px] text-muted-foreground block mb-2">{plan.duration}</span>
                 {plan.badge && (
                   <span className="inline-block text-[10px] font-bold border border-primary/50 text-primary px-2 py-0.5 rounded-full mb-2">
                     {plan.badge}
@@ -226,8 +231,12 @@ const Subscribe = () => {
         </button>
 
         <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-          Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
-          automatically renews unless canceled at least 24 hours before the end of the current period.
+          Subscriptions automatically renew unless canceled at least 24 hours before the end of the
+          current period. Weekly Updates and Bi-Weekly Updates are billed monthly ($399.99/month and
+          $299.99/month respectively). Training Only is billed every 2 months ($174.99/2 months). No
+          long-term commitment required — cancel anytime. Payment will be charged to your Apple ID
+          account at confirmation of purchase. You can manage or cancel your subscription in your
+          Apple ID Account Settings.
         </p>
 
         <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
