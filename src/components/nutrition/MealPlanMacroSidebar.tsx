@@ -426,7 +426,7 @@ const MealPlanMacroSidebar = ({
               {/* Calorie summary */}
               <div className="text-center space-y-1">
                 <div className="text-2xl font-bold text-foreground tabular-nums">
-                  {current.calories}
+                  {Math.round(current.calories)}
                   <span className="text-sm text-muted-foreground font-normal">
                     {" "}
                     / {targets.calories} cal
