@@ -1,57 +1,55 @@
 
 
-# Plan: Fix 4 Nutrition Tracker Issues
+# Plan: Fix Meal Plan Template Builder Macro Math Precision
 
-## Issue 1: EditFoodModal — Show original serving size, not just g/oz
+## The Problem
 
-**Problem**: When you tap a logged food (e.g., "1 croissant"), the edit drawer only offers g and oz units. It should show the food's original serving unit (e.g., "serving" = 1 croissant = 67g).
+You have ~30+ food items in your meal plan. The current system rounds **per item** before summing, causing cumulative rounding drift of ~50 calories across the full day. Here's exactly what's happening:
 
-**Fix in `src/components/nutrition/EditFoodModal.tsx`**:
-- When loading from `food_items`, also fetch `serving_unit` and `serving_description`
-- Add a "serving" button alongside g/oz that represents the food's natural unit (e.g., "1 croissant", "1 scoop")
-- When "serving" is selected, quantity represents number of servings, multiplier = quantity directly
-- Pre-select "serving" mode when `quantity_unit === "serving"` in the log entry
+**Current `calcMacros` function (line 85-94):**
+```
+calories: Math.round(cal_per_100 * grams / 100)  ← rounds to integer PER FOOD
+protein:  +(protein_per_100 * grams / 100).toFixed(1)  ← rounds to 1 decimal PER FOOD
+```
 
-## Issue 2: Favorites star button not working for clients
+With 30 items, each rounded individually, you lose up to ±0.5 cal per item = **±15 calories** from rounding alone. But the real culprit is the **calorie vs macro mismatch**: food database calories are independently measured values, NOT derived from `(protein×4 + carbs×4 + fat×9)`. So even when protein/carbs/fat sum perfectly to your target, the database calories can diverge by 1-3 cal per item — across 30 items that's your 51 cal gap.
 
-**Problem**: When a client taps the star on a search result, `handleToggleFavorite` calls `toggle_food_favorite` with the food's ID. For non-local foods (from FatSecret/USDA), this ID isn't in `food_items`. When the Favorites tab loads, it queries `food_items` by those IDs and finds nothing.
+Additionally, `getMealTotals` (line 501) and `getDayTotals` (line 517) call `.toFixed(1)` at every accumulation step, compounding rounding errors.
 
-**Fix in `src/components/nutrition/AddFoodScreen.tsx`**:
-- In `handleToggleFavorite`, if the food is non-local (source !== "local"), first import it via `importOFFFood` to get a local `food_items` ID
-- Then call `toggle_food_favorite` with the imported ID
-- Update the item's ID in the results/favorites state so subsequent toggles use the correct ID
+## The Fix
 
-## Issue 3: Auto-dismiss "food logged" toast after 1 second
+### File: `src/components/nutrition/MealPlanBuilder.tsx`
 
-**Problem**: The "Chicken Breast logged" banner lingers indefinitely.
+**1. Accumulate raw floats, round only at display**
 
-**Fix in `src/components/nutrition/AddFoodScreen.tsx`**:
-- In `logFood`, `handleDetailConfirm`, `logSavedMealQuick`, `handleQuickAdd`, and `logCustomFood` — after calling `toast({ title: "...logged" })`, call `dismiss()` after 1 second using `setTimeout`
-- Pattern: `const t = toast({ title: "..." }); setTimeout(() => t.dismiss(), 1000);`
+Change `calcMacros` to return unrounded values:
+```typescript
+const calcMacros = (food: MealFood) => {
+  const m = food.gram_amount / 100;
+  return {
+    calories: food.cal_per_100 * m,
+    protein: food.protein_per_100 * m,
+    carbs: food.carbs_per_100 * m,
+    fat: food.fat_per_100 * m,
+    fiber: food.fiber_per_100 * m,
+    sugar: food.sugar_per_100 * m,
+  };
+};
+```
 
-## Issue 4: Display serving sizes properly in tracker (not "1 serving")
+**2. Fix `getMealTotals` and `getDayTotals`** — remove per-step `.toFixed(1)` calls, accumulate raw sums, round only in the final return or at the display layer.
 
-**Problem**: Logged foods show "1 serving" or raw grams like "3g" for eggs. Should show natural units like "120g", "1 egg", "3 eggs".
+**3. Round at display points only** — the rendering JSX and the `MealPlanMacroSidebar` already call `Math.round()` when showing values, so no changes needed there.
 
-**Fix in `src/components/nutrition/DailyNutritionLog.tsx`**:
-- Update the food entry display line (around line 603-606) to show:
-  - If `quantity_unit` is "serving": show `{quantity_display} serving` (or fetch serving_description from food_items)
-  - If `quantity_unit` is "g": show `{quantity_display}g`
-  - If `quantity_unit` is "oz": show `{quantity_display} oz`
-- Also enhance by loading `serving_description` from `food_items` for each logged item so we can show "1 croissant" instead of "1 serving"
-- Add `serving_description` to the food_items fetch in `fetchLogs`
+**4. Keep `handleSave` persistence rounding** — when writing to `meal_plan_items`, `Math.round()` is correct for database storage (integers in the DB).
 
-## Issue 5: Tab label changes in AddFoodScreen
+### Impact
 
-**Fix in `src/components/nutrition/AddFoodScreen.tsx`**:
-- Change TABS array:
-  - `"★ Favorites"` → `"Favs"` (keep the star icon inline)
-  - `"My Meals"` → render with line break: `"My\nMeals"` using `whitespace-pre-line` on the tab button
+- Sidebar totals will now be accurate to ±1 calorie across any number of items
+- Protein/carbs/fat "remaining" will be precise
+- No changes to the database schema, sidebar UI, or save logic
+- All rounding happens at the two correct boundaries: display and persistence
 
----
-
-### Files to modify:
-1. `src/components/nutrition/EditFoodModal.tsx` — Add serving unit option
-2. `src/components/nutrition/AddFoodScreen.tsx` — Fix favorites import, auto-dismiss toasts, tab labels
-3. `src/components/nutrition/DailyNutritionLog.tsx` — Better serving display with serving_description
+### Files to modify
+- `src/components/nutrition/MealPlanBuilder.tsx` — 3 functions: `calcMacros`, `getMealTotals`, `getDayTotals`
 
