@@ -2,10 +2,14 @@ import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Camera, ArrowLeft, Check, SkipForward } from "lucide-react";
+import { Camera, ArrowLeft, Check, SkipForward, Images } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import browserImageCompression from "browser-image-compression";
+
+import frontPoseImg from "@/assets/poses/front-pose.jpeg";
+import sidePoseImg from "@/assets/poses/side-pose.jpeg";
+import backPoseImg from "@/assets/poses/back-pose.jpeg";
 
 type Angle = "front" | "side" | "back";
 
@@ -16,21 +20,24 @@ interface PhotosPopupProps {
   onCompleted: () => void;
 }
 
-const POSES: { angle: Angle; label: string; guideImage: string }[] = [
+const POSES: { angle: Angle; label: string; subtitle: string; guideImage: string }[] = [
   {
     angle: "front",
-    label: "Front",
-    guideImage: "/assets/poses/front-pose.jpg",
+    label: "Front View",
+    subtitle: "Full Body, Relaxed.",
+    guideImage: frontPoseImg,
   },
   {
     angle: "side",
-    label: "Side",
-    guideImage: "/assets/poses/side-pose.jpg",
+    label: "Side View",
+    subtitle: "Full Body, Profile.",
+    guideImage: sidePoseImg,
   },
   {
     angle: "back",
-    label: "Back",
-    guideImage: "/assets/poses/back-pose.jpg",
+    label: "Back View",
+    subtitle: "Full Body.",
+    guideImage: backPoseImg,
   },
 ];
 
@@ -57,7 +64,6 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
       const preview = URL.createObjectURL(compressed);
       setFiles(prev => ({ ...prev, [currentPose.angle]: compressed }));
       setPreviews(prev => ({ ...prev, [currentPose.angle]: preview }));
-      // Auto-advance after brief preview
       setTimeout(() => advanceStep(), 800);
     } catch {
       toast({ title: "Failed to process image", variant: "destructive" });
@@ -106,7 +112,6 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
         });
       }
 
-      // Mark calendar event complete
       await supabase.from("calendar_events").update({
         is_completed: true,
         completed_at: new Date().toISOString(),
@@ -132,7 +137,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -143,11 +148,11 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
       </div>
 
       <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6">
-        {/* Intro Screen */}
+        {/* Intro Screen — Trainerize style */}
         {step === "intro" && (
           <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-            <div className="h-24 w-24 rounded-full border-2 border-primary flex items-center justify-center">
-              <Camera className="h-10 w-10 text-muted-foreground" />
+            <div className="h-28 w-28 rounded-full border-2 border-primary flex items-center justify-center">
+              <Images className="h-12 w-12 text-muted-foreground" />
             </div>
             <div className="text-center">
               <p className="text-xl font-bold text-foreground">Take Progress Photos</p>
@@ -156,7 +161,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
           </div>
         )}
 
-        {/* Step-by-step Pose Guide */}
+        {/* Step-by-step Pose Guide — Trainerize card style */}
         {typeof step === "number" && currentPose && (
           <div className="flex flex-col items-center gap-5 w-full max-w-sm">
             {/* Step indicator */}
@@ -171,18 +176,19 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
               ))}
             </div>
 
-            {/* Pose Card */}
-            <div className="w-full rounded-2xl bg-card border border-border overflow-hidden shadow-lg">
+            {/* Pose Card — white card like Trainerize */}
+            <div className="w-full rounded-2xl bg-white overflow-hidden shadow-xl">
+              {/* Pose label */}
               <div className="px-5 pt-4 pb-2">
-                <span className="text-lg font-bold text-foreground">{currentPose.label}</span>
+                <span className="text-lg font-bold text-gray-900">{currentPose.label.split(" ")[0]}</span>
               </div>
 
-              <div className="relative px-5 pb-4">
+              <div className="relative px-5 pb-2">
                 {previews[currentPose.angle] ? (
                   <div className="relative">
                     <img
                       src={previews[currentPose.angle]!}
-                      alt={`${currentPose.label} photo uploaded`}
+                      alt={`${currentPose.label} uploaded`}
                       className="w-full rounded-xl object-cover max-h-[400px]"
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
@@ -192,37 +198,64 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                     </div>
                   </div>
                 ) : (
-                  <img
-                    src={currentPose.guideImage}
-                    alt={`${currentPose.label} pose guide`}
-                    className="w-full rounded-xl object-contain max-h-[400px]"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "/placeholder.svg";
-                    }}
-                  />
+                  <div className="relative">
+                    {/* Guide image with alignment lines */}
+                    <div className="relative">
+                      {/* Horizontal guide lines */}
+                      <div className="absolute top-[15%] left-0 right-0 border-t border-gray-300/60 z-10">
+                        <span className="absolute right-2 -top-4 text-[11px] text-gray-400 font-medium">Eyes</span>
+                      </div>
+                      <div className="absolute top-[70%] left-0 right-0 border-t border-gray-300/60 z-10">
+                        <span className="absolute right-2 -top-4 text-[11px] text-gray-400 font-medium">Hip</span>
+                      </div>
+                      {/* Vertical center line */}
+                      <div className="absolute top-0 bottom-0 left-1/2 border-l border-gray-300/40 z-10" />
+
+                      <img
+                        src={currentPose.guideImage}
+                        alt={`${currentPose.label} guide`}
+                        className="w-full object-contain max-h-[380px] rounded-xl"
+                      />
+                    </div>
+
+                    {/* Instruction text */}
+                    <p className="text-center text-sm text-gray-500 mt-3 leading-tight">
+                      Take consistent photos<br />by using the guiding lines.
+                    </p>
+                  </div>
                 )}
               </div>
 
-              {/* Upload Photo button */}
-              <div className="px-5 pb-5">
-                <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base h-12"
-                  onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
-                >
-                  Upload Photo
-                </Button>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileSelect(file);
-                    e.target.value = "";
-                  }}
-                />
-              </div>
+              {/* Action buttons — Trainerize style */}
+              {!previews[currentPose.angle] && (
+                <div className="flex border-t border-gray-200 mt-3">
+                  <button
+                    className="flex-1 py-3.5 text-center text-blue-600 font-semibold text-sm border-r border-gray-200 active:bg-gray-50 transition-colors"
+                    onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
+                  >
+                    PICK PHOTO
+                  </button>
+                  <button
+                    className="flex-1 py-3.5 text-center text-blue-600 font-bold text-sm active:bg-gray-50 transition-colors"
+                    onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
+                  >
+                    TAKE NOW
+                  </button>
+                </div>
+              )}
+
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                  e.target.value = "";
+                }}
+              />
             </div>
 
             {/* Skip button */}
@@ -230,8 +263,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
               onClick={advanceStep}
               className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors py-2"
             >
-              <SkipForward className="h-4 w-4" />
-              Skip This Pose
+              SKIP THIS POSE
             </button>
           </div>
         )}
