@@ -609,7 +609,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       if (error) {
         toast({ title: "Couldn't log meal." });
       } else {
-        toast({ title: `${meal.name} added to ${mealLabel}` });
+        const t = toast({ title: `${meal.name} added to ${mealLabel}` });
+        setTimeout(() => t.dismiss(), 1000);
         onLogged();
       }
     } else {
