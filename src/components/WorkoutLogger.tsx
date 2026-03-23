@@ -138,6 +138,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [startTime, setStartTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState("0:00");
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
+  // All-time best weight×reps per exercise from completed sessions (for accurate PR detection)
+  const [allTimeBests, setAllTimeBests] = useState<Record<string, { weight: number; reps: number }[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
   const [frozenDuration, setFrozenDuration] = useState(0);
@@ -347,6 +349,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .order("set_number", { ascending: true });
 
         if (allLogs && allLogs.length > 0) {
+          // Build all-time bests per exercise (every logged set across all sessions)
+          const bestsMap: Record<string, { weight: number; reps: number }[]> = {};
           // Group by exercise_id, then find most recent session per exercise
           const byExercise: Record<string, Record<string, { created_at: string; logs: any[] }>> = {};
           allLogs.forEach((l: any) => {
@@ -356,7 +360,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             if (!byExercise[eid]) byExercise[eid] = {};
             if (!byExercise[eid][sid]) byExercise[eid][sid] = { created_at: sessionCreated, logs: [] };
             byExercise[eid][sid].logs.push(l);
+            // Track all sets with valid weight+reps for PR comparison
+            const w = l.weight ?? 0;
+            const r = l.reps ?? 0;
+            if (w > 0 && r > 0) {
+              if (!bestsMap[eid]) bestsMap[eid] = [];
+              bestsMap[eid].push({ weight: w, reps: r });
+            }
           });
+          setAllTimeBests(bestsMap);
 
           const grouped: Record<string, any[]> = {};
           Object.entries(byExercise).forEach(([eid, sessions]) => {
@@ -404,23 +416,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const checkPR = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number): boolean => {
-    const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
-    let isPR = false;
+    if (!weight || weight <= 0 || !reps || reps <= 0) return false;
 
-    if (!existingPR || weight > existingPR.weight || (weight === existingPR.weight && reps > existingPR.reps)) {
-      const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
-      if (!existingAlert || weight > existingAlert.weight || (weight === existingAlert.weight && reps > existingAlert.reps)) {
-        const type: "weight" | "rep" = !existingPR || weight > (existingPR?.weight || 0) ? "weight" : "rep";
-        setPrAlerts(prev => [
-          ...prev.filter(a => a.exerciseName !== exerciseName),
-          { exerciseName, weight, reps, type },
-        ]);
-        toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
-        isPR = true;
+    // Check against personal_records table
+    const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
+    if (existingPR && (weight < existingPR.weight || (weight === existingPR.weight && reps <= existingPR.reps))) {
+      return false; // Does not beat the stored PR
+    }
+
+    // Check against ALL historical sets (every completed session ever)
+    const historicalSets = allTimeBests[exerciseId] || [];
+    for (const prev of historicalSets) {
+      // Not a PR if any historical set has equal or better performance
+      if (prev.weight > weight || (prev.weight === weight && prev.reps >= reps)) {
+        return false;
       }
     }
-    return isPR;
-  }, [personalRecords, prAlerts, toast]);
+
+    // Also check against PRs already detected this session (to avoid duplicate toasts)
+    const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
+    if (existingAlert && weight <= existingAlert.weight && (weight < existingAlert.weight || reps <= existingAlert.reps)) {
+      return false;
+    }
+
+    const type: "weight" | "rep" = !existingPR || weight > (existingPR?.weight || 0) ? "weight" : "rep";
+    setPrAlerts(prev => [
+      ...prev.filter(a => a.exerciseName !== exerciseName),
+      { exerciseName, weight, reps, type },
+    ]);
+    toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
+    return true;
+  }, [personalRecords, allTimeBests, prAlerts, toast]);
 
   // Persist a single set to Supabase immediately
   const persistSet = async (exerciseId: string, log: ExerciseLogForm["logs"][0]) => {
