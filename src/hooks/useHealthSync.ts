@@ -128,11 +128,6 @@ export function useHealthSync() {
     };
   }, [user, fetchMetrics]);
 
-  /** Lazy-load the native HealthKit plugin only on iOS */
-  const getHealthKitPlugin = async () => {
-    const mod = await import("@/plugins/HealthKitPlugin");
-    return mod.default;
-  };
 
   /**
    * Connect to Apple Health (or Google Fit placeholder).
