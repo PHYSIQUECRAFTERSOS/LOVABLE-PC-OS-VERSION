@@ -141,14 +141,6 @@ export function useHealthSync() {
     if (isNative && platform === "ios") {
       console.log("[HealthSync] Starting Apple Health connect flow…");
 
-      let HealthKit: Awaited<ReturnType<typeof getHealthKitPlugin>>;
-      try {
-        HealthKit = await pluginTimeout(getHealthKitPlugin(), 5000, "HealthKit plugin load");
-      } catch (err) {
-        console.error("[HealthSync] Failed to load HealthKit plugin:", err);
-        throw new Error("HealthKit plugin failed to load. Ensure the native plugin is registered in Xcode.");
-      }
-
       // 1. Check availability (5s timeout)
       console.log("[HealthSync] Checking HealthKit availability…");
       let available = false;
