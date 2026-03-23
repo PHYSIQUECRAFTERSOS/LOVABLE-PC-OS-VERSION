@@ -1,33 +1,57 @@
 
 
-# Plan: Add "USD" Currency Designation to Subscription Page
+# Plan: Fix 4 Nutrition Tracker Issues
 
-## Problem
-Canadian clients see prices like "$399.99" and assume CAD. When the Apple payment sheet appears with the converted (higher) CAD amount, it causes confusion and potential abandonment. Apple also expects pricing clarity.
+## Issue 1: EditFoodModal — Show original serving size, not just g/oz
 
-## Recommended Approach
-From an ASO/compliance perspective, the best placement is:
+**Problem**: When you tap a logged food (e.g., "1 croissant"), the edit drawer only offers g and oz units. It should show the food's original serving unit (e.g., "serving" = 1 croissant = 67g).
 
-1. **Append "USD" to each plan's price display** — e.g., `$399.99 USD/month` instead of `$399.99/month`. This is the most impactful spot since it's the first thing users read per card.
+**Fix in `src/components/nutrition/EditFoodModal.tsx`**:
+- When loading from `food_items`, also fetch `serving_unit` and `serving_description`
+- Add a "serving" button alongside g/oz that represents the food's natural unit (e.g., "1 croissant", "1 scoop")
+- When "serving" is selected, quantity represents number of servings, multiplier = quantity directly
+- Pre-select "serving" mode when `quantity_unit === "serving"` in the log entry
 
-2. **Add a small "All prices in USD" note** under the "Choose Your Plan" subtitle — a single line of muted text acting as a blanket disclosure before users even read the cards.
+## Issue 2: Favorites star button not working for clients
 
-3. **Update the bottom disclaimer** to include "All prices are listed in USD" at the start.
+**Problem**: When a client taps the star on a search result, `handleToggleFavorite` calls `toggle_food_favorite` with the food's ID. For non-local foods (from FatSecret/USDA), this ID isn't in `food_items`. When the Favorites tab loads, it queries `food_items` by those IDs and finds nothing.
 
-This three-layer approach (global note, per-card price, disclaimer) is standard for Apple-compliant apps serving multi-currency markets. It won't conflict with the live StoreKit pricing fetch — when StoreKit returns localized prices, those will override the defaults and show the user's local currency automatically.
+**Fix in `src/components/nutrition/AddFoodScreen.tsx`**:
+- In `handleToggleFavorite`, if the food is non-local (source !== "local"), first import it via `importOFFFood` to get a local `food_items` ID
+- Then call `toggle_food_favorite` with the imported ID
+- Update the item's ID in the results/favorites state so subsequent toggles use the correct ID
 
-## Changes
+## Issue 3: Auto-dismiss "food logged" toast after 1 second
 
-### File: `src/pages/Subscribe.tsx`
+**Problem**: The "Chicken Breast logged" banner lingers indefinitely.
 
-**1. Update `DEFAULT_PLANS` prices to include "USD":**
-- `"$399.99 USD/month"`, `"$299.99 USD/month"`, `"$174.99 USD/2 months"`
+**Fix in `src/components/nutrition/AddFoodScreen.tsx`**:
+- In `logFood`, `handleDetailConfirm`, `logSavedMealQuick`, `handleQuickAdd`, and `logCustomFood` — after calling `toast({ title: "...logged" })`, call `dismiss()` after 1 second using `setTimeout`
+- Pattern: `const t = toast({ title: "..." }); setTimeout(() => t.dismiss(), 1000);`
 
-**2. Add subtitle note after "Choose Your Plan":**
-- New `<p>` element: `"All prices in USD. Final price in your local currency will be shown at checkout."`
+## Issue 4: Display serving sizes properly in tracker (not "1 serving")
 
-**3. Update bottom disclaimer** to start with:
-- `"All prices are listed in USD."`
+**Problem**: Logged foods show "1 serving" or raw grams like "3g" for eggs. Should show natural units like "120g", "1 egg", "3 eggs".
 
-No logic, backend, or StoreKit changes needed — text-only updates to one file.
+**Fix in `src/components/nutrition/DailyNutritionLog.tsx`**:
+- Update the food entry display line (around line 603-606) to show:
+  - If `quantity_unit` is "serving": show `{quantity_display} serving` (or fetch serving_description from food_items)
+  - If `quantity_unit` is "g": show `{quantity_display}g`
+  - If `quantity_unit` is "oz": show `{quantity_display} oz`
+- Also enhance by loading `serving_description` from `food_items` for each logged item so we can show "1 croissant" instead of "1 serving"
+- Add `serving_description` to the food_items fetch in `fetchLogs`
+
+## Issue 5: Tab label changes in AddFoodScreen
+
+**Fix in `src/components/nutrition/AddFoodScreen.tsx`**:
+- Change TABS array:
+  - `"★ Favorites"` → `"Favs"` (keep the star icon inline)
+  - `"My Meals"` → render with line break: `"My\nMeals"` using `whitespace-pre-line` on the tab button
+
+---
+
+### Files to modify:
+1. `src/components/nutrition/EditFoodModal.tsx` — Add serving unit option
+2. `src/components/nutrition/AddFoodScreen.tsx` — Fix favorites import, auto-dismiss toasts, tab labels
+3. `src/components/nutrition/DailyNutritionLog.tsx` — Better serving display with serving_description
 
