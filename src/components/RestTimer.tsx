@@ -40,6 +40,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
       if (msg.type === "done") {
         setSeconds(0);
         setIsActive(false);
+        restTimerAudio.stopKeepAlive();
         if (!countdownFiredRef.current) {
           countdownFiredRef.current = true;
           restTimerAudio.playCountdown();
