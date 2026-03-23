@@ -94,6 +94,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       workerRef.current = null;
     }
     restTimerAudio.stopCountdown();
+    restTimerAudio.stopKeepAlive();
     onSkip();
   }, [onSkip]);
 
