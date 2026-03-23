@@ -24,7 +24,7 @@ const DEFAULT_PLANS: Plan[] = [
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
     title: "Weekly Updates",
-    price: "$399.99/month",
+    price: "$399.99 USD/month",
     duration: "1 month · Auto-renewable",
     badge: "MOST POPULAR",
     features: [
