@@ -605,10 +605,37 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
-                              {item.quantity_display != null && item.quantity_display > 0
-                                ? `${Math.round(item.quantity_display * 10) / 10}${item.quantity_unit && item.quantity_unit !== 'g' ? ` ${item.quantity_unit}` : 'g'} · `
-                                : ''
-                              }
+                              {(() => {
+                                // Build serving display string
+                                const si = item.food_item_id ? foodServingInfo[item.food_item_id] : null;
+                                const qd = item.quantity_display;
+                                const qu = item.quantity_unit;
+
+                                if (qu === "serving" && si?.serving_label) {
+                                  // Show natural label: "1 croissant", "2 eggs"
+                                  const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
+                                  return `${count} ${si.serving_label} · `;
+                                }
+                                if (qu === "serving" && si) {
+                                  // Fallback: show serving_size + unit, e.g. "67g"
+                                  const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
+                                  return `${count} × ${si.serving_size}${si.serving_unit} · `;
+                                }
+                                if (qd != null && qd > 0) {
+                                  const displayQty = Math.round(qd * 10) / 10;
+                                  if (qu === "g") return `${displayQty}g · `;
+                                  if (qu === "oz") return `${displayQty} oz · `;
+                                  if (qu) return `${displayQty} ${qu} · `;
+                                  return `${displayQty}g · `;
+                                }
+                                // No quantity_display: show serving size from food_items
+                                if (si) {
+                                  const servingCount = Math.round(item.servings * 10) / 10;
+                                  if (si.serving_label) return `${servingCount} ${si.serving_label} · `;
+                                  return `${Math.round(servingCount * si.serving_size)}${si.serving_unit} · `;
+                                }
+                                return '';
+                              })()}
                               {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
                             </div>
                           </div>
