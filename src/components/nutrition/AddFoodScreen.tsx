@@ -86,12 +86,13 @@ interface AddFoodScreenProps {
   onLogged: () => void;
 }
 
-type TabKey = "all" | "my-meals" | "custom" | "pc-recipes";
+type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
+  { key: "favorites", label: "★ Favorites" },
   { key: "my-meals", label: "My Meals" },
   { key: "custom", label: "Custom Foods" },
   { key: "pc-recipes", label: "PC Recipes" },
@@ -113,6 +114,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [wasWidened, setWasWidened] = useState(false);
   const [usedQuery, setUsedQuery] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([]);
   const [offResults, setOffResults] = useState<FoodItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [offSearching, setOffSearching] = useState(false);
@@ -157,8 +159,38 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchSavedMeals();
       fetchPCRecipes();
       fetchCustomFoods();
+      fetchFavoriteFoods();
     }
   }, [open]);
+
+  const fetchFavoriteFoods = async () => {
+    if (!user) return;
+    try {
+      const { data: historyRows } = await supabase
+        .from("user_food_history" as any)
+        .select("food_id")
+        .eq("user_id", user.id)
+        .eq("is_favorite", true)
+        .order("last_logged_at", { ascending: false })
+        .limit(100);
+      if (!historyRows || historyRows.length === 0) {
+        setFavoriteFoods([]);
+        setFavorites(new Set());
+        return;
+      }
+      const foodIds = (historyRows as any[]).map(r => r.food_id).filter(Boolean);
+      setFavorites(new Set(foodIds));
+      if (foodIds.length === 0) { setFavoriteFoods([]); return; }
+      const { data: foods } = await supabase
+        .from("food_items")
+        .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+        .in("id", foodIds);
+      if (foods) {
+        const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean) as FoodItem[];
+        setFavoriteFoods(ordered);
+      }
+    } catch { setFavoriteFoods([]); }
+  };
 
   const fetchHistory = async () => {
     if (!user) return;
@@ -749,6 +781,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         else next.delete(foodId);
         return next;
       });
+      // Refresh favorites list
+      fetchFavoriteFoods();
     } catch { /* ignore */ }
   };
 
@@ -760,10 +794,16 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (!user) return;
 
     let foodItemId = detailFood?.id;
-    if (detailFood?.source === "off") {
+    
+    // Import any non-local food (off, usda, fatsecret) into food_items for FK reference
+    if (detailFood && detailFood.source !== "local") {
       const imported = await importOFFFood(detailFood);
-      if (!imported) return;
-      foodItemId = imported.id;
+      if (imported) {
+        foodItemId = imported.id;
+      } else {
+        // Import failed — still log with custom_name only, no FK
+        foodItemId = null;
+      }
     }
 
     // Fetch micronutrient data for detail-logged food
@@ -784,9 +824,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       }
     }
 
-    const { error } = await supabase.from("nutrition_logs").insert({
+    const insertPayload: Record<string, any> = {
       client_id: user.id,
       food_item_id: foodItemId,
+      custom_name: entry.food.name, // ALWAYS set custom_name as fallback
       meal_type: mealType,
       servings: entry.quantity,
       calories: Math.round(entry.calories),
@@ -801,7 +842,17 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       logged_at: effectiveDate,
       tz_corrected: true,
       ...micros,
-    } as any);
+    };
+
+    let { error } = await supabase.from("nutrition_logs").insert(insertPayload as any);
+
+    // Retry without food_item_id if FK constraint fails
+    if (error && foodItemId) {
+      console.warn("[handleDetailConfirm] FK insert failed, retrying without food_item_id:", error.message);
+      insertPayload.food_item_id = null;
+      const retry = await supabase.from("nutrition_logs").insert(insertPayload as any);
+      error = retry.error;
+    }
 
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
@@ -953,6 +1004,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   ];
   const displayItems = search.length >= 2 ? allDisplayItems : [];
   const showHistory = search.length < 2 && activeTab === "all";
+  const showFavorites = activeTab === "favorites";
   const showMeals = activeTab === "my-meals";
   const showCustom = activeTab === "custom";
   const showRecipes = activeTab === "pc-recipes";
@@ -1214,6 +1266,46 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
+        {/* ═══ FAVORITES TAB ═══ */}
+        {showFavorites && (
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-1.5 pb-1">
+              <Star className="h-3.5 w-3.5 text-primary fill-primary" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Favorite Foods</span>
+            </div>
+            {favoriteFoods.length === 0 ? (
+              <div className="text-center py-12">
+                <Star className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground">No favorites yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Tap the ★ on any food in search results to add it here</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {favoriteFoods.map((item) => (
+                  <FoodRow
+                    key={item.id}
+                    item={item}
+                    expanded={expandedId === item.id}
+                    onToggle={() => openFoodDetail(item)}
+                    onAdd={() => openFoodDetail(item)}
+                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                    servingUnit={servingUnits[item.id] || "g"}
+                    onServingUnitChange={(u) => {
+                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                    }}
+                    isFavorite={true}
+                    onToggleFavorite={() => handleToggleFavorite(item.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {showHistory && !quickAddOpen && (
           <div className="py-2">
             <FrequentMealsSection
@@ -1378,6 +1470,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                     else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
                     else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                   }}
+                  isFavorite={favorites.has(item.id)}
+                  onToggleFavorite={() => handleToggleFavorite(item.id)}
                 />
               ))
             )}

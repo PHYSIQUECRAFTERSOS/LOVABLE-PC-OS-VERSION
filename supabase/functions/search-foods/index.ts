@@ -217,24 +217,65 @@ async function safeJson(response: Response): Promise<any> {
 }
 
 // ── User food history for boosting ─────────────────────────────────────
-interface HistoryEntry { food_id: string; log_count: number; is_favorite: boolean; last_logged_at: string; }
+interface HistoryEntry { food_id: string; log_count: number; is_favorite: boolean; last_logged_at: string; food_name?: string; food_brand?: string; }
 
-async function getUserFoodHistory(supabase: any, userId: string): Promise<Map<string, HistoryEntry>> {
+async function getUserFoodHistory(supabase: any, userId: string): Promise<{ byId: Map<string, HistoryEntry>; byName: Map<string, HistoryEntry> }> {
+  const byId = new Map<string, HistoryEntry>();
+  const byName = new Map<string, HistoryEntry>();
   try {
+    // Fetch history entries
     const { data, error } = await supabase
       .from("user_food_history").select("food_id, log_count, is_favorite, last_logged_at")
       .eq("user_id", userId).order("last_logged_at", { ascending: false }).limit(500);
-    if (error || !data) return new Map();
-    const map = new Map<string, HistoryEntry>();
-    data.forEach((row: HistoryEntry) => map.set(row.food_id, row));
-    return map;
-  } catch { return new Map(); }
+    if (error || !data || data.length === 0) return { byId, byName };
+
+    // Get food names from food_items to enable name-based matching
+    const foodIds = data.map((r: any) => r.food_id).filter(Boolean);
+    const { data: foodItems } = await supabase
+      .from("food_items").select("id, name, brand")
+      .in("id", foodIds);
+
+    const nameMap = new Map<string, { name: string; brand: string | null }>();
+    if (foodItems) {
+      foodItems.forEach((f: any) => nameMap.set(f.id, { name: f.name, brand: f.brand }));
+    }
+
+    data.forEach((row: HistoryEntry) => {
+      byId.set(row.food_id, row);
+      const info = nameMap.get(row.food_id);
+      if (info) {
+        const key = `${(info.name ?? "").toLowerCase().trim()}::${(info.brand ?? "").toLowerCase().trim()}`;
+        // Keep highest log_count entry per name
+        const existing = byName.get(key);
+        if (!existing || row.log_count > existing.log_count) {
+          byName.set(key, { ...row, food_name: info.name, food_brand: info.brand ?? undefined });
+        }
+      }
+    });
+    return { byId, byName };
+  } catch { return { byId, byName }; }
 }
 
-function applyHistoryBoost(results: any[], historyMap: Map<string, HistoryEntry>): any[] {
-  if (historyMap.size === 0) return results;
+function applyHistoryBoost(results: any[], historyData: { byId: Map<string, HistoryEntry>; byName: Map<string, HistoryEntry> } | Map<string, HistoryEntry>): any[] {
+  // Support both old Map format and new { byId, byName } format
+  let byId: Map<string, HistoryEntry>;
+  let byName: Map<string, HistoryEntry>;
+  if (historyData instanceof Map) {
+    byId = historyData;
+    byName = new Map();
+  } else {
+    byId = historyData.byId;
+    byName = historyData.byName;
+  }
+  if (byId.size === 0 && byName.size === 0) return results;
+
   return results.map(food => {
-    const history = historyMap.get(food.id);
+    // Match by ID first, then fall back to name+brand matching
+    let history = byId.get(food.id);
+    if (!history) {
+      const nameKey = `${(food.name ?? "").toLowerCase().trim()}::${(food.brand ?? "").toLowerCase().trim()}`;
+      history = byName.get(nameKey);
+    }
     if (!history) return food;
     const daysSinceLogged = Math.floor((Date.now() - new Date(history.last_logged_at).getTime()) / 86400000);
     const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
@@ -446,7 +487,7 @@ serve(async (req) => {
       // Synonyms
       expandWithSynonyms(supabase, query),
       // History
-      userId ? getUserFoodHistory(supabase, userId) : Promise.resolve(new Map<string, HistoryEntry>()),
+      userId ? getUserFoodHistory(supabase, userId) : Promise.resolve({ byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>() }),
       // FatSecret (replaces OpenFoodFacts — much better branded food coverage)
       searchFatSecret(query, 25).then(foods => {
         sourceStatus.fatsecret = `ok:${foods.length}`;
@@ -478,7 +519,7 @@ serve(async (req) => {
 
     let localFoods: any[] = localPromise.status === "fulfilled" ? localPromise.value : [];
     const synonymTerms: string[] = synonymPromise.status === "fulfilled" ? synonymPromise.value : [];
-    const historyMap: Map<string, HistoryEntry> = historyPromise.status === "fulfilled" ? historyPromise.value : new Map();
+    const historyMap = historyPromise.status === "fulfilled" ? historyPromise.value : { byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>() };
     const fsFoods: any[] = fsResult.status === "fulfilled" ? fsResult.value : [];
     const usdaFoods: any[] = usdaResult.status === "fulfilled" ? usdaResult.value : [];
 
