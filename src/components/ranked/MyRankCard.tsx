@@ -13,7 +13,7 @@ const LEGACY_TIER_IMAGES: Record<string, string> = {
   diamond: legacyDiamond,
   champion: legacyChampion,
 };
-
+import {
   getDivisionLabel,
   getTierColor,
   calculateTierAndDivision,
