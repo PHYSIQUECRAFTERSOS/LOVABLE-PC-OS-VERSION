@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Capacitor } from "@capacitor/core";
+import HealthKit from "@/plugins/HealthKitPlugin";
 
 export interface HealthConnection {
   id: string;
@@ -127,11 +128,6 @@ export function useHealthSync() {
     };
   }, [user, fetchMetrics]);
 
-  /** Lazy-load the native HealthKit plugin only on iOS */
-  const getHealthKitPlugin = async () => {
-    const mod = await import("@/plugins/HealthKitPlugin");
-    return mod.default;
-  };
 
   /**
    * Connect to Apple Health (or Google Fit placeholder).
@@ -144,14 +140,6 @@ export function useHealthSync() {
 
     if (isNative && platform === "ios") {
       console.log("[HealthSync] Starting Apple Health connect flow…");
-
-      let HealthKit: Awaited<ReturnType<typeof getHealthKitPlugin>>;
-      try {
-        HealthKit = await pluginTimeout(getHealthKitPlugin(), 5000, "HealthKit plugin load");
-      } catch (err) {
-        console.error("[HealthSync] Failed to load HealthKit plugin:", err);
-        throw new Error("HealthKit plugin failed to load. Ensure the native plugin is registered in Xcode.");
-      }
 
       // 1. Check availability (5s timeout)
       console.log("[HealthSync] Checking HealthKit availability…");
@@ -262,7 +250,7 @@ export function useHealthSync() {
       if (isNative && platform === "ios") {
         // Native iOS: query real HealthKit data
         console.log("[HealthSync] Querying HealthKit data…");
-        const HealthKit = await getHealthKitPlugin();
+        console.log("[HealthSync] Querying HealthKit data…");
 
         const [stepsResult, energyResult, distanceResult] = await Promise.all([
           pluginTimeout(HealthKit.querySteps({ startDate: weekAgo, endDate: today }), 15000, "querySteps"),
