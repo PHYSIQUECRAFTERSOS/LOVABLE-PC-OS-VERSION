@@ -1,39 +1,66 @@
 
 
-# Plan: Fix Apple Health "HealthKitPlugin failed to load" Error
+# Plan: Workout Logger Visual Overhaul — Strong App Style
 
-## Root Cause
+## Summary
 
-The issue is a **dynamic import failure** in production. Here's why:
+Two layout changes to match the Strong app's workout logging UX:
 
-Your Capacitor app loads its web content from a remote URL (`https://app.physiquecrafters.com`). The `useHealthSync.ts` hook uses a **dynamic import** (`await import("@/plugins/HealthKitPlugin")`) to load the HealthKit module. Vite code-splits this into a separate network-fetched chunk.
+1. **Remove the fixed bottom action bar** — "Add Exercises" and "Cancel Workout" buttons become inline content at the bottom of the exercise list, only visible when the user scrolls to the end.
+2. **Push the sticky timer header flush against the top nav** — eliminate the gap between the AppLayout header and the workout timer/progress bar.
 
-Compare this to StoreKit — which **works perfectly** — because it's imported **statically** (`import StoreKit from "@/plugins/StoreKitPlugin"`) in `useSubscription.tsx` and `Subscribe.tsx`. The StoreKit module is bundled into the main app code and always available.
+## Changes
 
-The HealthKit module, on the other hand, is in a separate chunk that must be fetched over the network at runtime. If there's any caching mismatch, stale service worker interference, or the chunk hash changed between deployments, the fetch fails or hangs — triggering the 5-second timeout and showing "HealthKitPlugin failed to load."
+### File: `src/components/WorkoutLogger.tsx`
 
-Additionally, `useHealthKit.ts` (which does a static import of HealthKitPlugin) is **dead code** — it's not imported anywhere in the app. So the HealthKitPlugin module is exclusively loaded via dynamic import, making it vulnerable to chunk-loading failures.
+**1. Move "Add Exercises" and "Cancel Workout" out of the fixed footer into the scroll flow**
 
-Your Xcode setup is correct — the Swift plugin is properly compiled and registered. This is purely a web-side module loading issue.
+Currently (lines 927-943): Both buttons are in a `fixed bottom-0` container that always overlays the screen, eating ~120px of viewport space.
 
-## The Fix
+Change: Move both buttons inline after the exercise cards, inside the scrollable `div`. Remove the `fixed` positioning entirely. They become regular content that appears after the last exercise card — exactly like Strong.
 
-### File: `src/hooks/useHealthSync.ts`
+**2. Reduce bottom padding**
 
-**1. Replace dynamic import with static import**
-Change from lazy-loading the HealthKit plugin to importing it at the top of the file, just like StoreKit does. The module is tiny (just a `registerPlugin` call that creates a proxy object) — there's zero benefit to code-splitting it.
+Currently: `pb-56` on the main container (line 823) to accommodate the fixed footer. Since the footer is gone, reduce to `pb-24` (just enough clearance above the mobile bottom nav).
 
-```typescript
-// BEFORE (broken):
-const getHealthKitPlugin = async () => {
-  const mod = await import("@/plugins/HealthKitPlugin");
-  return mod.default;
-};
-// ... later: await pluginTimeout(getHealthKitPlugin(), 5000, ...)
+**3. Make sticky header flush with the top app bar**
 
-// AFTER (fixed):
-import HealthKit from "@/plugins/HealthKitPlugin";
-// ... later: just use HealthKit directly
+Currently (line 843): The sticky header has `pt-2 pb-3 -mx-4 px-4` with a bottom border. It sits below the AppLayout header with a visible gap due to the parent's `p-4` padding.
+
+Change: Use negative top margin (`-mt-4`) and adjust padding so the sticky bar sits flush against the AppLayout header border. This creates a seamless "toolbar below navbar" look like Strong.
+
+**4. Add PR alert banner styling**
+
+The PR alerts (lines 884-892) currently use small badges. Keep as-is — they already match the screenshots well with the trophy icon.
+
+### File: `src/components/workout/ExerciseCard.tsx`
+
+No changes needed — the card layout already matches the Strong-style set grid.
+
+## Visual Result
+
+```text
+┌─────────────────────────────┐
+│ PHYSIQUE CRAFTERS   ⚙  ☰   │  ← AppLayout header (unchanged)
+├─────────────────────────────┤
+│ ↻  38:18           [Finish] │  ← Flush sticky timer bar
+│ ████████░░░░░░░  5/20 sets  │
+│ day 1: Pull day             │
+├─────────────────────────────┤
+│                             │
+│  [Exercise Card 1]          │  ← Full viewport for exercises
+│  [Exercise Card 2]          │
+│  [Exercise Card 3]          │
+│  ...                        │
+│                             │
+│  [+ Add Exercises]          │  ← Inline, only visible at scroll end
+│  [Cancel Workout]           │
+│                             │
+└─────────────────────────────┘
+│ 🏠  🍽  💬  📊  👤         │  ← Bottom nav (AppLayout)
+└─────────────────────────────┘
 ```
 
-**2. Remove the unnecessary
+## Files to modify
+- `src/components/WorkoutLogger.tsx` — move buttons inline, flush sticky header, reduce padding
+
