@@ -1,57 +1,43 @@
 
 
-# Plan: Integrate Apple Health (HealthKit) Sync on Native iOS
+# Plan: Add Apple Health Metrics to Client Dashboard
 
-## Overview
+## What Changes
 
-Now that you have Xcode set up, we'll create a real HealthKit Capacitor plugin (similar to your existing StoreKitPlugin pattern), wire it into the JS layer, and update the Settings page so Apple Health shows as a fully functional Connect/Sync/Disconnect integration on native iOS — while still showing "Native App Only" on PWA.
+The HealthKit integration already syncs **active calories** and **walking/running distance** into the `daily_health_metrics` table, but the dashboard only shows Steps, Weight, Photos, and Calories. We'll expand the grid to 3 rows (6 cards) and add two new metric cards that display real HealthKit data with 7-day sparklines.
 
-## What Gets Built
+## File: `src/components/dashboard/ProgressWidgetGrid.tsx`
 
-### 1. Native Swift Plugin — `ios-plugin/HealthKitPlugin.swift`
-A new Capacitor plugin following the same `CAPBridgedPlugin` pattern as your StoreKitPlugin:
-- `requestAuthorization()` — requests read access to steps, active energy, walking/running distance, body mass
-- `querySteps(startDate, endDate)` — returns daily step counts for a date range
-- `queryActiveEnergy(startDate, endDate)` — returns daily active calories
-- `queryDistance(startDate, endDate)` — returns daily walking/running distance in km
-- `queryWeight()` — returns most recent body mass reading
-- `isAvailable()` — checks `HKHealthStore.isHealthDataAvailable()`
+### 1. Add Active Calories card (row 3, left)
+- Icon: `Zap` (energy bolt)
+- Label: "Active Cal"
+- Value: `todayMetrics.active_energy_kcal` from `useHealthSync()` — already available, no new fetch needed
+- Sparkline: 7-day `weekMetrics.map(d => d.active_energy_kcal ?? 0)`
+- Fallback: "–" when no data, "Connect Health App" hint when disconnected
 
-Uses HealthKit `HKStatisticsCollectionQuery` for efficient daily aggregation.
+### 2. Add Distance card (row 3, right)
+- Icon: `MapPin` or `Route` (Lucide)
+- Label: "Distance"
+- Value: `todayMetrics.walking_running_distance_km` formatted as `X.X km`
+- Sparkline: 7-day `weekMetrics.map(d => d.walking_running_distance_km ?? 0)`
+- Same fallback pattern
 
-### 2. JS Bridge — `src/plugins/HealthKitPlugin.ts`
-TypeScript wrapper that calls the native plugin via `Capacitor.registerPlugin("HealthKitPlugin")`, matching the same pattern as your existing `StoreKitPlugin.ts`. Provides typed methods the hooks can call.
+### 3. Fix Steps card sync
+- The Steps card currently has a split logic: `isConnected && steps` vs `manualSteps`. With HealthKit now syncing into the same `daily_health_metrics` table, the `todayMetrics.steps` value should already contain the HealthKit steps. Update `isConnected` to also be true when `todayMetrics?.source === "apple_health"` — so the sparkline and value render correctly even when the health_connections record isn't loaded yet.
 
-### 3. Update `src/hooks/useHealthSync.ts`
-- In `connect()`: when `platform === "ios"`, call `HealthKitPlugin.requestAuthorization()` before writing the DB record. If the user denies, abort.
-- In `syncNow()`: when `platform === "ios"`, call `HealthKitPlugin.querySteps/queryActiveEnergy/queryDistance` for the last 7 days and upsert real data into `daily_health_metrics`.
+### 4. Layout — iPhone-optimized 2-column grid
+- Change from 4 cards (2x2) to 6 cards (2x3)
+- Same `grid grid-cols-2 gap-3` — no layout change needed, just add 2 more children
+- Cards already use `p-3 sm:p-4`, `text-lg sm:text-xl`, `truncate`, and `overflow-hidden` — iPhone-safe
+- New cards follow the exact same card pattern/classes as existing ones
 
-### 4. Update `src/components/settings/HealthIntegrations.tsx`
-- Detect native iOS via `Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios"`
-- When on native iOS: render Apple Health with the same Connect/Sync/Disconnect UI as Fitbit/Google Fit (not the grayed-out "Native App Only" badge)
-- When on PWA: keep the existing "Native App Only" display
-- The connect button calls `useHealthSync().connect()` which triggers the HealthKit permission prompt
-- Update the info banner to conditionally hide the "Apple Health requires native app" message on native
+### 5. Click behavior
+- Active Calories: taps navigate to `/progress?tab=steps` (reuses the existing steps/health screen)
+- Distance: same navigation target
 
-### 5. Xcode Setup Guide — `ios-plugin/HealthKitREADME.md`
-Step-by-step instructions (same format as your StoreKit README):
-- Add `HealthKitPlugin.swift` to `App/App/Plugins/`
-- Enable "HealthKit" capability in Xcode Signing & Capabilities
-- Add `NSHealthShareUsageDescription` to `Info.plist`
-- `npx cap sync ios` → build and run
+## No database changes needed
+The `daily_health_metrics` table already has `active_energy_kcal` and `walking_running_distance_km` columns, populated by the HealthKit sync in `useHealthSync.ts`.
 
-## Files to Create
-- `ios-plugin/HealthKitPlugin.swift` — native Swift plugin
-- `src/plugins/HealthKitPlugin.ts` — JS bridge
-- `ios-plugin/HealthKitREADME.md` — Xcode setup guide
-
-## Files to Modify
-- `src/hooks/useHealthSync.ts` — call native plugin on iOS
-- `src/components/settings/HealthIntegrations.tsx` — show full Apple Health UI on native iOS
-
-## Apple Compliance Notes
-- HealthKit usage description is required in `Info.plist` — we'll provide the exact string
-- Only request read permissions (no writing to HealthKit) — minimizes review friction
-- The capability must be added in Xcode or the app will crash at runtime
-- Apple requires HealthKit data to be used for health/fitness purposes only — our coaching use case qualifies
+## Files to modify
+- `src/components/dashboard/ProgressWidgetGrid.tsx` — add 2 cards, fix steps display logic
 
