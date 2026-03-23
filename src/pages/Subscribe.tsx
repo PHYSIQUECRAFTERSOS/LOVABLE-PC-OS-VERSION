@@ -38,7 +38,7 @@ const DEFAULT_PLANS: Plan[] = [
     id: "biweekly",
     productId: "com.physiquecrafters.app.biweekly",
     title: "Bi-Weekly Updates",
-    price: "$299.99/month",
+    price: "$299.99 USD/month",
     duration: "1 month · Auto-renewable",
     features: [
       "Bi-weekly progress updates every other week reviewing over your progress and we make changes to your program as necessary",
