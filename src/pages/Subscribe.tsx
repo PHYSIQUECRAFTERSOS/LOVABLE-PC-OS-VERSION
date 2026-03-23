@@ -175,6 +175,7 @@ const Subscribe = () => {
             <span className="text-primary">CRAFTERS</span>
           </h1>
           <p className="text-muted-foreground text-sm">Choose Your Plan</p>
+          <p className="text-muted-foreground text-[11px]">All prices in USD. Final price in your local currency will be shown at checkout.</p>
         </div>
 
         <div className="space-y-3">
