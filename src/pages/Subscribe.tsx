@@ -51,7 +51,7 @@ const DEFAULT_PLANS: Plan[] = [
     id: "training",
     productId: "com.physiquecrafters.app.training",
     title: "Training Only",
-    price: "$174.99/2 months",
+    price: "$174.99 USD/2 months",
     duration: "2 months · Auto-renewable",
     features: ["Customized Training Program updated every 2 months"],
   },
