@@ -86,12 +86,13 @@ interface AddFoodScreenProps {
   onLogged: () => void;
 }
 
-type TabKey = "all" | "my-meals" | "custom" | "pc-recipes";
+type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
+  { key: "favorites", label: "★ Favorites" },
   { key: "my-meals", label: "My Meals" },
   { key: "custom", label: "Custom Foods" },
   { key: "pc-recipes", label: "PC Recipes" },
