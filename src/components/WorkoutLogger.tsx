@@ -404,23 +404,41 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const checkPR = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number): boolean => {
-    const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
-    let isPR = false;
+    if (!weight || weight <= 0 || !reps || reps <= 0) return false;
 
-    if (!existingPR || weight > existingPR.weight || (weight === existingPR.weight && reps > existingPR.reps)) {
-      const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
-      if (!existingAlert || weight > existingAlert.weight || (weight === existingAlert.weight && reps > existingAlert.reps)) {
-        const type: "weight" | "rep" = !existingPR || weight > (existingPR?.weight || 0) ? "weight" : "rep";
-        setPrAlerts(prev => [
-          ...prev.filter(a => a.exerciseName !== exerciseName),
-          { exerciseName, weight, reps, type },
-        ]);
-        toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
-        isPR = true;
+    // Check against personal_records table
+    const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
+    if (existingPR && (weight < existingPR.weight || (weight === existingPR.weight && reps <= existingPR.reps))) {
+      return false; // Does not beat the stored PR
+    }
+
+    // Check against ALL previous performance logs (the actual historical sets)
+    const prevLogs = previousPerformance[exerciseId] || [];
+    for (const log of prevLogs) {
+      const prevWeight = log.weight ?? 0;
+      const prevReps = log.reps ?? 0;
+      if (prevWeight > 0 && prevReps > 0) {
+        // If any previous set has equal or higher weight with equal or higher reps, not a PR
+        if (weight < prevWeight || (weight === prevWeight && reps <= prevReps)) {
+          return false;
+        }
       }
     }
-    return isPR;
-  }, [personalRecords, prAlerts, toast]);
+
+    // Also check against PRs already detected this session (to avoid duplicate toasts)
+    const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
+    if (existingAlert && weight <= existingAlert.weight && (weight < existingAlert.weight || reps <= existingAlert.reps)) {
+      return false;
+    }
+
+    const type: "weight" | "rep" = !existingPR || weight > (existingPR?.weight || 0) ? "weight" : "rep";
+    setPrAlerts(prev => [
+      ...prev.filter(a => a.exerciseName !== exerciseName),
+      { exerciseName, weight, reps, type },
+    ]);
+    toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
+    return true;
+  }, [personalRecords, previousPerformance, prAlerts, toast]);
 
   // Persist a single set to Supabase immediately
   const persistSet = async (exerciseId: string, log: ExerciseLogForm["logs"][0]) => {
