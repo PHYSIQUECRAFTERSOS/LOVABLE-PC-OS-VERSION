@@ -4,7 +4,16 @@ import legacyGold from "@/assets/tiers/legacy/gold.png";
 import legacyEmerald from "@/assets/tiers/legacy/emerald.png";
 import legacyDiamond from "@/assets/tiers/legacy/diamond.png";
 import legacyChampion from "@/assets/tiers/legacy/champion.png";
-import {
+
+const LEGACY_TIER_IMAGES: Record<string, string> = {
+  bronze: legacyBronze,
+  silver: legacySilver,
+  gold: legacyGold,
+  emerald: legacyEmerald,
+  diamond: legacyDiamond,
+  champion: legacyChampion,
+};
+
   getDivisionLabel,
   getTierColor,
   calculateTierAndDivision,
