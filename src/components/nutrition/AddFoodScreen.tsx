@@ -520,7 +520,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       foodItemId = item.id;
     }
 
-    const unit = servingUnits[item.id] || "g";
+    const unit = servingUnits[item.id] || getDefaultUnit(item);
     const inputVal = parseFloat(servings[item.id] || (foodToLog.serving_size > 0 ? String(foodToLog.serving_size) : "1")) || 0;
 
     let quantityGrams: number;
@@ -1328,9 +1328,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                     expanded={expandedId === item.id}
                     onToggle={() => openFoodDetail(item)}
                     onAdd={() => openFoodDetail(item)}
-                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    servings={servings[item.id] || getDefaultServings(item)}
                     onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                    servingUnit={servingUnits[item.id] || "g"}
+                    servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
                     onServingUnitChange={(u) => {
                       setServingUnits(prev => ({ ...prev, [item.id]: u }));
                       if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
@@ -1393,9 +1393,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   expanded={expandedId === item.id}
                   onToggle={() => toggleExpand(item.id)}
                   onAdd={() => logFood(item)}
-                  servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                  servings={servings[item.id] || getDefaultServings(item)}
                   onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                  servingUnit={servingUnits[item.id] || "g"}
+                  servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
                   onServingUnitChange={(u) => {
                     setServingUnits(prev => ({ ...prev, [item.id]: u }));
                     if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
@@ -1450,9 +1450,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                     expanded={expandedId === item.id}
                     onToggle={() => openFoodDetail(item)}
                     onAdd={() => openFoodDetail(item)}
-                    servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                    servings={servings[item.id] || getDefaultServings(item)}
                     onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                    servingUnit={servingUnits[item.id] || "g"}
+                    servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
                     onServingUnitChange={(u) => {
                       setServingUnits(prev => ({ ...prev, [item.id]: u }));
                       if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
@@ -1477,9 +1477,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                         expanded={expandedId === item.id}
                         onToggle={() => openFoodDetail(item)}
                         onAdd={() => openFoodDetail(item)}
-                        servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                        servings={servings[item.id] || getDefaultServings(item)}
                         onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                        servingUnit={servingUnits[item.id] || "g"}
+                        servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
                         onServingUnitChange={(u) => {
                           setServingUnits(prev => ({ ...prev, [item.id]: u }));
                           if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
@@ -1501,9 +1501,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                   expanded={expandedId === item.id}
                   onToggle={() => openFoodDetail(item)}
                   onAdd={() => openFoodDetail(item)}
-                  servings={servings[item.id] || (item.serving_size > 0 ? String(item.serving_size) : "1")}
+                  servings={servings[item.id] || getDefaultServings(item)}
                   onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                  servingUnit={servingUnits[item.id] || "g"}
+                  servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
                   onServingUnitChange={(u) => {
                     setServingUnits(prev => ({ ...prev, [item.id]: u }));
                     if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
