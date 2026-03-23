@@ -131,7 +131,7 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <XPContext.Provider value={{ triggerXP, triggerCelebration }}>
+    <XPContext.Provider value={{ triggerXP, triggerCelebration, dashboardXPGain, clearDashboardXP }}>
       {children}
       {xpToasts.map((t) => (
         <XPToast key={t.id} amount={t.amount} onDone={() => removeToast(t.id)} />
