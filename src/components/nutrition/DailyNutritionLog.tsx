@@ -139,7 +139,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     if (foodIds.length > 0) {
       const { data: foods, error: foodsError } = await supabase
         .from("food_items")
-        .select("id, name")
+        .select("id, name, serving_size, serving_unit, serving_label")
         .in("id", foodIds);
 
       if (fetchId !== latestFetchRef.current) return;
@@ -149,10 +149,13 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       }
 
       const names: Record<string, string> = {};
+      const servingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = {};
       (foods || []).forEach((f) => {
         names[f.id] = f.name;
+        servingInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
       });
       setFoodNames(names);
+      setFoodServingInfo(servingInfo);
       return;
     }
 
