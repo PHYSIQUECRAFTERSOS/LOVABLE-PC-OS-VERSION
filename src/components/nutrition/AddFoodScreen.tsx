@@ -760,10 +760,16 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (!user) return;
 
     let foodItemId = detailFood?.id;
-    if (detailFood?.source === "off") {
+    
+    // Import any non-local food (off, usda, fatsecret) into food_items for FK reference
+    if (detailFood && detailFood.source !== "local") {
       const imported = await importOFFFood(detailFood);
-      if (!imported) return;
-      foodItemId = imported.id;
+      if (imported) {
+        foodItemId = imported.id;
+      } else {
+        // Import failed — still log with custom_name only, no FK
+        foodItemId = null;
+      }
     }
 
     // Fetch micronutrient data for detail-logged food
@@ -784,9 +790,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       }
     }
 
-    const { error } = await supabase.from("nutrition_logs").insert({
+    const insertPayload: Record<string, any> = {
       client_id: user.id,
       food_item_id: foodItemId,
+      custom_name: entry.food.name, // ALWAYS set custom_name as fallback
       meal_type: mealType,
       servings: entry.quantity,
       calories: Math.round(entry.calories),
@@ -801,7 +808,17 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       logged_at: effectiveDate,
       tz_corrected: true,
       ...micros,
-    } as any);
+    };
+
+    let { error } = await supabase.from("nutrition_logs").insert(insertPayload as any);
+
+    // Retry without food_item_id if FK constraint fails
+    if (error && foodItemId) {
+      console.warn("[handleDetailConfirm] FK insert failed, retrying without food_item_id:", error.message);
+      insertPayload.food_item_id = null;
+      const retry = await supabase.from("nutrition_logs").insert(insertPayload as any);
+      error = retry.error;
+    }
 
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
