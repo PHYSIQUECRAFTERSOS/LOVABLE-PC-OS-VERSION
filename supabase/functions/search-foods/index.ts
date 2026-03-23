@@ -364,6 +364,9 @@ function mapFatSecretFood(food: any): any | null {
   const primaryDesc = primaryServing?.serving_description || `${metricAmount}g`;
   const primarySizeG = parseFloat(primaryServing?.metric_serving_amount) || metricAmount;
 
+  // Extract micronutrients from FatSecret serving data (per-100g conversion)
+  const parseMicro = (val: any) => val != null ? Math.round(parseFloat(val) * factor * 10) / 10 : null;
+
   return {
     fatsecret_id: String(food.food_id),
     name: food.food_name?.trim() || "Unknown",
@@ -375,6 +378,18 @@ function mapFatSecretFood(food: any): any | null {
     fiber_per_100g: metricServing.fiber ? Math.round(parseFloat(metricServing.fiber) * factor * 10) / 10 : null,
     sugar_per_100g: metricServing.sugar ? Math.round(parseFloat(metricServing.sugar) * factor * 10) / 10 : null,
     sodium_per_100g: metricServing.sodium ? Math.round(parseFloat(metricServing.sodium) * factor * 10) / 10 : null,
+    // Micronutrients from FatSecret serving data
+    saturated_fat_per_100g: parseMicro(metricServing.saturated_fat),
+    trans_fat_per_100g: parseMicro(metricServing.trans_fat),
+    monounsaturated_fat_per_100g: parseMicro(metricServing.monounsaturated_fat),
+    polyunsaturated_fat_per_100g: parseMicro(metricServing.polyunsaturated_fat),
+    cholesterol_per_100g: parseMicro(metricServing.cholesterol),
+    calcium_mg_per_100g: parseMicro(metricServing.calcium),
+    iron_mg_per_100g: parseMicro(metricServing.iron),
+    potassium_mg_per_100g: parseMicro(metricServing.potassium),
+    vitamin_a_mcg_per_100g: parseMicro(metricServing.vitamin_a),
+    vitamin_c_mg_per_100g: parseMicro(metricServing.vitamin_c),
+    vitamin_d_mcg_per_100g: parseMicro(metricServing.vitamin_d),
     serving_size_g: primarySizeG,
     serving_unit: "g",
     serving_description: primaryDesc,
