@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Capacitor } from "@capacitor/core";
 import StoreKit from "@/plugins/StoreKitPlugin";
+import type { StoreKitProduct } from "@/plugins/StoreKitPlugin";
 import SuccessOverlay from "@/components/subscription/SuccessOverlay";
 
 interface Plan {
@@ -17,7 +18,7 @@ interface Plan {
   features: string[];
 }
 
-const PLANS: Plan[] = [
+const DEFAULT_PLANS: Plan[] = [
   {
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
@@ -63,6 +64,35 @@ const Subscribe = () => {
   const [restoring, setRestoring] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successPlan, setSuccessPlan] = useState("");
+  const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
+
+  // Fetch live pricing from App Store on mount (graceful fallback to defaults)
+  useEffect(() => {
+    if (!isNative) return;
+    const fetchPrices = async () => {
+      try {
+        const productIds = DEFAULT_PLANS.map((p) => p.productId);
+        const result = await Promise.race([
+          StoreKit.getProducts({ productIds }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (result && result.products && result.products.length > 0) {
+          setPlans((prev) =>
+            prev.map((plan) => {
+              const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
+              if (live) {
+                return { ...plan, price: live.price, title: live.displayName || plan.title };
+              }
+              return plan;
+            })
+          );
+        }
+      } catch {
+        // Silently fall back to hardcoded prices
+      }
+    };
+    fetchPrices();
+  }, []);
 
   const handleSubscribe = async () => {
     if (!isNative) {
@@ -70,19 +100,36 @@ const Subscribe = () => {
       return;
     }
 
+    const plan = plans.find((p) => p.id === selected);
+    if (!plan) return;
+
     setSubscribing(true);
     try {
-      await StoreKit.showPaywall();
-      const result = await StoreKit.checkSubscription();
-      if (result.hasSubscription) {
-        await checkSubscription();
-        const plan = PLANS.find((p) => p.id === selected);
-        setSuccessPlan(plan?.title || "your plan");
-        setShowSuccess(true);
-      }
+      // Call purchase with explicit product ID
+      await StoreKit.purchase({ productId: plan.productId });
+
+      // If purchase resolved successfully, verify entitlement
+      await checkSubscription();
+      setSuccessPlan(plan.title);
+      setShowSuccess(true);
     } catch (err: any) {
-      console.error("Subscription error:", err);
-      toast({ title: "Something went wrong", description: "Please try again.", variant: "destructive" });
+      // User tapped "Cancel" on the Apple payment sheet — NOT an error
+      const code = err?.code || err?.message || "";
+      if (
+        code === "USER_CANCELLED" ||
+        code === "PURCHASE_PENDING" ||
+        String(code).toLowerCase().includes("cancel")
+      ) {
+        // Silent dismiss — do not show error toast
+        return;
+      }
+
+      console.error("Purchase error:", err);
+      toast({
+        title: "Something went wrong",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setSubscribing(false);
     }
@@ -127,7 +174,7 @@ const Subscribe = () => {
         </div>
 
         <div className="space-y-3">
-          {PLANS.map((plan) => {
+          {plans.map((plan) => {
             const isSelected = selected === plan.id;
             return (
               <button
