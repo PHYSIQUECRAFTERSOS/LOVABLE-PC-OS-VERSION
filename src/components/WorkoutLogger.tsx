@@ -138,6 +138,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [startTime, setStartTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState("0:00");
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
+  // All-time best weight×reps per exercise from completed sessions (for accurate PR detection)
+  const [allTimeBests, setAllTimeBests] = useState<Record<string, { weight: number; reps: number }[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
   const [frozenDuration, setFrozenDuration] = useState(0);
