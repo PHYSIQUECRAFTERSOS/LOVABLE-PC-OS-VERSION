@@ -57,6 +57,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
+      restTimerAudio.stopKeepAlive();
     };
   }, [isActive, totalSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
