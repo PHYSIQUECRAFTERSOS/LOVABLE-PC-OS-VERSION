@@ -752,7 +752,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
-      toast({ title: `${food.name} logged` });
+      const t = toast({ title: `${food.name} logged` });
+      setTimeout(() => t.dismiss(), 1000);
       if (foodItemId) {
         supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
       }
