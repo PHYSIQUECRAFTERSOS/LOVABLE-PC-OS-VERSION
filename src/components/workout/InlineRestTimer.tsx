@@ -71,6 +71,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
           completedRef.current = true;
           setTimeRemaining(0);
           worker.postMessage({ type: "stop" });
+          restTimerAudio.stopKeepAlive();
           setTimeout(() => onCompleteRef.current(), 800);
         }
       }
