@@ -14,6 +14,7 @@ interface Plan {
   productId: string;
   title: string;
   price: string;
+  duration: string;
   badge?: string;
   features: string[];
 }
@@ -23,10 +24,11 @@ const DEFAULT_PLANS: Plan[] = [
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
     title: "Weekly Updates",
-    price: "$399.99/mo",
+    price: "$399.99/month",
+    duration: "1 month · Auto-renewable",
     badge: "MOST POPULAR",
     features: [
-      "Weekly progress updates",
+      "Weekly progress updates each week reviewing over your progress and we make changes to your program as necessary",
       "Customized Training Program",
       "Customized Meal Plan",
       "Customized Supplement Plan",
@@ -36,9 +38,10 @@ const DEFAULT_PLANS: Plan[] = [
     id: "biweekly",
     productId: "com.physiquecrafters.app.biweekly",
     title: "Bi-Weekly Updates",
-    price: "$299.99/mo",
+    price: "$299.99/month",
+    duration: "1 month · Auto-renewable",
     features: [
-      "Bi-Weekly progress updates",
+      "Bi-weekly progress updates every other week reviewing over your progress and we make changes to your program as necessary",
       "Customized Training Program",
       "Customized Meal Plan",
       "Customized Supplement Plan",
@@ -48,8 +51,9 @@ const DEFAULT_PLANS: Plan[] = [
     id: "training",
     productId: "com.physiquecrafters.app.training",
     title: "Training Only",
-    price: "$174.99/2mo",
-    features: ["Customized Training Program"],
+    price: "$174.99/2 months",
+    duration: "2 months · Auto-renewable",
+    features: ["Customized Training Program updated every 2 months"],
   },
 ];
 
