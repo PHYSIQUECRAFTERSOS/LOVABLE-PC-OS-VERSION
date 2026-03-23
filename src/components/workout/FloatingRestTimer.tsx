@@ -77,6 +77,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
+      restTimerAudio.stopKeepAlive();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [initialSeconds]);
