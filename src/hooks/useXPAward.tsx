@@ -24,6 +24,11 @@ interface CelebrationEvent {
   id: string;
 }
 
+interface DashboardXPGain {
+  amount: number;
+  id: string;
+}
+
 interface XPContextType {
   triggerXP: (
     userId: string,
@@ -37,11 +42,15 @@ interface XPContextType {
     totalXP: number,
     breakdown: { label: string; xp: number }[]
   ) => void;
+  dashboardXPGain: DashboardXPGain | null;
+  clearDashboardXP: () => void;
 }
 
 const XPContext = createContext<XPContextType>({
   triggerXP: async () => {},
   triggerCelebration: () => {},
+  dashboardXPGain: null,
+  clearDashboardXP: () => {},
 });
 
 export const useXPAward = () => useContext(XPContext);
@@ -50,6 +59,9 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
   const [xpToasts, setXpToasts] = useState<XPEvent[]>([]);
   const [rankEvent, setRankEvent] = useState<RankEvent | null>(null);
   const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
+  const [dashboardXPGain, setDashboardXPGain] = useState<DashboardXPGain | null>(null);
+
+  const clearDashboardXP = useCallback(() => setDashboardXPGain(null), []);
 
   const triggerCelebration = useCallback(
     (type: "cardio" | "nutrition", totalXP: number, breakdown: { label: string; xp: number }[]) => {
@@ -74,6 +86,11 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
         if (txType !== "cardio_completed") {
           const toastId = `${txType}-${Date.now()}`;
           setXpToasts((prev) => [...prev, { amount: result.xpAwarded, id: toastId }]);
+        }
+
+        // Broadcast to dashboard card for bar animation
+        if (result.xpAwarded > 0) {
+          setDashboardXPGain({ amount: result.xpAwarded, id: `dash-${Date.now()}` });
         }
 
         // Check for badge unlocks
@@ -114,7 +131,7 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <XPContext.Provider value={{ triggerXP, triggerCelebration }}>
+    <XPContext.Provider value={{ triggerXP, triggerCelebration, dashboardXPGain, clearDashboardXP }}>
       {children}
       {xpToasts.map((t) => (
         <XPToast key={t.id} amount={t.amount} onDone={() => removeToast(t.id)} />
