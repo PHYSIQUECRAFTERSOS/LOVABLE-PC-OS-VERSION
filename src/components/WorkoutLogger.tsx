@@ -349,6 +349,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .order("set_number", { ascending: true });
 
         if (allLogs && allLogs.length > 0) {
+          // Build all-time bests per exercise (every logged set across all sessions)
+          const bestsMap: Record<string, { weight: number; reps: number }[]> = {};
           // Group by exercise_id, then find most recent session per exercise
           const byExercise: Record<string, Record<string, { created_at: string; logs: any[] }>> = {};
           allLogs.forEach((l: any) => {
@@ -358,7 +360,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             if (!byExercise[eid]) byExercise[eid] = {};
             if (!byExercise[eid][sid]) byExercise[eid][sid] = { created_at: sessionCreated, logs: [] };
             byExercise[eid][sid].logs.push(l);
+            // Track all sets with valid weight+reps for PR comparison
+            const w = l.weight ?? 0;
+            const r = l.reps ?? 0;
+            if (w > 0 && r > 0) {
+              if (!bestsMap[eid]) bestsMap[eid] = [];
+              bestsMap[eid].push({ weight: w, reps: r });
+            }
           });
+          setAllTimeBests(bestsMap);
 
           const grouped: Record<string, any[]> = {};
           Object.entries(byExercise).forEach(([eid, sessions]) => {
