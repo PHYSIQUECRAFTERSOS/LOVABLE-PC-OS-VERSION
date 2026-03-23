@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
 import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
-import { Footprints, Camera, Flame } from "lucide-react";
+import { Footprints, Camera, Flame, Zap, MapPin } from "lucide-react";
 import CurrentWeightCard from "./CurrentWeightCard";
 import WeightHistoryScreen from "./WeightHistoryScreen";
 import StepTrendModal from "./StepTrendModal";
@@ -129,8 +129,10 @@ const ProgressWidgetGrid = () => {
 
   // Steps data from health sync
   const steps = todayMetrics?.steps ?? null;
-  const isConnected = isNative && connection?.is_connected;
+  const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";
   const stepsSpark: SparkData[] = weekMetrics.map(d => ({ value: d.steps ?? 0 }));
+  const activeCalSpark: SparkData[] = weekMetrics.map(d => ({ value: d.active_energy_kcal ?? 0 }));
+  const distanceSpark: SparkData[] = weekMetrics.map(d => ({ value: d.walking_running_distance_km ?? 0 }));
 
   return (
     <>
@@ -196,6 +198,48 @@ const ProgressWidgetGrid = () => {
             {todayCals > 0 ? todayCals.toLocaleString() : "–"}
           </div>
           <MiniSparkline data={calSpark} />
+        </button>
+
+        {/* Active Calories */}
+        <button
+          onClick={() => navigate("/progress?tab=steps")}
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <Zap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Active Cal</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {isConnected && todayMetrics?.active_energy_kcal != null
+              ? todayMetrics.active_energy_kcal.toLocaleString()
+              : "–"}
+          </div>
+          {isConnected ? (
+            <MiniSparkline data={activeCalSpark} />
+          ) : (
+            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
+          )}
+        </button>
+
+        {/* Distance */}
+        <button
+          onClick={() => navigate("/progress?tab=steps")}
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Distance</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {isConnected && todayMetrics?.walking_running_distance_km != null
+              ? `${todayMetrics.walking_running_distance_km.toFixed(1)} km`
+              : "–"}
+          </div>
+          {isConnected ? (
+            <MiniSparkline data={distanceSpark} />
+          ) : (
+            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
+          )}
         </button>
       </div>
 
