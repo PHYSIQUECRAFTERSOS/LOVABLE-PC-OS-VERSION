@@ -24,6 +24,11 @@ interface CelebrationEvent {
   id: string;
 }
 
+interface DashboardXPGain {
+  amount: number;
+  id: string;
+}
+
 interface XPContextType {
   triggerXP: (
     userId: string,
@@ -37,11 +42,15 @@ interface XPContextType {
     totalXP: number,
     breakdown: { label: string; xp: number }[]
   ) => void;
+  dashboardXPGain: DashboardXPGain | null;
+  clearDashboardXP: () => void;
 }
 
 const XPContext = createContext<XPContextType>({
   triggerXP: async () => {},
   triggerCelebration: () => {},
+  dashboardXPGain: null,
+  clearDashboardXP: () => {},
 });
 
 export const useXPAward = () => useContext(XPContext);
