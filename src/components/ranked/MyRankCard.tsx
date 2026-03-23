@@ -1,4 +1,9 @@
-import TierBadge from "./TierBadge";
+import legacyBronze from "@/assets/tiers/legacy/bronze.png";
+import legacySilver from "@/assets/tiers/legacy/silver.png";
+import legacyGold from "@/assets/tiers/legacy/gold.png";
+import legacyEmerald from "@/assets/tiers/legacy/emerald.png";
+import legacyDiamond from "@/assets/tiers/legacy/diamond.png";
+import legacyChampion from "@/assets/tiers/legacy/champion.png";
 import {
   getDivisionLabel,
   getTierColor,
