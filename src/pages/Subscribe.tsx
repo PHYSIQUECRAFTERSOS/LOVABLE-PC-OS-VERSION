@@ -190,10 +190,11 @@ const Subscribe = () => {
                     : "border-border bg-card hover:border-primary/40"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <span className="font-semibold text-foreground">{plan.title}</span>
                   <span className="text-primary font-bold">{plan.price}</span>
                 </div>
+                <span className="text-[10px] text-muted-foreground block mb-2">{plan.duration}</span>
                 {plan.badge && (
                   <span className="inline-block text-[10px] font-bold border border-primary/50 text-primary px-2 py-0.5 rounded-full mb-2">
                     {plan.badge}
