@@ -45,11 +45,15 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
           countdownFiredRef.current = true;
           restTimerAudio.playCountdown();
         }
+        restTimerAudio.stopKeepAlive();
         setShowComplete(true);
       }
     };
 
     worker.postMessage({ type: "start", endTime });
+
+    // Start keepalive to prevent iOS from suspending AudioContext
+    restTimerAudio.startKeepAlive();
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -63,6 +67,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
           completedRef.current = true;
           setTimeRemaining(0);
           worker.postMessage({ type: "stop" });
+          restTimerAudio.stopKeepAlive();
           setShowComplete(true);
         }
       }
@@ -73,6 +78,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
+      restTimerAudio.stopKeepAlive();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [initialSeconds]);
@@ -91,6 +97,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
       workerRef.current = null;
     }
     restTimerAudio.stopCountdown();
+    restTimerAudio.stopKeepAlive();
     onComplete();
   }, [onComplete]);
 

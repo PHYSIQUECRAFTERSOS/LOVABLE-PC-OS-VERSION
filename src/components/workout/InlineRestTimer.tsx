@@ -47,11 +47,15 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
           countdownFiredRef.current = true;
           restTimerAudio.playCountdown();
         }
+        restTimerAudio.stopKeepAlive();
         setTimeout(() => onCompleteRef.current(), 800);
       }
     };
 
     worker.postMessage({ type: "start", endTime });
+
+    // Start keepalive to prevent iOS from suspending AudioContext
+    restTimerAudio.startKeepAlive();
 
     // Visibility change handler — recalculate on return
     const handleVisibility = () => {
@@ -68,6 +72,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
           completedRef.current = true;
           setTimeRemaining(0);
           worker.postMessage({ type: "stop" });
+          restTimerAudio.stopKeepAlive();
           setTimeout(() => onCompleteRef.current(), 800);
         }
       }
@@ -78,6 +83,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
+      restTimerAudio.stopKeepAlive();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [initialSeconds]);
@@ -89,6 +95,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       workerRef.current = null;
     }
     restTimerAudio.stopCountdown();
+    restTimerAudio.stopKeepAlive();
     onSkip();
   }, [onSkip]);
 

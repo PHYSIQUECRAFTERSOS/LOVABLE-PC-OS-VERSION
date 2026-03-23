@@ -5,17 +5,23 @@
  * 1. AudioContext suspension — resumes on every unlock()
  * 2. User gesture requirement — unlock() plays silent buffer during taps
  * 3. Reliable playback — uses AudioBuffer (not HTML5 Audio)
+ * 4. iOS background suspension — keepalive plays silent buffer every 5s
  *
  * Usage:
  *   import { restTimerAudio } from "@/services/RestTimerAudioService";
  *   // On every user tap in training view:
  *   restTimerAudio.unlock();
+ *   // When rest timer starts:
+ *   restTimerAudio.startKeepAlive();
  *   // When timer hits 3 seconds:
  *   restTimerAudio.playCountdown();
+ *   // When timer completes or is skipped:
+ *   restTimerAudio.stopKeepAlive();
  */
 
 const COUNTDOWN_URL = "/sounds/rest-timer-countdown.mp3";
 const OVERLAY_VOLUME = 0.85;
+const KEEPALIVE_INTERVAL_MS = 5000;
 
 class RestTimerAudioService {
   private ctx: AudioContext | null = null;
@@ -24,6 +30,7 @@ class RestTimerAudioService {
   private bufferLoading: Promise<AudioBuffer | null> | null = null;
   private activeSource: AudioBufferSourceNode | null = null;
   private unlocked = false;
+  private keepAliveId: ReturnType<typeof setInterval> | null = null;
 
   /** Get or create AudioContext + gain node */
   private ensureContext(): AudioContext | null {
@@ -37,11 +44,56 @@ class RestTimerAudioService {
       return null;
     }
 
-    this.ctx = new Ctor();
+    // Use playout category on iOS to mix with other audio (Spotify, Apple Music)
+    try {
+      this.ctx = new Ctor({ sampleRate: 44100 } as any);
+    } catch {
+      this.ctx = new Ctor();
+    }
+
     this.gainNode = this.ctx.createGain();
     this.gainNode.gain.value = OVERLAY_VOLUME;
     this.gainNode.connect(this.ctx.destination);
     return this.ctx;
+  }
+
+  /** Play a single-sample silent buffer to keep iOS AudioContext alive */
+  private playSilent(): void {
+    if (!this.ctx || this.ctx.state === "closed") return;
+    try {
+      if (this.ctx.state === "suspended") {
+        this.ctx.resume().catch(() => {});
+      }
+      const buf = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.ctx.destination);
+      src.start(0);
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Start keepalive loop — plays a silent buffer every 5s to prevent
+   * iOS from suspending the AudioContext during long rest periods.
+   * Safe to call multiple times; previous interval is cleared first.
+   */
+  startKeepAlive(): void {
+    this.stopKeepAlive();
+    // Immediately play one silent buffer
+    this.playSilent();
+    this.keepAliveId = setInterval(() => this.playSilent(), KEEPALIVE_INTERVAL_MS);
+    console.log("[RestTimerAudio] Keepalive started");
+  }
+
+  /** Stop keepalive loop */
+  stopKeepAlive(): void {
+    if (this.keepAliveId !== null) {
+      clearInterval(this.keepAliveId);
+      this.keepAliveId = null;
+      console.log("[RestTimerAudio] Keepalive stopped");
+    }
   }
 
   /**
@@ -62,15 +114,7 @@ class RestTimerAudioService {
     }
 
     // Play a tiny silent buffer to keep iOS happy
-    try {
-      const silentBuffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-      const src = ctx.createBufferSource();
-      src.buffer = silentBuffer;
-      src.connect(ctx.destination);
-      src.start(0);
-    } catch {
-      // ignore
-    }
+    this.playSilent();
 
     this.unlocked = true;
 

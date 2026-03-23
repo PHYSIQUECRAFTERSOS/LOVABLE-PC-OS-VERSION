@@ -40,6 +40,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
       if (msg.type === "done") {
         setSeconds(0);
         setIsActive(false);
+        restTimerAudio.stopKeepAlive();
         if (!countdownFiredRef.current) {
           countdownFiredRef.current = true;
           restTimerAudio.playCountdown();
@@ -49,10 +50,14 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
 
     worker.postMessage({ type: "start", endTime });
 
+    // Start keepalive to prevent iOS from suspending AudioContext
+    restTimerAudio.startKeepAlive();
+
     return () => {
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
+      restTimerAudio.stopKeepAlive();
     };
   }, [isActive, totalSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -120,6 +125,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
               setSeconds(0);
               setIsActive(false);
               restTimerAudio.stopCountdown();
+              restTimerAudio.stopKeepAlive();
               onComplete?.();
             }}>
               <SkipForward className="h-4 w-4" />
