@@ -424,16 +424,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       return false; // Does not beat the stored PR
     }
 
-    // Check against ALL previous performance logs (the actual historical sets)
-    const prevLogs = previousPerformance[exerciseId] || [];
-    for (const log of prevLogs) {
-      const prevWeight = log.weight ?? 0;
-      const prevReps = log.reps ?? 0;
-      if (prevWeight > 0 && prevReps > 0) {
-        // If any previous set has equal or higher weight with equal or higher reps, not a PR
-        if (weight < prevWeight || (weight === prevWeight && reps <= prevReps)) {
-          return false;
-        }
+    // Check against ALL historical sets (every completed session ever)
+    const historicalSets = allTimeBests[exerciseId] || [];
+    for (const prev of historicalSets) {
+      // Not a PR if any historical set has equal or better performance
+      if (prev.weight > weight || (prev.weight === weight && prev.reps >= reps)) {
+        return false;
       }
     }
 
