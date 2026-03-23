@@ -292,7 +292,7 @@ const MealPlanMacroSidebar = ({
               <Target className="h-4 w-4 text-primary" />
               <div className="flex items-center gap-2 text-xs font-semibold">
                 <span className="text-foreground">
-                  {current.calories}/{targets.calories} cal
+                  {Math.round(current.calories)}/{targets.calories} cal
                 </span>
                 <span className="text-blue-400">
                   {Math.round(current.protein)}P
@@ -426,7 +426,7 @@ const MealPlanMacroSidebar = ({
               {/* Calorie summary */}
               <div className="text-center space-y-1">
                 <div className="text-2xl font-bold text-foreground tabular-nums">
-                  {current.calories}
+                  {Math.round(current.calories)}
                   <span className="text-sm text-muted-foreground font-normal">
                     {" "}
                     / {targets.calories} cal
