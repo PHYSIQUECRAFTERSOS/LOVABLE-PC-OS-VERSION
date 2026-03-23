@@ -1,43 +1,63 @@
 
 
-# Plan: Add Apple Health Metrics to Client Dashboard
+# Plan: Fix Apple Health "Connecting..." Hang on Native iOS
 
-## What Changes
+## Root Cause Analysis
 
-The HealthKit integration already syncs **active calories** and **walking/running distance** into the `daily_health_metrics` table, but the dashboard only shows Steps, Weight, Photos, and Calories. We'll expand the grid to 3 rows (6 cards) and add two new metric cards that display real HealthKit data with 7-day sparklines.
+There are **three bugs** causing the infinite "Connecting..." state:
 
-## File: `src/components/dashboard/ProgressWidgetGrid.tsx`
+### Bug 1: No timeout on native plugin calls (PRIMARY CAUSE)
+When `connect()` calls `HealthKit.isAvailable()` or `HealthKit.requestAuthorization()`, if the native plugin isn't properly registered in Xcode (or if there's any bridge communication failure), the Capacitor `registerPlugin` proxy **hangs forever** — the promise never resolves or rejects. Since `handleConnectAppleHealth` uses `await healthSync.connect()`, it blocks indefinitely, never reaching the `finally` block that would reset the button state.
 
-### 1. Add Active Calories card (row 3, left)
-- Icon: `Zap` (energy bolt)
-- Label: "Active Cal"
-- Value: `todayMetrics.active_energy_kcal` from `useHealthSync()` — already available, no new fetch needed
-- Sparkline: 7-day `weekMetrics.map(d => d.active_energy_kcal ?? 0)`
-- Fallback: "–" when no data, "Connect Health App" hint when disconnected
+### Bug 2: Silent error swallowing in `connect()`
+When HealthKit is unavailable or authorization fails, `connect()` silently `return`s (lines 119, 125) instead of throwing an error. The caller in `handleConnectAppleHealth` catches errors, but a silent return means:
+- No error toast shown to the user
+- The success toast fires incorrectly
+- The button resets without feedback
 
-### 2. Add Distance card (row 3, right)
-- Icon: `MapPin` or `Route` (Lucide)
-- Label: "Distance"
-- Value: `todayMetrics.walking_running_distance_km` formatted as `X.X km`
-- Sparkline: 7-day `weekMetrics.map(d => d.walking_running_distance_km ?? 0)`
-- Same fallback pattern
+### Bug 3: Race condition in `syncNow()` after `connect()`
+`handleConnectAppleHealth` calls `await healthSync.syncNow()` immediately after `connect()`. But `connect()` updates `connection` via `setConnection()` — a React state update that is **asynchronous**. The `syncNow` callback still sees the old `connection` value (null), so its guard `if (!connection?.is_connected)` exits immediately. The initial sync silently does nothing.
 
-### 3. Fix Steps card sync
-- The Steps card currently has a split logic: `isConnected && steps` vs `manualSteps`. With HealthKit now syncing into the same `daily_health_metrics` table, the `todayMetrics.steps` value should already contain the HealthKit steps. Update `isConnected` to also be true when `todayMetrics?.source === "apple_health"` — so the sparkline and value render correctly even when the health_connections record isn't loaded yet.
+## The Fix
 
-### 4. Layout — iPhone-optimized 2-column grid
-- Change from 4 cards (2x2) to 6 cards (2x3)
-- Same `grid grid-cols-2 gap-3` — no layout change needed, just add 2 more children
-- Cards already use `p-3 sm:p-4`, `text-lg sm:text-xl`, `truncate`, and `overflow-hidden` — iPhone-safe
-- New cards follow the exact same card pattern/classes as existing ones
+### File: `src/hooks/useHealthSync.ts`
 
-### 5. Click behavior
-- Active Calories: taps navigate to `/progress?tab=steps` (reuses the existing steps/health screen)
-- Distance: same navigation target
+**1. Add a timeout wrapper for all native plugin calls**
+```typescript
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    ),
+  ]);
+}
+```
+Wrap every `HealthKit.*()` call with `withTimeout(HealthKit.isAvailable(), 10000, "HealthKit.isAvailable")`. This ensures the button always unblocks.
 
-## No database changes needed
-The `daily_health_metrics` table already has `active_energy_kcal` and `walking_running_distance_km` columns, populated by the HealthKit sync in `useHealthSync.ts`.
+**2. Make `connect()` throw errors instead of silently returning**
+Change the silent `return` statements to `throw new Error("HealthKit is not available on this device")` and `throw new Error("HealthKit authorization failed")`. This lets the caller show proper error toasts.
 
-## Files to modify
-- `src/components/dashboard/ProgressWidgetGrid.tsx` — add 2 cards, fix steps display logic
+**3. Fix the `syncNow` race condition**
+Make `connect()` return the connection data. Then in `handleConnectAppleHealth`, pass it directly to `syncNow` or call `syncNow` with an override parameter. Alternatively, make `syncNow` accept an optional connection ID parameter to bypass the stale state check.
 
+**4. Add diagnostic logging**
+Add `console.log` breadcrumbs at each step of the connect flow so we can trace failures in TestFlight builds.
+
+### File: `src/components/settings/HealthIntegrations.tsx`
+
+**5. Fix `handleConnectAppleHealth` error handling**
+- Catch the new thrown errors and show descriptive toasts
+- Remove the premature success toast — only show it after `connect()` actually succeeds
+- Handle the `syncNow` call failure gracefully (connection succeeded but initial sync failed)
+
+## Technical Details
+
+### Timeout values
+- `isAvailable()`: 5 seconds (should be instant)
+- `requestAuthorization()`: 30 seconds (user may interact with the permission dialog)
+- `querySteps/queryActiveEnergy/queryDistance`: 15 seconds each
+
+### Files to modify
+- `src/hooks/useHealthSync.ts` — timeout wrapper, throw errors, fix race condition, logging
+- `src/components/settings/HealthIntegrations.tsx` — fix error handling in connect
