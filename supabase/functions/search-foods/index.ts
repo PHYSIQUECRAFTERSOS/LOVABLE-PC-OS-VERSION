@@ -279,8 +279,8 @@ function applyHistoryBoost(results: any[], historyData: { byId: Map<string, Hist
     if (!history) return food;
     const daysSinceLogged = Math.floor((Date.now() - new Date(history.last_logged_at).getTime()) / 86400000);
     const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
-    // Boosted values: favorites +40, per-log +1.5 capped at 30, recency +15
-    const historyBoost = (history.is_favorite ? 40.0 : 0) + Math.min(history.log_count, 20) * 1.5 + recencyFactor * 15.0;
+    // Boosted values: favorites +60, per-log ×2.5 capped at 75, recency +25
+    const historyBoost = (history.is_favorite ? 60.0 : 0) + Math.min(history.log_count, 30) * 2.5 + recencyFactor * 25.0;
     return { ...food, _relevance: (food._relevance ?? 0) + historyBoost, is_recent: true, is_favorite: history.is_favorite, log_count: history.log_count };
   }).sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
 }
