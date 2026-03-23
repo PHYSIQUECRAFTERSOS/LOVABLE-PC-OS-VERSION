@@ -446,7 +446,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     ]);
     toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
     return true;
-  }, [personalRecords, previousPerformance, prAlerts, toast]);
+  }, [personalRecords, allTimeBests, prAlerts, toast]);
 
   // Persist a single set to Supabase immediately
   const persistSet = async (exerciseId: string, log: ExerciseLogForm["logs"][0]) => {
