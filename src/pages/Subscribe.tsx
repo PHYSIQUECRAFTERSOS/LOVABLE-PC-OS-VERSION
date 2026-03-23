@@ -231,8 +231,12 @@ const Subscribe = () => {
         </button>
 
         <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-          Payment will be charged to your Apple ID account at confirmation of purchase. Subscription
-          automatically renews unless canceled at least 24 hours before the end of the current period.
+          Subscriptions automatically renew unless canceled at least 24 hours before the end of the
+          current period. Weekly Updates and Bi-Weekly Updates are billed monthly ($399.99/month and
+          $299.99/month respectively). Training Only is billed every 2 months ($174.99/2 months). No
+          long-term commitment required — cancel anytime. Payment will be charged to your Apple ID
+          account at confirmation of purchase. You can manage or cancel your subscription in your
+          Apple ID Account Settings.
         </p>
 
         <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
