@@ -66,6 +66,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
           completedRef.current = true;
           setTimeRemaining(0);
           worker.postMessage({ type: "stop" });
+          restTimerAudio.stopKeepAlive();
           setShowComplete(true);
         }
       }
