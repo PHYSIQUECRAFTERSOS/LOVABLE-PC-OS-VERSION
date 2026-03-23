@@ -53,6 +53,9 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
     worker.postMessage({ type: "start", endTime });
 
+    // Start keepalive to prevent iOS from suspending AudioContext
+    restTimerAudio.startKeepAlive();
+
     // Visibility change handler — recalculate on return
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
