@@ -1,66 +1,60 @@
 
 
-# Plan: Workout Logger Visual Overhaul — Strong App Style
+# Plan: Fix Rest Timer Audio on iOS Native App
 
-## Summary
+## Root Cause
 
-Two layout changes to match the Strong app's workout logging UX:
+On iOS, the `AudioContext` gets **suspended by the OS** during the ~60-180 second rest period between when the user taps "Log" (which calls `unlock()`) and when the 3-second countdown fires. The `playCountdown()` method tries `ctx.resume()`, but iOS blocks `resume()` calls that happen outside a user gesture. The Web Worker's `onmessage` callback is not a user gesture — so the resume silently fails and no sound plays.
 
-1. **Remove the fixed bottom action bar** — "Add Exercises" and "Cancel Workout" buttons become inline content at the bottom of the exercise list, only visible when the user scrolls to the end.
-2. **Push the sticky timer header flush against the top nav** — eliminate the gap between the AppLayout header and the workout timer/progress bar.
+This is the same reason Strong and other fitness apps use a native audio session approach: iOS requires the audio session to be kept alive.
 
-## Changes
+## The Fix
 
-### File: `src/components/WorkoutLogger.tsx`
+**Add a keepalive mechanism to `RestTimerAudioService`** that plays a tiny silent buffer every 5 seconds while a rest timer is active. This prevents iOS from suspending the AudioContext during the rest period. The silent buffer is inaudible (1 sample of silence) and does not interfere with Spotify/Apple Music.
 
-**1. Move "Add Exercises" and "Cancel Workout" out of the fixed footer into the scroll flow**
+### File: `src/services/RestTimerAudioService.ts`
 
-Currently (lines 927-943): Both buttons are in a `fixed bottom-0` container that always overlays the screen, eating ~120px of viewport space.
+1. **Add `startKeepAlive()` method** — starts an interval that plays a 1-sample silent buffer every 5 seconds through the AudioContext. This keeps iOS from reclaiming the audio session.
 
-Change: Move both buttons inline after the exercise cards, inside the scrollable `div`. Remove the `fixed` positioning entirely. They become regular content that appears after the last exercise card — exactly like Strong.
+2. **Add `stopKeepAlive()` method** — clears the keepalive interval when the timer completes or is skipped.
 
-**2. Reduce bottom padding**
+3. **Configure AudioContext for mixing** — when creating the AudioContext, check for the `webkitAudioContext` option to set the audio category to ambient/mixing mode so it overlays on top of Spotify/Apple Music instead of pausing it.
 
-Currently: `pb-56` on the main container (line 823) to accommodate the fixed footer. Since the footer is gone, reduce to `pb-24` (just enough clearance above the mobile bottom nav).
+### File: `src/components/workout/InlineRestTimer.tsx`
 
-**3. Make sticky header flush with the top app bar**
+4. **Call `startKeepAlive()` when the timer starts** — right after `worker.postMessage({ type: "start" })`.
 
-Currently (line 843): The sticky header has `pt-2 pb-3 -mx-4 px-4` with a bottom border. It sits below the AppLayout header with a visible gap due to the parent's `p-4` padding.
+5. **Call `stopKeepAlive()` in all exit paths** — timer complete, skip, and cleanup.
 
-Change: Use negative top margin (`-mt-4`) and adjust padding so the sticky bar sits flush against the AppLayout header border. This creates a seamless "toolbar below navbar" look like Strong.
+### File: `src/components/workout/FloatingRestTimer.tsx`
 
-**4. Add PR alert banner styling**
+6. Same keepalive start/stop pattern as InlineRestTimer.
 
-The PR alerts (lines 884-892) currently use small badges. Keep as-is — they already match the screenshots well with the trophy icon.
+### File: `src/components/RestTimer.tsx`
 
-### File: `src/components/workout/ExerciseCard.tsx`
+7. Same keepalive start/stop pattern.
 
-No changes needed — the card layout already matches the Strong-style set grid.
-
-## Visual Result
+## Technical Detail
 
 ```text
-┌─────────────────────────────┐
-│ PHYSIQUE CRAFTERS   ⚙  ☰   │  ← AppLayout header (unchanged)
-├─────────────────────────────┤
-│ ↻  38:18           [Finish] │  ← Flush sticky timer bar
-│ ████████░░░░░░░  5/20 sets  │
-│ day 1: Pull day             │
-├─────────────────────────────┤
-│                             │
-│  [Exercise Card 1]          │  ← Full viewport for exercises
-│  [Exercise Card 2]          │
-│  [Exercise Card 3]          │
-│  ...                        │
-│                             │
-│  [+ Add Exercises]          │  ← Inline, only visible at scroll end
-│  [Cancel Workout]           │
-│                             │
-└─────────────────────────────┘
-│ 🏠  🍽  💬  📊  👤         │  ← Bottom nav (AppLayout)
-└─────────────────────────────┘
+User taps "Log"
+  → unlock() resumes AudioContext + plays silent buffer ✓
+  → startKeepAlive() begins 5s silent-buffer loop
+  
+Every 5s during rest:
+  → silent buffer plays, keeping AudioContext "running" state
+  
+Timer hits 3s remaining:
+  → playCountdown() fires — AudioContext is already running ✓
+  → Countdown audio mixes with Spotify/Apple Music
+  
+Timer completes or skipped:
+  → stopKeepAlive() clears interval
 ```
 
 ## Files to modify
-- `src/components/WorkoutLogger.tsx` — move buttons inline, flush sticky header, reduce padding
+- `src/services/RestTimerAudioService.ts` — add keepalive + audio mixing config
+- `src/components/workout/InlineRestTimer.tsx` — wire keepalive start/stop
+- `src/components/workout/FloatingRestTimer.tsx` — wire keepalive start/stop
+- `src/components/RestTimer.tsx` — wire keepalive start/stop
 
