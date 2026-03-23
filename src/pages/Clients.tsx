@@ -4,7 +4,7 @@ import SelectableClientCards, {
   type SelectableClient,
 } from "@/components/clients/SelectableClientCards";
 import BulkMessageComposer from "@/components/clients/BulkMessageComposer";
-import AddClientDialog from "@/components/clients/AddClientDialog";
+import AddClientWithAssignmentDialog from "@/components/clients/AddClientWithAssignmentDialog";
 import InviteList from "@/components/clients/InviteList";
 import InviteDashboard from "@/components/clients/InviteDashboard";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,7 @@ const Clients = () => {
           </TabsContent>
         </Tabs>
 
-        <AddClientDialog
+        <AddClientWithAssignmentDialog
           open={addOpen}
           onOpenChange={setAddOpen}
           onInviteSent={() => setRefreshKey((k) => k + 1)}
