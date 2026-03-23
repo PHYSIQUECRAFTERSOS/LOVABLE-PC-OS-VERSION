@@ -655,7 +655,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
-      toast({ title: "Logged!" });
+      const t = toast({ title: "Logged!" });
+      setTimeout(() => t.dismiss(), 1000);
       setQuickAddOpen(false);
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
       onLogged();
