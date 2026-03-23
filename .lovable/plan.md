@@ -1,63 +1,39 @@
 
 
-# Plan: Fix Apple Health "Connecting..." Hang on Native iOS
+# Plan: Fix Apple Health "HealthKitPlugin failed to load" Error
 
-## Root Cause Analysis
+## Root Cause
 
-There are **three bugs** causing the infinite "Connecting..." state:
+The issue is a **dynamic import failure** in production. Here's why:
 
-### Bug 1: No timeout on native plugin calls (PRIMARY CAUSE)
-When `connect()` calls `HealthKit.isAvailable()` or `HealthKit.requestAuthorization()`, if the native plugin isn't properly registered in Xcode (or if there's any bridge communication failure), the Capacitor `registerPlugin` proxy **hangs forever** — the promise never resolves or rejects. Since `handleConnectAppleHealth` uses `await healthSync.connect()`, it blocks indefinitely, never reaching the `finally` block that would reset the button state.
+Your Capacitor app loads its web content from a remote URL (`https://app.physiquecrafters.com`). The `useHealthSync.ts` hook uses a **dynamic import** (`await import("@/plugins/HealthKitPlugin")`) to load the HealthKit module. Vite code-splits this into a separate network-fetched chunk.
 
-### Bug 2: Silent error swallowing in `connect()`
-When HealthKit is unavailable or authorization fails, `connect()` silently `return`s (lines 119, 125) instead of throwing an error. The caller in `handleConnectAppleHealth` catches errors, but a silent return means:
-- No error toast shown to the user
-- The success toast fires incorrectly
-- The button resets without feedback
+Compare this to StoreKit — which **works perfectly** — because it's imported **statically** (`import StoreKit from "@/plugins/StoreKitPlugin"`) in `useSubscription.tsx` and `Subscribe.tsx`. The StoreKit module is bundled into the main app code and always available.
 
-### Bug 3: Race condition in `syncNow()` after `connect()`
-`handleConnectAppleHealth` calls `await healthSync.syncNow()` immediately after `connect()`. But `connect()` updates `connection` via `setConnection()` — a React state update that is **asynchronous**. The `syncNow` callback still sees the old `connection` value (null), so its guard `if (!connection?.is_connected)` exits immediately. The initial sync silently does nothing.
+The HealthKit module, on the other hand, is in a separate chunk that must be fetched over the network at runtime. If there's any caching mismatch, stale service worker interference, or the chunk hash changed between deployments, the fetch fails or hangs — triggering the 5-second timeout and showing "HealthKitPlugin failed to load."
+
+Additionally, `useHealthKit.ts` (which does a static import of HealthKitPlugin) is **dead code** — it's not imported anywhere in the app. So the HealthKitPlugin module is exclusively loaded via dynamic import, making it vulnerable to chunk-loading failures.
+
+Your Xcode setup is correct — the Swift plugin is properly compiled and registered. This is purely a web-side module loading issue.
 
 ## The Fix
 
 ### File: `src/hooks/useHealthSync.ts`
 
-**1. Add a timeout wrapper for all native plugin calls**
+**1. Replace dynamic import with static import**
+Change from lazy-loading the HealthKit plugin to importing it at the top of the file, just like StoreKit does. The module is tiny (just a `registerPlugin` call that creates a proxy object) — there's zero benefit to code-splitting it.
+
 ```typescript
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
-    ),
-  ]);
-}
+// BEFORE (broken):
+const getHealthKitPlugin = async () => {
+  const mod = await import("@/plugins/HealthKitPlugin");
+  return mod.default;
+};
+// ... later: await pluginTimeout(getHealthKitPlugin(), 5000, ...)
+
+// AFTER (fixed):
+import HealthKit from "@/plugins/HealthKitPlugin";
+// ... later: just use HealthKit directly
 ```
-Wrap every `HealthKit.*()` call with `withTimeout(HealthKit.isAvailable(), 10000, "HealthKit.isAvailable")`. This ensures the button always unblocks.
 
-**2. Make `connect()` throw errors instead of silently returning**
-Change the silent `return` statements to `throw new Error("HealthKit is not available on this device")` and `throw new Error("HealthKit authorization failed")`. This lets the caller show proper error toasts.
-
-**3. Fix the `syncNow` race condition**
-Make `connect()` return the connection data. Then in `handleConnectAppleHealth`, pass it directly to `syncNow` or call `syncNow` with an override parameter. Alternatively, make `syncNow` accept an optional connection ID parameter to bypass the stale state check.
-
-**4. Add diagnostic logging**
-Add `console.log` breadcrumbs at each step of the connect flow so we can trace failures in TestFlight builds.
-
-### File: `src/components/settings/HealthIntegrations.tsx`
-
-**5. Fix `handleConnectAppleHealth` error handling**
-- Catch the new thrown errors and show descriptive toasts
-- Remove the premature success toast — only show it after `connect()` actually succeeds
-- Handle the `syncNow` call failure gracefully (connection succeeded but initial sync failed)
-
-## Technical Details
-
-### Timeout values
-- `isAvailable()`: 5 seconds (should be instant)
-- `requestAuthorization()`: 30 seconds (user may interact with the permission dialog)
-- `querySteps/queryActiveEnergy/queryDistance`: 15 seconds each
-
-### Files to modify
-- `src/hooks/useHealthSync.ts` — timeout wrapper, throw errors, fix race condition, logging
-- `src/components/settings/HealthIntegrations.tsx` — fix error handling in connect
+**2. Remove the unnecessary
