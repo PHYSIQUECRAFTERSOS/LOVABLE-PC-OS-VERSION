@@ -1470,6 +1470,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                     else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
                     else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                   }}
+                  isFavorite={favorites.has(item.id)}
+                  onToggleFavorite={() => handleToggleFavorite(item.id)}
                 />
               ))
             )}
