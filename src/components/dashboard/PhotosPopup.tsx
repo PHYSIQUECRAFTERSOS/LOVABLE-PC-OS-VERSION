@@ -137,7 +137,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
