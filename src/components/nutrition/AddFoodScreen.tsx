@@ -158,8 +158,38 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fetchSavedMeals();
       fetchPCRecipes();
       fetchCustomFoods();
+      fetchFavoriteFoods();
     }
   }, [open]);
+
+  const fetchFavoriteFoods = async () => {
+    if (!user) return;
+    try {
+      const { data: historyRows } = await supabase
+        .from("user_food_history" as any)
+        .select("food_id")
+        .eq("user_id", user.id)
+        .eq("is_favorite", true)
+        .order("last_logged_at", { ascending: false })
+        .limit(100);
+      if (!historyRows || historyRows.length === 0) {
+        setFavoriteFoods([]);
+        setFavorites(new Set());
+        return;
+      }
+      const foodIds = (historyRows as any[]).map(r => r.food_id).filter(Boolean);
+      setFavorites(new Set(foodIds));
+      if (foodIds.length === 0) { setFavoriteFoods([]); return; }
+      const { data: foods } = await supabase
+        .from("food_items")
+        .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
+        .in("id", foodIds);
+      if (foods) {
+        const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean) as FoodItem[];
+        setFavoriteFoods(ordered);
+      }
+    } catch { setFavoriteFoods([]); }
+  };
 
   const fetchHistory = async () => {
     if (!user) return;
