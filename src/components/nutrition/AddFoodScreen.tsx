@@ -90,10 +90,10 @@ type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
-const TABS: { key: TabKey; label: string }[] = [
+const TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
   { key: "all", label: "All" },
-  { key: "favorites", label: "★ Favorites" },
-  { key: "my-meals", label: "My Meals" },
+  { key: "favorites", label: "★ Favs" },
+  { key: "my-meals", label: "My\nMeals", stackedLabel: "My\nMeals" },
   { key: "custom", label: "Custom Foods" },
   { key: "pc-recipes", label: "PC Recipes" },
 ];
