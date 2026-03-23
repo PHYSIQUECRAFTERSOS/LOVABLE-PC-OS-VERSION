@@ -866,7 +866,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                         />
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-muted-foreground mr-2">
-                            {mealTotals.calories}cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F
+                            {Math.round(mealTotals.calories)}cal · {Math.round(mealTotals.protein)}P · {Math.round(mealTotals.carbs)}C · {Math.round(mealTotals.fat)}F
                           </span>
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => duplicateMeal(day.id, meal.id)}>
                             <Copy className="h-3 w-3" />
