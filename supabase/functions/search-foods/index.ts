@@ -279,8 +279,8 @@ function applyHistoryBoost(results: any[], historyData: { byId: Map<string, Hist
     if (!history) return food;
     const daysSinceLogged = Math.floor((Date.now() - new Date(history.last_logged_at).getTime()) / 86400000);
     const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
-    // Boosted values: favorites +40, per-log +1.5 capped at 30, recency +15
-    const historyBoost = (history.is_favorite ? 40.0 : 0) + Math.min(history.log_count, 20) * 1.5 + recencyFactor * 15.0;
+    // Boosted values: favorites +60, per-log ×2.5 capped at 75, recency +25
+    const historyBoost = (history.is_favorite ? 60.0 : 0) + Math.min(history.log_count, 30) * 2.5 + recencyFactor * 25.0;
     return { ...food, _relevance: (food._relevance ?? 0) + historyBoost, is_recent: true, is_favorite: history.is_favorite, log_count: history.log_count };
   }).sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
 }
@@ -364,6 +364,9 @@ function mapFatSecretFood(food: any): any | null {
   const primaryDesc = primaryServing?.serving_description || `${metricAmount}g`;
   const primarySizeG = parseFloat(primaryServing?.metric_serving_amount) || metricAmount;
 
+  // Extract micronutrients from FatSecret serving data (per-100g conversion)
+  const parseMicro = (val: any) => val != null ? Math.round(parseFloat(val) * factor * 10) / 10 : null;
+
   return {
     fatsecret_id: String(food.food_id),
     name: food.food_name?.trim() || "Unknown",
@@ -375,6 +378,18 @@ function mapFatSecretFood(food: any): any | null {
     fiber_per_100g: metricServing.fiber ? Math.round(parseFloat(metricServing.fiber) * factor * 10) / 10 : null,
     sugar_per_100g: metricServing.sugar ? Math.round(parseFloat(metricServing.sugar) * factor * 10) / 10 : null,
     sodium_per_100g: metricServing.sodium ? Math.round(parseFloat(metricServing.sodium) * factor * 10) / 10 : null,
+    // Micronutrients from FatSecret serving data
+    saturated_fat_per_100g: parseMicro(metricServing.saturated_fat),
+    trans_fat_per_100g: parseMicro(metricServing.trans_fat),
+    monounsaturated_fat_per_100g: parseMicro(metricServing.monounsaturated_fat),
+    polyunsaturated_fat_per_100g: parseMicro(metricServing.polyunsaturated_fat),
+    cholesterol_per_100g: parseMicro(metricServing.cholesterol),
+    calcium_mg_per_100g: parseMicro(metricServing.calcium),
+    iron_mg_per_100g: parseMicro(metricServing.iron),
+    potassium_mg_per_100g: parseMicro(metricServing.potassium),
+    vitamin_a_mcg_per_100g: parseMicro(metricServing.vitamin_a),
+    vitamin_c_mg_per_100g: parseMicro(metricServing.vitamin_c),
+    vitamin_d_mcg_per_100g: parseMicro(metricServing.vitamin_d),
     serving_size_g: primarySizeG,
     serving_unit: "g",
     serving_description: primaryDesc,
@@ -579,8 +594,10 @@ serve(async (req) => {
       return true;
     });
 
-    let merged = deduped.slice(0, limit);
-    merged = applyHistoryBoost(merged, historyMap);
+    // Apply history boost BEFORE slicing so previously logged foods (e.g. "jasmine rice")
+    // that ranked #30+ still get promoted to the top of results
+    const boosted = applyHistoryBoost(deduped, historyMap);
+    let merged = boosted.slice(0, limit);
 
     // ── Zero-result widening ─────────────────────────────────────────
     let wasWidened = false;
