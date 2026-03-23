@@ -59,6 +59,9 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
   const [xpToasts, setXpToasts] = useState<XPEvent[]>([]);
   const [rankEvent, setRankEvent] = useState<RankEvent | null>(null);
   const [celebration, setCelebration] = useState<CelebrationEvent | null>(null);
+  const [dashboardXPGain, setDashboardXPGain] = useState<DashboardXPGain | null>(null);
+
+  const clearDashboardXP = useCallback(() => setDashboardXPGain(null), []);
 
   const triggerCelebration = useCallback(
     (type: "cardio" | "nutrition", totalXP: number, breakdown: { label: string; xp: number }[]) => {
