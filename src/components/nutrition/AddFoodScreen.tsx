@@ -1085,7 +1085,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); if (search.length >= 2) handleSearch(search); }}
               className={cn(
-                "flex-1 py-2 text-sm font-medium transition-all border-b-2",
+                "flex-1 py-2 text-sm font-medium transition-all border-b-2 whitespace-pre-line leading-tight",
                 activeTab === tab.key
                   ? "text-primary border-primary"
                   : "text-muted-foreground border-transparent hover:text-foreground"
