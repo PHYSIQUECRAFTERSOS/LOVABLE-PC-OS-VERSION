@@ -250,7 +250,7 @@ export function useHealthSync() {
       if (isNative && platform === "ios") {
         // Native iOS: query real HealthKit data
         console.log("[HealthSync] Querying HealthKit data…");
-        const HealthKit = await getHealthKitPlugin();
+        console.log("[HealthSync] Querying HealthKit data…");
 
         const [stepsResult, energyResult, distanceResult] = await Promise.all([
           pluginTimeout(HealthKit.querySteps({ startDate: weekAgo, endDate: today }), 15000, "querySteps"),
