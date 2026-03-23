@@ -78,7 +78,7 @@ const Clients = () => {
           </TabsContent>
         </Tabs>
 
-        <AddClientDialog
+        <AddClientWithAssignmentDialog
           open={addOpen}
           onOpenChange={setAddOpen}
           onInviteSent={() => setRefreshKey((k) => k + 1)}
