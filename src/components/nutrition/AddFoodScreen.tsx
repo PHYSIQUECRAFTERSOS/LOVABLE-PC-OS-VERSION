@@ -768,17 +768,34 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
-  const handleToggleFavorite = async (foodId: string) => {
+  const handleToggleFavorite = async (foodId: string, foodItem?: FoodItem) => {
     if (!user) return;
     try {
+      let localId = foodId;
+
+      // If the food is non-local, import it first so toggle_food_favorite references a real food_items row
+      if (foodItem && foodItem.source !== "local") {
+        const imported = await importOFFFood(foodItem);
+        if (imported?.id) {
+          localId = imported.id;
+          // Update the item in results so subsequent toggles use the correct ID
+          setResults(prev => prev.map(r => r.id === foodId ? { ...r, id: localId, source: "local" as const } : r));
+          setBestMatches(prev => prev.map(r => r.id === foodId ? { ...r, id: localId, source: "local" as const } : r));
+          setMoreResultsList(prev => prev.map(r => r.id === foodId ? { ...r, id: localId, source: "local" as const } : r));
+        } else {
+          toast({ title: "Couldn't save this food to favorites" });
+          return;
+        }
+      }
+
       const { data: newState } = await supabase.rpc("toggle_food_favorite" as any, {
         p_user_id: user.id,
-        p_food_id: foodId,
+        p_food_id: localId,
       });
       setFavorites(prev => {
         const next = new Set(prev);
-        if (newState) next.add(foodId);
-        else next.delete(foodId);
+        if (newState) next.add(localId);
+        else next.delete(localId);
         return next;
       });
       // Refresh favorites list

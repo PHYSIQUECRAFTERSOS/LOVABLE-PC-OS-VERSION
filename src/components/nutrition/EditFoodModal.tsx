@@ -36,7 +36,7 @@ interface EditFoodModalProps {
   onDeleteLog?: (id: string) => Promise<boolean>;
 }
 
-type Unit = "g" | "oz";
+type Unit = "g" | "oz" | "serving";
 
 const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDeleteLog }: EditFoodModalProps) => {
   const { toast } = useToast();
@@ -44,6 +44,8 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
   const [unit, setUnit] = useState<Unit>("g");
   const [isCustom, setIsCustom] = useState(false);
   const [customUnit, setCustomUnit] = useState("serving");
+  const [servingDescription, setServingDescription] = useState<string | null>(null);
+  const [servingSizeG, setServingSizeG] = useState<number>(100);
   const [baseMacros, setBaseMacros] = useState<{
     calories: number; protein: number; carbs: number; fat: number;
     fiber: number; sugar: number; sodium: number; serving_size: number;
@@ -54,11 +56,10 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
     if (!open || !logEntry) return;
 
     if (logEntry.food_item_id) {
-      // Food has a food_items reference — load base macros from there
       setIsCustom(false);
       supabase
         .from("food_items")
-        .select("calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit")
+        .select("calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit, serving_description")
         .eq("id", logEntry.food_item_id)
         .single()
         .then(({ data }) => {
@@ -73,27 +74,38 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
               sodium: data.sodium || 0,
               serving_size: data.serving_size,
             });
+            setServingDescription(data.serving_description || data.serving_unit || "serving");
+            setServingSizeG(data.serving_size || 100);
 
-            // Use quantity_display from log if available, otherwise compute from servings * serving_size
-            if (logEntry.quantity_display != null && logEntry.quantity_display > 0) {
-              setQuantity(String(logEntry.quantity_display));
-              setUnit((logEntry.quantity_unit === "oz" ? "oz" : "g") as Unit);
+            // Determine which unit to pre-select
+            const logUnit = logEntry.quantity_unit;
+            if (logUnit === "serving" || (!logUnit && logEntry.quantity_display == null)) {
+              // Pre-select serving mode
+              setUnit("serving");
+              const servingCount = logEntry.quantity_display != null && logEntry.quantity_display > 0
+                ? logEntry.quantity_display
+                : logEntry.servings;
+              setQuantity(String(Math.round(servingCount * 10) / 10));
+            } else if (logUnit === "oz") {
+              setUnit("oz");
+              setQuantity(String(logEntry.quantity_display ?? Math.round(logEntry.servings * data.serving_size / 28.3495 * 10) / 10));
             } else {
-              const qty = Math.round(logEntry.servings * data.serving_size * 10) / 10;
-              setQuantity(String(qty));
+              // Default to grams
               setUnit("g");
+              if (logEntry.quantity_display != null && logEntry.quantity_display > 0) {
+                setQuantity(String(logEntry.quantity_display));
+              } else {
+                const qty = Math.round(logEntry.servings * data.serving_size * 10) / 10;
+                setQuantity(String(qty));
+              }
             }
           }
         });
     } else {
       // Custom food — no food_items reference
-      // Normalize to "per 1 serving" base by dividing by the number of servings logged
       setIsCustom(true);
       const loggedServings = logEntry.servings || 1;
 
-      // Compute the base serving size: if we have quantity_display, the ratio
-      // quantity_display / loggedServings gives us how many units = 1 serving
-      // e.g. 250ml logged with servings=1 → baseServingSize=250
       const baseServingSize = (logEntry.quantity_display != null && logEntry.quantity_display > 0 && loggedServings > 0)
         ? logEntry.quantity_display / loggedServings
         : 1;
@@ -109,7 +121,6 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
         serving_size: baseServingSize,
       });
 
-      // Show the original quantity from the log
       if (logEntry.quantity_display != null && logEntry.quantity_display > 0) {
         setQuantity(String(logEntry.quantity_display));
       } else {
@@ -124,9 +135,11 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
     const val = parseFloat(quantity) || 0;
     const ss = baseMacros.serving_size && baseMacros.serving_size > 0 ? baseMacros.serving_size : 1;
     if (isCustom) {
-      // Custom foods: divide entered quantity by the base serving size
-      // e.g. 250ml entered / 250ml per serving = 1x multiplier
       return val / ss;
+    }
+    if (unit === "serving") {
+      // Serving mode: quantity = number of servings, multiplier = quantity directly
+      return val;
     }
     // Food items: convert to grams then divide by serving_size
     const qtyInG = unit === "oz" ? val * 28.3495 : val;
@@ -159,7 +172,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
         sugar: liveSugar,
         sodium: liveSodium,
         quantity_display: qtyDisplay,
-        quantity_unit: isCustom ? customUnit : (logEntry.food_item_id ? unit : "serving"),
+        quantity_unit: isCustom ? customUnit : unit,
       })
       .eq("id", logEntry.id);
     setSaving(false);
@@ -210,6 +223,9 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
   // Format the unit label for custom foods
   const customUnitLabel = customUnit === "g" ? "g" : customUnit === "oz" ? "oz" : customUnit === "ml" ? "ml" : customUnit;
 
+  // Build serving label for the "serving" button
+  const servingLabel = servingDescription || "serving";
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
@@ -221,7 +237,12 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <Label className="text-xs">
-                {isCustom ? `Quantity (${customUnitLabel})` : "Quantity"}
+                {isCustom
+                  ? `Quantity (${customUnitLabel})`
+                  : unit === "serving"
+                    ? `Servings (${servingLabel})`
+                    : "Quantity"
+                }
               </Label>
               <Input
                 type="number"
@@ -237,16 +258,32 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
             </div>
             {logEntry?.food_item_id && !isCustom && (
               <div className="flex rounded-lg overflow-hidden border border-border">
-                {(["g", "oz"] as Unit[]).map((u) => (
+                {(["serving", "g", "oz"] as Unit[]).map((u) => (
                   <button
                     key={u}
                     onClick={() => {
                       const val = parseFloat(quantity) || 0;
-                      if (u === "oz" && unit === "g") {
-                        setQuantity(String(Math.round(val / 28.3495 * 10) / 10));
-                      } else if (u === "g" && unit === "oz") {
-                        setQuantity(String(Math.round(val * 28.3495 * 10) / 10));
+                      const ss = servingSizeG || 100;
+                      
+                      if (u === unit) return;
+                      
+                      // Convert current quantity to new unit
+                      let newVal = val;
+                      if (unit === "g" && u === "oz") {
+                        newVal = Math.round(val / 28.3495 * 10) / 10;
+                      } else if (unit === "oz" && u === "g") {
+                        newVal = Math.round(val * 28.3495 * 10) / 10;
+                      } else if (unit === "g" && u === "serving") {
+                        newVal = Math.round(val / ss * 10) / 10;
+                      } else if (unit === "oz" && u === "serving") {
+                        newVal = Math.round((val * 28.3495) / ss * 10) / 10;
+                      } else if (unit === "serving" && u === "g") {
+                        newVal = Math.round(val * ss * 10) / 10;
+                      } else if (unit === "serving" && u === "oz") {
+                        newVal = Math.round(val * ss / 28.3495 * 10) / 10;
                       }
+                      
+                      setQuantity(String(newVal));
                       setUnit(u);
                     }}
                     className={cn(
@@ -256,7 +293,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {u}
+                    {u === "serving" ? servingLabel : u}
                   </button>
                 ))}
               </div>
