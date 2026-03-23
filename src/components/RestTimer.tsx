@@ -49,6 +49,9 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
 
     worker.postMessage({ type: "start", endTime });
 
+    // Start keepalive to prevent iOS from suspending AudioContext
+    restTimerAudio.startKeepAlive();
+
     return () => {
       worker.postMessage({ type: "stop" });
       worker.terminate();
