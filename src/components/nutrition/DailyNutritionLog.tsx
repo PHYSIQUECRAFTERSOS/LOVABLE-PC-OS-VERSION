@@ -161,6 +161,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     }
 
     setFoodNames({});
+    setFoodServingInfo({});
   }, [user, dateStr, toast]);
 
   const fetchTargets = useCallback(async () => {
