@@ -101,18 +101,33 @@ export function useHealthSync() {
     };
   }, [user, fetchMetrics]);
 
+  /** Lazy-load the native HealthKit plugin only on iOS */
+  const getHealthKitPlugin = async () => {
+    const mod = await import("@/plugins/HealthKitPlugin");
+    return mod.default;
+  };
+
   const connect = useCallback(async () => {
     if (!user) return;
 
-    if (isNative) {
-      // On native: request HealthKit/Google Fit permissions
-      // This is where the native plugin integration happens
-      // For now, we register the connection in the database
+    if (isNative && platform === "ios") {
+      try {
+        const HealthKit = await getHealthKitPlugin();
+        const { available } = await HealthKit.isAvailable();
+        if (!available) {
+          console.error("[HealthSync] HealthKit not available on this device");
+          return;
+        }
+        await HealthKit.requestAuthorization();
+        console.log("[HealthSync] HealthKit authorization requested");
+      } catch (err) {
+        console.error("[HealthSync] HealthKit authorization failed:", err);
+        return;
+      }
+    } else if (isNative) {
+      // Android: placeholder for Google Fit native integration
       try {
         console.log(`[HealthSync] Requesting ${provider} permissions on native device...`);
-        // Native plugin call would go here:
-        // iOS: await HealthKit.requestAuthorization({ ... })
-        // Android: await HealthConnect.requestPermissions({ ... })
       } catch (err) {
         console.error("[HealthSync] Permission request failed:", err);
         return;
@@ -139,7 +154,7 @@ export function useHealthSync() {
     if (!error && data) {
       setConnection(data as HealthConnection);
     }
-  }, [user, isNative, provider]);
+  }, [user, isNative, platform, provider]);
 
   const disconnect = useCallback(async () => {
     if (!user || !connection) return;
@@ -168,26 +183,75 @@ export function useHealthSync() {
         .update({ sync_status: "syncing" })
         .eq("id", connection.id);
 
-      if (isNative) {
-        // Native sync: query HealthKit/Google Fit for today's data
-        // For iOS: const result = await HealthKit.queryHKQuantityType({ ... })
-        // For Android: const result = await HealthConnect.readRecords({ ... })
-        console.log("[HealthSync] Would sync from native health API here");
-      }
-
-      // Upsert today's metrics (on native, this would use real data)
       const today = new Date().toISOString().split("T")[0];
-      await supabase
-        .from("daily_health_metrics")
-        .upsert(
-          {
-            user_id: user.id,
-            metric_date: today,
-            source: "health_api",
-            synced_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,metric_date" }
-        );
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+
+      if (isNative && platform === "ios") {
+        // Native iOS: query real HealthKit data
+        const HealthKit = await getHealthKitPlugin();
+
+        const [stepsResult, energyResult, distanceResult] = await Promise.all([
+          HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
+          HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
+          HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
+        ]);
+
+        // Build a map of date → metrics
+        const metricsMap = new Map<string, {
+          steps: number;
+          active_energy_kcal: number;
+          walking_running_distance_km: number;
+        }>();
+
+        for (const entry of stepsResult.values) {
+          const existing = metricsMap.get(entry.date) || { steps: 0, active_energy_kcal: 0, walking_running_distance_km: 0 };
+          existing.steps = Math.round(entry.value);
+          metricsMap.set(entry.date, existing);
+        }
+        for (const entry of energyResult.values) {
+          const existing = metricsMap.get(entry.date) || { steps: 0, active_energy_kcal: 0, walking_running_distance_km: 0 };
+          existing.active_energy_kcal = Math.round(entry.value);
+          metricsMap.set(entry.date, existing);
+        }
+        for (const entry of distanceResult.values) {
+          const existing = metricsMap.get(entry.date) || { steps: 0, active_energy_kcal: 0, walking_running_distance_km: 0 };
+          existing.walking_running_distance_km = Math.round(entry.value * 100) / 100;
+          metricsMap.set(entry.date, existing);
+        }
+
+        // Upsert each day's metrics
+        for (const [date, metrics] of metricsMap) {
+          await supabase
+            .from("daily_health_metrics")
+            .upsert(
+              {
+                user_id: user.id,
+                metric_date: date,
+                steps: metrics.steps,
+                active_energy_kcal: metrics.active_energy_kcal,
+                walking_running_distance_km: metrics.walking_running_distance_km,
+                source: "apple_health",
+                synced_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id,metric_date" }
+            );
+        }
+
+        console.log(`[HealthSync] Synced ${metricsMap.size} days from HealthKit`);
+      } else {
+        // Non-native or Android: placeholder upsert
+        await supabase
+          .from("daily_health_metrics")
+          .upsert(
+            {
+              user_id: user.id,
+              metric_date: today,
+              source: "health_api",
+              synced_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,metric_date" }
+          );
+      }
 
       await supabase
         .from("health_connections")
@@ -210,7 +274,7 @@ export function useHealthSync() {
     } finally {
       setSyncing(false);
     }
-  }, [user, connection, isNative, fetchConnection, fetchMetrics]);
+  }, [user, connection, isNative, platform, fetchConnection, fetchMetrics]);
 
   const updateStepGoal = useCallback(
     async (goal: number) => {

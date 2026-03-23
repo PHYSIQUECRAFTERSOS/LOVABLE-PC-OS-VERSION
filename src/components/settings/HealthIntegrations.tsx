@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useHealthSync } from "@/hooks/useHealthSync";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Activity, RefreshCw, Unplug, Footprints, Watch, Heart, Smartphone, ExternalLink, AlertCircle } from "lucide-react";
+import { Activity, RefreshCw, Unplug, Footprints, Watch, Heart, Smartphone, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { Capacitor } from "@capacitor/core";
 
 interface WearableConnection {
   id: string;
@@ -26,6 +28,11 @@ const HealthIntegrations = () => {
   const [wearables, setWearables] = useState<WearableConnection[]>([]);
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+
+  const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+
+  // Apple Health hook (used on native iOS)
+  const healthSync = useHealthSync();
 
   // Fetch wearable connections
   const fetchWearables = useCallback(async () => {
@@ -47,7 +54,6 @@ const HealthIntegrations = () => {
 
     if (code && state && oauthProvider) {
       handleOAuthCallback(oauthProvider, code, state);
-      // Clean URL params
       searchParams.delete("code");
       searchParams.delete("state");
       searchParams.delete("oauth_provider");
@@ -98,7 +104,6 @@ const HealthIntegrations = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Redirect to provider's OAuth page
       window.location.href = data.url;
     } catch (err: any) {
       console.error(`OAuth start failed for ${provider}:`, err);
@@ -150,12 +155,50 @@ const HealthIntegrations = () => {
 
   const handleSyncAll = async () => {
     setSyncingProvider("all");
+
+    // Sync Apple Health if connected on native iOS
+    if (isNativeIOS && healthSync.connection?.is_connected) {
+      await healthSync.syncNow();
+    }
+
     for (const w of wearables) {
       if (isReallyConnected(w.provider)) {
         await handleSyncProvider(w.provider);
       }
     }
     setSyncingProvider(null);
+  };
+
+  // Apple Health connect/disconnect/sync handlers
+  const handleConnectAppleHealth = async () => {
+    setConnectingProvider("apple_health");
+    try {
+      await healthSync.connect();
+      toast({ title: "Apple Health connected!", description: "Syncing your health data now." });
+      // Trigger initial sync after connecting
+      await healthSync.syncNow();
+    } catch (err: any) {
+      toast({ title: "Connection failed", description: err.message, variant: "destructive" });
+    } finally {
+      setConnectingProvider(null);
+    }
+  };
+
+  const handleDisconnectAppleHealth = async () => {
+    await healthSync.disconnect();
+    toast({ title: "Apple Health disconnected" });
+  };
+
+  const handleSyncAppleHealth = async () => {
+    setSyncingProvider("apple_health");
+    try {
+      await healthSync.syncNow();
+      toast({ title: "Sync complete", description: "Apple Health data synced" });
+    } catch (err: any) {
+      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSyncingProvider(null);
+    }
   };
 
   const renderOAuthProvider = (
@@ -207,24 +250,67 @@ const HealthIntegrations = () => {
     );
   };
 
-  const renderNativeOnlyProvider = (
-    label: string,
-    icon: React.ReactNode,
-    description: string,
-  ) => (
-    <div className="flex items-center justify-between rounded-lg border border-border p-4 opacity-60">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
-          {icon}
+  const renderAppleHealth = () => {
+    if (!isNativeIOS) {
+      // PWA / non-iOS: show grayed-out "Native App Only"
+      return (
+        <div className="flex items-center justify-between rounded-lg border border-border p-4 opacity-60">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
+              <Smartphone className="h-5 w-5 text-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Apple Health</p>
+              <p className="text-xs text-muted-foreground">Requires native iOS app (not available in PWA)</p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="text-xs">Native App Only</Badge>
         </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
+      );
+    }
+
+    // Native iOS: full Connect/Sync/Disconnect UI
+    const connected = healthSync.connection?.is_connected;
+    const connecting = connectingProvider === "apple_health";
+    const syncing = syncingProvider === "apple_health" || syncingProvider === "all" || healthSync.syncing;
+
+    return (
+      <div className="flex items-center justify-between rounded-lg border border-border p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
+            <Smartphone className="h-5 w-5 text-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Apple Health</p>
+            <p className="text-xs text-muted-foreground">
+              {connected
+                ? healthSync.connection?.last_sync_at
+                  ? `Last synced ${formatDistanceToNow(new Date(healthSync.connection.last_sync_at), { addSuffix: true })}`
+                  : "Connected — awaiting first sync"
+                : "Sync steps, calories & weight via Apple Health"}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {connected ? (
+            <>
+              <Badge variant="outline" className="text-xs border-primary/30 text-primary">Connected</Badge>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSyncAppleHealth} disabled={syncing}>
+                <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={handleDisconnectAppleHealth}>
+                <Unplug className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={handleConnectAppleHealth} disabled={connecting}>
+              {connecting ? "Connecting..." : "Connect"}
+            </Button>
+          )}
         </div>
       </div>
-      <Badge variant="secondary" className="text-xs">Native App Only</Badge>
-    </div>
-  );
+    );
+  };
 
   const renderComingSoon = (
     label: string,
@@ -245,7 +331,7 @@ const HealthIntegrations = () => {
     </div>
   );
 
-  const hasAnyConnection = wearables.some((w) => isReallyConnected(w.provider));
+  const hasAnyConnection = wearables.some((w) => isReallyConnected(w.provider)) || (isNativeIOS && healthSync.connection?.is_connected);
 
   return (
     <Card>
@@ -256,24 +342,26 @@ const HealthIntegrations = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Apple Health — full UI on native iOS, grayed out on PWA */}
+        {renderAppleHealth()}
+
         {/* OAuth-based integrations */}
         {renderOAuthProvider("Fitbit", "fitbit", <Watch className="h-5 w-5 text-foreground" />, "Sync steps, heart rate & sleep via Fitbit")}
         {renderOAuthProvider("Google Fit", "google_fit", <Activity className="h-5 w-5 text-foreground" />, "Sync steps & activity via Google Fit")}
 
-        {/* Native-only */}
-        {renderNativeOnlyProvider("Apple Health", <Smartphone className="h-5 w-5 text-foreground" />, "Requires native iOS app (not available in PWA)")}
-
         {/* Coming soon */}
         {renderComingSoon("Whoop", <Heart className="h-5 w-5 text-foreground" />, "Recovery & strain data — API integration coming soon")}
 
-        {/* Info banner */}
-        <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3">
-          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-          <p className="text-xs text-muted-foreground">
-            Apple Health requires a native iOS app built with Xcode. It cannot be accessed from a web browser or PWA.
-            Use Fitbit or Google Fit for automatic step syncing, or log steps manually below.
-          </p>
-        </div>
+        {/* Info banner — only show on non-native */}
+        {!isNativeIOS && (
+          <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3">
+            <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Apple Health requires a native iOS app built with Xcode. It cannot be accessed from a web browser or PWA.
+              Use Fitbit or Google Fit for automatic step syncing, or log steps manually below.
+            </p>
+          </div>
+        )}
 
         {/* Sync All */}
         {hasAnyConnection && (
