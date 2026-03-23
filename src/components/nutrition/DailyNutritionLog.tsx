@@ -77,6 +77,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
+  const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
   const [internalSelectedDate, setInternalSelectedDate] = useState(new Date());
   const selectedDate = controlledSelectedDate ?? internalSelectedDate;
   const setSelectedDate = onDateChange ?? setInternalSelectedDate;
