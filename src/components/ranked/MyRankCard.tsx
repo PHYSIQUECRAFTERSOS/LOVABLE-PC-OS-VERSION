@@ -1,4 +1,18 @@
-import TierBadge from "./TierBadge";
+import legacyBronze from "@/assets/tiers/legacy/bronze.png";
+import legacySilver from "@/assets/tiers/legacy/silver.png";
+import legacyGold from "@/assets/tiers/legacy/gold.png";
+import legacyEmerald from "@/assets/tiers/legacy/emerald.png";
+import legacyDiamond from "@/assets/tiers/legacy/diamond.png";
+import legacyChampion from "@/assets/tiers/legacy/champion.png";
+
+const LEGACY_TIER_IMAGES: Record<string, string> = {
+  bronze: legacyBronze,
+  silver: legacySilver,
+  gold: legacyGold,
+  emerald: legacyEmerald,
+  diamond: legacyDiamond,
+  champion: legacyChampion,
+};
 import {
   getDivisionLabel,
   getTierColor,
@@ -29,9 +43,17 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 sm:p-5 space-y-4 overflow-hidden">
-      {/* Hero badge — fills card width */}
+      {/* Hero badge — fills card width (legacy logos with background + text) */}
       <div className="w-full aspect-square max-w-full flex items-center justify-center overflow-hidden mx-auto">
-        <TierBadge tier={profile.current_tier} size={400} />
+        <img
+          src={LEGACY_TIER_IMAGES[profile.current_tier?.toLowerCase()] || LEGACY_TIER_IMAGES.bronze}
+          width={400}
+          height={400}
+          alt={`${profile.current_tier} tier`}
+          className="max-w-full max-h-full"
+          style={{ objectFit: "contain" }}
+          draggable={false}
+        />
       </div>
 
       {/* Info row */}
