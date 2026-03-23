@@ -115,6 +115,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [usedQuery, setUsedQuery] = useState("");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [favoriteFoods, setFavoriteFoods] = useState<FoodItem[]>([]);
+  const [offResults, setOffResults] = useState<FoodItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [offSearching, setOffSearching] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
