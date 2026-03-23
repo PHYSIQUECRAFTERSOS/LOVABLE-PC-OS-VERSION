@@ -88,6 +88,11 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
           setXpToasts((prev) => [...prev, { amount: result.xpAwarded, id: toastId }]);
         }
 
+        // Broadcast to dashboard card for bar animation
+        if (result.xpAwarded > 0) {
+          setDashboardXPGain({ amount: result.xpAwarded, id: `dash-${Date.now()}` });
+        }
+
         // Check for badge unlocks
         const { supabase } = await import("@/integrations/supabase/client");
         const { data: freshProfile } = await (supabase as any)
