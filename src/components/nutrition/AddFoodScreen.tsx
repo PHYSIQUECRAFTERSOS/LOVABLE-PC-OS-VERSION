@@ -90,6 +90,23 @@ type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
+/** Returns "serving" if the food has a natural serving description (e.g. "1 cup", "1 slice"),
+ *  otherwise defaults to "g". This prevents everything showing as 100g. */
+function getDefaultUnit(item: FoodItem): ServingUnit {
+  const desc = item.serving_description;
+  if (!desc) return "g";
+  // If description is just a gram/ml amount like "100g" or "244ml", default to grams
+  if (/^\d+(\.\d+)?\s*(g|ml)$/i.test(desc.trim())) return "g";
+  // Has a natural description like "1 cup cooked", "1 slice", "1 bagel"
+  return "serving";
+}
+
+function getDefaultServings(item: FoodItem): string {
+  const unit = getDefaultUnit(item);
+  if (unit === "serving") return "1";
+  return item.serving_size > 0 ? String(item.serving_size) : "1";
+}
+
 const TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
   { key: "all", label: "All" },
   { key: "favorites", label: "★ Favs" },
