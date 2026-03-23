@@ -924,18 +924,18 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         />
       ))}
 
-      {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur-sm border-t border-border px-4 pt-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+      {/* Inline Action Buttons — visible at scroll bottom */}
+      <div className="mt-6 space-y-3 pb-4">
         <Button
           variant="outline"
-          className="w-full gap-2"
+          className="w-full gap-2 border-dashed border-border"
           onClick={() => setShowAddExercise(true)}
         >
           <Plus className="h-4 w-4" /> Add Exercises
         </Button>
         <Button
           variant="ghost"
-          className="w-full mt-3 text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/20 font-semibold"
+          className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => setShowCancelDialog(true)}
         >
           Cancel Workout
