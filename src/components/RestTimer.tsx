@@ -124,6 +124,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
               setSeconds(0);
               setIsActive(false);
               restTimerAudio.stopCountdown();
+              restTimerAudio.stopKeepAlive();
               onComplete?.();
             }}>
               <SkipForward className="h-4 w-4" />

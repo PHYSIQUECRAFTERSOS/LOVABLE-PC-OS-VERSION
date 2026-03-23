@@ -97,6 +97,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
       workerRef.current = null;
     }
     restTimerAudio.stopCountdown();
+    restTimerAudio.stopKeepAlive();
     onComplete();
   }, [onComplete]);
 

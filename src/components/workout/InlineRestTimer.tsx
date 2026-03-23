@@ -47,6 +47,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
           countdownFiredRef.current = true;
           restTimerAudio.playCountdown();
         }
+        restTimerAudio.stopKeepAlive();
         setTimeout(() => onCompleteRef.current(), 800);
       }
     };
