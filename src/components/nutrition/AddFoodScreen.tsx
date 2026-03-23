@@ -563,7 +563,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       console.error("[NutritionLog] Insert error:", error);
       toast({ title: "Couldn't save this food", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: `${foodToLog.name} logged` });
+      const t = toast({ title: `${foodToLog.name} logged` });
+      setTimeout(() => t.dismiss(), 1000);
       // Log to user_food_history (fire-and-forget)
       if (foodItemId) {
         supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
