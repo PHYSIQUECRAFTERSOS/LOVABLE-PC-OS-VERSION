@@ -85,12 +85,12 @@ interface Client {
 const calcMacros = (food: MealFood) => {
   const m = food.gram_amount / 100;
   return {
-    calories: Math.round(food.cal_per_100 * m),
-    protein: +(food.protein_per_100 * m).toFixed(1),
-    carbs: +(food.carbs_per_100 * m).toFixed(1),
-    fat: +(food.fat_per_100 * m).toFixed(1),
-    fiber: +(food.fiber_per_100 * m).toFixed(1),
-    sugar: +(food.sugar_per_100 * m).toFixed(1),
+    calories: food.cal_per_100 * m,
+    protein: food.protein_per_100 * m,
+    carbs: food.carbs_per_100 * m,
+    fat: food.fat_per_100 * m,
+    fiber: food.fiber_per_100 * m,
+    sugar: food.sugar_per_100 * m,
   };
 };
 
