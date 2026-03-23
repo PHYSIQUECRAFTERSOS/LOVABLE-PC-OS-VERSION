@@ -781,6 +781,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         else next.delete(foodId);
         return next;
       });
+      // Refresh favorites list
+      fetchFavoriteFoods();
     } catch { /* ignore */ }
   };
 
