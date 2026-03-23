@@ -9,6 +9,11 @@
 import Foundation
 import Capacitor
 import StoreKit
+import SwiftUI
+
+enum StoreError: Error {
+    case failedVerification
+}
 
 @objc(StoreKitPlugin)
 public class StoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -30,78 +35,58 @@ public class StoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        Task {
-            do {
-                let products = try await Product.products(for: [productId])
-                guard let product = products.first else {
-                    call.reject("Product not found: \(productId)", "PRODUCT_NOT_FOUND")
-                    return
+        if #available(iOS 15.0, *) {
+            Task {
+                do {
+                    let products = try await Product.products(for: [productId])
+                    guard let product = products.first else {
+                        call.reject("Product not found: \(productId)", "PRODUCT_NOT_FOUND")
+                        return
+                    }
+
+                    let result = try await product.purchase()
+
+                    switch result {
+                    case .success(let verification):
+                        let transaction = try self.checkVerified(verification)
+                        await transaction.finish()
+
+                        // Notify JS layer of the update
+                        self.notifyListeners("subscriptionUpdate", data: [
+                            "hasSubscription": true,
+                            "productIDs": [productId]
+                        ])
+
+                        call.resolve([
+                            "success": true,
+                            "productId": productId
+                        ])
+
+                    case .userCancelled:
+                        call.reject("User cancelled", "USER_CANCELLED")
+
+                    case .pending:
+                        call.reject("Purchase pending approval", "PURCHASE_PENDING")
+
+                    @unknown default:
+                        call.reject("Unknown purchase result", "PURCHASE_FAILED")
+                    }
+                } catch {
+                    call.reject("Purchase failed: \(error.localizedDescription)", "PURCHASE_FAILED")
                 }
-
-                let result = try await product.purchase()
-
-                switch result {
-                case .success(let verification):
-                    let transaction = try self.checkVerified(verification)
-                    await transaction.finish()
-
-                    // Notify JS layer of the update
-                    self.notifyListeners("subscriptionUpdate", data: [
-                        "hasSubscription": true,
-                        "productIDs": [productId]
-                    ])
-
-                    call.resolve([
-                        "success": true,
-                        "productId": productId
-                    ])
-
-                case .userCancelled:
-                    call.reject("User cancelled", "USER_CANCELLED")
-
-                case .pending:
-                    call.reject("Purchase pending approval", "PURCHASE_PENDING")
-
-                @unknown default:
-                    call.reject("Unknown purchase result", "PURCHASE_FAILED")
-                }
-            } catch {
-                call.reject("Purchase failed: \(error.localizedDescription)", "PURCHASE_FAILED")
             }
+        } else {
+            call.reject("iOS 15 required", "UNSUPPORTED_OS")
         }
     }
 
     // MARK: - Check Subscription
 
     @objc func checkSubscription(_ call: CAPPluginCall) {
-        Task {
-            var activeProductIDs: [String] = []
-
-            for await result in Transaction.currentEntitlements {
-                if let transaction = try? self.checkVerified(result) {
-                    if transaction.revocationDate == nil {
-                        activeProductIDs.append(transaction.productID)
-                    }
-                }
-            }
-
-            let hasSubscription = !activeProductIDs.isEmpty
-            call.resolve([
-                "hasSubscription": hasSubscription,
-                "productIDs": activeProductIDs
-            ])
-        }
-    }
-
-    // MARK: - Restore Purchases
-
-    @objc func restorePurchases(_ call: CAPPluginCall) {
-        Task {
-            do {
-                // Sync with App Store
-                try await AppStore.sync()
-
+        if #available(iOS 15.0, *) {
+            Task {
                 var activeProductIDs: [String] = []
+
                 for await result in Transaction.currentEntitlements {
                     if let transaction = try? self.checkVerified(result) {
                         if transaction.revocationDate == nil {
@@ -111,21 +96,52 @@ public class StoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
 
                 let hasSubscription = !activeProductIDs.isEmpty
-
-                if hasSubscription {
-                    self.notifyListeners("subscriptionUpdate", data: [
-                        "hasSubscription": true,
-                        "productIDs": activeProductIDs
-                    ])
-                }
-
                 call.resolve([
                     "hasSubscription": hasSubscription,
                     "productIDs": activeProductIDs
                 ])
-            } catch {
-                call.reject("Restore failed: \(error.localizedDescription)", "RESTORE_FAILED")
             }
+        } else {
+            call.resolve(["hasSubscription": false, "productIDs": []])
+        }
+    }
+
+    // MARK: - Restore Purchases
+
+    @objc func restorePurchases(_ call: CAPPluginCall) {
+        if #available(iOS 15.0, *) {
+            Task {
+                do {
+                    try await AppStore.sync()
+
+                    var activeProductIDs: [String] = []
+                    for await result in Transaction.currentEntitlements {
+                        if let transaction = try? self.checkVerified(result) {
+                            if transaction.revocationDate == nil {
+                                activeProductIDs.append(transaction.productID)
+                            }
+                        }
+                    }
+
+                    let hasSubscription = !activeProductIDs.isEmpty
+
+                    if hasSubscription {
+                        self.notifyListeners("subscriptionUpdate", data: [
+                            "hasSubscription": true,
+                            "productIDs": activeProductIDs
+                        ])
+                    }
+
+                    call.resolve([
+                        "hasSubscription": hasSubscription,
+                        "productIDs": activeProductIDs
+                    ])
+                } catch {
+                    call.reject("Restore failed: \(error.localizedDescription)", "RESTORE_FAILED")
+                }
+            }
+        } else {
+            call.resolve(["hasSubscription": false, "productIDs": []])
         }
     }
 
@@ -137,36 +153,55 @@ public class StoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        Task {
-            do {
-                let products = try await Product.products(for: Set(productIds))
-                let mapped = products.map { product -> [String: Any] in
-                    return [
-                        "id": product.id,
-                        "price": product.displayPrice,
-                        "displayName": product.displayName,
-                        "description": product.description
-                    ]
+        if #available(iOS 15.0, *) {
+            Task {
+                do {
+                    let products = try await Product.products(for: Set(productIds))
+                    let mapped = products.map { product -> [String: Any] in
+                        return [
+                            "id": product.id,
+                            "price": product.displayPrice,
+                            "displayName": product.displayName,
+                            "description": product.description
+                        ]
+                    }
+                    call.resolve(["products": mapped])
+                } catch {
+                    call.reject("Failed to fetch products: \(error.localizedDescription)", "PRODUCTS_FAILED")
                 }
-                call.resolve(["products": mapped])
-            } catch {
-                call.reject("Failed to fetch products: \(error.localizedDescription)", "PRODUCTS_FAILED")
+            }
+        } else {
+            call.resolve(["products": []])
+        }
+    }
+
+    // MARK: - Show Paywall (presents SwiftUI PaywallView)
+
+    @objc func showPaywall(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let vc = self.bridge?.viewController else {
+                call.reject("No view controller", "NO_VC")
+                return
+            }
+            if #available(iOS 15.0, *) {
+                let paywallView = PaywallView()
+                let hostingController = UIHostingController(rootView: paywallView)
+                hostingController.modalPresentationStyle = .pageSheet
+                vc.present(hostingController, animated: true)
+                call.resolve()
+            } else {
+                call.reject("iOS 15 required", "UNSUPPORTED_OS")
             }
         }
     }
 
-    // MARK: - Legacy showPaywall (deprecated — calls purchase with no product)
-
-    @objc func showPaywall(_ call: CAPPluginCall) {
-        call.reject("showPaywall is deprecated. Use purchase(productId) instead.", "DEPRECATED")
-    }
-
     // MARK: - Helpers
 
+    @available(iOS 15.0, *)
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
-        case .unverified(_, let error):
-            throw error
+        case .unverified(_, _):
+            throw StoreError.failedVerification
         case .verified(let safe):
             return safe
         }
