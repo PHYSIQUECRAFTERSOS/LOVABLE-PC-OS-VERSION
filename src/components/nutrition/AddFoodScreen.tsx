@@ -1004,6 +1004,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   ];
   const displayItems = search.length >= 2 ? allDisplayItems : [];
   const showHistory = search.length < 2 && activeTab === "all";
+  const showFavorites = activeTab === "favorites";
   const showMeals = activeTab === "my-meals";
   const showCustom = activeTab === "custom";
   const showRecipes = activeTab === "pc-recipes";
