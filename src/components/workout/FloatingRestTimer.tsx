@@ -45,6 +45,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
           countdownFiredRef.current = true;
           restTimerAudio.playCountdown();
         }
+        restTimerAudio.stopKeepAlive();
         setShowComplete(true);
       }
     };
