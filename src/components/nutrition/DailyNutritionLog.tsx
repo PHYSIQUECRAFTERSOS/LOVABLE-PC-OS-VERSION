@@ -77,6 +77,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [targets, setTargets] = useState<Targets>(DEFAULT_TARGETS);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
+  const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
   const [internalSelectedDate, setInternalSelectedDate] = useState(new Date());
   const selectedDate = controlledSelectedDate ?? internalSelectedDate;
   const setSelectedDate = onDateChange ?? setInternalSelectedDate;
@@ -139,7 +140,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     if (foodIds.length > 0) {
       const { data: foods, error: foodsError } = await supabase
         .from("food_items")
-        .select("id, name")
+        .select("id, name, serving_size, serving_unit, serving_label")
         .in("id", foodIds);
 
       if (fetchId !== latestFetchRef.current) return;
@@ -149,14 +150,18 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       }
 
       const names: Record<string, string> = {};
+      const servingInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = {};
       (foods || []).forEach((f) => {
         names[f.id] = f.name;
+        servingInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
       });
       setFoodNames(names);
+      setFoodServingInfo(servingInfo);
       return;
     }
 
     setFoodNames({});
+    setFoodServingInfo({});
   }, [user, dateStr, toast]);
 
   const fetchTargets = useCallback(async () => {
@@ -601,10 +606,37 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
-                              {item.quantity_display != null && item.quantity_display > 0
-                                ? `${Math.round(item.quantity_display * 10) / 10}${item.quantity_unit && item.quantity_unit !== 'g' ? ` ${item.quantity_unit}` : 'g'} · `
-                                : ''
-                              }
+                              {(() => {
+                                // Build serving display string
+                                const si = item.food_item_id ? foodServingInfo[item.food_item_id] : null;
+                                const qd = item.quantity_display;
+                                const qu = item.quantity_unit;
+
+                                if (qu === "serving" && si?.serving_label) {
+                                  // Show natural label: "1 croissant", "2 eggs"
+                                  const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
+                                  return `${count} ${si.serving_label} · `;
+                                }
+                                if (qu === "serving" && si) {
+                                  // Fallback: show serving_size + unit, e.g. "67g"
+                                  const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
+                                  return `${count} × ${si.serving_size}${si.serving_unit} · `;
+                                }
+                                if (qd != null && qd > 0) {
+                                  const displayQty = Math.round(qd * 10) / 10;
+                                  if (qu === "g") return `${displayQty}g · `;
+                                  if (qu === "oz") return `${displayQty} oz · `;
+                                  if (qu) return `${displayQty} ${qu} · `;
+                                  return `${displayQty}g · `;
+                                }
+                                // No quantity_display: show serving size from food_items
+                                if (si) {
+                                  const servingCount = Math.round(item.servings * 10) / 10;
+                                  if (si.serving_label) return `${servingCount} ${si.serving_label} · `;
+                                  return `${Math.round(servingCount * si.serving_size)}${si.serving_unit} · `;
+                                }
+                                return '';
+                              })()}
                               {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
                             </div>
                           </div>

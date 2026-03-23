@@ -90,10 +90,10 @@ type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
 type HistorySort = "recent" | "frequent";
 type ServingUnit = "serving" | "g" | "oz";
 
-const TABS: { key: TabKey; label: string }[] = [
+const TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
   { key: "all", label: "All" },
-  { key: "favorites", label: "★ Favorites" },
-  { key: "my-meals", label: "My Meals" },
+  { key: "favorites", label: "★ Favs" },
+  { key: "my-meals", label: "My\nMeals", stackedLabel: "My\nMeals" },
   { key: "custom", label: "Custom Foods" },
   { key: "pc-recipes", label: "PC Recipes" },
 ];
@@ -563,7 +563,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       console.error("[NutritionLog] Insert error:", error);
       toast({ title: "Couldn't save this food", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: `${foodToLog.name} logged` });
+      const t = toast({ title: `${foodToLog.name} logged` });
+      setTimeout(() => t.dismiss(), 1000);
       // Log to user_food_history (fire-and-forget)
       if (foodItemId) {
         supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
@@ -608,7 +609,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       if (error) {
         toast({ title: "Couldn't log meal." });
       } else {
-        toast({ title: `${meal.name} added to ${mealLabel}` });
+        const t = toast({ title: `${meal.name} added to ${mealLabel}` });
+        setTimeout(() => t.dismiss(), 1000);
         onLogged();
       }
     } else {
@@ -628,7 +630,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       if (error) {
         toast({ title: "Couldn't log meal." });
       } else {
-        toast({ title: `${meal.name} added to ${mealLabel}` });
+        const t = toast({ title: `${meal.name} added to ${mealLabel}` });
+        setTimeout(() => t.dismiss(), 1000);
         onLogged();
       }
     }
@@ -652,7 +655,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
-      toast({ title: "Logged!" });
+      const t = toast({ title: "Logged!" });
+      setTimeout(() => t.dismiss(), 1000);
       setQuickAddOpen(false);
       setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
       onLogged();
@@ -748,7 +752,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
-      toast({ title: `${food.name} logged` });
+      const t = toast({ title: `${food.name} logged` });
+      setTimeout(() => t.dismiss(), 1000);
       if (foodItemId) {
         supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
       }
@@ -768,17 +773,34 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
-  const handleToggleFavorite = async (foodId: string) => {
+  const handleToggleFavorite = async (foodId: string, foodItem?: FoodItem) => {
     if (!user) return;
     try {
+      let localId = foodId;
+
+      // If the food is non-local, import it first so toggle_food_favorite references a real food_items row
+      if (foodItem && foodItem.source !== "local") {
+        const imported = await importOFFFood(foodItem);
+        if (imported?.id) {
+          localId = imported.id;
+          // Update the item in results so subsequent toggles use the correct ID
+          setResults(prev => prev.map(r => r.id === foodId ? { ...r, id: localId, source: "local" as const } : r));
+          setBestMatches(prev => prev.map(r => r.id === foodId ? { ...r, id: localId, source: "local" as const } : r));
+          setMoreResultsList(prev => prev.map(r => r.id === foodId ? { ...r, id: localId, source: "local" as const } : r));
+        } else {
+          toast({ title: "Couldn't save this food to favorites" });
+          return;
+        }
+      }
+
       const { data: newState } = await supabase.rpc("toggle_food_favorite" as any, {
         p_user_id: user.id,
-        p_food_id: foodId,
+        p_food_id: localId,
       });
       setFavorites(prev => {
         const next = new Set(prev);
-        if (newState) next.add(foodId);
-        else next.delete(foodId);
+        if (newState) next.add(localId);
+        else next.delete(localId);
         return next;
       });
       // Refresh favorites list
@@ -857,7 +879,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (error) {
       toast({ title: "Couldn't save this food. Please try again." });
     } else {
-      toast({ title: `${entry.food.name} logged` });
+      const t = toast({ title: `${entry.food.name} logged` });
+      setTimeout(() => t.dismiss(), 1000);
       // Log to user_food_history (fire-and-forget)
       if (foodItemId) {
         supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
@@ -1062,7 +1085,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); if (search.length >= 2) handleSearch(search); }}
               className={cn(
-                "flex-1 py-2 text-sm font-medium transition-all border-b-2",
+                "flex-1 py-2 text-sm font-medium transition-all border-b-2 whitespace-pre-line leading-tight",
                 activeTab === tab.key
                   ? "text-primary border-primary"
                   : "text-muted-foreground border-transparent hover:text-foreground"
@@ -1298,7 +1321,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                       else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                     }}
                     isFavorite={true}
-                    onToggleFavorite={() => handleToggleFavorite(item.id)}
+                    onToggleFavorite={() => handleToggleFavorite(item.id, item)}
                   />
                 ))}
               </div>
@@ -1420,7 +1443,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                       else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                     }}
                     isFavorite={favorites.has(item.id)}
-                    onToggleFavorite={() => handleToggleFavorite(item.id)}
+                    onToggleFavorite={() => handleToggleFavorite(item.id, item)}
                   />
                 ))}
 
@@ -1447,7 +1470,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                           else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                         }}
                         isFavorite={favorites.has(item.id)}
-                        onToggleFavorite={() => handleToggleFavorite(item.id)}
+                        onToggleFavorite={() => handleToggleFavorite(item.id, item)}
                       />
                     ))}
                   </>
@@ -1471,7 +1494,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                     else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
                   }}
                   isFavorite={favorites.has(item.id)}
-                  onToggleFavorite={() => handleToggleFavorite(item.id)}
+                  onToggleFavorite={() => handleToggleFavorite(item.id, item)}
                 />
               ))
             )}
