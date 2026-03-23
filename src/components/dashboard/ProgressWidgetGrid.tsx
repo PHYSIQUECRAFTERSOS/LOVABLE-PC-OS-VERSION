@@ -129,8 +129,10 @@ const ProgressWidgetGrid = () => {
 
   // Steps data from health sync
   const steps = todayMetrics?.steps ?? null;
-  const isConnected = isNative && connection?.is_connected;
+  const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";
   const stepsSpark: SparkData[] = weekMetrics.map(d => ({ value: d.steps ?? 0 }));
+  const activeCalSpark: SparkData[] = weekMetrics.map(d => ({ value: d.active_energy_kcal ?? 0 }));
+  const distanceSpark: SparkData[] = weekMetrics.map(d => ({ value: d.walking_running_distance_km ?? 0 }));
 
   return (
     <>
