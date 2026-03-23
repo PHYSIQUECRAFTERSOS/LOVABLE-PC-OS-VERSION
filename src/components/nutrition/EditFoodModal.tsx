@@ -59,7 +59,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
       setIsCustom(false);
       supabase
         .from("food_items")
-        .select("calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit, serving_description")
+        .select("calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit, serving_label")
         .eq("id", logEntry.food_item_id)
         .single()
         .then(({ data }) => {
@@ -74,7 +74,7 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
               sodium: data.sodium || 0,
               serving_size: data.serving_size,
             });
-            setServingDescription(data.serving_description || data.serving_unit || "serving");
+            setServingDescription(data.serving_label || data.serving_unit || "serving");
             setServingSizeG(data.serving_size || 100);
 
             // Determine which unit to pre-select
