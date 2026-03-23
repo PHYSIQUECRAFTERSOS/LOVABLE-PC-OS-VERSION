@@ -199,6 +199,48 @@ const ProgressWidgetGrid = () => {
           </div>
           <MiniSparkline data={calSpark} />
         </button>
+
+        {/* Active Calories */}
+        <button
+          onClick={() => navigate("/progress?tab=steps")}
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <Zap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Active Cal</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {isConnected && todayMetrics?.active_energy_kcal != null
+              ? todayMetrics.active_energy_kcal.toLocaleString()
+              : "–"}
+          </div>
+          {isConnected ? (
+            <MiniSparkline data={activeCalSpark} />
+          ) : (
+            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
+          )}
+        </button>
+
+        {/* Distance */}
+        <button
+          onClick={() => navigate("/progress?tab=steps")}
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Distance</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {isConnected && todayMetrics?.walking_running_distance_km != null
+              ? `${todayMetrics.walking_running_distance_km.toFixed(1)} km`
+              : "–"}
+          </div>
+          {isConnected ? (
+            <MiniSparkline data={distanceSpark} />
+          ) : (
+            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
+          )}
+        </button>
       </div>
 
       <WeightHistoryScreen
