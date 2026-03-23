@@ -487,7 +487,7 @@ serve(async (req) => {
       // Synonyms
       expandWithSynonyms(supabase, query),
       // History
-      userId ? getUserFoodHistory(supabase, userId) : Promise.resolve(new Map<string, HistoryEntry>()),
+      userId ? getUserFoodHistory(supabase, userId) : Promise.resolve({ byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>() }),
       // FatSecret (replaces OpenFoodFacts — much better branded food coverage)
       searchFatSecret(query, 25).then(foods => {
         sourceStatus.fatsecret = `ok:${foods.length}`;
