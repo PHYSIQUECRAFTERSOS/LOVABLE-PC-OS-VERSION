@@ -504,11 +504,11 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         const m = calcMacros(f);
         return {
           calories: acc.calories + m.calories,
-          protein: +(acc.protein + m.protein).toFixed(1),
-          carbs: +(acc.carbs + m.carbs).toFixed(1),
-          fat: +(acc.fat + m.fat).toFixed(1),
-          fiber: +(acc.fiber + m.fiber).toFixed(1),
-          sugar: +(acc.sugar + m.sugar).toFixed(1),
+          protein: acc.protein + m.protein,
+          carbs: acc.carbs + m.carbs,
+          fat: acc.fat + m.fat,
+          fiber: acc.fiber + m.fiber,
+          sugar: acc.sugar + m.sugar,
         };
       },
       { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
@@ -520,11 +520,11 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         const t = getMealTotals(meal);
         return {
           calories: acc.calories + t.calories,
-          protein: +(acc.protein + t.protein).toFixed(1),
-          carbs: +(acc.carbs + t.carbs).toFixed(1),
-          fat: +(acc.fat + t.fat).toFixed(1),
-          fiber: +(acc.fiber + t.fiber).toFixed(1),
-          sugar: +(acc.sugar + t.sugar).toFixed(1),
+          protein: acc.protein + t.protein,
+          carbs: acc.carbs + t.carbs,
+          fat: acc.fat + t.fat,
+          fiber: acc.fiber + t.fiber,
+          sugar: acc.sugar + t.sugar,
         };
       },
       { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sugar: 0 }
