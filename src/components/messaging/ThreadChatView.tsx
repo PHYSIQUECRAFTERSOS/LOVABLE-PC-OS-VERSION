@@ -346,7 +346,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       </div>
 
       {/* Input */}
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="flex gap-2 items-center">
           {!isRecording && <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />}
           {!isRecording && (
