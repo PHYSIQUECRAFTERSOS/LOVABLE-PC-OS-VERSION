@@ -236,8 +236,9 @@ class RestTimerAudioService {
       return this.playFallbackTone(ctx);
     }
 
+    const source = ctx.createBufferSource();
+
     try {
-      const source = ctx.createBufferSource();
       source.buffer = this.countdownBuffer;
       source.connect(this.gainNode);
       source.onended = () => {
