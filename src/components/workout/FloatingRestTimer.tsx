@@ -15,12 +15,29 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
   const workerRef = useRef<Worker | null>(null);
   const completedRef = useRef(false);
   const countdownFiredRef = useRef(false);
+  const countdownPendingRef = useRef(false);
+
+  const triggerCountdown = useCallback(async () => {
+    if (countdownFiredRef.current || countdownPendingRef.current) return false;
+
+    countdownPendingRef.current = true;
+    try {
+      const didPlay = await restTimerAudio.playCountdown();
+      if (didPlay) {
+        countdownFiredRef.current = true;
+      }
+      return didPlay;
+    } finally {
+      countdownPendingRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     setTimeRemaining(initialSeconds);
     setShowComplete(false);
     completedRef.current = false;
     countdownFiredRef.current = false;
+    countdownPendingRef.current = false;
 
     const endTime = Date.now() + initialSeconds * 1000;
     const worker = createTimerWorker();
@@ -33,8 +50,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
         setTimeRemaining(msg.remaining);
 
         if (msg.remainingMs <= 3000 && msg.remainingMs > 0 && !countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
       }
 
@@ -42,8 +58,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
         completedRef.current = true;
         setTimeRemaining(0);
         if (!countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
         restTimerAudio.stopKeepAlive();
         setShowComplete(true);
@@ -60,8 +75,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
         restTimerAudio.unlock();
         const remainingMs = Math.max(0, endTime - Date.now());
         if (remainingMs <= 3000 && remainingMs > 0 && !countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
         if (remainingMs <= 0 && !completedRef.current) {
           completedRef.current = true;
@@ -81,7 +95,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
       restTimerAudio.stopKeepAlive();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialSeconds]);
+  }, [initialSeconds, triggerCountdown]);
 
   // Auto-dismiss after completion flash
   useEffect(() => {
@@ -91,6 +105,7 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
   }, [showComplete, onComplete]);
 
   const handleSkip = useCallback(() => {
+    countdownPendingRef.current = false;
     if (workerRef.current) {
       workerRef.current.postMessage({ type: "stop" });
       workerRef.current.terminate();

@@ -22,13 +22,14 @@
 const COUNTDOWN_URL = "/sounds/rest-timer-countdown.mp3";
 const OVERLAY_VOLUME = 0.85;
 const KEEPALIVE_INTERVAL_MS = 5000;
+type ManagedAudioContextState = AudioContextState | "interrupted";
 
 class RestTimerAudioService {
   private ctx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
   private countdownBuffer: AudioBuffer | null = null;
   private bufferLoading: Promise<AudioBuffer | null> | null = null;
-  private activeSource: AudioBufferSourceNode | null = null;
+  private activeSource: AudioBufferSourceNode | OscillatorNode | null = null;
   private unlocked = false;
   private keepAliveId: ReturnType<typeof setInterval> | null = null;
 
@@ -57,11 +58,49 @@ class RestTimerAudioService {
     return this.ctx;
   }
 
+  private isRunningState(state: ManagedAudioContextState): boolean {
+    return state === "running";
+  }
+
+  private async resumeContext(ctx: AudioContext): Promise<boolean> {
+    if (this.isRunningState(ctx.state as ManagedAudioContextState)) return true;
+
+    try {
+      await ctx.resume();
+    } catch (e) {
+      console.warn("[RestTimerAudio] Resume failed:", e);
+    }
+
+    return this.isRunningState(ctx.state as ManagedAudioContextState);
+  }
+
+  private async ensureRunningContext(): Promise<AudioContext | null> {
+    let ctx = this.ensureContext();
+    if (!ctx) return null;
+
+    if (await this.resumeContext(ctx)) {
+      return ctx;
+    }
+
+    try {
+      await ctx.close();
+    } catch {
+      // ignore teardown issues and recreate below
+    }
+
+    this.ctx = null;
+    this.gainNode = null;
+    ctx = this.ensureContext();
+    if (!ctx) return null;
+
+    return (await this.resumeContext(ctx)) ? ctx : null;
+  }
+
   /** Play a single-sample silent buffer to keep iOS AudioContext alive */
   private playSilent(): void {
     if (!this.ctx || this.ctx.state === "closed") return;
     try {
-      if (this.ctx.state === "suspended") {
+      if (!this.isRunningState(this.ctx.state as ManagedAudioContextState)) {
         this.ctx.resume().catch(() => {});
       }
       const buf = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
@@ -71,6 +110,40 @@ class RestTimerAudioService {
       src.start(0);
     } catch {
       // ignore
+    }
+  }
+
+  private playFallbackTone(ctx: AudioContext): boolean {
+    if (!this.gainNode) return false;
+
+    try {
+      const oscillator = ctx.createOscillator();
+      const toneGain = ctx.createGain();
+      const startAt = ctx.currentTime;
+
+      oscillator.type = "sine";
+      oscillator.frequency.value = 880;
+
+      toneGain.gain.setValueAtTime(0.0001, startAt);
+      toneGain.gain.exponentialRampToValueAtTime(0.45, startAt + 0.02);
+      toneGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.24);
+
+      oscillator.connect(toneGain);
+      toneGain.connect(this.gainNode);
+      oscillator.onended = () => {
+        if (this.activeSource === oscillator) this.activeSource = null;
+        oscillator.disconnect();
+        toneGain.disconnect();
+      };
+
+      this.activeSource = oscillator;
+      oscillator.start(startAt);
+      oscillator.stop(startAt + 0.26);
+      console.warn("[RestTimerAudio] Falling back to synthesized timer tone");
+      return true;
+    } catch (e) {
+      console.warn("[RestTimerAudio] Fallback tone failed:", e);
+      return false;
     }
   }
 
@@ -101,17 +174,8 @@ class RestTimerAudioService {
    * Resumes AudioContext and plays a silent buffer to satisfy iOS autoplay policy.
    */
   async unlock(): Promise<void> {
-    const ctx = this.ensureContext();
+    const ctx = await this.ensureRunningContext();
     if (!ctx) return;
-
-    // Resume if suspended
-    if (ctx.state === "suspended") {
-      try {
-        await ctx.resume();
-      } catch (e) {
-        console.warn("[RestTimerAudio] Resume failed:", e);
-      }
-    }
 
     // Play a tiny silent buffer to keep iOS happy
     this.playSilent();
@@ -133,7 +197,7 @@ class RestTimerAudioService {
     }
 
     this.bufferLoading = (async () => {
-      const ctx = this.ensureContext();
+      const ctx = await this.ensureRunningContext();
       if (!ctx) return null;
 
       try {
@@ -155,18 +219,9 @@ class RestTimerAudioService {
   }
 
   /** Play the 3-second countdown sound. Mixes with music. */
-  async playCountdown(): Promise<void> {
-    const ctx = this.ensureContext();
-    if (!ctx || !this.gainNode) return;
-
-    // Resume if suspended (e.g., after visibility change)
-    if (ctx.state === "suspended") {
-      try {
-        await ctx.resume();
-      } catch {
-        // best effort
-      }
-    }
+  async playCountdown(): Promise<boolean> {
+    const ctx = await this.ensureRunningContext();
+    if (!ctx || !this.gainNode) return false;
 
     // Ensure buffer is loaded
     if (!this.countdownBuffer) {
@@ -178,11 +233,12 @@ class RestTimerAudioService {
 
     if (!this.countdownBuffer) {
       console.warn("[RestTimerAudio] No buffer available, skipping playback");
-      return;
+      return this.playFallbackTone(ctx);
     }
 
+    const source = ctx.createBufferSource();
+
     try {
-      const source = ctx.createBufferSource();
       source.buffer = this.countdownBuffer;
       source.connect(this.gainNode);
       source.onended = () => {
@@ -192,8 +248,11 @@ class RestTimerAudioService {
       this.activeSource = source;
       source.start(0);
       console.log("[RestTimerAudio] Countdown playing");
+      return true;
     } catch (e) {
       console.warn("[RestTimerAudio] Playback failed:", e);
+      source.disconnect();
+      return this.playFallbackTone(ctx);
     }
   }
 

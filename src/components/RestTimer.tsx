@@ -14,14 +14,31 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
   const [isActive, setIsActive] = useState(true);
   const [totalSeconds, setTotalSeconds] = useState(initialSeconds);
   const countdownFiredRef = useRef(false);
+  const countdownPendingRef = useRef(false);
   const workerRef = useRef<Worker | null>(null);
   const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
+
+  const triggerCountdown = useCallback(async () => {
+    if (countdownFiredRef.current || countdownPendingRef.current) return false;
+
+    countdownPendingRef.current = true;
+    try {
+      const didPlay = await restTimerAudio.playCountdown();
+      if (didPlay) {
+        countdownFiredRef.current = true;
+      }
+      return didPlay;
+    } finally {
+      countdownPendingRef.current = false;
+    }
+  }, []);
 
   // Start/restart worker when active state or totalSeconds change
   useEffect(() => {
     if (!isActive || seconds <= 0) return;
 
     countdownFiredRef.current = false;
+    countdownPendingRef.current = false;
     const endTime = Date.now() + seconds * 1000;
     endTimeRef.current = endTime;
 
@@ -33,8 +50,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
       if (msg.type === "tick") {
         setSeconds(msg.remaining);
         if (msg.remainingMs <= 3000 && msg.remainingMs > 0 && !countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
       }
       if (msg.type === "done") {
@@ -42,8 +58,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
         setIsActive(false);
         restTimerAudio.stopKeepAlive();
         if (!countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
       }
     };
@@ -59,7 +74,7 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
       workerRef.current = null;
       restTimerAudio.stopKeepAlive();
     };
-  }, [isActive, totalSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isActive, totalSeconds, triggerCountdown]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -111,12 +126,14 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
             </Button>
             <Button variant="outline" size="sm" className="h-9" onClick={() => {
               countdownFiredRef.current = false;
+               countdownPendingRef.current = false;
               setSeconds(totalSeconds);
               setIsActive(true);
             }}>
               <RotateCcw className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" className="h-9" onClick={() => {
+               countdownPendingRef.current = false;
               if (workerRef.current) {
                 workerRef.current.postMessage({ type: "stop" });
                 workerRef.current.terminate();
