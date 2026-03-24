@@ -113,6 +113,7 @@ const Profile = () => {
               </CardContent>
             </Card>
             <HealthIntegrations />
+            <NotificationSettings />
             <Card>
               <CardHeader>
                 <CardTitle>Legal</CardTitle>

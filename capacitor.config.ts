@@ -17,6 +17,9 @@ const config: CapacitorConfig = {
     Camera: {
       permissions: ['camera', 'photos'],
     },
+    PushNotifications: {
+      presentationOptions: ['badge', 'sound', 'alert'],
+    },
   },
 };
 

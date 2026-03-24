@@ -13,6 +13,7 @@ import MessageAttachment from "@/components/messaging/MessageAttachment";
 import EmojiReactions from "@/components/messaging/EmojiReactions";
 import AttachmentUploadMenu from "@/components/messaging/AttachmentUploadMenu";
 import VoiceMessageRecorder from "@/components/messaging/VoiceMessageRecorder";
+import { sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
   id: string;
