@@ -65,7 +65,7 @@ const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
 };
 
 const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatusChanged }: SelectableClientCardsProps) => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [previewClient, setPreviewClient] = useState<SelectableClient | null>(null);
   const [clients, setClients] = useState<SelectableClient[]>([]);
@@ -73,19 +73,51 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [coachFilter, setCoachFilter] = useState<string>("mine");
   const [loading, setLoading] = useState(true);
   const [complianceMap, setComplianceMap] = useState<Record<string, NutritionCompliance>>({});
   const [phaseMap, setPhaseMap] = useState<Record<string, PhaseInfo>>({});
+  const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
+
+  const isAdmin = role === "admin";
+
+  // Fetch coaches list for admin dropdown
+  useEffect(() => {
+    if (!isAdmin) return;
+    const fetchCoaches = async () => {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("role", ["admin", "coach"] as any);
+      if (!roleRows?.length) return;
+      const ids = [...new Set(roleRows.map((r) => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", ids);
+      setCoaches(
+        (profiles || []).map((p) => ({ id: p.user_id, name: p.full_name || "Unknown" }))
+      );
+    };
+    fetchCoaches();
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!user) return;
     const fetchClients = async () => {
       setLoading(true);
-      const { data: assignments } = await supabase
+
+      let coachId: string | null = null;
+      if (coachFilter === "mine") coachId = user.id;
+      else if (coachFilter !== "all_coaches") coachId = coachFilter;
+
+      let query = supabase
         .from("coach_clients")
         .select("client_id")
-        .eq("coach_id", user.id)
         .eq("status", "active");
+      if (coachId) query = query.eq("coach_id", coachId);
+
+      const { data: assignments } = await query;
 
       if (!assignments?.length) {
         setClients([]);
@@ -149,7 +181,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       setLoading(false);
     };
     fetchClients();
-  }, [user]);
+  }, [user, coachFilter]);
 
   /* ─── Batch load nutrition compliance for all clients ─── */
   useEffect(() => {
