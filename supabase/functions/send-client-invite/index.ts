@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendLovableEmail } from "npm:@lovable.dev/email-js@0";
+import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -244,11 +244,9 @@ serve(async (req) => {
     // Send branded invite email
     let emailSent = true;
     try {
-      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
       const emailHtml = buildInviteEmailHtml(first_name, coachName, setupUrl);
 
       await sendLovableEmail({
-        apiKey: lovableApiKey,
         to: email.toLowerCase(),
         from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
         subject: `${coachName} has invited you to join Physique Crafters`,
