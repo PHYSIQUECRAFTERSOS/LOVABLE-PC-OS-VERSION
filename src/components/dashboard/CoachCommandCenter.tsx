@@ -95,6 +95,15 @@ interface PhaseDeadlineClient {
   daysLeft: number;
 }
 
+interface NewClientReadiness {
+  clientId: string;
+  clientName: string;
+  avatarUrl: string | null;
+  assignedAt: string;
+  onboardingComplete: boolean;
+  photoCount: number;
+}
+
 interface CommandCenterData {
   actionItems: ActionItem[];
   snapshot: ComplianceSnapshot;
@@ -104,6 +113,7 @@ interface CommandCenterData {
   completedYesterday: YesterdayWorkoutClient[];
   missedYesterday: YesterdayWorkoutClient[];
   phaseDeadlines: PhaseDeadlineClient[];
+  newClients: NewClientReadiness[];
 }
 
 // ── Helpers ──
