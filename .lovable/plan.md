@@ -1,96 +1,116 @@
 
+# Plan: Fix Client Invite Email Delivery Reliably
 
-# Plan: Branded Invite Emails with App Store Download Prompts
+## What I found
 
-## Summary
+The failure is not a browser-cache issue. It is a backend runtime error in the live invite functions.
 
-Replace the generic Supabase auth invite email with a custom branded HTML email sent via the Lovable Email API. The email includes the coach's name, a "Get Started" setup link, and prominent App Store + Google Play download buttons. After account setup on the `/setup` page, add a new "Download the App" step before redirecting to onboarding.
+Evidence from the current code + live logs:
+- `send-client-invite` and `resend-client-invite` both still call `sendLovableEmail(...)` directly with the wrong invocation pattern.
+- Live logs show the same production error on the latest published attempts:
+  - `Cannot read properties of undefined (reading 'apiKey')`
+- The invite row is still being created/updated in `client_invites`, which is why you see the fallback “link copied” behavior.
+- Your sender domain is verified and the required secret exists, so the problem is the function implementation, not domain setup.
+- The project already has email queue infrastructure (`process-email-queue`, `email_send_log`, `email_send_state`), but the client invite flow is bypassing it.
 
-## Current Problem
+## Best fix
 
-The `send-client-invite` edge function uses `supabase.auth.admin.inviteUserByEmail()` which sends a plain, unbranded Supabase default email. No mention of the app, no download links, no branding. The `resend-client-invite` does the same. Clients have no idea they should download the native app.
+Instead of sending invite emails directly inside `send-client-invite` / `resend-client-invite`, switch both to the built-in queued app-email flow.
 
-## Architecture
+That gives you:
+- retry safety
+- better observability
+- fewer one-off send failures
+- consistent branded sending from your verified domain
 
-```text
-Coach sends invite
-  → send-client-invite creates invite record
-  → Sends branded HTML email via sendLovableEmail()
-  → Email contains: setup link + App Store button + Google Play button
-  → Client clicks setup link → /setup page
-  → Creates password → Signs documents → NEW: "Download the App" screen
-  → Then redirects to onboarding
-```
+## Implementation plan
 
-## Changes
+### 1) Refactor client invite sending to use the email queue
+Update both:
+- `supabase/functions/send-client-invite/index.ts`
+- `supabase/functions/resend-client-invite/index.ts`
 
-### 1. Edge Function: `supabase/functions/send-client-invite/index.ts`
+Changes:
+- keep the existing invite token generation, DB write, and auth user creation
+- keep the branded HTML email
+- replace direct `sendLovableEmail(...)` with a queued payload via `enqueue_email`
+- include full branded email metadata in the payload:
+  - `to`
+  - `from`
+  - `sender_domain`
+  - `subject`
+  - `html`
+  - `purpose: "transactional"`
+  - `label: "client_invite"`
+  - unique `message_id`
+- only return success when queueing succeeds
+- if queueing fails, return the setup link fallback exactly as today
 
-- Import `sendLovableEmail` from `npm:@lovable.dev/email-js`
-- Replace `supabase.auth.admin.inviteUserByEmail()` with:
-  1. `supabase.auth.admin.createUser()` with `email_confirm: true` to pre-create the auth user (or handle "already registered")
-  2. `sendLovableEmail()` with branded HTML
-- The HTML email template includes:
-  - Physique Crafters branding (dark background, gold accents)
-  - Coach name: "{Coach Name} has invited you to join Physique Crafters"
-  - "Get Started" button linking to `/setup?token=...`
-  - App download section: "Download the App" with two buttons:
-    - Apple App Store: `https://apps.apple.com/ca/app/physique-crafters/id6760598660`
-    - Google Play: `https://play.google.com/store/apps/details?id=com.physiquecrafters.app.twa`
-  - Footer with "If you didn't expect this, ignore this email"
+This is the main reliability fix.
 
-### 2. Edge Function: `supabase/functions/resend-client-invite/index.ts`
+### 2) Patch the same email bug in staff invite fallback
+Update:
+- `supabase/functions/staff-invite/index.ts`
 
-- Same change: replace `inviteUserByEmail` with `sendLovableEmail()` using the same branded template
-- Import `sendLovableEmail`
-- Remove the "delete auth user and re-invite" workaround (no longer needed since we're not using the auth invite system)
+Reason:
+- it has the same direct `sendLovableEmail(...)` pattern in the fallback path for already-registered staff
+- even if today’s bug report is about client invites, that path can fail for the same reason later
 
-### 3. Frontend: `src/pages/Setup.tsx`
+### 3) Improve resend UX so failures are visible everywhere
+Update:
+- `src/components/clients/InviteDashboard.tsx`
 
-- Add a new step `"download_app"` between `"signing"` and `"complete"`
-- After signing is complete, show a branded screen:
-  - "You're all set! Download the app to get started"
-  - Large App Store and Google Play buttons (with official badge styling)
-  - Device detection: if iOS show App Store prominently first, if Android show Google Play first
-  - "Continue to Setup" button below to proceed to onboarding (for users already in the app or PWA)
-- Uses `navigator.userAgent` to detect platform and highlight the relevant store
+Reason:
+- its resend handler currently ignores the returned result and silently swallows failures
+- it should match the better handling already used in `InviteList.tsx`
+- if resend cannot be queued, it should show the copied setup link fallback instead of failing quietly
 
-### 4. Frontend: `src/pages/AcceptInvite.tsx` (staff invite)
+I’ll preserve the existing response shape as much as possible so:
+- `AddClientDialog.tsx`
+- `AddClientWithAssignmentDialog.tsx`
+- `InviteList.tsx`
 
-- Add the same download app prompt after account creation (optional — staff may not need the native app as urgently, but consistency is good)
+keep working without broad UI changes.
 
-## Email Template Design
+### 4) Add delivery tracing for debugging
+In the invite functions, add clearer logs around:
+- invite id
+- recipient email
+- generated `message_id`
+- queue success/failure
 
-```text
-┌─────────────────────────────────────────┐
-│  (dark bg #0a0a0a)                      │
-│                                         │
-│  PHYSIQUE CRAFTERS (gold accent)        │
-│  THE TRIPLE O METHOD                    │
-│                                         │
-│  Hi {first_name},                       │
-│                                         │
-│  {coach_name} has invited you to join   │
-│  Physique Crafters. Set up your         │
-│  account to start your training.        │
-│                                         │
-│  ┌─────────────────────────────┐        │
-│  │     Get Started             │ (gold) │
-│  └─────────────────────────────┘        │
-│                                         │
-│  ─────────────────────────────          │
-│                                         │
-│  Download the App                       │
-│                                         │
-│  [App Store]  [Google Play]             │
-│                                         │
-│  This link expires in 7 days.           │
-│  If you didn't expect this, ignore it.  │
-└─────────────────────────────────────────┘
-```
+That makes it easy to trace one invite from creation to queue to send log.
 
-## Files to modify
-- `supabase/functions/send-client-invite/index.ts` — replace auth invite with branded email via sendLovableEmail
-- `supabase/functions/resend-client-invite/index.ts` — same branded email change
-- `src/pages/Setup.tsx` — add "Download the App" step after signing
+## How I’ll validate it
 
+### Backend verification
+After implementation:
+1. deploy the updated invite functions
+2. trigger a brand-new client invite
+3. trigger a resend on an existing invite
+4. confirm:
+   - no runtime error in function logs
+   - rows appear in `email_send_log`
+   - status progresses to `sent` instead of failing immediately
+
+### End-to-end verification
+Then do one real delivery check with a test inbox:
+- send a fresh client invite
+- confirm branded email arrives
+- use resend
+- confirm the resent email also arrives with the updated link
+
+Note: I can fully verify the backend pipeline and sent status. Actual inbox placement still depends on the recipient mailbox provider, so I’ll do one real inbox spot-check as the final confirmation.
+
+## Files to update
+- `supabase/functions/send-client-invite/index.ts`
+- `supabase/functions/resend-client-invite/index.ts`
+- `supabase/functions/staff-invite/index.ts`
+- `src/components/clients/InviteDashboard.tsx`
+
+## Expected outcome
+After this change:
+- new client invites should queue and send reliably from your branded domain
+- resends should work the same way
+- the current `apiKey` runtime crash will be eliminated
+- incognito / publish cache will no longer matter because the actual backend bug will be fixed
