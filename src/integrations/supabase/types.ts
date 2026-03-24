@@ -5974,6 +5974,7 @@ export type Database = {
           attachment_url: string | null
           content: string
           created_at: string
+          edited_at: string | null
           id: string
           read_at: string | null
           sender_id: string
@@ -5985,6 +5986,7 @@ export type Database = {
           attachment_url?: string | null
           content: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           read_at?: string | null
           sender_id: string
@@ -5996,6 +5998,7 @@ export type Database = {
           attachment_url?: string | null
           content?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           read_at?: string | null
           sender_id?: string

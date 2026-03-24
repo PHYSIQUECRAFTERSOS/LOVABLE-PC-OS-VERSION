@@ -18,6 +18,7 @@ import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
+import MessageContextMenu from "./MessageContextMenu";
 import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
@@ -26,6 +27,7 @@ interface Message {
   content: string;
   created_at: string;
   read_at: string | null;
+  edited_at?: string | null;
   attachment_url?: string | null;
   attachment_type?: string | null;
   attachment_name?: string | null;
@@ -54,6 +56,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
   const [sending, setSending] = useState(false);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -71,7 +74,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       .eq("id", threadId)
       .eq("coach_id", user.id);
     (window as any).__refetchCoachThreads?.();
-    // Clear push badge when reading messages
     clearPushBadge();
   };
 
@@ -85,7 +87,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
   };
 
   const fetchReactions = async () => {
-    // Get all message IDs first, then fetch reactions
     const { data: msgs } = await supabase
       .from("thread_messages")
       .select("id")
@@ -124,7 +125,10 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
         filter: `thread_id=eq.${threadId}`,
       }, (payload) => {
         const newMsg = payload.new as Message;
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => {
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
         if (user && newMsg.sender_id !== user.id) markThreadSeen();
       })
       .on("postgres_changes", {
@@ -136,6 +140,15 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
         const updated = payload.new as Message;
         setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
       })
+      .on("postgres_changes", {
+        event: "DELETE",
+        schema: "public",
+        table: "thread_messages",
+        filter: `thread_id=eq.${threadId}`,
+      }, (payload) => {
+        const deleted = payload.old as { id: string };
+        setMessages(prev => prev.filter(m => m.id !== deleted.id));
+      })
       .subscribe();
 
     const reactChannel = supabase
@@ -145,7 +158,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
         schema: "public",
         table: "message_reactions",
       }, () => {
-        // Re-fetch reactions on any change
         fetchReactions();
       })
       .subscribe();
@@ -171,7 +183,6 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
     setNewMessage("");
     setSending(false);
 
-    // Send push notification to the other user
     const { data: thread } = await supabase
       .from("message_threads")
       .select("coach_id, client_id")
@@ -210,6 +221,15 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
     setReactions(prev => ({ ...prev, [messageId]: newReactions }));
   };
 
+  const handleEditMessage = (messageId: string, newContent: string) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
+    setEditingMessageId(null);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -246,45 +266,60 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
         {messages.map((msg) => {
           const isOwn = msg.sender_id === user?.id;
           const msgReactions = reactions[msg.id] || [];
+          const isEditing = editingMessageId === msg.id;
+
           return (
             <div key={msg.id} className={cn("flex gap-2 group", isOwn ? "justify-end" : "justify-start")}>
               {!isOwn && (
                 <UserAvatar src={otherUserAvatar} name={otherUserName} className="h-7 w-7 text-[10px] mt-1 ring-1" />
               )}
-              <div className={cn("max-w-[70%] space-y-1")}>
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2 text-sm",
-                    isOwn ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted text-foreground rounded-bl-md"
-                  )}
-                >
-                  {msg.attachment_url && msg.attachment_type && (
-                    <div className="mb-1">
+              <MessageContextMenu
+                messageId={msg.id}
+                content={msg.content}
+                senderId={msg.sender_id}
+                isOwn={isOwn}
+                hasAttachment={!!msg.attachment_url}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
+              >
+                <div className={cn("max-w-[70%] space-y-1")}>
+                  <div
+                    className={cn(
+                      "rounded-2xl px-4 py-2 text-sm",
+                      isOwn ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted text-foreground rounded-bl-md"
+                    )}
+                  >
+                    {msg.attachment_url && msg.attachment_type && (
+                      <div className="mb-1">
                         <MessageAttachment
                           url={msg.attachment_url}
                           type={msg.attachment_type as "image" | "video" | "pdf" | "audio"}
                           name={msg.attachment_name || undefined}
                           isOwn={isOwn}
                         />
-                    </div>
-                  )}
-                  {msg.content && <p>{msg.content}</p>}
+                      </div>
+                    )}
+                    {msg.content && <p>{msg.content}</p>}
+                  </div>
+                  {/* Reactions */}
+                  <EmojiReactions
+                    messageId={msg.id}
+                    reactions={msgReactions}
+                    onReactionsChange={handleReactionsChange}
+                  />
+                  <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isOwn ? "justify-end" : "justify-start")}>
+                    <span>{format(new Date(msg.created_at), "HH:mm")}</span>
+                    {(msg as any).edited_at && (
+                      <span className="italic">edited</span>
+                    )}
+                    {isOwn && (
+                      msg.read_at
+                        ? <CheckCheck className="h-3 w-3 text-primary" />
+                        : <Check className="h-3 w-3" />
+                    )}
+                  </div>
                 </div>
-                {/* Reactions */}
-                <EmojiReactions
-                  messageId={msg.id}
-                  reactions={msgReactions}
-                  onReactionsChange={handleReactionsChange}
-                />
-                <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isOwn ? "justify-end" : "justify-start")}>
-                  <span>{format(new Date(msg.created_at), "HH:mm")}</span>
-                  {isOwn && (
-                    msg.read_at
-                      ? <CheckCheck className="h-3 w-3 text-primary" />
-                      : <Check className="h-3 w-3" />
-                  )}
-                </div>
-              </div>
+              </MessageContextMenu>
               {isOwn && (
                 <UserAvatar src={myAvatarUrl} name="Me" className="h-7 w-7 text-[10px] mt-1 ring-1" />
               )}

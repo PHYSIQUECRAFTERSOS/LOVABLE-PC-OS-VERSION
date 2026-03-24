@@ -5,7 +5,24 @@ import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 
-const isNative = Capacitor.isNativePlatform();
+/**
+ * Detect if push notifications are available.
+ * Since the app runs as a remote URL inside a Capacitor WKWebView,
+ * Capacitor.isNativePlatform() may return false. Instead check plugin availability
+ * AND the presence of the Capacitor native bridge.
+ */
+const canUsePush = (): boolean => {
+  try {
+    // Check if the PushNotifications plugin is available
+    if (Capacitor.isPluginAvailable('PushNotifications')) return true;
+    // Fallback: check for native bridge (Capacitor iOS injects this)
+    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
+    if ((window as any).webkit?.messageHandlers?.bridge) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
 
 export function usePushNotifications() {
   const { user } = useAuth();
@@ -13,7 +30,12 @@ export function usePushNotifications() {
   const registeredRef = useRef(false);
 
   useEffect(() => {
-    if (!isNative || !user || registeredRef.current) return;
+    if (!user || registeredRef.current) return;
+
+    const isPushAvailable = canUsePush();
+    console.log("[Push] canUsePush:", isPushAvailable, "isNative:", Capacitor.isNativePlatform(), "pluginAvailable:", Capacitor.isPluginAvailable('PushNotifications'));
+
+    if (!isPushAvailable) return;
 
     const setup = async () => {
       try {
@@ -36,6 +58,7 @@ export function usePushNotifications() {
               { onConflict: "user_id,token" }
             );
           if (error) console.error("[Push] Token save error:", error.message);
+          else console.log("[Push] Token saved successfully");
         });
 
         // Registration error
@@ -66,7 +89,7 @@ export function usePushNotifications() {
     setup();
 
     return () => {
-      if (isNative) {
+      if (canUsePush()) {
         PushNotifications.removeAllListeners();
       }
     };
@@ -77,10 +100,9 @@ export function usePushNotifications() {
  * Call this to clear the badge and delivered notifications when user reads messages
  */
 export async function clearPushBadge() {
-  if (!isNative) return;
+  if (!canUsePush()) return;
   try {
     await PushNotifications.removeAllDeliveredNotifications();
-    // Badge plugin not available — use native bridge if needed later
   } catch (err) {
     console.error("[Push] Clear badge error:", err);
   }

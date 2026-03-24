@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import UserAvatar from "@/components/profile/UserAvatar";
+import MessageContextMenu from "@/components/messaging/MessageContextMenu";
 import { Send, X, CheckCheck, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ interface Message {
   content: string;
   created_at: string;
   read_at: string | null;
+  edited_at?: string | null;
 }
 
 interface QuickMessageDialogProps {
@@ -61,7 +63,6 @@ const QuickMessageDialog = ({
     };
   }, [open, clientId, user]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!threadId || !open) return;
     const channel = supabase
@@ -86,6 +87,15 @@ const QuickMessageDialog = ({
       }, (payload) => {
         const updated = payload.new as Message;
         setMessages((prev) => prev.map((m) => m.id === updated.id ? updated : m));
+      })
+      .on("postgres_changes", {
+        event: "DELETE",
+        schema: "public",
+        table: "thread_messages",
+        filter: `thread_id=eq.${threadId}`,
+      }, (payload) => {
+        const deleted = payload.old as { id: string };
+        setMessages((prev) => prev.filter((m) => m.id !== deleted.id));
       })
       .subscribe();
 
@@ -117,7 +127,6 @@ const QuickMessageDialog = ({
         .limit(30);
       setMessages((data as Message[]) || []);
 
-      // Mark as seen
       await supabase
         .from("message_threads")
         .update({ coach_last_seen_at: new Date().toISOString(), coach_marked_unread: false } as any)
@@ -164,6 +173,14 @@ const QuickMessageDialog = ({
     setSending(false);
   };
 
+  const handleEditMessage = (messageId: string, newContent: string) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: newContent, edited_at: new Date().toISOString() } : m));
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0 gap-0">
@@ -191,18 +208,29 @@ const QuickMessageDialog = ({
             messages.map((msg) => {
               const isMe = msg.sender_id === user?.id;
               return (
-                <div key={msg.id} className={cn("flex", isMe ? "justify-end" : "justify-start")}>
-                  <div className={cn(
-                    "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-                    isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
-                  )}>
-                    <p>{msg.content}</p>
-                    <div className={cn("flex items-center gap-1 text-[10px] mt-1 opacity-60", isMe ? "justify-end" : "justify-start")}>
-                      <span>{format(new Date(msg.created_at), "h:mm a")}</span>
-                      {isMe && (msg.read_at ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
+                <MessageContextMenu
+                  key={msg.id}
+                  messageId={msg.id}
+                  content={msg.content}
+                  senderId={msg.sender_id}
+                  isOwn={isMe}
+                  onEdit={handleEditMessage}
+                  onDelete={handleDeleteMessage}
+                >
+                  <div className={cn("flex", isMe ? "justify-end" : "justify-start")}>
+                    <div className={cn(
+                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
+                      isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
+                    )}>
+                      <p>{msg.content}</p>
+                      <div className={cn("flex items-center gap-1 text-[10px] mt-1 opacity-60", isMe ? "justify-end" : "justify-start")}>
+                        <span>{format(new Date(msg.created_at), "h:mm a")}</span>
+                        {(msg as any).edited_at && <span className="italic">edited</span>}
+                        {isMe && (msg.read_at ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </MessageContextMenu>
               );
             })
           )}
