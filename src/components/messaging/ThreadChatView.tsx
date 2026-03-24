@@ -65,6 +65,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
 
   const markThreadSeen = async () => {
     if (!user) return;
+    // Update coach_last_seen_at
     await supabase
       .from("message_threads")
       .update({
@@ -73,7 +74,18 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       } as any)
       .eq("id", threadId)
       .eq("coach_id", user.id);
+
+    // Mark all unread messages from the other user as read
+    await supabase
+      .from("thread_messages")
+      .update({ read_at: new Date().toISOString() } as any)
+      .eq("thread_id", threadId)
+      .neq("sender_id", user.id)
+      .is("read_at" as any, null);
+
     (window as any).__refetchCoachThreads?.();
+    // Trigger badge refresh in AppLayout
+    window.dispatchEvent(new Event("messages-read"));
     clearPushBadge();
   };
 
