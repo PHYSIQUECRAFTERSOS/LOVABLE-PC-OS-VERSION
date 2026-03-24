@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Capacitor } from "@capacitor/core";
+import { App } from "@capacitor/app";
 import HealthKit from "@/plugins/HealthKitPlugin";
 
 export interface HealthConnection {
@@ -23,8 +24,6 @@ export interface DailyMetrics {
 }
 
 // ── Timeout wrapper for native plugin calls ──
-// Capacitor plugin calls can hang forever if the native bridge isn't
-// properly registered. This ensures the UI always unblocks.
 function pluginTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -38,6 +37,11 @@ function pluginTimeout<T>(promise: Promise<T>, ms: number, label: string): Promi
   });
 }
 
+// ── Auto-sync constants ──
+const AUTO_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const FOREGROUND_SYNC_THROTTLE_MS = 30 * 60 * 1000; // 30 minutes
+const INITIAL_SYNC_DELAY_MS = 5000; // 5 seconds after mount
+
 export function useHealthSync() {
   const { user } = useAuth();
   const [connection, setConnection] = useState<HealthConnection | null>(null);
@@ -46,14 +50,14 @@ export function useHealthSync() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  // Keep a ref to the latest connection so syncNow never reads stale state
   const connectionRef = useRef<HealthConnection | null>(null);
+  const lastSyncRef = useRef<number>(0);
+  const syncingRef = useRef(false);
 
   const isNative = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
   const provider = platform === "ios" ? "apple_health" : "google_fit";
 
-  // Keep ref in sync with state
   useEffect(() => {
     connectionRef.current = connection;
   }, [connection]);
@@ -128,12 +132,8 @@ export function useHealthSync() {
     };
   }, [user, fetchMetrics]);
 
-
   /**
    * Connect to Apple Health (or Google Fit placeholder).
-   * Returns the created/updated connection record so the caller
-   * can pass it to syncNow without waiting for React state.
-   * THROWS on failure — caller must catch.
    */
   const connect = useCallback(async (): Promise<HealthConnection> => {
     if (!user) throw new Error("Not authenticated");
@@ -141,7 +141,6 @@ export function useHealthSync() {
     if (isNative && platform === "ios") {
       console.log("[HealthSync] Starting Apple Health connect flow…");
 
-      // 1. Check availability (5s timeout)
       console.log("[HealthSync] Checking HealthKit availability…");
       let available = false;
       try {
@@ -157,7 +156,6 @@ export function useHealthSync() {
         throw new Error("HealthKit is not available on this device.");
       }
 
-      // 2. Request authorization (30s timeout — user interacts with dialog)
       console.log("[HealthSync] Requesting HealthKit authorization…");
       try {
         const authResult = await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
@@ -167,11 +165,9 @@ export function useHealthSync() {
         throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
       }
     } else if (isNative) {
-      // Android: placeholder for Google Fit native integration
       console.log(`[HealthSync] Requesting ${provider} permissions on native device (placeholder)…`);
     }
 
-    // 3. Upsert connection record
     console.log("[HealthSync] Saving connection to database…");
     const { data, error } = await supabase
       .from("health_connections")
@@ -223,8 +219,8 @@ export function useHealthSync() {
 
   /**
    * Sync health data now.
-   * Accepts an optional connectionOverride to bypass the React state
-   * race condition when called immediately after connect().
+   * Re-requests HealthKit authorization before every query to prevent
+   * "Authorization not determined" errors on iOS.
    */
   const syncNow = useCallback(async (connectionOverride?: HealthConnection) => {
     const conn = connectionOverride ?? connectionRef.current;
@@ -236,6 +232,13 @@ export function useHealthSync() {
       });
       return;
     }
+
+    // Prevent concurrent syncs
+    if (syncingRef.current) {
+      console.log("[HealthSync] syncNow skipped — already syncing");
+      return;
+    }
+    syncingRef.current = true;
     setSyncing(true);
 
     try {
@@ -248,8 +251,20 @@ export function useHealthSync() {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
 
       if (isNative && platform === "ios") {
-        // Native iOS: query real HealthKit data
-        console.log("[HealthSync] Querying HealthKit data…");
+        // ── Re-request authorization to ensure "determined" state ──
+        // On iOS, this is safe to call repeatedly. It's a no-op if already
+        // granted and ensures HealthKit queries won't fail with
+        // "Authorization not determined".
+        console.log("[HealthSync] Re-requesting HealthKit authorization before query…");
+        try {
+          await pluginTimeout(HealthKit.requestAuthorization(), 10000, "HealthKit.requestAuthorization (pre-sync)");
+        } catch (authErr) {
+          console.error("[HealthSync] Pre-sync authorization failed:", authErr);
+          throw new Error(
+            "HealthKit access not authorized. Please open Settings → Health → Physique Crafters and enable all permissions."
+          );
+        }
+
         console.log("[HealthSync] Querying HealthKit data…");
 
         const [stepsResult, energyResult, distanceResult] = await Promise.all([
@@ -323,21 +338,76 @@ export function useHealthSync() {
         })
         .eq("id", conn.id);
 
+      lastSyncRef.current = Date.now();
       await Promise.all([fetchConnection(), fetchMetrics()]);
     } catch (err) {
       console.error("[HealthSync] Sync error:", err);
+
+      // Provide user-friendly error for HealthKit permission issues
+      const errMsg = String(err);
+      let userMessage = errMsg;
+      if (errMsg.includes("Authorization not determined") || errMsg.includes("not authorized")) {
+        userMessage = "HealthKit access not authorized. Please open Settings → Health → Physique Crafters and enable all permissions.";
+      }
+
       await supabase
         .from("health_connections")
         .update({
           sync_status: "error",
-          sync_error: String(err),
+          sync_error: userMessage,
         })
         .eq("id", conn.id);
-      throw err; // Re-throw so caller can show error toast
+      throw new Error(userMessage);
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
   }, [user, isNative, platform, fetchConnection, fetchMetrics]);
+
+  // ── Auto-sync: 2-hour interval + foreground resume ──
+  useEffect(() => {
+    const conn = connectionRef.current;
+    if (!user || !isNative || platform !== "ios" || !conn?.is_connected) return;
+
+    console.log("[HealthSync] Setting up auto-sync (2h interval + foreground trigger)");
+
+    // Initial sync after short delay (catch data from when app was closed)
+    const initialTimer = setTimeout(() => {
+      const timeSinceLastSync = Date.now() - lastSyncRef.current;
+      if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS) {
+        console.log("[HealthSync] Running initial auto-sync…");
+        syncNow().catch((err) => console.warn("[HealthSync] Initial auto-sync failed:", err));
+      }
+    }, INITIAL_SYNC_DELAY_MS);
+
+    // 2-hour interval
+    const intervalId = setInterval(() => {
+      console.log("[HealthSync] Running scheduled 2-hour auto-sync…");
+      syncNow().catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
+    }, AUTO_SYNC_INTERVAL_MS);
+
+    // Foreground resume listener (throttled to 30 min)
+    let listenerHandle: { remove: () => void } | null = null;
+    App.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) {
+        const timeSinceLastSync = Date.now() - lastSyncRef.current;
+        if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS && !syncingRef.current) {
+          console.log("[HealthSync] App resumed — running foreground auto-sync…");
+          syncNow().catch((err) => console.warn("[HealthSync] Foreground auto-sync failed:", err));
+        } else {
+          console.log("[HealthSync] App resumed — skipping sync (last sync was", Math.round(timeSinceLastSync / 60000), "min ago)");
+        }
+      }
+    }).then((handle) => {
+      listenerHandle = handle;
+    });
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalId);
+      listenerHandle?.remove();
+    };
+  }, [user, isNative, platform, connection?.is_connected, syncNow]);
 
   const updateStepGoal = useCallback(
     async (goal: number) => {
