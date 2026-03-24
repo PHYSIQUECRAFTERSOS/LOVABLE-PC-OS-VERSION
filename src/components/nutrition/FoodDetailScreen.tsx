@@ -168,7 +168,9 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
       fiber,
       sugar,
       sodium,
-    });
+      useGrams,
+      customGrams,
+    } as any);
   };
 
   return (
