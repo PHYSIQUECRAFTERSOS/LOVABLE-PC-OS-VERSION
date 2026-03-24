@@ -191,6 +191,7 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
       const dateLabel = isToday(selectedDate) ? "today" : format(selectedDate, "MMM d");
       toast({ title: `${title} scheduled for ${dateLabel}` });
       invalidateCache(`today-actions-${targetUserId}-${dateStr}`);
+      window.dispatchEvent(new CustomEvent("calendar-event-added"));
 
       resetDrawer();
       setExpanded(false);

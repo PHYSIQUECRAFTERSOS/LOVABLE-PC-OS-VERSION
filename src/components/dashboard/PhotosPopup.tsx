@@ -222,21 +222,34 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                 <div className="flex border-t border-gray-200 mt-3">
                   <button
                     className="flex-1 py-3.5 text-center text-blue-600 font-semibold text-sm border-r border-gray-200 active:bg-gray-50 transition-colors"
-                    onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
+                    onClick={() => { try { setTimeout(() => pickInputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                   >
                     PICK PHOTO
                   </button>
                   <button
                     className="flex-1 py-3.5 text-center text-blue-600 font-bold text-sm active:bg-gray-50 transition-colors"
-                    onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
+                    onClick={() => { try { setTimeout(() => cameraInputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                   >
                     TAKE NOW
                   </button>
                 </div>
               )}
 
+              {/* Library picker — no capture attribute */}
               <input
-                ref={inputRef}
+                ref={pickInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                  e.target.value = "";
+                }}
+              />
+              {/* Camera capture */}
+              <input
+                ref={cameraInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                 capture="environment"
