@@ -712,13 +712,207 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       {/* ── Date Navigator ── */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
-      {/* ── Quick Stats ── */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* ── Client Rank Card ── */}
+      {rankedProfile && (() => {
+        const rankCalc = calculateTierAndDivision(rankedProfile.total_xp);
+        const rankLabel = getDivisionLabel(rankedProfile.current_tier, rankedProfile.current_division ?? 5);
+        const rankTierColor = getTierColor(rankedProfile.current_tier);
+        const isRankChampion = rankedProfile.current_tier === "champion";
+        const rankProgress = isRankChampion ? 100 : rankCalc.xpNeeded > 0 ? (rankCalc.divisionXP / rankCalc.xpNeeded) * 100 : 0;
+        return (
+          <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-card px-3 py-3 overflow-hidden">
+            <div className="h-20 w-20 shrink-0 flex items-center justify-center overflow-hidden">
+              <TierBadge tier={rankedProfile.current_tier} size={120} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm font-bold truncate" style={{ color: rankTierColor }}>{rankLabel}</p>
+                {rankedProfile.current_streak > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs font-semibold shrink-0" style={{ color: "#fb923c" }}>
+                    <Flame className="h-3.5 w-3.5" style={{ fill: "#fb923c", color: "#fb923c" }} />
+                    {rankedProfile.current_streak}
+                  </span>
+                )}
+              </div>
+              <div className="h-2.5 w-full rounded-full bg-muted/40 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${rankProgress}%`, backgroundColor: rankTierColor }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground">{isRankChampion ? "Top rank achieved" : `${rankCalc.divisionXP} / ${rankCalc.xpNeeded} XP`}</p>
+                <p className="text-[10px] text-muted-foreground">{rankedProfile.total_xp} total XP</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Today's Actions ── */}
+      {actions.length > 0 && (
         <Card>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Workout Compliance</p>
+          <CardHeader className="pb-3"><CardTitle className="text-sm">{isToday(selectedDate) ? "Today's Actions" : `Actions — ${format(selectedDate, "MMM d")}`}</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {actions.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => {
+                  const calEvent: CalendarEvent = {
+                    id: a.id, title: a.title, event_date: a.event_date || selectedDateStr,
+                    event_type: a.event_type, is_completed: a.is_completed, color: a.color || null,
+                    event_time: a.event_time || null, end_time: a.end_time || null,
+                    description: a.description || null, notes: a.notes || null,
+                    linked_workout_id: a.linked_workout_id || null, user_id: clientId,
+                    is_recurring: a.is_recurring || false, recurrence_pattern: a.recurrence_pattern || null,
+                    completed_at: a.completed_at || null,
+                  };
+                  setSelectedAction(calEvent);
+                  setShowEventDetail(true);
+                }}
+                className="flex items-center gap-3 py-1.5 w-full text-left hover:bg-secondary/50 rounded-md px-2 -mx-2 transition-colors"
+              >
+                {a.is_completed ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" /> : <Circle className="h-5 w-5 text-muted-foreground shrink-0" />}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {a.event_type === "workout" && <Dumbbell className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  {a.event_type === "nutrition" && <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  {a.event_type === "photo" && <Camera className="h-3.5 w-3.5 text-primary shrink-0" />}
+                  <span className="text-sm text-foreground truncate">{a.title}</span>
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Event Detail Modal */}
+      <EventDetailModal
+        event={selectedAction}
+        open={showEventDetail}
+        onClose={() => { setShowEventDetail(false); setSelectedAction(null); }}
+        onComplete={async (ev) => {
+          const { error } = await supabase.from("calendar_events").update({ is_completed: true, completed_at: new Date().toISOString() }).eq("id", ev.id);
+          if (error) { toast.error("Failed to mark complete"); return; }
+          setActions(prev => prev.map(a => a.id === ev.id ? { ...a, is_completed: true } : a));
+          setShowEventDetail(false); setSelectedAction(null);
+        }}
+        onDelete={async (ev) => {
+          const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
+          if (error) { toast.error("Failed to delete event"); return; }
+          setActions(prev => prev.filter(a => a.id !== ev.id));
+          setShowEventDetail(false); setSelectedAction(null);
+        }}
+        isCoach={true}
+        clientId={clientId}
+      />
+
+      {/* ── Steps Full-Width Bar ── */}
+      <button
+        onClick={() => setStepTrendOpen(true)}
+        className="w-full rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Footprints className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground">Steps</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <MiniSparkline data={stepsSpark} />
+            <span className="text-xs text-muted-foreground">Goal: {(stepGoal / 1000).toFixed(0)}K</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold text-foreground tabular-nums">
+            {todaySteps !== null && todaySteps > 0 ? todaySteps.toLocaleString() : "–"}
+          </span>
+          <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${todaySteps ? Math.min(100, Math.round((todaySteps / stepGoal) * 100)) : 0}%` }} />
+          </div>
+          <span className="text-xs font-medium text-foreground tabular-nums">{todaySteps ? Math.min(100, Math.round((todaySteps / stepGoal) * 100)) : 0}%</span>
+        </div>
+      </button>
+
+      {/* ── 2x2 Grid: Weight, Photos, Calories, Distance ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => setWeightHistoryOpen(true)} className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Weight</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {data.currentWeight ? `${data.currentWeight} lbs` : "–"}
+          </div>
+          {data.currentWeight && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {data.weightTrend === "down" ? <TrendingDown className="h-3 w-3 text-green-500" /> : data.weightTrend === "up" ? <TrendingUp className="h-3 w-3 text-destructive" /> : <Activity className="h-3 w-3 text-muted-foreground" />}
+              <span className="text-[10px] text-muted-foreground capitalize">{data.weightTrend} (7d)</span>
+            </div>
+          )}
+        </button>
+
+        <button onClick={() => setPhotosModalOpen(true)} className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Progress Photos</span>
+          </div>
+          {photoUrls.length > 0 ? (
+            <div className="flex gap-1.5 mt-1">
+              {photoUrls.slice(0, 2).map((url, i) => (
+                <img key={i} src={url} alt="Progress" className="h-10 w-10 rounded-md object-cover border border-border/50" loading="lazy" />
+              ))}
+            </div>
+          ) : (
+            <div className="text-xl font-bold text-foreground">–</div>
+          )}
+        </button>
+
+        <div className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Flame className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Calories Today</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {todayCals > 0 ? todayCals.toLocaleString() : "–"}
+          </div>
+          <MiniSparkline data={calSpark} />
+        </div>
+
+        <button onClick={() => setDistanceTrendOpen(true)} className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Distance</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {distanceToday !== null && distanceToday > 0 ? `${distanceToday.toFixed(1)} km` : "–"}
+          </div>
+          <MiniSparkline data={distanceSpark} />
+        </button>
+      </div>
+
+      {/* ── Last Check-In (compact) ── */}
+      <div className="flex items-center gap-3 rounded-xl bg-card border border-border px-4 py-3">
+        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <CalendarDays className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">Last Check-In</p>
+          <p className="text-sm font-semibold text-foreground">
+            {data.lastCheckin ? format(new Date(data.lastCheckin), "MMM d, h:mm a") : "No check-ins yet"}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Program Info ── */}
+      {data.programName && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> Active Program
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-semibold text-foreground">{data.programName}</p>
+            {data.currentPhase && <Badge variant="secondary" className="mt-1 text-[10px]">{data.currentPhase}</Badge>}
+          </CardContent>
+        </Card>
+      )}
                 <p className="text-2xl font-bold text-foreground mt-1">{data.workoutCompliance}%</p>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
