@@ -14,13 +14,30 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
   const workerRef = useRef<Worker | null>(null);
   const completedRef = useRef(false);
   const countdownFiredRef = useRef(false);
+  const countdownPendingRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+
+  const triggerCountdown = useCallback(async () => {
+    if (countdownFiredRef.current || countdownPendingRef.current) return false;
+
+    countdownPendingRef.current = true;
+    try {
+      const didPlay = await restTimerAudio.playCountdown();
+      if (didPlay) {
+        countdownFiredRef.current = true;
+      }
+      return didPlay;
+    } finally {
+      countdownPendingRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     setTimeRemaining(initialSeconds);
     completedRef.current = false;
     countdownFiredRef.current = false;
+    countdownPendingRef.current = false;
 
     const endTime = Date.now() + initialSeconds * 1000;
     const worker = createTimerWorker();
@@ -34,8 +51,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
         // Trigger countdown audio at <= 3 seconds remaining
         if (msg.remainingMs <= 3000 && msg.remainingMs > 0 && !countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
       }
 
@@ -44,8 +60,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         setTimeRemaining(0);
         // Fire countdown if it never fired (e.g., timer was < 3s)
         if (!countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
         restTimerAudio.stopKeepAlive();
         setTimeout(() => onCompleteRef.current(), 800);
@@ -65,8 +80,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         // Worker is still running, but force a re-check
         const remainingMs = Math.max(0, endTime - Date.now());
         if (remainingMs <= 3000 && remainingMs > 0 && !countdownFiredRef.current) {
-          countdownFiredRef.current = true;
-          restTimerAudio.playCountdown();
+          void triggerCountdown();
         }
         if (remainingMs <= 0 && !completedRef.current) {
           completedRef.current = true;
@@ -86,9 +100,10 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       restTimerAudio.stopKeepAlive();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialSeconds]);
+  }, [initialSeconds, triggerCountdown]);
 
   const handleSkip = useCallback(() => {
+    countdownPendingRef.current = false;
     if (workerRef.current) {
       workerRef.current.postMessage({ type: "stop" });
       workerRef.current.terminate();
