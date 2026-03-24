@@ -104,7 +104,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         { to: "/calendar", icon: CalendarDays, label: "Calendar" },
         { to: "/training", icon: Dumbbell, label: "Training" },
         { to: "/nutrition", icon: UtensilsCrossed, label: "Nutrition" },
-        { to: "/profile", icon: Settings, label: "Settings" },
+        { to: "/messages", icon: MessageSquare, label: "Messages" },
       ];
 
   const sidebarItems = isCoach ? coachNav : clientNav;

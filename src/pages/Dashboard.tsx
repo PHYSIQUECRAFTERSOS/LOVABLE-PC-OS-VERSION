@@ -100,11 +100,8 @@ const ClientDashboard = () => {
       {/* Progress Widget Grid */}
       <ProgressWidgetGrid />
 
-      {/* Weekly Score + Momentum */}
-      <div className="grid grid-cols-1 gap-4">
-        <WeeklyMomentumScore />
-        <ComplianceMomentum data={last30} />
-      </div>
+      {/* Community Quick Access */}
+      <CommunityQuickAccess />
 
       {/* Progress */}
       <ProgressMomentum />
