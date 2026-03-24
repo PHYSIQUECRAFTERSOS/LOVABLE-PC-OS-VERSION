@@ -97,7 +97,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         { to: "/clients", icon: Users, label: "Clients" },
         { to: "/messages", icon: MessageSquare, label: "Messages" },
         { to: "/community", icon: UsersRound, label: "Community" },
-        { to: "/profile", icon: Settings, label: "Settings" },
       ]
     : [
         { to: "/dashboard", icon: LayoutDashboard, label: "Home" },
