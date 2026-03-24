@@ -1,26 +1,19 @@
 
 
-# Plan: Fix Photos, Dashboard Sync, and Body Stats Visual Polish
+# Plan: Align Coach's Client Summary with Client Dashboard Layout
 
-## 4 Issues to Fix
+## Goal
+Make the coach's view of a client's dashboard (`SummaryTab.tsx`) match the client's own dashboard layout — same visual hierarchy and widgets — while keeping Macros Today, 7-Day Macro Averages, Food Log, Progress Momentum, and Last Check-In. Remove Workout Compliance and Current Streak cards.
 
-### 1. Remove guide lines/labels from photo poses
-**File: `src/components/dashboard/PhotosPopup.tsx`**
+## Changes
 
-Delete lines 204-212 — the three overlay divs that render "Eyes" line, "Hip" line, and the vertical center line over the guide images. Also update the instruction text (line 222-224) to say "Match the pose shown above" instead of referencing "guiding lines". The uploaded pose images will display cleanly without any overlays.
+### File: `src/components/clients/workspace/SummaryTab.tsx`
 
-### 2. "PICK PHOTO" should open photo library, not camera
-**File: `src/components/dashboard/PhotosPopup.tsx`**
+**Replace the Quick Stats grid (lines 648-708)** — remove the 4-card grid containing Workout Compliance, Current Weight, Current Streak, and Last Check-In. Replace with:
 
-The problem: both "PICK PHOTO" and "TAKE NOW" buttons click the same `<input>` which has `capture="environment"` — this forces the camera on mobile.
+1. **Client Rank Card** — new section that fetches the client's `ranked_profiles` data and renders a compact rank display (tier badge, division label, XP progress bar, streak) matching the `MyRankDashboardCard` style. Uses the same `calculateTierAndDivision`, `getDivisionLabel`, `getTierColor` utilities. Read-only (no navigation on tap since coach is viewing).
 
-Fix: use **two separate file inputs**:
-- `pickInputRef`: `<input type="file" accept="image/*">` (no `capture` attribute → opens photo library)
-- `cameraInputRef`: `<input type="file" accept="image/*" capture="environment">` (opens camera)
+2. **Today's Actions** — keep the existing actions section (lines 725-767) but move it up to be right after the Date Navigator (matching client dashboard order). Already styled cleanly with checkmarks and icons.
 
-Wire "PICK PHOTO" to `pickInputRef` and "TAKE NOW" to `cameraInputRef`.
-
-### 3. FAB-scheduled events don't appear on dashboard instantly
-**File: `src/components/dashboard/QuickLogFAB.tsx`**
-
-The issue
+3. **Steps full-width bar** — replace the current 3-column `md:grid-cols-3` stats row (lines 792-850) with:
+   - A full-width Steps bar matching the client's `
