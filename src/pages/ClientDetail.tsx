@@ -21,6 +21,7 @@ import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab"
 import MessagingTab from "@/components/clients/workspace/MessagingTab";
 import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
 import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
+import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 
 interface ClientProfile {
   user_id: string;
