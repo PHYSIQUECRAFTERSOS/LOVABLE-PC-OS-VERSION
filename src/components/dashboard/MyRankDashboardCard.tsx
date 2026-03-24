@@ -2,20 +2,48 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMyRank } from "@/hooks/useRanked";
 import { useXPAward } from "@/hooks/useXPAward";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import TierBadge from "@/components/ranked/TierBadge";
+import ConfettiBurst from "@/components/workout/ConfettiBurst";
 import { getDivisionLabel, calculateTierAndDivision, getTierColor } from "@/utils/rankedXP";
-import { ChevronRight, Flame } from "lucide-react";
+import { ChevronRight, Flame, TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const db = supabase as any;
+
+function useTodayXP(userId?: string) {
+  return useQuery({
+    queryKey: ["xp-today", userId],
+    queryFn: async () => {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const { data } = await db
+        .from("xp_transactions")
+        .select("xp_amount")
+        .eq("user_id", userId)
+        .gte("created_at", startOfDay)
+        .gt("xp_amount", 0);
+      return (data || []).reduce((sum: number, r: any) => sum + (r.xp_amount || 0), 0);
+    },
+    enabled: !!userId,
+    staleTime: 15_000,
+  });
+}
 
 const MyRankDashboardCard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: profile, isLoading } = useMyRank();
   const { dashboardXPGain, clearDashboardXP } = useXPAward();
+  const { data: todayXP = 0 } = useTodayXP(user?.id);
 
   const [animatingXP, setAnimatingXP] = useState<{ amount: number; id: string } | null>(null);
   const [chipPhase, setChipPhase] = useState<"enter" | "fly" | "done">("done");
   const [displayProgress, setDisplayProgress] = useState<number | null>(null);
   const [barFlash, setBarFlash] = useState(false);
+  const [fireConfetti, setFireConfetti] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
 
   const label = profile ? getDivisionLabel(profile.current_tier, profile.current_division) : "";
@@ -28,6 +56,8 @@ const MyRankDashboardCard = () => {
   const tierColor = profile ? getTierColor(profile.current_tier) : "#CD7F32";
   const streak = profile?.current_streak || 0;
   const nearRankUp = !isChampion && xpToNext > 0 && xpToNext <= 10;
+  const position = profile?.position || 0;
+  const totalPlayers = profile?.totalPlayers || 0;
 
   useEffect(() => {
     if (!dashboardXPGain || !profile) return;
@@ -46,9 +76,12 @@ const MyRankDashboardCard = () => {
     const t2 = setTimeout(() => {
       setChipPhase("done");
       setDisplayProgress(null);
-      if (divisionXP < gain.amount && !isChampion) {
+      // If bar overflows (rank up), fire micro-confetti
+      if (progressPct >= 100 || (divisionXP < gain.amount && !isChampion)) {
+        setFireConfetti(true);
         setBarFlash(true);
         setTimeout(() => setBarFlash(false), 600);
+        setTimeout(() => setFireConfetti(false), 1500);
       }
     }, 700);
     const t3 = setTimeout(() => setAnimatingXP(null), 1200);
@@ -60,13 +93,17 @@ const MyRankDashboardCard = () => {
     };
   }, [dashboardXPGain]);
 
-  if (isLoading) return <Skeleton className="h-20 rounded-xl" />;
+  if (isLoading) return <Skeleton className="h-24 rounded-xl" />;
   if (!profile) return null;
 
   const barWidth = displayProgress !== null ? displayProgress : progressPct;
 
   return (
     <div className="relative">
+      {/* Micro-confetti on rank-up */}
+      <ConfettiBurst fire={fireConfetti} />
+
+      {/* Flying XP chip */}
       {animatingXP && chipPhase !== "done" && (
         <div
           className={`fixed left-1/2 z-50 pointer-events-none font-bold text-sm rounded-full px-3 py-1 shadow-lg transition-all ${
@@ -106,8 +143,9 @@ const MyRankDashboardCard = () => {
           <TierBadge tier={profile.current_tier} size={80} />
         </div>
 
-        <div className="flex-1 min-w-0 space-y-1.5">
-          <div className="flex items-center gap-1.5">
+        <div className="flex-1 min-w-0 space-y-1">
+          {/* Top row: label + streak + XP today */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-bold text-foreground truncate">{label}</p>
             {streak > 0 && (
               <span className="flex items-center gap-0.5 text-xs font-semibold shrink-0" style={{ color: "#fb923c" }}>
@@ -115,8 +153,14 @@ const MyRankDashboardCard = () => {
                 {streak}
               </span>
             )}
+            {todayXP > 0 && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">
+                +{todayXP} today
+              </span>
+            )}
           </div>
 
+          {/* Progress bar */}
           <div className="w-full">
             <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted/40">
               <div
@@ -128,9 +172,18 @@ const MyRankDashboardCard = () => {
                 }}
               />
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {isChampion ? "Top rank achieved" : `${divisionXP} / ${xpNeeded} XP`}
-            </p>
+            {/* Bottom row: XP progress + position */}
+            <div className="flex items-center justify-between mt-0.5">
+              <p className="text-[10px] text-muted-foreground">
+                {isChampion ? "Top rank achieved" : `${divisionXP} / ${xpNeeded} XP`}
+              </p>
+              {position > 0 && totalPlayers > 0 && (
+                <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                  <TrendingUp className="h-2.5 w-2.5" />
+                  #{position} of {totalPlayers}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
