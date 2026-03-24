@@ -388,6 +388,24 @@ Deno.serve(async (req) => {
             sender_id: trigger.coach_id,
             content: content,
           });
+
+          // Send push notification for missed_checkin triggers
+          if (trigger.trigger_type === "missed_checkin" || trigger.trigger_type === "missed_workout") {
+            const notifType = trigger.trigger_type === "missed_checkin" ? "checkin" : "message";
+            try {
+              await supabase.functions.invoke("send-push-notification", {
+                body: {
+                  user_id: clientId,
+                  title: trigger.trigger_type === "missed_checkin" ? "Check-In Reminder" : "Workout Reminder",
+                  body: content.length > 100 ? content.slice(0, 97) + "..." : content,
+                  notification_type: notifType,
+                  data: { route: trigger.trigger_type === "missed_checkin" ? "/dashboard" : "/training" },
+                },
+              });
+            } catch (pushErr) {
+              console.error(`[Push] Failed for ${clientId}:`, pushErr);
+            }
+          }
         }
 
         totalSent++;

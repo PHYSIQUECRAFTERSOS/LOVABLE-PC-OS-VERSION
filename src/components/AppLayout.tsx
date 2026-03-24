@@ -274,12 +274,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors",
+                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors relative",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
             >
-              <item.icon className="h-6 w-6" />
+              <div className="relative">
+                <item.icon className="h-6 w-6" />
+                {item.to === "/messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-black px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </div>
               {item.label}
             </NavLink>
           ))}
