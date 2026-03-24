@@ -99,6 +99,14 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
         .from("message_threads")
         .update({ coach_last_seen_at: new Date().toISOString(), coach_marked_unread: false } as any)
         .eq("id", tId).eq("coach_id", user.id);
+      // Also mark all unread messages from client as read
+      await supabase
+        .from("thread_messages")
+        .update({ read_at: new Date().toISOString() } as any)
+        .eq("thread_id", tId)
+        .neq("sender_id", user.id)
+        .is("read_at" as any, null);
+      window.dispatchEvent(new Event("messages-read"));
     }
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   };
