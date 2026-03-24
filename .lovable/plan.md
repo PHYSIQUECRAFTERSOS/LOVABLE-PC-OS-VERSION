@@ -1,36 +1,24 @@
 
 
-# Plan: New Clients Readiness Tracker for Coach Command Center
+# Plan: Keep "Finished Check-In Review" Section Always Visible
 
-## Summary
+## Problem
 
-Add a "New Clients (Last 7 Days)" section above the Compliance Snapshot in the Coach Command Center. It shows each recently assigned client with clear status indicators for onboarding form completion and progress photo submission, plus quick actions to message or view the client.
+The "Finished Check-In Review" section is wrapped in `{totalSubmitted > 0 && (...)}` (line 464). On Monday when the week resets, there are zero submissions yet, so `totalSubmitted === 0` and the entire section disappears — including the layout, progress bar, and empty-state message.
 
-## What it shows
+You want the section to always be visible (showing "No reviews completed yet" when empty), but the **client names inside it** should reset each week as they do now.
 
-For each client assigned in the last 7 days (via `coach_clients.assigned_at`):
-- Client name and avatar
-- "Joined X days ago" timestamp
-- Onboarding form status: green checkmark if `onboarding_profiles.onboarding_completed = true`, amber warning if incomplete/missing
-- Photos status: green checkmark if `progress_photos` count >= 3 (front/side/back), amber warning if fewer
-- Quick "Message" button to nudge clients missing items
-- Click row to navigate to `/clients/:id`
+## Fix
 
-## Visual design
+**File: `src/components/dashboard/CheckinSubmissionDashboard.tsx`**
 
-```text
-┌─────────────────────────────────────────────────┐
-│ 👋 New Clients (Last 7 Days)              3 new │
-├─────────────────────────────────────────────────┤
-│ [Avatar] Jane Doe          2 days ago           │
-│          ✅ Onboarding  ⚠️ Photos    [Message]  │
-│                                                 │
-│ [Avatar] Mike Smith        5 days ago           │
-│          ⚠️ Onboarding  ⚠️ Photos    [Message]  │
-│                                                 │
-│ [Avatar] Sarah Lee         6 days ago           │
-│          ✅ Onboarding  ✅ Photos     [View]     │
-└─────────────────────────────────────────────────┘
-```
+Remove the `{totalSubmitted > 0 && (...)}` conditional on line 464. The section will always render. When no submissions exist yet:
+- Progress bar shows 0/0 → 0%
+- The existing empty state text ("No reviews completed yet — check off clients above.") displays
+- Once clients start submitting and getting reviewed, names appear as normal
 
-Clients with ALL items complete show a "View" button (go to workspace).
+One small tweak: change the counter display from `{reviewedCount}/{totalSubmitted}` to handle the 0/0 case gracefully (show "0 reviewed" instead of "0/0").
+
+## Files to modify
+- `src/components/dashboard/CheckinSubmissionDashboard.tsx` — remove the `totalSubmitted > 0` gate around the Finished Check-In Review card
+
