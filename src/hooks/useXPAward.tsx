@@ -90,7 +90,12 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
 
         // Broadcast to dashboard card for bar animation
         if (result.xpAwarded > 0) {
-          setDashboardXPGain({ amount: result.xpAwarded, id: `dash-${Date.now()}` });
+          const gain = { amount: result.xpAwarded, id: `dash-${Date.now()}` };
+          setDashboardXPGain(gain);
+          // Safety-net: auto-clear after 3s even if card doesn't consume it
+          setTimeout(() => {
+            setDashboardXPGain((current) => (current?.id === gain.id ? null : current));
+          }, 3000);
         }
 
         // Check for badge unlocks

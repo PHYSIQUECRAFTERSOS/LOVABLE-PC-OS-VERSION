@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface XPToastProps {
   amount: number;
@@ -7,14 +7,16 @@ interface XPToastProps {
 
 const XPToast = ({ amount, onDone }: XPToastProps) => {
   const [visible, setVisible] = useState(true);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     const t = setTimeout(() => {
       setVisible(false);
-      onDone();
+      onDoneRef.current();
     }, 1500);
     return () => clearTimeout(t);
-  }, [onDone]);
+  }, []);
 
   if (!visible) return null;
 

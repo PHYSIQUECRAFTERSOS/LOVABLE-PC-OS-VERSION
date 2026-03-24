@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sheet,
   SheetContent,
@@ -42,6 +43,51 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread message count
+  const fetchUnread = useCallback(async () => {
+    if (!user) return;
+    const isCoach = role === "coach" || role === "admin";
+
+    if (isCoach) {
+      // Count threads with unread messages for coach
+      const { data: threads } = await (supabase as any)
+        .from("message_threads")
+        .select("id, updated_at, coach_last_seen_at")
+        .eq("coach_id", user.id);
+      const count = (threads || []).filter(
+        (t: any) => !t.coach_last_seen_at || new Date(t.updated_at) > new Date(t.coach_last_seen_at)
+      ).length;
+      setUnreadCount(count);
+    } else {
+      // Count unread messages for client
+      const { count } = await (supabase as any)
+        .from("thread_messages")
+        .select("id, message_threads!inner(client_id)", { count: "exact", head: true })
+        .eq("message_threads.client_id", user.id)
+        .neq("sender_id", user.id)
+        .is("read_at", null);
+      setUnreadCount(count || 0);
+    }
+  }, [user, role]);
+
+  useEffect(() => {
+    fetchUnread();
+    // Subscribe to realtime changes on thread_messages
+    const channel = supabase
+      .channel("unread-badge")
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "thread_messages" },
+        () => fetchUnread()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchUnread]);
 
   if (roleLoading || !role) {
     return (
@@ -124,7 +170,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       }
     >
       <item.icon className="h-4 w-4" />
-      {item.label}
+      <span className="flex-1">{item.label}</span>
+      {item.to === "/messages" && unreadCount > 0 && (
+        <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-primary text-[11px] font-bold text-black px-1.5">
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
     </NavLink>
   );
 
@@ -228,12 +279,19 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors",
+                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors relative",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
             >
-              <item.icon className="h-6 w-6" />
+              <div className="relative">
+                <item.icon className="h-6 w-6" />
+                {item.to === "/messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-black px-1">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </div>
               {item.label}
             </NavLink>
           ))}

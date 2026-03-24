@@ -90,6 +90,9 @@ const MyRankDashboardCard = () => {
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(t3);
+      setAnimatingXP(null);
+      setChipPhase("done");
+      setDisplayProgress(null);
     };
   }, [dashboardXPGain]);
 
