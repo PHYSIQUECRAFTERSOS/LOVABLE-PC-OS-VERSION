@@ -124,8 +124,8 @@ const TopMoversSection = () => {
           <span className="w-6 text-center text-sm font-bold text-muted-foreground">
             #{i + 1}
           </span>
-          <div className="h-10 w-10 shrink-0 flex items-center justify-center overflow-hidden">
-            <TierBadge tier={c.current_tier} size={100} />
+          <div className="h-20 w-20 shrink-0 flex items-center justify-center overflow-hidden">
+            <TierBadge tier={c.current_tier} size={200} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{c.name}</p>
