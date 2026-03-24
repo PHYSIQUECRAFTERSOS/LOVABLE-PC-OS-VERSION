@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Play, ChevronDown, ChevronUp, Calendar, Dumbbell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import WorkoutPreviewModal from "./WorkoutPreviewModal";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -42,6 +43,8 @@ interface PhaseDetail {
     workout_name: string;
     exclude_from_numbering?: boolean;
     custom_tag?: string | null;
+    thumbnail_url?: string | null;
+    exercise_count?: number;
   }[];
 }
 
@@ -54,10 +57,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const [phaseDetails, setPhaseDetails] = useState<Record<string, PhaseDetail[]>>({});
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
 
+  // Preview modal state
+  const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
+  const [previewWorkoutName, setPreviewWorkoutName] = useState("");
+
   useEffect(() => {
     if (!userId) return;
     const load = async () => {
-      // 1. Get assigned programs via client_program_assignments
       const { data: cpa } = await supabase
         .from("client_program_assignments")
         .select("id, program_id, start_date, status")
@@ -66,7 +72,6 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         .order("created_at", { ascending: false });
 
       if (!cpa || cpa.length === 0) {
-        // Fallback: check programs directly assigned via client_id
         const { data: directPrograms } = await supabase
           .from("programs")
           .select("id, name, description, goal_type")
@@ -76,10 +81,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
         if (directPrograms && directPrograms.length > 0) {
           setAssignments(directPrograms.map(p => ({
-            id: p.id,
-            program_id: p.id,
-            start_date: "",
-            status: "active",
+            id: p.id, program_id: p.id, start_date: "", status: "active",
             program: p,
           })));
         }
@@ -87,7 +89,6 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         return;
       }
 
-      // 2. Fetch program details for each assignment
       const programIds = [...new Set(cpa.map(a => a.program_id))];
       const { data: programs } = await supabase
         .from("programs")
@@ -95,15 +96,10 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         .in("id", programIds);
 
       const programMap = new Map((programs || []).map(p => [p.id, p]));
-
       const merged: ProgramAssignment[] = cpa
         .filter(a => programMap.has(a.program_id))
-        .map(a => ({
-          ...a,
-          program: programMap.get(a.program_id)!,
-        }));
+        .map(a => ({ ...a, program: programMap.get(a.program_id)! }));
 
-      // Deduplicate by program_id (keep latest assignment)
       const seen = new Set<string>();
       const deduped = merged.filter(a => {
         if (seen.has(a.program_id)) return false;
@@ -117,6 +113,40 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     load();
   }, [userId]);
 
+  // Fetch first exercise thumbnail for each workout
+  const fetchWorkoutThumbnails = async (workoutIds: string[]) => {
+    if (workoutIds.length === 0) return new Map<string, { thumbnail: string | null; count: number }>();
+
+    const { data } = await supabase
+      .from("workout_exercises")
+      .select("workout_id, exercise_order, exercises(youtube_thumbnail)")
+      .in("workout_id", workoutIds)
+      .order("exercise_order");
+
+    const result = new Map<string, { thumbnail: string | null; count: number }>();
+    const countMap = new Map<string, number>();
+
+    (data || []).forEach((row: any) => {
+      const wId = row.workout_id;
+      countMap.set(wId, (countMap.get(wId) || 0) + 1);
+      // Only take first exercise's thumbnail
+      if (!result.has(wId)) {
+        result.set(wId, {
+          thumbnail: row.exercises?.youtube_thumbnail || null,
+          count: 0,
+        });
+      }
+    });
+
+    // Set counts
+    countMap.forEach((count, wId) => {
+      const entry = result.get(wId);
+      if (entry) entry.count = count;
+    });
+
+    return result;
+  };
+
   const toggleProgram = async (programId: string) => {
     if (expandedProgram === programId) {
       setExpandedProgram(null);
@@ -127,15 +157,50 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
     setLoadingDetails(programId);
 
-    // Load phases for this program
     const { data: phases } = await supabase
       .from("program_phases")
       .select("id, name, phase_order")
       .eq("program_id", programId)
       .order("phase_order");
 
+    const buildDetails = async (rawPhases: any[], allPwRows: any[]) => {
+      const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
+      const [workoutsRes, thumbs] = await Promise.all([
+        workoutIds.length > 0
+          ? supabase.from("workouts").select("id, name").in("id", workoutIds)
+          : Promise.resolve({ data: [] }),
+        fetchWorkoutThumbnails(workoutIds),
+      ]);
+      const wMap = new Map((workoutsRes.data || []).map((w: any) => [w.id, w.name]));
+
+      return rawPhases.map(phase => ({
+        ...phase,
+        workouts: allPwRows
+          .filter((pw: any) => {
+            if (pw.phase_id === phase.id) return true;
+            if (pw._resolvedPhaseId === phase.id) return true;
+            return false;
+          })
+          .filter((pw: any, idx: number, arr: any[]) =>
+            arr.findIndex((x: any) => x.workout_id === pw.workout_id) === idx
+          )
+          .sort((a: any, b: any) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+          .map((pw: any) => ({
+            id: pw.id,
+            workout_id: pw.workout_id,
+            day_label: pw.day_label,
+            sort_order: pw.sort_order,
+            day_of_week: pw.day_of_week,
+            workout_name: wMap.get(pw.workout_id) || "Workout",
+            exclude_from_numbering: pw.exclude_from_numbering || false,
+            custom_tag: pw.custom_tag || null,
+            thumbnail_url: thumbs.get(pw.workout_id)?.thumbnail || null,
+            exercise_count: thumbs.get(pw.workout_id)?.count || 0,
+          })),
+      }));
+    };
+
     if (!phases || phases.length === 0) {
-      // Try loading workouts directly via program_workouts with phase_id or week_id
       const { data: weeks } = await supabase
         .from("program_weeks")
         .select("id, week_number, name, phase_id")
@@ -150,35 +215,16 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           .in("week_id", weekIds)
           .order("sort_order");
 
-        // Fetch workout names
-        const workoutIds = [...new Set((pwRows || []).map(pw => pw.workout_id))];
-        const { data: workouts } = workoutIds.length > 0
-          ? await supabase.from("workouts").select("id, name").in("id", workoutIds)
-          : { data: [] };
-        const wMap = new Map((workouts || []).map(w => [w.id, w.name]));
-
-        const detail: PhaseDetail[] = weeks.map(w => ({
-          id: w.id,
-          name: w.name || `Week ${w.week_number}`,
-          phase_order: w.week_number,
-          workouts: (pwRows || [])
-            .filter(pw => pw.week_id === w.id)
-            .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
-            .map(pw => ({
-              id: pw.id,
-              workout_id: pw.workout_id,
-              day_label: pw.day_label,
-              sort_order: pw.sort_order,
-              day_of_week: pw.day_of_week,
-              workout_name: wMap.get(pw.workout_id) || "Workout",
-              exclude_from_numbering: (pw as any).exclude_from_numbering || false,
-              custom_tag: (pw as any).custom_tag || null,
-            })),
+        const fakePhases = weeks.map(w => ({
+          id: w.id, name: w.name || `Week ${w.week_number}`, phase_order: w.week_number,
+        }));
+        const annotated = (pwRows || []).map(pw => ({
+          ...pw, _resolvedPhaseId: pw.week_id, phase_id: pw.week_id,
         }));
 
+        const detail = await buildDetails(fakePhases, annotated);
         setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
       } else {
-        // No phases, no weeks — try loading workouts directly assigned to this program's workouts table
         const { data: directWorkouts } = await supabase
           .from("workouts")
           .select("id, name")
@@ -186,19 +232,16 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           .order("created_at");
 
         if (directWorkouts && directWorkouts.length > 0) {
+          const thumbs = await fetchWorkoutThumbnails(directWorkouts.map(w => w.id));
           setPhaseDetails(prev => ({
             ...prev,
             [programId]: [{
-              id: "direct",
-              name: "Workouts",
-              phase_order: 1,
+              id: "direct", name: "Workouts", phase_order: 1,
               workouts: directWorkouts.map((w, i) => ({
-                id: w.id,
-                workout_id: w.id,
-                day_label: `Day ${i + 1}`,
-                sort_order: i,
-                day_of_week: i,
-                workout_name: w.name,
+                id: w.id, workout_id: w.id, day_label: `Day ${i + 1}`,
+                sort_order: i, day_of_week: i, workout_name: w.name,
+                thumbnail_url: thumbs.get(w.id)?.thumbnail || null,
+                exercise_count: thumbs.get(w.id)?.count || 0,
               })),
             }],
           }));
@@ -210,7 +253,6 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       return;
     }
 
-    // Load workouts for each phase via program_workouts.phase_id
     const phaseIds = phases.map(p => p.id);
     const { data: pwRows } = await supabase
       .from("program_workouts")
@@ -218,7 +260,6 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       .in("phase_id", phaseIds)
       .order("sort_order");
 
-    // Also check week-based workouts
     const { data: weekRows } = await supabase
       .from("program_weeks")
       .select("id, phase_id")
@@ -235,43 +276,16 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       weekWorkouts = wwRows || [];
     }
 
-    // Merge both sources
-    const allPwRows = [...(pwRows || []), ...weekWorkouts];
-
-    // Fetch workout names
-    const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
-    const { data: workouts } = workoutIds.length > 0
-      ? await supabase.from("workouts").select("id, name").in("id", workoutIds)
-      : { data: [] };
-    const wMap = new Map((workouts || []).map(w => [w.id, w.name]));
-
-    // Map week_id to phase_id
     const weekToPhase = new Map((weekRows || []).map(w => [w.id, w.phase_id]));
+    const allPwRows = [
+      ...(pwRows || []),
+      ...(weekWorkouts || []).map(ww => ({
+        ...ww,
+        _resolvedPhaseId: weekToPhase.get(ww.week_id),
+      })),
+    ];
 
-    const detail: PhaseDetail[] = phases.map(phase => {
-      const phaseWorkouts = allPwRows
-        .filter(pw => {
-          if (pw.phase_id === phase.id) return true;
-          if (pw.week_id && weekToPhase.get(pw.week_id) === phase.id) return true;
-          return false;
-        })
-        // Deduplicate by workout_id within a phase
-        .filter((pw, idx, arr) => arr.findIndex(x => x.workout_id === pw.workout_id) === idx)
-        .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
-        .map(pw => ({
-          id: pw.id,
-          workout_id: pw.workout_id,
-          day_label: pw.day_label,
-          sort_order: pw.sort_order,
-          day_of_week: pw.day_of_week,
-          workout_name: wMap.get(pw.workout_id) || "Workout",
-          exclude_from_numbering: (pw as any).exclude_from_numbering || false,
-          custom_tag: (pw as any).custom_tag || null,
-        }));
-
-      return { ...phase, workouts: phaseWorkouts };
-    });
-
+    const detail = await buildDetails(phases, allPwRows);
     setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
     setLoadingDetails(null);
   };
@@ -297,99 +311,140 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   }
 
   return (
-    <div className="space-y-4">
-      {assignments.map((assignment) => (
-        <Card key={assignment.id} className="overflow-hidden">
-          <div
-            className="flex items-center justify-between px-4 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
-            onClick={() => toggleProgram(assignment.program_id)}
-          >
-            <div className="space-y-1">
-              <h3 className="font-semibold text-foreground">{assignment.program.name}</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {assignment.program.goal_type && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {GOAL_LABELS[assignment.program.goal_type] || assignment.program.goal_type}
-                  </Badge>
-                )}
-                {assignment.start_date && (
-                  <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                    <Calendar className="h-2.5 w-2.5" />
-                    {new Date(assignment.start_date).toLocaleDateString()}
-                  </span>
-                )}
-              </div>
-            </div>
-            {expandedProgram === assignment.program_id
-              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          </div>
-
-          {expandedProgram === assignment.program_id && (
-            <CardContent className="pt-0 space-y-4">
-              {assignment.program.description && (
-                <p className="text-xs text-muted-foreground">{assignment.program.description}</p>
-              )}
-
-              {loadingDetails === assignment.program_id ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+    <>
+      <div className="space-y-4">
+        {assignments.map((assignment) => (
+          <Card key={assignment.id} className="overflow-hidden">
+            <div
+              className="flex items-center justify-between px-4 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
+              onClick={() => toggleProgram(assignment.program_id)}
+            >
+              <div className="space-y-1">
+                <h3 className="font-semibold text-foreground">{assignment.program.name}</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {assignment.program.goal_type && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {GOAL_LABELS[assignment.program.goal_type] || assignment.program.goal_type}
+                    </Badge>
+                  )}
+                  {assignment.start_date && (
+                    <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                      <Calendar className="h-2.5 w-2.5" />
+                      {new Date(assignment.start_date).toLocaleDateString()}
+                    </span>
+                  )}
                 </div>
-              ) : (phaseDetails[assignment.program_id] || []).length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  No workouts found in this program yet.
-                </p>
-              ) : (
-                (phaseDetails[assignment.program_id] || []).map((phase) => (
-                  <div key={phase.id} className="space-y-2">
-                    <h4 className="text-sm font-medium text-foreground">{phase.name}</h4>
-                    {phase.workouts.length === 0 ? (
-                      <p className="text-xs text-muted-foreground pl-2">No workouts in this phase</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {(() => {
-                          let dayCounter = 1;
-                          return phase.workouts.map((pw) => {
-                            const isExcluded = pw.exclude_from_numbering;
-                            const pos = isExcluded ? null : dayCounter++;
-                            return (
-                              <div key={pw.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
-                                <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                  <Dumbbell className="h-4 w-4 text-primary" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    {isExcluded && pw.custom_tag ? (
-                                      <Badge className="text-[9px] h-4 shrink-0 bg-slate-600/30 text-slate-300 border-slate-500/30">{pw.custom_tag}</Badge>
-                                    ) : pos != null ? (
-                                      <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {pos}</Badge>
-                                    ) : null}
-                                    <p className="text-sm font-medium truncate">{pw.workout_name}</p>
-                                  </div>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onStartWorkout(pw.workout_id);
-                                  }}
-                                >
-                                  <Play className="h-3.5 w-3.5 mr-1" /> Start
-                                </Button>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    )}
+              </div>
+              {expandedProgram === assignment.program_id
+                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </div>
+
+            {expandedProgram === assignment.program_id && (
+              <CardContent className="pt-0 space-y-4">
+                {assignment.program.description && (
+                  <p className="text-xs text-muted-foreground">{assignment.program.description}</p>
+                )}
+
+                {loadingDetails === assignment.program_id ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   </div>
-                ))
-              )}
-            </CardContent>
-          )}
-        </Card>
-      ))}
-    </div>
+                ) : (phaseDetails[assignment.program_id] || []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    No workouts found in this program yet.
+                  </p>
+                ) : (
+                  (phaseDetails[assignment.program_id] || []).map((phase) => (
+                    <div key={phase.id} className="space-y-2">
+                      <h4 className="text-sm font-medium text-foreground">{phase.name}</h4>
+                      {phase.workouts.length === 0 ? (
+                        <p className="text-xs text-muted-foreground pl-2">No workouts in this phase</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {(() => {
+                            let dayCounter = 1;
+                            return phase.workouts.map((pw) => {
+                              const isExcluded = pw.exclude_from_numbering;
+                              const pos = isExcluded ? null : dayCounter++;
+                              return (
+                                <div key={pw.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
+                                  {/* Thumbnail — clickable to preview */}
+                                  <button
+                                    className="h-14 w-14 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary/40 transition-all"
+                                    onClick={() => {
+                                      setPreviewWorkoutId(pw.workout_id);
+                                      setPreviewWorkoutName(pw.workout_name);
+                                    }}
+                                  >
+                                    {pw.thumbnail_url ? (
+                                      <img
+                                        src={pw.thumbnail_url}
+                                        alt={pw.workout_name}
+                                        className="h-full w-full object-cover"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
+                                    )}
+                                  </button>
+
+                                  {/* Name + meta — clickable to preview */}
+                                  <button
+                                    className="flex-1 min-w-0 text-left cursor-pointer"
+                                    onClick={() => {
+                                      setPreviewWorkoutId(pw.workout_id);
+                                      setPreviewWorkoutName(pw.workout_name);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      {isExcluded && pw.custom_tag ? (
+                                        <Badge className="text-[9px] h-4 shrink-0 bg-slate-600/30 text-slate-300 border-slate-500/30">{pw.custom_tag}</Badge>
+                                      ) : pos != null ? (
+                                        <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {pos}</Badge>
+                                      ) : null}
+                                      <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+                                    </div>
+                                    {(pw.exercise_count ?? 0) > 0 && (
+                                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                                        {pw.exercise_count} exercise{pw.exercise_count !== 1 ? "s" : ""}
+                                      </p>
+                                    )}
+                                  </button>
+
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onStartWorkout(pw.workout_id);
+                                    }}
+                                  >
+                                    <Play className="h-3.5 w-3.5 mr-1" /> Start
+                                  </Button>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      {/* Workout Preview Modal */}
+      <WorkoutPreviewModal
+        open={!!previewWorkoutId}
+        onOpenChange={(open) => { if (!open) setPreviewWorkoutId(null); }}
+        workoutId={previewWorkoutId}
+        workoutName={previewWorkoutName}
+        onStartWorkout={onStartWorkout}
+      />
+    </>
   );
 };
 
