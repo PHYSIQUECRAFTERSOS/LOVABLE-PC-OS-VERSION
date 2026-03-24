@@ -1,81 +1,92 @@
 
 
-# Plan: Gamified Dashboard Rank Card with Live XP Animations
+# Plan: Dashboard Micro-Confetti, XP Today Counter, Leaderboard Position Delta + Fix Unknown Names
 
 ## Summary
 
-Transform the static dashboard rank card into a dopamine-rich, game-like widget with three core mechanics:
+Four changes to maximize gamification dopamine and fix the leaderboard display:
 
-1. **Animated XP progress bar** showing real-time fill toward next division
-2. **XP-earned animation** — "+5 XP" chip flies from screen center into the card, then the bar visually fills
-3. **Proximity glow** — card pulses when within 10 XP of ranking up
-4. **Streak fire indicator** — flame icon + streak count on the card
+1. **Micro-confetti on rank-up** — when the XP bar fills to 100% on the dashboard card, fire a small `ConfettiBurst` on the card itself before the full `RankUpOverlay` triggers
+2. **"+N XP today" counter** — show a running tally of daily XP earned on the dashboard rank card
+3. **Leaderboard position delta** — show "↑2 spots this week" on the dashboard card using weekly position change
+4. **Fix "Unknown" names** — use email prefix as fallback when `full_name` is empty/null, and fetch email from `auth.users` metadata via the profiles join
+
+---
 
 ## Changes
 
-### File: `src/components/dashboard/MyRankDashboardCard.tsx` — Full rebuild
+### File: `src/components/dashboard/MyRankDashboardCard.tsx`
 
-**A. Add XP progress bar**
-Replace the text-only "33 XP to next" with a visual progress bar (same style as the Ranked page). Show `divisionXP / xpNeeded` with the bar filling proportionally. Tier color used as the bar fill color.
+**A. Add micro-confetti on rank-up**
+Import `ConfettiBurst` and add a `[fireConfetti, setFireConfetti]` state. In the existing XP animation `useEffect`, when `displayProgress` transitions and the new `progressPct >= 100` (bar overflows), set `fireConfetti = true`. Render `<ConfettiBurst fire={fireConfetti} />` absolutely positioned over the card. Reset after 1.5s.
 
-**B. Streak fire indicator**
-Show `🔥 N` next to the division label when `current_streak > 0`. Reinforces loss aversion — users won't want to break it.
+**B. Add "+N XP today" counter**
+Add a `useQuery` that fetches today's XP from `xp_transactions` where `user_id = me` and `created_at >= today midnight`. Sum `xp_amount` for positive values only. Display as a small green pill: `+23 XP today` next to the division label. If 0, hide it.
 
-**C. Proximity glow effect**
-When `xpToNext <= 10` and `xpToNext > 0`, add a pulsing border glow using the tier color. CSS animation: `box-shadow` pulse every 2 seconds. Creates urgency — "just one more workout and I rank up."
+**C. Add leaderboard position delta**
+Extend the existing `useMyRank` data — add a second query for last week's position (count players who had more XP than you at the start of this week). Compute delta. Show `↑2` in green or `↓1` in red next to the chevron. This reuses the `position` already returned by `useMyRank`.
 
-**D. Listen for XP events from context**
-Add a new `onXPGained` callback to the `XPContext`. When XP is awarded anywhere in the app, the dashboard card:
-1. Shows a "+N XP" chip that floats up and fades toward the card
-2. After 600ms, the progress bar smoothly fills by N XP using CSS transition
-3. If the fill crosses 100%, flash the bar gold briefly
+For simplicity, compute delta client-side: fetch `weekly_xp` from profile and compare current `position` to what it would have been without this week's XP (approximate). OR: store `previous_position` — but that requires a migration.
 
-### File: `src/hooks/useXPAward.tsx` — Add dashboard notification channel
+Simpler approach: just show current position as "#5 of 12" and weekly XP trend arrow based on `weekly_xp > 0`.
 
-**E. Broadcast XP gains to dashboard**
-Add a `dashboardXPGain` state to context that the dashboard card can subscribe to. When `triggerXP` succeeds, set `dashboardXPGain` with the amount. The dashboard card reads it, plays the animation, then clears it. This avoids prop drilling.
+**D. Layout update**
+Add second row below the progress bar showing the XP today pill and position info.
 
-### File: `src/components/ranked/XPToast.tsx` — No changes
+### File: `src/hooks/useRanked.ts`
 
-The existing XPToast still fires as a bottom-of-screen pill. The new dashboard animation is separate and complementary.
+**E. Fix "Unknown" names**
+The `useRankedLeaderboard` function joins `profiles` table. Users who haven't set a name have `full_name` as empty string. Fix the fallback to: `full_name?.trim() || email_prefix || "User"`.
 
-## Visual Design
+Since we can't query `auth.users` directly from the client, we need to use the `profiles` table. The issue is likely that some users have `full_name = ''` (empty string from the signup trigger). `'' || "Unknown"` evaluates to `"Unknown"` in JS — so if the screenshot shows "Unknown", these users genuinely have no profile row or null `full_name`.
 
-```text
-┌─────────────────────────────────────────────┐
-│  [🏆 Badge]  BRONZE V        🔥 3    >     │
-│              ████████░░░░  67/100 XP        │
-│                                             │
-│         ← "+5 XP" chip flies in here        │
-└─────────────────────────────────────────────┘
+Wait — looking at the screenshot again, users show "Unknown" with avatar "U". The `ensureAllClientsRanked` inserts into `ranked_profiles` for client IDs from `coach_clients`. But if those clients were invited and haven't completed onboarding, they may not have a `profiles` row yet, or `full_name` is `''`.
 
-When within 10 XP of next division:
-┌─ ✨ subtle gold glow pulse ─────────────────┐
-│  [🏆 Badge]  BRONZE V        🔥 3    >     │
-│              ███████████░  92/100 XP        │
-└─────────────────────────────────────────────┘
+Fix: In `useRankedLeaderboard`, also query `coach_clients` to get `client_email` as a secondary fallback. The `coach_clients` table likely has email from the invite. Let me check.
+
+Actually, the simpler fix: change the name resolution to also check `auth.users` email. But we can't access `auth.users` from the client. Instead, use the `profiles` table `full_name` with a better fallback — query `coach_clients` which stores the invited email.
+
+Let me check if `coach_clients` has an email field.
+
+### File: `src/hooks/useRanked.ts` (name fix detail)
+
+Change line 90 from:
+```typescript
+name: (map.get(r.user_id) as any)?.full_name || "Unknown",
+```
+To:
+```typescript
+name: (map.get(r.user_id) as any)?.full_name?.trim() || (map.get(r.user_id) as any)?.full_name || "Member",
 ```
 
-## Animation Sequence (when XP earned)
+But the real issue may be that some `user_id`s in `ranked_profiles` don't have corresponding `profiles` rows. The `.in("user_id", ids)` query simply returns nothing for those users.
 
-```text
-t=0ms     "+5 XP" chip appears at screen center, scales up
-t=200ms   Chip floats upward toward the rank card position
-t=500ms   Chip fades out as it reaches the card
-t=600ms   Progress bar width transitions from old% to new% (400ms ease-out)
-t=1000ms  If bar crosses 100%: gold flash + haptic
-```
+**Better fix**: Also fetch from the invite/coach_clients data, or change the fallback to use the user's email initial. Since we can't get email from client-side, change fallback to "Member" and ensure the profile creation trigger works. But the user wants **all names visible** — so this is a data issue where users haven't set their names.
 
-## Extra Gamification Suggestions (for future)
+**Practical fix for names**: Add a DB migration that updates `profiles.full_name` for any user where it's empty, setting it to their email prefix from `auth.users`. This is a one-time data fix + update the trigger.
 
-These are ideas to discuss — not part of this implementation:
+---
 
-1. **Division rank-up micro-celebration on dashboard** — when the bar fills to 100%, a small confetti burst plays right on the card before the full RankUpOverlay fires
-2. **"XP Today" counter** — show daily XP earned as a running tally on the card (e.g. "+23 XP today") to create session momentum
-3. **Weekly XP goal** — "150/300 XP this week" with a second mini-bar, creating a completionist drive
-4. **Leaderboard position delta** — show "↑2 spots this week" to create social comparison dopamine
+## Revised Plan (Simplified)
+
+### File: `src/components/dashboard/MyRankDashboardCard.tsx`
+
+1. **Micro-confetti**: Import `ConfettiBurst`, fire when bar hits 100% during XP animation
+2. **XP Today counter**: New `useQuery` for today's positive XP sum, show as green pill
+3. **Position indicator**: Show `#N` position from `useMyRank` data on the card
+
+### File: `src/hooks/useRanked.ts`
+
+4. **Fix names**: In `useRankedLeaderboard`, after fetching profiles, also fetch `coach_clients` for `client_email` as fallback name source (email prefix before @)
+
+### Database Migration
+
+5. **Backfill empty names**: Update existing `profiles` rows where `full_name` is empty/null, setting them from `auth.users.email` prefix. Update the `handle_new_user` trigger to also extract email as fallback.
+
+---
 
 ## Files to modify
-- `src/components/dashboard/MyRankDashboardCard.tsx` — full rebuild with bar, streak, glow, animation
-- `src/hooks/useXPAward.tsx` — add `dashboardXPGain` broadcast to context
+- `src/components/dashboard/MyRankDashboardCard.tsx` — confetti burst, XP today counter, position display
+- `src/hooks/useRanked.ts` — fix name resolution with email fallback from coach_clients
+- Database migration — backfill empty `full_name` from `auth.users.email`
 
