@@ -5,7 +5,7 @@ import AppLayout from "@/components/AppLayout";
 import TodayActions, { ActionItem } from "@/components/dashboard/TodayActions";
 import DailyCompletionRing from "@/components/dashboard/DailyCompletionRing";
 import { useConsistencyStreak } from "@/components/dashboard/ConsistencyStreak";
-import ComplianceMomentum from "@/components/dashboard/ComplianceMomentum";
+import CommunityQuickAccess from "@/components/dashboard/CommunityQuickAccess";
 import ProgressMomentum from "@/components/dashboard/ProgressMomentum";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
@@ -13,7 +13,6 @@ import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import CoachPriority from "@/components/dashboard/CoachPriority";
-import WeeklyMomentumScore from "@/components/dashboard/WeeklyMomentumScore";
 import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 import { useLoggingStreak } from "@/hooks/useLoggingStreak";
 import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
@@ -100,11 +99,8 @@ const ClientDashboard = () => {
       {/* Progress Widget Grid */}
       <ProgressWidgetGrid />
 
-      {/* Weekly Score + Momentum */}
-      <div className="grid grid-cols-1 gap-4">
-        <WeeklyMomentumScore />
-        <ComplianceMomentum data={last30} />
-      </div>
+      {/* Community Quick Access */}
+      <CommunityQuickAccess />
 
       {/* Progress */}
       <ProgressMomentum />
