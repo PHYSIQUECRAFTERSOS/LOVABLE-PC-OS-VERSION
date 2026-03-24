@@ -80,17 +80,39 @@ export function useRankedLeaderboard(tab: string) {
         .from("profiles")
         .select("user_id, full_name, avatar_url")
         .in("user_id", ids);
-      const map = new Map(
+      const profileMap = new Map(
         (profiles || []).map((p: any) => [p.user_id, p])
       );
 
-      return rankings.map((r: any, i: number) => ({
-        ...r,
-        rank: i + 1,
-        name: (map.get(r.user_id) as any)?.full_name || "Unknown",
-        avatar_url: (map.get(r.user_id) as any)?.avatar_url || null,
-        isMe: r.user_id === user?.id,
-      }));
+      // Fetch invite names as fallback for users with empty full_name
+      const { data: invites } = await db
+        .from("client_invites")
+        .select("created_client_id, first_name, last_name, email")
+        .in("created_client_id", ids);
+      const inviteMap = new Map(
+        (invites || []).map((inv: any) => [inv.created_client_id, inv])
+      );
+
+      return rankings.map((r: any, i: number) => {
+        const prof = profileMap.get(r.user_id) as any;
+        const invite = inviteMap.get(r.user_id) as any;
+        const profileName = prof?.full_name?.trim();
+        const inviteName = invite
+          ? `${invite.first_name || ""} ${invite.last_name || ""}`.trim()
+          : "";
+        const emailPrefix = invite?.email
+          ? invite.email.split("@")[0]
+          : "";
+        const resolvedName = profileName || inviteName || emailPrefix || "Member";
+
+        return {
+          ...r,
+          rank: i + 1,
+          name: resolvedName,
+          avatar_url: prof?.avatar_url || null,
+          isMe: r.user_id === user?.id,
+        };
+      });
     },
     enabled: !!user?.id,
     staleTime: 30_000,
