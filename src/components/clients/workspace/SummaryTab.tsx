@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +18,12 @@ import {
   TrendingUp,
   Activity,
   CalendarDays,
-  Zap,
   Target,
   Camera,
   Scale,
   Flame,
   Footprints,
+  MapPin,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -32,24 +32,55 @@ import {
   ChevronRight,
 } from "lucide-react";
 import StepTrendModal from "@/components/dashboard/StepTrendModal";
+import DistanceTrendModal from "@/components/dashboard/DistanceTrendModal";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import EventDetailModal from "@/components/calendar/EventDetailModal";
+import TierBadge from "@/components/ranked/TierBadge";
+import { calculateTierAndDivision, getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+/* ─── MiniSparkline ─── */
+const MiniSparkline = forwardRef<SVGSVGElement, { data: { value: number }[]; color?: string }>(
+  ({ data, color = "hsl(var(--primary))" }, ref) => {
+    if (data.length < 2) return null;
+    const max = Math.max(...data.map(d => d.value), 1);
+    const min = Math.min(...data.map(d => d.value), 0);
+    const range = max - min || 1;
+    const w = 80, h = 24;
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((d.value - min) / range) * h;
+      return `${x},${y}`;
+    }).join(" ");
+    return (
+      <svg ref={ref} width={w} height={h} className="mt-1">
+        <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points} />
+      </svg>
+    );
+  }
+);
+MiniSparkline.displayName = "MiniSparkline";
+
 /* ─── types ─── */
 interface SummaryData {
-  workoutCompliance: number;
   currentWeight: number | null;
   weightTrend: "up" | "down" | "stable";
   streak: number;
   lastCheckin: string | null;
   currentPhase: string | null;
   programName: string | null;
+}
+
+interface RankedProfile {
+  total_xp: number;
+  current_tier: string;
+  current_division: number | null;
+  current_streak: number;
 }
 
 interface CalendarAction {
@@ -286,11 +317,11 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [weightTrend30, setWeightTrend30] = useState<string>("—");
   const [workouts7d, setWorkouts7d] = useState(0);
 
-  // NEW: 7-day compliance + macro averages
+  // 7-day compliance + macro averages
   const [compliance7d, setCompliance7d] = useState<ComplianceDay[]>([]);
   const [macroAvg, setMacroAvg] = useState<MacroAverages | null>(null);
 
-  // Steps data for the new Steps tile
+  // Steps data
   const [todaySteps, setTodaySteps] = useState<number | null>(null);
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepsLastSynced, setStepsLastSynced] = useState<string | null>(null);
@@ -301,6 +332,16 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
   const [selectedAction, setSelectedAction] = useState<CalendarEvent | null>(null);
   const [showEventDetail, setShowEventDetail] = useState(false);
+
+  // Ranked profile
+  const [rankedProfile, setRankedProfile] = useState<RankedProfile | null>(null);
+
+  // Distance + sparklines
+  const [distanceToday, setDistanceToday] = useState<number | null>(null);
+  const [stepsSpark, setStepsSpark] = useState<{ value: number }[]>([]);
+  const [distanceSpark, setDistanceSpark] = useState<{ value: number }[]>([]);
+  const [calSpark, setCalSpark] = useState<{ value: number }[]>([]);
+  const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
 
@@ -327,8 +368,6 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       ]);
 
       const sessions = sessionsRes.data || [];
-      const completed = sessions.filter((s) => s.completed_at).length;
-      const workoutCompliance = Math.round((completed / Math.max(sessions.length, 1)) * 100);
 
       let streak = 0;
       for (let i = 6; i >= 0; i--) {
@@ -346,7 +385,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       const assignment = assignmentRes.data as any;
       setData({
-        workoutCompliance, currentWeight, weightTrend, streak,
+        currentWeight, weightTrend, streak,
         lastCheckin: (checkinRes.data as any)?.[0]?.submitted_at || null,
         currentPhase: assignment?.program_phases?.name || null,
         programName: assignment?.programs?.name || null,
@@ -383,7 +422,6 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           supabase.from("workout_sessions").select("id")
             .eq("client_id", clientId).not("completed_at", "is", null)
             .gte("created_at", `${format(subDays(new Date(), 7), "yyyy-MM-dd")}T00:00:00`),
-          // 7-day nutrition logs for compliance + macro averages
           supabase.from("nutrition_logs").select("logged_at, calories, protein, carbs, fat")
             .eq("client_id", clientId).in("logged_at", last7dates),
         ]);
@@ -506,6 +544,12 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         },
         daysTracked: activeDays.length,
       });
+
+      // ─── Calorie Sparkline ───
+      const cSpark: { value: number }[] = last7dates.map((date) => ({
+        value: dailyTotals[date]?.cal || 0,
+      }));
+      setCalSpark(cSpark);
     };
 
     loadExtended();
@@ -527,7 +571,6 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         if (metrics.step_goal) setStepGoal(metrics.step_goal);
         setStepsLastSynced(metrics.synced_at ?? null);
       }
-      // Fetch wearable connection info for provider name + last synced
       const { data: wearConn } = await supabase
         .from("wearable_connections")
         .select("provider, last_synced_at, sync_status")
@@ -543,7 +586,6 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         setStepsProvider(providerLabels[wearConn.provider] || wearConn.provider);
         if (wearConn.last_synced_at) setStepsLastSynced(wearConn.last_synced_at);
       }
-      // Get client name for modal header
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
@@ -553,6 +595,34 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     };
     loadSteps();
   }, [clientId]);
+
+  /* ─── Load ranked profile + health metrics (distance, sparklines) ─── */
+  useEffect(() => {
+    if (!clientId) return;
+    const loadRankedAndHealth = async () => {
+      const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const [rankedRes, healthRes] = await Promise.all([
+        (supabase as any).from("ranked_profiles").select("total_xp, current_tier, current_division, current_streak").eq("user_id", clientId).maybeSingle(),
+        supabase.from("daily_health_metrics").select("metric_date, steps, walking_running_distance_km").eq("user_id", clientId).gte("metric_date", sevenAgo).order("metric_date", { ascending: true }),
+      ]);
+      if (rankedRes.data) setRankedProfile(rankedRes.data as RankedProfile);
+      if (healthRes.data) {
+        const todayRow = (healthRes.data as any[]).find((d: any) => d.metric_date === today);
+        setDistanceToday(todayRow?.walking_running_distance_km ?? null);
+        const sSpark: { value: number }[] = [];
+        const dSpark: { value: number }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+          const row = (healthRes.data as any[]).find((r: any) => r.metric_date === d);
+          sSpark.push({ value: row?.steps ?? 0 });
+          dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
+        }
+        setStepsSpark(sSpark);
+        setDistanceSpark(dSpark);
+      }
+    };
+    loadRankedAndHealth();
+  }, [clientId, today]);
 
   const formatRelativeTime = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -640,87 +710,46 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   );
   const adherencePct = targets && targets.calories > 0 ? Math.round((logDayTotals.calories / targets.calories) * 100) : null;
 
+  const stepPct = todaySteps ? Math.min(100, Math.round((todaySteps / stepGoal) * 100)) : 0;
+
   return (
     <div className="space-y-6">
       {/* ── Date Navigator ── */}
       <DateNavigator selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
-      {/* ── Quick Stats ── */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Workout Compliance</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{data.workoutCompliance}%</p>
+      {/* ── Client Rank Card ── */}
+      {rankedProfile && (() => {
+        const rankCalc = calculateTierAndDivision(rankedProfile.total_xp);
+        const rankLabel = getDivisionLabel(rankedProfile.current_tier, rankedProfile.current_division ?? 5);
+        const rankTierColor = getTierColor(rankedProfile.current_tier);
+        const isRankChampion = rankedProfile.current_tier === "champion";
+        const rankProgress = isRankChampion ? 100 : rankCalc.xpNeeded > 0 ? (rankCalc.divisionXP / rankCalc.xpNeeded) * 100 : 0;
+        return (
+          <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-card px-3 py-3 overflow-hidden">
+            <div className="h-20 w-20 shrink-0 flex items-center justify-center overflow-hidden">
+              <TierBadge tier={rankedProfile.current_tier} size={120} />
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-sm font-bold truncate" style={{ color: rankTierColor }}>{rankLabel}</p>
+                {rankedProfile.current_streak > 0 && (
+                  <span className="flex items-center gap-0.5 text-xs font-semibold shrink-0" style={{ color: "#fb923c" }}>
+                    <Flame className="h-3.5 w-3.5" style={{ fill: "#fb923c", color: "#fb923c" }} />
+                    {rankedProfile.current_streak}
+                  </span>
+                )}
               </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Dumbbell className="h-5 w-5 text-primary" />
+              <div className="h-2.5 w-full rounded-full bg-muted/40 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${rankProgress}%`, backgroundColor: rankTierColor }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground">{isRankChampion ? "Top rank achieved" : `${rankCalc.divisionXP} / ${rankCalc.xpNeeded} XP`}</p>
+                <p className="text-[10px] text-muted-foreground">{rankedProfile.total_xp} total XP</p>
               </div>
             </div>
-            <Progress value={data.workoutCompliance} className="mt-3 h-1.5" />
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setWeightHistoryOpen(true)}>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Current Weight</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{data.currentWeight ? `${data.currentWeight} lbs` : "—"}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                {data.weightTrend === "down" ? <TrendingDown className="h-5 w-5 text-green-500" />
-                  : data.weightTrend === "up" ? <TrendingUp className="h-5 w-5 text-destructive" />
-                  : <Activity className="h-5 w-5 text-primary" />}
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">Trend: <span className="capitalize">{data.weightTrend}</span> (7d)</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Current Streak</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{data.streak}d</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Zap className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">Consecutive training days</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Last Check-In</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{data.lastCheckin ? format(new Date(data.lastCheckin), "MMM d") : "—"}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-2">{data.lastCheckin ? format(new Date(data.lastCheckin), "h:mm a") : "No check-ins yet"}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Program Info ── */}
-      {data.programName && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" /> Active Program
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-semibold text-foreground">{data.programName}</p>
-            {data.currentPhase && <Badge variant="secondary" className="mt-1 text-[10px]">{data.currentPhase}</Badge>}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        );
+      })()}
 
       {/* ── Today's Actions ── */}
       {actions.length > 0 && (
@@ -732,20 +761,12 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                 key={a.id}
                 onClick={() => {
                   const calEvent: CalendarEvent = {
-                    id: a.id,
-                    title: a.title,
-                    event_date: a.event_date || selectedDateStr,
-                    event_type: a.event_type,
-                    is_completed: a.is_completed,
-                    color: a.color || null,
-                    event_time: a.event_time || null,
-                    end_time: a.end_time || null,
-                    description: a.description || null,
-                    notes: a.notes || null,
-                    linked_workout_id: a.linked_workout_id || null,
-                    user_id: clientId,
-                    is_recurring: a.is_recurring || false,
-                    recurrence_pattern: a.recurrence_pattern || null,
+                    id: a.id, title: a.title, event_date: a.event_date || selectedDateStr,
+                    event_type: a.event_type, is_completed: a.is_completed, color: a.color || null,
+                    event_time: a.event_time || null, end_time: a.end_time || null,
+                    description: a.description || null, notes: a.notes || null,
+                    linked_workout_id: a.linked_workout_id || null, user_id: clientId,
+                    is_recurring: a.is_recurring || false, recurrence_pattern: a.recurrence_pattern || null,
                     completed_at: a.completed_at || null,
                   };
                   setSelectedAction(calEvent);
@@ -775,79 +796,128 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           const { error } = await supabase.from("calendar_events").update({ is_completed: true, completed_at: new Date().toISOString() }).eq("id", ev.id);
           if (error) { toast.error("Failed to mark complete"); return; }
           setActions(prev => prev.map(a => a.id === ev.id ? { ...a, is_completed: true } : a));
-          setShowEventDetail(false);
-          setSelectedAction(null);
+          setShowEventDetail(false); setSelectedAction(null);
         }}
         onDelete={async (ev) => {
           const { error } = await supabase.from("calendar_events").delete().eq("id", ev.id);
           if (error) { toast.error("Failed to delete event"); return; }
           setActions(prev => prev.filter(a => a.id !== ev.id));
-          setShowEventDetail(false);
-          setSelectedAction(null);
+          setShowEventDetail(false); setSelectedAction(null);
         }}
         isCoach={true}
         clientId={clientId}
       />
 
-      {/* ── Client Stats Row ── */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setPhotosModalOpen(true)}>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium">Progress Photos</span>
+      {/* ── Steps Full-Width Bar ── */}
+      <button
+        onClick={() => setStepTrendOpen(true)}
+        className="w-full rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+      >
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Footprints className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground">Steps</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <MiniSparkline data={stepsSpark} />
+            <span className="text-xs text-muted-foreground">Goal: {(stepGoal / 1000).toFixed(0)}K</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold text-foreground tabular-nums">
+            {todaySteps !== null && todaySteps > 0 ? todaySteps.toLocaleString() : "–"}
+          </span>
+          <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${stepPct}%` }} />
+          </div>
+          <span className="text-xs font-medium text-foreground tabular-nums">{stepPct}%</span>
+        </div>
+      </button>
+
+      {/* ── 2x2 Grid: Weight, Photos, Calories, Distance ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => setWeightHistoryOpen(true)} className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Scale className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Weight</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {data.currentWeight ? `${data.currentWeight} lbs` : "–"}
+          </div>
+          {data.currentWeight && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {data.weightTrend === "down" ? <TrendingDown className="h-3 w-3 text-green-500" /> : data.weightTrend === "up" ? <TrendingUp className="h-3 w-3 text-destructive" /> : <Activity className="h-3 w-3 text-muted-foreground" />}
+              <span className="text-[10px] text-muted-foreground capitalize">{data.weightTrend} (7d)</span>
             </div>
-            {photoUrls.length > 0 ? (
-              <div className="flex gap-1.5">
-                {photoUrls.map((url, i) => (
-                  <img key={i} src={url} alt="Progress" className="h-14 w-14 rounded-md object-cover border border-border/50" loading="lazy" />
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Camera className="h-8 w-8 opacity-30" /><span className="text-xs">No photos yet</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:bg-secondary/30 transition-colors" onClick={() => setStepTrendOpen(true)}>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Footprints className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium">Steps Today</span>
+          )}
+        </button>
+
+        <button onClick={() => setPhotosModalOpen(true)} className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Progress Photos</span>
+          </div>
+          {photoUrls.length > 0 ? (
+            <div className="flex gap-1.5 mt-1">
+              {photoUrls.slice(0, 2).map((url, i) => (
+                <img key={i} src={url} alt="Progress" className="h-10 w-10 rounded-md object-cover border border-border/50" loading="lazy" />
+              ))}
             </div>
-            <p className="text-2xl font-bold text-foreground tabular-nums">
-              {todaySteps !== null ? todaySteps.toLocaleString() : "—"}
-              <span className="text-sm font-normal text-muted-foreground"> / {stepGoal.toLocaleString()}</span>
-            </p>
-            {todaySteps !== null && (
-              <div className="mt-2 h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{ width: `${Math.min(100, (todaySteps / stepGoal) * 100)}%` }}
-                />
-              </div>
-            )}
-            <p className="text-[10px] text-muted-foreground mt-1.5">
-              {stepsLastSynced
-                ? `Last synced: ${formatRelativeTime(stepsLastSynced)}${stepsProvider ? ` · via ${stepsProvider}` : ""}`
-                : todaySteps !== null ? "Manually logged" : "Not connected"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Flame className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium">Calories Today</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">{todayCals > 0 ? todayCals.toLocaleString() : "—"}</p>
-            {targets && targets.calories > 0 && (
-              <p className="text-[11px] text-muted-foreground mt-1">Target: {targets.calories.toLocaleString()} cal</p>
-            )}
-          </CardContent>
-        </Card>
+          ) : (
+            <div className="text-xl font-bold text-foreground">–</div>
+          )}
+        </button>
+
+        <div className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Flame className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Calories Today</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {todayCals > 0 ? todayCals.toLocaleString() : "–"}
+          </div>
+          <MiniSparkline data={calSpark} />
+        </div>
+
+        <button onClick={() => setDistanceTrendOpen(true)} className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1">
+            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground truncate">Distance</span>
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+            {distanceToday !== null && distanceToday > 0 ? `${distanceToday.toFixed(1)} km` : "–"}
+          </div>
+          <MiniSparkline data={distanceSpark} />
+        </button>
       </div>
+
+      {/* ── Last Check-In (compact) ── */}
+      <div className="flex items-center gap-3 rounded-xl bg-card border border-border px-4 py-3">
+        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <CalendarDays className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">Last Check-In</p>
+          <p className="text-sm font-semibold text-foreground">
+            {data.lastCheckin ? format(new Date(data.lastCheckin), "MMM d, h:mm a") : "No check-ins yet"}
+          </p>
+        </div>
+      </div>
+
+      {/* ── Program Info ── */}
+      {data.programName && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" /> Active Program
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-semibold text-foreground">{data.programName}</p>
+            {data.currentPhase && <Badge variant="secondary" className="mt-1 text-[10px]">{data.currentPhase}</Badge>}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Macros Today ── */}
       <Card>
@@ -1033,6 +1103,13 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         clientId={clientId}
         clientName={clientNameForSteps}
         externalStepGoal={stepGoal}
+      />
+
+      {/* Distance Trend Modal */}
+      <DistanceTrendModal
+        open={distanceTrendOpen}
+        onClose={() => setDistanceTrendOpen(false)}
+        clientId={clientId}
       />
 
       {/* Weight History Modal */}
