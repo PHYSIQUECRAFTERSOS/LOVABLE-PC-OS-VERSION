@@ -619,6 +619,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       }
     };
     loadRankedAndHealth();
+  }, [clientId, today]);
 
   const formatRelativeTime = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
