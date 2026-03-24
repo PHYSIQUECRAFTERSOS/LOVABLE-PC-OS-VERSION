@@ -239,7 +239,34 @@ async function getUserFoodHistory(supabase: any, userId: string): Promise<{ byId
 
     const nameMap = new Map<string, { name: string; brand: string | null; foodData?: any }>();
     if (foodItemsRes.status === "fulfilled" && foodItemsRes.value.data) {
-      foodItemsRes.value.data.forEach((f: any) => nameMap.set(f.id, { name: f.name, brand: f.brand }));
+      foodItemsRes.value.data.forEach((f: any) => {
+        const ss = f.serving_size || 100;
+        const factor = 100 / ss;
+        nameMap.set(f.id, {
+          name: f.name,
+          brand: f.brand,
+          foodData: {
+            id: f.id,
+            name: f.name,
+            brand: f.brand,
+            calories_per_100g: Math.round((f.calories || 0) * factor),
+            protein_per_100g: Math.round((f.protein || 0) * factor * 10) / 10,
+            carbs_per_100g: Math.round((f.carbs || 0) * factor * 10) / 10,
+            fat_per_100g: Math.round((f.fat || 0) * factor * 10) / 10,
+            fiber_per_100g: f.fiber ? Math.round(f.fiber * factor * 10) / 10 : null,
+            sugar_per_100g: f.sugar ? Math.round(f.sugar * factor * 10) / 10 : null,
+            sodium_per_100g: f.sodium ? Math.round(f.sodium * factor * 10) / 10 : null,
+            serving_size_g: ss,
+            serving_unit: f.serving_unit || "g",
+            serving_description: f.serving_label || `${ss}g`,
+            source: "local",
+            is_branded: !!f.brand,
+            has_complete_macros: true,
+            data_quality_score: 70,
+            popularity_score: 10,
+          },
+        });
+      });
     }
     if (foodsRes.status === "fulfilled" && foodsRes.value.data) {
       foodsRes.value.data.forEach((f: any) => {

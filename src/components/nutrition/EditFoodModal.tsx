@@ -238,11 +238,13 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
             <div className="flex-1">
               <Label className="text-xs">
                 {isCustom
-                  ? `Quantity (${customUnitLabel})`
-                  : unit === "serving"
-                    ? `Servings (${servingLabel})`
-                    : "Quantity"
-                }
+                   ? `Quantity (${customUnitLabel})`
+                   : unit === "serving"
+                     ? (servingLabel && !["g", "ml", "gram", "grams"].includes(servingLabel.toLowerCase())
+                         ? `Servings (${servingLabel})`
+                         : "Servings")
+                     : "Quantity"
+                 }
               </Label>
               <Input
                 type="number"
