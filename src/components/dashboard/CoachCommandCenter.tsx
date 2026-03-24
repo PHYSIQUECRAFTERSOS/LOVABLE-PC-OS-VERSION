@@ -432,7 +432,50 @@ const CoachCommandCenter = () => {
         }
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines };
+      // ── Section 8: New Clients Readiness ──
+      const sevenDaysAgo = format(subDays(now, 7), "yyyy-MM-dd");
+      const { data: recentAssignments } = await supabase
+        .from("coach_clients")
+        .select("client_id, assigned_at")
+        .eq("coach_id", user.id)
+        .eq("status", "active")
+        .gte("assigned_at", `${sevenDaysAgo}T00:00:00`);
+
+      const newClients: NewClientReadiness[] = [];
+      if (recentAssignments?.length) {
+        const newClientIds = recentAssignments.map((a) => a.client_id);
+        const [onboardingRes, photosRes] = await Promise.all([
+          supabase.from("onboarding_profiles").select("user_id, onboarding_completed").in("user_id", newClientIds),
+          supabase.from("progress_photos").select("client_id, pose").in("client_id", newClientIds),
+        ]);
+        const onboardingMap = new Map((onboardingRes.data || []).map((o) => [o.user_id, o.onboarding_completed]));
+        const photoCountMap = new Map<string, number>();
+        (photosRes.data || []).forEach((p) => {
+          photoCountMap.set(p.client_id, (photoCountMap.get(p.client_id) || 0) + 1);
+        });
+
+        for (const a of recentAssignments) {
+          const profile = profileMap.get(a.client_id);
+          const onboardingComplete = onboardingMap.get(a.client_id) ?? false;
+          const photoCount = photoCountMap.get(a.client_id) ?? 0;
+          newClients.push({
+            clientId: a.client_id,
+            clientName: profile?.full_name || "Client",
+            avatarUrl: profile?.avatar_url ?? null,
+            assignedAt: a.assigned_at,
+            onboardingComplete,
+            photoCount,
+          });
+        }
+        // Sort: missing both first, then missing one, then complete
+        newClients.sort((a, b) => {
+          const aScore = (a.onboardingComplete ? 0 : 2) + (a.photoCount >= 3 ? 0 : 1);
+          const bScore = (b.onboardingComplete ? 0 : 2) + (b.photoCount >= 3 ? 0 : 1);
+          return bScore - aScore;
+        });
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients };
     },
   });
 
