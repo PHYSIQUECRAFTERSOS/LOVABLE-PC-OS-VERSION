@@ -1,27 +1,48 @@
 import { useAuth } from "@/hooks/useAuth";
-import AppLayout from "@/components/AppLayout";
+import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CoachMessaging from "@/components/messaging/CoachMessaging";
 import ClientMessaging from "@/components/messaging/ClientMessaging";
 import AutoMessagingManager from "@/components/messaging/AutoMessagingManager";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 const Messages = () => {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const isCoach = role === "coach" || role === "admin";
 
   return (
-    <AppLayout>
-      <div className="animate-fade-in h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-slide-in-right">
+      {/* Header */}
+      <div className="flex items-center gap-3 border-b border-border px-4 pt-[env(safe-area-inset-top)] min-h-[56px]">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={() => navigate("/dashboard")}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <h1 className="flex-1 text-center font-display text-lg font-bold text-foreground">
+          Messages
+        </h1>
+        {/* Spacer for centering */}
+        <div className="h-8 w-8 shrink-0" />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0">
         {isCoach ? (
           <Tabs defaultValue="chat" className="h-full flex flex-col">
-            <TabsList className="w-full grid grid-cols-2 shrink-0">
+            <TabsList className="w-full grid grid-cols-2 shrink-0 mx-0 rounded-none">
               <TabsTrigger value="chat">Conversations</TabsTrigger>
               <TabsTrigger value="auto">Automations</TabsTrigger>
             </TabsList>
-            <TabsContent value="chat" className="flex-1 mt-2 min-h-0">
+            <TabsContent value="chat" className="flex-1 mt-0 min-h-0">
               <CoachMessaging />
             </TabsContent>
-            <TabsContent value="auto" className="flex-1 mt-2 overflow-y-auto">
+            <TabsContent value="auto" className="flex-1 mt-0 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
               <AutoMessagingManager />
             </TabsContent>
           </Tabs>
@@ -29,7 +50,7 @@ const Messages = () => {
           <ClientMessaging />
         )}
       </div>
-    </AppLayout>
+    </div>
   );
 };
 

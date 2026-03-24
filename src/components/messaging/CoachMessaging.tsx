@@ -40,7 +40,7 @@ const CoachMessaging = () => {
   };
 
   return (
-    <div className="flex h-full rounded-lg border border-border bg-card overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* Thread List Sidebar */}
       <div
         className={cn(

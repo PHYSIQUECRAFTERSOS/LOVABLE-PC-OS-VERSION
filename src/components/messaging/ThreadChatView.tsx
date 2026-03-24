@@ -298,7 +298,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
               >
-                <div className={cn("max-w-[70%] space-y-1")}>
+                <div className={cn("max-w-[85%] space-y-1")}>
                   <div
                     className={cn(
                       "rounded-2xl px-4 py-2 text-sm",
