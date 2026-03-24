@@ -40,6 +40,7 @@ import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import { PushNotificationsInit } from "./components/PushNotificationsInit";
 
 const queryClient = new QueryClient({
   defaultOptions: {
