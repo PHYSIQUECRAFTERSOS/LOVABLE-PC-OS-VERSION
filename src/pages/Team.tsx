@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import StaffDetailModal from "@/components/team/StaffDetailModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -45,7 +46,7 @@ const roleColors: Record<string, string> = {
 };
 
 const Team = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { toast } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -57,6 +58,9 @@ const Team = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("coach");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+
+  const isAdmin = role === "admin";
 
   const fetchStaff = useCallback(async () => {
     setLoading(true);
@@ -262,10 +266,15 @@ const Team = () => {
               <p className="text-sm text-muted-foreground text-center py-4">No staff members yet.</p>
             ) : (
               staff.map((member) => {
-                const role = primaryRole(member.roles);
+                const memberRole = primaryRole(member.roles);
                 const isCurrentUser = member.user_id === user?.id;
+                const canClick = isAdmin && !isCurrentUser;
                 return (
-                  <div key={member.user_id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                  <div
+                    key={member.user_id}
+                    className={`flex items-center gap-3 py-2 border-b border-border last:border-0 ${canClick ? "cursor-pointer hover:bg-secondary/30 rounded-lg px-2 -mx-2 transition-colors" : ""}`}
+                    onClick={() => canClick && setSelectedStaff(member)}
+                  >
                     <Avatar className="h-10 w-10">
                       {member.avatar_url && <AvatarImage src={member.avatar_url} />}
                       <AvatarFallback className="bg-secondary text-foreground">
@@ -279,9 +288,9 @@ const Team = () => {
                       </p>
                       <p className="text-xs text-muted-foreground">{member.client_count} clients assigned</p>
                     </div>
-                    <Badge className={roleColors[role] || "bg-secondary text-secondary-foreground"}>
-                      {role === "admin" && <Crown className="h-3 w-3 mr-1" />}
-                      {roleLabels[role] || role}
+                    <Badge className={roleColors[memberRole] || "bg-secondary text-secondary-foreground"}>
+                      {memberRole === "admin" && <Crown className="h-3 w-3 mr-1" />}
+                      {roleLabels[memberRole] || memberRole}
                     </Badge>
                   </div>
                 );
@@ -393,6 +402,14 @@ const Team = () => {
         open={addClientOpen}
         onOpenChange={setAddClientOpen}
         onInviteSent={fetchStaff}
+      />
+
+      {/* Staff Detail Modal */}
+      <StaffDetailModal
+        member={selectedStaff}
+        open={!!selectedStaff}
+        onOpenChange={(open) => { if (!open) setSelectedStaff(null); }}
+        onStaffUpdated={fetchStaff}
       />
     </AppLayout>
   );
