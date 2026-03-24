@@ -18,6 +18,7 @@ import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
+import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
   id: string;
@@ -70,6 +71,8 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       .eq("id", threadId)
       .eq("coach_id", user.id);
     (window as any).__refetchCoachThreads?.();
+    // Clear push badge when reading messages
+    clearPushBadge();
   };
 
   const fetchMessages = async () => {
@@ -158,14 +161,33 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
     setSending(true);
+    const messageContent = newMessage.trim();
     await supabase.from("thread_messages").insert({
       thread_id: threadId,
       sender_id: user.id,
-      content: newMessage.trim(),
+      content: messageContent,
     });
     await markThreadSeen();
     setNewMessage("");
     setSending(false);
+
+    // Send push notification to the other user
+    const { data: thread } = await supabase
+      .from("message_threads")
+      .select("coach_id, client_id")
+      .eq("id", threadId)
+      .single();
+    if (thread) {
+      const recipientId = thread.coach_id === user.id ? thread.client_id : thread.coach_id;
+      const senderName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Someone";
+      sendPushToUser(
+        recipientId,
+        `Message from ${senderName}`,
+        messageContent.length > 100 ? messageContent.slice(0, 97) + "..." : messageContent,
+        "message",
+        { route: "/messages" }
+      );
+    }
   };
 
   const handleMarkUnread = async () => {

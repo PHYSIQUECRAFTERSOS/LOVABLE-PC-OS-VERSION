@@ -13,6 +13,7 @@ import MessageAttachment from "@/components/messaging/MessageAttachment";
 import EmojiReactions from "@/components/messaging/EmojiReactions";
 import AttachmentUploadMenu from "@/components/messaging/AttachmentUploadMenu";
 import VoiceMessageRecorder from "@/components/messaging/VoiceMessageRecorder";
+import { sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
   id: string;
@@ -123,8 +124,19 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
+      const messageContent = newMessage.trim();
       setNewMessage("");
       await loadMessages(tId);
+
+      // Send push notification to client
+      const senderName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Your Coach";
+      sendPushToUser(
+        clientId,
+        `Message from ${senderName}`,
+        messageContent.length > 100 ? messageContent.slice(0, 97) + "..." : messageContent,
+        "message",
+        { route: "/messages" }
+      );
     }
     setSending(false);
   };
