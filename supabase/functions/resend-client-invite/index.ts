@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -191,7 +190,6 @@ serve(async (req) => {
 
     if (createUserError) {
       console.log("[resend-invite] Create user result:", createUserError.message);
-      // User likely already exists — that's fine
     }
 
     // Get coach name
@@ -203,22 +201,34 @@ serve(async (req) => {
 
     const coachName = coachProfile?.full_name || "Coach";
 
-    // Send branded email
+    // Queue branded email via enqueue_email (pgmq)
+    const messageId = `client-resend-${invite_id}-${Date.now()}`;
+    const emailHtml = buildInviteEmailHtml(invite.first_name, coachName, setupUrl);
+
     let emailSent = false;
     try {
-      const emailHtml = buildInviteEmailHtml(invite.first_name, coachName, setupUrl);
-
-      await sendLovableEmail({
-        to: invite.email.toLowerCase(),
-        from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
-        subject: `${coachName} has invited you to join Physique Crafters`,
-        html: emailHtml,
+      const { error: queueError } = await supabase.rpc("enqueue_email", {
+        queue_name: "transactional_emails",
+        payload: {
+          to: invite.email.toLowerCase(),
+          from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
+          sender_domain: "notify.physiquecrafters.com",
+          subject: `${coachName} has invited you to join Physique Crafters`,
+          html: emailHtml,
+          purpose: "transactional",
+          label: "client_invite_resend",
+          message_id: messageId,
+        },
       });
 
-      emailSent = true;
-      console.log("[resend-invite] Branded email sent to:", invite.email.toLowerCase());
-    } catch (emailErr) {
-      console.error("[resend-invite] Email send failed:", emailErr);
+      if (queueError) {
+        console.error("[resend-invite] Queue error:", queueError);
+      } else {
+        emailSent = true;
+        console.log("[resend-invite] Email queued successfully, message_id:", messageId);
+      }
+    } catch (queueErr) {
+      console.error("[resend-invite] Queue exception:", queueErr);
     }
 
     return jsonResponse({

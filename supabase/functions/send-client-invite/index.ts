@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +10,13 @@ const corsHeaders = {
 const APP_STORE_URL = "https://apps.apple.com/ca/app/physique-crafters/id6760598660";
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.physiquecrafters.app.twa";
 
+function jsonResponse(body: Record<string, unknown>, status: number) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -19,7 +25,6 @@ function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: st
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;">
     <tr><td align="center" style="padding:40px 20px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
-        <!-- Logo -->
         <tr><td align="center" style="padding-bottom:32px;">
           <h1 style="margin:0;font-size:28px;font-weight:800;letter-spacing:2px;color:#ffffff;">
             PHYSIQUE <span style="color:#D4A017;">CRAFTERS</span>
@@ -28,8 +33,6 @@ function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: st
             The Triple O Method
           </p>
         </td></tr>
-
-        <!-- Main Card -->
         <tr><td style="background-color:#1a1a1a;border-radius:12px;padding:36px 32px;">
           <p style="margin:0 0 8px;font-size:18px;color:#ffffff;font-weight:600;">
             Hi ${firstName},
@@ -39,8 +42,6 @@ function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: st
             <strong style="color:#D4A017;">Physique Crafters</strong>. Set up your account
             to start your training program.
           </p>
-
-          <!-- CTA Button -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr><td align="center" style="padding-bottom:28px;">
               <a href="${setupUrl}" target="_blank"
@@ -50,8 +51,6 @@ function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: st
               </a>
             </td></tr>
           </table>
-
-          <!-- Divider -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr><td style="border-top:1px solid #333333;padding-top:24px;">
               <p style="margin:0 0 16px;font-size:14px;color:#ffffff;font-weight:600;text-align:center;">
@@ -62,8 +61,6 @@ function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: st
               </p>
             </td></tr>
           </table>
-
-          <!-- App Store Buttons -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td align="center" style="padding-bottom:12px;">
@@ -81,8 +78,6 @@ function buildInviteEmailHtml(firstName: string, coachName: string, setupUrl: st
             </tr>
           </table>
         </td></tr>
-
-        <!-- Footer -->
         <tr><td align="center" style="padding-top:24px;">
           <p style="margin:0;font-size:11px;color:#666666;line-height:1.5;">
             This link expires in 7 days.<br/>
@@ -109,10 +104,7 @@ serve(async (req) => {
     // Verify calling user is a coach/admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     const {
@@ -120,10 +112,7 @@ serve(async (req) => {
       error: authError,
     } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
     // Check role
@@ -134,20 +123,14 @@ serve(async (req) => {
 
     const userRoles = (rolesData || []).map((r: any) => r.role);
     if (!userRoles.includes("coach") && !userRoles.includes("admin")) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Forbidden" }, 403);
     }
 
     const body = await req.json();
     const { email, first_name, last_name, phone, client_type, tags, invite_id, tier_id, tier_name, assigned_coach_id } = body;
 
     if (!email || !first_name || !last_name) {
-      return new Response(
-        JSON.stringify({ error: "Email, first name, and last name are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Email, first name, and last name are required" }, 400);
     }
 
     // Generate secure token (128-bit)
@@ -205,12 +188,11 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
-      console.error("Insert error:", insertError);
-      return new Response(JSON.stringify({ error: "Failed to create invite" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[send-client-invite] Insert error:", insertError);
+      return jsonResponse({ error: "Failed to create invite" }, 500);
     }
+
+    console.log("[send-client-invite] Invite created:", invite.id, "for:", email.toLowerCase());
 
     // Get coach name for email
     const { data: coachProfile } = await supabase
@@ -237,50 +219,56 @@ serve(async (req) => {
     });
 
     if (createUserError) {
-      // If user already exists, that's OK — they'll use the setup page
-      console.log("Create user result:", createUserError.message);
+      console.log("[send-client-invite] Create user result:", createUserError.message);
     }
 
-    // Send branded invite email
+    // Queue branded invite email via enqueue_email (pgmq)
+    const messageId = `client-invite-${invite.id}-${Date.now()}`;
+    const emailHtml = buildInviteEmailHtml(first_name, coachName, setupUrl);
+
     let emailSent = true;
     try {
-      const emailHtml = buildInviteEmailHtml(first_name, coachName, setupUrl);
-
-      await sendLovableEmail({
-        to: email.toLowerCase(),
-        from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
-        subject: `${coachName} has invited you to join Physique Crafters`,
-        html: emailHtml,
+      const { error: queueError } = await supabase.rpc("enqueue_email", {
+        queue_name: "transactional_emails",
+        payload: {
+          to: email.toLowerCase(),
+          from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
+          sender_domain: "notify.physiquecrafters.com",
+          subject: `${coachName} has invited you to join Physique Crafters`,
+          html: emailHtml,
+          purpose: "transactional",
+          label: "client_invite",
+          message_id: messageId,
+        },
       });
 
-      console.log("Branded invite email sent to:", email.toLowerCase());
-    } catch (emailErr) {
-      console.error("Email send failed:", emailErr);
+      if (queueError) {
+        console.error("[send-client-invite] Queue error:", queueError);
+        emailSent = false;
+      } else {
+        console.log("[send-client-invite] Email queued successfully, message_id:", messageId);
+      }
+    } catch (queueErr) {
+      console.error("[send-client-invite] Queue exception:", queueErr);
       emailSent = false;
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        email_sent: emailSent,
-        invite: {
-          id: invite.id,
-          email: invite.email,
-          first_name: invite.first_name,
-          last_name: invite.last_name,
-          invite_status: invite.invite_status,
-          expires_at: invite.expires_at,
-          setup_url: emailSent ? undefined : setupUrl,
-        },
-        coach_name: coachName,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({
+      success: true,
+      email_sent: emailSent,
+      invite: {
+        id: invite.id,
+        email: invite.email,
+        first_name: invite.first_name,
+        last_name: invite.last_name,
+        invite_status: invite.invite_status,
+        expires_at: invite.expires_at,
+        setup_url: emailSent ? undefined : setupUrl,
+      },
+      coach_name: coachName,
+    }, 200);
   } catch (err) {
-    console.error("Error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[send-client-invite] Error:", err);
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 });
