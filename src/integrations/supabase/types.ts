@@ -4146,6 +4146,33 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          checkin_reminders_enabled: boolean | null
+          created_at: string | null
+          id: string
+          messages_enabled: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          checkin_reminders_enabled?: boolean | null
+          created_at?: string | null
+          id?: string
+          messages_enabled?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          checkin_reminders_enabled?: boolean | null
+          created_at?: string | null
+          id?: string
+          messages_enabled?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       nutrition_logs: {
         Row: {
           added_sugars: number | null
@@ -5058,6 +5085,30 @@ export type Database = {
           pose?: string
           source?: string | null
           storage_path?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string | null
+          id: string
+          platform: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          platform?: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          platform?: string
+          token?: string
+          user_id?: string
         }
         Relationships: []
       }
