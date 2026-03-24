@@ -210,7 +210,25 @@ const PrivacyPolicy = () => {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-primary font-display text-base font-semibold">14. Contact</h2>
+          <h2 className="text-primary font-display text-base font-semibold">14. Push Notifications</h2>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            When you enable push notifications, we collect a device identifier (push token) that allows us to deliver
+            notifications to your device. This token is stored securely on our servers and is used solely to send you
+            relevant updates about your coaching program, including new messages from your coach and check-in reminders.
+          </p>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            We do not use push tokens for advertising, analytics, or user tracking purposes. Push tokens are not shared
+            with third parties.
+          </p>
+          <p className="text-sm text-foreground/80 leading-relaxed">
+            You can disable push notifications at any time through your device settings or the Notification Settings
+            screen within the app. When you disable notifications, your push token is no longer used to send messages,
+            though it may remain stored until you delete your account.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-primary font-display text-base font-semibold">15. Contact</h2>
           <p className="text-sm text-foreground/80 leading-relaxed">
             For privacy inquiries, data requests, or concerns, contact: privacy@physiquecrafters.com
           </p>
