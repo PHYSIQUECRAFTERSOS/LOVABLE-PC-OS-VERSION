@@ -593,6 +593,33 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     loadSteps();
   }, [clientId]);
 
+  /* ─── Load ranked profile + health metrics (distance, sparklines) ─── */
+  useEffect(() => {
+    if (!clientId) return;
+    const loadRankedAndHealth = async () => {
+      const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const [rankedRes, healthRes] = await Promise.all([
+        (supabase as any).from("ranked_profiles").select("total_xp, current_tier, current_division, current_streak").eq("user_id", clientId).maybeSingle(),
+        supabase.from("daily_health_metrics").select("metric_date, steps, walking_running_distance_km").eq("user_id", clientId).gte("metric_date", sevenAgo).order("metric_date", { ascending: true }),
+      ]);
+      if (rankedRes.data) setRankedProfile(rankedRes.data as RankedProfile);
+      if (healthRes.data) {
+        const todayRow = (healthRes.data as any[]).find((d: any) => d.metric_date === today);
+        setDistanceToday(todayRow?.walking_running_distance_km ?? null);
+        const sSpark: { value: number }[] = [];
+        const dSpark: { value: number }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+          const row = (healthRes.data as any[]).find((r: any) => r.metric_date === d);
+          sSpark.push({ value: row?.steps ?? 0 });
+          dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
+        }
+        setStepsSpark(sSpark);
+        setDistanceSpark(dSpark);
+      }
+    };
+    loadRankedAndHealth();
+
   const formatRelativeTime = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
