@@ -14,7 +14,6 @@ import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import CoachPriority from "@/components/dashboard/CoachPriority";
 import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
-import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 import { useLoggingStreak } from "@/hooks/useLoggingStreak";
 import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
 import { Skeleton } from "@/components/ui/skeleton";
