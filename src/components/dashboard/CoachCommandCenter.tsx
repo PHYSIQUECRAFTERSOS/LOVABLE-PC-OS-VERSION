@@ -830,16 +830,25 @@ const CoachCommandCenter = () => {
       <CheckinSubmissionDashboard />
 
       {/* ─── SECTION 7: New Clients Readiness ─── */}
-      {newClients.length > 0 && (
-        <div>
-          <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
-            <UserPlus className="h-5 w-5 text-primary" />
-            New Clients (Last 7 Days)
+      <div>
+        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+          <UserPlus className="h-5 w-5 text-primary" />
+          New Clients (Last 7 Days)
+          {newClients.length > 0 && (
             <span className="ml-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs font-bold text-primary">
               {newClients.length}
             </span>
-          </h2>
-          {(() => {
+          )}
+        </h2>
+        {newClients.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center">
+              <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No new clients in the last 7 days.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          (() => {
             const missingOnboarding = newClients.filter((c) => !c.onboardingComplete).length;
             const missingPhotos = newClients.filter((c) => c.photoCount < 3).length;
             const allReady = missingOnboarding === 0 && missingPhotos === 0;
