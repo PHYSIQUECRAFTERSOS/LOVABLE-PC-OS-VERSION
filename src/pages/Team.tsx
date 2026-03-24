@@ -403,6 +403,14 @@ const Team = () => {
         onOpenChange={setAddClientOpen}
         onInviteSent={fetchStaff}
       />
+
+      {/* Staff Detail Modal */}
+      <StaffDetailModal
+        member={selectedStaff}
+        open={!!selectedStaff}
+        onOpenChange={(open) => { if (!open) setSelectedStaff(null); }}
+        onStaffUpdated={fetchStaff}
+      />
     </AppLayout>
   );
 };

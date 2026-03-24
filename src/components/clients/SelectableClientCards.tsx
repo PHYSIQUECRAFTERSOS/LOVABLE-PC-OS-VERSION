@@ -381,6 +381,18 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input placeholder="Search clients..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
           </div>
+          {isAdmin && coaches.length > 0 && (
+            <Select value={coachFilter} onValueChange={setCoachFilter}>
+              <SelectTrigger className="h-9 w-[160px] text-sm"><SelectValue placeholder="Coach" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mine">My Clients</SelectItem>
+                <SelectItem value="all_coaches">All Coaches</SelectItem>
+                {coaches.filter((c) => c.id !== user?.id).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-9 w-[140px] text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
