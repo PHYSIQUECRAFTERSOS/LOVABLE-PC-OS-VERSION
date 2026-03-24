@@ -251,7 +251,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         {onBack && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" onClick={onBack}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
