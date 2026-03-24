@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +18,12 @@ import {
   TrendingUp,
   Activity,
   CalendarDays,
-  Zap,
   Target,
   Camera,
   Scale,
   Flame,
   Footprints,
+  MapPin,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -32,10 +32,13 @@ import {
   ChevronRight,
 } from "lucide-react";
 import StepTrendModal from "@/components/dashboard/StepTrendModal";
+import DistanceTrendModal from "@/components/dashboard/DistanceTrendModal";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import EventDetailModal from "@/components/calendar/EventDetailModal";
+import TierBadge from "@/components/ranked/TierBadge";
+import { calculateTierAndDivision, getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
