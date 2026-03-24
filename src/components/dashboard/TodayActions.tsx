@@ -223,6 +223,8 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     },
   });
 
+  refetchRef.current = refetch;
+
   // Resolve the effective type from event_type + title keywords
   const resolveActionType = (action: ActionItem): string => {
     const t = action.type;
