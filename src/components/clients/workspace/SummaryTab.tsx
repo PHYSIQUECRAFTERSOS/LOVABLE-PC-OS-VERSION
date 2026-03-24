@@ -333,6 +333,16 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [selectedAction, setSelectedAction] = useState<CalendarEvent | null>(null);
   const [showEventDetail, setShowEventDetail] = useState(false);
 
+  // Ranked profile
+  const [rankedProfile, setRankedProfile] = useState<RankedProfile | null>(null);
+
+  // Distance + sparklines
+  const [distanceToday, setDistanceToday] = useState<number | null>(null);
+  const [stepsSpark, setStepsSpark] = useState<{ value: number }[]>([]);
+  const [distanceSpark, setDistanceSpark] = useState<{ value: number }[]>([]);
+  const [calSpark, setCalSpark] = useState<{ value: number }[]>([]);
+  const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
+
   const today = format(new Date(), "yyyy-MM-dd");
 
   /* ─── Load summary cards ─── */
