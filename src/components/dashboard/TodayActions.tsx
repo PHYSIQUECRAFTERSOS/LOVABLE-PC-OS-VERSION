@@ -82,6 +82,18 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
 
   const cacheKey = `today-actions-${user?.id}-${targetDate}`;
 
+  // Listen for FAB-scheduled events to refetch instantly
+  useEffect(() => {
+    const handler = () => {
+      invalidateCache(cacheKey);
+      refetchRef.current?.();
+    };
+    window.addEventListener("calendar-event-added", handler);
+    return () => window.removeEventListener("calendar-event-added", handler);
+  }, [cacheKey]);
+
+  const refetchRef = { current: null as (() => void) | null };
+
   const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
     enabled: !!user,
