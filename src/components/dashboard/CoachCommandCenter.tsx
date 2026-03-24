@@ -24,6 +24,10 @@ import {
   ClipboardCheck,
   CalendarClock,
   Clock,
+  UserPlus,
+  Camera,
+  ClipboardList,
+  Eye,
 } from "lucide-react";
 import { useState } from "react";
 import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
