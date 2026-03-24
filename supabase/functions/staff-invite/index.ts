@@ -267,6 +267,54 @@ serve(async (req) => {
       return json({ success: true, email: invite.email });
     }
 
+    // ── DEACTIVATE STAFF ──
+    if (action === "deactivate_staff") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) return json({ error: "Unauthorized" }, 401);
+      const { data: { user: caller }, error: authErr } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
+
+      const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", caller.id);
+      if (!(callerRoles || []).some((r: any) => r.role === "admin")) return json({ error: "Only admins can deactivate staff" }, 403);
+
+      const { staff_user_id } = body;
+      if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
+      if (staff_user_id === caller.id) return json({ error: "Cannot deactivate yourself" }, 400);
+
+      // Ban user
+      await supabase.auth.admin.updateUserById(staff_user_id, { ban_duration: "876000h" });
+      // Remove roles
+      await supabase.from("user_roles").delete().eq("user_id", staff_user_id);
+      // Deactivate their client assignments
+      await supabase.from("coach_clients").update({ status: "deactivated" }).eq("coach_id", staff_user_id);
+
+      return json({ success: true });
+    }
+
+    // ── DELETE STAFF ──
+    if (action === "delete_staff") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) return json({ error: "Unauthorized" }, 401);
+      const { data: { user: caller }, error: authErr } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
+
+      const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", caller.id);
+      if (!(callerRoles || []).some((r: any) => r.role === "admin")) return json({ error: "Only admins can delete staff" }, 403);
+
+      const { staff_user_id } = body;
+      if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
+      if (staff_user_id === caller.id) return json({ error: "Cannot delete yourself" }, 400);
+
+      // Remove roles, profile, coach_clients
+      await supabase.from("user_roles").delete().eq("user_id", staff_user_id);
+      await supabase.from("profiles").delete().eq("user_id", staff_user_id);
+      await supabase.from("coach_clients").delete().eq("coach_id", staff_user_id);
+      // Delete auth user
+      await supabase.auth.admin.deleteUser(staff_user_id);
+
+      return json({ success: true });
+    }
+
     return json({ error: "Invalid action" }, 400);
   } catch (err) {
     console.error("[staff-invite] Error:", err);
