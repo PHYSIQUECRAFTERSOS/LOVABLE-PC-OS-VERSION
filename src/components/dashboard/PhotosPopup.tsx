@@ -201,16 +201,6 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                   <div className="relative">
                     {/* Guide image with alignment lines */}
                     <div className="relative">
-                      {/* Horizontal guide lines */}
-                      <div className="absolute top-[15%] left-0 right-0 border-t border-gray-300/60 z-10">
-                        <span className="absolute right-2 -top-4 text-[11px] text-gray-400 font-medium">Eyes</span>
-                      </div>
-                      <div className="absolute top-[70%] left-0 right-0 border-t border-gray-300/60 z-10">
-                        <span className="absolute right-2 -top-4 text-[11px] text-gray-400 font-medium">Hip</span>
-                      </div>
-                      {/* Vertical center line */}
-                      <div className="absolute top-0 bottom-0 left-1/2 border-l border-gray-300/40 z-10" />
-
                       <img
                         src={currentPose.guideImage}
                         alt={`${currentPose.label} guide`}
