@@ -92,7 +92,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     return () => window.removeEventListener("calendar-event-added", handler);
   }, [cacheKey]);
 
-  const refetchRef = { current: null as (() => void) | null };
+  const refetchRef = useRef<(() => void) | null>(null);
 
   const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
