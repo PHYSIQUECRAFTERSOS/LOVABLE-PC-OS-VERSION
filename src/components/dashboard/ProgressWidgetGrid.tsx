@@ -4,10 +4,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
 import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
-import { Footprints, Camera, Flame, Zap, MapPin } from "lucide-react";
+import { Footprints, Camera, Flame, MapPin } from "lucide-react";
 import CurrentWeightCard from "./CurrentWeightCard";
 import WeightHistoryScreen from "./WeightHistoryScreen";
 import StepTrendModal from "./StepTrendModal";
+import DistanceTrendModal from "./DistanceTrendModal";
 import ProgressPhotosModal from "./ProgressPhotosModal";
 
 interface SparkData {
@@ -53,9 +54,14 @@ const ProgressWidgetGrid = () => {
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [todayCals, setTodayCals] = useState<number>(0);
   const [calSpark, setCalSpark] = useState<SparkData[]>([]);
-  const [manualSteps, setManualSteps] = useState<number | null>(null);
+  const [dbSteps, setDbSteps] = useState<number | null>(null);
+  const [dbDistance, setDbDistance] = useState<number | null>(null);
+  const [stepsSpark, setStepsSpark] = useState<SparkData[]>([]);
+  const [distanceSpark, setDistanceSpark] = useState<SparkData[]>([]);
+  const [stepGoal, setStepGoal] = useState(10000);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
+  const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -63,9 +69,36 @@ const ProgressWidgetGrid = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Weight is now handled by CurrentWeightCard component
+    // Fetch steps + distance from daily_health_metrics (source of truth)
+    const fetchHealthMetrics = async () => {
+      const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
+      const { data } = await supabase
+        .from("daily_health_metrics")
+        .select("metric_date, steps, walking_running_distance_km, step_goal")
+        .eq("user_id", user.id)
+        .gte("metric_date", sevenAgo)
+        .order("metric_date", { ascending: true });
 
-    // Fetch recent photos - use created_at (correct column name)
+      if (data) {
+        const todayRow = data.find((d: any) => d.metric_date === today);
+        setDbSteps(todayRow?.steps ?? null);
+        setDbDistance(todayRow?.walking_running_distance_km ?? null);
+        if (todayRow?.step_goal) setStepGoal(todayRow.step_goal);
+
+        const sSpark: SparkData[] = [];
+        const dSpark: SparkData[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+          const row = data.find((r: any) => r.metric_date === d);
+          sSpark.push({ value: row?.steps ?? 0 });
+          dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
+        }
+        setStepsSpark(sSpark);
+        setDistanceSpark(dSpark);
+      }
+    };
+
+    // Fetch recent photos
     const fetchPhotos = async () => {
       const { data } = await supabase
         .from("progress_photos")
@@ -111,136 +144,123 @@ const ProgressWidgetGrid = () => {
       }
     };
 
-    // Fetch manual steps from daily_health_metrics
-    const fetchManualSteps = async () => {
-      const { data } = await supabase
-        .from("daily_health_metrics")
-        .select("steps")
-        .eq("user_id", user.id)
-        .eq("metric_date", today)
-        .maybeSingle();
-      if (data?.steps) setManualSteps(data.steps);
-    };
-
+    fetchHealthMetrics();
     fetchPhotos();
     fetchCalories();
-    fetchManualSteps();
   }, [user, today]);
 
-  // Steps data from health sync
-  const steps = todayMetrics?.steps ?? null;
+  // Merge: take the higher of DB value or live HealthKit value
   const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";
-  const stepsSpark: SparkData[] = weekMetrics.map(d => ({ value: d.steps ?? 0 }));
-  const activeCalSpark: SparkData[] = weekMetrics.map(d => ({ value: d.active_energy_kcal ?? 0 }));
-  const distanceSpark: SparkData[] = weekMetrics.map(d => ({ value: d.walking_running_distance_km ?? 0 }));
+  const liveSteps = isConnected ? todayMetrics?.steps ?? null : null;
+  const finalSteps = Math.max(dbSteps ?? 0, liveSteps ?? 0);
+  const hasSteps = (dbSteps !== null && dbSteps > 0) || (liveSteps !== null && liveSteps > 0);
+
+  const liveDistance = isConnected ? todayMetrics?.walking_running_distance_km ?? null : null;
+  const finalDistance = Math.max(dbDistance ?? 0, liveDistance ?? 0);
+  const hasDistance = (dbDistance !== null && dbDistance > 0) || (liveDistance !== null && liveDistance > 0);
+
+  const stepPct = stepGoal > 0 ? Math.min(100, Math.round((finalSteps / stepGoal) * 100)) : 0;
+
+  // Use live sparklines from weekMetrics if connected, otherwise DB-fetched
+  const finalStepsSpark = isConnected && weekMetrics.length > 0
+    ? weekMetrics.map(d => ({ value: d.steps ?? 0 }))
+    : stepsSpark;
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        {/* Steps */}
+      <div className="space-y-3">
+        {/* Steps — Full Width Bar */}
         <button
           onClick={() => setStepTrendOpen(true)}
-          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+          className="w-full rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
         >
-          <div className="flex items-center gap-1.5 mb-1">
-            <Footprints className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">Steps</span>
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-            {isConnected && steps !== null ? steps.toLocaleString() : manualSteps !== null ? manualSteps.toLocaleString() : "–"}
-          </div>
-          {isConnected || manualSteps !== null ? (
-            <MiniSparkline data={stepsSpark} />
-          ) : (
-            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
-          )}
-        </button>
-
-        {/* Current Weight */}
-        <CurrentWeightCard onClick={() => setWeightHistoryOpen(true)} />
-
-        {/* Progress Photos */}
-        <button
-          onClick={() => setPhotosModalOpen(true)}
-          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
-        >
-          <div className="flex items-center gap-1.5 mb-1">
-            <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">Progress Photos</span>
-          </div>
-          {photoUrls.length > 0 ? (
-            <div className="flex gap-1.5 mt-1">
-              {photoUrls.map((url, i) => (
-                <img
-                  key={i}
-                  src={url}
-                  alt="Progress"
-                  className="h-10 w-10 rounded-md object-cover border border-border/50"
-                  loading="lazy"
-                />
-              ))}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Footprints className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground">Steps</span>
             </div>
-          ) : (
-            <div className="text-xl font-bold text-foreground">–</div>
-          )}
+            <div className="flex items-center gap-3">
+              <MiniSparkline data={finalStepsSpark} />
+              <span className="text-xs text-muted-foreground">
+                Goal: {(stepGoal / 1000).toFixed(0)}K
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-foreground tabular-nums">
+              {hasSteps ? finalSteps.toLocaleString() : "–"}
+            </span>
+            <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${stepPct}%` }}
+              />
+            </div>
+            <span className="text-xs font-medium text-foreground tabular-nums">{stepPct}%</span>
+          </div>
         </button>
 
-        {/* Caloric Intake */}
-        <button
-          onClick={() => navigate("/nutrition")}
-          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
-        >
-          <div className="flex items-center gap-1.5 mb-1">
-            <Flame className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">Calories Today</span>
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-            {todayCals > 0 ? todayCals.toLocaleString() : "–"}
-          </div>
-          <MiniSparkline data={calSpark} />
-        </button>
+        {/* 2x2 Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Current Weight */}
+          <CurrentWeightCard onClick={() => setWeightHistoryOpen(true)} />
 
-        {/* Active Calories */}
-        <button
-          onClick={() => navigate("/progress?tab=steps")}
-          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
-        >
-          <div className="flex items-center gap-1.5 mb-1">
-            <Zap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">Active Cal</span>
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-            {isConnected && todayMetrics?.active_energy_kcal != null
-              ? todayMetrics.active_energy_kcal.toLocaleString()
-              : "–"}
-          </div>
-          {isConnected ? (
-            <MiniSparkline data={activeCalSpark} />
-          ) : (
-            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
-          )}
-        </button>
+          {/* Progress Photos */}
+          <button
+            onClick={() => setPhotosModalOpen(true)}
+            className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Camera className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground truncate">Progress Photos</span>
+            </div>
+            {photoUrls.length > 0 ? (
+              <div className="flex gap-1.5 mt-1">
+                {photoUrls.map((url, i) => (
+                  <img
+                    key={i}
+                    src={url}
+                    alt="Progress"
+                    className="h-10 w-10 rounded-md object-cover border border-border/50"
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-xl font-bold text-foreground">–</div>
+            )}
+          </button>
 
-        {/* Distance */}
-        <button
-          onClick={() => navigate("/progress?tab=steps")}
-          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
-        >
-          <div className="flex items-center gap-1.5 mb-1">
-            <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground truncate">Distance</span>
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-            {isConnected && todayMetrics?.walking_running_distance_km != null
-              ? `${todayMetrics.walking_running_distance_km.toFixed(1)} km`
-              : "–"}
-          </div>
-          {isConnected ? (
+          {/* Caloric Intake */}
+          <button
+            onClick={() => navigate("/nutrition")}
+            className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Flame className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground truncate">Calories Today</span>
+            </div>
+            <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+              {todayCals > 0 ? todayCals.toLocaleString() : "–"}
+            </div>
+            <MiniSparkline data={calSpark} />
+          </button>
+
+          {/* Distance */}
+          <button
+            onClick={() => setDistanceTrendOpen(true)}
+            className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground truncate">Distance</span>
+            </div>
+            <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+              {hasDistance ? `${finalDistance.toFixed(1)} km` : "–"}
+            </div>
             <MiniSparkline data={distanceSpark} />
-          ) : (
-            <span className="text-[10px] text-muted-foreground/60">Connect Health App</span>
-          )}
-        </button>
+          </button>
+        </div>
       </div>
 
       <WeightHistoryScreen
@@ -250,6 +270,11 @@ const ProgressWidgetGrid = () => {
       <StepTrendModal
         open={stepTrendOpen}
         onClose={() => setStepTrendOpen(false)}
+        clientId={user?.id}
+      />
+      <DistanceTrendModal
+        open={distanceTrendOpen}
+        onClose={() => setDistanceTrendOpen(false)}
         clientId={user?.id}
       />
       {user && (
