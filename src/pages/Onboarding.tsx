@@ -376,8 +376,16 @@ const Onboarding = () => {
         }
       }
     }
-    navigate("/dashboard", { replace: true });
+    setPostStep("photo");
   };
+
+  // Post-onboarding overlay screens
+  if (postStep === "photo") {
+    return <OnboardingProfilePhoto onComplete={() => setPostStep("health")} />;
+  }
+  if (postStep === "health") {
+    return <OnboardingHealthSyncFull onComplete={() => navigate("/dashboard", { replace: true })} />;
+  }
 
   if (initialLoading) {
     return (
