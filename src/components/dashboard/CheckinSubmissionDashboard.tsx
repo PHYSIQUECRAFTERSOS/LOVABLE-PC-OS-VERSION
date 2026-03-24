@@ -516,8 +516,7 @@ const CheckinSubmissionDashboard = () => {
               </div>
             )}
           </CardContent>
-        </Card>
-      )}
+      </Card>
 
       {/* ── Off-Week ── */}
       {offWeek.length > 0 && (
