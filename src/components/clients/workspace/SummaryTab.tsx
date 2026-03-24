@@ -368,8 +368,6 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
       ]);
 
       const sessions = sessionsRes.data || [];
-      const completed = sessions.filter((s) => s.completed_at).length;
-      const workoutCompliance = Math.round((completed / Math.max(sessions.length, 1)) * 100);
 
       let streak = 0;
       for (let i = 6; i >= 0; i--) {
@@ -387,7 +385,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       const assignment = assignmentRes.data as any;
       setData({
-        workoutCompliance, currentWeight, weightTrend, streak,
+        currentWeight, weightTrend, streak,
         lastCheckin: (checkinRes.data as any)?.[0]?.submitted_at || null,
         currentPhase: assignment?.program_phases?.name || null,
         programName: assignment?.programs?.name || null,
