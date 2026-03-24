@@ -5,7 +5,7 @@ import AppLayout from "@/components/AppLayout";
 import TodayActions, { ActionItem } from "@/components/dashboard/TodayActions";
 import DailyCompletionRing from "@/components/dashboard/DailyCompletionRing";
 import { useConsistencyStreak } from "@/components/dashboard/ConsistencyStreak";
-import ComplianceMomentum from "@/components/dashboard/ComplianceMomentum";
+import CommunityQuickAccess from "@/components/dashboard/CommunityQuickAccess";
 import ProgressMomentum from "@/components/dashboard/ProgressMomentum";
 import MacroSummary from "@/components/dashboard/MacroSummary";
 import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
