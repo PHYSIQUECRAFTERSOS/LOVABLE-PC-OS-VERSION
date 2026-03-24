@@ -18,6 +18,7 @@ import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
+import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
   id: string;
