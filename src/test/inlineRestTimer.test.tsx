@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
 
@@ -50,10 +50,14 @@ describe("InlineRestTimer", () => {
 
     render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={vi.fn()} />);
 
-    mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
+    await act(async () => {
+      mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
+    });
     await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
 
-    mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+    await act(async () => {
+      mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+    });
     await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(2));
   });
 
@@ -62,10 +66,14 @@ describe("InlineRestTimer", () => {
 
     render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={vi.fn()} />);
 
-    mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
+    await act(async () => {
+      mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
+    });
     await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
 
-    mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+    await act(async () => {
+      mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+    });
     await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
   });
 });
