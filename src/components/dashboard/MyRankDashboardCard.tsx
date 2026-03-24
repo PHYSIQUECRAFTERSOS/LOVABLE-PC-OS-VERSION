@@ -139,8 +139,8 @@ const MyRankDashboardCard = () => {
             : undefined
         }
       >
-        <div className="h-14 w-14 shrink-0 flex items-center justify-center overflow-hidden">
-          <TierBadge tier={profile.current_tier} size={80} />
+        <div className="h-28 w-28 shrink-0 flex items-center justify-center overflow-hidden">
+          <TierBadge tier={profile.current_tier} size={160} />
         </div>
 
         <div className="flex-1 min-w-0 space-y-1">
