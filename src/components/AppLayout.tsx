@@ -74,6 +74,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     fetchUnread();
+
     // Subscribe to realtime changes on thread_messages
     const channel = supabase
       .channel("unread-badge")
@@ -82,10 +83,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         { event: "*", schema: "public", table: "thread_messages" },
         () => fetchUnread()
       )
+      .on(
+        "postgres_changes" as any,
+        { event: "UPDATE", schema: "public", table: "message_threads" },
+        () => fetchUnread()
+      )
       .subscribe();
+
+    // Listen for manual "messages-read" events from ThreadChatView
+    const onRead = () => fetchUnread();
+    window.addEventListener("messages-read", onRead);
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener("messages-read", onRead);
     };
   }, [fetchUnread]);
 

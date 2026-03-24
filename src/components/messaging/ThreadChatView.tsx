@@ -141,7 +141,11 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
           if (prev.some(m => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
-        if (user && newMsg.sender_id !== user.id) markThreadSeen();
+        if (user && newMsg.sender_id !== user.id) {
+          // Mark the incoming message as read immediately
+          supabase.from("thread_messages").update({ read_at: new Date().toISOString() } as any).eq("id", newMsg.id);
+          markThreadSeen();
+        }
       })
       .on("postgres_changes", {
         event: "UPDATE",
