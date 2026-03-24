@@ -1,106 +1,153 @@
 
 
-# Plan: Fix Ranked Names, Coach-Based Client Filter, Staff Member Management Modal
+# Plan: Push Notifications System (APNs) with Badge Counts
 
 ## Summary
 
-Three features:
+Implement native iOS push notifications using Capacitor's Push Notifications plugin + a backend edge function that sends notifications via APNs. Clients and coaches receive real-time push alerts for new messages and check-in reminders, with app icon badge counts showing unread messages. Users can toggle notifications off in Settings to comply with Apple guidelines.
 
-1. **Fix "Member" names on leaderboard** — the `profiles.full_name` is empty for some users despite invite data having names. Backfill from `client_invites` and improve the ranked leaderboard name resolution.
-2. **Filter clients by coach** — add coach names to the "All Clients" dropdown on the Clients page so owners can view any coach's client roster.
-3. **Staff member detail modal** — clicking a coach on the Team page opens a popup with overview, their clients, command center view, and deactivate/delete actions.
+## Architecture
 
----
+```text
+Coach sends message → thread_messages INSERT
+  → DB trigger enqueues notification
+  → Edge function "send-push-notification" reads queue
+  → Calls APNs with device token + payload (alert + badge count)
+  → Client's iPhone shows banner + badge on app icon
 
-## Changes
+Client opens app → badge resets via thread "seen" logic
+```
 
-### 1. Fix Ranked "Member" Names
+## APNs Setup Guide (for you)
 
-**Root cause**: The `handle_new_user` trigger sets `full_name` from `raw_user_meta_data->>'full_name'` or email prefix. But the invite flow may not pass `full_name` into the signup metadata, so profiles end up with just the email prefix (e.g. "john123") or empty.
+You'll need to do these steps in your Apple Developer account:
 
-**Database migration**: Backfill `profiles.full_name` from `client_invites` where the profile name is missing or is just an email prefix:
+1. Go to **Certificates, Identifiers & Profiles** → **Keys**
+2. Create a new key, enable **Apple Push Notifications service (APNs)**
+3. Download the `.p8` file (save it — only downloadable once)
+4. Note the **Key ID** (10-char alphanumeric)
+5. Note your **Team ID** (top-right of developer console)
+6. Your **Bundle ID** is `com.physiquecrafters.app`
+
+Once you have those, I'll store the APNs auth key as a secret in your backend.
+
+## Database Changes
+
+### New table: `push_tokens`
 ```sql
-UPDATE profiles p
-SET full_name = TRIM(CONCAT(ci.first_name, ' ', ci.last_name))
-FROM client_invites ci
-WHERE ci.created_client_id = p.user_id
-  AND ci.first_name IS NOT NULL
-  AND (p.full_name IS NULL OR p.full_name = '' OR p.full_name NOT LIKE '% %');
+CREATE TABLE push_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  token text NOT NULL,
+  platform text NOT NULL DEFAULT 'ios',
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, token)
+);
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
+-- Users can manage their own tokens
+CREATE POLICY "Users manage own tokens" ON push_tokens
+  FOR ALL TO authenticated USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 ```
 
-This one-time fix ensures all invited clients have proper names in `profiles`, which the leaderboard already reads.
-
-### 2. Filter Clients by Coach
-
-**File: `src/components/clients/SelectableClientCards.tsx`**
-
-- Add a new prop or internal state for `coachFilter` (default: current user's ID).
-- Change the initial `coach_clients` query from `.eq("coach_id", user.id)` to conditionally use the selected coach ID.
-- Fetch staff list (coaches/admins) from `user_roles` + `profiles` to populate the dropdown.
-- Replace the existing "All Clients / High Compliance / Low Compliance" `<Select>` with a two-dropdown layout:
-  - **Coach filter**: "My Clients" (default), each coach name, "All Coaches"
-  - **Compliance filter**: keeps existing options
-
-Only admin/owner users see the coach filter dropdown. Regular coaches only see their own clients.
-
-### 3. Staff Member Detail Modal (Owner Only)
-
-**New file: `src/components/team/StaffDetailModal.tsx`**
-
-A dialog that opens when an owner clicks a staff member row on the Team page. Contains:
-
-- **Overview tab**: Avatar, name, role, join date, client count, total active sessions
-- **Clients tab**: List of the coach's assigned clients with names and compliance (reuses the same query pattern as `SelectableClientCards`)
-- **Actions**: 
-  - "Deactivate" button — calls `manage-client-status` edge function with the staff user's ID (same deactivation pattern as clients: sets 100-year ban, updates status)
-  - "Delete" button — requires typing "DELETE" to confirm, calls the same edge function with `action: "delete"`
-  - Both behind confirmation dialogs
-
-**File: `src/pages/Team.tsx`**
-
-- Add state for `selectedStaffMember` and render `<StaffDetailModal>` when set.
-- Make staff rows clickable (only for non-self members, owner-only).
-- Add cursor pointer and hover styling to staff rows.
-
----
-
-## Technical Details
-
-### Coach filter data flow
-```text
-Owner opens Clients page
-  → Fetch all coaches from user_roles + profiles
-  → Dropdown: "My Clients" | "Aaron W." | "Kevin W." | "All Coaches"
-  → Selection changes coach_id filter on coach_clients query
-  → Client cards re-render with filtered results
+### New table: `notification_preferences`
+```sql
+CREATE TABLE notification_preferences (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  messages_enabled boolean DEFAULT true,
+  checkin_reminders_enabled boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE notification_preferences ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own prefs" ON notification_preferences
+  FOR ALL TO authenticated USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 ```
 
-### Staff deactivation flow
-```text
-Owner clicks coach → StaffDetailModal opens
-  → Owner clicks "Deactivate"
-  → Confirmation dialog
-  → Calls manage-client-status edge function (action: "deactivate", clientId: staffUserId)
-  → Staff user banned, coach_clients status updated
-  → Refresh team list
+## New Files
+
+### `src/hooks/usePushNotifications.ts`
+- On app mount (native only), register for push via `@capacitor/push-notifications`
+- `PushNotifications.requestPermissions()` → `PushNotifications.register()`
+- On `registration` event, upsert token to `push_tokens` table
+- On `pushNotificationReceived` (foreground), show in-app toast
+- On `pushNotificationActionPerformed` (tap), navigate to `/messages`
+- Handle badge reset when opening messages
+
+### `src/components/settings/NotificationSettings.tsx`
+- Toggle switches: "Coach Messages", "Check-in Reminders"
+- Reads/writes `notification_preferences` table
+- "Disable All" option that also calls `PushNotifications.removeAllDeliveredNotifications()`
+- Apple compliance: explain what notifications do, respect user choice
+
+### `supabase/functions/send-push-notification/index.ts`
+- Accepts `{ user_id, title, body, badge_count, data }` 
+- Looks up user's `push_tokens` and `notification_preferences`
+- If notifications disabled for that type, skip
+- Constructs APNs JWT using stored `.p8` key
+- Sends HTTP/2 request to `api.push.apple.com` with payload including `badge` count
+- Badge count = count of unread `thread_messages` where `read_at IS NULL` and `sender_id != user_id`
+
+### `ios-plugin/README.md` update
+- Add instructions for enabling Push Notifications capability in Xcode
+
+## Modified Files
+
+### `capacitor.config.ts`
+Add PushNotifications plugin config:
+```typescript
+plugins: {
+  Camera: { permissions: ['camera', 'photos'] },
+  PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },
+}
 ```
 
-Note: The existing `manage-client-status` edge function checks `coach_clients` ownership. For staff deactivation, we may need to either:
-- Add the staff member as a `coach_clients` entry (not ideal), OR
-- Create a lightweight staff-specific deactivation that directly calls `auth.admin.updateUserById` with ban and removes their `user_roles` entry
+### `src/pages/Profile.tsx`
+- Add `<NotificationSettings />` component below HealthIntegrations in the Settings page
 
-The cleaner approach is to add a new action in the `staff-invite` edge function (e.g. `action: "deactivate_staff"` and `action: "delete_staff"`) that checks the caller is admin and performs the ban/deletion.
+### `src/components/messaging/ThreadChatView.tsx`
+- After marking thread as seen, call `PushNotifications.removeAllDeliveredNotifications()` on native to clear badge
 
-**Edge function update: `supabase/functions/staff-invite/index.ts`**
+### `src/components/clients/workspace/MessagingTab.tsx`
+- After inserting a new coach message, invoke `send-push-notification` edge function targeting the client
 
-Add two new actions:
-- `deactivate_staff`: Admin-only. Bans the user, removes user_roles entries.
-- `delete_staff`: Admin-only. Deletes auth user, removes user_roles + profiles + reassigns/removes coach_clients.
+### `src/components/messaging/CoachMessaging.tsx` / `ClientMessaging.tsx`
+- On message send, trigger push notification to the other party
+
+### `src/App.tsx`
+- Initialize `usePushNotifications()` hook at app root level (inside auth provider, only on native)
+
+## Badge Count Logic
+
+When sending a push, the edge function calculates the badge number:
+```sql
+SELECT COUNT(*) FROM thread_messages tm
+JOIN message_threads mt ON mt.id = tm.thread_id
+WHERE (mt.client_id = $user_id OR mt.coach_id = $user_id)
+  AND tm.sender_id != $user_id
+  AND tm.read_at IS NULL
+```
+
+This number goes in the APNs `badge` field, making the app icon show the exact unread count — just like iMessage.
+
+## Xcode Setup Required (after implementation)
+
+After I make the code changes, you'll need to:
+1. `git pull` + `npx cap sync`
+2. Open Xcode → your target → **Signing & Capabilities** → **+ Capability** → **Push Notifications**
+3. Also add **Background Modes** → check **Remote notifications**
+4. The `.p8` key details get stored as backend secrets
 
 ## Files to modify
-- Database migration — backfill profiles.full_name from client_invites
-- `src/components/clients/SelectableClientCards.tsx` — add coach filter dropdown
-- `src/components/team/StaffDetailModal.tsx` — new file, staff overview + clients + deactivate/delete
-- `src/pages/Team.tsx` — make staff rows clickable, open StaffDetailModal
-- `supabase/functions/staff-invite/index.ts` — add deactivate_staff and delete_staff actions
+- Database migration — create `push_tokens` and `notification_preferences` tables
+- `capacitor.config.ts` — add PushNotifications plugin config
+- `src/hooks/usePushNotifications.ts` — new file, registration + handling
+- `src/components/settings/NotificationSettings.tsx` — new file, toggle UI
+- `supabase/functions/send-push-notification/index.ts` — new edge function
+- `src/pages/Profile.tsx` — add NotificationSettings
+- `src/App.tsx` — initialize push hook
+- `src/components/messaging/ThreadChatView.tsx` — clear badge on open
+- `src/components/clients/workspace/MessagingTab.tsx` — trigger push on send
 
