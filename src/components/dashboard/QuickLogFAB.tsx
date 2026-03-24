@@ -136,7 +136,7 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
     setSaving(true);
 
     try {
-      const dateStr = getLocalDateString(selectedDate);
+      const dateStr = selectedDate.toLocaleDateString('en-CA');
       let title = "";
       let eventType = "custom";
       let linkedWorkoutId: string | null = null;

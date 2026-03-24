@@ -191,6 +191,7 @@ const ClientDetail = () => {
           </TabsContent>
         </Tabs>
       </div>
+      <QuickLogFAB clientId={clientId} />
     </AppLayout>
   );
 };
