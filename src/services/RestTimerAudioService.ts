@@ -22,6 +22,7 @@
 const COUNTDOWN_URL = "/sounds/rest-timer-countdown.mp3";
 const OVERLAY_VOLUME = 0.85;
 const KEEPALIVE_INTERVAL_MS = 5000;
+let audioMixConfigured = false;
 type ManagedAudioContextState = AudioContextState | "interrupted";
 
 class RestTimerAudioService {
@@ -36,6 +37,12 @@ class RestTimerAudioService {
   /** Get or create AudioContext + gain node */
   private ensureContext(): AudioContext | null {
     if (this.ctx && this.ctx.state !== "closed") return this.ctx;
+
+    // Configure native iOS audio session for mixing (fire-and-forget)
+    if (!audioMixConfigured) {
+      audioMixConfigured = true;
+      this.configureNativeMixing();
+    }
 
     const Ctor =
       window.AudioContext ||
@@ -56,6 +63,17 @@ class RestTimerAudioService {
     this.gainNode.gain.value = OVERLAY_VOLUME;
     this.gainNode.connect(this.ctx.destination);
     return this.ctx;
+  }
+
+  /** Tell iOS to mix our audio with Spotify/Apple Music instead of pausing it */
+  private async configureNativeMixing(): Promise<void> {
+    try {
+      const { default: AudioMixPlugin } = await import("@/plugins/AudioMixPlugin");
+      await AudioMixPlugin.enableMixing();
+      console.log("[RestTimerAudio] Native audio mixing enabled");
+    } catch {
+      // Not running in native shell — no-op in browser
+    }
   }
 
   private isRunningState(state: ManagedAudioContextState): boolean {
