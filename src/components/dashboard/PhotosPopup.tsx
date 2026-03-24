@@ -210,7 +210,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
 
                     {/* Instruction text */}
                     <p className="text-center text-sm text-gray-500 mt-3 leading-tight">
-                      Take consistent photos<br />by using the guiding lines.
+                      Match the pose shown above.
                     </p>
                   </div>
                 )}
