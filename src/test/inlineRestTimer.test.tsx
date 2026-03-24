@@ -8,63 +8,64 @@ type WorkerMock = {
   terminate: ReturnType<typeof vi.fn>;
 };
 
-let worker: WorkerMock | null = null;
-
-const playCountdown = vi.fn<() => Promise<boolean>>();
-const startKeepAlive = vi.fn();
-const stopKeepAlive = vi.fn();
-const stopCountdown = vi.fn();
-const unlock = vi.fn();
+const mocks = vi.hoisted(() => ({
+  worker: null as WorkerMock | null,
+  playCountdown: vi.fn<() => Promise<boolean>>(),
+  startKeepAlive: vi.fn(),
+  stopKeepAlive: vi.fn(),
+  stopCountdown: vi.fn(),
+  unlock: vi.fn(),
+}));
 
 vi.mock("@/services/timerWorker", () => ({
   createTimerWorker: vi.fn(() => {
-    worker = {
+    mocks.worker = {
       onmessage: null,
       postMessage: vi.fn(),
       terminate: vi.fn(),
     };
 
-    return worker as unknown as Worker;
+    return mocks.worker as unknown as Worker;
   }),
 }));
 
 vi.mock("@/services/RestTimerAudioService", () => ({
   restTimerAudio: {
-    playCountdown,
-    startKeepAlive,
-    stopKeepAlive,
-    stopCountdown,
-    unlock,
+    playCountdown: mocks.playCountdown,
+    startKeepAlive: mocks.startKeepAlive,
+    stopKeepAlive: mocks.stopKeepAlive,
+    stopCountdown: mocks.stopCountdown,
+    unlock: mocks.unlock,
   },
 }));
 
 describe("InlineRestTimer", () => {
   beforeEach(() => {
-    worker = null;
+    mocks.worker = null;
     vi.clearAllMocks();
   });
 
   it("retries countdown playback at completion if the 3-second attempt fails", async () => {
-    playCountdown.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    mocks.playCountdown.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
     render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={vi.fn()} />);
 
-    worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
-    await waitFor(() => expect(playCountdown).toHaveBeenCalledTimes(1));
+    mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
+    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
 
-    worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
-    await waitFor(() => expect(playCountdown).toHaveBeenCalledTimes(2));
+    mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(2));
   });
 
   it("does not replay the countdown on completion after a successful 3-second trigger", async () => {
-    playCountdown.mockResolvedValue(true);
+    mocks.playCountdown.mockResolvedValue(true);
 
     render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={vi.fn()} />);
 
-    worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
-    await waitFor(() => expect(playCountdown).toHaveBeenCalledTimes(1));
+    mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
+    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
 
-    worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
-    await waitFor(() => expect(playCountdown).toHaveBeenCalledTimes(1));
+    mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
   });
 });
