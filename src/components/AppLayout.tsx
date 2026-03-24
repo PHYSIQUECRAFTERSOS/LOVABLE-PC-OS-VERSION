@@ -170,7 +170,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       }
     >
       <item.icon className="h-4 w-4" />
-      {item.label}
+      <span className="flex-1">{item.label}</span>
+      {item.to === "/messages" && unreadCount > 0 && (
+        <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-primary text-[11px] font-bold text-black px-1.5">
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
     </NavLink>
   );
 
