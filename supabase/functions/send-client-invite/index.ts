@@ -244,11 +244,9 @@ serve(async (req) => {
     // Send branded invite email
     let emailSent = true;
     try {
-      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
       const emailHtml = buildInviteEmailHtml(first_name, coachName, setupUrl);
 
       await sendLovableEmail({
-        apiKey: lovableApiKey,
         to: email.toLowerCase(),
         from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
         subject: `${coachName} has invited you to join Physique Crafters`,
