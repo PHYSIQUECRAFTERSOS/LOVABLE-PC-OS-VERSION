@@ -63,9 +63,10 @@ const StepsScreen = () => {
     fetchData();
   }, [user, range]);
 
-  const todaySteps = isConnected && todayMetrics?.steps != null
-    ? todayMetrics.steps
-    : data.find(d => d.date === today)?.steps || 0;
+  // Use DB data as source of truth, merge with live HealthKit (take higher)
+  const dbTodaySteps = data.find(d => d.date === today)?.steps || 0;
+  const liveSteps = isConnected && todayMetrics?.steps != null ? todayMetrics.steps : 0;
+  const todaySteps = Math.max(dbTodaySteps, liveSteps);
 
   const stepGoal = todayMetrics?.step_goal || 10000;
   const pct = Math.min(100, Math.round((todaySteps / stepGoal) * 100));
