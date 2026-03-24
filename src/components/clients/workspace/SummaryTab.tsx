@@ -44,15 +44,43 @@ import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+/* ─── MiniSparkline ─── */
+const MiniSparkline = forwardRef<SVGSVGElement, { data: { value: number }[]; color?: string }>(
+  ({ data, color = "hsl(var(--primary))" }, ref) => {
+    if (data.length < 2) return null;
+    const max = Math.max(...data.map(d => d.value), 1);
+    const min = Math.min(...data.map(d => d.value), 0);
+    const range = max - min || 1;
+    const w = 80, h = 24;
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - ((d.value - min) / range) * h;
+      return `${x},${y}`;
+    }).join(" ");
+    return (
+      <svg ref={ref} width={w} height={h} className="mt-1">
+        <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points} />
+      </svg>
+    );
+  }
+);
+MiniSparkline.displayName = "MiniSparkline";
+
 /* ─── types ─── */
 interface SummaryData {
-  workoutCompliance: number;
   currentWeight: number | null;
   weightTrend: "up" | "down" | "stable";
   streak: number;
   lastCheckin: string | null;
   currentPhase: string | null;
   programName: string | null;
+}
+
+interface RankedProfile {
+  total_xp: number;
+  current_tier: string;
+  current_division: number | null;
+  current_streak: number;
 }
 
 interface CalendarAction {
