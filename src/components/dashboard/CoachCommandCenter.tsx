@@ -829,7 +829,125 @@ const CoachCommandCenter = () => {
       {/* ─── SECTION 6: Weekly Check-In Dashboard ─── */}
       <CheckinSubmissionDashboard />
 
-      {/* ─── SECTION 7: Compliance Snapshot (moved to bottom) ─── */}
+      {/* ─── SECTION 7: New Clients Readiness ─── */}
+      {newClients.length > 0 && (
+        <div>
+          <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+            <UserPlus className="h-5 w-5 text-primary" />
+            New Clients (Last 7 Days)
+            <span className="ml-1 rounded-full bg-primary/20 px-2 py-0.5 text-xs font-bold text-primary">
+              {newClients.length}
+            </span>
+          </h2>
+          {(() => {
+            const missingOnboarding = newClients.filter((c) => !c.onboardingComplete).length;
+            const missingPhotos = newClients.filter((c) => c.photoCount < 3).length;
+            const allReady = missingOnboarding === 0 && missingPhotos === 0;
+            return (
+              <>
+                {!allReady && (
+                  <div className="flex gap-2 mb-3">
+                    {missingOnboarding > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-400">
+                        <ClipboardList className="h-3 w-3" />
+                        {missingOnboarding} missing onboarding
+                      </span>
+                    )}
+                    {missingPhotos > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-400">
+                        <Camera className="h-3 w-3" />
+                        {missingPhotos} missing photos
+                      </span>
+                    )}
+                  </div>
+                )}
+                {allReady && (
+                  <Card className="border-emerald-500/20 mb-3">
+                    <CardContent className="py-4 text-center">
+                      <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-1" />
+                      <p className="text-sm text-muted-foreground">All new clients are set up and ready to go! 🎉</p>
+                    </CardContent>
+                  </Card>
+                )}
+                <div className="space-y-2">
+                  {newClients.map((client) => {
+                    const daysAgo = differenceInDays(new Date(), new Date(client.assignedAt));
+                    const allComplete = client.onboardingComplete && client.photoCount >= 3;
+                    const missingItems: string[] = [];
+                    if (!client.onboardingComplete) missingItems.push("onboarding form");
+                    if (client.photoCount < 3) missingItems.push("progress photos");
+
+                    return (
+                      <Card
+                        key={client.clientId}
+                        className="cursor-pointer hover:border-primary/40 transition-colors"
+                        onClick={() => navigate(`/clients/${client.clientId}`)}
+                      >
+                        <CardContent className="py-3 flex items-center gap-3">
+                          <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-9 w-9 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-foreground truncate">{client.clientName}</p>
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {daysAgo === 0 ? "Today" : `${daysAgo}d ago`}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${client.onboardingComplete ? "text-emerald-400" : "text-amber-400"}`}>
+                                {client.onboardingComplete ? <CheckCircle2 className="h-3 w-3" /> : <ClipboardList className="h-3 w-3" />}
+                                Onboarding
+                              </span>
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${client.photoCount >= 3 ? "text-emerald-400" : "text-amber-400"}`}>
+                                {client.photoCount >= 3 ? <CheckCircle2 className="h-3 w-3" /> : <Camera className="h-3 w-3" />}
+                                Photos{client.photoCount > 0 && client.photoCount < 3 ? ` (${client.photoCount}/3)` : ""}
+                              </span>
+                            </div>
+                          </div>
+                          {allComplete ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
+                              onClick={(e) => { e.stopPropagation(); navigate(`/clients/${client.clientId}`); }}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              View
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const name = client.clientName.split(" ")[0];
+                                let prefill = "";
+                                if (!client.onboardingComplete && client.photoCount < 3) {
+                                  prefill = `Hey ${name}, just checking in — when you get a chance, please complete your onboarding form and upload your progress photos (front, side, back) so I can get your program dialed in! 💪`;
+                                } else if (!client.onboardingComplete) {
+                                  prefill = `Hey ${name}, just a quick reminder to finish your onboarding form so I can start building your program! 🙌`;
+                                } else {
+                                  prefill = `Hey ${name}, just checking in — when you get a chance, please upload your progress photos (front, side, back) so I can assess your body composition and get your program dialed in. 📸`;
+                                }
+                                setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill });
+                              }}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                              Message
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ─── SECTION 8: Compliance Snapshot (moved to bottom) ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
           <Activity className="h-5 w-5 text-primary" />
