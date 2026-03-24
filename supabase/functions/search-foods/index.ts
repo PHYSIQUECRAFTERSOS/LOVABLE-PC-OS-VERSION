@@ -646,7 +646,7 @@ serve(async (req) => {
 
     // Apply history boost BEFORE slicing so previously logged foods (e.g. "jasmine rice")
     // that ranked #30+ still get promoted to the top of results
-    const boosted = applyHistoryBoost(deduped, historyMap);
+    const boosted = applyHistoryBoost(deduped, historyMap, tokens);
     let merged = boosted.slice(0, limit);
 
     // ── Zero-result widening ─────────────────────────────────────────
