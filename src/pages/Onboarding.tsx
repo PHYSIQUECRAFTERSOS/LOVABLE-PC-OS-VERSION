@@ -166,6 +166,7 @@ const Onboarding = () => {
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [postStep, setPostStep] = useState<"none" | "photo" | "health" | "done">("none");
 
   useEffect(() => {
     if (!user) return;
