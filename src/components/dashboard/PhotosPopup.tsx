@@ -47,7 +47,8 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");
   const [files, setFiles] = useState<Record<Angle, File | null>>({ front: null, side: null, back: null });
   const [previews, setPreviews] = useState<Record<Angle, string | null>>({ front: null, side: null, back: null });
-  const inputRef = useRef<HTMLInputElement>(null);
+  const pickInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const currentPose = typeof step === "number" ? POSES[step] : null;
 
@@ -201,16 +202,6 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                   <div className="relative">
                     {/* Guide image with alignment lines */}
                     <div className="relative">
-                      {/* Horizontal guide lines */}
-                      <div className="absolute top-[15%] left-0 right-0 border-t border-gray-300/60 z-10">
-                        <span className="absolute right-2 -top-4 text-[11px] text-gray-400 font-medium">Eyes</span>
-                      </div>
-                      <div className="absolute top-[70%] left-0 right-0 border-t border-gray-300/60 z-10">
-                        <span className="absolute right-2 -top-4 text-[11px] text-gray-400 font-medium">Hip</span>
-                      </div>
-                      {/* Vertical center line */}
-                      <div className="absolute top-0 bottom-0 left-1/2 border-l border-gray-300/40 z-10" />
-
                       <img
                         src={currentPose.guideImage}
                         alt={`${currentPose.label} guide`}
@@ -220,7 +211,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
 
                     {/* Instruction text */}
                     <p className="text-center text-sm text-gray-500 mt-3 leading-tight">
-                      Take consistent photos<br />by using the guiding lines.
+                      Match the pose shown above.
                     </p>
                   </div>
                 )}
@@ -231,21 +222,34 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                 <div className="flex border-t border-gray-200 mt-3">
                   <button
                     className="flex-1 py-3.5 text-center text-blue-600 font-semibold text-sm border-r border-gray-200 active:bg-gray-50 transition-colors"
-                    onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
+                    onClick={() => { try { setTimeout(() => pickInputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                   >
                     PICK PHOTO
                   </button>
                   <button
                     className="flex-1 py-3.5 text-center text-blue-600 font-bold text-sm active:bg-gray-50 transition-colors"
-                    onClick={() => { try { setTimeout(() => inputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
+                    onClick={() => { try { setTimeout(() => cameraInputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                   >
                     TAKE NOW
                   </button>
                 </div>
               )}
 
+              {/* Library picker — no capture attribute */}
               <input
-                ref={inputRef}
+                ref={pickInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileSelect(file);
+                  e.target.value = "";
+                }}
+              />
+              {/* Camera capture */}
+              <input
+                ref={cameraInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                 capture="environment"

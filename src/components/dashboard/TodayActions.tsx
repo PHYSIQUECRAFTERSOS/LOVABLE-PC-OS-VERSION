@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,18 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
 
   const cacheKey = `today-actions-${user?.id}-${targetDate}`;
+
+  // Listen for FAB-scheduled events to refetch instantly
+  useEffect(() => {
+    const handler = () => {
+      invalidateCache(cacheKey);
+      refetchRef.current?.();
+    };
+    window.addEventListener("calendar-event-added", handler);
+    return () => window.removeEventListener("calendar-event-added", handler);
+  }, [cacheKey]);
+
+  const refetchRef = useRef<(() => void) | null>(null);
 
   const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
@@ -210,6 +222,8 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       return items;
     },
   });
+
+  refetchRef.current = refetch;
 
   // Resolve the effective type from event_type + title keywords
   const resolveActionType = (action: ActionItem): string => {
