@@ -20,6 +20,8 @@ import OnboardingHealthSync from "@/components/onboarding/OnboardingHealthSync";
 import OnboardingWaiver from "@/components/onboarding/OnboardingWaiver";
 import OnboardingDisclaimer from "@/components/onboarding/OnboardingDisclaimer";
 import OnboardingSummary from "@/components/onboarding/OnboardingSummary";
+import OnboardingProfilePhoto from "@/components/onboarding/OnboardingProfilePhoto";
+import OnboardingHealthSyncFull from "@/components/onboarding/OnboardingHealthSyncFull";
 
 export interface OnboardingData {
   // Goals & Metrics (existing)
@@ -164,6 +166,7 @@ const Onboarding = () => {
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [postStep, setPostStep] = useState<"none" | "photo" | "health" | "done">("none");
 
   useEffect(() => {
     if (!user) return;
@@ -373,8 +376,16 @@ const Onboarding = () => {
         }
       }
     }
-    navigate("/dashboard", { replace: true });
+    setPostStep("photo");
   };
+
+  // Post-onboarding overlay screens
+  if (postStep === "photo") {
+    return <OnboardingProfilePhoto onComplete={() => setPostStep("health")} />;
+  }
+  if (postStep === "health") {
+    return <OnboardingHealthSyncFull onComplete={() => navigate("/dashboard", { replace: true })} />;
+  }
 
   if (initialLoading) {
     return (
