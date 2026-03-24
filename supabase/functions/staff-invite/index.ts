@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendLovableEmail } from "npm:@lovable.dev/email-js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,10 +16,8 @@ function json(body: Record<string, unknown>, status = 200) {
 
 /** Ensure staff role is assigned. Idempotent. */
 async function ensureStaffRole(supabase: any, userId: string, role: string, firstName?: string, lastName?: string) {
-  // Remove default 'client' role if present
   await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "client");
 
-  // Upsert the staff role
   const { error } = await supabase.from("user_roles").upsert(
     { user_id: userId, role },
     { onConflict: "user_id,role" }
@@ -28,7 +25,6 @@ async function ensureStaffRole(supabase: any, userId: string, role: string, firs
   if (error) console.error("[staff-invite] Role upsert error:", error);
   else console.log("[staff-invite] Role assigned:", role, "for user:", userId);
 
-  // Ensure profile exists with name from invite
   const profileData: Record<string, unknown> = { user_id: userId };
   if (firstName || lastName) {
     profileData.full_name = `${firstName || ""} ${lastName || ""}`.trim();
@@ -51,7 +47,7 @@ serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // ── VALIDATE (check token without accepting) ──
+    // ── VALIDATE ──
     if (action === "validate") {
       const { token } = body;
       if (!token) return json({ success: false, errorCode: "INVALID" });
@@ -95,7 +91,6 @@ serve(async (req) => {
         return json({ error: "Role must be coach or admin" }, 400);
       }
 
-      // Check for existing pending invite
       const { data: existing } = await supabase
         .from("staff_invites")
         .select("id")
@@ -108,7 +103,6 @@ serve(async (req) => {
         return json({ error: "A pending invite already exists for this email" }, 400);
       }
 
-      // Generate token
       const tokenBytes = new Uint8Array(16);
       crypto.getRandomValues(tokenBytes);
       const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -130,7 +124,6 @@ serve(async (req) => {
         return json({ error: "Failed to create invite" }, 500);
       }
 
-      // Send invite email
       const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
       const setupUrl = `${origin}/accept-invite?token=${token}`;
 
@@ -152,9 +145,9 @@ serve(async (req) => {
       if (emailErr) {
         console.warn("[staff-invite] inviteUserByEmail failed:", emailErr.message);
 
-        // If user already exists, send invite email directly via Lovable Email API
+        // If user already exists, queue email via enqueue_email
         if (emailErr.message?.includes("already been registered")) {
-          console.log("[staff-invite] User exists, sending direct email via Lovable API");
+          console.log("[staff-invite] User exists, queueing direct email");
           try {
             const roleName = role === "admin" ? "Manager" : "Coach";
             const html = `
@@ -170,18 +163,29 @@ serve(async (req) => {
               </div>
             `;
 
-            await sendLovableEmail({
-              to: email.toLowerCase(),
-              from: `Physique Crafters <noreply@notify.physiquecrafters.com>`,
-              sender_domain: "notify.physiquecrafters.com",
-              subject: `You're invited to join Physique Crafters as a ${roleName}`,
-              html,
-              purpose: "transactional",
-              label: "staff_invite",
+            const messageId = `staff-invite-${token}-${Date.now()}`;
+            const { error: queueError } = await supabase.rpc("enqueue_email", {
+              queue_name: "transactional_emails",
+              payload: {
+                to: email.toLowerCase(),
+                from: "Physique Crafters <noreply@notify.physiquecrafters.com>",
+                sender_domain: "notify.physiquecrafters.com",
+                subject: `You're invited to join Physique Crafters as a ${roleName}`,
+                html,
+                purpose: "transactional",
+                label: "staff_invite",
+                message_id: messageId,
+              },
             });
-            console.log("[staff-invite] Direct email sent successfully to:", email.toLowerCase());
+
+            if (queueError) {
+              console.error("[staff-invite] Queue error:", queueError);
+              emailSent = false;
+            } else {
+              console.log("[staff-invite] Email queued, message_id:", messageId);
+            }
           } catch (directErr) {
-            console.error("[staff-invite] Direct email send failed:", directErr);
+            console.error("[staff-invite] Queue exception:", directErr);
             emailSent = false;
           }
         } else {
@@ -223,7 +227,6 @@ serve(async (req) => {
         return json({ success: false, message: "Password must be at least 8 characters", errorCode: "WEAK_PASSWORD" });
       }
 
-      // Create or activate user
       let userId: string;
       const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
         email: invite.email,
@@ -252,10 +255,8 @@ serve(async (req) => {
         userId = newUser.user.id;
       }
 
-      // *** CRITICAL: Assign role BEFORE returning success ***
       await ensureStaffRole(supabase, userId, invite.role, invite.first_name, invite.last_name);
 
-      // Mark invite as used
       await supabase.from("staff_invites").update({
         used: true,
         accepted_at: new Date().toISOString(),
@@ -281,11 +282,8 @@ serve(async (req) => {
       if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
       if (staff_user_id === caller.id) return json({ error: "Cannot deactivate yourself" }, 400);
 
-      // Ban user
       await supabase.auth.admin.updateUserById(staff_user_id, { ban_duration: "876000h" });
-      // Remove roles
       await supabase.from("user_roles").delete().eq("user_id", staff_user_id);
-      // Deactivate their client assignments
       await supabase.from("coach_clients").update({ status: "deactivated" }).eq("coach_id", staff_user_id);
 
       return json({ success: true });
@@ -305,11 +303,9 @@ serve(async (req) => {
       if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
       if (staff_user_id === caller.id) return json({ error: "Cannot delete yourself" }, 400);
 
-      // Remove roles, profile, coach_clients
       await supabase.from("user_roles").delete().eq("user_id", staff_user_id);
       await supabase.from("profiles").delete().eq("user_id", staff_user_id);
       await supabase.from("coach_clients").delete().eq("coach_id", staff_user_id);
-      // Delete auth user
       await supabase.auth.admin.deleteUser(staff_user_id);
 
       return json({ success: true });

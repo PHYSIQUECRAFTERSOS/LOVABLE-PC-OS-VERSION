@@ -108,12 +108,28 @@ const InviteDashboard = ({ isAdmin = false }: Props) => {
     if (resending) return;
     setResending(invite.id);
     try {
-      await supabase.functions.invoke("resend-client-invite", {
+      const { data, error } = await supabase.functions.invoke("resend-client-invite", {
         body: { invite_id: invite.id },
       });
+      if (error) {
+        console.error("Resend error:", error);
+        const { toast } = await import("sonner");
+        toast.error("Failed to resend invite");
+        return;
+      }
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (result?.email_sent) {
+        const { toast } = await import("sonner");
+        toast.success("Invite resent successfully");
+      } else if (result?.setup_url) {
+        await navigator.clipboard.writeText(result.setup_url);
+        const { toast } = await import("sonner");
+        toast.info("Email queueing failed — setup link copied to clipboard");
+      }
       fetchInvites();
     } catch {
-      // silent
+      const { toast } = await import("sonner");
+      toast.error("Failed to resend invite");
     } finally {
       setResending(null);
     }
