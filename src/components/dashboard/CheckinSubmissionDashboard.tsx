@@ -461,15 +461,14 @@ const CheckinSubmissionDashboard = () => {
       </div>
 
       {/* ── Finished Check-In Review ── */}
-      {totalSubmitted > 0 && (
-        <Card className="mt-4 border-primary/20">
-          <CardContent className="py-3">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Finished Check-In Review</span>
-              <span className="text-xs text-muted-foreground">
-                {reviewedCount}/{totalSubmitted}
-              </span>
+      <Card className="mt-4 border-primary/20">
+        <CardContent className="py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Finished Check-In Review</span>
+            <span className="text-xs text-muted-foreground">
+              {totalSubmitted > 0 ? `${reviewedCount}/${totalSubmitted}` : "0 reviewed"}
+            </span>
             </div>
             <Progress value={reviewProgress} className="h-2 mb-3" />
             {reviewedClients.length === 0 ? (
