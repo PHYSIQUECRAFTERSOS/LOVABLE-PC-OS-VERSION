@@ -71,6 +71,8 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       .eq("id", threadId)
       .eq("coach_id", user.id);
     (window as any).__refetchCoachThreads?.();
+    // Clear push badge when reading messages
+    clearPushBadge();
   };
 
   const fetchMessages = async () => {
