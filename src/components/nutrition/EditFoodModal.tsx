@@ -258,7 +258,11 @@ const EditFoodModal = ({ open, onOpenChange, logEntry, foodName, onUpdated, onDe
             </div>
             {logEntry?.food_item_id && !isCustom && (
               <div className="flex rounded-lg overflow-hidden border border-border">
-                {(["serving", "g", "oz"] as Unit[]).map((u) => (
+                {((() => {
+                  // Hide "serving" button when label is just "g" or "ml" (redundant with grams button)
+                  const isRedundantServing = !servingLabel || servingLabel === "g" || servingLabel === "ml" || servingLabel === "gram" || servingLabel === "grams";
+                  return isRedundantServing ? ["g", "oz"] as Unit[] : ["serving", "g", "oz"] as Unit[];
+                })()).map((u) => (
                   <button
                     key={u}
                     onClick={() => {

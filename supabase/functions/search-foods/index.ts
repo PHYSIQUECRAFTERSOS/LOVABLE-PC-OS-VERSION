@@ -217,72 +217,122 @@ async function safeJson(response: Response): Promise<any> {
 }
 
 // ── User food history for boosting ─────────────────────────────────────
-interface HistoryEntry { food_id: string; log_count: number; is_favorite: boolean; last_logged_at: string; food_name?: string; food_brand?: string; }
+interface HistoryEntry { food_id: string; log_count: number; is_favorite: boolean; last_logged_at: string; food_name?: string; food_brand?: string; food_data?: any; }
 
-async function getUserFoodHistory(supabase: any, userId: string): Promise<{ byId: Map<string, HistoryEntry>; byName: Map<string, HistoryEntry> }> {
+async function getUserFoodHistory(supabase: any, userId: string): Promise<{ byId: Map<string, HistoryEntry>; byName: Map<string, HistoryEntry>; allEntries: HistoryEntry[] }> {
   const byId = new Map<string, HistoryEntry>();
   const byName = new Map<string, HistoryEntry>();
+  const allEntries: HistoryEntry[] = [];
   try {
-    // Fetch history entries
     const { data, error } = await supabase
       .from("user_food_history").select("food_id, log_count, is_favorite, last_logged_at")
       .eq("user_id", userId).order("last_logged_at", { ascending: false }).limit(500);
-    if (error || !data || data.length === 0) return { byId, byName };
+    if (error || !data || data.length === 0) return { byId, byName, allEntries };
 
-    // Get food names from food_items to enable name-based matching
     const foodIds = data.map((r: any) => r.food_id).filter(Boolean);
-    const { data: foodItems } = await supabase
-      .from("food_items").select("id, name, brand")
-      .in("id", foodIds);
+    
+    // Fetch from BOTH food_items and foods tables for complete coverage
+    const [foodItemsRes, foodsRes] = await Promise.allSettled([
+      supabase.from("food_items").select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, sodium, serving_size, serving_unit, serving_label").in("id", foodIds),
+      supabase.from("foods").select("id, name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, fiber_per_100g, sugar_per_100g, sodium_per_100g, serving_size_g, serving_unit, serving_description, source, is_branded, has_complete_macros, data_quality_score, popularity_score").in("id", foodIds),
+    ]);
 
-    const nameMap = new Map<string, { name: string; brand: string | null }>();
-    if (foodItems) {
-      foodItems.forEach((f: any) => nameMap.set(f.id, { name: f.name, brand: f.brand }));
+    const nameMap = new Map<string, { name: string; brand: string | null; foodData?: any }>();
+    if (foodItemsRes.status === "fulfilled" && foodItemsRes.value.data) {
+      foodItemsRes.value.data.forEach((f: any) => nameMap.set(f.id, { name: f.name, brand: f.brand }));
+    }
+    if (foodsRes.status === "fulfilled" && foodsRes.value.data) {
+      foodsRes.value.data.forEach((f: any) => {
+        if (!nameMap.has(f.id)) {
+          nameMap.set(f.id, { name: f.name, brand: f.brand, foodData: f });
+        }
+      });
     }
 
     data.forEach((row: HistoryEntry) => {
       byId.set(row.food_id, row);
       const info = nameMap.get(row.food_id);
       if (info) {
+        const entry = { ...row, food_name: info.name, food_brand: info.brand ?? undefined, food_data: info.foodData };
+        allEntries.push(entry);
         const key = `${(info.name ?? "").toLowerCase().trim()}::${(info.brand ?? "").toLowerCase().trim()}`;
-        // Keep highest log_count entry per name
         const existing = byName.get(key);
         if (!existing || row.log_count > existing.log_count) {
-          byName.set(key, { ...row, food_name: info.name, food_brand: info.brand ?? undefined });
+          byName.set(key, entry);
         }
       }
     });
-    return { byId, byName };
-  } catch { return { byId, byName }; }
+    return { byId, byName, allEntries };
+  } catch { return { byId, byName, allEntries }; }
 }
 
-function applyHistoryBoost(results: any[], historyData: { byId: Map<string, HistoryEntry>; byName: Map<string, HistoryEntry> } | Map<string, HistoryEntry>): any[] {
-  // Support both old Map format and new { byId, byName } format
+function applyHistoryBoost(results: any[], historyData: { byId: Map<string, HistoryEntry>; byName: Map<string, HistoryEntry>; allEntries?: HistoryEntry[] } | Map<string, HistoryEntry>, queryTokens?: string[]): any[] {
   let byId: Map<string, HistoryEntry>;
   let byName: Map<string, HistoryEntry>;
+  let allEntries: HistoryEntry[] = [];
   if (historyData instanceof Map) {
     byId = historyData;
     byName = new Map();
   } else {
     byId = historyData.byId;
     byName = historyData.byName;
+    allEntries = historyData.allEntries ?? [];
   }
   if (byId.size === 0 && byName.size === 0) return results;
 
-  return results.map(food => {
-    // Match by ID first, then fall back to name+brand matching
+  // Boost existing results that match history
+  const boosted = results.map(food => {
     let history = byId.get(food.id);
     if (!history) {
       const nameKey = `${(food.name ?? "").toLowerCase().trim()}::${(food.brand ?? "").toLowerCase().trim()}`;
       history = byName.get(nameKey);
     }
+    // Fuzzy: check if any history entry name contains food name or vice versa
+    if (!history) {
+      const foodNameLower = (food.name ?? "").toLowerCase();
+      for (const [, entry] of byName) {
+        const histName = (entry.food_name ?? "").toLowerCase();
+        if (histName && foodNameLower && (histName.includes(foodNameLower) || foodNameLower.includes(histName))) {
+          history = entry;
+          break;
+        }
+      }
+    }
     if (!history) return food;
     const daysSinceLogged = Math.floor((Date.now() - new Date(history.last_logged_at).getTime()) / 86400000);
     const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
-    // Boosted values: favorites +60, per-log ×2.5 capped at 75, recency +25
     const historyBoost = (history.is_favorite ? 60.0 : 0) + Math.min(history.log_count, 30) * 2.5 + recencyFactor * 25.0;
     return { ...food, _relevance: (food._relevance ?? 0) + historyBoost, is_recent: true, is_favorite: history.is_favorite, log_count: history.log_count };
-  }).sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
+  });
+
+  // Inject unmatched history items that match query tokens
+  if (queryTokens && queryTokens.length > 0 && allEntries.length > 0) {
+    const existingIds = new Set(boosted.map(f => f.id));
+    const existingNames = new Set(boosted.map(f => `${(f.name ?? "").toLowerCase()}::${(f.brand ?? "").toLowerCase()}`));
+
+    for (const entry of allEntries) {
+      if (!entry.food_name) continue;
+      const nameKey = `${entry.food_name.toLowerCase()}::${(entry.food_brand ?? "").toLowerCase()}`;
+      if (existingNames.has(nameKey) || existingIds.has(entry.food_id)) continue;
+
+      const nameLower = entry.food_name.toLowerCase();
+      const brandLower = (entry.food_brand ?? "").toLowerCase();
+      const allMatch = queryTokens.every(t => nameLower.includes(t) || brandLower.includes(t));
+      if (!allMatch) continue;
+
+      // Inject as a high-relevance result from foods table data if available
+      const fd = entry.food_data;
+      if (fd) {
+        const daysSinceLogged = Math.floor((Date.now() - new Date(entry.last_logged_at).getTime()) / 86400000);
+        const recencyFactor = Math.max(0, 1 - daysSinceLogged / 60);
+        const historyBoost = (entry.is_favorite ? 60.0 : 0) + Math.min(entry.log_count, 30) * 2.5 + recencyFactor * 25.0;
+        boosted.unshift({ ...fd, _relevance: 200 + historyBoost, is_recent: true, is_favorite: entry.is_favorite, log_count: entry.log_count });
+        existingNames.add(nameKey);
+      }
+    }
+  }
+
+  return boosted.sort((a, b) => (b._relevance ?? 0) - (a._relevance ?? 0));
 }
 
 // ── Synonym expansion ──────────────────────────────────────────────────
@@ -534,7 +584,7 @@ serve(async (req) => {
 
     let localFoods: any[] = localPromise.status === "fulfilled" ? localPromise.value : [];
     const synonymTerms: string[] = synonymPromise.status === "fulfilled" ? synonymPromise.value : [];
-    const historyMap = historyPromise.status === "fulfilled" ? historyPromise.value : { byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>() };
+    const historyMap = historyPromise.status === "fulfilled" ? historyPromise.value : { byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>(), allEntries: [] as HistoryEntry[] };
     const fsFoods: any[] = fsResult.status === "fulfilled" ? fsResult.value : [];
     const usdaFoods: any[] = usdaResult.status === "fulfilled" ? usdaResult.value : [];
 
@@ -596,7 +646,7 @@ serve(async (req) => {
 
     // Apply history boost BEFORE slicing so previously logged foods (e.g. "jasmine rice")
     // that ranked #30+ still get promoted to the top of results
-    const boosted = applyHistoryBoost(deduped, historyMap);
+    const boosted = applyHistoryBoost(deduped, historyMap, tokens);
     let merged = boosted.slice(0, limit);
 
     // ── Zero-result widening ─────────────────────────────────────────

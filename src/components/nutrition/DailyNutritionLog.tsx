@@ -618,9 +618,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                                   return `${count} ${si.serving_label} · `;
                                 }
                                 if (qu === "serving" && si) {
-                                  // Fallback: show serving_size + unit, e.g. "67g"
+                                  // No natural serving label — show total weight instead of "1 × 112g"
                                   const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
-                                  return `${count} × ${si.serving_size}${si.serving_unit} · `;
+                                  const totalWeight = Math.round(count * si.serving_size);
+                                  const unit = si.serving_unit === "ml" ? "ml" : "g";
+                                  return `${totalWeight}${unit} · `;
                                 }
                                 if (qd != null && qd > 0) {
                                   const displayQty = Math.round(qd * 10) / 10;
