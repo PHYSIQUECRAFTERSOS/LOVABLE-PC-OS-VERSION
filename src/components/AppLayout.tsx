@@ -43,6 +43,51 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread message count
+  const fetchUnread = useCallback(async () => {
+    if (!user) return;
+    const isCoach = role === "coach" || role === "admin";
+
+    if (isCoach) {
+      // Count threads with unread messages for coach
+      const { data: threads } = await (supabase as any)
+        .from("message_threads")
+        .select("id, updated_at, coach_last_seen_at")
+        .eq("coach_id", user.id);
+      const count = (threads || []).filter(
+        (t: any) => !t.coach_last_seen_at || new Date(t.updated_at) > new Date(t.coach_last_seen_at)
+      ).length;
+      setUnreadCount(count);
+    } else {
+      // Count unread messages for client
+      const { count } = await (supabase as any)
+        .from("thread_messages")
+        .select("id, message_threads!inner(client_id)", { count: "exact", head: true })
+        .eq("message_threads.client_id", user.id)
+        .neq("sender_id", user.id)
+        .is("read_at", null);
+      setUnreadCount(count || 0);
+    }
+  }, [user, role]);
+
+  useEffect(() => {
+    fetchUnread();
+    // Subscribe to realtime changes on thread_messages
+    const channel = supabase
+      .channel("unread-badge")
+      .on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "thread_messages" },
+        () => fetchUnread()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchUnread]);
 
   if (roleLoading || !role) {
     return (
