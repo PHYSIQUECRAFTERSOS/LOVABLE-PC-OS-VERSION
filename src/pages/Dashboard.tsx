@@ -13,7 +13,7 @@ import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import CoachPriority from "@/components/dashboard/CoachPriority";
-import WeeklyMomentumScore from "@/components/dashboard/WeeklyMomentumScore";
+import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 import ProgressWidgetGrid from "@/components/dashboard/ProgressWidgetGrid";
 import { useLoggingStreak } from "@/hooks/useLoggingStreak";
 import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
