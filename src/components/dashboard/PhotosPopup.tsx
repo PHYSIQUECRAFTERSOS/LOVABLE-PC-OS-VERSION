@@ -47,7 +47,8 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");
   const [files, setFiles] = useState<Record<Angle, File | null>>({ front: null, side: null, back: null });
   const [previews, setPreviews] = useState<Record<Angle, string | null>>({ front: null, side: null, back: null });
-  const inputRef = useRef<HTMLInputElement>(null);
+  const pickInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const currentPose = typeof step === "number" ? POSES[step] : null;
 
