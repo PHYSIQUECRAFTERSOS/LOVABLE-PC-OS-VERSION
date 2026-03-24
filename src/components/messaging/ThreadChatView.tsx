@@ -251,7 +251,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         {onBack && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden" onClick={onBack}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
@@ -298,7 +298,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
                 onEdit={handleEditMessage}
                 onDelete={handleDeleteMessage}
               >
-                <div className={cn("max-w-[70%] space-y-1")}>
+                <div className={cn("max-w-[85%] space-y-1")}>
                   <div
                     className={cn(
                       "rounded-2xl px-4 py-2 text-sm",
@@ -346,7 +346,7 @@ const ThreadChatView = ({ threadId, otherUserName, otherUserAvatar, onBack }: Th
       </div>
 
       {/* Input */}
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="flex gap-2 items-center">
           {!isRecording && <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />}
           {!isRecording && (

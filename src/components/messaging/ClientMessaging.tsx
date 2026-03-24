@@ -103,7 +103,7 @@ const ClientMessaging = () => {
   }
 
   return (
-    <div className="h-full rounded-lg border border-border bg-card overflow-hidden">
+    <div className="h-full overflow-hidden">
       <ThreadChatView threadId={threadId} otherUserName={coachName} otherUserAvatar={coachAvatar} />
     </div>
   );
