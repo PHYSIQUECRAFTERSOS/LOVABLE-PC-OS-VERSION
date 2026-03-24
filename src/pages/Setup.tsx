@@ -1,15 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ShieldCheck, Clock, AlertTriangle } from "lucide-react";
+import { Loader2, ShieldCheck, Clock, AlertTriangle, Smartphone } from "lucide-react";
 import DocumentSigningFlow from "@/components/signing/DocumentSigningFlow";
 import { TIMEOUTS } from "@/lib/performance";
 
-type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "signing" | "complete" | "error";
+type SetupStep = "loading" | "expired" | "invalid" | "already_used" | "create_password" | "signing" | "download_app" | "complete" | "error";
+
+const APP_STORE_URL = "https://apps.apple.com/ca/app/physique-crafters/id6760598660";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.physiquecrafters.app.twa";
 
 interface InviteInfo {
   first_name: string;
@@ -31,6 +34,9 @@ const ClientSetup = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const isIOS = useMemo(() => /iPhone|iPad|iPod/i.test(navigator.userAgent), []);
+  const isAndroid = useMemo(() => /Android/i.test(navigator.userAgent), []);
 
   useEffect(() => {
     if (step !== "loading") return;
@@ -127,7 +133,6 @@ const ClientSetup = () => {
           return;
         }
 
-        // Move to signing step instead of directly to onboarding
         setStep("signing");
       } else {
         const msg = result?.message || "Something went wrong.";
@@ -142,8 +147,11 @@ const ClientSetup = () => {
   };
 
   const handleSigningComplete = () => {
+    setStep("download_app");
+  };
+
+  const handleContinueToOnboarding = () => {
     setStep("complete");
-    // Poll for session, redirect to onboarding
     const startTime = Date.now();
     const checkSession = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -238,6 +246,71 @@ const ClientSetup = () => {
             tierName={inviteInfo.tier_name}
             onComplete={handleSigningComplete}
           />
+        )}
+
+        {step === "download_app" && (
+          <div className="rounded-lg border border-border bg-card p-8 text-center">
+            <Smartphone className="h-12 w-12 text-primary mx-auto mb-4" />
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
+              Download the App
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              For the best experience, download Physique Crafters on your device.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              {/* Show platform-relevant store first */}
+              {isIOS ? (
+                <>
+                  <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button variant="outline" className="w-full h-14 text-base font-semibold gap-3 border-primary/30 hover:border-primary">
+                      🍎 Download on App Store
+                    </Button>
+                  </a>
+                  <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button variant="ghost" className="w-full h-12 text-sm text-muted-foreground gap-2">
+                      ▶️ Get it on Google Play
+                    </Button>
+                  </a>
+                </>
+              ) : isAndroid ? (
+                <>
+                  <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button variant="outline" className="w-full h-14 text-base font-semibold gap-3 border-primary/30 hover:border-primary">
+                      ▶️ Get it on Google Play
+                    </Button>
+                  </a>
+                  <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button variant="ghost" className="w-full h-12 text-sm text-muted-foreground gap-2">
+                      🍎 Download on App Store
+                    </Button>
+                  </a>
+                </>
+              ) : (
+                <>
+                  <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button variant="outline" className="w-full h-14 text-base font-semibold gap-3 border-primary/30 hover:border-primary">
+                      🍎 Download on App Store
+                    </Button>
+                  </a>
+                  <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className="block">
+                    <Button variant="outline" className="w-full h-14 text-base font-semibold gap-3 border-primary/30 hover:border-primary">
+                      ▶️ Get it on Google Play
+                    </Button>
+                  </a>
+                </>
+              )}
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <Button onClick={handleContinueToOnboarding} className="w-full">
+                Continue Setup →
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Already have the app? Tap continue to finish your profile setup.
+              </p>
+            </div>
+          </div>
         )}
 
         {step === "complete" && (
