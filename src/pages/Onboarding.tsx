@@ -20,6 +20,8 @@ import OnboardingHealthSync from "@/components/onboarding/OnboardingHealthSync";
 import OnboardingWaiver from "@/components/onboarding/OnboardingWaiver";
 import OnboardingDisclaimer from "@/components/onboarding/OnboardingDisclaimer";
 import OnboardingSummary from "@/components/onboarding/OnboardingSummary";
+import OnboardingProfilePhoto from "@/components/onboarding/OnboardingProfilePhoto";
+import OnboardingHealthSyncFull from "@/components/onboarding/OnboardingHealthSyncFull";
 
 export interface OnboardingData {
   // Goals & Metrics (existing)
