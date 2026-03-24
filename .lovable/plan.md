@@ -1,57 +1,26 @@
 
 
-# Plan: Trainerize-Style "+" FAB with Quick Schedule Actions
+# Plan: Fix Photos, Dashboard Sync, and Body Stats Visual Polish
 
-## Summary
+## 4 Issues to Fix
 
-Replace the current QuickLogFAB (which only logs weight/steps) with a Trainerize-style FAB that opens a radial menu with four actions: **Workout, Cardio, Photos, Body Stats**. Each action opens a scheduling drawer that defaults to today but includes a calendar picker to schedule for a different date. Events are inserted into `calendar_events` just like the coach CalendarTab does.
+### 1. Remove guide lines/labels from photo poses
+**File: `src/components/dashboard/PhotosPopup.tsx`**
 
-## Visual Design
+Delete lines 204-212 — the three overlay divs that render "Eyes" line, "Hip" line, and the vertical center line over the guide images. Also update the instruction text (line 222-224) to say "Match the pose shown above" instead of referencing "guiding lines". The uploaded pose images will display cleanly without any overlays.
 
-```text
-        [X] ← closes/rotates back
-         |
-   ┌─────────────┐
-   │ 🏋 Workout   │  (blue icon, rounded pill)
-   │ 🏃 Cardio    │  (green icon)
-   │ 📸 Photos    │  (orange/gold icon)
-   │ 📊 Body Stats│  (teal icon)
-   └─────────────┘
-```
+### 2. "PICK PHOTO" should open photo library, not camera
+**File: `src/components/dashboard/PhotosPopup.tsx`**
 
-When tapping an action, a Drawer opens:
+The problem: both "PICK PHOTO" and "TAKE NOW" buttons click the same `<input>` which has `capture="environment"` — this forces the camera on mobile.
 
-```text
-┌──────────────────────────────────┐
-│  Schedule Workout     📅 [Today] │  ← tap calendar icon to pick date
-│                                  │
-│  [Select workout dropdown]       │  ← for workout: shows assigned workouts
-│  [Select cardio type dropdown]   │  ← for cardio: Running/Walking/etc.
-│  (Photos/Body Stats: just date)  │
-│                                  │
-│  [Schedule]  [Cancel]            │
-└──────────────────────────────────┘
-```
+Fix: use **two separate file inputs**:
+- `pickInputRef`: `<input type="file" accept="image/*">` (no `capture` attribute → opens photo library)
+- `cameraInputRef`: `<input type="file" accept="image/*" capture="environment">` (opens camera)
 
-## Changes
+Wire "PICK PHOTO" to `pickInputRef` and "TAKE NOW" to `cameraInputRef`.
 
-### 1. Rewrite `QuickLogFAB.tsx` → Trainerize-style FAB
-
+### 3. FAB-scheduled events don't appear on dashboard instantly
 **File: `src/components/dashboard/QuickLogFAB.tsx`**
 
-Complete rewrite:
-- Four actions with colored circular icons matching the app palette:
-  - Workout (blue, `Dumbbell` icon)
-  - Cardio (green, `Heart`/`Activity` icon)
-  - Photos (gold/orange, `Camera` icon)
-  - Body Stats (teal, `Activity`/`Scale` icon)
-- Tapping an action opens a Drawer with:
-  - Header showing action name + calendar icon button (top-right)
-  - Default date: today, displayed as "Today" or formatted date
-  - Calendar picker: tapping the calendar icon opens a `Popover` with `Calendar` component to pick a different date
-  - **Workout**: loads the client's assigned workouts from `program_workouts` via `client_program_assignments`, shows a dropdown to pick one
-  - **Cardio**: shows a dropdown of cardio types (Running, Walking, Cycling, Rowing, Elliptical, Stair Climbing, etc.) with optional notes field for incline/speed/duration
-  - **Photos**: simple confirmation — schedules a "Take Progress Photos" event
-  - **Body Stats**: simple confirmation — schedules a "Track Body Stats" event
-- On "Schedule" button press:
-  - Inserts into `calendar_events` with `user_id:
+The issue
