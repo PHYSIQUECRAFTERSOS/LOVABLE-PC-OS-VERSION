@@ -584,7 +584,7 @@ serve(async (req) => {
 
     let localFoods: any[] = localPromise.status === "fulfilled" ? localPromise.value : [];
     const synonymTerms: string[] = synonymPromise.status === "fulfilled" ? synonymPromise.value : [];
-    const historyMap = historyPromise.status === "fulfilled" ? historyPromise.value : { byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>() };
+    const historyMap = historyPromise.status === "fulfilled" ? historyPromise.value : { byId: new Map<string, HistoryEntry>(), byName: new Map<string, HistoryEntry>(), allEntries: [] as HistoryEntry[] };
     const fsFoods: any[] = fsResult.status === "fulfilled" ? fsResult.value : [];
     const usdaFoods: any[] = usdaResult.status === "fulfilled" ? usdaResult.value : [];
 
