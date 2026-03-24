@@ -952,9 +952,9 @@ const CoachCommandCenter = () => {
                 </div>
               </>
             );
-          })()}
-        </div>
-      )}
+          })()
+        )}
+      </div>
 
       {/* ─── SECTION 8: Compliance Snapshot (moved to bottom) ─── */}
       <div>
