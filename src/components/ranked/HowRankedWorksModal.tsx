@@ -103,8 +103,8 @@ const HowRankedWorksModal = () => {
                       className="flex items-center gap-3 rounded-lg px-3 py-2.5 border border-border/50"
                       style={{ borderLeftColor: cfg.color, borderLeftWidth: 3 }}
                     >
-                      <div className="h-12 w-12 shrink-0 flex items-center justify-center overflow-hidden">
-                        <TierBadge tier={tier} size={100} />
+                      <div className="h-24 w-24 shrink-0 flex items-center justify-center overflow-hidden">
+                        <TierBadge tier={tier} size={200} />
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-semibold" style={{ color: cfg.color }}>

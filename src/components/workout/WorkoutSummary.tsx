@@ -117,10 +117,10 @@ const XPSection = ({ rankData, rankProgress }: { rankData: RankData; rankProgres
       {/* Current Rank */}
       <div className="flex items-center gap-3">
         <div
-          className="w-10 h-10 flex items-center justify-center rounded-full animate-glow-pulse"
+          className="w-20 h-20 flex items-center justify-center rounded-full animate-glow-pulse"
           style={{ animationDelay: "3800ms" }}
         >
-          <TierBadge tier={rankData.tier} size={40} />
+          <TierBadge tier={rankData.tier} size={80} />
         </div>
         <div className="flex-1">
           <p className="text-sm font-bold" style={{ color: getTierColor(rankData.tier) }}>
