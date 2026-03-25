@@ -95,9 +95,12 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
-      supabase
+      (supabase as any)
         .from("meal_plans")
-        .select("id, name, day_type, day_type_label, sort_order")
+        .select("id, name, day_type, day_type_label, sort_order, source_template_id")
+        .eq("client_id", clientId)
+        .eq("is_template", false)
+        .order("sort_order"),
         .eq("client_id", clientId)
         .eq("is_template", false)
         .order("sort_order"),
