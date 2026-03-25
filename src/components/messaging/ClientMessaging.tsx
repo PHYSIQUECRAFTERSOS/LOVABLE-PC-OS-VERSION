@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageSquare, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import ThreadChatView from "./ThreadChatView";
-import UserAvatar from "@/components/profile/UserAvatar";
 
 const ClientMessaging = () => {
   const { user } = useAuth();
@@ -17,7 +16,6 @@ const ClientMessaging = () => {
     const init = async () => {
       if (!user) return;
 
-      // Find assigned coach
       const { data: assignment } = await supabase
         .from("coach_clients")
         .select("coach_id")
@@ -34,7 +32,6 @@ const ClientMessaging = () => {
 
       const coachId = assignment.coach_id;
 
-      // Fetch coach profile using user_id (coach_clients.coach_id = auth user id = profiles.user_id)
       const { data: coachProfile } = await supabase
         .from("profiles")
         .select("full_name, avatar_url")
@@ -44,7 +41,6 @@ const ClientMessaging = () => {
       setCoachName(coachProfile?.full_name?.trim() || "Your Coach");
       setCoachAvatar(coachProfile?.avatar_url || null);
 
-      // Find or create thread
       const { data: existingThread } = await supabase
         .from("message_threads")
         .select("id")
@@ -55,15 +51,12 @@ const ClientMessaging = () => {
       if (existingThread) {
         setThreadId(existingThread.id);
       } else {
-        // Auto-create thread
         const { data: newThread } = await supabase
           .from("message_threads")
           .insert({ coach_id: coachId, client_id: user.id })
           .select("id")
           .single();
-        if (newThread) {
-          setThreadId(newThread.id);
-        }
+        if (newThread) setThreadId(newThread.id);
       }
 
       setLoading(false);
@@ -103,8 +96,13 @@ const ClientMessaging = () => {
   }
 
   return (
-    <div className="h-full overflow-hidden">
-      <ThreadChatView threadId={threadId} otherUserName={coachName} otherUserAvatar={coachAvatar} />
+    <div className="h-full flex flex-col overflow-hidden">
+      <ThreadChatView
+        threadId={threadId}
+        otherUserName={coachName}
+        otherUserAvatar={coachAvatar}
+        showBackToDashboard
+      />
     </div>
   );
 };
