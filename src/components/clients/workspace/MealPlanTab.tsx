@@ -101,9 +101,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         .eq("client_id", clientId)
         .eq("is_template", false)
         .order("sort_order"),
-        .eq("client_id", clientId)
-        .eq("is_template", false)
-        .order("sort_order"),
     ]);
 
     setUploads(uploadsRes.data || []);
