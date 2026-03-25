@@ -81,6 +81,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const [newDayType, setNewDayType] = useState("rest");
   const [newDayTypeLabel, setNewDayTypeLabel] = useState("Rest Day");
   const [builderKey, setBuilderKey] = useState(0);
+  const [detachConfirmId, setDetachConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
