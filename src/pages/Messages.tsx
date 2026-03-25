@@ -13,9 +13,11 @@ const Messages = () => {
   const isCoach = role === "coach" || role === "admin";
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-slide-in-right">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-slide-in-right" style={{ backgroundColor: 'hsl(0 0% 7%)' }}>
+      {/* Safe area top fill */}
+      <div className="w-full bg-background" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }} />
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border px-4 pt-[env(safe-area-inset-top)] min-h-[56px]">
+      <div className="flex items-center gap-3 border-b border-border px-4 min-h-[56px]">
         <Button
           variant="ghost"
           size="icon"
