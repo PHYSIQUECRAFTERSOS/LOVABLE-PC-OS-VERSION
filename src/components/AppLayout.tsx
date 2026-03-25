@@ -250,7 +250,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <SheetContent side="right" className="w-64 bg-card p-0">
                 <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                 <nav className="flex flex-col h-full max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))]">
-                  <div className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+                  <div className="flex-1 px-3 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pb-6 space-y-1 overflow-y-auto">
                     {sidebarItems.map((item) => renderNavLink(item, () => setMobileOpen(false)))}
                     {secondaryItems.length > 0 && (
                       <>

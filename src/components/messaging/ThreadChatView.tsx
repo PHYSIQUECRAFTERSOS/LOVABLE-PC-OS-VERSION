@@ -230,7 +230,7 @@ const ThreadChatView = ({
   }, [threadId]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (!initialLoadRef.current) scrollToBottom(false);
   }, [messages]);
 
   const handleSend = async () => {
