@@ -1,6 +1,6 @@
 import { ChallengeTier } from "@/hooks/useChallenges";
 import { Progress } from "@/components/ui/progress";
-import TierIcon from "./TierIcon";
+import StarTierIcon from "./StarTierIcon";
 
 interface Props {
   tiers: ChallengeTier[];
