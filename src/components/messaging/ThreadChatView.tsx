@@ -67,9 +67,16 @@ const ThreadChatView = ({
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const initialLoadRef = useRef(true);
 
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (instant = false) => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({
+          behavior: instant ? "auto" : "smooth",
+        });
+      }, 50);
+    });
   };
 
   const handleBackAction = () => {
@@ -134,7 +141,11 @@ const ThreadChatView = ({
   };
 
   useEffect(() => {
-    fetchMessages().then(() => fetchReactions());
+    fetchMessages().then(() => {
+      scrollToBottom(true);
+      initialLoadRef.current = false;
+      fetchReactions();
+    });
     markThreadSeen();
 
     if (user) {
@@ -219,7 +230,7 @@ const ThreadChatView = ({
   }, [threadId]);
 
   useEffect(() => {
-    scrollToBottom();
+    if (!initialLoadRef.current) scrollToBottom(false);
   }, [messages]);
 
   const handleSend = async () => {
