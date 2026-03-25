@@ -9,6 +9,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -32,6 +42,8 @@ import {
   Plus,
   Pencil,
   UtensilsCrossed,
+  Unlink,
+  Link,
 } from "lucide-react";
 import { format } from "date-fns";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
@@ -46,6 +58,7 @@ interface PlanCard {
   totalProtein: number;
   totalCarbs: number;
   totalFat: number;
+  source_template_id: string | null;
 }
 
 const DAY_TYPE_OPTIONS = [
@@ -68,6 +81,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const [newDayType, setNewDayType] = useState("rest");
   const [newDayTypeLabel, setNewDayTypeLabel] = useState("Rest Day");
   const [builderKey, setBuilderKey] = useState(0);
+  const [detachConfirmId, setDetachConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -81,9 +95,9 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
-      supabase
+      (supabase as any)
         .from("meal_plans")
-        .select("id, name, day_type, day_type_label, sort_order")
+        .select("id, name, day_type, day_type_label, sort_order, source_template_id")
         .eq("client_id", clientId)
         .eq("is_template", false)
         .order("sort_order"),
@@ -126,6 +140,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         totalProtein: Math.round(totals.protein / dayCount),
         totalCarbs: Math.round(totals.carbs / dayCount),
         totalFat: Math.round(totals.fat / dayCount),
+        source_template_id: (plan as any).source_template_id || null,
       });
     }
 
@@ -156,6 +171,20 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
       toast({ title: "Plan removed" });
       loadAll();
       if (editingPlanDayType) setEditingPlanDayType(null);
+    }
+  };
+
+  const handleDetachPlan = async (planId: string) => {
+    const { error } = await (supabase as any)
+      .from("meal_plans")
+      .update({ source_template_id: null })
+      .eq("id", planId);
+    if (error) {
+      toast({ title: "Error detaching plan", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Plan detached from master template" });
+      setDetachConfirmId(null);
+      loadAll();
     }
   };
 
@@ -297,13 +326,31 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
               <Card key={card.id} className="border-border hover:border-primary/30 transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <Badge variant="secondary" className="text-[10px] mb-1">
-                        {card.day_type_label}
-                      </Badge>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {card.day_type_label}
+                        </Badge>
+                        {card.source_template_id ? (
+                          <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary">
+                            <Link className="h-2.5 w-2.5" /> Linked
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="text-sm font-semibold text-foreground truncate">{card.name}</p>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
+                      {card.source_template_id && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          title="Detach from master template"
+                          onClick={() => setDetachConfirmId(card.id)}
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -489,6 +536,23 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Detach Confirmation */}
+      <AlertDialog open={!!detachConfirmId} onOpenChange={(open) => !open && setDetachConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Detach from Master Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unlink this client's meal plan from the master template. Future edits to either plan will not affect the other.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => detachConfirmId && handleDetachPlan(detachConfirmId)}>
+              Detach
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

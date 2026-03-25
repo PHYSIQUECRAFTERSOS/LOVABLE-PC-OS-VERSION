@@ -3810,6 +3810,7 @@ export type Database = {
           is_template: boolean
           name: string
           sort_order: number
+          source_template_id: string | null
           target_calories: number | null
           target_carbs: number | null
           target_fat: number | null
@@ -3830,6 +3831,7 @@ export type Database = {
           is_template?: boolean
           name: string
           sort_order?: number
+          source_template_id?: string | null
           target_calories?: number | null
           target_carbs?: number | null
           target_fat?: number | null
@@ -3850,13 +3852,22 @@ export type Database = {
           is_template?: boolean
           name?: string
           sort_order?: number
+          source_template_id?: string | null
           target_calories?: number | null
           target_carbs?: number | null
           target_fat?: number | null
           target_protein?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "meal_plans_source_template_id_fkey"
+            columns: ["source_template_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       message_reactions: {
         Row: {

@@ -1,0 +1,1 @@
+UPDATE public.meal_plans SET source_template_id = '9de58283-8d91-402e-81fe-66dfd6ef490f' WHERE id = '987cf261-5c95-4325-b909-826bbb24c7d5' AND source_template_id IS NULL;

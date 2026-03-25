@@ -1,0 +1,1 @@
+ALTER TABLE public.meal_plans ADD COLUMN IF NOT EXISTS source_template_id uuid REFERENCES public.meal_plans(id) ON DELETE SET NULL DEFAULT NULL;
