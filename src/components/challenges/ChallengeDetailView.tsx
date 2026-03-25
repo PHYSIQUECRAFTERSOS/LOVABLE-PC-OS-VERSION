@@ -31,7 +31,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const { user, role } = useAuth();
   const direction = challenge?.challenge_type === "custom" ? challenge.config?.direction : undefined;
   const { data: participants } = useChallengeParticipants(challenge?.id || null, direction);
-  const { data: challengeTiers } = useChallengeTiers(challenge?.id || null);
+  
   const { data: scoringRules } = useChallengeScoringRules(challenge?.id || null);
   const joinChallenge = useJoinChallenge();
   const removeParticipant = useRemoveChallengeParticipant();
