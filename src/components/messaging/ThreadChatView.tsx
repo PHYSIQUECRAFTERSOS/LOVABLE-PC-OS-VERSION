@@ -141,7 +141,11 @@ const ThreadChatView = ({
   };
 
   useEffect(() => {
-    fetchMessages().then(() => fetchReactions());
+    fetchMessages().then(() => {
+      scrollToBottom(true);
+      initialLoadRef.current = false;
+      fetchReactions();
+    });
     markThreadSeen();
 
     if (user) {
