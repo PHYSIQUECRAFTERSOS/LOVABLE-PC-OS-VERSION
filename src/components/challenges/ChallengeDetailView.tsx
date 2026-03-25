@@ -156,14 +156,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
             </div>
           )}
 
-          {/* Tier Progress for current user */}
-          {myParticipant && challengeTiers && challengeTiers.length > 0 && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="pt-4 pb-3">
-                <ChallengeTierProgress tiers={challengeTiers} currentPoints={myPoints} />
-              </CardContent>
-            </Card>
-          )}
 
           {/* My Stats */}
           {myParticipant && (
