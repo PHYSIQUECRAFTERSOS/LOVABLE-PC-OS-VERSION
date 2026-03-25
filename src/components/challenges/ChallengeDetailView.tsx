@@ -238,7 +238,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                   const initials = (p.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   const isMe = p.user_id === user?.id;
                   const isTop3 = i < 3;
-                  const pTier = getParticipantTier(Number(p.current_value));
                   return (
                     <div
                       key={p.id}
@@ -253,11 +252,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <span className="text-sm font-medium text-foreground truncate block">{p.full_name}</span>
-                        {pTier && (
-                          <span className="text-[9px] font-medium flex items-center gap-1" style={{ color: pTier.color }}>
-                            <StarTierIcon name={pTier.name} size={12} /> {pTier.name}
-                          </span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-primary">
