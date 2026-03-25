@@ -1,6 +1,6 @@
 import { ChallengeTier } from "@/hooks/useChallenges";
 import { Progress } from "@/components/ui/progress";
-import TierIcon from "./TierIcon";
+import StarTierIcon from "./StarTierIcon";
 
 interface Props {
   tiers: ChallengeTier[];
@@ -27,7 +27,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
           className="h-14 w-14 shrink-0 rounded-full flex items-center justify-center border-2 overflow-hidden"
           style={{ borderColor: currentTier.color, backgroundColor: `${currentTier.color}15` }}
         >
-          <TierIcon name={currentTier.name} size={120} />
+          <StarTierIcon name={currentTier.name} size={22} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
             </div>
           )}
           {!nextTier && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">👑 Maximum tier reached!</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">⭐ 5-Star Legend!</p>
           )}
         </div>
       </div>
@@ -69,7 +69,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
                     opacity: isActive ? 1 : 0.4,
                   }}
                 >
-                  <TierIcon name={tier.name} size={90} />
+                  <StarTierIcon name={tier.name} size={14} />
                 </div>
                 <span
                   className="text-[9px] mt-1 font-medium"

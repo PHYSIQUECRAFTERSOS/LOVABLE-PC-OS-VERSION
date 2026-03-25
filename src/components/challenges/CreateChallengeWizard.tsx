@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Trophy, Footprints, SlidersHorizontal, ChevronLeft, ChevronRight, Check, Sparkles, FileText, PlusCircle, Dumbbell, Target, Flame, Zap } from "lucide-react";
 import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate, insertDefaultChallengeTiersAndRules, DEFAULT_CHALLENGE_TIERS, DEFAULT_SCORING_RULES, type ChallengeTemplate } from "@/hooks/useChallenges";
-import TierIcon from "./TierIcon";
+import StarTierIcon from "./StarTierIcon";
 import { supabase } from "@/integrations/supabase/client";
 import { useAllClients } from "@/hooks/useCulture";
 import { useAuth } from "@/hooks/useAuth";
@@ -572,7 +572,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                       className="h-12 w-12 rounded-full flex items-center justify-center border-2 shrink-0 overflow-hidden"
                       style={{ borderColor: tier.color, backgroundColor: `${tier.color}15` }}
                     >
-                      <TierIcon name={tier.name} size={100} />
+                      <StarTierIcon name={tier.name} size={18} />
                     </div>
                     <Input
                       value={tier.name}
@@ -737,7 +737,7 @@ const CreateChallengeWizard = ({ open, onOpenChange, onChallengeCreated }: Props
                 <div className="flex items-center gap-2 flex-wrap">
                   {challengeTiers.map((t) => (
                     <div key={t.name} className="flex items-center gap-1 text-xs">
-                      <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden shrink-0"><TierIcon name={t.name} size={80} /></span>
+                      <StarTierIcon name={t.name} size={12} />
                       <span style={{ color: t.color }} className="font-medium">{t.name}</span>
                       <span className="text-muted-foreground">({t.min_points}+)</span>
                     </div>
