@@ -11,7 +11,6 @@ import { Progress } from "@/components/ui/progress";
 import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame, UserMinus } from "lucide-react";
 import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules, useRemoveChallengeParticipant } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
-import ChallengeTierProgress from "./ChallengeTierProgress";
 import StarTierIcon from "./StarTierIcon";
 
 interface Props {

@@ -6,9 +6,13 @@ interface StarTierIconProps {
   className?: string;
 }
 
+const LEGACY_MAP: Record<string, number> = {
+  bronze: 1, silver: 2, gold: 3, platinum: 4, diamond: 5,
+};
+
 const StarTierIcon = ({ name, size = 16, className = "" }: StarTierIconProps) => {
-  const match = name?.match(/(\d)/);
-  const count = Math.min(Math.max(parseInt(match?.[1] || "1"), 1), 5);
+  const parsed = parseInt(name?.match(/(\d)/)?.[1] || "");
+  const count = Math.min(Math.max(parsed || LEGACY_MAP[name?.toLowerCase()] || 1, 1), 5);
 
   return (
     <span className={`inline-flex items-center gap-0.5 ${className}`}>
