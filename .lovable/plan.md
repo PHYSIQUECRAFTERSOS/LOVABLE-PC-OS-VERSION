@@ -1,58 +1,75 @@
 
 
-# Fix: Hamburger Menu Safe Area + Messages Auto-Scroll to Newest
+# Fix: Daily XP Evaluation Shows 0 XP + Popup Improvements
 
-## Problem 1: Dynamic Island blocking "Dashboard" text
-The hamburger Sheet menu (`SheetContent`) starts its content at `py-6` (24px) which is not enough on iPhone 16 Pro where the Dynamic Island / selfie camera notch extends ~59px into the content area. The nav items need to be pushed below the safe area.
+## Root Cause
 
-## Problem 2: Messages don't scroll to newest
-The chat loads messages in ascending order and calls `scrollToBottom()` via `useEffect([messages])`, but this fires before the DOM has fully rendered the message elements. The `behavior: "smooth"` animation can also fail on initial load. Need an immediate scroll on first load and a small delay to ensure DOM paint.
+The `DailyRewardsPopup` queries `xp_transactions` filtered by `transaction_type = "daily_eval"`. But in the edge function, individual nutrition rewards use distinct types (`calories_on_target`, `protein_on_target`, etc.). The `daily_eval` type is only assigned to the **0 XP marker** transaction inserted for dedup purposes. So the popup always finds exactly one row with 0 XP.
 
----
+## Edge Function Logic Audit
+
+The edge function logic itself is **correct** -- it properly checks nutrition targets, applies ±100 cal / ±5g thresholds, and inserts individual XP transactions. The problem is purely in the client-side popup query.
 
 ## Changes
 
-### 1. Add safe-area top padding to hamburger Sheet (`AppLayout.tsx`)
+### 1. Fix DailyRewardsPopup query (`src/components/ranked/DailyRewardsPopup.tsx`)
 
-**Line 252-253**: Add `pt-[env(safe-area-inset-top)]` to the nav container inside the Sheet, pushing all menu items below the Dynamic Island. Change from `py-6` to `pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6` so there's always 24px *below* the safe area.
+Instead of filtering by `transaction_type = "daily_eval"`, query ALL transactions that were inserted during the daily evaluation. Use the `daily_eval` marker to find the timestamp, then fetch sibling transactions within the same minute window. Alternatively (simpler and more reliable): query by the specific transaction types the eval creates:
 
-Also move the Sheet close button down by the same amount -- update the `SheetContent` className to include safe-area-aware top padding, or override the close button position.
+- Remove `.eq("transaction_type", "daily_eval")`
+- Add `.in("transaction_type", ["daily_eval", "calories_on_target", "protein_on_target", "carbs_on_target", "fats_on_target", "no_nutrition", "calories_off_300", "missed_workout", "missed_cardio", "missed_checkin", "decay_per_day"])`
+- Filter OUT the 0 XP `daily_eval` marker from the breakdown display (keep it only as a signal that eval ran)
+- Fix the date range: the daily eval runs at 6 AM UTC evaluating **yesterday**, so its `created_at` is **today** (the day it ran), not yesterday. Currently querying yesterday's `created_at` range which may miss results depending on timezone. Fix to query by `description ILIKE '%{yesterday}%'` to match the eval date embedded in descriptions.
 
-### 2. Fix auto-scroll to newest messages (`ThreadChatView.tsx`)
+### 2. Show popup only once per day on first login (`src/components/ranked/DailyRewardsPopup.tsx`)
 
-**Line 71-73** (`scrollToBottom`): Use `requestAnimationFrame` + a small `setTimeout` to ensure DOM has painted before scrolling. On initial load, use `behavior: "auto"` (instant) instead of `"smooth"` so the user immediately sees the newest messages without a visible scroll animation.
+- Change `storageKey` logic: use today's date (not yesterday) as the "seen" marker since we're showing yesterday's results on today's login
+- Keep existing `localStorage` guard so it only shows once per day
 
-**Line 221-223**: Track whether this is the initial load. On first render, scroll instantly; on subsequent message additions, scroll smoothly.
+### 3. Improve breakdown labels
 
-### Technical Details
+Add emoji prefixes to match the user's documented XP table:
+- "🎯 Calories on target" 
+- "🥩 Protein on target"
+- "🍚 Carbs on target"  
+- "🥑 Fats on target"
+- "🚫 No nutrition logged"
+- "⚠️ Calories off by 300+"
+- "❌ Missed workout"
+- "❌ Missed cardio"
 
+### 4. Popup UX improvements
+
+- Change overlay title from "Daily Nutrition Rewards" to "Daily XP Summary" since it includes workout/cardio penalties too
+- Show net XP with color: green for positive, red for negative, neutral for zero
+- Add a subtitle showing which date was evaluated (e.g., "Results for Mar 24")
+
+## Technical Details
+
+```typescript
+// DailyRewardsPopup.tsx - Fixed query
+const EVAL_TX_TYPES = [
+  "calories_on_target", "protein_on_target", "carbs_on_target", 
+  "fats_on_target", "no_nutrition", "calories_off_300",
+  "missed_workout", "missed_cardio", "missed_checkin", "decay_per_day",
+  "daily_eval" // marker - used to confirm eval ran
+];
+
+// Query by description containing the eval date (reliable regardless of timezone)
+const { data } = await db
+  .from("xp_transactions")
+  .select("transaction_type, xp_amount, description")
+  .eq("user_id", user.id)
+  .in("transaction_type", EVAL_TX_TYPES)
+  .ilike("description", `%${yesterday}%`);
+
+// Filter out the 0 XP marker from display
+const displayItems = (data || []).filter(
+  (tx) => tx.transaction_type !== "daily_eval"
+);
 ```
-// AppLayout.tsx - Sheet nav container
-<div className="flex-1 px-3 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pb-6 space-y-1 overflow-y-auto">
 
-// ThreadChatView.tsx - improved scroll
-const initialLoadRef = useRef(true);
-
-const scrollToBottom = (instant = false) => {
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ 
-        behavior: instant ? "auto" : "smooth" 
-      });
-    }, 50);
-  });
-};
-
-// After fetchMessages resolves:
-fetchMessages().then(() => {
-  scrollToBottom(true);  // instant on first load
-  initialLoadRef.current = false;
-  fetchReactions();
-});
-
-// On subsequent message changes:
-useEffect(() => {
-  if (!initialLoadRef.current) scrollToBottom(false);
-}, [messages]);
-```
+### Files to edit
+- `src/components/ranked/DailyRewardsPopup.tsx` -- fix query + labels + once-per-day logic
+- `src/components/ranked/XPCelebrationOverlay.tsx` -- update title to "Daily XP Summary", add eval date subtitle
 
