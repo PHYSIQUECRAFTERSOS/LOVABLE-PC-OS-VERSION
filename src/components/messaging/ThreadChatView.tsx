@@ -67,9 +67,16 @@ const ThreadChatView = ({
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const initialLoadRef = useRef(true);
 
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (instant = false) => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({
+          behavior: instant ? "auto" : "smooth",
+        });
+      }, 50);
+    });
   };
 
   const handleBackAction = () => {
