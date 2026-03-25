@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Trophy, Footprints, SlidersHorizontal, ChevronLeft, ChevronRight, Check, Sparkles, FileText, PlusCircle, Dumbbell, Target, Flame, Zap } from "lucide-react";
 import { useCreateChallenge, useBadges, useCreateBadge, useChallengeTemplates, useSaveTemplate, insertDefaultChallengeTiersAndRules, DEFAULT_CHALLENGE_TIERS, DEFAULT_SCORING_RULES, type ChallengeTemplate } from "@/hooks/useChallenges";
-import TierIcon from "./TierIcon";
+import StarTierIcon from "./StarTierIcon";
 import { supabase } from "@/integrations/supabase/client";
 import { useAllClients } from "@/hooks/useCulture";
 import { useAuth } from "@/hooks/useAuth";
