@@ -174,6 +174,20 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
   };
 
+  const handleDetachPlan = async (planId: string) => {
+    const { error } = await (supabase as any)
+      .from("meal_plans")
+      .update({ source_template_id: null })
+      .eq("id", planId);
+    if (error) {
+      toast({ title: "Error detaching plan", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Plan detached from master template" });
+      setDetachConfirmId(null);
+      loadAll();
+    }
+  };
+
   // PDF handlers
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
