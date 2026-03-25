@@ -326,13 +326,31 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
               <Card key={card.id} className="border-border hover:border-primary/30 transition-colors">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <Badge variant="secondary" className="text-[10px] mb-1">
-                        {card.day_type_label}
-                      </Badge>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {card.day_type_label}
+                        </Badge>
+                        {card.source_template_id ? (
+                          <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary">
+                            <Link className="h-2.5 w-2.5" /> Linked
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="text-sm font-semibold text-foreground truncate">{card.name}</p>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 shrink-0">
+                      {card.source_template_id && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          title="Detach from master template"
+                          onClick={() => setDetachConfirmId(card.id)}
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
