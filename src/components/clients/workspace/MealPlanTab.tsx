@@ -58,6 +58,7 @@ interface PlanCard {
   totalProtein: number;
   totalCarbs: number;
   totalFat: number;
+  source_template_id: string | null;
 }
 
 const DAY_TYPE_OPTIONS = [
