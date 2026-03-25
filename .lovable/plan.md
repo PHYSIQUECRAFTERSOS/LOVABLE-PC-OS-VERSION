@@ -1,75 +1,70 @@
 
 
-# Fix: Daily XP Evaluation Shows 0 XP + Popup Improvements
+# Rebrand Challenge Tiers to Star Ratings (with Custom Star Asset)
 
-## Root Cause
-
-The `DailyRewardsPopup` queries `xp_transactions` filtered by `transaction_type = "daily_eval"`. But in the edge function, individual nutrition rewards use distinct types (`calories_on_target`, `protein_on_target`, etc.). The `daily_eval` type is only assigned to the **0 XP marker** transaction inserted for dedup purposes. So the popup always finds exactly one row with 0 XP.
-
-## Edge Function Logic Audit
-
-The edge function logic itself is **correct** -- it properly checks nutrition targets, applies ±100 cal / ±5g thresholds, and inserts individual XP transactions. The problem is purely in the client-side popup query.
+## Overview
+Replace the Bronze/Silver/Gold/Platinum/Diamond tier system in Challenges with a 5-star rating system, using the uploaded golden star image instead of emoji stars. This completely separates the Challenge progression visuals from the PC Ranked system.
 
 ## Changes
 
-### 1. Fix DailyRewardsPopup query (`src/components/ranked/DailyRewardsPopup.tsx`)
+### 1. Copy uploaded star image to project
+- Copy `user-uploads://Radiant_golden_star_with_swirling_vortex.png` → `src/assets/challenge-star.png`
 
-Instead of filtering by `transaction_type = "daily_eval"`, query ALL transactions that were inserted during the daily evaluation. Use the `daily_eval` marker to find the timestamp, then fetch sibling transactions within the same minute window. Alternatively (simpler and more reliable): query by the specific transaction types the eval creates:
+### 2. Update default tier presets (`src/hooks/useChallenges.ts`)
 
-- Remove `.eq("transaction_type", "daily_eval")`
-- Add `.in("transaction_type", ["daily_eval", "calories_on_target", "protein_on_target", "carbs_on_target", "fats_on_target", "no_nutrition", "calories_off_300", "missed_workout", "missed_cardio", "missed_checkin", "decay_per_day"])`
-- Filter OUT the 0 XP `daily_eval` marker from the breakdown display (keep it only as a signal that eval ran)
-- Fix the date range: the daily eval runs at 6 AM UTC evaluating **yesterday**, so its `created_at` is **today** (the day it ran), not yesterday. Currently querying yesterday's `created_at` range which may miss results depending on timezone. Fix to query by `description ILIKE '%{yesterday}%'` to match the eval date embedded in descriptions.
+Replace `DEFAULT_CHALLENGE_TIERS` (lines 641-647):
 
-### 2. Show popup only once per day on first login (`src/components/ranked/DailyRewardsPopup.tsx`)
+| Old | New | Color |
+|-----|-----|-------|
+| Bronze (0+) | 1 Star | #FFD700 |
+| Silver (26+) | 2 Stars | #FFA500 |
+| Gold (51+) | 3 Stars | #FF6347 |
+| Platinum (76+) | 4 Stars | #DA70D6 |
+| Diamond (101+) | 5 Stars | #00CED1 |
 
-- Change `storageKey` logic: use today's date (not yesterday) as the "seen" marker since we're showing yesterday's results on today's login
-- Keep existing `localStorage` guard so it only shows once per day
+### 3. New component: `src/components/challenges/StarTierIcon.tsx`
+- Renders 1-5 copies of the golden star image (small, ~12-16px each) in a row
+- Parses the tier name to extract count (e.g. "2 Stars" → 2 stars)
+- Falls back to matching partial name or defaulting to 1 star
+- Accepts `size` prop to control individual star dimensions
 
-### 3. Improve breakdown labels
+```tsx
+import starImg from "@/assets/challenge-star.png";
 
-Add emoji prefixes to match the user's documented XP table:
-- "🎯 Calories on target" 
-- "🥩 Protein on target"
-- "🍚 Carbs on target"  
-- "🥑 Fats on target"
-- "🚫 No nutrition logged"
-- "⚠️ Calories off by 300+"
-- "❌ Missed workout"
-- "❌ Missed cardio"
-
-### 4. Popup UX improvements
-
-- Change overlay title from "Daily Nutrition Rewards" to "Daily XP Summary" since it includes workout/cardio penalties too
-- Show net XP with color: green for positive, red for negative, neutral for zero
-- Add a subtitle showing which date was evaluated (e.g., "Results for Mar 24")
-
-## Technical Details
-
-```typescript
-// DailyRewardsPopup.tsx - Fixed query
-const EVAL_TX_TYPES = [
-  "calories_on_target", "protein_on_target", "carbs_on_target", 
-  "fats_on_target", "no_nutrition", "calories_off_300",
-  "missed_workout", "missed_cardio", "missed_checkin", "decay_per_day",
-  "daily_eval" // marker - used to confirm eval ran
-];
-
-// Query by description containing the eval date (reliable regardless of timezone)
-const { data } = await db
-  .from("xp_transactions")
-  .select("transaction_type, xp_amount, description")
-  .eq("user_id", user.id)
-  .in("transaction_type", EVAL_TX_TYPES)
-  .ilike("description", `%${yesterday}%`);
-
-// Filter out the 0 XP marker from display
-const displayItems = (data || []).filter(
-  (tx) => tx.transaction_type !== "daily_eval"
-);
+const StarTierIcon = ({ name, size = 16 }: { name: string; size?: number }) => {
+  const match = name?.match(/(\d)/);
+  const count = Math.min(Math.max(parseInt(match?.[1] || "1"), 1), 5);
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {Array.from({ length: count }).map((_, i) => (
+        <img key={i} src={starImg} width={size} height={size} alt="" className="object-contain" />
+      ))}
+    </span>
+  );
+};
 ```
 
+### 4. Update `ChallengeTierProgress.tsx`
+- Replace `import TierIcon` → `import StarTierIcon`
+- Swap all `<TierIcon>` → `<StarTierIcon>` with appropriate sizes
+- Update max-tier message to "⭐ 5-Star Legend!"
+
+### 5. Update `ChallengeDetailView.tsx`
+- Replace `import TierIcon` → `import StarTierIcon`
+- Swap leaderboard participant tier icons to `<StarTierIcon>`
+
+### 6. Update `CreateChallengeWizard.tsx`
+- Replace `import TierIcon` → `import StarTierIcon`
+- Swap tier preview icons in the wizard steps
+
+### 7. Leave `TierIcon.tsx` and `MyRankTab.tsx` untouched
+- These serve the PC Ranked system and remain unchanged
+
 ### Files to edit
-- `src/components/ranked/DailyRewardsPopup.tsx` -- fix query + labels + once-per-day logic
-- `src/components/ranked/XPCelebrationOverlay.tsx` -- update title to "Daily XP Summary", add eval date subtitle
+- Copy: `user-uploads://Radiant_golden_star_with_swirling_vortex.png` → `src/assets/challenge-star.png`
+- New: `src/components/challenges/StarTierIcon.tsx`
+- Edit: `src/hooks/useChallenges.ts` (lines 641-647)
+- Edit: `src/components/challenges/ChallengeTierProgress.tsx`
+- Edit: `src/components/challenges/ChallengeDetailView.tsx`
+- Edit: `src/components/challenges/CreateChallengeWizard.tsx`
 
