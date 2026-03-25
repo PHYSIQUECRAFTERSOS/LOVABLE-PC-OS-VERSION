@@ -27,7 +27,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
           className="h-14 w-14 shrink-0 rounded-full flex items-center justify-center border-2 overflow-hidden"
           style={{ borderColor: currentTier.color, backgroundColor: `${currentTier.color}15` }}
         >
-          <TierIcon name={currentTier.name} size={120} />
+          <StarTierIcon name={currentTier.name} size={22} />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
