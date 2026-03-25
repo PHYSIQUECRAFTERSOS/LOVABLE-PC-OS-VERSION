@@ -12,7 +12,7 @@ import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell,
 import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules, useRemoveChallengeParticipant } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 import ChallengeTierProgress from "./ChallengeTierProgress";
-import TierIcon from "./TierIcon";
+import StarTierIcon from "./StarTierIcon";
 
 interface Props {
   challenge: Challenge | null;
