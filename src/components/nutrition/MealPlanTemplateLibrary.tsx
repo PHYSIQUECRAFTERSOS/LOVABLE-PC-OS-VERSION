@@ -140,8 +140,8 @@ const MealPlanTemplateLibrary = () => {
         .order("meal_order")
         .order("item_order");
 
-      // Create client meal plan
-      const { data: newPlan, error } = await supabase
+      // Create client meal plan linked to source template
+      const { data: newPlan, error } = await (supabase as any)
         .from("meal_plans")
         .insert({
           coach_id: user.id,
@@ -154,7 +154,8 @@ const MealPlanTemplateLibrary = () => {
           target_carbs: copyTemplate.target_carbs,
           target_fat: copyTemplate.target_fat,
           flexibility_mode: false,
-        } as any)
+          source_template_id: copyTemplate.id,
+        })
         .select("id")
         .single();
 

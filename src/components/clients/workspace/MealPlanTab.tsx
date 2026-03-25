@@ -536,6 +536,23 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Detach Confirmation */}
+      <AlertDialog open={!!detachConfirmId} onOpenChange={(open) => !open && setDetachConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Detach from Master Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unlink this client's meal plan from the master template. Future edits to either plan will not affect the other.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => detachConfirmId && handleDetachPlan(detachConfirmId)}>
+              Detach
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
