@@ -46,7 +46,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
             </div>
           )}
           {!nextTier && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">👑 Maximum tier reached!</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">⭐ 5-Star Legend!</p>
           )}
         </div>
       </div>
