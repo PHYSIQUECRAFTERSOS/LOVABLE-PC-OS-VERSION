@@ -67,13 +67,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
 
   const myPoints = Number(myParticipant?.current_value || 0);
 
-  // Get participant tier
-  const getParticipantTier = (points: number) => {
-    if (!challengeTiers?.length) return null;
-    const sorted = [...challengeTiers].sort((a, b) => b.min_points - a.min_points);
-    return sorted.find((t) => points >= t.min_points) || challengeTiers[0];
-  };
-
   const handleJoin = () => {
     if (challenge.id) joinChallenge.mutate(challenge.id);
   };
