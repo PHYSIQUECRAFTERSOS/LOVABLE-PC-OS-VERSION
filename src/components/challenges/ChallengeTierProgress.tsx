@@ -69,7 +69,7 @@ const ChallengeTierProgress = ({ tiers, currentPoints }: Props) => {
                     opacity: isActive ? 1 : 0.4,
                   }}
                 >
-                  <TierIcon name={tier.name} size={90} />
+                  <StarTierIcon name={tier.name} size={14} />
                 </div>
                 <span
                   className="text-[9px] mt-1 font-medium"

@@ -639,11 +639,11 @@ export async function awardXP(userId: string, amount: number, sourceType: string
 
 // Default tier presets
 export const DEFAULT_CHALLENGE_TIERS = [
-  { name: "Bronze", min_points: 0, color: "#CD7F32", icon: "bronze", sort_order: 0 },
-  { name: "Silver", min_points: 26, color: "#C0C0C0", icon: "silver", sort_order: 1 },
-  { name: "Gold", min_points: 51, color: "#D4A017", icon: "gold", sort_order: 2 },
-  { name: "Platinum", min_points: 76, color: "#00CED1", icon: "platinum", sort_order: 3 },
-  { name: "Diamond", min_points: 101, color: "#B9F2FF", icon: "diamond", sort_order: 4 },
+  { name: "1 Star", min_points: 0, color: "#FFD700", icon: "star1", sort_order: 0 },
+  { name: "2 Stars", min_points: 26, color: "#FFA500", icon: "star2", sort_order: 1 },
+  { name: "3 Stars", min_points: 51, color: "#FF6347", icon: "star3", sort_order: 2 },
+  { name: "4 Stars", min_points: 76, color: "#DA70D6", icon: "star4", sort_order: 3 },
+  { name: "5 Stars", min_points: 101, color: "#00CED1", icon: "star5", sort_order: 4 },
 ];
 
 export const DEFAULT_SCORING_RULES = [
