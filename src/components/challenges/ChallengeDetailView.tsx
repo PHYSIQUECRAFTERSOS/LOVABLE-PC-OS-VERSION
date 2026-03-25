@@ -9,10 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame, UserMinus } from "lucide-react";
-import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeTiers, useChallengeScoringRules, useRemoveChallengeParticipant } from "@/hooks/useChallenges";
+import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeScoringRules, useRemoveChallengeParticipant } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
-import ChallengeTierProgress from "./ChallengeTierProgress";
-import StarTierIcon from "./StarTierIcon";
 
 interface Props {
   challenge: Challenge | null;
@@ -33,7 +31,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const { user, role } = useAuth();
   const direction = challenge?.challenge_type === "custom" ? challenge.config?.direction : undefined;
   const { data: participants } = useChallengeParticipants(challenge?.id || null, direction);
-  const { data: challengeTiers } = useChallengeTiers(challenge?.id || null);
+  
   const { data: scoringRules } = useChallengeScoringRules(challenge?.id || null);
   const joinChallenge = useJoinChallenge();
   const removeParticipant = useRemoveChallengeParticipant();
@@ -67,13 +65,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
     : isSteps ? "Steps" : config.metric || "Weight";
 
   const myPoints = Number(myParticipant?.current_value || 0);
-
-  // Get participant tier
-  const getParticipantTier = (points: number) => {
-    if (!challengeTiers?.length) return null;
-    const sorted = [...challengeTiers].sort((a, b) => b.min_points - a.min_points);
-    return sorted.find((t) => points >= t.min_points) || challengeTiers[0];
-  };
 
   const handleJoin = () => {
     if (challenge.id) joinChallenge.mutate(challenge.id);
@@ -157,14 +148,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
             </div>
           )}
 
-          {/* Tier Progress for current user */}
-          {myParticipant && challengeTiers && challengeTiers.length > 0 && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="pt-4 pb-3">
-                <ChallengeTierProgress tiers={challengeTiers} currentPoints={myPoints} />
-              </CardContent>
-            </Card>
-          )}
 
           {/* My Stats */}
           {myParticipant && (
@@ -254,7 +237,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                   const initials = (p.full_name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
                   const isMe = p.user_id === user?.id;
                   const isTop3 = i < 3;
-                  const pTier = getParticipantTier(Number(p.current_value));
                   return (
                     <div
                       key={p.id}
@@ -269,11 +251,6 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <span className="text-sm font-medium text-foreground truncate block">{p.full_name}</span>
-                        {pTier && (
-                          <span className="text-[9px] font-medium flex items-center gap-1" style={{ color: pTier.color }}>
-                            <StarTierIcon name={pTier.name} size={12} /> {pTier.name}
-                          </span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-primary">
