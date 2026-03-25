@@ -143,6 +143,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         totalProtein: Math.round(totals.protein / dayCount),
         totalCarbs: Math.round(totals.carbs / dayCount),
         totalFat: Math.round(totals.fat / dayCount),
+        source_template_id: (plan as any).source_template_id || null,
       });
     }
 
