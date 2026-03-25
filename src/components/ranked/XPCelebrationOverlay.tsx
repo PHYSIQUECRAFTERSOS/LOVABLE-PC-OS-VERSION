@@ -22,9 +22,10 @@ interface XPCelebrationOverlayProps {
   totalXP: number;
   breakdown: BreakdownItem[];
   onDismiss: () => void;
+  evalDateLabel?: string;
 }
 
-const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss }: XPCelebrationOverlayProps) => {
+const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss, evalDateLabel }: XPCelebrationOverlayProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [displayXP, setDisplayXP] = useState(0);
   const [visibleLines, setVisibleLines] = useState(0);
@@ -138,6 +139,7 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss }: XPCelebra
 
   const icon = type === "cardio" ? CardioIcon : MacroIcon;
   const isGain = totalXP >= 0;
+  const title = type === "cardio" ? "Cardio Complete!" : "Daily XP Summary";
 
   return (
     <>
@@ -191,7 +193,7 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss }: XPCelebra
           animation: stage === "exit"
             ? "xpOverlayOut 0.3s ease-in forwards"
             : "xpOverlayIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-          maxHeight: "50vh",
+          maxHeight: "55vh",
         }}
       >
         {/* Confetti canvas */}
@@ -219,9 +221,16 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss }: XPCelebra
           </div>
 
           {/* Title */}
-          <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            {type === "cardio" ? "Cardio Complete!" : "Daily Nutrition Rewards"}
-          </p>
+          <div className="text-center">
+            <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {title}
+            </p>
+            {evalDateLabel && (
+              <p className="text-xs text-muted-foreground/70 mt-0.5">
+                Results for {evalDateLabel}
+              </p>
+            )}
+          </div>
 
           {/* XP counter */}
           <div
