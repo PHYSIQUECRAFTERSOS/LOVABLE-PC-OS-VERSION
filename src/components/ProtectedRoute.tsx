@@ -106,7 +106,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (!role) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4">
         <AlertTriangle className="h-10 w-10 text-destructive" />
         <p className="text-foreground font-medium">Could not load your session role</p>
         <p className="text-sm text-muted-foreground">Please refresh. If this persists, sign in again.</p>
