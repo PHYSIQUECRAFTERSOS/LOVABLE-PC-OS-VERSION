@@ -68,7 +68,7 @@ const Nutrition = () => {
               {isCoach ? "Guides" : "Plan"}
             </TabsTrigger>
             {!isCoach && (
-              <TabsTrigger value="myplan" className="flex-1">My Plan</TabsTrigger>
+              <TabsTrigger value="myplan" className="flex-1">Meal Plan</TabsTrigger>
             )}
           </TabsList>
           <TabsContent value="tracker">
