@@ -50,6 +50,18 @@ const SupplementLogger = () => {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+
+    // Check for assigned plan first
+    const { data: assignData } = await supabase
+      .from("client_supplement_assignments")
+      .select("id")
+      .eq("client_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    
+    setHasAssignedPlan(!!assignData);
+
     const [{ data: supps }, { data: logs }] = await Promise.all([
       supabase.from("supplements").select("*").eq("client_id", user.id).eq("is_active", true).order("created_at", { ascending: false }),
       supabase.from("supplement_logs").select("*, supplements(*)").eq("client_id", user.id).eq("logged_at", today),
