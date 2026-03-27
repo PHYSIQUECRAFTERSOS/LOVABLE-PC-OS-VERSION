@@ -357,7 +357,7 @@ const SupplementLogger = () => {
             <span className="text-xs font-semibold text-primary">PC Verified</span>
           </div>
           {supplements.filter(s => s.is_verified).map((s) => (
-            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
+            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} onDelete={(id, name) => setDeleteConfirm({ id, name })} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
           ))}
         </div>
       )}
@@ -368,10 +368,28 @@ const SupplementLogger = () => {
       ) : (
         <div className="space-y-2">
           {supplements.filter(s => !s.is_verified).map((s) => (
-            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
+            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} onDelete={(id, name) => setDeleteConfirm({ id, name })} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent className="border-border bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Delete {deleteConfirm?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove it from your list. Logged history is preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirm && deleteSupplement(deleteConfirm.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
