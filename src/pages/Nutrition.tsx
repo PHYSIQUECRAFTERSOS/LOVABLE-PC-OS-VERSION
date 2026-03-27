@@ -65,11 +65,8 @@ const Nutrition = () => {
               </TabsTrigger>
             )}
             <TabsTrigger value="coachplan" className="flex-1">
-              {isCoach ? "Upload" : "Plan"}
+              {isCoach ? "Guides" : "Plan"}
             </TabsTrigger>
-            {!isCoach && (
-              <TabsTrigger value="myplan" className="flex-1">My Plan</TabsTrigger>
-            )}
           </TabsList>
           <TabsContent value="tracker">
             <DailyNutritionLog key={trackerKey} selectedDate={nutritionDate} onDateChange={setNutritionDate} />
