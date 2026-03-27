@@ -32,24 +32,6 @@ function getYesterdayLocal(tz: string): string {
   }
 }
 
-/** Get Monday 00:00 PST of current week as YYYY-MM-DD */
-function getCurrentWeekMondayPST(): string {
-  const now = new Date();
-  const pstFormatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const pstDateStr = pstFormatter.format(now);
-  const pstDate = new Date(pstDateStr + "T00:00:00");
-  const day = pstDate.getDay(); // 0=Sun
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(pstDate);
-  monday.setDate(monday.getDate() + diffToMonday);
-  return monday.toISOString().split("T")[0];
-}
-
 /** Get today's date in PST */
 function getTodayPST(): string {
   const now = new Date();
@@ -57,20 +39,6 @@ function getTodayPST(): string {
     timeZone: "America/Los_Angeles",
   });
   return formatter.format(now);
-}
-
-/** Get current day of week in PST (0=Sun, 1=Mon, ... 6=Sat) */
-function getDayOfWeekPST(): number {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    weekday: "short",
-  });
-  const dayStr = formatter.format(now);
-  const map: Record<string, number> = {
-    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-  };
-  return map[dayStr] ?? 0;
 }
 
 Deno.serve(async (req) => {
@@ -189,11 +157,8 @@ Deno.serve(async (req) => {
         }
 
         case "missed_checkin": {
-          // Two detection strategies:
-          // A) Calendar-based: check-in event was scheduled yesterday and NOT completed → fire next day 5 AM
-          // B) Weekly window: client hasn't submitted a check-in this week AND it's Thursday+ → fire at 5 AM
-          const mondayStr = getCurrentWeekMondayPST();
-
+          // Calendar-only: fire ONLY if a check-in calendar event was scheduled
+          // yesterday and was NOT completed, AND no submission exists for that day.
           for (const cid of clientIds) {
             const profile = profileMap.get(cid);
             const tz = profile?.timezone || "America/Los_Angeles";
@@ -204,7 +169,7 @@ Deno.serve(async (req) => {
 
             const yesterday = getYesterdayLocal(tz);
 
-            // Strategy A: Was there a check-in calendar event yesterday that wasn't completed?
+            // Was there a check-in calendar event yesterday?
             const { data: yesterdayCheckinEvents } = await supabase
               .from("calendar_events")
               .select("id, is_completed")
@@ -213,10 +178,13 @@ Deno.serve(async (req) => {
               .eq("event_date", yesterday)
               .limit(1);
 
-            const hadScheduledCheckin = yesterdayCheckinEvents && yesterdayCheckinEvents.length > 0;
-            const completedScheduledCheckin = yesterdayCheckinEvents?.some((e: any) => e.is_completed);
+            // No scheduled check-in yesterday → skip entirely
+            if (!yesterdayCheckinEvents || yesterdayCheckinEvents.length === 0) continue;
 
-            // Check if client submitted any check-in recently (yesterday or this week)
+            // Already completed via calendar flag → skip
+            if (yesterdayCheckinEvents.some((e: any) => e.is_completed)) continue;
+
+            // Check if client submitted a check-in around yesterday
             const { data: recentSubmission } = await supabase
               .from("checkin_submissions")
               .select("id")
@@ -225,46 +193,8 @@ Deno.serve(async (req) => {
               .not("submitted_at", "is", null)
               .limit(1);
 
-            const hasRecentSubmission = recentSubmission && recentSubmission.length > 0;
-
-            // Strategy A: specific calendar event missed yesterday
-            if (hadScheduledCheckin && !completedScheduledCheckin && !hasRecentSubmission) {
+            if (!recentSubmission || recentSubmission.length === 0) {
               eligibleClients.push(cid);
-              continue;
-            }
-
-            // Strategy B: weekly window check (Thursday+)
-            const currentDayPST = getDayOfWeekPST();
-            if (currentDayPST >= 4 || currentDayPST === 0) {
-              // Check if client submitted this week at all
-              const { data: weekSubmissions } = await supabase
-                .from("checkin_submissions")
-                .select("id")
-                .eq("client_id", cid)
-                .gte("submitted_at", `${mondayStr}T00:00:00Z`)
-                .not("submitted_at", "is", null)
-                .limit(1);
-
-              if (!weekSubmissions || weekSubmissions.length === 0) {
-                // Also verify no completed calendar checkin this week
-                const sundayDate = new Date(mondayStr);
-                sundayDate.setDate(sundayDate.getDate() + 6);
-                const sundayStr = sundayDate.toISOString().split("T")[0];
-
-                const { data: completedThisWeek } = await supabase
-                  .from("calendar_events")
-                  .select("id")
-                  .or(`user_id.eq.${cid},target_client_id.eq.${cid}`)
-                  .eq("event_type", "checkin")
-                  .gte("event_date", mondayStr)
-                  .lte("event_date", sundayStr)
-                  .eq("is_completed", true)
-                  .limit(1);
-
-                if (!completedThisWeek || completedThisWeek.length === 0) {
-                  eligibleClients.push(cid);
-                }
-              }
             }
           }
           break;

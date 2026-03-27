@@ -204,7 +204,7 @@ const CheckinSubmissionDashboard = () => {
 
       const clientIds = assignments.map((a) => a.client_id);
 
-      const [assignmentsRes, submissionsRes, profilesRes] = await Promise.all([
+      const [assignmentsRes, submissionsRes, profilesRes, checkinEventsRes] = await Promise.all([
         supabase.from("checkin_assignments").select("client_id, recurrence, next_due_date, is_active")
           .in("client_id", clientIds).eq("is_active", true).abortSignal(signal),
         supabase.from("checkin_submissions").select("id, client_id, submitted_at, status, reviewed_at")
@@ -214,11 +214,29 @@ const CheckinSubmissionDashboard = () => {
           .in("status", ["submitted", "reviewed"]).abortSignal(signal),
         supabase.from("profiles").select("user_id, full_name, avatar_url, timezone")
           .in("user_id", clientIds).abortSignal(signal),
+        supabase.from("calendar_events")
+          .select("id, target_client_id, user_id, event_date, is_completed")
+          .eq("event_type", "checkin")
+          .gte("event_date", mondayStr)
+          .lte("event_date", sundayStr)
+          .abortSignal(signal),
       ]);
 
       const checkinAssignments = assignmentsRes.data || [];
       const submissions = submissionsRes.data || [];
       const profiles = profilesRes.data || [];
+      const checkinEvents = checkinEventsRes.data || [];
+
+      // Build set of client IDs who have a check-in calendar event this week
+      const clientsWithCheckinThisWeek = new Set<string>();
+      for (const ev of checkinEvents) {
+        if (ev.target_client_id && clientIds.includes(ev.target_client_id)) {
+          clientsWithCheckinThisWeek.add(ev.target_client_id);
+        }
+        if (ev.user_id && clientIds.includes(ev.user_id)) {
+          clientsWithCheckinThisWeek.add(ev.user_id);
+        }
+      }
 
       const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
       const submissionMap = new Map<string, typeof submissions[0]>();
@@ -239,7 +257,17 @@ const CheckinSubmissionDashboard = () => {
         if (!assignmentMap.has(a.client_id)) assignmentMap.set(a.client_id, a);
       }
 
-      for (const cid of clientIds) {
+      // Only iterate over clients who have a check-in event on calendar this week
+      // OR who have a biweekly assignment (to populate off-week section)
+      const eligibleClientIds = clientIds.filter(cid => {
+        if (clientsWithCheckinThisWeek.has(cid)) return true;
+        // Include biweekly clients so they can appear in off-week
+        const assignment = assignmentMap.get(cid);
+        if (assignment?.recurrence === "biweekly") return true;
+        return false;
+      });
+
+      for (const cid of eligibleClientIds) {
         const assignment = assignmentMap.get(cid);
         const profile = profileMap.get(cid);
         const submission = submissionMap.get(cid);
@@ -264,10 +292,10 @@ const CheckinSubmissionDashboard = () => {
           reviewerName: reviewer?.name || null,
         };
 
-        if (recurrence === "biweekly" && nextDueDate) {
-          const nextDue = new Date(nextDueDate);
-          const sundayDate = new Date(getPSTWeekWindow().sundayStr + "T23:59:59");
-          if (nextDue > sundayDate) { offWeek.push(baseClient); continue; }
+        // Biweekly clients with no calendar check-in this week → off-week
+        if (recurrence === "biweekly" && !clientsWithCheckinThisWeek.has(cid)) {
+          offWeek.push(baseClient);
+          continue;
         }
 
         if (submission?.submitted_at) {
