@@ -459,38 +459,53 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, onDelete,
       </div>
 
       {/* Expanded Nutrient Breakdown */}
-      {expanded && nutrientValues.length > 0 && (
+      {expanded && (
         <div className="border-t border-border/50 px-3 py-2 bg-secondary/30">
-          <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">
-            {servings > 0
-              ? `${servings} of ${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""} (${Math.round(nutrientMultiplier * 100)}%)`
-              : `Per serving (${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""})`
-            }
-          </p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            {nutrientValues.map(n => {
-              const labelAmount = s[n.key] || 0;
-              const effective = labelAmount * nutrientMultiplier;
-              const showScaled = servings > 0 && nutrientMultiplier !== 1;
-              return (
-                <div key={n.key} className="flex items-center justify-between text-[11px]">
-                  <span className="text-muted-foreground">{n.label}</span>
-                  <div className="flex items-center gap-1">
-                    {showScaled && (
-                      <span className="text-[9px] text-muted-foreground tabular-nums">{labelAmount.toFixed(1)}→</span>
-                    )}
-                    <span className="text-foreground font-medium tabular-nums">{effective.toFixed(1)}{n.unit}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {servings > 0 && nutrientMultiplier !== 1 && (
-            <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1">
-              <Sparkles className="h-2.5 w-2.5 text-primary" />
-              Scaled to {servings} {unit}{servings !== 1 ? "s" : ""} (label is per {labelServingSize})
-            </p>
+          {nutrientValues.length > 0 && (
+            <>
+              <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">
+                {servings > 0
+                  ? `${servings} of ${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""} (${Math.round(nutrientMultiplier * 100)}%)`
+                  : `Per serving (${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""})`
+                }
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {nutrientValues.map(n => {
+                  const labelAmount = s[n.key] || 0;
+                  const effective = labelAmount * nutrientMultiplier;
+                  const showScaled = servings > 0 && nutrientMultiplier !== 1;
+                  return (
+                    <div key={n.key} className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">{n.label}</span>
+                      <div className="flex items-center gap-1">
+                        {showScaled && (
+                          <span className="text-[9px] text-muted-foreground tabular-nums">{labelAmount.toFixed(1)}→</span>
+                        )}
+                        <span className="text-foreground font-medium tabular-nums">{effective.toFixed(1)}{n.unit}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {servings > 0 && nutrientMultiplier !== 1 && (
+                <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1">
+                  <Sparkles className="h-2.5 w-2.5 text-primary" />
+                  Scaled to {servings} {unit}{servings !== 1 ? "s" : ""} (label is per {labelServingSize})
+                </p>
+              )}
+            </>
           )}
+          <div className="mt-2 pt-2 border-t border-border/30">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+              onClick={() => onDelete(s.id, s.name)}
+            >
+              <Trash2 className="h-3 w-3" />
+              Remove Supplement
+            </Button>
+          </div>
         </div>
       )}
     </div>
