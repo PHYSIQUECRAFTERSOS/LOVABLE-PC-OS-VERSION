@@ -174,67 +174,22 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
   };
 
-  // PDF handlers
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Max 10MB", variant: "destructive" });
-      return;
-    }
-    setUploading(true);
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `${clientId}/${Date.now()}_${safeName}`;
-    const { error: uploadErr } = await supabase.storage.from("meal-plans").upload(path, file);
-    if (uploadErr) {
-      toast({ title: "Upload failed", description: uploadErr.message, variant: "destructive" });
-      setUploading(false);
-      return;
-    }
-    await supabase
-      .from("coach_meal_plan_uploads")
-      .update({ is_active: false })
-      .eq("client_id", clientId)
-      .eq("is_active", true);
-    const { error: insertErr } = await supabase.from("coach_meal_plan_uploads").insert({
-      client_id: clientId,
-      coach_id: user.id,
-      file_name: file.name,
-      storage_path: path,
-      is_active: true,
-      version: (uploads.length || 0) + 1,
-    });
-    if (insertErr) {
-      toast({ title: "Error saving", description: insertErr.message, variant: "destructive" });
-    } else {
-      toast({ title: "Meal plan PDF uploaded" });
-      loadAll();
-      openPdfViewer(path, file.name);
-    }
-    setUploading(false);
-  };
-
-  const deletePdf = async (id: string, path: string) => {
-    await supabase.storage.from("meal-plans").remove([path]);
-    await supabase.from("coach_meal_plan_uploads").delete().eq("id", id);
-    toast({ title: "PDF deleted" });
-    if (viewingPdf) setViewingPdf(null);
-    loadAll();
-  };
-
-  const openPdfViewer = async (path: string, fileName: string) => {
-    const { data } = await supabase.storage.from("meal-plans").createSignedUrl(path, 3600);
-    if (data?.signedUrl) setViewingPdf({ url: data.signedUrl, name: fileName });
-  };
-
-  const downloadPdf = async (path: string) => {
-    const { data } = await supabase.storage.from("meal-plans").createSignedUrl(path, 300);
-    if (data?.signedUrl) {
-      const a = document.createElement("a");
-      a.href = data.signedUrl;
-      a.download = "";
-      a.target = "_blank";
-      a.click();
+  const handleGenerateGroceryList = async () => {
+    setGeneratingGrocery(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-grocery-list", {
+        body: { client_id: clientId },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Grocery list generated for client!" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Failed to generate grocery list", variant: "destructive" });
+    } finally {
+      setGeneratingGrocery(false);
     }
   };
 
