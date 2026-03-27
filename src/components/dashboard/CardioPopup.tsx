@@ -9,6 +9,7 @@ import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
 import CardioIcon from "@/assets/Cardio_icon.png";
 import ConfettiBurst from "@/components/workout/ConfettiBurst";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
   walking: <Footprints className="h-6 w-6 text-white" />,
