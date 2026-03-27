@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
@@ -51,8 +51,16 @@ const ClientDashboard = () => {
   const { streak: workoutStreak, loading: workoutStreakLoading } = useWorkoutStreak();
   const [todayItems, setTodayItems] = useState<ActionItem[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
+
+  // Listen for completion events to force immediate refresh of actions + ring
+  useEffect(() => {
+    const handler = () => setRefreshKey((k) => k + 1);
+    window.addEventListener("calendar-event-added", handler);
+    return () => window.removeEventListener("calendar-event-added", handler);
+  }, []);
 
   const handleActionsLoaded = useCallback((items: ActionItem[]) => {
     setTodayItems(items);
@@ -93,7 +101,7 @@ const ClientDashboard = () => {
           total={totalCount}
           streak={consistencyStreak}
         />
-        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
+        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} refreshKey={refreshKey} />
       </div>
 
       {/* Progress Widget Grid */}

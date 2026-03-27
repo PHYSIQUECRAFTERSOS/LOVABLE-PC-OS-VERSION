@@ -9,6 +9,7 @@ import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
 import CardioIcon from "@/assets/Cardio_icon.png";
 import ConfettiBurst from "@/components/workout/ConfettiBurst";
+import { useQueryClient } from "@tanstack/react-query";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
   walking: <Footprints className="h-6 w-6 text-white" />,
@@ -73,6 +74,7 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
   const { toast } = useToast();
   const { user } = useAuth();
   const { triggerXP, triggerCelebration } = useXPAward();
+  const queryClient = useQueryClient();
   const [completing, setCompleting] = useState(false);
   const [celebrationState, setCelebrationState] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
@@ -99,6 +101,12 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
           console.error("[CardioPopup] Ranked XP error:", e);
         }
       }
+
+      // Dispatch event so dashboard ring + TodayActions refetch instantly
+      window.dispatchEvent(new CustomEvent("calendar-event-added"));
+      // Invalidate rank/XP queries so the dashboard card updates
+      queryClient.invalidateQueries({ queryKey: ["my-rank"] });
+      queryClient.invalidateQueries({ queryKey: ["xp-today"] });
 
       // Transition to celebration state
       setXpEarned(earned);

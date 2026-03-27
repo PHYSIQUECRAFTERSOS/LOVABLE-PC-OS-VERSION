@@ -39,6 +39,9 @@ const REWARD_LABELS: Record<string, { emoji: string; label: string }> = {
   streak_bonus_7: { emoji: "🔥", label: "7-day streak bonus" },
 };
 
+// Module-level flag: survives component mount/unmount within the same SPA session
+let shownThisSession = false;
+
 const DailyRewardsPopup = () => {
   const { user } = useAuth();
   const [showOverlay, setShowOverlay] = useState(false);
@@ -48,16 +51,20 @@ const DailyRewardsPopup = () => {
 
   useEffect(() => {
     if (!user?.id) return;
+    // Session-level guard: never show more than once per app session
+    if (shownThisSession) return;
 
     const checkDailyRewards = async () => {
       const yesterday = toLocalDateString(subDays(new Date(), 1));
-      // Use today's date as the "seen" key — we show yesterday's results on today's login
       const today = getLocalDateString();
       const storageKey = `xp_rewards_seen_${user.id}`;
       const lastSeen = localStorage.getItem(storageKey);
-      if (lastSeen === today) return;
+      // Cross-session guard: already shown today
+      if (lastSeen === today) {
+        shownThisSession = true; // Mark so we don't even re-query
+        return;
+      }
 
-      // Query eval-related transactions whose description contains yesterday's date
       const db = supabase as any;
       const { data, error } = await db
         .from("xp_transactions")
@@ -91,6 +98,13 @@ const DailyRewardsPopup = () => {
         items.push({ label, xp });
       }
 
+      // Skip showing if net XP is 0 — no dopamine value
+      if (total === 0) {
+        localStorage.setItem(storageKey, today);
+        shownThisSession = true;
+        return;
+      }
+
       if (items.length > 0) {
         setBreakdown(items);
         setTotalXP(total);
@@ -99,6 +113,7 @@ const DailyRewardsPopup = () => {
         );
         setShowOverlay(true);
         localStorage.setItem(storageKey, today);
+        shownThisSession = true;
       }
     };
 
