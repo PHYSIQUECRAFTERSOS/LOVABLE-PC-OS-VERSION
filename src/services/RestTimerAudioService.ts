@@ -64,14 +64,14 @@ class RestTimerAudioService {
     this.nativePreloading = (async () => {
       try {
         const NativeAudio = await this.getNativeAudio();
+        // CRITICAL: focus:false tells the native layer to NOT steal audio focus,
+        // so Spotify / Apple Music keeps playing alongside our sound.
+        await NativeAudio.configure({ focus: false, fade: false });
         await NativeAudio.preload({
           assetId: NATIVE_ASSET_ID,
           assetPath: NATIVE_ASSET_PATH,
           audioChannelNum: 1,
           isUrl: false,
-          // CRITICAL: focus must be false to NOT pause background music
-          focus: false,
-          volume: 1.0,
         });
         this.nativePreloaded = true;
         console.log("[RestTimerAudio] Native preload OK");
