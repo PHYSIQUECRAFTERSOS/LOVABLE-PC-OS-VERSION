@@ -121,7 +121,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           } else {
             // Fallback: use grams mode with the remembered size
             setUseGrams(true);
-            setCustomGrams(mem.serving_size);
+            setCustomGramsStr(String(mem.serving_size));
           }
         }
       } catch {
