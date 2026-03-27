@@ -333,13 +333,13 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 className="text-primary text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-primary/10 transition-colors"
               >−</button>
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                value={quantity}
+                value={quantityStr}
                 onChange={(e) => setQuantityStr(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                placeholder="0"
                 className="w-14 bg-secondary border-0 text-sm text-center text-foreground rounded-lg h-8 focus-visible:ring-1 focus-visible:ring-primary/50"
-                min={0.25}
-                step={0.25}
               />
               <button
                 onClick={() => setQuantityStr(String(quantity + (quantity >= 1 ? 1 : 0.25)))}
