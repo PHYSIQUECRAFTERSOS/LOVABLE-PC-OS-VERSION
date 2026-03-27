@@ -315,7 +315,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 type="number"
                 inputMode="decimal"
                 value={customGrams}
-                onChange={(e) => setCustomGrams(parseFloat(e.target.value) || 0)}
+                onChange={(e) => setCustomGramsStr(e.target.value)}
                 className="flex-1 bg-transparent border-0 text-sm text-foreground p-0 h-auto focus-visible:ring-0"
                 min={1}
               />
