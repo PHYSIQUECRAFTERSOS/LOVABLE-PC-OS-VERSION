@@ -1,41 +1,47 @@
 
 
-# Fix Three UX Issues: Body Stats Checkoff, Serving Display, Grams Input
+# Fix Serving Memory for Grams Mode
 
-## Issue 1: Body Stats not checking off on dashboard after submission
+## Problem
+The "Smart Serving Memory" feature exists but has a data mismatch bug for grams-mode logging.
 
-**Root cause:** The `/body-stats` page (BodyStats.tsx) navigates to `/dashboard` after saving (line 114), but doesn't invalidate the `today-actions` cache. The dashboard renders stale cached data showing the item as incomplete, even though the calendar event was updated in DB.
+**What's saved** (AddFoodScreen.tsx line 904-908):
+- `serving_size: entry.quantity` → saves `1` (the number of servings)
+- `serving_unit: entry.servingDescription` → saves `"130g"` (the label string)
 
-**Fix in `src/pages/BodyStats.tsx`:**
-- After successful save and calendar event update, invalidate the `today-actions-${userId}-${date}` cache before navigating back
-- Import `invalidateCache` from `useDataFetch`
-- Call `invalidateCache(\`today-actions-${user.id}-${logDate}\`)` right before `navigate("/dashboard")`
+**What's read** (FoodDetailScreen.tsx line 110):
+- Checks `serving_unit === "g"` → `"130g" !== "g"` → **fails**
+- Falls to else → tries to match `"130g"` as a serving option → **fails**
+- Falls to grams fallback with `serving_size` = `1` → shows `1g` instead of `130g`
 
-## Issue 2: Foods logged in grams showing "1 serving" instead of "130g"
+## Fix
 
-**Root cause:** The display logic in `DailyNutritionLog.tsx` lines 620-625 hits the `qu === "serving"` branch and shows "1 serving" when `count === 1`. This happens for foods where `quantity_unit` was saved as `"serving"` even though the user typed a gram amount. The deeper issue: when logging via `FoodDetailScreen` with `useGrams=true`, line 879 correctly saves `quantity_unit: "g"`. But the `logFood` path (line 572-573) passes `unit` which comes from the inline quick-log — if the serving unit from the food_item is something like `"g"` but the code maps it to `"serving"`, grams get lost.
+### File: `src/components/nutrition/AddFoodScreen.tsx` (save path)
 
-However, looking at the screenshots, the real problem is the display logic: when `qu === "serving"` and there's no `serving_label`, and count is 1, it shows "1 serving" — but it should show the total weight in grams for meat/fish items. The fix: when `count <= 1` and the food has a gram-based serving (`si.serving_unit === "g"`), show the total weight in grams instead of "1 serving".
+In the `handleDetailConfirm` upsert (line 904-911), detect grams mode from the entry and save properly:
 
-**Fix in `src/components/nutrition/DailyNutritionLog.tsx` (lines 620-629):**
-- In the `qu === "serving" && si` branch (no serving_label), when the serving unit is grams, always show total weight in grams rather than "N servings"
-- Change the logic: if `si.serving_unit` is `"g"` or `"ml"`, show weight (`totalWeight + unit`) regardless of count. Only show "N servings" for items with non-metric serving units (like "piece", "slice", etc.)
+```tsx
+// Before (broken):
+serving_size: entry.quantity,           // 1
+serving_unit: entry.servingDescription, // "130g"
 
-## Issue 3: Can't backspace to clear the grams input (stuck "0")
+// After (fixed):
+serving_size: (entry as any).useGrams ? (entry as any).customGrams : entry.quantity,
+serving_unit: (entry as any).useGrams ? "g" : entry.servingDescription,
+```
 
-**Root cause:** In `FoodDetailScreen.tsx` line 315: `onChange={(e) => setCustomGrams(parseFloat(e.target.value) || 0)}` — the `|| 0` prevents the field from ever being empty. Same pattern used for `quantity` input on line 335.
+The `FoodDetailEntry` from `handleConfirm` already includes `useGrams` and `customGrams` (cast via `as any` on line 173 of FoodDetailScreen). We just need to use them when persisting the memory.
 
-**Fix in `src/components/nutrition/FoodDetailScreen.tsx`:**
-- Change `customGrams` state from `number` to `string` type
-- Use a string state for editing, parse to number only for calculations
-- Allow empty string in the input, use `parseFloat(customGrams) || 0` only in the calculation expressions
-- On blur, if empty, optionally reset to "0" or leave empty with placeholder
+### No changes needed to the read path
+The read logic in FoodDetailScreen.tsx (lines 110-125) already handles `serving_unit === "g"` correctly — it sets `useGrams(true)` and `customGramsStr` to the stored size. The bug is purely in what gets saved.
 
-This follows the project's existing pattern documented in memory: "fields must not enforce a minimum value of '1' during editing; instead, they allow an empty state (displaying a muted '0' placeholder)."
+## Additional Suggestion: Pre-fill grams mode toggle
 
-## Files to Edit
+Currently, when a user opens a food for the first time, `useGrams` defaults to `false` (serving mode). If the memory says grams, the useEffect flips it — but there's a brief flicker. This is already handled by the existing useEffect and is fine.
 
-1. **`src/pages/BodyStats.tsx`** — Add cache invalidation before navigate
-2. **`src/components/nutrition/DailyNutritionLog.tsx`** — Fix serving display logic for gram-based foods
-3. **`src/components/nutrition/FoodDetailScreen.tsx`** — Convert grams input to string state for natural editing
+## Suggestions to Further Speed Up Nutrition Logging
+
+1. **"Last Logged" badge on search results** — Show "130g" chip next to salmon in search results so users can one-tap log without even opening the detail screen
+2. **Quick re-log from history** — The history tab already exists, but adding a "Log Again" button (same quantity/unit as last time) would save 2 taps
+3. **Batch quick-add** — Let users tap multiple foods from search results to stage them, then confirm all at once instead of one-by-one
 
