@@ -39,7 +39,7 @@ const GroceryList = () => {
         .eq("client_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return data as { id: string; items: GroceryItem[]; generated_at: string; updated_at: string } | null;
+      return data as unknown as { id: string; items: GroceryItem[]; generated_at: string; updated_at: string } | null;
     },
     enabled: !!user,
   });
