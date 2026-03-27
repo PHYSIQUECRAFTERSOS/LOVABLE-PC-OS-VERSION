@@ -68,6 +68,7 @@ const ACTION_ROUTES: Record<string, string> = {
 interface TodayActionsProps {
   date?: string;
   onDataLoaded?: (items: ActionItem[]) => void;
+  refreshKey?: number;
 }
 
 const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
