@@ -101,6 +101,12 @@ const ClientNutritionHub = () => {
                 <p className="text-sm text-muted-foreground">{phaseInfo.next_phase_description}</p>
               </div>
             )}
+            {(phaseInfo as any).additional_notes && (
+              <div className="bg-muted/30 rounded-lg p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">📝 Additional Notes</p>
+                <p className="text-sm whitespace-pre-wrap">{(phaseInfo as any).additional_notes}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
