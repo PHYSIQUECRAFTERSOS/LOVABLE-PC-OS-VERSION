@@ -947,12 +947,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-foreground">Day Total</span>
                     <div className="flex gap-3">
-                      <span className="font-bold text-foreground">{dayTotals.calories} cal</span>
-                      <span className="text-red-400 font-medium">{dayTotals.protein}P</span>
-                      <span className="text-blue-400 font-medium">{dayTotals.carbs}C</span>
-                      <span className="text-yellow-400 font-medium">{dayTotals.fat}F</span>
-                      <span className="text-muted-foreground">{dayTotals.fiber}Fi</span>
-                      <span className="text-muted-foreground">{dayTotals.sugar}S</span>
+                      <span className="font-bold text-foreground">{Math.round(dayTotals.calories)} cal</span>
+                      <span className="text-red-400 font-medium">{Math.round(dayTotals.protein)}P</span>
+                      <span className="text-blue-400 font-medium">{Math.round(dayTotals.carbs)}C</span>
+                      <span className="text-yellow-400 font-medium">{Math.round(dayTotals.fat)}F</span>
+                      <span className="text-muted-foreground">{Math.round(dayTotals.fiber)}Fi</span>
+                      <span className="text-muted-foreground">{Math.round(dayTotals.sugar)}S</span>
                     </div>
                   </div>
                 </div>
