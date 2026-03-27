@@ -910,10 +910,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                                 <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
                               </div>
                               <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
-                                <span>{macros.calories}cal</span>
-                                <span className="text-red-400">{macros.protein}P</span>
-                                <span className="text-blue-400">{macros.carbs}C</span>
-                                <span className="text-yellow-400">{macros.fat}F</span>
+                                <span>{Math.round(macros.calories)}cal</span>
+                                <span className="text-red-400">{Math.round(macros.protein)}P</span>
+                                <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
+                                <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
                               </div>
                               <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
                                 <Trash2 className="h-3 w-3" />
