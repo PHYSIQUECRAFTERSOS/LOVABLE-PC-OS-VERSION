@@ -117,7 +117,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           );
           if (match) {
             setSelectedServing(match);
-            setQuantity(mem.serving_size);
+            setQuantityStr(String(mem.serving_size));
           } else {
             // Fallback: use grams mode with the remembered size
             setUseGrams(true);
