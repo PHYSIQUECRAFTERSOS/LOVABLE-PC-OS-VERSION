@@ -1,184 +1,60 @@
 
 
-# Nutrition "Plan" Hub: AI Grocery List + In-App Guides (Replace PDF)
+# Fix: White Space at Top/Bottom on iPhone After Navigation
 
-## What We're Building
+## Root Cause
 
-Transform the client "Plan" tab from a PDF viewer into a rich, interactive hub with two major pieces:
+The white flash occurs because of iOS overscroll bounce (rubber-banding) during/after navigation. When the user navigates between routes:
 
-1. **AI-Generated Grocery List** — pulled from the client's meal plan, categorized, with persistent checkboxes
-2. **Nutrition Guides** — coach-managed content sections replacing the PDF (eating out examples, cheat sheet, water recommendations, daily morning ritual, nutrition tips, phase info, macro cheat sheet, additional notes)
+1. **`body` and `#root` allow overflow** — `body` has no `overflow: hidden`, and `#root` uses `min-height: 100dvh` (not fixed height). During route transitions, content can momentarily be shorter than the viewport, allowing iOS to rubber-band and reveal the underlying system background (white/light).
+2. **Scroll position inheritance** — When navigating, the previous page's scroll position can cause the body to be in a scrolled state briefly, exposing gaps at top/bottom before the new `fixed inset-0` AppLayout mounts.
 
-The coach "Upload" tab changes to a **Guides Editor** where the coach writes/updates content once for all clients. PDF upload functionality is removed.
+## Fix (2 files)
 
----
+### 1. `src/index.css` — Lock `body` and `#root` to prevent overscroll
 
-## Database Changes (3 new tables, 1 edge function)
+```css
+body {
+  /* existing styles... */
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;          /* ← prevents body-level rubber-band */
+}
 
-### Table: `grocery_lists`
-Stores the AI-generated grocery list per client, persisted so coach can see it too.
-
-```sql
-CREATE TABLE IF NOT EXISTS grocery_lists (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  generated_at TIMESTAMPTZ DEFAULT now(),
-  items JSONB NOT NULL DEFAULT '[]',
-  -- items: [{category: "Protein", name: "Chicken Breast", checked: false}, ...]
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-ALTER TABLE grocery_lists ENABLE ROW LEVEL SECURITY;
--- Client can read/update their own; coach can read their clients'
+#root {
+  height: 100%;
+  height: 100dvh;            /* ← fixed height, not min-height */
+  overflow: hidden;           /* ← no scroll at root level */
+  background-color: hsl(0 0% 7%);
+  position: relative;
+}
 ```
 
-### Table: `nutrition_guide_sections`
-Coach-managed content sections (same for all clients). One row per section.
+Change `min-height` → `height` on both `body` and `#root`, and add `overflow: hidden` to both. All scrolling is already handled inside `AppLayout`'s `<main>` with `overflow-y-auto`, so the outer containers should never scroll.
 
-```sql
-CREATE TABLE IF NOT EXISTS nutrition_guide_sections (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  coach_id UUID NOT NULL REFERENCES auth.users(id),
-  section_key TEXT NOT NULL, -- e.g. 'eating_out_examples', 'water_recommendation', 'daily_ritual', 'nutrition_tips', 'macro_cheat_sheet', 'phase_info', 'additional_notes', 'eating_out_cheat_sheet'
-  title TEXT NOT NULL,
-  content TEXT NOT NULL DEFAULT '',
-  sort_order INT DEFAULT 0,
-  is_visible BOOLEAN DEFAULT true,
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(coach_id, section_key)
-);
-ALTER TABLE nutrition_guide_sections ENABLE ROW LEVEL SECURITY;
+### 2. `index.html` — Match `theme-color` to actual background
+
+The `theme-color` is `#121212` but the actual CSS background is `hsl(0 0% 7%)` which is `#121212` — actually these match. However, adding a `background-color` directly on `<html>` tag style attribute ensures the color is applied before CSS loads:
+
+```html
+<html lang="en" class="dark" style="background-color:#121212">
 ```
 
-### Table: `client_phase_info`
-Per-client phase information (since this varies per client).
-
-```sql
-CREATE TABLE IF NOT EXISTS client_phase_info (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  coach_id UUID NOT NULL REFERENCES auth.users(id),
-  current_phase_name TEXT,
-  current_phase_description TEXT,
-  next_phase_name TEXT,
-  next_phase_description TEXT,
-  coach_notes TEXT,
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(client_id)
-);
-ALTER TABLE client_phase_info ENABLE ROW LEVEL SECURITY;
+And on `<body>`:
+```html
+<body style="background-color:#121212">
 ```
 
-### Edge Function: `generate-grocery-list`
-Takes a client_id, reads their `meal_plan_items` from all active plans, sends food names to Lovable AI (Gemini Flash) with prompt to categorize into Protein, Carbs, Fats, Vegetables, Fruits. Returns structured JSON. Upserts into `grocery_lists`.
+This ensures the dark background is painted immediately, even before Tailwind/CSS loads, eliminating any flash during navigation transitions.
 
----
+## Why This Works
 
-## Coach Side Changes
+- `overflow: hidden` on `body`/`#root` prevents iOS rubber-band overscroll from revealing white space behind the app
+- Fixed `height: 100dvh` instead of `min-height` prevents the container from ever being taller than the viewport (which can trigger scroll)
+- Inline `style` on `<html>` and `<body>` ensures the background is dark from the first paint, before any CSS file loads
+- All actual content scrolling happens inside `AppLayout`'s `<main className="flex-1 overflow-y-auto">`, which is properly contained
 
-### Replace `CoachMealPlanUpload` with `CoachNutritionGuides`
-
-New component with two sub-sections:
-
-**1. Guide Sections Editor**
-- Rich text cards for each section: Eating Out Examples, Eating Out Cheat Sheet, Water Recommendation, Daily Morning Ritual, Nutrition Tracking Tips, Macro Cheat Sheet, Additional Notes
-- Each card has a title, textarea for content (Markdown-friendly), visibility toggle, and save button
-- Pre-seeded with default content from the uploaded images/PDF on first use
-- Reorderable via sort_order
-
-**2. Phase Info Editor (per-client)**
-- Client selector dropdown
-- Fields: Current Phase Name, Current Phase Description, Next Phase Name, Next Phase Description, Coach Notes
-- Saves to `client_phase_info`
-
-### Tab rename
-- Coach tab "Upload" becomes "Guides"
-
----
-
-## Client Side Changes
-
-### Replace `ClientMealPlanView` with `ClientNutritionHub`
-
-The client "Plan" tab becomes a scrollable hub with these sections:
-
-**1. Grocery List (top)**
-- "Generate Grocery List" button that calls the edge function
-- Categorized checklist (Protein Sources, Carb Sources, Fats, Vegetables, Fruits)
-- Checkboxes persist to DB -- client checks items off as they shop
-- "Reset List" button to uncheck all
-- Shows last generated date
-
-**2. Phase Info Card**
-- Current Phase name + description
-- Next Phase name + description  
-- Coach notes
-
-**3. Guide Sections (scrollable cards)**
-- Water Recommendation
-- Daily Morning Ritual
-- Nutrition Tracking Tips
-- Eating Out Cheat Sheet
-- Eating Out Examples
-- Macro Cheat Sheet
-- Additional Notes
-- Each rendered as a styled card with Markdown-like content
-- Only shows sections marked `is_visible` by coach
-
----
-
-## Files to Create/Edit
-
-### New Files
-1. `supabase/functions/generate-grocery-list/index.ts` — Edge function using Lovable AI
-2. `src/components/nutrition/ClientNutritionHub.tsx` — Client Plan tab replacement
-3. `src/components/nutrition/GroceryList.tsx` — Grocery list with checkboxes
-4. `src/components/nutrition/CoachNutritionGuides.tsx` — Coach guide editor
-5. `src/components/nutrition/PhaseInfoEditor.tsx` — Per-client phase editor
-6. `src/components/nutrition/GuideSection.tsx` — Reusable guide section card
-
-### Modified Files
-1. `src/pages/Nutrition.tsx` — Swap `ClientMealPlanView` → `ClientNutritionHub`, `CoachMealPlanUpload` → `CoachNutritionGuides`, rename tab labels
-2. Database migration — 3 new tables + RLS policies
-
-### Removed (replaced)
-- `ClientMealPlanView` component no longer rendered in the Plan tab (kept in codebase but unused)
-- `CoachMealPlanUpload` component no longer rendered (kept but unused)
-
----
-
-## Edge Function: `generate-grocery-list`
-
-Uses Lovable AI (Gemini Flash) with this approach:
-1. Fetch all `meal_plan_items` for the client's active plans
-2. Extract unique food names
-3. Send to AI: "Categorize these foods into Protein Sources, Carbohydrate Sources, Fat Sources, Vegetables, Fruits. Return JSON array."
-4. Upsert the result into `grocery_lists`
-5. Return the categorized list
-
----
-
-## Suggestions for What's Missing
-
-Based on the PDF analysis, here's what the app already covers vs. what we're adding:
-
-| PDF Section | Already in App? | Action |
-|---|---|---|
-| Client Info / Goals | Yes (onboarding + profile) | No change |
-| Supplement Stack | Yes (Supps tab) | No change |
-| Calories & Macros | Yes (tracker + targets) | No change |
-| Meal Plans (structured) | Yes (My Plan tab) | No change |
-| Training Overview | Yes (Training page) | No change |
-| Cardio Routine | Yes (CardioManager) | No change |
-| Grocery List | No | **Adding** |
-| Water Recommendation | No | **Adding** |
-| Daily Morning Ritual | No | **Adding** |
-| Nutrition Tracking Tips | No | **Adding** |
-| Eating Out Examples | No | **Adding** |
-| Eating Out Cheat Sheet | No | **Adding** |
-| Macro Cheat Sheet | No | **Adding** |
-| Current/Next Phase Info | No | **Adding** |
-| Additional Notes | No | **Adding** |
-| Weekly Check-in Overview | Yes (check-in system) | No change |
-| Important Links / Videos | Partially (onboarding) | Could add to guides |
-| Macro Replacement Chart | No | **Adding as Macro Cheat Sheet** |
+## Files Changed
+1. `src/index.css` — `body` and `#root` rules (change min-height → height, add overflow: hidden)
+2. `index.html` — Inline background-color on `<html>` and `<body>` tags
 
