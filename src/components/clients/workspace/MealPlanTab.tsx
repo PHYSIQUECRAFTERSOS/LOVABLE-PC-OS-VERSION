@@ -69,10 +69,8 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [uploads, setUploads] = useState<any[]>([]);
   const [planCards, setPlanCards] = useState<PlanCard[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [viewingPdf, setViewingPdf] = useState<{ url: string; name: string } | null>(null);
+  const [generatingGrocery, setGeneratingGrocery] = useState(false);
   const [editingPlanDayType, setEditingPlanDayType] = useState<string | null>(null);
   const [addPlanOpen, setAddPlanOpen] = useState(false);
   const [newDayType, setNewDayType] = useState("rest");
