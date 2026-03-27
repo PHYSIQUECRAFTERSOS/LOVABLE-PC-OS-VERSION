@@ -292,10 +292,10 @@ const CheckinSubmissionDashboard = () => {
           reviewerName: reviewer?.name || null,
         };
 
-        if (recurrence === "biweekly" && nextDueDate) {
-          const nextDue = new Date(nextDueDate);
-          const sundayDate = new Date(getPSTWeekWindow().sundayStr + "T23:59:59");
-          if (nextDue > sundayDate) { offWeek.push(baseClient); continue; }
+        // Biweekly clients with no calendar check-in this week → off-week
+        if (recurrence === "biweekly" && !clientsWithCheckinThisWeek.has(cid)) {
+          offWeek.push(baseClient);
+          continue;
         }
 
         if (submission?.submitted_at) {
