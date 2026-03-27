@@ -69,6 +69,7 @@ const PhaseInfoEditor = () => {
         next_phase_name: phaseInfo.next_phase_name || "",
         next_phase_description: phaseInfo.next_phase_description || "",
         coach_notes: phaseInfo.coach_notes || "",
+        additional_notes: (phaseInfo as any).additional_notes || "",
       });
     } else {
       setForm({
@@ -77,6 +78,7 @@ const PhaseInfoEditor = () => {
         next_phase_name: "",
         next_phase_description: "",
         coach_notes: "",
+        additional_notes: "",
       });
     }
   }, [phaseInfo, selectedClientId]);
