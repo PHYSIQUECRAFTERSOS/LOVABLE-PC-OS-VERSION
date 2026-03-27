@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.418c5cb36f9242439691d28363e319a3',
+  appId: 'com.physiquecrafters.app',
   appName: 'physique-crafters-os',
   webDir: 'dist',
   server: {
