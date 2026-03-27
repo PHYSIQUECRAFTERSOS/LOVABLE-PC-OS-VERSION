@@ -109,7 +109,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
         const mem = data as unknown as { serving_size: number; serving_unit: string };
         if (mem.serving_unit === "g" || mem.serving_unit === "grams") {
           setUseGrams(true);
-          setCustomGrams(mem.serving_size);
+          setCustomGramsStr(String(mem.serving_size));
         } else {
           // Try to match a serving option
           const match = servingOptions.find(
