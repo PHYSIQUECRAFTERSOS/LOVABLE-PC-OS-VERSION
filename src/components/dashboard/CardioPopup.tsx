@@ -102,6 +102,12 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
         }
       }
 
+      // Dispatch event so dashboard ring + TodayActions refetch instantly
+      window.dispatchEvent(new CustomEvent("calendar-event-added"));
+      // Invalidate rank/XP queries so the dashboard card updates
+      queryClient.invalidateQueries({ queryKey: ["my-rank"] });
+      queryClient.invalidateQueries({ queryKey: ["xp-today"] });
+
       // Transition to celebration state
       setXpEarned(earned);
       setCelebrationState(true);
