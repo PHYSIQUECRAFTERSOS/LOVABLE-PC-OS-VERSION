@@ -494,6 +494,7 @@ const MasterLibraries = () => {
           {/* Placeholder Tabs */}
           <TabsContent value="meals" className="mt-4"><MealPlanTemplateLibrary /></TabsContent>
           <TabsContent value="pc-recipes" className="mt-4"><PCRecipeLibrary /></TabsContent>
+          <TabsContent value="supplements" className="mt-4"><SupplementLibrary /></TabsContent>
           <TabsContent value="checkin-forms" className="mt-4"><StandaloneFormBuilder /></TabsContent>
         </Tabs>
       </div>
