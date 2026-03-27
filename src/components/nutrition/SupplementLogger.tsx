@@ -150,9 +150,10 @@ const SupplementLogger = () => {
     setServingSize(""); setIsVerified(false);
   };
 
+  const dispatchSupplementEvent = () => window.dispatchEvent(new Event("supplement-logs-updated"));
+
   const logSupplement = async (supplementId: string, servings: number = 1) => {
     if (!user) return;
-    // Find the supplement to use its serving_size as default
     const supp = supplements.find(s => s.id === supplementId);
     const defaultServings = supp?.serving_size || 1;
     const { error } = await supabase.from("supplement_logs").insert({
@@ -166,6 +167,7 @@ const SupplementLogger = () => {
     } else {
       toast({ title: "Logged ✓" });
       load();
+      dispatchSupplementEvent();
     }
   };
 
@@ -176,6 +178,19 @@ const SupplementLogger = () => {
       await supabase.from("supplement_logs").update({ servings: newServings }).eq("id", logId);
     }
     load();
+    dispatchSupplementEvent();
+  };
+
+  const deleteSupplement = async (id: string) => {
+    const { error } = await supabase.from("supplements").update({ is_active: false }).eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Supplement removed" });
+      load();
+      dispatchSupplementEvent();
+    }
+    setDeleteConfirm(null);
   };
 
   const getLogForSupplement = (supplementId: string) =>
