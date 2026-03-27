@@ -1,31 +1,40 @@
 /**
- * RestTimerAudioService — Singleton Web Audio API service for iOS Safari
+ * RestTimerAudioService — Hybrid Native + Web Audio
  *
- * Solves:
- * 1. AudioContext suspension — resumes on every unlock()
- * 2. User gesture requirement — unlock() plays silent buffer during taps
- * 3. Reliable playback — uses AudioBuffer (not HTML5 Audio)
- * 4. iOS background suspension — keepalive plays silent buffer every 5s
+ * On NATIVE (Capacitor iOS/Android):
+ *   Uses @capacitor-community/native-audio with focus:false
+ *   so the countdown sound MIXES with Spotify / Apple Music.
+ *
+ * On WEB (browser / PWA):
+ *   Falls back to Web Audio API (AudioContext) which will pause
+ *   background music on mobile browsers — acceptable since native
+ *   is the primary target.
  *
  * Usage:
  *   import { restTimerAudio } from "@/services/RestTimerAudioService";
- *   // On every user tap in training view:
- *   restTimerAudio.unlock();
- *   // When rest timer starts:
- *   restTimerAudio.startKeepAlive();
- *   // When timer hits 3 seconds:
- *   restTimerAudio.playCountdown();
- *   // When timer completes or is skipped:
- *   restTimerAudio.stopKeepAlive();
+ *   restTimerAudio.unlock();          // call on user gesture
+ *   restTimerAudio.startKeepAlive();  // when rest timer starts
+ *   restTimerAudio.playCountdown();   // at 3 seconds remaining
+ *   restTimerAudio.stopCountdown();   // on skip
+ *   restTimerAudio.stopKeepAlive();   // when timer completes
  */
 
-const COUNTDOWN_URL = "/sounds/rest-timer-countdown.mp3";
+import { Capacitor } from "@capacitor/core";
+
+const NATIVE_ASSET_ID = "rest_timer_countdown";
+const NATIVE_ASSET_PATH = "public/audio/Rest_Timer_3_Seconds.mp3";
+const WEB_COUNTDOWN_URL = "/audio/Rest_Timer_3_Seconds.mp3";
 const OVERLAY_VOLUME = 0.85;
 const KEEPALIVE_INTERVAL_MS = 5000;
-let audioMixConfigured = false;
+
 type ManagedAudioContextState = AudioContextState | "interrupted";
 
 class RestTimerAudioService {
+  // --- Native state ---
+  private nativePreloaded = false;
+  private nativePreloading: Promise<void> | null = null;
+
+  // --- Web fallback state ---
   private ctx: AudioContext | null = null;
   private gainNode: GainNode | null = null;
   private countdownBuffer: AudioBuffer | null = null;
@@ -34,25 +43,95 @@ class RestTimerAudioService {
   private unlocked = false;
   private keepAliveId: ReturnType<typeof setInterval> | null = null;
 
-  /** Get or create AudioContext + gain node */
+  private get isNative(): boolean {
+    return Capacitor.isNativePlatform();
+  }
+
+  // ========== NATIVE AUDIO (Capacitor) ==========
+
+  private async getNativeAudio() {
+    const { NativeAudio } = await import("@capacitor-community/native-audio");
+    return NativeAudio;
+  }
+
+  private async nativePreload(): Promise<void> {
+    if (this.nativePreloaded) return;
+    if (this.nativePreloading) {
+      await this.nativePreloading;
+      return;
+    }
+
+    this.nativePreloading = (async () => {
+      try {
+        const NativeAudio = await this.getNativeAudio();
+        // CRITICAL: focus:false tells the native layer to NOT steal audio focus,
+        // so Spotify / Apple Music keeps playing alongside our sound.
+        await NativeAudio.configure({ focus: false, fade: false });
+        await NativeAudio.preload({
+          assetId: NATIVE_ASSET_ID,
+          assetPath: NATIVE_ASSET_PATH,
+          audioChannelNum: 1,
+          isUrl: false,
+        });
+        this.nativePreloaded = true;
+        console.log("[RestTimerAudio] Native preload OK");
+      } catch (err: any) {
+        if (err?.message?.includes("already exists")) {
+          this.nativePreloaded = true;
+          console.log("[RestTimerAudio] Native asset already loaded");
+        } else {
+          console.error("[RestTimerAudio] Native preload failed:", err);
+        }
+      }
+    })();
+
+    await this.nativePreloading;
+    this.nativePreloading = null;
+  }
+
+  private async nativePlay(): Promise<boolean> {
+    if (!this.nativePreloaded) {
+      await this.nativePreload();
+    }
+    try {
+      const NativeAudio = await this.getNativeAudio();
+      // Stop any running instance so replay works cleanly
+      try { await NativeAudio.stop({ assetId: NATIVE_ASSET_ID }); } catch { /* not playing */ }
+      await NativeAudio.play({ assetId: NATIVE_ASSET_ID });
+      console.log("[RestTimerAudio] Native countdown playing");
+      return true;
+    } catch (err) {
+      console.error("[RestTimerAudio] Native play failed:", err);
+      return false;
+    }
+  }
+
+  private async nativeStop(): Promise<void> {
+    try {
+      const NativeAudio = await this.getNativeAudio();
+      await NativeAudio.stop({ assetId: NATIVE_ASSET_ID });
+    } catch { /* not playing */ }
+  }
+
+  private async nativeUnload(): Promise<void> {
+    if (!this.nativePreloaded) return;
+    try {
+      const NativeAudio = await this.getNativeAudio();
+      await NativeAudio.unload({ assetId: NATIVE_ASSET_ID });
+    } catch { /* already unloaded */ }
+    this.nativePreloaded = false;
+  }
+
+  // ========== WEB AUDIO FALLBACK ==========
+
   private ensureContext(): AudioContext | null {
     if (this.ctx && this.ctx.state !== "closed") return this.ctx;
-
-    // Configure native iOS audio session for mixing (fire-and-forget)
-    if (!audioMixConfigured) {
-      audioMixConfigured = true;
-      this.configureNativeMixing();
-    }
 
     const Ctor =
       window.AudioContext ||
       (window as any).webkitAudioContext;
-    if (!Ctor) {
-      console.warn("[RestTimerAudio] Web Audio API not available");
-      return null;
-    }
+    if (!Ctor) return null;
 
-    // Use playout category on iOS to mix with other audio (Spotify, Apple Music)
     try {
       this.ctx = new Ctor({ sampleRate: 44100 } as any);
     } catch {
@@ -65,60 +144,29 @@ class RestTimerAudioService {
     return this.ctx;
   }
 
-  /** Tell iOS to mix our audio with Spotify/Apple Music instead of pausing it */
-  private async configureNativeMixing(): Promise<void> {
-    try {
-      const { default: AudioMixPlugin } = await import("@/plugins/AudioMixPlugin");
-      await AudioMixPlugin.enableMixing();
-      console.log("[RestTimerAudio] Native audio mixing enabled");
-    } catch {
-      // Not running in native shell — no-op in browser
-    }
-  }
-
-  private isRunningState(state: ManagedAudioContextState): boolean {
-    return state === "running";
-  }
-
   private async resumeContext(ctx: AudioContext): Promise<boolean> {
-    if (this.isRunningState(ctx.state as ManagedAudioContextState)) return true;
-
-    try {
-      await ctx.resume();
-    } catch (e) {
-      console.warn("[RestTimerAudio] Resume failed:", e);
-    }
-
-    return this.isRunningState(ctx.state as ManagedAudioContextState);
+    if ((ctx.state as ManagedAudioContextState) === "running") return true;
+    try { await ctx.resume(); } catch { /* ignore */ }
+    return (ctx.state as ManagedAudioContextState) === "running";
   }
 
   private async ensureRunningContext(): Promise<AudioContext | null> {
     let ctx = this.ensureContext();
     if (!ctx) return null;
+    if (await this.resumeContext(ctx)) return ctx;
 
-    if (await this.resumeContext(ctx)) {
-      return ctx;
-    }
-
-    try {
-      await ctx.close();
-    } catch {
-      // ignore teardown issues and recreate below
-    }
-
+    try { await ctx.close(); } catch { /* ignore */ }
     this.ctx = null;
     this.gainNode = null;
     ctx = this.ensureContext();
     if (!ctx) return null;
-
     return (await this.resumeContext(ctx)) ? ctx : null;
   }
 
-  /** Play a single-sample silent buffer to keep iOS AudioContext alive */
   private playSilent(): void {
     if (!this.ctx || this.ctx.state === "closed") return;
     try {
-      if (!this.isRunningState(this.ctx.state as ManagedAudioContextState)) {
+      if ((this.ctx.state as ManagedAudioContextState) !== "running") {
         this.ctx.resume().catch(() => {});
       }
       const buf = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
@@ -126,108 +174,51 @@ class RestTimerAudioService {
       src.buffer = buf;
       src.connect(this.ctx.destination);
       src.start(0);
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
 
   private playFallbackTone(ctx: AudioContext): boolean {
     if (!this.gainNode) return false;
-
     try {
-      const oscillator = ctx.createOscillator();
+      const osc = ctx.createOscillator();
       const toneGain = ctx.createGain();
-      const startAt = ctx.currentTime;
-
-      oscillator.type = "sine";
-      oscillator.frequency.value = 880;
-
-      toneGain.gain.setValueAtTime(0.0001, startAt);
-      toneGain.gain.exponentialRampToValueAtTime(0.45, startAt + 0.02);
-      toneGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.24);
-
-      oscillator.connect(toneGain);
+      const t = ctx.currentTime;
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      toneGain.gain.setValueAtTime(0.0001, t);
+      toneGain.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
+      toneGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+      osc.connect(toneGain);
       toneGain.connect(this.gainNode);
-      oscillator.onended = () => {
-        if (this.activeSource === oscillator) this.activeSource = null;
-        oscillator.disconnect();
+      osc.onended = () => {
+        if (this.activeSource === osc) this.activeSource = null;
+        osc.disconnect();
         toneGain.disconnect();
       };
-
-      this.activeSource = oscillator;
-      oscillator.start(startAt);
-      oscillator.stop(startAt + 0.26);
-      console.warn("[RestTimerAudio] Falling back to synthesized timer tone");
+      this.activeSource = osc;
+      osc.start(t);
+      osc.stop(t + 0.26);
       return true;
-    } catch (e) {
-      console.warn("[RestTimerAudio] Fallback tone failed:", e);
-      return false;
-    }
+    } catch { return false; }
   }
 
-  /**
-   * Start keepalive loop — plays a silent buffer every 5s to prevent
-   * iOS from suspending the AudioContext during long rest periods.
-   * Safe to call multiple times; previous interval is cleared first.
-   */
-  startKeepAlive(): void {
-    this.stopKeepAlive();
-    // Immediately play one silent buffer
-    this.playSilent();
-    this.keepAliveId = setInterval(() => this.playSilent(), KEEPALIVE_INTERVAL_MS);
-    console.log("[RestTimerAudio] Keepalive started");
-  }
-
-  /** Stop keepalive loop */
-  stopKeepAlive(): void {
-    if (this.keepAliveId !== null) {
-      clearInterval(this.keepAliveId);
-      this.keepAliveId = null;
-      console.log("[RestTimerAudio] Keepalive stopped");
-    }
-  }
-
-  /**
-   * MUST be called from a user gesture (tap/click).
-   * Resumes AudioContext and plays a silent buffer to satisfy iOS autoplay policy.
-   */
-  async unlock(): Promise<void> {
-    const ctx = await this.ensureRunningContext();
-    if (!ctx) return;
-
-    // Play a tiny silent buffer to keep iOS happy
-    this.playSilent();
-
-    this.unlocked = true;
-
-    // Start preloading if not already done
-    if (!this.countdownBuffer && !this.bufferLoading) {
-      this.preload();
-    }
-  }
-
-  /** Preload and decode the countdown MP3 */
-  async preload(): Promise<void> {
+  private async webPreload(): Promise<void> {
     if (this.countdownBuffer) return;
-    if (this.bufferLoading) {
-      await this.bufferLoading;
-      return;
-    }
+    if (this.bufferLoading) { await this.bufferLoading; return; }
 
     this.bufferLoading = (async () => {
       const ctx = await this.ensureRunningContext();
       if (!ctx) return null;
-
       try {
-        const resp = await fetch(COUNTDOWN_URL, { cache: "force-cache" });
-        if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+        const resp = await fetch(WEB_COUNTDOWN_URL, { cache: "force-cache" });
+        if (!resp.ok) throw new Error(`Fetch ${resp.status}`);
         const ab = await resp.arrayBuffer();
         const decoded = await ctx.decodeAudioData(ab.slice(0));
         this.countdownBuffer = decoded;
-        console.log("[RestTimerAudio] Countdown buffer preloaded");
+        console.log("[RestTimerAudio] Web buffer preloaded");
         return decoded;
       } catch (e) {
-        console.warn("[RestTimerAudio] Preload failed:", e);
+        console.warn("[RestTimerAudio] Web preload failed:", e);
         return null;
       }
     })();
@@ -236,26 +227,16 @@ class RestTimerAudioService {
     this.bufferLoading = null;
   }
 
-  /** Play the 3-second countdown sound. Mixes with music. */
-  async playCountdown(): Promise<boolean> {
+  private async webPlay(): Promise<boolean> {
     const ctx = await this.ensureRunningContext();
     if (!ctx || !this.gainNode) return false;
 
-    // Ensure buffer is loaded
-    if (!this.countdownBuffer) {
-      await this.preload();
-    }
+    if (!this.countdownBuffer) await this.webPreload();
+    this.webStopSource();
 
-    // Stop any currently playing countdown
-    this.stopCountdown();
-
-    if (!this.countdownBuffer) {
-      console.warn("[RestTimerAudio] No buffer available, skipping playback");
-      return this.playFallbackTone(ctx);
-    }
+    if (!this.countdownBuffer) return this.playFallbackTone(ctx);
 
     const source = ctx.createBufferSource();
-
     try {
       source.buffer = this.countdownBuffer;
       source.connect(this.gainNode);
@@ -265,24 +246,100 @@ class RestTimerAudioService {
       };
       this.activeSource = source;
       source.start(0);
-      console.log("[RestTimerAudio] Countdown playing");
+      console.log("[RestTimerAudio] Web countdown playing");
       return true;
-    } catch (e) {
-      console.warn("[RestTimerAudio] Playback failed:", e);
+    } catch {
       source.disconnect();
       return this.playFallbackTone(ctx);
     }
   }
 
+  private webStopSource(): void {
+    if (!this.activeSource) return;
+    try { this.activeSource.stop(); } catch { /* already stopped */ }
+    this.activeSource = null;
+  }
+
+  // ========== PUBLIC API ==========
+
+  /**
+   * Start keepalive loop (web only — native doesn't need it).
+   */
+  startKeepAlive(): void {
+    if (this.isNative) return; // native audio doesn't suspend
+    this.stopKeepAlive();
+    this.playSilent();
+    this.keepAliveId = setInterval(() => this.playSilent(), KEEPALIVE_INTERVAL_MS);
+  }
+
+  stopKeepAlive(): void {
+    if (this.keepAliveId !== null) {
+      clearInterval(this.keepAliveId);
+      this.keepAliveId = null;
+    }
+  }
+
+  /**
+   * Call on user gesture to satisfy iOS autoplay policy.
+   * On native: preloads the audio asset.
+   * On web: resumes AudioContext + preloads buffer.
+   */
+  async unlock(): Promise<void> {
+    if (this.isNative) {
+      await this.nativePreload();
+    } else {
+      const ctx = await this.ensureRunningContext();
+      if (ctx) this.playSilent();
+      this.unlocked = true;
+      if (!this.countdownBuffer && !this.bufferLoading) {
+        this.webPreload();
+      }
+    }
+  }
+
+  /** Preload countdown audio */
+  async preload(): Promise<void> {
+    if (this.isNative) {
+      await this.nativePreload();
+    } else {
+      await this.webPreload();
+    }
+  }
+
+  /** Play the 3-second countdown. Returns true if playback started. */
+  async playCountdown(): Promise<boolean> {
+    if (this.isNative) {
+      return this.nativePlay();
+    }
+    return this.webPlay();
+  }
+
   /** Stop currently playing countdown */
   stopCountdown(): void {
-    if (!this.activeSource) return;
-    try {
-      this.activeSource.stop();
-    } catch {
-      // already stopped
+    if (this.isNative) {
+      void this.nativeStop();
+    } else {
+      this.webStopSource();
     }
-    this.activeSource = null;
+  }
+
+  /** Unload audio resources (call when workout session ends) */
+  async dispose(): Promise<void> {
+    this.stopKeepAlive();
+    this.stopCountdown();
+
+    if (this.isNative) {
+      await this.nativeUnload();
+    } else {
+      this.gainNode?.disconnect();
+      this.gainNode = null;
+      this.countdownBuffer = null;
+      this.bufferLoading = null;
+      if (this.ctx && this.ctx.state !== "closed") {
+        try { await this.ctx.close(); } catch { /* ignore */ }
+      }
+      this.ctx = null;
+    }
   }
 }
 
