@@ -400,11 +400,12 @@ interface SupplementCardProps {
   log: any;
   onLog: (id: string, servings?: number) => void;
   onUpdateServings: (logId: string, servings: number) => void;
+  onDelete: (id: string, name: string) => void;
   expanded: boolean;
   onToggle: () => void;
 }
 
-const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded, onToggle }: SupplementCardProps) => {
+const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, onDelete, expanded, onToggle }: SupplementCardProps) => {
   const servings = log?.servings || 0;
   const labelServingSize = s.serving_size || 1;
   const unit = s.serving_unit || "serving";
