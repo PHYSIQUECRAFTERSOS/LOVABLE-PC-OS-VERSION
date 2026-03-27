@@ -335,7 +335,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 type="number"
                 inputMode="decimal"
                 value={quantity}
-                onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
+                onChange={(e) => setQuantityStr(e.target.value)}
                 className="w-14 bg-secondary border-0 text-sm text-center text-foreground rounded-lg h-8 focus-visible:ring-1 focus-visible:ring-primary/50"
                 min={0.25}
                 step={0.25}
