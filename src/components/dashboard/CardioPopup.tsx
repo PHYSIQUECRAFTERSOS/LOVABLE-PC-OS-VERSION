@@ -74,6 +74,7 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
   const { toast } = useToast();
   const { user } = useAuth();
   const { triggerXP, triggerCelebration } = useXPAward();
+  const queryClient = useQueryClient();
   const [completing, setCompleting] = useState(false);
   const [celebrationState, setCelebrationState] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
