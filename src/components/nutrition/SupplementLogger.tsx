@@ -176,6 +176,11 @@ const SupplementLogger = () => {
   const getLogForSupplement = (supplementId: string) =>
     todayLogs.find((l) => l.supplement_id === supplementId);
 
+  // If client has an assigned plan, show the plan view instead
+  if (hasAssignedPlan) {
+    return <ClientSupplementPlan />;
+  }
+
   return (
     <div className="space-y-5">
       {/* Header Actions */}
