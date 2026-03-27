@@ -1,50 +1,41 @@
 
 
-# Fix Floating-Point Display in Meal Plan Builder
+# Fix Three UX Issues: Body Stats Checkoff, Serving Display, Grams Input
 
-## Problem
-The `calcMacros()` function returns raw floating-point values (e.g., `91.46666666666668cal`, `2.80000000000000003P`). These are displayed without rounding in three places:
-1. **Per-food inline macros** (line 912-916) — no rounding at all
-2. **Day Total row** (line 950-954) — no rounding
-3. **Day header summary** (line 836) — no rounding
+## Issue 1: Body Stats not checking off on dashboard after submission
 
-The sidebar "remaining" display already uses `Math.round()` and works correctly. The fix keeps full floating-point precision in state/calculations but rounds only at the display boundary.
+**Root cause:** The `/body-stats` page (BodyStats.tsx) navigates to `/dashboard` after saving (line 114), but doesn't invalidate the `today-actions` cache. The dashboard renders stale cached data showing the item as incomplete, even though the calendar event was updated in DB.
 
-## The "0 cal left but 8g protein remaining" Problem
-This happens because calories and macros are rounded independently. Example: 7.6g protein × 4 = 30.4 cal. Rounding protein → 8g, but 30.4 cal rounds to 0 remaining. The sidebar already handles this correctly with `Math.round(remaining)`. The food-level and day-level displays just need the same treatment.
+**Fix in `src/pages/BodyStats.tsx`:**
+- After successful save and calendar event update, invalidate the `today-actions-${userId}-${date}` cache before navigating back
+- Import `invalidateCache` from `useDataFetch`
+- Call `invalidateCache(\`today-actions-${user.id}-${logDate}\`)` right before `navigate("/dashboard")`
 
-## Changes
+## Issue 2: Foods logged in grams showing "1 serving" instead of "130g"
 
-### File: `src/components/nutrition/MealPlanBuilder.tsx`
+**Root cause:** The display logic in `DailyNutritionLog.tsx` lines 620-625 hits the `qu === "serving"` branch and shows "1 serving" when `count === 1`. This happens for foods where `quantity_unit` was saved as `"serving"` even though the user typed a gram amount. The deeper issue: when logging via `FoodDetailScreen` with `useGrams=true`, line 879 correctly saves `quantity_unit: "g"`. But the `logFood` path (line 572-573) passes `unit` which comes from the inline quick-log — if the serving unit from the food_item is something like `"g"` but the code maps it to `"serving"`, grams get lost.
 
-**1. Per-food macro display (lines 912-916)** — wrap each value in `Math.round()`:
-```tsx
-<span>{Math.round(macros.calories)}cal</span>
-<span className="text-red-400">{Math.round(macros.protein)}P</span>
-<span className="text-blue-400">{Math.round(macros.carbs)}C</span>
-<span className="text-yellow-400">{Math.round(macros.fat)}F</span>
-```
+However, looking at the screenshots, the real problem is the display logic: when `qu === "serving"` and there's no `serving_label`, and count is 1, it shows "1 serving" — but it should show the total weight in grams for meat/fish items. The fix: when `count <= 1` and the food has a gram-based serving (`si.serving_unit === "g"`), show the total weight in grams instead of "1 serving".
 
-**2. Day Total display (lines 950-954)** — wrap in `Math.round()`:
-```tsx
-<span>{Math.round(dayTotals.calories)} cal</span>
-<span className="text-red-400">{Math.round(dayTotals.protein)}P</span>
-// ... same for carbs, fat, fiber, sugar
-```
+**Fix in `src/components/nutrition/DailyNutritionLog.tsx` (lines 620-629):**
+- In the `qu === "serving" && si` branch (no serving_label), when the serving unit is grams, always show total weight in grams rather than "N servings"
+- Change the logic: if `si.serving_unit` is `"g"` or `"ml"`, show weight (`totalWeight + unit`) regardless of count. Only show "N servings" for items with non-metric serving units (like "piece", "slice", etc.)
 
-**3. Day header summary (line 836)** — wrap in `Math.round()`:
-```tsx
-{Math.round(dayTotals.calories)} cal · {Math.round(dayTotals.protein)}P · {Math.round(dayTotals.carbs)}C · {Math.round(dayTotals.fat)}F
-```
+## Issue 3: Can't backspace to clear the grams input (stuck "0")
 
-**4. Meal header summary (line 869)** — already uses `Math.round()` ✓ — no change needed.
+**Root cause:** In `FoodDetailScreen.tsx` line 315: `onChange={(e) => setCustomGrams(parseFloat(e.target.value) || 0)}` — the `|| 0` prevents the field from ever being empty. Same pattern used for `quantity` input on line 335.
 
-### NO changes to:
-- `calcMacros()` — keeps full precision for accumulation
-- `getMealTotals()` / `getDayTotals()` — keeps full precision so the sidebar remaining calculation stays accurate
-- `activeDayTotals` — feeds into sidebar which already rounds
-- Database persistence (lines 709-712) — already uses `Math.round()` ✓
+**Fix in `src/components/nutrition/FoodDetailScreen.tsx`:**
+- Change `customGrams` state from `number` to `string` type
+- Use a string state for editing, parse to number only for calculations
+- Allow empty string in the input, use `parseFloat(customGrams) || 0` only in the calculation expressions
+- On blur, if empty, optionally reset to "0" or leave empty with placeholder
 
-## Summary
-Three display-only lines need `Math.round()` wrappers. Zero logic changes. Full precision preserved in calculations and persistence. One file edited.
+This follows the project's existing pattern documented in memory: "fields must not enforce a minimum value of '1' during editing; instead, they allow an empty state (displaying a muted '0' placeholder)."
+
+## Files to Edit
+
+1. **`src/pages/BodyStats.tsx`** — Add cache invalidation before navigate
+2. **`src/components/nutrition/DailyNutritionLog.tsx`** — Fix serving display logic for gram-based foods
+3. **`src/components/nutrition/FoodDetailScreen.tsx`** — Convert grams input to string state for natural editing
 
