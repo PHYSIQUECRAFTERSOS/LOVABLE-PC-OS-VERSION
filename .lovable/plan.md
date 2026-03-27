@@ -1,47 +1,29 @@
 
 
-# Fix Serving Memory for Grams Mode
+# Fix Supplement Delete + Micros Auto-Update
 
-## Problem
-The "Smart Serving Memory" feature exists but has a data mismatch bug for grams-mode logging.
+## Issue 1: No way to delete a supplement
 
-**What's saved** (AddFoodScreen.tsx line 904-908):
-- `serving_size: entry.quantity` → saves `1` (the number of servings)
-- `serving_unit: entry.servingDescription` → saves `"130g"` (the label string)
+**Root cause:** `SupplementLogger.tsx` has no delete functionality. The `SupplementCard` component only has log/adjust controls — no delete button or confirmation.
 
-**What's read** (FoodDetailScreen.tsx line 110):
-- Checks `serving_unit === "g"` → `"130g" !== "g"` → **fails**
-- Falls to else → tries to match `"130g"` as a serving option → **fails**
-- Falls to grams fallback with `serving_size` = `1` → shows `1g` instead of `130g`
+**Fix in `src/components/nutrition/SupplementLogger.tsx`:**
+- Add a `deleteSupplement` function that soft-deletes by setting `is_active = false` (preserves history)
+- Add an `AlertDialog` confirmation: "Delete {name}? This will remove it from your list. Logged history is preserved."
+- Pass `onDelete` callback to `SupplementCard`
+- Add a Trash icon button in the expanded card area (visible when card is expanded, so it's not accidentally tapped)
 
-## Fix
+## Issue 2: Micros tab doesn't update when supplement servings change
 
-### File: `src/components/nutrition/AddFoodScreen.tsx` (save path)
+**Root cause:** `MicronutrientDashboard` loads data in a `useEffect` that depends on `[targetId, today]`. When servings are changed on the Supps tab, the Micros tab has no way to know it should re-fetch. The Supps and Micros tabs are siblings rendered by `Nutrition.tsx`, with no shared refresh signal.
 
-In the `handleDetailConfirm` upsert (line 904-911), detect grams mode from the entry and save properly:
+**Fix:**
+1. **`src/components/nutrition/SupplementLogger.tsx`**: After any supplement log change (`logSupplement`, `updateLogServings`, delete), dispatch a custom event `window.dispatchEvent(new Event("supplement-logs-updated"))` — this follows the existing pattern used by `nutrition-logs-updated`.
+2. **`src/components/nutrition/MicronutrientDashboard.tsx`**: Add an event listener for `"supplement-logs-updated"` that triggers a re-fetch (increment a refresh counter in the useEffect deps).
 
-```tsx
-// Before (broken):
-serving_size: entry.quantity,           // 1
-serving_unit: entry.servingDescription, // "130g"
+This approach requires no changes to `Nutrition.tsx` and follows the project's established custom event pattern for cross-tab synchronization.
 
-// After (fixed):
-serving_size: (entry as any).useGrams ? (entry as any).customGrams : entry.quantity,
-serving_unit: (entry as any).useGrams ? "g" : entry.servingDescription,
-```
+## Files to Edit
 
-The `FoodDetailEntry` from `handleConfirm` already includes `useGrams` and `customGrams` (cast via `as any` on line 173 of FoodDetailScreen). We just need to use them when persisting the memory.
-
-### No changes needed to the read path
-The read logic in FoodDetailScreen.tsx (lines 110-125) already handles `serving_unit === "g"` correctly — it sets `useGrams(true)` and `customGramsStr` to the stored size. The bug is purely in what gets saved.
-
-## Additional Suggestion: Pre-fill grams mode toggle
-
-Currently, when a user opens a food for the first time, `useGrams` defaults to `false` (serving mode). If the memory says grams, the useEffect flips it — but there's a brief flicker. This is already handled by the existing useEffect and is fine.
-
-## Suggestions to Further Speed Up Nutrition Logging
-
-1. **"Last Logged" badge on search results** — Show "130g" chip next to salmon in search results so users can one-tap log without even opening the detail screen
-2. **Quick re-log from history** — The history tab already exists, but adding a "Log Again" button (same quantity/unit as last time) would save 2 taps
-3. **Batch quick-add** — Let users tap multiple foods from search results to stage them, then confirm all at once instead of one-by-one
+1. **`src/components/nutrition/SupplementLogger.tsx`** — Add delete with AlertDialog confirmation + dispatch custom event on all mutations
+2. **`src/components/nutrition/MicronutrientDashboard.tsx`** — Listen for `"supplement-logs-updated"` event to trigger re-fetch
 
