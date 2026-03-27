@@ -328,7 +328,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
             <span className="text-sm text-foreground">Number of Servings</span>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setQuantity(Math.max(0.25, quantity - (quantity > 1 ? 1 : 0.25)))}
+                onClick={() => setQuantityStr(String(Math.max(0.25, quantity - (quantity > 1 ? 1 : 0.25))))}
                 className="text-primary text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-primary/10 transition-colors"
               >−</button>
               <Input
