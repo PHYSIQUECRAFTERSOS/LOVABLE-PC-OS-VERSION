@@ -1,64 +1,127 @@
 
 
-# Fix Check-In System: Calendar-Only Trigger Logic
+# Supplement Plan System — Master Library + Client Assignment
 
-## Root Cause Analysis
+## Overview
 
-Two bugs share the same root cause — the system assumes ALL clients need check-ins:
+Build a coach-side "Supplement Plans" master library (like Programs) where you create reusable supplement plans with timing instructions, links, discount codes, and coach notes. Then assign entire plans to clients. On the client side, replace the current flat supplement list with a structured, timing-grouped view showing exactly when to take each supplement.
 
-**Bug 1: Dashboard "Not Submitted" shows wrong clients**
-In `CheckinSubmissionDashboard.tsx` line 247, when a client has no `checkin_assignment`, it defaults `recurrence` to `"weekly"`, causing every active client to appear in "Not Submitted" — even those on programs with zero check-ins.
+## What You Get
 
-**Bug 2: Automated missed check-in message fires incorrectly**
-In `evaluate-auto-messages/index.ts` lines 236-268, "Strategy B" fires for ANY client who hasn't submitted a check-in this week (Thursday+), regardless of whether a check-in was ever scheduled on their calendar. This is what sent the false message to Kevin (Client).
+**Coach Side (Master Libraries → "Supplements" tab):**
+- Create master supplement items (name, brand, dosage, serving unit, timing slot, link URL, discount code, coach reason/note)
+- Group supplements into reusable "Supplement Plans" (e.g., "Reset Phase Supps", "Standard Stack", "Training Only Stack")
+- Each plan item has: supplement reference, dosage override, timing (Fasted / With Meal 1 / Pre-Workout / Post-Workout / Before Bed / etc.), and a coach note
+- Assign an entire plan to a client with one click (like program assignment)
+- Per-client overrides: after assigning a plan, tweak individual dosages or add/remove supplements for that specific client without affecting the master
 
-## Fix: Calendar Events as Single Source of Truth
+**Client Side (Nutrition → Supplements tab):**
+- Supplements grouped by timing: "Fasted / Morning Ritual", "With Meal 1", "Pre-Workout", "Post-Workout", "Before Bed"
+- Each supplement shows: name, brand, dosage, coach's reason, and a tappable link (with discount code badge if applicable)
+- Daily logging still works — tap to log servings
+- Legion partnership badge + discount code prominently displayed
 
-Per your preference, check-in eligibility should be determined exclusively by whether a check-in calendar event exists for that client in the relevant time window.
+## Database Changes (3 new tables)
 
-### Change 1: Edge Function — Remove Strategy B
-
-**File:** `supabase/functions/evaluate-auto-messages/index.ts`
-
-Remove the entire "Strategy B: weekly window check" block (lines 236-268). Keep only Strategy A (calendar-based detection): a missed check-in message fires ONLY if a check-in calendar event was scheduled yesterday and was not completed AND no submission exists.
-
-This means:
-- Client on a 6-week program with no check-ins on calendar = never gets a missed check-in message
-- Client on a biweekly program = only gets a message on the weeks where a check-in event is actually on their calendar
-- Client on weekly program = gets a message the day after their scheduled check-in if they didn't complete it
-
-### Change 2: Dashboard — Filter to Calendar-Scheduled Clients Only
-
-**File:** `src/components/dashboard/CheckinSubmissionDashboard.tsx`
-
-In the data fetch function, after loading `clientIds`, also query `calendar_events` for check-in events this week (Mon-Sun). Only include clients who have at least one check-in calendar event scheduled this week. Clients with no check-in event this week are excluded entirely (not shown in "Not Submitted", not shown in submission columns).
-
-The query addition:
-```typescript
-const { data: checkinEvents } = await supabase
-  .from("calendar_events")
-  .select("id, target_client_id, user_id, event_date, is_completed")
-  .in("event_type", ["checkin"])
-  .or(clientIds.map(id => `target_client_id.eq.${id},user_id.eq.${id}`).join(","))
-  .gte("event_date", mondayStr)
-  .lte("event_date", sundayStr);
+### `master_supplements` — Coach's reusable supplement catalog
+```
+id, coach_id, name, brand, default_dosage, default_dosage_unit, serving_unit, 
+serving_size, link_url, discount_code, discount_label, notes, is_active, created_at
 ```
 
-Build a Set of client IDs who have check-in events this week. Only iterate over those clients when populating buckets/notSubmitted. Everyone else is invisible to the dashboard.
+### `supplement_plans` — Groupings of supplements (like a program)
+```
+id, coach_id, name, description, is_template, created_at, updated_at
+```
 
-### Change 3: Biweekly Off-Week Handling
+### `supplement_plan_items` — Individual supplement within a plan
+```
+id, plan_id (FK supplement_plans), master_supplement_id (FK master_supplements),
+dosage, dosage_unit, timing_slot (enum: fasted, meal_1, meal_2, pre_workout, 
+post_workout, before_bed, with_any_meal), sort_order, coach_note, link_url_override, 
+discount_code_override
+```
 
-The existing biweekly logic using `checkin_assignments.next_due_date` becomes redundant since the calendar is now the source of truth. If a biweekly client's off-week has no check-in event on the calendar, they simply won't appear. Keep the "Off-Week" section but populate it by checking if a client has an active `checkin_assignment` with `recurrence = "biweekly"` but no calendar check-in event this week — this gives the coach visibility that the client exists but isn't due.
+### `client_supplement_assignments` — Plan assigned to a client
+```
+id, client_id, plan_id (FK supplement_plans), assigned_by, is_active, 
+assigned_at, notes
+```
 
-## Files to Edit
+### `client_supplement_overrides` — Per-client item tweaks
+```
+id, assignment_id (FK client_supplement_assignments), 
+plan_item_id (FK supplement_plan_items), dosage_override, timing_override, 
+coach_note_override, is_removed
+```
 
-1. `supabase/functions/evaluate-auto-messages/index.ts` — Remove Strategy B from `missed_checkin` case
-2. `src/components/dashboard/CheckinSubmissionDashboard.tsx` — Add calendar event filter to data fetch
+RLS: coaches can CRUD their own master data; clients can SELECT their assigned plans.
 
-## Impact
+## Files to Create/Edit
 
-- Clients on training-only or 6-week programs with no check-ins: completely invisible to the check-in dashboard and auto-messages
-- Clients on biweekly programs: only appear on weeks where a check-in is on the calendar
-- Clients on weekly programs: no change in behavior (they have weekly calendar events)
-- Existing data: no database changes needed, purely logic fixes
+### New Files
+1. **`src/components/libraries/SupplementLibrary.tsx`** — Master library tab: CRUD master supplements + supplement plans, drag-to-reorder items, assign plan to client dialog
+2. **`src/components/nutrition/ClientSupplementPlan.tsx`** — Client-facing view: timing-grouped cards with logging, links, discount badges
+
+### Edited Files
+3. **`src/pages/MasterLibraries.tsx`** — Add 6th tab "Supplements" with `<SupplementLibrary />`
+4. **`src/components/nutrition/SupplementLogger.tsx`** — When client has an assigned plan, render `<ClientSupplementPlan />` instead of the current flat list. Keep manual-add as fallback for clients with no plan.
+5. **`src/components/clients/workspace/NutritionTab.tsx`** or create a new `SuppsTab` in client workspace — Coach can view/edit the client's assigned supplement plan from the client detail page
+
+### Migration
+6. **Database migration** — Create the 5 tables above with RLS policies
+
+## Timing Slot Design
+
+Based on your PDF, these are the timing categories:
+
+| Slot | Label | Example from PDF |
+|------|-------|-----------------|
+| `fasted` | Fasted (Morning Ritual) | ACV + Lemon Juice, Psyllium Husk, Probiotics, Iodine, Creatine, Glutamine |
+| `meal_1` | With Meal 1 | Multivitamin (Triumph), Vitamin D3, Fish Oil, Zinc+Copper, Vitamin B Complex |
+| `pre_workout` | Pre-Workout | Pulse (optional) |
+| `post_workout` | Post-Workout | Magnesium (200mg) |
+| `before_bed` | Before Bed | Magnesium (200mg) |
+| `with_meal` | With Highest Carb Meal | Berberine |
+| `any_time` | Any Time | — |
+
+## Client UI Mockup (text)
+
+```text
+┌─────────────────────────────────────┐
+│ 💊 My Supplement Plan               │
+│ Assigned by Coach Kevin              │
+│                                     │
+│ ── Fasted (Morning Ritual) ──       │
+│ ┌─────────────────────────────────┐ │
+│ │ Creatine Monohydrate    5g/day  │ │
+│ │ Mix with ACV + lemon juice      │ │
+│ │ [WUFITNESS 20% OFF] 🔗         │ │
+│ │                        [Log ✓]  │ │
+│ └─────────────────────────────────┘ │
+│ ┌─────────────────────────────────┐ │
+│ │ Probiotics         25B CFU/day  │ │
+│ │ Morning fasted                  │ │
+│ │ [WUFITNESS 20% OFF] 🔗         │ │
+│ │                        [Log ✓]  │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ── With Meal 1 ──                   │
+│ ┌─────────────────────────────────┐ │
+│ │ Triumph Multivitamin   3 pills  │ │
+│ │ Vitamins help use nutrients...  │ │
+│ │ [WUFITNESS 20% OFF] 🔗         │ │
+│ │                        [Log ✓]  │ │
+│ └─────────────────────────────────┘ │
+│ ...                                 │
+└─────────────────────────────────────┘
+```
+
+## Implementation Order
+
+1. Database migration (5 tables + RLS)
+2. `SupplementLibrary.tsx` — master supplement CRUD + plan builder + assign dialog
+3. `ClientSupplementPlan.tsx` — client-facing timing-grouped view with logging
+4. Wire into `MasterLibraries.tsx` (new tab) and `SupplementLogger.tsx` (conditional render)
+5. Add supplement plan view to coach's client workspace
 
