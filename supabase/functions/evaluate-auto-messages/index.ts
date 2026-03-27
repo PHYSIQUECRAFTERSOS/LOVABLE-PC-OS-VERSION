@@ -32,24 +32,6 @@ function getYesterdayLocal(tz: string): string {
   }
 }
 
-/** Get Monday 00:00 PST of current week as YYYY-MM-DD */
-function getCurrentWeekMondayPST(): string {
-  const now = new Date();
-  const pstFormatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const pstDateStr = pstFormatter.format(now);
-  const pstDate = new Date(pstDateStr + "T00:00:00");
-  const day = pstDate.getDay(); // 0=Sun
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(pstDate);
-  monday.setDate(monday.getDate() + diffToMonday);
-  return monday.toISOString().split("T")[0];
-}
-
 /** Get today's date in PST */
 function getTodayPST(): string {
   const now = new Date();
@@ -57,20 +39,6 @@ function getTodayPST(): string {
     timeZone: "America/Los_Angeles",
   });
   return formatter.format(now);
-}
-
-/** Get current day of week in PST (0=Sun, 1=Mon, ... 6=Sat) */
-function getDayOfWeekPST(): number {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    weekday: "short",
-  });
-  const dayStr = formatter.format(now);
-  const map: Record<string, number> = {
-    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-  };
-  return map[dayStr] ?? 0;
 }
 
 Deno.serve(async (req) => {
