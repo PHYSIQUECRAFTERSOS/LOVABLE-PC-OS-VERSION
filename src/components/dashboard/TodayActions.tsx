@@ -71,7 +71,7 @@ interface TodayActionsProps {
   refreshKey?: number;
 }
 
-const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
+const TodayActions = ({ date, onDataLoaded, refreshKey = 0 }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
@@ -81,7 +81,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
 
-  const cacheKey = `today-actions-${user?.id}-${targetDate}`;
+  const cacheKey = `today-actions-${user?.id}-${targetDate}-${refreshKey}`;
 
   // Listen for FAB-scheduled events to refetch instantly
   useEffect(() => {
