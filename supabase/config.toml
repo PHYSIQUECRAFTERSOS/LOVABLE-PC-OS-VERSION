@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.daily-xp-evaluation]
 verify_jwt = false
+
+[functions.generate-grocery-list]
+verify_jwt = false
