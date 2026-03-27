@@ -5,8 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DailyNutritionLog from "@/components/nutrition/DailyNutritionLog";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
 import MacroTargetEditor from "@/components/nutrition/MacroTargetEditor";
-import CoachMealPlanUpload from "@/components/nutrition/CoachMealPlanUpload";
-import ClientMealPlanView from "@/components/nutrition/ClientMealPlanView";
+import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
+import ClientNutritionHub from "@/components/nutrition/ClientNutritionHub";
 import ClientStructuredMealPlan from "@/components/nutrition/ClientStructuredMealPlan";
 import MicronutrientDashboard from "@/components/nutrition/MicronutrientDashboard";
 import SupplementLogger from "@/components/nutrition/SupplementLogger";
@@ -65,7 +65,7 @@ const Nutrition = () => {
               </TabsTrigger>
             )}
             <TabsTrigger value="coachplan" className="flex-1">
-              {isCoach ? "Upload" : "Plan"}
+              {isCoach ? "Guides" : "Plan"}
             </TabsTrigger>
             {!isCoach && (
               <TabsTrigger value="myplan" className="flex-1">My Plan</TabsTrigger>
@@ -97,7 +97,7 @@ const Nutrition = () => {
             </TabsContent>
           )}
           <TabsContent value="coachplan">
-            {isCoach ? <CoachMealPlanUpload /> : <ClientMealPlanView />}
+            {isCoach ? <CoachNutritionGuides /> : <ClientNutritionHub />}
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
