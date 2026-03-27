@@ -21,6 +21,7 @@ const PhaseInfoEditor = () => {
     next_phase_name: "",
     next_phase_description: "",
     coach_notes: "",
+    additional_notes: "",
   });
   const [saving, setSaving] = useState(false);
 
