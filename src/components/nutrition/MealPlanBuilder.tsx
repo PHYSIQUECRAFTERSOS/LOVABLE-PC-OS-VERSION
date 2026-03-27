@@ -833,7 +833,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-muted-foreground hidden sm:inline">
-                  {dayTotals.calories} cal · {dayTotals.protein}P · {dayTotals.carbs}C · {dayTotals.fat}F
+                  {Math.round(dayTotals.calories)} cal · {Math.round(dayTotals.protein)}P · {Math.round(dayTotals.carbs)}C · {Math.round(dayTotals.fat)}F
                 </span>
                 {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
@@ -910,10 +910,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                                 <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
                               </div>
                               <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
-                                <span>{macros.calories}cal</span>
-                                <span className="text-red-400">{macros.protein}P</span>
-                                <span className="text-blue-400">{macros.carbs}C</span>
-                                <span className="text-yellow-400">{macros.fat}F</span>
+                                <span>{Math.round(macros.calories)}cal</span>
+                                <span className="text-red-400">{Math.round(macros.protein)}P</span>
+                                <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
+                                <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
                               </div>
                               <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
                                 <Trash2 className="h-3 w-3" />
@@ -947,12 +947,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-foreground">Day Total</span>
                     <div className="flex gap-3">
-                      <span className="font-bold text-foreground">{dayTotals.calories} cal</span>
-                      <span className="text-red-400 font-medium">{dayTotals.protein}P</span>
-                      <span className="text-blue-400 font-medium">{dayTotals.carbs}C</span>
-                      <span className="text-yellow-400 font-medium">{dayTotals.fat}F</span>
-                      <span className="text-muted-foreground">{dayTotals.fiber}Fi</span>
-                      <span className="text-muted-foreground">{dayTotals.sugar}S</span>
+                      <span className="font-bold text-foreground">{Math.round(dayTotals.calories)} cal</span>
+                      <span className="text-red-400 font-medium">{Math.round(dayTotals.protein)}P</span>
+                      <span className="text-blue-400 font-medium">{Math.round(dayTotals.carbs)}C</span>
+                      <span className="text-yellow-400 font-medium">{Math.round(dayTotals.fat)}F</span>
+                      <span className="text-muted-foreground">{Math.round(dayTotals.fiber)}Fi</span>
+                      <span className="text-muted-foreground">{Math.round(dayTotals.sugar)}S</span>
                     </div>
                   </div>
                 </div>
