@@ -216,13 +216,16 @@ const TodayActions = ({ date, onDataLoaded, refreshKey = 0 }: TodayActionsProps)
         completed: (nutritionRes.data?.length || 0) > 0,
       });
 
-      if (onDataLoaded) {
-        setTimeout(() => onDataLoaded(items), 0);
-      }
-
       return items;
     },
   });
+
+  // Fire onDataLoaded whenever data updates (including cache hits and refetches)
+  useEffect(() => {
+    if (onDataLoaded && actions.length > 0) {
+      onDataLoaded(actions);
+    }
+  }, [actions, onDataLoaded]);
 
   refetchRef.current = refetch;
 
