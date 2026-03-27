@@ -1740,6 +1740,92 @@ export type Database = {
           },
         ]
       }
+      client_supplement_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          client_id: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          plan_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          client_id: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          plan_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          client_id?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_supplement_assignments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "supplement_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_supplement_overrides: {
+        Row: {
+          assignment_id: string
+          coach_note_override: string | null
+          created_at: string
+          dosage_override: string | null
+          id: string
+          is_removed: boolean
+          plan_item_id: string
+          timing_override: string | null
+        }
+        Insert: {
+          assignment_id: string
+          coach_note_override?: string | null
+          created_at?: string
+          dosage_override?: string | null
+          id?: string
+          is_removed?: boolean
+          plan_item_id: string
+          timing_override?: string | null
+        }
+        Update: {
+          assignment_id?: string
+          coach_note_override?: string | null
+          created_at?: string
+          dosage_override?: string | null
+          id?: string
+          is_removed?: boolean
+          plan_item_id?: string
+          timing_override?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_supplement_overrides_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "client_supplement_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_supplement_overrides_plan_item_id_fkey"
+            columns: ["plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "supplement_plan_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_tags: {
         Row: {
           client_id: string
@@ -3542,6 +3628,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      master_supplements: {
+        Row: {
+          brand: string | null
+          coach_id: string
+          created_at: string
+          default_dosage: string | null
+          default_dosage_unit: string | null
+          discount_code: string | null
+          discount_label: string | null
+          id: string
+          is_active: boolean
+          link_url: string | null
+          name: string
+          notes: string | null
+          serving_size: number | null
+          serving_unit: string | null
+        }
+        Insert: {
+          brand?: string | null
+          coach_id: string
+          created_at?: string
+          default_dosage?: string | null
+          default_dosage_unit?: string | null
+          discount_code?: string | null
+          discount_label?: string | null
+          id?: string
+          is_active?: boolean
+          link_url?: string | null
+          name: string
+          notes?: string | null
+          serving_size?: number | null
+          serving_unit?: string | null
+        }
+        Update: {
+          brand?: string | null
+          coach_id?: string
+          created_at?: string
+          default_dosage?: string | null
+          default_dosage_unit?: string | null
+          discount_code?: string | null
+          discount_label?: string | null
+          id?: string
+          is_active?: boolean
+          link_url?: string | null
+          name?: string
+          notes?: string | null
+          serving_size?: number | null
+          serving_unit?: string | null
+        }
+        Relationships: []
       }
       master_workout_exercises: {
         Row: {
@@ -5692,6 +5829,93 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      supplement_plan_items: {
+        Row: {
+          coach_note: string | null
+          created_at: string
+          discount_code_override: string | null
+          dosage: string | null
+          dosage_unit: string | null
+          id: string
+          link_url_override: string | null
+          master_supplement_id: string
+          plan_id: string
+          sort_order: number
+          timing_slot: string
+        }
+        Insert: {
+          coach_note?: string | null
+          created_at?: string
+          discount_code_override?: string | null
+          dosage?: string | null
+          dosage_unit?: string | null
+          id?: string
+          link_url_override?: string | null
+          master_supplement_id: string
+          plan_id: string
+          sort_order?: number
+          timing_slot?: string
+        }
+        Update: {
+          coach_note?: string | null
+          created_at?: string
+          discount_code_override?: string | null
+          dosage?: string | null
+          dosage_unit?: string | null
+          id?: string
+          link_url_override?: string | null
+          master_supplement_id?: string
+          plan_id?: string
+          sort_order?: number
+          timing_slot?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplement_plan_items_master_supplement_id_fkey"
+            columns: ["master_supplement_id"]
+            isOneToOne: false
+            referencedRelation: "master_supplements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplement_plan_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "supplement_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplement_plans: {
+        Row: {
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_template: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_template?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       supplement_stacks: {
         Row: {
