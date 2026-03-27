@@ -901,11 +901,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       // Log to user_food_history (fire-and-forget)
       if (foodItemId) {
         supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
+        const entryAny = entry as any;
         supabase.from("user_food_serving_memory" as any).upsert({
           user_id: user.id,
           food_id: foodItemId,
-          serving_size: entry.quantity,
-          serving_unit: entry.servingDescription,
+          serving_size: entryAny.useGrams ? entryAny.customGrams : entry.quantity,
+          serving_unit: entryAny.useGrams ? "g" : entry.servingDescription,
           last_logged_at: new Date().toISOString(),
           log_count: 1,
         } as any, { onConflict: "user_id,food_id" }).then(({ error: memErr }) => {
