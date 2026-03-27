@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 /** Return the client's current local hour (0-23) given their IANA timezone */
@@ -32,6 +32,14 @@ function getYesterdayLocal(tz: string): string {
   }
 }
 
+function getTodayLocal(tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+  } catch {
+    return new Date().toISOString().split("T")[0];
+  }
+}
+
 /** Get today's date in PST */
 function getTodayPST(): string {
   const now = new Date();
@@ -51,6 +59,82 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    let totalSent = 0;
+    let checkinReminderPushes = 0;
+
+    const { data: activeAssignments, error: assignmentErr } = await supabase
+      .from("checkin_assignments")
+      .select("id, client_id, coach_id, next_due_date")
+      .eq("is_active", true);
+
+    if (assignmentErr) throw assignmentErr;
+
+    if (activeAssignments?.length) {
+      const uniqueReminderClientIds = [...new Set(activeAssignments.map((assignment: any) => assignment.client_id))];
+      const { data: reminderProfiles, error: reminderProfilesErr } = await supabase
+        .from("profiles")
+        .select("user_id, timezone")
+        .in("user_id", uniqueReminderClientIds);
+
+      if (reminderProfilesErr) throw reminderProfilesErr;
+
+      const timezoneMap = new Map(
+        (reminderProfiles || []).map((profile: any) => [profile.user_id, profile.timezone || "America/Los_Angeles"])
+      );
+      const remindedClients = new Set<string>();
+
+      for (const assignment of activeAssignments) {
+        const clientId = assignment.client_id as string;
+        if (remindedClients.has(clientId)) continue;
+
+        const tz = timezoneMap.get(clientId) || "America/Los_Angeles";
+        const localHour = getClientLocalHour(tz);
+        const todayLocal = getTodayLocal(tz);
+
+        if (localHour !== 8) continue;
+
+        const { data: todayCheckinEvents, error: todayEventsErr } = await supabase
+          .from("calendar_events")
+          .select("id, is_completed")
+          .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`)
+          .eq("event_type", "checkin")
+          .eq("event_date", todayLocal)
+          .limit(10);
+
+        if (todayEventsErr) throw todayEventsErr;
+
+        const hasScheduledCheckinToday = Boolean(todayCheckinEvents?.length) || assignment.next_due_date === todayLocal;
+        if (!hasScheduledCheckinToday) continue;
+        if (todayCheckinEvents?.some((event: any) => event.is_completed)) continue;
+
+        const { data: existingSubmission, error: submissionErr } = await supabase
+          .from("checkin_submissions")
+          .select("id")
+          .eq("client_id", clientId)
+          .eq("due_date", todayLocal)
+          .limit(1);
+
+        if (submissionErr) throw submissionErr;
+        if (existingSubmission?.length) continue;
+
+        try {
+          await supabase.functions.invoke("send-push-notification", {
+            body: {
+              user_id: clientId,
+              title: "Check-In Reminder",
+              body: "Your check-in is scheduled for today. Open Physique Crafters to submit it.",
+              notification_type: "checkin",
+              data: { route: "/dashboard" },
+            },
+          });
+          remindedClients.add(clientId);
+          checkinReminderPushes++;
+        } catch (pushErr) {
+          console.error(`[Push] Scheduled check-in reminder failed for ${clientId}:`, pushErr);
+        }
+      }
+    }
+
     // Get all active triggers
     const { data: triggers, error: trigErr } = await supabase
       .from("auto_message_triggers")
@@ -58,15 +142,9 @@ Deno.serve(async (req) => {
       .eq("is_active", true);
 
     if (trigErr) throw trigErr;
-    if (!triggers || triggers.length === 0) {
-      return new Response(JSON.stringify({ processed: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const activeTriggers = triggers || [];
 
-    let totalSent = 0;
-
-    for (const trigger of triggers) {
+    for (const trigger of activeTriggers) {
       const template = trigger.auto_message_templates;
       if (!template) continue;
 
@@ -349,7 +427,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ processed: triggers.length, sent: totalSent }),
+      JSON.stringify({ processed: activeTriggers.length, sent: totalSent, checkin_reminders_sent: checkinReminderPushes }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

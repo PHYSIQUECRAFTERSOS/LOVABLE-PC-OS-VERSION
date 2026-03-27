@@ -24,6 +24,14 @@ const canUsePush = (): boolean => {
   }
 };
 
+const getPushPlatform = (): "ios" | "android" => {
+  try {
+    return Capacitor.getPlatform() === "android" ? "android" : "ios";
+  } catch {
+    return "ios";
+  }
+};
+
 export function usePushNotifications() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -37,37 +45,40 @@ export function usePushNotifications() {
 
     if (!isPushAvailable) return;
 
+    let isActive = true;
+
     const setup = async () => {
       try {
-        const permResult = await PushNotifications.requestPermissions();
-        if (permResult.receive !== "granted") {
-          console.log("[Push] Permission not granted:", permResult.receive);
-          return;
-        }
+        await PushNotifications.removeAllListeners();
 
-        await PushNotifications.register();
-        registeredRef.current = true;
+        await PushNotifications.addListener("registration", async (token) => {
+          if (!isActive) return;
 
-        // Token received — save to DB
-        PushNotifications.addListener("registration", async (token) => {
           console.log("[Push] Token received:", token.value.slice(0, 12) + "...");
+
           const { error } = await supabase
             .from("push_tokens" as any)
             .upsert(
-              { user_id: user.id, token: token.value, platform: "ios" },
+              {
+                user_id: user.id,
+                token: token.value,
+                platform: getPushPlatform(),
+              },
               { onConflict: "user_id,token" }
             );
-          if (error) console.error("[Push] Token save error:", error.message);
-          else console.log("[Push] Token saved successfully");
+
+          if (error) {
+            console.error("[Push] Token save error:", error.message);
+          } else {
+            console.log("[Push] Token saved successfully");
+          }
         });
 
-        // Registration error
-        PushNotifications.addListener("registrationError", (err) => {
+        await PushNotifications.addListener("registrationError", (err) => {
           console.error("[Push] Registration error:", err);
         });
 
-        // Foreground notification — show toast
-        PushNotifications.addListener("pushNotificationReceived", (notification) => {
+        await PushNotifications.addListener("pushNotificationReceived", (notification) => {
           console.log("[Push] Foreground notification:", notification);
           toast({
             title: notification.title || "New notification",
@@ -75,25 +86,38 @@ export function usePushNotifications() {
           });
         });
 
-        // Notification tapped — navigate to messages
-        PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+        await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
           console.log("[Push] Notification tapped:", action);
           const route = action.notification?.data?.route || "/messages";
           window.location.href = route;
         });
+
+        const permResult = await PushNotifications.requestPermissions();
+        if (permResult.receive !== "granted") {
+          console.log("[Push] Permission not granted:", permResult.receive);
+          return;
+        }
+
+        await PushNotifications.register();
+        if (isActive) {
+          registeredRef.current = true;
+        }
       } catch (err) {
         console.error("[Push] Setup error:", err);
       }
     };
 
-    setup();
+    void setup();
 
     return () => {
+      isActive = false;
+      registeredRef.current = false;
+
       if (canUsePush()) {
-        PushNotifications.removeAllListeners();
+        void PushNotifications.removeAllListeners();
       }
     };
-  }, [user]);
+  }, [user, toast]);
 }
 
 /**

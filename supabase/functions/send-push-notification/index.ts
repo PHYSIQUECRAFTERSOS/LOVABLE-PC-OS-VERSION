@@ -84,6 +84,18 @@ async function buildApnsJwt(
   return `${signingInput}.${b64url(rawSig)}`;
 }
 
+function shouldRemoveToken(status: number, responseText: string): boolean {
+  if (status === 410) return true;
+  if (status !== 400) return false;
+
+  try {
+    const parsed = responseText ? JSON.parse(responseText) : null;
+    return parsed?.reason === "BadDeviceToken" || parsed?.reason === "Unregistered";
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -138,11 +150,12 @@ Deno.serve(async (req) => {
     const { data: tokens } = await supabaseAdmin
       .from("push_tokens")
       .select("token")
-      .eq("user_id", user_id);
+      .eq("user_id", user_id)
+      .eq("platform", "ios");
 
     if (!tokens?.length) {
       return new Response(
-        JSON.stringify({ skipped: true, reason: "no_tokens" }),
+        JSON.stringify({ skipped: true, reason: "no_ios_tokens" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -211,7 +224,7 @@ Deno.serve(async (req) => {
 
         const responseText = await response.text();
 
-        if (response.status === 410 || response.status === 400) {
+        if (shouldRemoveToken(response.status, responseText)) {
           // Token is invalid — remove it
           await supabaseAdmin
             .from("push_tokens")
