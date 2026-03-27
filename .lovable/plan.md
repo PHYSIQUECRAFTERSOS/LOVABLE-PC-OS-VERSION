@@ -1,49 +1,64 @@
 
 
-# Fix Challenge Detail: Remove Old Rank Names, Improve UI
+# Fix Check-In System: Calendar-Only Trigger Logic
 
-## Problem
-Existing challenges in the database still store "Bronze/Silver/Gold/Platinum/Diamond" as tier names. The `StarTierIcon` component tries to parse a digit from the name and defaults to 1 star for all of them. The tier names are also displayed as text labels, creating confusion with the Ranked system.
+## Root Cause Analysis
 
-## Changes
+Two bugs share the same root cause — the system assumes ALL clients need check-ins:
 
-### 1. Update `StarTierIcon.tsx` — Add legacy name mapping
+**Bug 1: Dashboard "Not Submitted" shows wrong clients**
+In `CheckinSubmissionDashboard.tsx` line 247, when a client has no `checkin_assignment`, it defaults `recurrence` to `"weekly"`, causing every active client to appear in "Not Submitted" — even those on programs with zero check-ins.
 
-Add a fallback map so old database tier names render correct star counts:
+**Bug 2: Automated missed check-in message fires incorrectly**
+In `evaluate-auto-messages/index.ts` lines 236-268, "Strategy B" fires for ANY client who hasn't submitted a check-in this week (Thursday+), regardless of whether a check-in was ever scheduled on their calendar. This is what sent the false message to Kevin (Client).
 
+## Fix: Calendar Events as Single Source of Truth
+
+Per your preference, check-in eligibility should be determined exclusively by whether a check-in calendar event exists for that client in the relevant time window.
+
+### Change 1: Edge Function — Remove Strategy B
+
+**File:** `supabase/functions/evaluate-auto-messages/index.ts`
+
+Remove the entire "Strategy B: weekly window check" block (lines 236-268). Keep only Strategy A (calendar-based detection): a missed check-in message fires ONLY if a check-in calendar event was scheduled yesterday and was not completed AND no submission exists.
+
+This means:
+- Client on a 6-week program with no check-ins on calendar = never gets a missed check-in message
+- Client on a biweekly program = only gets a message on the weeks where a check-in event is actually on their calendar
+- Client on weekly program = gets a message the day after their scheduled check-in if they didn't complete it
+
+### Change 2: Dashboard — Filter to Calendar-Scheduled Clients Only
+
+**File:** `src/components/dashboard/CheckinSubmissionDashboard.tsx`
+
+In the data fetch function, after loading `clientIds`, also query `calendar_events` for check-in events this week (Mon-Sun). Only include clients who have at least one check-in calendar event scheduled this week. Clients with no check-in event this week are excluded entirely (not shown in "Not Submitted", not shown in submission columns).
+
+The query addition:
 ```typescript
-const LEGACY_MAP: Record<string, number> = {
-  bronze: 1, silver: 2, gold: 3, platinum: 4, diamond: 5
-};
-// Parse "2 Stars" → 2, OR "Bronze" → 1
-const count = parseInt(name.match(/(\d)/)?.[1] || "") 
-  || LEGACY_MAP[name.toLowerCase()] 
-  || 1;
+const { data: checkinEvents } = await supabase
+  .from("calendar_events")
+  .select("id, target_client_id, user_id, event_date, is_completed")
+  .in("event_type", ["checkin"])
+  .or(clientIds.map(id => `target_client_id.eq.${id},user_id.eq.${id}`).join(","))
+  .gte("event_date", mondayStr)
+  .lte("event_date", sundayStr);
 ```
 
-### 2. Redesign `ChallengeTierProgress.tsx` — Remove tier name text
+Build a Set of client IDs who have check-in events this week. Only iterate over those clients when populating buckets/notSubmitted. Everyone else is invisible to the dashboard.
 
-- Remove the text labels showing tier names ("Bronze", "Silver", etc.)
-- Show only star icons in the progression path (1★, 2★★, 3★★★...)
-- Replace the point threshold labels with just the min_points number
-- Keep the progress bar and "pts to go" info
-- Remove the large circular current-tier display (redundant), replace with a compact inline star + points display
+### Change 3: Biweekly Off-Week Handling
 
-### 3. Clean up `ChallengeDetailView.tsx` — Remove tier names from leaderboard
+The existing biweekly logic using `checkin_assignments.next_due_date` becomes redundant since the calendar is now the source of truth. If a biweekly client's off-week has no check-in event on the calendar, they simply won't appear. Keep the "Off-Week" section but populate it by checking if a client has an active `checkin_assignment` with `recurrence = "biweekly"` but no calendar check-in event this week — this gives the coach visibility that the client exists but isn't due.
 
-- Remove the tier name text next to each participant in the leaderboard (lines 272-276)
-- Keep just the star icons as a subtle visual indicator
-- Remove the `getParticipantTier` function and the tier badge below participant names — the leaderboard already shows rank numbers (#1, #2...) which is sufficient
-- Alternatively: keep stars but remove the tier name text label
+## Files to Edit
 
-### 4. Overall detail popup improvements
+1. `supabase/functions/evaluate-auto-messages/index.ts` — Remove Strategy B from `missed_checkin` case
+2. `src/components/dashboard/CheckinSubmissionDashboard.tsx` — Add calendar event filter to data fetch
 
-- Keep the leaderboard as-is (with rank numbers and points)
-- Remove the separate "Tier Progress" card entirely — it's the source of confusion. The challenge progress bar + leaderboard rank is enough context
-- Keep: Challenge Progress bar, My Stats card, How to Earn Points, Actions, Leaderboard
+## Impact
 
-## Files to edit
-- `src/components/challenges/StarTierIcon.tsx` — add legacy name mapping
-- `src/components/challenges/ChallengeDetailView.tsx` — remove tier progress section, remove tier labels from leaderboard
-- `src/components/challenges/ChallengeTierProgress.tsx` — simplified (or removed entirely from this view)
+- Clients on training-only or 6-week programs with no check-ins: completely invisible to the check-in dashboard and auto-messages
+- Clients on biweekly programs: only appear on weeks where a check-in is on the calendar
+- Clients on weekly programs: no change in behavior (they have weekly calendar events)
+- Existing data: no database changes needed, purely logic fixes
 
