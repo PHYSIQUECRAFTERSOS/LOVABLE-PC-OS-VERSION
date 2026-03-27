@@ -1,0 +1,1 @@
+ALTER TABLE public.client_phase_info ADD COLUMN IF NOT EXISTS additional_notes text;
