@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateCache } from "@/hooks/useDataFetch";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,9 @@ const BodyStats = () => {
           completed_at: new Date().toISOString(),
         }).eq("id", eventId);
       }
+
+      // Invalidate dashboard cache so the task shows as completed immediately
+      invalidateCache(`today-actions-${user.id}-${logDate}`);
 
       toast({ title: "Body stats saved! 📊" });
       navigate("/dashboard");

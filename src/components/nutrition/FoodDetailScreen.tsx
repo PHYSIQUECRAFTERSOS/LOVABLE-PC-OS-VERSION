@@ -84,9 +84,12 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   }, [food]);
 
   const [selectedServing, setSelectedServing] = useState(servingOptions[0]);
-  const [quantity, setQuantity] = useState(1);
+  const [quantityStr, setQuantityStr] = useState("1");
   const [useGrams, setUseGrams] = useState(false);
-  const [customGrams, setCustomGrams] = useState(selectedServing.size_g);
+  const [customGramsStr, setCustomGramsStr] = useState(String(selectedServing.size_g));
+
+  const quantity = parseFloat(quantityStr) || 0;
+  const customGrams = parseFloat(customGramsStr) || 0;
   const [showServingDropdown, setShowServingDropdown] = useState(false);
   const { user } = useAuth();
 
@@ -106,7 +109,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
         const mem = data as unknown as { serving_size: number; serving_unit: string };
         if (mem.serving_unit === "g" || mem.serving_unit === "grams") {
           setUseGrams(true);
-          setCustomGrams(mem.serving_size);
+          setCustomGramsStr(String(mem.serving_size));
         } else {
           // Try to match a serving option
           const match = servingOptions.find(
@@ -114,11 +117,11 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           );
           if (match) {
             setSelectedServing(match);
-            setQuantity(mem.serving_size);
+            setQuantityStr(String(mem.serving_size));
           } else {
             // Fallback: use grams mode with the remembered size
             setUseGrams(true);
-            setCustomGrams(mem.serving_size);
+            setCustomGramsStr(String(mem.serving_size));
           }
         }
       } catch {
@@ -309,12 +312,13 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           ) : (
             <div className="flex items-center gap-2 bg-secondary rounded-xl px-4 py-3">
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                value={customGrams}
-                onChange={(e) => setCustomGrams(parseFloat(e.target.value) || 0)}
+                value={customGramsStr}
+                onChange={(e) => setCustomGramsStr(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                placeholder="0"
                 className="flex-1 bg-transparent border-0 text-sm text-foreground p-0 h-auto focus-visible:ring-0"
-                min={1}
               />
               <span className="text-xs text-muted-foreground">g</span>
             </div>
@@ -325,20 +329,20 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
             <span className="text-sm text-foreground">Number of Servings</span>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setQuantity(Math.max(0.25, quantity - (quantity > 1 ? 1 : 0.25)))}
+                onClick={() => setQuantityStr(String(Math.max(0.25, quantity - (quantity > 1 ? 1 : 0.25))))}
                 className="text-primary text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-primary/10 transition-colors"
               >−</button>
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                value={quantity}
-                onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
+                value={quantityStr}
+                onChange={(e) => setQuantityStr(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                placeholder="0"
                 className="w-14 bg-secondary border-0 text-sm text-center text-foreground rounded-lg h-8 focus-visible:ring-1 focus-visible:ring-primary/50"
-                min={0.25}
-                step={0.25}
               />
               <button
-                onClick={() => setQuantity(quantity + (quantity >= 1 ? 1 : 0.25))}
+                onClick={() => setQuantityStr(String(quantity + (quantity >= 1 ? 1 : 0.25)))}
                 className="text-primary text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-primary/10 transition-colors"
               >+</button>
             </div>
