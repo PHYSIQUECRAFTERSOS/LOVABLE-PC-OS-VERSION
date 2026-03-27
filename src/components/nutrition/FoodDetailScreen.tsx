@@ -341,7 +341,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 step={0.25}
               />
               <button
-                onClick={() => setQuantity(quantity + (quantity >= 1 ? 1 : 0.25))}
+                onClick={() => setQuantityStr(String(quantity + (quantity >= 1 ? 1 : 0.25)))}
                 className="text-primary text-lg font-bold w-7 h-7 flex items-center justify-center rounded-full hover:bg-primary/10 transition-colors"
               >+</button>
             </div>
