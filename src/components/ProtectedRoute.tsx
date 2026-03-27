@@ -69,7 +69,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (isAuthLoading && !stalledLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -77,7 +77,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (isAuthLoading && stalledLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4 px-6 text-center">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4 px-6 text-center">
         <AlertTriangle className="h-10 w-10 text-destructive" />
         <p className="text-foreground font-medium">We couldn't finish restoring your session</p>
         <p className="text-sm text-muted-foreground">Please refresh. If this keeps happening, sign in again.</p>
@@ -106,7 +106,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (!role) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4">
         <AlertTriangle className="h-10 w-10 text-destructive" />
         <p className="text-foreground font-medium">Could not load your session role</p>
         <p className="text-sm text-muted-foreground">Please refresh. If this persists, sign in again.</p>
@@ -135,7 +135,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (role === "client" && !onboardingChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
