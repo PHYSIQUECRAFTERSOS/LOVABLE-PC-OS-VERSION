@@ -94,7 +94,7 @@ const Nutrition = () => {
             </TabsContent>
           )}
           <TabsContent value="coachplan">
-            {isCoach ? <CoachMealPlanUpload /> : <ClientMealPlanView />}
+            {isCoach ? <CoachNutritionGuides /> : <ClientNutritionHub />}
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
