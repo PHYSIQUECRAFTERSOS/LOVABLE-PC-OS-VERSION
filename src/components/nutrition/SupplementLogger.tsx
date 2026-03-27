@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import ClientSupplementPlan from "./ClientSupplementPlan";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ const SupplementLogger = () => {
   const [historyMode, setHistoryMode] = useState<"recent" | "frequent">("recent");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showScanFlow, setShowScanFlow] = useState(false);
+  const [hasAssignedPlan, setHasAssignedPlan] = useState<boolean | null>(null);
 
   const [lookingUp, setLookingUp] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
@@ -48,6 +50,18 @@ const SupplementLogger = () => {
   const load = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+
+    // Check for assigned plan first
+    const { data: assignData } = await supabase
+      .from("client_supplement_assignments")
+      .select("id")
+      .eq("client_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    
+    setHasAssignedPlan(!!assignData);
+
     const [{ data: supps }, { data: logs }] = await Promise.all([
       supabase.from("supplements").select("*").eq("client_id", user.id).eq("is_active", true).order("created_at", { ascending: false }),
       supabase.from("supplement_logs").select("*, supplements(*)").eq("client_id", user.id).eq("logged_at", today),
@@ -161,6 +175,11 @@ const SupplementLogger = () => {
 
   const getLogForSupplement = (supplementId: string) =>
     todayLogs.find((l) => l.supplement_id === supplementId);
+
+  // If client has an assigned plan, show the plan view instead
+  if (hasAssignedPlan) {
+    return <ClientSupplementPlan />;
+  }
 
   return (
     <div className="space-y-5">
