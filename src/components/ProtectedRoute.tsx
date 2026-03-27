@@ -77,7 +77,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (isAuthLoading && stalledLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4 px-6 text-center">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4 px-6 text-center">
         <AlertTriangle className="h-10 w-10 text-destructive" />
         <p className="text-foreground font-medium">We couldn't finish restoring your session</p>
         <p className="text-sm text-muted-foreground">Please refresh. If this keeps happening, sign in again.</p>
