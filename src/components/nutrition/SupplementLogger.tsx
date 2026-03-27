@@ -12,6 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus, Pill, Trash2, Check, Camera, ChevronDown, ChevronUp,
   Shield, Star, Minus, Loader2, AlertTriangle, Sparkles
 } from "lucide-react";
@@ -32,6 +36,7 @@ const SupplementLogger = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showScanFlow, setShowScanFlow] = useState(false);
   const [hasAssignedPlan, setHasAssignedPlan] = useState<boolean | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const [lookingUp, setLookingUp] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
@@ -145,9 +150,10 @@ const SupplementLogger = () => {
     setServingSize(""); setIsVerified(false);
   };
 
+  const dispatchSupplementEvent = () => window.dispatchEvent(new Event("supplement-logs-updated"));
+
   const logSupplement = async (supplementId: string, servings: number = 1) => {
     if (!user) return;
-    // Find the supplement to use its serving_size as default
     const supp = supplements.find(s => s.id === supplementId);
     const defaultServings = supp?.serving_size || 1;
     const { error } = await supabase.from("supplement_logs").insert({
@@ -161,6 +167,7 @@ const SupplementLogger = () => {
     } else {
       toast({ title: "Logged ✓" });
       load();
+      dispatchSupplementEvent();
     }
   };
 
@@ -171,6 +178,19 @@ const SupplementLogger = () => {
       await supabase.from("supplement_logs").update({ servings: newServings }).eq("id", logId);
     }
     load();
+    dispatchSupplementEvent();
+  };
+
+  const deleteSupplement = async (id: string) => {
+    const { error } = await supabase.from("supplements").update({ is_active: false }).eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Supplement removed" });
+      load();
+      dispatchSupplementEvent();
+    }
+    setDeleteConfirm(null);
   };
 
   const getLogForSupplement = (supplementId: string) =>
@@ -337,7 +357,7 @@ const SupplementLogger = () => {
             <span className="text-xs font-semibold text-primary">PC Verified</span>
           </div>
           {supplements.filter(s => s.is_verified).map((s) => (
-            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
+            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} onDelete={(id, name) => setDeleteConfirm({ id, name })} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
           ))}
         </div>
       )}
@@ -348,10 +368,28 @@ const SupplementLogger = () => {
       ) : (
         <div className="space-y-2">
           {supplements.filter(s => !s.is_verified).map((s) => (
-            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
+            <SupplementCard key={s.id} supplement={s} log={getLogForSupplement(s.id)} onLog={logSupplement} onUpdateServings={updateLogServings} onDelete={(id, name) => setDeleteConfirm({ id, name })} expanded={expandedId === s.id} onToggle={() => setExpandedId(expandedId === s.id ? null : s.id)} />
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent className="border-border bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Delete {deleteConfirm?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove it from your list. Logged history is preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirm && deleteSupplement(deleteConfirm.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -362,11 +400,12 @@ interface SupplementCardProps {
   log: any;
   onLog: (id: string, servings?: number) => void;
   onUpdateServings: (logId: string, servings: number) => void;
+  onDelete: (id: string, name: string) => void;
   expanded: boolean;
   onToggle: () => void;
 }
 
-const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded, onToggle }: SupplementCardProps) => {
+const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, onDelete, expanded, onToggle }: SupplementCardProps) => {
   const servings = log?.servings || 0;
   const labelServingSize = s.serving_size || 1;
   const unit = s.serving_unit || "serving";
@@ -420,38 +459,53 @@ const SupplementCard = ({ supplement: s, log, onLog, onUpdateServings, expanded,
       </div>
 
       {/* Expanded Nutrient Breakdown */}
-      {expanded && nutrientValues.length > 0 && (
+      {expanded && (
         <div className="border-t border-border/50 px-3 py-2 bg-secondary/30">
-          <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">
-            {servings > 0
-              ? `${servings} of ${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""} (${Math.round(nutrientMultiplier * 100)}%)`
-              : `Per serving (${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""})`
-            }
-          </p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            {nutrientValues.map(n => {
-              const labelAmount = s[n.key] || 0;
-              const effective = labelAmount * nutrientMultiplier;
-              const showScaled = servings > 0 && nutrientMultiplier !== 1;
-              return (
-                <div key={n.key} className="flex items-center justify-between text-[11px]">
-                  <span className="text-muted-foreground">{n.label}</span>
-                  <div className="flex items-center gap-1">
-                    {showScaled && (
-                      <span className="text-[9px] text-muted-foreground tabular-nums">{labelAmount.toFixed(1)}→</span>
-                    )}
-                    <span className="text-foreground font-medium tabular-nums">{effective.toFixed(1)}{n.unit}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {servings > 0 && nutrientMultiplier !== 1 && (
-            <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1">
-              <Sparkles className="h-2.5 w-2.5 text-primary" />
-              Scaled to {servings} {unit}{servings !== 1 ? "s" : ""} (label is per {labelServingSize})
-            </p>
+          {nutrientValues.length > 0 && (
+            <>
+              <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wider">
+                {servings > 0
+                  ? `${servings} of ${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""} (${Math.round(nutrientMultiplier * 100)}%)`
+                  : `Per serving (${labelServingSize} ${unit}${labelServingSize > 1 ? "s" : ""})`
+                }
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {nutrientValues.map(n => {
+                  const labelAmount = s[n.key] || 0;
+                  const effective = labelAmount * nutrientMultiplier;
+                  const showScaled = servings > 0 && nutrientMultiplier !== 1;
+                  return (
+                    <div key={n.key} className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">{n.label}</span>
+                      <div className="flex items-center gap-1">
+                        {showScaled && (
+                          <span className="text-[9px] text-muted-foreground tabular-nums">{labelAmount.toFixed(1)}→</span>
+                        )}
+                        <span className="text-foreground font-medium tabular-nums">{effective.toFixed(1)}{n.unit}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {servings > 0 && nutrientMultiplier !== 1 && (
+                <p className="text-[9px] text-muted-foreground mt-2 flex items-center gap-1">
+                  <Sparkles className="h-2.5 w-2.5 text-primary" />
+                  Scaled to {servings} {unit}{servings !== 1 ? "s" : ""} (label is per {labelServingSize})
+                </p>
+              )}
+            </>
           )}
+          <div className="mt-2 pt-2 border-t border-border/30">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
+              onClick={() => onDelete(s.id, s.name)}
+            >
+              <Trash2 className="h-3 w-3" />
+              Remove Supplement
+            </Button>
+          </div>
         </div>
       )}
     </div>

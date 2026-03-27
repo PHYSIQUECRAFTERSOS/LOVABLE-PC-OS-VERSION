@@ -112,6 +112,14 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
   const [weekHistory, setWeekHistory] = useState<Record<string, { day: string; value: number }[]>>({});
   const [prevWeekAvg, setPrevWeekAvg] = useState<Record<string, number>>({});
   const [currWeekAvg, setCurrWeekAvg] = useState<Record<string, number>>({});
+  const [suppRefresh, setSuppRefresh] = useState(0);
+
+  // Listen for supplement log changes from sibling tabs
+  useEffect(() => {
+    const handler = () => setSuppRefresh((c) => c + 1);
+    window.addEventListener("supplement-logs-updated", handler);
+    return () => window.removeEventListener("supplement-logs-updated", handler);
+  }, []);
 
   // ═══ Data Loading ═══
   useEffect(() => {
@@ -198,14 +206,8 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
       const cAvg: Record<string, number> = {};
       const dates = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), 6 - i), "yyyy-MM-dd"));
       MICRONUTRIENTS.forEach((n) => {
-        let sum = 0;
-        let count = 0;
-        hist[n.key] = dates.map((d) => {
-          const val = dailyMap[d]?.[n.key] || 0;
-          if (dailyMap[d]) { sum += val; count++; }
-          return { day: format(new Date(d + "T12:00:00"), "EEE"), value: Math.round(val * 10) / 10 };
-        });
-        cAvg[n.key] = count > 0 ? sum / count : 0;
+        hist[n.key] = dates.map((d) => ({ day: format(new Date(d + "T12:00:00"), "EEE"), value: dailyMap[d]?.[n.key] || 0 }));
+        cAvg[n.key] = dates.reduce((sum, d) => sum + (dailyMap[d]?.[n.key] || 0), 0) / 7;
       });
       setWeekHistory(hist);
       setCurrWeekAvg(cAvg);
@@ -219,9 +221,8 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
       });
       (prevSuppLogs || []).forEach((sl: any) => {
         if (!sl.supplements) return;
-        const d = sl.logged_at;
-        if (d && !prevDailyMap[d]) prevDailyMap[d] = {};
-        if (!d) return;
+        const d = sl.logged_at || today;
+        if (!prevDailyMap[d]) prevDailyMap[d] = {};
         const s = sl.supplements;
         const servings = sl.servings || 1;
         MICRONUTRIENTS.forEach((n) => { prevDailyMap[d][n.key] = (prevDailyMap[d][n.key] || 0) + ((s[n.key] || 0) * servings); });
@@ -239,7 +240,7 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
       setLoading(false);
     };
     load();
-  }, [targetId, today]);
+  }, [targetId, today, suppRefresh]);
 
   // ═══ Derived Data ═══
 
