@@ -1459,6 +1459,7 @@ export type Database = {
       }
       client_phase_info: {
         Row: {
+          additional_notes: string | null
           client_id: string
           coach_id: string
           coach_notes: string | null
@@ -1470,6 +1471,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          additional_notes?: string | null
           client_id: string
           coach_id: string
           coach_notes?: string | null
@@ -1481,6 +1483,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          additional_notes?: string | null
           client_id?: string
           coach_id?: string
           coach_notes?: string | null

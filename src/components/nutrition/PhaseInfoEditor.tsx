@@ -21,6 +21,7 @@ const PhaseInfoEditor = () => {
     next_phase_name: "",
     next_phase_description: "",
     coach_notes: "",
+    additional_notes: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -68,6 +69,7 @@ const PhaseInfoEditor = () => {
         next_phase_name: phaseInfo.next_phase_name || "",
         next_phase_description: phaseInfo.next_phase_description || "",
         coach_notes: phaseInfo.coach_notes || "",
+        additional_notes: (phaseInfo as any).additional_notes || "",
       });
     } else {
       setForm({
@@ -76,6 +78,7 @@ const PhaseInfoEditor = () => {
         next_phase_name: "",
         next_phase_description: "",
         coach_notes: "",
+        additional_notes: "",
       });
     }
   }, [phaseInfo, selectedClientId]);
@@ -173,11 +176,21 @@ const PhaseInfoEditor = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">Coach Notes</Label>
+              <Label className="text-xs">Coach Notes (Phase-specific)</Label>
               <Textarea
                 value={form.coach_notes}
                 onChange={(e) => setForm((f) => ({ ...f, coach_notes: e.target.value }))}
-                placeholder="Additional notes for the client..."
+                placeholder="Notes about this phase for the client..."
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">📝 Additional Notes (Client-specific)</Label>
+              <Textarea
+                value={form.additional_notes}
+                onChange={(e) => setForm((f) => ({ ...f, additional_notes: e.target.value }))}
+                placeholder="Any additional notes specific to this client..."
                 rows={4}
               />
             </div>

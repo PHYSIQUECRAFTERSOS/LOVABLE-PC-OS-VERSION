@@ -21,7 +21,6 @@ const DEFAULT_SECTIONS = [
   { section_key: "eating_out_cheat_sheet", title: "🍽️ Eating Out Cheat Sheet", sort_order: 4 },
   { section_key: "eating_out_examples", title: "🍕 Eating Out Examples", sort_order: 5 },
   { section_key: "macro_cheat_sheet", title: "📊 Macro Replacement Chart", sort_order: 6 },
-  { section_key: "additional_notes", title: "📝 Additional Notes", sort_order: 7 },
 ];
 
 const CoachNutritionGuides = () => {
