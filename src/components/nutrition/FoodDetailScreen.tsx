@@ -312,12 +312,13 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           ) : (
             <div className="flex items-center gap-2 bg-secondary rounded-xl px-4 py-3">
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                value={customGrams}
+                value={customGramsStr}
                 onChange={(e) => setCustomGramsStr(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                placeholder="0"
                 className="flex-1 bg-transparent border-0 text-sm text-foreground p-0 h-auto focus-visible:ring-0"
-                min={1}
               />
               <span className="text-xs text-muted-foreground">g</span>
             </div>
