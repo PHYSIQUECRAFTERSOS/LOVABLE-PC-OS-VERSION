@@ -618,15 +618,20 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                                   return `${count} ${si.serving_label} · `;
                                 }
                                 if (qu === "serving" && si) {
-                                  // No natural serving label — show servings count with food name for countable items
+                                  // No natural serving label
                                   const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
+                                  // For gram/ml-based foods (meat, fish, etc.), always show total weight
+                                  if (si.serving_unit === "g" || si.serving_unit === "ml" || si.serving_unit === "grams") {
+                                    const totalWeight = Math.round(count * si.serving_size);
+                                    const unit = si.serving_unit === "ml" ? "ml" : "g";
+                                    return `${totalWeight}${unit} · `;
+                                  }
+                                  // Non-metric servings (piece, slice, etc.) — show count
                                   if (count === Math.round(count) && count <= 12) {
-                                    // Countable quantity — show "2 Eggs" style
                                     return `${count} serving${count !== 1 ? 's' : ''} · `;
                                   }
                                   const totalWeight = Math.round(count * si.serving_size);
-                                  const unit = si.serving_unit === "ml" ? "ml" : "g";
-                                  return `${totalWeight}${unit} · `;
+                                  return `${totalWeight}g · `;
                                 }
                                 if (qd != null && qd > 0) {
                                   const displayQty = Math.round(qd * 10) / 10;

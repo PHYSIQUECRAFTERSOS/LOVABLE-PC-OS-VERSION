@@ -111,6 +111,9 @@ const BodyStats = () => {
         }).eq("id", eventId);
       }
 
+      // Invalidate dashboard cache so the task shows as completed immediately
+      invalidateCache(`today-actions-${user.id}-${logDate}`);
+
       toast({ title: "Body stats saved! 📊" });
       navigate("/dashboard");
     } catch (err: any) {

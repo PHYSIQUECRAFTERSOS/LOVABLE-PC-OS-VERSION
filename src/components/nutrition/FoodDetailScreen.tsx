@@ -84,9 +84,12 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   }, [food]);
 
   const [selectedServing, setSelectedServing] = useState(servingOptions[0]);
-  const [quantity, setQuantity] = useState(1);
+  const [quantityStr, setQuantityStr] = useState("1");
   const [useGrams, setUseGrams] = useState(false);
-  const [customGrams, setCustomGrams] = useState(selectedServing.size_g);
+  const [customGramsStr, setCustomGramsStr] = useState(String(selectedServing.size_g));
+
+  const quantity = parseFloat(quantityStr) || 0;
+  const customGrams = parseFloat(customGramsStr) || 0;
   const [showServingDropdown, setShowServingDropdown] = useState(false);
   const { user } = useAuth();
 
