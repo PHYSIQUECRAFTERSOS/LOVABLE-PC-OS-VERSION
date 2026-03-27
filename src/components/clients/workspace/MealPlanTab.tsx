@@ -323,114 +323,28 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         )}
       </div>
 
-      {/* PDF Section */}
-      <Tabs defaultValue="uploads" className="space-y-3">
-        <TabsList className="w-full grid grid-cols-1">
-          <TabsTrigger value="uploads" className="gap-1.5">
-            <FileUp className="h-3.5 w-3.5" /> PDF Uploads
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="uploads" className="space-y-3">
-          {viewingPdf && (
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm truncate">{viewingPdf.name}</CardTitle>
-                  <div className="flex gap-1 shrink-0">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => {
-                        const active = uploads.find((u) => u.is_active) || uploads[0];
-                        if (active) downloadPdf(active.storage_path);
-                      }}
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => window.open(viewingPdf.url, "_blank")}
-                    >
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <iframe
-                  src={`${viewingPdf.url}#toolbar=1&navpanes=0`}
-                  className="w-full border-0 rounded-b-lg"
-                  style={{ height: "70vh", minHeight: "500px" }}
-                  title="Meal Plan PDF"
-                />
-              </CardContent>
-            </Card>
-          )}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Upload className="h-4 w-4 text-primary" />
-                {viewingPdf ? "Replace PDF" : "Upload Meal Plan PDF"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/30 transition-colors">
-                <FileUp className="h-6 w-6 text-muted-foreground mb-1" />
-                <span className="text-sm text-muted-foreground">
-                  {uploading ? "Uploading..." : "Drop PDF or click to upload"}
-                </span>
-                <span className="text-[10px] text-muted-foreground mt-0.5">Max 10MB</span>
-                <input type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} disabled={uploading} />
-              </label>
-            </CardContent>
-          </Card>
-          {uploads.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">All Uploaded Plans</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {uploads.map((upload) => (
-                  <div
-                    key={upload.id}
-                    className={`flex items-center justify-between py-2 px-3 border rounded-lg cursor-pointer transition-colors ${
-                      viewingPdf?.name === upload.file_name ? "border-primary bg-primary/5" : "hover:bg-muted/30"
-                    }`}
-                    onClick={() => openPdfViewer(upload.storage_path, upload.file_name)}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FileUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{upload.file_name}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          v{upload.version} · {format(new Date(upload.created_at), "MMM d, yyyy")}
-                        </p>
-                      </div>
-                      {upload.is_active && <Badge className="text-[9px] h-4 shrink-0">Active</Badge>}
-                    </div>
-                    <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => downloadPdf(upload.storage_path)}>
-                        <Download className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => deletePdf(upload.id, upload.storage_path)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+      {/* Generate Grocery List for Client */}
+      <Card className="border-border/50">
+        <CardContent className="py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Client Grocery List</span>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleGenerateGroceryList}
+            disabled={generatingGrocery || planCards.length === 0}
+            className="gap-1.5"
+          >
+            {generatingGrocery ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ShoppingCart className="h-3.5 w-3.5" />
+            )}
+            Generate Grocery List
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Add Plan Type Dialog */}
       <Dialog open={addPlanOpen} onOpenChange={setAddPlanOpen}>

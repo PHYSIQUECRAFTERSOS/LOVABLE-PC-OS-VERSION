@@ -25,19 +25,37 @@ const ClientNutritionHub = () => {
     enabled: !!user,
   });
 
-  // Fetch guide sections from coach
+  // Fetch coach ID for this client
+  const { data: coachLink } = useQuery({
+    queryKey: ["client-coach-link", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("coach_clients")
+        .select("coach_id")
+        .eq("client_id", user!.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch guide sections from assigned coach (excluding additional_notes which is per-client)
   const { data: guideSections } = useQuery({
-    queryKey: ["nutrition-guide-sections", user?.id],
+    queryKey: ["nutrition-guide-sections", coachLink?.coach_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("nutrition_guide_sections")
         .select("*")
+        .eq("coach_id", coachLink!.coach_id)
         .eq("is_visible", true)
+        .neq("section_key", "additional_notes")
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!coachLink?.coach_id,
   });
 
   return (
