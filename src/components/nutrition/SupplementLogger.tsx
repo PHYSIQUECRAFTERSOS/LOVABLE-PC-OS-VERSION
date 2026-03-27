@@ -36,6 +36,7 @@ const SupplementLogger = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showScanFlow, setShowScanFlow] = useState(false);
   const [hasAssignedPlan, setHasAssignedPlan] = useState<boolean | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
 
   const [lookingUp, setLookingUp] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
