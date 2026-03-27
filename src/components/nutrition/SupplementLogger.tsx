@@ -31,6 +31,7 @@ const SupplementLogger = () => {
   const [historyMode, setHistoryMode] = useState<"recent" | "frequent">("recent");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showScanFlow, setShowScanFlow] = useState(false);
+  const [hasAssignedPlan, setHasAssignedPlan] = useState<boolean | null>(null);
 
   const [lookingUp, setLookingUp] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
