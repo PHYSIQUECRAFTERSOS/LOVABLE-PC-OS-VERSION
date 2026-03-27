@@ -1457,6 +1457,42 @@ export type Database = {
         }
         Relationships: []
       }
+      client_phase_info: {
+        Row: {
+          client_id: string
+          coach_id: string
+          coach_notes: string | null
+          current_phase_description: string | null
+          current_phase_name: string | null
+          id: string
+          next_phase_description: string | null
+          next_phase_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          coach_notes?: string | null
+          current_phase_description?: string | null
+          current_phase_name?: string | null
+          id?: string
+          next_phase_description?: string | null
+          next_phase_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          coach_notes?: string | null
+          current_phase_description?: string | null
+          current_phase_name?: string | null
+          id?: string
+          next_phase_description?: string | null
+          next_phase_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       client_program_assignments: {
         Row: {
           auto_advance: boolean
@@ -3412,6 +3448,30 @@ export type Database = {
         }
         Relationships: []
       }
+      grocery_lists: {
+        Row: {
+          client_id: string
+          generated_at: string | null
+          id: string
+          items: Json
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          generated_at?: string | null
+          id?: string
+          items?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          generated_at?: string | null
+          id?: string
+          items?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       health_connections: {
         Row: {
           connected_at: string | null
@@ -4318,6 +4378,39 @@ export type Database = {
           messages_enabled?: boolean | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      nutrition_guide_sections: {
+        Row: {
+          coach_id: string
+          content: string
+          id: string
+          is_visible: boolean | null
+          section_key: string
+          sort_order: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          coach_id: string
+          content?: string
+          id?: string
+          is_visible?: boolean | null
+          section_key: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          coach_id?: string
+          content?: string
+          id?: string
+          is_visible?: boolean | null
+          section_key?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
