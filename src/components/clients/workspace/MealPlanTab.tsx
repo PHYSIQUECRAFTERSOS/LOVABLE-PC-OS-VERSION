@@ -84,21 +84,12 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
 
   const loadAll = async () => {
     setLoading(true);
-    const [uploadsRes, plansRes] = await Promise.all([
-      supabase
-        .from("coach_meal_plan_uploads")
-        .select("*")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false }),
-      (supabase as any)
-        .from("meal_plans")
-        .select("id, name, day_type, day_type_label, sort_order, source_template_id")
-        .eq("client_id", clientId)
-        .eq("is_template", false)
-        .order("sort_order"),
-    ]);
-
-    setUploads(uploadsRes.data || []);
+    const plansRes = await (supabase as any)
+      .from("meal_plans")
+      .select("id, name, day_type, day_type_label, sort_order, source_template_id")
+      .eq("client_id", clientId)
+      .eq("is_template", false)
+      .order("sort_order");
 
     // Load macro totals for each plan
     const plans = plansRes.data || [];
