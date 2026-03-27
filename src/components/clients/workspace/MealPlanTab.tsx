@@ -33,17 +33,14 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  FileUp,
-  ClipboardList,
-  Download,
-  Trash2,
-  Upload,
-  Maximize2,
   Plus,
   Pencil,
+  Trash2,
   UtensilsCrossed,
   Unlink,
   Link,
+  ShoppingCart,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
