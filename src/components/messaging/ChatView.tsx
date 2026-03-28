@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, CheckCheck, Check, ArrowLeft } from "lucide-react";
+import MessageContent from "./MessageContent";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
