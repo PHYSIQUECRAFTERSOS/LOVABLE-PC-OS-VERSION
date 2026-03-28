@@ -47,8 +47,8 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
   const [allTags, setAllTags] = useState<string[]>([]);
   const [clientTags, setClientTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
-  const [newTagName, setNewTagName] = useState("");
   const [tagSearch, setTagSearch] = useState("");
+  const [deletingTag, setDeletingTag] = useState<string | null>(null);
 
   // Automations state
   const [automations, setAutomations] = useState<TagAutomation[]>([]);
