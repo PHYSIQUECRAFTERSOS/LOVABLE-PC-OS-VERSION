@@ -26,6 +26,7 @@ const TYPE_ACCENT: Record<string, string> = {
   rest: "border-l-muted bg-muted/10",
   reminder: "border-l-yellow-500 bg-yellow-500/5",
   custom: "border-l-primary bg-primary/5",
+  nutrition: "border-l-red-500 bg-red-500/5",
 };
 
 const TYPE_ICON_COLOR: Record<string, string> = {
