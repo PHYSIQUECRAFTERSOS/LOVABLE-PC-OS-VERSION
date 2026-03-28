@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Drawer, DrawerContent, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerFooter } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Check, Footprints, Bike, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";

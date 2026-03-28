@@ -79,7 +79,7 @@ const SwipeToDelete = ({ children, onDelete, className }: SwipeToDeleteProps) =>
   };
 
   return (
-    <div className={cn("relative overflow-hidden", className)} ref={containerRef}>
+    <div className={cn("relative overflow-hidden", className)} ref={containerRef} style={{ touchAction: "pan-y" }}>
       {/* Delete button behind */}
       <div
         className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-destructive-foreground cursor-pointer"

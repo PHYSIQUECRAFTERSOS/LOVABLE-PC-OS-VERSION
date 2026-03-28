@@ -333,7 +333,16 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
 
             {/* Inline Log Form */}
             {!readOnly && showLogSheet && (
-              <div className="space-y-4 border border-border rounded-lg p-4 bg-secondary/20">
+              <div
+                ref={(el) => {
+                  if (el) {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                    });
+                  }
+                }}
+                className="space-y-4 border border-border rounded-lg p-4 bg-secondary/20"
+              >
                 <div className="space-y-2">
                   <Label>Weight ({unitLabel})</Label>
                   <Input type="number" step="0.1" value={logWeight} onChange={(e) => setLogWeight(e.target.value)} placeholder="e.g. 185" />
