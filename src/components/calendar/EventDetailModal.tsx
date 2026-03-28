@@ -474,6 +474,55 @@ const EventDetailModal = ({
             <p className="text-sm text-muted-foreground text-center py-4">No exercise data available</p>
           )}
 
+          {/* Nutrition food list */}
+          {event.event_type === "nutrition" && loadingNutrition && (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          )}
+
+          {event.event_type === "nutrition" && !loadingNutrition && nutritionFoods.length > 0 && (() => {
+            // Group by meal_type
+            const mealGroups: Record<string, any[]> = {};
+            nutritionFoods.forEach((f: any) => {
+              const slot = f.meal_type || "Other";
+              if (!mealGroups[slot]) mealGroups[slot] = [];
+              mealGroups[slot].push(f);
+            });
+            return (
+              <div className="space-y-4">
+                {Object.entries(mealGroups).map(([mealType, foods]) => (
+                  <div key={mealType}>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      {mealType}
+                    </h4>
+                    <div className="space-y-1">
+                      {foods.map((food: any) => {
+                        const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
+                        const brand = (food.food_items as any)?.brand || null;
+                        const qty = food.quantity_display ? `${food.quantity_display}${food.quantity_unit ? ` ${food.quantity_unit}` : ""}` : null;
+                        return (
+                          <div key={food.id} className="border-t border-border py-2.5">
+                            <p className="text-sm font-medium text-foreground">{name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {brand && <span className="text-xs text-muted-foreground">{brand}</span>}
+                              {qty && <span className="text-xs text-muted-foreground">{brand ? "·" : ""} {qty}</span>}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Calories: {Math.round(food.calories)} · P {Math.round(food.protein)}g · C {Math.round(food.carbs)}g · F {Math.round(food.fat)}g
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           {event.notes && (
             <div className="bg-secondary/50 rounded-lg p-3">
               <p className="text-xs text-muted-foreground mb-1">Notes</p>
