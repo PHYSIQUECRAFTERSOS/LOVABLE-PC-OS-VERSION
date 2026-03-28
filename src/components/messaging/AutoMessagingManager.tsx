@@ -273,13 +273,14 @@ const AutoMessagingManager = () => {
   const saveTriggerMutation = useMutation({
     mutationFn: async () => {
       if (!user || !trigTemplateId) throw new Error("Select a template");
-      const payload = {
+      const payload: any = {
         template_id: trigTemplateId,
         trigger_type: trigType,
         target_type: trigTargetType,
         target_tag: trigTargetType === "tag_group" ? trigTag : null,
         target_client_id: trigTargetType === "individual" ? trigClientId : null,
         recurrence_cron: trigType === "recurring" ? trigCron : null,
+        excluded_client_ids: trigTargetType === "all_clients" ? Array.from(excludedClientIds) : [],
       };
       if (editingTriggerId) {
         const { error } = await supabase
@@ -323,6 +324,8 @@ const AutoMessagingManager = () => {
     setTrigTag(t.target_tag || "");
     setTrigClientId(t.target_client_id || "");
     setTrigCron(t.recurrence_cron || "");
+    setExcludedClientIds(new Set((t as any).excluded_client_ids || []));
+    setClientSearch("");
     setShowTriggerForm(true);
   };
 
