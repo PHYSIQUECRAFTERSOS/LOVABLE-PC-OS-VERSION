@@ -1,0 +1,1 @@
+ALTER TABLE public.ranked_profiles ADD COLUMN IF NOT EXISTS pending_rank_event jsonb DEFAULT NULL;

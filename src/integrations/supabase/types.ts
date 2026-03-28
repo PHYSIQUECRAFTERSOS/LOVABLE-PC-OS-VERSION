@@ -5445,6 +5445,7 @@ export type Database = {
           last_rank_up_at: string | null
           longest_streak: number
           new_client_boost_expires: string | null
+          pending_rank_event: Json | null
           total_xp: number
           updated_at: string | null
           user_id: string
@@ -5464,6 +5465,7 @@ export type Database = {
           last_rank_up_at?: string | null
           longest_streak?: number
           new_client_boost_expires?: string | null
+          pending_rank_event?: Json | null
           total_xp?: number
           updated_at?: string | null
           user_id: string
@@ -5483,6 +5485,7 @@ export type Database = {
           last_rank_up_at?: string | null
           longest_streak?: number
           new_client_boost_expires?: string | null
+          pending_rank_event?: Json | null
           total_xp?: number
           updated_at?: string | null
           user_id?: string

@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import ChallengeBanner from "@/components/dashboard/ChallengeBanner";
 import MyRankDashboardCard from "@/components/dashboard/MyRankDashboardCard";
 import DailyRewardsPopup from "@/components/ranked/DailyRewardsPopup";
+import PendingRankUpPopup from "@/components/ranked/PendingRankUpPopup";
 const Dashboard = () => {
   const { role } = useAuth();
   const isClient = role === "client";
@@ -71,7 +72,10 @@ const ClientDashboard = () => {
 
   return (
     <>
-      {/* Daily Nutrition XP Rewards Popup */}
+      {/* Pending Rank-Up Popup (shows missed rank changes on login) */}
+      <PendingRankUpPopup />
+
+      {/* Daily XP Rewards Popup */}
       <DailyRewardsPopup />
 
       {/* Challenge Banner */}

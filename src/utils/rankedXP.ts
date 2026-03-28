@@ -219,6 +219,26 @@ export async function awardXP(
       updates.last_rank_up_at = new Date().toISOString();
     }
 
+    // Write pending rank event so client sees it on next login if offline
+    if (rankChange !== "none") {
+      const pendingEvent = {
+        type: rankChange,
+        tier: finalTier,
+        division: finalDiv,
+        previousTier: oldTier,
+        timestamp: new Date().toISOString(),
+      };
+      // Append to existing pending events
+      const existingPending = profile.pending_rank_event;
+      if (Array.isArray(existingPending)) {
+        updates.pending_rank_event = [...existingPending, pendingEvent];
+      } else if (existingPending && typeof existingPending === "object") {
+        updates.pending_rank_event = [existingPending, pendingEvent];
+      } else {
+        updates.pending_rank_event = [pendingEvent];
+      }
+    }
+
     await db
       .from("ranked_profiles")
       .update(updates)
