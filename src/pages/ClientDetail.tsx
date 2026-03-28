@@ -48,7 +48,7 @@ const ClientDetail = () => {
     if (!clientId || !userId) return;
     const load = async () => {
       setLoading(true);
-      const [profileRes, tagsRes, programRes] = await Promise.all([
+      const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
         supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
         supabase
@@ -58,10 +58,12 @@ const ClientDetail = () => {
           .eq("status", "active")
           .limit(1)
           .maybeSingle(),
+        supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
       ]);
       setProfile(profileRes.data as ClientProfile | null);
       setTags((tagsRes.data || []).map((t: any) => t.tag));
       setProgramName((programRes.data as any)?.programs?.name || null);
+      setProgramType((coachClientRes.data as any)?.program_type || null);
       setLoading(false);
     };
     load();
