@@ -149,6 +149,12 @@ const ClientDetail = () => {
                   {programName}
                 </Badge>
               )}
+              {programType && (
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                  <ClipboardList className="h-2.5 w-2.5 mr-1" />
+                  {programType}
+                </Badge>
+              )}
               {tags.slice(0, 3).map((tag) => (
                 <Badge key={tag} variant="outline" className="text-[10px]">
                   {tag}
