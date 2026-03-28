@@ -434,7 +434,13 @@ const ThreadChatView = ({
                           />
                         </div>
                       )}
-                      {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
+                      {msg.content && (
+                        <MessageContent
+                          content={msg.content}
+                          isOwn={isOwn}
+                          linkPreview={msg.link_preview}
+                        />
+                      )}
                     </div>
 
                     {/* Reactions */}
