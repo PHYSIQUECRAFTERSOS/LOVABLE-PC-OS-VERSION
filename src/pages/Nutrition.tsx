@@ -41,10 +41,12 @@ const Nutrition = () => {
         <Tabs defaultValue="tracker" className="w-full">
           <TabsList className="w-full flex-wrap h-auto gap-1 p-1">
             <TabsTrigger value="tracker" className="flex-1">Tracker</TabsTrigger>
-            <TabsTrigger value="micros" className="flex-1 gap-1.5">
-              <FlaskConical className="h-3.5 w-3.5" />
-              Micros
-            </TabsTrigger>
+            {isCoach && (
+              <TabsTrigger value="micros" className="flex-1 gap-1.5">
+                <FlaskConical className="h-3.5 w-3.5" />
+                Micros
+              </TabsTrigger>
+            )}
             <TabsTrigger value="supplements" className="flex-1 gap-1.5">
               <Pill className="h-3.5 w-3.5" />
               Supps
