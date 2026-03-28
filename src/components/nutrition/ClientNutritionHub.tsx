@@ -3,15 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Target, ArrowRight, ChevronDown } from "lucide-react";
+import { Target, ArrowRight } from "lucide-react";
 import GroceryList from "./GroceryList";
 import GuideSection, { SECTION_ICONS } from "./GuideSection";
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
   { key: "daily_habits", label: "☀️ Daily Habits", sections: ["daily_ritual"] },
-  { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
+  { key: "tracking", label: "📋 Tracking & Planning", sections: ["why_macros_matter", "nutrition_tips", "meal_planning"] },
   { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
   { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
 ];
@@ -19,7 +18,6 @@ const CATEGORIES = [
 const ClientNutritionHub = () => {
   const { user } = useAuth();
 
-  // Fetch phase info
   const { data: phaseInfo } = useQuery({
     queryKey: ["client-phase-info", user?.id],
     queryFn: async () => {
@@ -34,7 +32,6 @@ const ClientNutritionHub = () => {
     enabled: !!user,
   });
 
-  // Fetch coach ID for this client
   const { data: coachLink } = useQuery({
     queryKey: ["client-coach-link", user?.id],
     queryFn: async () => {
@@ -50,7 +47,6 @@ const ClientNutritionHub = () => {
     enabled: !!user,
   });
 
-  // Fetch guide sections from assigned coach (excluding additional_notes which is per-client)
   const { data: guideSections } = useQuery({
     queryKey: ["nutrition-guide-sections", coachLink?.coach_id],
     queryFn: async () => {
@@ -67,7 +63,6 @@ const ClientNutritionHub = () => {
     enabled: !!coachLink?.coach_id,
   });
 
-  // Fetch per-client overrides
   const { data: overrides } = useQuery({
     queryKey: ["client-guide-overrides", user?.id],
     queryFn: async () => {
@@ -81,7 +76,6 @@ const ClientNutritionHub = () => {
     enabled: !!user,
   });
 
-  // Merge master guides with client overrides
   const mergedGuides = (guideSections || [])
     .map((master: any) => {
       const override = (overrides || []).find((o: any) => o.section_key === master.section_key);
@@ -97,24 +91,36 @@ const ClientNutritionHub = () => {
     })
     .filter(Boolean);
 
+  // Flatten all guides in category order for smooth feed
+  const orderedGuides = CATEGORIES.flatMap((cat) =>
+    mergedGuides.filter((s: any) => cat.sections.includes(s.section_key))
+  );
+
+  // Deduplicate (in case a section appears in multiple categories)
+  const seen = new Set<string>();
+  const uniqueGuides = orderedGuides.filter((s: any) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+
   return (
     <div className="space-y-4">
-      {/* Grocery List */}
       <GroceryList />
 
       {/* Phase Info */}
       {phaseInfo && (phaseInfo.current_phase_name || phaseInfo.coach_notes) && (
-        <Card className="border-primary/20">
+        <Card className="border-[hsl(var(--primary))]/20">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Target className="h-5 w-5 text-primary" />
+              <Target className="h-5 w-5 text-[hsl(var(--primary))]" />
               Current Phase
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {phaseInfo.current_phase_name && (
               <div className="flex items-center gap-3">
-                <Badge className="bg-primary/20 text-primary">
+                <Badge className="bg-[hsl(var(--primary))]/20 text-[hsl(var(--primary))]">
                   {phaseInfo.current_phase_name}
                 </Badge>
                 {phaseInfo.next_phase_name && (
@@ -150,42 +156,32 @@ const ClientNutritionHub = () => {
         </Card>
       )}
 
-      {/* Guide Sections grouped by category */}
-      {mergedGuides.length > 0 && (
-        <div className="space-y-3">
-          {CATEGORIES.map((cat) => {
-            const catGuides = mergedGuides.filter((s: any) => cat.sections.includes(s.section_key));
-            if (catGuides.length === 0) return null;
-
-            return (
-              <Collapsible key={cat.key} defaultOpen={false}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 px-3 bg-muted/20 hover:bg-muted/30 rounded-lg transition-colors group">
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                  <span className="text-sm font-semibold">{cat.label}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">{catGuides.length}</span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-2 mt-2">
-                  {catGuides.map((section: any) => (
-                    <GuideSection
-                      key={section.id}
-                      title={section.title}
-                      content={section.content}
-                      icon={
-                        SECTION_ICONS[section.section_key] ? (
-                          <span className="text-base">{SECTION_ICONS[section.section_key]}</span>
-                        ) : undefined
-                      }
-                    />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            );
-          })}
+      {/* Guide Sections — smooth scrolling feed */}
+      {uniqueGuides.length > 0 && (
+        <div className="space-y-4">
+          {uniqueGuides.map((section: any, i: number) => (
+            <div
+              key={section.id}
+              className="animate-fade-in"
+              style={{ animationDelay: `${i * 80}ms`, animationFillMode: "both" }}
+            >
+              <GuideSection
+                title={section.title}
+                content={section.content}
+                sectionKey={section.section_key}
+                icon={
+                  SECTION_ICONS[section.section_key] ? (
+                    <span className="text-base">{SECTION_ICONS[section.section_key]}</span>
+                  ) : undefined
+                }
+              />
+            </div>
+          ))}
         </div>
       )}
 
       {/* Empty state */}
-      {!phaseInfo && (!mergedGuides || mergedGuides.length === 0) && (
+      {!phaseInfo && (!uniqueGuides || uniqueGuides.length === 0) && (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-sm text-muted-foreground">

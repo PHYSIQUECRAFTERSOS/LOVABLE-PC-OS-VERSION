@@ -19,20 +19,125 @@ import PhaseInfoEditor from "./PhaseInfoEditor";
 const DEFAULT_SECTIONS = [
   { section_key: "water_recommendation", title: "💧 Water Recommendation", sort_order: 0 },
   { section_key: "daily_ritual", title: "☀️ Daily Morning Ritual", sort_order: 1 },
-  { section_key: "nutrition_tips", title: "📋 Nutrition Tracking Tips", sort_order: 2 },
-  { section_key: "meal_planning", title: "🥗 Meal Planning Recommendations", sort_order: 3 },
-  { section_key: "eating_out_cheat_sheet", title: "🍽️ Eating Out Cheat Sheet", sort_order: 4 },
-  { section_key: "eating_out_examples", title: "🍕 Eating Out Examples", sort_order: 5 },
-  { section_key: "macro_cheat_sheet", title: "📊 Macro Replacement Chart", sort_order: 6 },
+  { section_key: "why_macros_matter", title: "💡 Why Are Macros So Important?", sort_order: 2 },
+  { section_key: "nutrition_tips", title: "📋 Nutrition Tracking Tips", sort_order: 3 },
+  { section_key: "meal_planning", title: "🥗 Meal Planning Recommendations", sort_order: 4 },
+  { section_key: "eating_out_cheat_sheet", title: "🍽️ Eating Out Cheat Sheet", sort_order: 5 },
+  { section_key: "eating_out_examples", title: "🍕 Eating Out Examples", sort_order: 6 },
+  { section_key: "macro_cheat_sheet", title: "📊 Macro Replacement Chart", sort_order: 7 },
 ];
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
   { key: "daily_habits", label: "☀️ Daily Habits", sections: ["daily_ritual"] },
-  { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
+  { key: "tracking", label: "📋 Tracking & Planning", sections: ["why_macros_matter", "nutrition_tips", "meal_planning"] },
   { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
   { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
 ];
+
+const DEFAULT_CONTENT: Record<string, string> = {
+  water_recommendation: `Drink plenty of water throughout the day, hydration is key for energy levels, overall function, and helping you absorb the nutrients from the food you eat.
+
+**Aim for 3 - 4 liters a day!**
+
+If you're currently far off of this, work your way up in increments, increasing your intake every few days until you've reached ~4 liters consistently.`,
+
+  daily_ritual: `**Fasted: Before Any Meal**
+
+1 TBSP Organic Lemon Juice + 1 TBSP Apple Cider Vinegar + 1 TSP Psyllium Husk (Metamucil — if this is on your supplement list)
+
+Chug 500ml of water right after.
+
+> Will help you boost your metabolism, digestion, make you feel more energized, improve insulin sensitivity, etc.`,
+
+  why_macros_matter: `Each **macro** has different functions within your body.
+
+That is why having a structured balance of all 3 is key to reaching your goals while feeling great.
+
+We may still progress toward your goals undermining one of them, but we will sacrifice elsewhere (strength, energy, libido, etc.)`,
+
+  nutrition_tips: `- Pick up a **food scale** from your local grocery store. This will ensure your portion sizes are on point. (Visually estimating your servings leaves a lot of room for error, and messing up your calorie intake).
+
+- Be sure to weigh all carbs and proteins **COOKED**! (Except oatmeal and quinoa — weigh these out dry). Raw and cooked weight will vary. Just be sure to track all your foods in your food log as they will count toward your daily calories and macros.
+
+- For ease of staying dedicated to hitting your goals, I recommend **prepping 3 - 4 days** worth of food at a time (protein, carbs, and vegetables). This way you'll always have food ready to go and no reason to stray from achieving your goals.
+
+- Also, for ease of cooking, stick to **one protein, one carb, and one vegetable**. Or if you'd prefer, switch it up more often. Whatever better suits your schedule.`,
+
+  meal_planning: ``,
+
+  eating_out_cheat_sheet: `## Sides
+
+- Rice (ask for plain)
+- Salad (ask for plain — no oils/dressings)
+- Mashed potatoes (ask for plain — no butter)
+- Vegetables (ask for plain or steamed)
+
+## All Orders
+
+- Ask for sauce on side — use sparingly
+
+## Fats
+
+- Don't need to focus on this for your orders because most foods already have quite a bit of fats
+
+## Protein
+
+### More Popular
+- Chicken (not deep fried — look for grilled/baked/pan fry)
+- Shrimp
+- Extra lean steak (top sirloin, flank, baseball top sirloin, filet mignon)
+- White fish
+
+### Less Popular
+- Bison
+- Tuna
+- Egg whites
+- Turkey
+- Salmon (most are pretty fatty at restaurants though)
+
+## Here's How To Approach It:
+
+1. Look for something with **protein** on the menu. (Protein list is up above — these are lean protein sources).
+2. If it comes with a **side**, see the list above on what to pick from.
+3. Ask for **sauce on side** if it comes with it.
+
+> **Tip:** Can always use the "Meal Scan" AI photo scanner to get an idea of how many calories your meal has when eating out after ordering.`,
+
+  eating_out_examples: `- **McDonald's** — Grilled Chicken Caesar Salad (no croutons, light dressing). Grilled chicken is a great lean protein, and the salad base keeps it low-carb.
+
+- **A&W** — Grilled Chicken Burger (no sauce, wrapped in lettuce). Skip the bun and sauces to keep it lighter, focusing on the grilled chicken patty.
+
+- **Subway** — Double Chicken Chopped Salad (no cheese, oil, or heavy sauces). Load up on vegetables and ask for double chicken to increase protein intake.
+
+- **Tim Hortons** — Grilled Chicken Wrap (no sauces, extra chicken if possible). Opt for extra chicken to make it a protein-packed option.
+
+- **Boston Pizza** — Oven-Roasted Salmon (with steamed veggies). Salmon provides a great source of protein and healthy fats.
+
+- **Kelsey's** — Grilled Chicken Breast with Mixed Greens. Customize your meal by choosing grilled protein options and pairing them with veggies.
+
+- **Earls** — Cajun Blackened Chicken with Steamed Vegetables. A flavorful grilled chicken dish that's protein-focused without heavy sauces or sides.
+
+- **Swiss Chalet** — Quarter Chicken Dinner (white meat, no skin, with steamed vegetables). Opt for white meat and remove the skin to keep it leaner.
+
+- **The Keg** — Baseball Top Sirloin (8 oz.) with Asparagus. A high-protein steak option paired with a veggie side to balance it out.
+
+- **Jack Astor's** — Grilled Chicken Power Bowl. Loaded with protein from chicken, plus fiber from greens and veggies.
+
+- **Chipotle** — Burrito Bowl with Double Chicken, no rice, extra veggies. Customize your bowl for a high-protein, low-carb meal by skipping the rice and adding extra chicken.
+
+- **Harvey's** — Grilled Chicken Sandwich (lettuce wrap, no sauce). Keep it light by skipping the bun and focusing on the lean protein from grilled chicken.
+
+- **Pita Pit** — Chicken Souvlaki Pita (double protein, whole wheat pita). Opt for double protein and load it up with veggies for a nutritious meal.
+
+- **Nando's** — Half Chicken with Mixed Vegetables. Flame-grilled chicken is packed with protein and pairs well with a side of veggies.
+
+- **Panera Bread** — Mediterranean Grilled Chicken Salad. A fresh salad with lean protein from grilled chicken, balanced with healthy fats like olive oil.
+
+- **Cactus Club Cafe** — Grilled Chimichurri Chicken. A flavorful, high-protein option, often served with lighter sides like steamed veggies.`,
+
+  macro_cheat_sheet: `This section uses a structured visual grid — content is managed automatically from the Macro Replacement Chart.`,
+};
 
 const CoachNutritionGuides = () => {
   const { user } = useAuth();
@@ -62,7 +167,7 @@ const CoachNutritionGuides = () => {
       const existing = existingSections.find((s: any) => s.section_key === def.section_key);
       map[def.section_key] = {
         title: existing?.title || def.title,
-        content: existing?.content || "",
+        content: existing?.content || DEFAULT_CONTENT[def.section_key] || "",
         is_visible: existing?.is_visible ?? true,
       };
     }
