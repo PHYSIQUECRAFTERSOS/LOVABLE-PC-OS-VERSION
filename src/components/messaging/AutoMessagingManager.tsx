@@ -70,6 +70,8 @@ const AutoMessagingManager = () => {
   const [trigClientId, setTrigClientId] = useState("");
   const [trigCron, setTrigCron] = useState("");
   const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
+  const [excludedClientIds, setExcludedClientIds] = useState<Set<string>>(new Set());
+  const [clientSearch, setClientSearch] = useState("");
 
   // Delete confirmations
   const [deleteTriggerId, setDeleteTriggerId] = useState<string | null>(null);
