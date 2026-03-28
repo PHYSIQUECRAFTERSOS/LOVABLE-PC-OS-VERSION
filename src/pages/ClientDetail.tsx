@@ -41,13 +41,14 @@ const ClientDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dash");
   const [programName, setProgramName] = useState<string | null>(null);
+  const [programType, setProgramType] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!clientId || !userId) return;
     const load = async () => {
       setLoading(true);
-      const [profileRes, tagsRes, programRes] = await Promise.all([
+      const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
         supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
         supabase
@@ -57,10 +58,12 @@ const ClientDetail = () => {
           .eq("status", "active")
           .limit(1)
           .maybeSingle(),
+        supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
       ]);
       setProfile(profileRes.data as ClientProfile | null);
       setTags((tagsRes.data || []).map((t: any) => t.tag));
       setProgramName((programRes.data as any)?.programs?.name || null);
+      setProgramType((coachClientRes.data as any)?.program_type || null);
       setLoading(false);
     };
     load();
@@ -144,6 +147,12 @@ const ClientDetail = () => {
                 <Badge variant="secondary" className="text-[10px]">
                   <Dumbbell className="h-2.5 w-2.5 mr-1" />
                   {programName}
+                </Badge>
+              )}
+              {programType && (
+                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
+                  <ClipboardList className="h-2.5 w-2.5 mr-1" />
+                  {programType}
                 </Badge>
               )}
               {tags.slice(0, 3).map((tag) => (

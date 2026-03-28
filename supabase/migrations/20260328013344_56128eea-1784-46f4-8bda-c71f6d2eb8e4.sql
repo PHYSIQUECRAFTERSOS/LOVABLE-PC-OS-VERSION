@@ -1,0 +1,1 @@
+ALTER TABLE coach_clients ADD COLUMN IF NOT EXISTS program_type TEXT DEFAULT NULL;

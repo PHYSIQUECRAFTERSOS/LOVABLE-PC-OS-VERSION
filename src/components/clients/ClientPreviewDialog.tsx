@@ -24,9 +24,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -43,10 +55,29 @@ import {
   Loader2,
   Ruler,
   User,
+  ChevronDown,
+  ClipboardList,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const GOAL_OPTIONS = [
+  { value: "lose_fat", label: "Lose Fat" },
+  { value: "build_muscle", label: "Build Muscle" },
+  { value: "recomposition", label: "Recomposition" },
+  { value: "maintenance", label: "Maintenance" },
+];
+
+const PROGRAM_TYPES = [
+  "Weekly Progress Updates",
+  "Bi-Weekly Progress Updates",
+  "6 Week Program",
+  "Training Only Program",
+  "Training Only With Weekly Progress Updates",
+  "Nutrition Only With Weekly Progress Updates",
+  "Other",
+];
 
 interface ClientPreviewDialogProps {
   clientId: string | null;
@@ -75,6 +106,7 @@ interface PreviewData {
   lastMessage: string | null;
   macrosToday: { calories: number; protein: number; carbs: number; fat: number };
   macroTargets: { calories: number; protein: number; carbs: number; fat: number } | null;
+  programType: string | null;
 }
 
 const StatBox = ({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) => (
@@ -139,6 +171,7 @@ const ClientPreviewDialog = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [goalOpen, setGoalOpen] = useState(false);
 
   useEffect(() => {
     if (!clientId || !open) return;
@@ -159,6 +192,7 @@ const ClientPreviewDialog = ({
         profileRes,
         threadRes,
         goalRes,
+        coachClientRes,
       ] = await Promise.all([
         supabase.from("weight_logs").select("weight").eq("client_id", clientId).order("logged_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("onboarding_profiles").select("age, height_feet, height_inches, gender, bodyfat_final_confirmed, primary_goal").eq("user_id", clientId).maybeSingle(),
@@ -169,6 +203,7 @@ const ClientPreviewDialog = ({
         supabase.from("profiles").select("updated_at").eq("user_id", clientId).maybeSingle(),
         supabase.from("message_threads").select("id, updated_at").eq("client_id", clientId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("client_goals").select("goal").eq("client_id", clientId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", user!.id).maybeSingle(),
       ]);
 
       // Program + phase names
@@ -185,12 +220,12 @@ const ClientPreviewDialog = ({
         phaseName = phaseRes.data?.name || null;
       }
 
-      // Exercise compliance: completed sessions / total sessions last 7d
+      // Exercise compliance
       const totalSessions = sessionsRes.data?.length || 0;
       const completedSessions = (sessionsRes.data || []).filter((s) => s.completed_at).length;
       const exerciseCompliance = totalSessions > 0 ? Math.round((completedSessions / totalSessions) * 100) : 0;
 
-      // Nutrition compliance: days with logs / 7
+      // Nutrition compliance
       const logDays = new Set((logsRes.data || []).map((l) => l.logged_at));
       const nutritionCompliance = Math.round((logDays.size / 7) * 100);
 
@@ -231,12 +266,43 @@ const ClientPreviewDialog = ({
         macroTargets: targetsRes.data
           ? { calories: targetsRes.data.calories, protein: targetsRes.data.protein, carbs: targetsRes.data.carbs, fat: targetsRes.data.fat }
           : null,
+        programType: (coachClientRes.data as any)?.program_type || null,
       });
       setLoading(false);
     };
 
     fetchAll();
   }, [clientId, open]);
+
+  const handleGoalChange = async (newGoal: string) => {
+    if (!clientId || !user) return;
+    const { error } = await supabase.from("client_goals").upsert(
+      { client_id: clientId, goal: newGoal, target_rate: 0 },
+      { onConflict: "client_id" }
+    );
+    if (error) {
+      toast.error("Failed to update goal");
+      return;
+    }
+    setData((prev) => prev ? { ...prev, primaryGoal: newGoal } : prev);
+    setGoalOpen(false);
+    toast.success("Goal updated");
+  };
+
+  const handleProgramTypeChange = async (newType: string) => {
+    if (!clientId || !user) return;
+    const { error } = await supabase
+      .from("coach_clients")
+      .update({ program_type: newType } as any)
+      .eq("client_id", clientId)
+      .eq("coach_id", user.id);
+    if (error) {
+      toast.error("Failed to update program type");
+      return;
+    }
+    setData((prev) => prev ? { ...prev, programType: newType } : prev);
+    toast.success("Program type updated");
+  };
 
   const handleAction = async (action: "deactivate" | "delete") => {
     if (!clientId || !user) return;
@@ -263,6 +329,7 @@ const ClientPreviewDialog = ({
   };
 
   const heightStr = data?.heightFeet ? `${data.heightFeet}'${data.heightInches || 0}"` : "—";
+  const goalLabel = GOAL_OPTIONS.find((g) => g.value === data?.primaryGoal)?.label || data?.primaryGoal?.replace(/_/g, " ") || "Set Goal";
 
   return (
     <>
@@ -278,9 +345,46 @@ const ClientPreviewDialog = ({
               <DialogHeader className="text-left space-y-0">
                 <DialogTitle className="text-lg font-bold text-foreground truncate">{clientName}</DialogTitle>
               </DialogHeader>
-              {data?.primaryGoal && (
-                <span className="text-xs text-primary font-medium capitalize">{data.primaryGoal.replace(/_/g, " ")}</span>
-              )}
+              {/* Editable Goal */}
+              <Popover open={goalOpen} onOpenChange={setGoalOpen}>
+                <PopoverTrigger asChild>
+                  <button className="flex items-center gap-1 text-xs text-primary font-medium capitalize hover:underline cursor-pointer">
+                    {goalLabel}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48 p-1" align="start">
+                  {GOAL_OPTIONS.map((g) => (
+                    <button
+                      key={g.value}
+                      onClick={() => handleGoalChange(g.value)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors",
+                        data?.primaryGoal === g.value && "bg-primary/10 text-primary font-medium"
+                      )}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+              {/* Program Type Badge */}
+              <div className="mt-1">
+                <Select
+                  value={data?.programType || ""}
+                  onValueChange={handleProgramTypeChange}
+                >
+                  <SelectTrigger className="h-6 w-auto border-dashed text-[10px] px-2 gap-1 inline-flex">
+                    <ClipboardList className="h-3 w-3 text-muted-foreground" />
+                    <SelectValue placeholder="Assign Program Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROGRAM_TYPES.map((pt) => (
+                      <SelectItem key={pt} value={pt} className="text-xs">{pt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

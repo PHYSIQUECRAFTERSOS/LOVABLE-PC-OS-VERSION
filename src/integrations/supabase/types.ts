@@ -2014,6 +2014,7 @@ export type Database = {
           client_id: string
           coach_id: string
           id: string
+          program_type: string | null
           status: string
         }
         Insert: {
@@ -2021,6 +2022,7 @@ export type Database = {
           client_id: string
           coach_id: string
           id?: string
+          program_type?: string | null
           status?: string
         }
         Update: {
@@ -2028,6 +2030,7 @@ export type Database = {
           client_id?: string
           coach_id?: string
           id?: string
+          program_type?: string | null
           status?: string
         }
         Relationships: []
