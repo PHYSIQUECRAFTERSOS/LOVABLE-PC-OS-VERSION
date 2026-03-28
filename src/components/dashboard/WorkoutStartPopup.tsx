@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, X, HelpCircle, Play } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
@@ -168,13 +167,17 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
             )}
           </div>
 
-          <DrawerFooter className="flex-row gap-3 pt-2">
-            <DrawerClose asChild>
-              <Button variant="outline" className="flex-1">Cancel</Button>
-            </DrawerClose>
+          <DrawerFooter className="flex-row gap-3 pt-2" data-vaul-no-drag>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+            >
+              Cancel
+            </Button>
             <Button
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-              onClick={() => { onStartWorkout(workoutId, calendarEventId); onClose(); }}
+              onClick={(e) => { e.stopPropagation(); onStartWorkout(workoutId, calendarEventId); onClose(); }}
               disabled={loading}
             >
               <Play className="h-4 w-4 mr-1" /> Start Workout
