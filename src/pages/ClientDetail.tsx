@@ -137,6 +137,15 @@ const ClientDetail = () => {
                 variant="outline"
                 size="sm"
                 className="shrink-0 gap-1.5"
+                onClick={() => setTagDialogOpen(true)}
+              >
+                <Tag className="h-3.5 w-3.5" />
+                Tags
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
                 onClick={() => setActiveTab("messaging")}
               >
                 <MessageSquare className="h-3.5 w-3.5" />
