@@ -402,7 +402,6 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                               </div>
                             </div>
 
-                            </div>
 
                             {isEditing && !isHidden ? (
                               <div className="space-y-2">
