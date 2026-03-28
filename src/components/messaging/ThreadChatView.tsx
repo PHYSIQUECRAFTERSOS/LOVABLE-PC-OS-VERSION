@@ -20,6 +20,8 @@ import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
 import MessageContextMenu from "./MessageContextMenu";
+import MessageContent from "./MessageContent";
+import { type LinkPreview } from "./LinkPreviewCard";
 import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
