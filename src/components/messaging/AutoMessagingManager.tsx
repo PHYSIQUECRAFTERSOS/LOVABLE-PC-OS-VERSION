@@ -241,6 +241,33 @@ const AutoMessagingManager = () => {
     setTrigTag("");
     setTrigClientId("");
     setTrigCron("");
+    setExcludedClientIds(new Set());
+    setClientSearch("");
+  };
+
+  const filteredClients = useMemo(() => {
+    if (!clients) return [];
+    if (!clientSearch.trim()) return clients;
+    const q = clientSearch.toLowerCase();
+    return clients.filter((c) => c.full_name.toLowerCase().includes(q));
+  }, [clients, clientSearch]);
+
+  const toggleClientExclusion = (clientId: string) => {
+    setExcludedClientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) {
+        next.delete(clientId);
+      } else {
+        next.add(clientId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllClients = () => setExcludedClientIds(new Set());
+  const deselectAllClients = () => {
+    if (!clients) return;
+    setExcludedClientIds(new Set(clients.map((c) => c.client_id)));
   };
 
   const saveTriggerMutation = useMutation({
