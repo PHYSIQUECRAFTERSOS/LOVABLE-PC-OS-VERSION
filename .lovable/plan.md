@@ -1,66 +1,102 @@
-
-
-# Plan: Fix Supplement Plan — Coach Editing, RLS Fix, Emoji Update
+# Plan: Program Type Tags, Editable Goals, Filters, and Bulk Assignment
 
 ## Summary
 
-Four changes: (1) Remove the non-functional "Log" button when a coach views a client's supplement plan (RLS blocks coach inserts to `supplement_logs`), (2) change the fasted/morning ritual emoji from 🌅 to ☀️, (3) add inline editing capabilities for coaches directly in the client's Supps tab, (4) add an "Import from Library" flow.
+Six changes across database and UI: (1) Add `program_type` column to `coach_clients`, (2) editable goal selector in preview dialog, (3) program type badge in preview + profile header, (4) program type filter on Clients page, (5) bulk program type assignment for selected clients, and (6) system improvements.
 
 ---
 
-## Change 1: Remove Log Button for Coaches
+## Database Change
 
-The `supplement_logs` RLS policy only allows `client_id = auth.uid()`. When a coach views a client's supps tab, `client_id` is the client's ID but `auth.uid()` is the coach — so the insert fails.
+Add `program_type` column to `coach_clients`:
 
-**Fix:** In `ClientSupplementPlan.tsx`, detect if the viewer is the coach (when `clientId` prop is provided) and hide the Log button entirely. Coaches don't need to log supplements for clients.
+```sql
+ALTER TABLE coach_clients ADD COLUMN IF NOT EXISTS program_type TEXT DEFAULT NULL;
+```
 
----
-
-## Change 2: Emoji Update
-
-In `ClientSupplementPlan.tsx`, change `TIMING_ICONS.fasted` from `🌅` to `☀️` (the standard iOS sun emoji used in text messages).
+No new table needed. No new RLS policies needed — existing `coach_clients` policies already cover coach read/write.
 
 ---
 
-## Change 3: Inline Coach Editing in Client Supps Tab
+## Change 1: Editable Goal in Preview Dialog
 
-When a coach views the client's supplement plan (`clientId` prop is provided), add editing capabilities:
+**File:** `src/components/clients/ClientPreviewDialog.tsx`
 
-- **Edit dosage**: Each supplement card gets an "Edit" button that opens an inline form to change dosage, timing, and coach note (saves to `client_supplement_overrides` table with upsert)
-- **Delete item**: Each card gets a "Remove" button that sets `is_removed = true` in `client_supplement_overrides`
-- **Add supplement**: A header "Add Supplement" button opens a dialog where the coach can pick from `master_supplements`, set dosage/timing/note, and insert directly into `supplement_plan_items` for this client's assigned plan
-- **Undo remove**: Show a subtle "Removed items" section at the bottom with "Restore" option
-
-All changes use the existing `client_supplement_overrides` table for per-client modifications (dosage, timing, notes, removal), preserving the master plan template.
+- Replace the static `data.primaryGoal` text (line 282) with a clickable Popover
+- On click, show 4 options: Lose Fat, Build Muscle, Recomposition, Maintenance
+- On selection, upsert to `client_goals` table and update local state immediately
+- Coach can change the client's goal without leaving the preview
 
 ---
 
-## Change 4: Import from Master Libraries
+## Change 2: Program Type Badge in Preview Dialog + Editable
 
-Add a "Import from Library" button in the coach view header that:
-1. Opens a dialog showing all supplements from `master_supplements` (coach's catalog)
-2. Coach picks one or more, sets timing slot and dosage
-3. Inserts them as new `supplement_plan_items` on the client's active plan
-4. Also add a quick "Open Libraries" link that navigates to `/libraries` with the supplements tab active
+**File:** `src/components/clients/ClientPreviewDialog.tsx`
+
+- Fetch `program_type` from `coach_clients` in the existing `fetchAll` effect
+- Display below the goal as a small badge (e.g., `📋 6 Week Program`)
+- Add a clickable Select dropdown to change it from the predefined list:
+  - Weekly Progress Updates
+  - Bi-Weekly Progress Updates
+  - 6 Week Program
+  - Training Only Program
+  - Training Only With Weekly Progress Updates
+  - Nutrition Only With Weekly Progress Updates
+  - Other
+- Save via `supabase.from("coach_clients").update({ program_type }).eq("client_id", clientId).eq("coach_id", user.id)`
+
+---
+
+## Change 3: Program Type Badge in Client Profile Header
+
+**File:** `src/pages/ClientDetail.tsx`
+
+- Fetch `program_type` from `coach_clients` in the existing `useEffect` load (alongside profile, tags, program)
+- Display as a Badge below the client name, next to existing program/tag badges
+
+---
+
+## Change 4: Filter by Program Type on Clients Page
+
+**File:** `src/components/clients/SelectableClientCards.tsx`
+
+- Add state: `programTypeFilter` (default: `"all"`)
+- Fetch `program_type` from `coach_clients` alongside `client_id` in the client load query
+- Store program type per client in a `programTypeMap: Record<string, string>`
+- Add a new Select dropdown in the toolbar (next to existing status/tag filters): "Program Type" with all 6 options + "All"
+- Add program type to `filteredClients` filter logic
+- Show program type badge on each client card
+
+---
+
+## Change 5: Bulk Program Type Assignment
+
+**File:** `src/components/clients/SelectableClientCards.tsx`
+
+- When clients are selected (`selectedIds.size > 0`), show an additional "Assign Program Type" button next to "Send Message"
+- On click, show a dropdown/popover with the 6 program types
+- On selection, batch update: `supabase.from("coach_clients").update({ program_type }).in("client_id", [...selectedIds]).eq("coach_id", user.id)`
+- Refresh local state to reflect changes immediately
+- Show success toast: "Program type updated for X clients"
 
 ---
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `src/components/nutrition/ClientSupplementPlan.tsx` | All 4 changes — hide log for coach, emoji fix, add edit/delete/add UI, import dialog |
 
-## No Database Changes Needed
+| File                                               | Change                                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| Migration SQL                                      | Add `program_type` column to `coach_clients`                            |
+| `src/components/clients/ClientPreviewDialog.tsx`   | Editable goal dropdown, program type badge + editor, fetch program_type |
+| `src/pages/ClientDetail.tsx`                       | Fetch + display program type badge in header                            |
+| `src/components/clients/SelectableClientCards.tsx` | Program type filter, bulk assignment button, show program type on cards |
 
-The existing `client_supplement_overrides` table already supports dosage overrides, timing overrides, coach note overrides, and `is_removed`. The `supplement_plan_items` table supports direct inserts for adding new items. All RLS policies are in place.
 
 ---
 
-## Recommendations
+## Improvements Included
 
-1. **Bulk import**: When importing, allow multi-select from the master catalog to add several supplements at once
-2. **Reorder items**: Add drag-to-reorder within timing groups so the coach can control display order
-3. **Plan swap shortcut**: Add a "Switch Plan" button so the coach can quickly reassign a different plan template without going to Master Libraries
-4. **Compliance view**: Show the coach which supplements the client has logged today (read-only) alongside the edit controls, so they can monitor adherence while editing
-
+1. **Program type visible on client cards** — each card shows a small badge so coaches can see at a glance
+2. **Bulk assignment** — select multiple clients, assign program type in one action
+3. **Filter by program type** — quickly find all clients on a specific program type
+4. **Goal is coach-editable** — coaches can update goals as clients progress through phases without navigating to settings
