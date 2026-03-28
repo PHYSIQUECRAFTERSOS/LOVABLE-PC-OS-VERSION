@@ -351,11 +351,12 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
 
                 return (
                   <Collapsible key={cat.key} defaultOpen>
-                    <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 hover:bg-muted/20 rounded-md transition-colors group">
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                      <span className="text-xs font-semibold">{cat.label}</span>
+                    <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 px-1 hover:bg-muted/20 rounded-md transition-colors group">
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                      <div className="h-2 w-2 rounded-full bg-[#D4A017]" />
+                      <span className="text-sm font-semibold">{cat.label}</span>
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-3 mt-1 ml-2 border-l-2 border-border/30 pl-3">
+                    <CollapsibleContent className="space-y-4 mt-2 pl-2">
                       {catGuides.map((section: any) => {
                         const isEditing = overrideEditing[section.section_key];
                         const override = overrideValues[section.section_key];
