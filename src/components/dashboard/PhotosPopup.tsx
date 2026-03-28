@@ -119,6 +119,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
       }).eq("id", eventId);
 
       toast({ title: "Progress photos saved! 📸" });
+      window.dispatchEvent(new Event("photos-uploaded"));
       setTimeout(() => {
         onCompleted();
         handleClose();

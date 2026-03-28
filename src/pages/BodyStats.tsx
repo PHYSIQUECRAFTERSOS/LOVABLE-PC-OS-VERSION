@@ -103,7 +103,7 @@ const BodyStats = () => {
         { onConflict: "client_id,logged_at" }
       ).select();
 
-      // Mark calendar event complete if eventId provided
+      window.dispatchEvent(new Event("weight-logged"));
       if (eventId) {
         await supabase.from("calendar_events").update({
           is_completed: true,
