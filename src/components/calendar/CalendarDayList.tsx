@@ -13,6 +13,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   checkin: <ClipboardCheck className="h-5 w-5" />,
   rest: <Moon className="h-5 w-5" />,
   reminder: <Bell className="h-5 w-5" />,
+  nutrition: <Dumbbell className="h-5 w-5" />,
 };
 
 const TYPE_ACCENT: Record<string, string> = {
