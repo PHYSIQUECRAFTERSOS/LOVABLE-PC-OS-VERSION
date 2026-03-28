@@ -362,7 +362,7 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
 
                       {/* Coach: show today's compliance inline */}
                       {isCoachView && servings > 0 && (
-                        <Badge className="mt-1.5 text-[9px] px-1.5 py-0.5 bg-green-500/20 text-green-400 gap-1">
+                        <Badge className="mt-1.5 text-[9px] px-1.5 py-0.5 bg-primary/20 text-primary gap-1">
                           <Check className="h-2.5 w-2.5" /> Logged {servings}x today
                         </Badge>
                       )}
