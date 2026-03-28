@@ -222,7 +222,7 @@ const QuickMessageDialog = ({
                       "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
                       isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
                     )}>
-                      <p>{msg.content}</p>
+                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                       <div className={cn("flex items-center gap-1 text-[10px] mt-1 opacity-60", isMe ? "justify-end" : "justify-start")}>
                         <span>{format(new Date(msg.created_at), "h:mm a")}</span>
                         {(msg as any).edited_at && <span className="italic">edited</span>}
