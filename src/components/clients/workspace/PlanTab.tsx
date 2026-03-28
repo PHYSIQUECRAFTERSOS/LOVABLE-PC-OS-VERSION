@@ -11,10 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, Target, BookOpen, Loader2, ChevronDown, Pencil, RotateCcw, EyeOff, RefreshCw, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import RichTextToolbar from "@/components/nutrition/RichTextToolbar";
 import GuideSection from "@/components/nutrition/GuideSection";
+import { PHASE_TEMPLATES } from "@/constants/phaseTemplates";
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
@@ -221,6 +223,41 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
     }));
   };
 
+  const handleCurrentPhaseSelect = (phaseName: string) => {
+    if (phaseName === "custom") {
+      setForm((f) => ({ ...f, current_phase_name: "", current_phase_description: "" }));
+      return;
+    }
+    const template = PHASE_TEMPLATES.find((p) => p.name === phaseName);
+    if (!template) return;
+    const nextTemplate = PHASE_TEMPLATES.find((p) => p.name === template.nextPhase);
+    setForm((f) => ({
+      ...f,
+      current_phase_name: template.name,
+      current_phase_description: template.description,
+      ...(nextTemplate
+        ? { next_phase_name: nextTemplate.name, next_phase_description: nextTemplate.description }
+        : {}),
+    }));
+  };
+
+  const handleNextPhaseSelect = (phaseName: string) => {
+    if (phaseName === "custom") {
+      setForm((f) => ({ ...f, next_phase_name: "", next_phase_description: "" }));
+      return;
+    }
+    const template = PHASE_TEMPLATES.find((p) => p.name === phaseName);
+    if (!template) return;
+    setForm((f) => ({
+      ...f,
+      next_phase_name: template.name,
+      next_phase_description: template.description,
+    }));
+  };
+
+  const currentPhaseIsTemplate = PHASE_TEMPLATES.some((p) => p.name === form.current_phase_name);
+  const nextPhaseIsTemplate = PHASE_TEMPLATES.some((p) => p.name === form.next_phase_name);
+
   // Build visible guide sections grouped by category
   const visibleGuides = (guideSections || []).filter((s: any) => s.is_visible);
 
@@ -233,24 +270,47 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
             <Target className="h-4 w-4 text-primary" />
             Phase Information
           </CardTitle>
+          {form.current_phase_name && (
+            <Badge variant="outline" className="w-fit border-primary/40 text-primary text-xs">
+              Current: {form.current_phase_name}
+            </Badge>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs">Current Phase Name</Label>
-              <Input
-                value={form.current_phase_name}
-                onChange={(e) => setForm((f) => ({ ...f, current_phase_name: e.target.value }))}
-                placeholder="e.g. Cut Phase"
-              />
+              <Label className="text-xs">Current Phase</Label>
+              <Select
+                value={currentPhaseIsTemplate ? form.current_phase_name : "custom"}
+                onValueChange={handleCurrentPhaseSelect}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select phase" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHASE_TEMPLATES.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs">Next Phase Name</Label>
-              <Input
-                value={form.next_phase_name}
-                onChange={(e) => setForm((f) => ({ ...f, next_phase_name: e.target.value }))}
-                placeholder="e.g. Maintenance"
-              />
+              <Label className="text-xs">Next Phase</Label>
+              <Select
+                value={nextPhaseIsTemplate ? form.next_phase_name : "custom"}
+                onValueChange={handleNextPhaseSelect}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select phase" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHASE_TEMPLATES.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                  ))}
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -259,7 +319,7 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
             <Textarea
               value={form.current_phase_description}
               onChange={(e) => setForm((f) => ({ ...f, current_phase_description: e.target.value }))}
-              placeholder="Describe the current phase goals, focus areas..."
+              placeholder="Auto-filled from template — editable if needed"
               rows={3}
             />
           </div>
@@ -269,7 +329,7 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
             <Textarea
               value={form.next_phase_description}
               onChange={(e) => setForm((f) => ({ ...f, next_phase_description: e.target.value }))}
-              placeholder="Describe what comes next..."
+              placeholder="Auto-filled from template — editable if needed"
               rows={3}
             />
           </div>
@@ -293,6 +353,7 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
               rows={4}
             />
           </div>
+
 
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
