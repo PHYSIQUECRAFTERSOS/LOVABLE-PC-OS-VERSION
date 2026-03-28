@@ -76,10 +76,12 @@ const Nutrition = () => {
           <TabsContent value="tracker">
             <DailyNutritionLog key={trackerKey} selectedDate={nutritionDate} onDateChange={setNutritionDate} />
           </TabsContent>
-          <TabsContent value="micros" className="space-y-6">
-            <MicronutrientDashboard />
-            <ChronicDeficiencyTracker />
-          </TabsContent>
+          {isCoach && (
+            <TabsContent value="micros" className="space-y-6">
+              <MicronutrientDashboard />
+              <ChronicDeficiencyTracker />
+            </TabsContent>
+          )}
           <TabsContent value="supplements">
             <SupplementLogger />
           </TabsContent>
