@@ -331,30 +331,44 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
                     {filteredTags.map((tag) => {
                       const hasAutomation = automations.some((a) => a.tag_name === tag && a.is_active);
                       const isNew = !clientTags.includes(tag) && selectedTags.has(tag);
-                      return (
-                        <label
-                          key={tag}
-                          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-colors"
-                        >
-                          <Checkbox
-                            checked={selectedTags.has(tag)}
-                            onCheckedChange={() => toggleTag(tag)}
-                          />
-                          <span className="text-sm font-medium flex-1">{tag}</span>
-                          <div className="flex items-center gap-1">
-                            {hasAutomation && (
-                              <Badge variant="outline" className="text-[10px] border-primary/30 text-primary gap-0.5">
-                                <Zap className="h-2.5 w-2.5" />
-                                Auto
-                              </Badge>
-                            )}
-                            {isNew && (
-                              <Badge className="text-[10px] bg-green-500/20 text-green-400 border-green-500/30">
-                                New
-                              </Badge>
-                            )}
+                        return (
+                          <div
+                            key={tag}
+                            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors group"
+                          >
+                            <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                              <Checkbox
+                                checked={selectedTags.has(tag)}
+                                onCheckedChange={() => toggleTag(tag)}
+                              />
+                              <span className="text-sm font-medium flex-1">{tag}</span>
+                            </label>
+                            <div className="flex items-center gap-1">
+                              {hasAutomation && (
+                                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary gap-0.5">
+                                  <Zap className="h-2.5 w-2.5" />
+                                  Auto
+                                </Badge>
+                              )}
+                              {isNew && (
+                                <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">
+                                  New
+                                </Badge>
+                              )}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTagGlobally(tag);
+                                }}
+                                disabled={deletingTag === tag}
+                              >
+                                {deletingTag === tag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                              </Button>
+                            </div>
                           </div>
-                        </label>
                       );
                     })}
                   </div>
