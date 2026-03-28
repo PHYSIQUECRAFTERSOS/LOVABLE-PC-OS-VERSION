@@ -538,12 +538,11 @@ const ProgramList = () => {
 
             <div className="space-y-2">
               <Label>Select Client</Label>
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                <SelectTrigger><SelectValue placeholder="Choose a client..." /></SelectTrigger>
-                <SelectContent>
-                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchableClientSelect
+                clients={clients}
+                value={selectedClientId}
+                onValueChange={setSelectedClientId}
+              />
             </div>
 
             <div className="space-y-2">
