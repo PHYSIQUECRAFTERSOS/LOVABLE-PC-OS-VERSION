@@ -65,6 +65,13 @@ export function useRankedLeaderboard(tab: string) {
       // Auto-populate all clients into ranked_profiles
       await ensureAllClientsRanked();
 
+      // Fetch coach/admin user IDs to exclude from leaderboard
+      const { data: coachRoles } = await db
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["admin", "coach"]);
+      const coachIds = new Set((coachRoles || []).map((r: any) => r.user_id));
+
       let q = db.from("ranked_profiles").select("*");
       if (tab === "all_time" || tab === "divisions") q = q.order("total_xp", { ascending: false });
       else if (tab === "this_week") q = q.order("weekly_xp", { ascending: false });
@@ -75,7 +82,11 @@ export function useRankedLeaderboard(tab: string) {
       const { data: rankings } = await q.limit(200);
       if (!rankings?.length) return [];
 
-      const ids = rankings.map((r: any) => r.user_id);
+      // Filter out coaches/admins
+      const clientRankings = rankings.filter((r: any) => !coachIds.has(r.user_id));
+
+      const ids = clientRankings.map((r: any) => r.user_id);
+      if (ids.length === 0) return [];
       const { data: profiles } = await db
         .from("profiles")
         .select("user_id, full_name, avatar_url")
@@ -93,7 +104,7 @@ export function useRankedLeaderboard(tab: string) {
         (invites || []).map((inv: any) => [inv.created_client_id, inv])
       );
 
-      return rankings.map((r: any, i: number) => {
+      return clientRankings.map((r: any, i: number) => {
         const prof = profileMap.get(r.user_id) as any;
         const invite = inviteMap.get(r.user_id) as any;
         const profileName = prof?.full_name?.trim();
