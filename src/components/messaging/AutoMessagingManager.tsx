@@ -615,7 +615,7 @@ const AutoMessagingManager = () => {
                             Template: {t.auto_message_templates?.name} · Target: {t.target_type}
                             {t.target_tag && ` (${t.target_tag})`}
                             {t.target_type === "all_clients" && t.excluded_client_ids?.length > 0 && (
-                              <span className="text-amber-400"> · {t.excluded_client_ids.length} excluded</span>
+                              <span className="text-primary/70"> · {t.excluded_client_ids.length} excluded</span>
                             )}
                           </p>
                         </div>
