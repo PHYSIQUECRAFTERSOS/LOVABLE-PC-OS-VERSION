@@ -20,6 +20,8 @@ import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
 import MessageContextMenu from "./MessageContextMenu";
+import MessageContent from "./MessageContent";
+import { type LinkPreview } from "./LinkPreviewCard";
 import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
 
 interface Message {
@@ -32,6 +34,7 @@ interface Message {
   attachment_url?: string | null;
   attachment_type?: string | null;
   attachment_name?: string | null;
+  link_preview?: LinkPreview | null;
 }
 
 interface Reaction {
@@ -116,7 +119,7 @@ const ThreadChatView = ({
       .select("*")
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true });
-    setMessages((data as Message[]) || []);
+    setMessages((data as unknown as Message[]) || []);
   };
 
   const fetchReactions = async () => {
@@ -237,14 +240,24 @@ const ThreadChatView = ({
     if (!user || !newMessage.trim()) return;
     setSending(true);
     const messageContent = newMessage.trim();
-    await supabase.from("thread_messages").insert({
-      thread_id: threadId,
-      sender_id: user.id,
-      content: messageContent,
-    });
+    const { data: insertedMsg } = await supabase
+      .from("thread_messages")
+      .insert({
+        thread_id: threadId,
+        sender_id: user.id,
+        content: messageContent,
+      })
+      .select("id")
+      .single();
+
     await markThreadSeen();
     setNewMessage("");
     setSending(false);
+
+    // Fire-and-forget: fetch link preview for single-URL messages
+    if (insertedMsg?.id) {
+      fetchAndStoreLinkPreview(insertedMsg.id, messageContent);
+    }
 
     const { data: thread } = await supabase
       .from("message_threads")
@@ -267,6 +280,42 @@ const ThreadChatView = ({
         "message",
         { route: "/messages" }
       );
+    }
+  };
+
+  /** Extract URLs from content, fetch OG preview for the first one, store in DB */
+  const fetchAndStoreLinkPreview = async (messageId: string, content: string) => {
+    const urlRegex = /(?:https?:\/\/|www\.)[^\s<>"{}|\\^`[\]]+/gi;
+    const urls = content.match(urlRegex);
+    if (!urls || urls.length === 0) return;
+
+    // Only generate preview for the first URL found
+    let targetUrl = urls[0];
+    if (!targetUrl.startsWith("http")) targetUrl = `https://${targetUrl}`;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-link-preview", {
+        body: { url: targetUrl },
+      });
+
+      if (error || !data?.success || !data?.preview) return;
+
+      const preview = data.preview as LinkPreview;
+
+      // Update the message row with the preview
+      await supabase
+        .from("thread_messages")
+        .update({ link_preview: preview as any })
+        .eq("id", messageId);
+
+      // Update local state immediately
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, link_preview: preview } : m
+        )
+      );
+    } catch (err) {
+      console.warn("Link preview fetch failed:", err);
     }
   };
 
@@ -431,7 +480,13 @@ const ThreadChatView = ({
                           />
                         </div>
                       )}
-                      {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
+                      {msg.content && (
+                        <MessageContent
+                          content={msg.content}
+                          isOwn={isOwn}
+                          linkPreview={msg.link_preview}
+                        />
+                      )}
                     </div>
 
                     {/* Reactions */}

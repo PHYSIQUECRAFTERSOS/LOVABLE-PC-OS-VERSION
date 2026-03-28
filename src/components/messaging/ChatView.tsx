@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, CheckCheck, Check, ArrowLeft } from "lucide-react";
+import MessageContent from "./MessageContent";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -222,7 +223,7 @@ const ChatView = ({ conversationId, onBack }: ChatViewProps) => {
                       : "bg-muted text-foreground rounded-bl-md"
                   )}
                 >
-                  {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
+                  {msg.content && <MessageContent content={msg.content} isOwn={isOwn} />}
                 </div>
                 <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isOwn ? "justify-end" : "justify-start")}>
                   <span>{format(new Date(msg.created_at), "HH:mm")}</span>

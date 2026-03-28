@@ -1,0 +1,1 @@
+ALTER TABLE public.thread_messages ADD COLUMN IF NOT EXISTS link_preview JSONB DEFAULT NULL;

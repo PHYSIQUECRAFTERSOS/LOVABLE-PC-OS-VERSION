@@ -6391,6 +6391,7 @@ export type Database = {
           created_at: string
           edited_at: string | null
           id: string
+          link_preview: Json | null
           read_at: string | null
           sender_id: string
           thread_id: string
@@ -6403,6 +6404,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          link_preview?: Json | null
           read_at?: string | null
           sender_id: string
           thread_id: string
@@ -6415,6 +6417,7 @@ export type Database = {
           created_at?: string
           edited_at?: string | null
           id?: string
+          link_preview?: Json | null
           read_at?: string | null
           sender_id?: string
           thread_id?: string
