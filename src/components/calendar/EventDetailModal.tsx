@@ -21,7 +21,7 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
   checkin: "bg-purple-500/20 text-purple-400", rest: "bg-muted text-muted-foreground",
   reminder: "bg-yellow-500/20 text-yellow-400", custom: "bg-primary/20 text-primary",
   auto_message: "bg-orange-500/20 text-orange-400", photos: "bg-purple-500/20 text-purple-400",
-  body_stats: "bg-orange-500/20 text-orange-400",
+  body_stats: "bg-orange-500/20 text-orange-400", nutrition: "bg-red-500/20 text-red-400",
 };
 
 const EVENT_ROUTES: Record<string, string> = {
