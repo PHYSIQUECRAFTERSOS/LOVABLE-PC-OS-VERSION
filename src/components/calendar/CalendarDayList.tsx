@@ -51,6 +51,7 @@ const TYPE_SUBTITLES: Record<string, string> = {
   checkin: "Submit your weekly check-in",
   rest: "Recovery day",
   reminder: "Scheduled reminder",
+  nutrition: "Daily nutrition intake",
 };
 
 interface CalendarDayListProps {
