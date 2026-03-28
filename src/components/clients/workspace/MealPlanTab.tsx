@@ -68,7 +68,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [planCards, setPlanCards] = useState<PlanCard[]>([]);
-  const [generatingGrocery, setGeneratingGrocery] = useState(false);
   const [editingPlanDayType, setEditingPlanDayType] = useState<string | null>(null);
   const [addPlanOpen, setAddPlanOpen] = useState(false);
   const [newDayType, setNewDayType] = useState("rest");
