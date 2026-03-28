@@ -144,17 +144,14 @@ const Calendar = () => {
             .abortSignal(signal)
         : Promise.resolve({ data: null });
 
-      const nutritionPromise = supabase
-        .from("nutrition_logs")
-        .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
-        .eq("client_id", isCoach ? (undefined as any) : user.id)
-        .gte("logged_at", startStr)
-        .lte("logged_at", endStr)
-        .abortSignal(signal);
-
-      // For coaches viewing their own calendar, skip nutrition (they'll see it per-client)
       const nutritionFetch = !isCoach
-        ? nutritionPromise
+        ? supabase
+            .from("nutrition_logs")
+            .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
+            .eq("client_id", user.id)
+            .gte("logged_at", startStr)
+            .lte("logged_at", endStr)
+            .abortSignal(signal)
         : Promise.resolve({ data: null });
 
       const [calRes, sessRes, cardioRes, nutRes] = await Promise.all([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch]);
