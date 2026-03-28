@@ -1,108 +1,67 @@
 
 
-# Plan: Tag-Triggered Automation System (In-App Message + Email)
+# Fix Plan: PR Detection, Cardio Buttons, Weight Log Visibility, Swipe Alignment
 
-## The Problem
+## Issue 1: False PR Detection (Same Weight + Same Reps)
 
-Today, when you finish a client's program, you manually:
-1. Tag the client in Trainerize
-2. Zapier detects the tag → sends an in-app message
-3. Zapier also sends a welcome email
+**Root cause**: In `WorkoutLogger.tsx` line 431, the PR check logic uses:
+```
+if (prev.weight > weight || (prev.weight === weight && prev.reps >= reps))
+```
+This correctly blocks when historical reps are *greater or equal* at the same weight. However, the `personal_records` table check on line 423 uses `reps <= existingPR.reps` which should also block equal reps. The real problem is the `allTimeBests` array only contains sets from *completed* sessions. If the current session's exercise was done in the same workout earlier today (same session that was completed), the data may not include it yet.
 
-This is slow, relies on a third-party (Zapier), and lives outside your platform.
+Actually, re-reading the logic: `prev.reps >= reps` means "if previous reps are >= current reps at same weight, NOT a PR." This should correctly block 60x7 if 60x7 was done before. The issue is likely that the `allTimeBests` map doesn't include sets from the current in-progress session that were logged during this same workout. When a set is completed and marked as PR, it gets added to `prAlerts` but NOT to `allTimeBests`. So if the user does 60x7 on set 1 (flagged as PR), then 60x7 on set 2, the second check against `allTimeBests` (historical only) may still pass if the historical data didn't have 60x7.
 
-## What We're Building
+Wait -- the user says they did 60x7 "in the past" and it still shows a PR. Let me re-check: the `allTimeBests` query filters by `workout_sessions.status = "completed"`. If the previous session with 60x7 was completed, it should be in `allTimeBests`. Unless the data wasn't loaded correctly.
 
-A native "Tag Actions" system inside Physique Crafters OS. When you apply a tag to a client, it automatically:
-- Sends a pre-configured **in-app message** via the existing messaging thread
-- Sends a branded **email** to the client
+More likely issue: the `allTimeBests` check iterates ALL historical sets and returns false only if `prev.weight > weight` OR `(prev.weight === weight && prev.reps >= reps)`. This means it returns false if ANY single historical set beats the current one. But it doesn't check the combined condition properly -- it needs to check if the SAME weight with >= reps exists. The current logic is: for each historical set, if that set's weight is strictly greater than current weight, block. Or if same weight and >= reps, block. This seems correct.
 
-All configurable per-tag — you set up the message template and email content once, then every time you apply that tag, it fires instantly.
+The real bug: the check says "not a PR if any historical set has equal or better performance" but the condition `prev.weight > weight` blocks when a HEAVIER weight was lifted before, even with fewer reps. That's wrong conceptually but also wouldn't cause false positives. Let me think again...
 
----
+If historical has 60x7, and current is 60x7: `prev.weight === weight && prev.reps >= reps` → `60 === 60 && 7 >= 7` → true → return false. So it SHOULD block the PR. 
 
-## How It Works (Coach Flow)
+Unless the `allTimeBests` data doesn't include the previous 60x7 set. This could happen if:
+1. The previous session wasn't marked as "completed"
+2. The weight/reps were stored as null
 
-1. **Manage Tag Actions** — New section in the client workspace or a settings area where you configure tag automations:
-   - Pick or create a tag name (e.g., "VIP PROGRAM COMPLETE")
-   - Write the in-app message template (supports `{{client_name}}` placeholder)
-   - Write the email subject + body
-   - Toggle email on/off per tag
+I think the safest fix is to also add the current session's logged sets to the comparison, so within the same session, doing the same weight x reps twice doesn't trigger a second PR alert.
 
-2. **Apply Tags Dialog** — On the client detail page header, a "Tags" button opens a Trainerize-style dialog (like your screenshot) showing all available tags with checkboxes. When you check a new tag and hit "Apply":
-   - Tag is saved to `client_tags`
-   - If that tag has an automation configured, the in-app message is sent instantly via `thread_messages`
-   - Email is queued via the existing email infrastructure
+**Fix in `WorkoutLogger.tsx`**:
+- In `checkPR`, also scan the current session's already-completed sets in `exercises` state to prevent false positives within the same session.
+- Additionally, ensure the `>=` comparison is strictly correct: a PR should only trigger when the current set has STRICTLY more weight OR same weight with STRICTLY more reps than every historical entry.
 
-3. **Visual Feedback** — Toast confirms "Tag applied · Message sent · Email queued"
+## Issue 2: Cardio Popup Buttons Not Working
 
----
+**Root cause**: `CardioPopup.tsx` line 230-241 uses `DrawerClose asChild` for the Cancel button and a plain `onClick` for Mark as Complete. This is the exact same pattern that broke `WorkoutStartPopup` -- vaul drawer drag gestures swallow tap events on mobile.
 
-## Technical Changes
+**Fix in `CardioPopup.tsx`**:
+- Add `data-vaul-no-drag` to `DrawerFooter`
+- Replace `DrawerClose asChild` with explicit `onClick` + `e.stopPropagation()` on both buttons (same pattern applied to WorkoutStartPopup earlier)
 
-### 1. New Database Table: `tag_automations`
+## Issue 3: Weight Log Form Hidden Below Viewport
 
-Stores the message/email template per tag name per coach.
+**Root cause**: In `WeightHistoryScreen.tsx`, clicking "+ Log Weight" sets `showLogSheet = true` which renders the form at the bottom of a scrollable dialog. On mobile, the form appears below the fold and the user must scroll to see it.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | PK |
-| coach_id | uuid | FK to auth.users |
-| tag_name | text | The tag that triggers this automation |
-| message_content | text | In-app message body |
-| email_subject | text | Email subject line (nullable) |
-| email_body | text | Email HTML body (nullable) |
-| send_email | boolean | Whether to also send email |
-| is_active | boolean | Toggle on/off |
-| created_at / updated_at | timestamptz | Timestamps |
+**Fix in `WeightHistoryScreen.tsx`**:
+- After `setShowLogSheet(true)`, use a `useEffect` or `setTimeout` to scroll the log form into view using `scrollIntoView({ behavior: "smooth" })`
+- Add a `ref` to the log form container and call `.scrollIntoView()` when it appears
 
-- Unique constraint on `(coach_id, tag_name)`
-- RLS: coaches can CRUD their own rows
+## Issue 4: Swipe-to-Delete Targets Wrong Food Item
 
-### 2. New Component: `TagAutomationDialog` 
+**Root cause**: In `SwipeToDelete.tsx`, the touch event handling doesn't properly isolate to the specific element being touched. The swipe gesture can bleed to adjacent items because:
+1. The `touchStart` sets `swiping = true` immediately (line 25), before direction is determined
+2. There's no check to ensure the touch target is within the component's own bounds
+3. If a swipe on the date navigator row is detected as horizontal, it could trigger the SwipeToDelete on a nearby food item
 
-A dialog on the **ClientDetail** page header with two modes:
-- **Apply Tags** tab: Checkbox list of all tags (like the Trainerize screenshot). Search, select/deselect, Apply button.
-- **Manage Automations** tab: Configure what happens when each tag is applied — set message template, email content, toggle email on/off.
+The more likely issue: the SwipeToDelete container has no `touch-action` CSS, so the browser's default touch handling can cause the wrong element to receive move events. Also, the date navigation area uses horizontal buttons that can interfere.
 
-### 3. Updated `ClientDetail.tsx`
+**Fix in `SwipeToDelete.tsx`**:
+- Add `touch-action: pan-y` CSS to prevent horizontal scroll conflicts
+- Only set `swiping` to true after confirming horizontal direction (move the direction lock to be evaluated before setting offset)
+- Add a minimum horizontal movement threshold before engaging the swipe
 
-- Add a "Tags" button next to the existing "Message" button in the header
-- Opens `TagAutomationDialog`
-- On tag apply: insert into `client_tags`, check `tag_automations` for a matching tag, and if found:
-  - Send in-app message via existing `message_threads` / `thread_messages` pattern
-  - If `send_email` is true, invoke `send-transactional-email` edge function
+## Technical Details
 
-### 4. Transactional Email Template: `tag-action-notification`
-
-A branded React Email template for tag-triggered emails. Uses the existing email queue infrastructure (`process-email-queue`). Template accepts `clientName`, `subject`, and `body` as dynamic props so each tag automation can customize the content.
-
-**Requires**: Scaffolding the transactional email infrastructure via `scaffold_transactional_email` since it doesn't exist yet, plus creating the template.
-
-### 5. Edge Function: `send-transactional-email`
-
-Will be scaffolded automatically. The client-side code invokes it with the tag automation's email content.
-
----
-
-## Files Changed/Created
-
-| File | Action |
-|------|--------|
-| `supabase/migrations/...` | Create `tag_automations` table + RLS |
-| `src/components/clients/TagAutomationDialog.tsx` | New — the full tag management + automation config UI |
-| `src/pages/ClientDetail.tsx` | Add Tags button, import dialog |
-| `supabase/functions/_shared/transactional-email-templates/tag-action-notification.tsx` | New email template |
-| `supabase/functions/send-transactional-email/` | Scaffolded via tooling |
-
----
-
-## Improvements Over Current Zapier Setup
-
-- **Zero latency** — no webhook delay, message + email fire instantly on tag apply
-- **No third-party dependency** — everything runs inside your platform
-- **Template management in-app** — edit message/email content without touching Zapier
-- **Per-tag granularity** — different automations for different tags (e.g., "VIP PROGRAM COMPLETE" vs "RENEWAL/EXTENSION" can have different messages)
-- **Audit trail** — `auto_message_logs` tracks what was sent and when
-- **Placeholder support** — `{{client_name}}` in templates auto-fills with the client's name
-
+### Files to modify:
+1. **`src/components/WorkoutLogger.tsx`** (lines ~418-449): Fix PR check to also scan current session's completed sets and ensure strictly-greater comparison
+2. **`src/components/dashboard/CardioPopup.tsx`** (lines 230-241): Add `data-vaul-no-drag` and explicit `e.stopPropagation()`
