@@ -377,6 +377,31 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     }
   }
 
+  // ── 14. Rank change detection → pending event ─────────────────
+  const oldTier = profile.current_tier;
+  const oldDiv = profile.current_division;
+  const oti = TIER_ORDER.indexOf(oldTier);
+  const nti = TIER_ORDER.indexOf(finalTier);
+  let rankChange = "none";
+
+  if (nti > oti) rankChange = finalTier === "champion" ? "champion_in" : "tier_up";
+  else if (nti < oti) rankChange = "tier_down";
+  else if (finalDiv < oldDiv && totalXPChange > 0) rankChange = "division_up";
+  else if (finalDiv > oldDiv && totalXPChange < 0) rankChange = "division_down";
+
+  // Build pending rank event for the client to see on next login
+  let pendingRankEvent = null;
+  if (rankChange !== "none") {
+    pendingRankEvent = {
+      type: rankChange,
+      tier: finalTier,
+      division: finalDiv,
+      previousTier: oldTier,
+      timestamp: new Date().toISOString(),
+    };
+    console.log(`[daily-xp] Rank change for ${clientId}: ${rankChange} → ${finalTier} div ${finalDiv}`);
+  }
+
   const lastMonday = getLastMonday();
   const resetAt = profile.weekly_xp_reset_at ? new Date(profile.weekly_xp_reset_at) : new Date(0);
   let weeklyXP = resetAt < lastMonday ? 0 : profile.weekly_xp || 0;
@@ -384,21 +409,40 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
 
   const longestStreak = Math.max(profile.longest_streak || 0, newStreak);
 
+  const updatePayload: any = {
+    total_xp: newTotal,
+    current_tier: finalTier,
+    current_division: finalTier === "champion" ? null : finalDiv,
+    current_division_xp: finalDivXP,
+    current_streak: newStreak,
+    longest_streak: longestStreak,
+    inactive_days: newInactiveDays,
+    last_active_date: newLastActiveDate,
+    weekly_xp: weeklyXP,
+    weekly_xp_reset_at: resetAt < lastMonday ? lastMonday.toISOString() : profile.weekly_xp_reset_at,
+    updated_at: new Date().toISOString(),
+  };
+
+  // Only set pending_rank_event if there's a new one; don't overwrite existing unseen events
+  if (pendingRankEvent) {
+    // Append to existing pending events array, or create new
+    const existingPending = profile.pending_rank_event;
+    if (Array.isArray(existingPending)) {
+      updatePayload.pending_rank_event = [...existingPending, pendingRankEvent];
+    } else if (existingPending && typeof existingPending === "object") {
+      updatePayload.pending_rank_event = [existingPending, pendingRankEvent];
+    } else {
+      updatePayload.pending_rank_event = [pendingRankEvent];
+    }
+  }
+
+  if (rankChange === "division_up" || rankChange === "tier_up" || rankChange === "champion_in") {
+    updatePayload.last_rank_up_at = new Date().toISOString();
+  }
+
   await db
     .from("ranked_profiles")
-    .update({
-      total_xp: newTotal,
-      current_tier: finalTier,
-      current_division: finalTier === "champion" ? null : finalDiv,
-      current_division_xp: finalDivXP,
-      current_streak: newStreak,
-      longest_streak: longestStreak,
-      inactive_days: newInactiveDays,
-      last_active_date: newLastActiveDate,
-      weekly_xp: weeklyXP,
-      weekly_xp_reset_at: resetAt < lastMonday ? lastMonday.toISOString() : profile.weekly_xp_reset_at,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("user_id", clientId);
 
   return {
@@ -408,6 +452,7 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     newTotal,
     tier: finalTier,
     division: finalDiv,
+    rankChange,
     streak: newStreak,
     inactiveDays: newInactiveDays,
   };
