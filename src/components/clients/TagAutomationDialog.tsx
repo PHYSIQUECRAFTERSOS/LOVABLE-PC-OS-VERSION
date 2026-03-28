@@ -47,8 +47,8 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
   const [allTags, setAllTags] = useState<string[]>([]);
   const [clientTags, setClientTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
-  const [newTagName, setNewTagName] = useState("");
   const [tagSearch, setTagSearch] = useState("");
+  const [deletingTag, setDeletingTag] = useState<string | null>(null);
 
   // Automations state
   const [automations, setAutomations] = useState<TagAutomation[]>([]);
@@ -65,7 +65,9 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
       supabase.from("tag_automations").select("*").eq("coach_id", user.id),
     ]);
 
-    const uniqueTags = [...new Set((tagsRes.data || []).map((t: any) => t.tag))];
+    const tagsFromClients = (tagsRes.data || []).map((t: any) => t.tag);
+    const tagsFromAutomations = ((autosRes.data as TagAutomation[]) || []).map((a) => a.tag_name);
+    const uniqueTags = [...new Set([...tagsFromClients, ...tagsFromAutomations])].sort();
     const cTags = (clientTagsRes.data || []).map((t: any) => t.tag);
 
     setAllTags(uniqueTags);
@@ -77,12 +79,17 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const addNewTag = () => {
-    const name = newTagName.trim().toUpperCase();
-    if (!name) return;
-    if (!allTags.includes(name)) setAllTags((prev) => [...prev, name]);
-    setSelectedTags((prev) => new Set(prev).add(name));
-    setNewTagName("");
+  const deleteTagGlobally = async (tag: string) => {
+    if (!user) return;
+    setDeletingTag(tag);
+    // Remove from all clients
+    await supabase.from("client_tags").delete().eq("coach_id", user.id).eq("tag", tag);
+    // Remove associated automation
+    await supabase.from("tag_automations").delete().eq("coach_id", user.id).eq("tag_name", tag);
+    toast.success(`Tag "${tag}" deleted`);
+    setDeletingTag(null);
+    loadData();
+    onTagsChanged?.();
   };
 
   const toggleTag = (tag: string) => {
@@ -313,55 +320,55 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
                   />
                 </div>
 
-                {/* Add new tag */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="New tag name..."
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addNewTag()}
-                    className="flex-1"
-                  />
-                  <Button size="sm" variant="outline" onClick={addNewTag} disabled={!newTagName.trim()}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
                 {/* Tag list */}
-                <ScrollArea className="flex-1 max-h-[280px]">
+                <ScrollArea className="flex-1 max-h-[320px]">
                   <div className="space-y-1">
                     {filteredTags.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        No tags yet. Create one above!
+                        {tagSearch ? "No tags match your search" : "No tags yet. Create an automation first!"}
                       </p>
                     )}
                     {filteredTags.map((tag) => {
                       const hasAutomation = automations.some((a) => a.tag_name === tag && a.is_active);
                       const isNew = !clientTags.includes(tag) && selectedTags.has(tag);
-                      return (
-                        <label
-                          key={tag}
-                          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-colors"
-                        >
-                          <Checkbox
-                            checked={selectedTags.has(tag)}
-                            onCheckedChange={() => toggleTag(tag)}
-                          />
-                          <span className="text-sm font-medium flex-1">{tag}</span>
-                          <div className="flex items-center gap-1">
-                            {hasAutomation && (
-                              <Badge variant="outline" className="text-[10px] border-primary/30 text-primary gap-0.5">
-                                <Zap className="h-2.5 w-2.5" />
-                                Auto
-                              </Badge>
-                            )}
-                            {isNew && (
-                              <Badge className="text-[10px] bg-green-500/20 text-green-400 border-green-500/30">
-                                New
-                              </Badge>
-                            )}
+                        return (
+                          <div
+                            key={tag}
+                            className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors group"
+                          >
+                            <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                              <Checkbox
+                                checked={selectedTags.has(tag)}
+                                onCheckedChange={() => toggleTag(tag)}
+                              />
+                              <span className="text-sm font-medium flex-1">{tag}</span>
+                            </label>
+                            <div className="flex items-center gap-1">
+                              {hasAutomation && (
+                                <Badge variant="outline" className="text-[10px] border-primary/30 text-primary gap-0.5">
+                                  <Zap className="h-2.5 w-2.5" />
+                                  Auto
+                                </Badge>
+                              )}
+                              {isNew && (
+                                <Badge className="text-[10px] bg-primary/20 text-primary border-primary/30">
+                                  New
+                                </Badge>
+                              )}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTagGlobally(tag);
+                                }}
+                                disabled={deletingTag === tag}
+                              >
+                                {deletingTag === tag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                              </Button>
+                            </div>
                           </div>
-                        </label>
                       );
                     })}
                   </div>
