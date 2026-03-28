@@ -1,102 +1,75 @@
-# Plan: Program Type Tags, Editable Goals, Filters, and Bulk Assignment
 
-## Summary
 
-Six changes across database and UI: (1) Add `program_type` column to `coach_clients`, (2) editable goal selector in preview dialog, (3) program type badge in preview + profile header, (4) program type filter on Clients page, (5) bulk program type assignment for selected clients, and (6) system improvements.
+# Plan: Add Guides Tab to Master Libraries + Fix Client Plan Editing
 
----
+## Problem
 
-## Database Change
+1. `CoachNutritionGuides` component exists but is NOT wired into the Master Libraries page — there's no "Guides" tab
+2. The client PlanTab shows "No guide sections configured yet. Go to Master Libraries → Guides" but that destination doesn't exist
+3. The PlanTab already has override/customize logic, but it only works if guide sections exist in the DB (created via the Nutrition page's hidden coach plan tab)
 
-Add `program_type` column to `coach_clients`:
+## Solution
 
-```sql
-ALTER TABLE coach_clients ADD COLUMN IF NOT EXISTS program_type TEXT DEFAULT NULL;
-```
+### Change 1: Add "Guides" tab to Master Libraries
 
-No new table needed. No new RLS policies needed — existing `coach_clients` policies already cover coach read/write.
+**File:** `src/pages/MasterLibraries.tsx`
 
----
+- Import `CoachNutritionGuides` and `BookOpen` icon
+- Change the TabsList from `grid-cols-6` to `grid-cols-7`
+- Add a new `TabsTrigger` for `"guides"` with BookOpen icon
+- Add a `TabsContent` for `"guides"` that renders `<CoachNutritionGuides />`
+- This gives coaches a dedicated place to create/edit/preview all master guide sections
 
-## Change 1: Editable Goal in Preview Dialog
+### Change 2: Fix the empty-state link in PlanTab
 
-**File:** `src/components/clients/ClientPreviewDialog.tsx`
+**File:** `src/components/clients/workspace/PlanTab.tsx`
 
-- Replace the static `data.primaryGoal` text (line 282) with a clickable Popover
-- On click, show 4 options: Lose Fat, Build Muscle, Recomposition, Maintenance
-- On selection, upsert to `client_goals` table and update local state immediately
-- Coach can change the client's goal without leaving the preview
+- Update the empty state message to include a clickable link/button that navigates to `/libraries` with the guides tab active (using `useNavigate` + query param or just a link)
+- Add `useNavigate` import
 
----
+### Change 3: Improve PlanTab guide editing UX
 
-## Change 2: Program Type Badge in Preview Dialog + Editable
+**File:** `src/components/clients/workspace/PlanTab.tsx`
 
-**File:** `src/components/clients/ClientPreviewDialog.tsx`
+Currently the override system only shows sections that are already visible (have content in `nutrition_guide_sections`). Improvements:
+- When no guides exist, show the link to Master Libraries → Guides (already done above)
+- When guides DO exist, the current customize/hide/reset flow is already functional — no changes needed to override logic
+- Add a "Refresh" button next to the Nutrition Guides header so after creating guides in Master Libraries, the coach can refresh without leaving the page
 
-- Fetch `program_type` from `coach_clients` in the existing `fetchAll` effect
-- Display below the goal as a small badge (e.g., `📋 6 Week Program`)
-- Add a clickable Select dropdown to change it from the predefined list:
-  - Weekly Progress Updates
-  - Bi-Weekly Progress Updates
-  - 6 Week Program
-  - Training Only Program
-  - Training Only With Weekly Progress Updates
-  - Nutrition Only With Weekly Progress Updates
-  - Other
-- Save via `supabase.from("coach_clients").update({ program_type }).eq("client_id", clientId).eq("coach_id", user.id)`
+### Change 4: Update Daily Habits emoji
 
----
+**File:** `src/components/nutrition/CoachNutritionGuides.tsx`
 
-## Change 3: Program Type Badge in Client Profile Header
+- Change `daily_ritual` title from "🌅 Daily Morning Ritual" to "☀️ Daily Morning Ritual" (matching the iOS sun emoji fix from the supplement plan work)
+- Update CATEGORIES label from "🌅 Daily Habits" to "☀️ Daily Habits"
 
-**File:** `src/pages/ClientDetail.tsx`
+**File:** `src/components/clients/workspace/PlanTab.tsx`
+- Same emoji update in the CATEGORIES constant
 
-- Fetch `program_type` from `coach_clients` in the existing `useEffect` load (alongside profile, tags, program)
-- Display as a Badge below the client name, next to existing program/tag badges
-
----
-
-## Change 4: Filter by Program Type on Clients Page
-
-**File:** `src/components/clients/SelectableClientCards.tsx`
-
-- Add state: `programTypeFilter` (default: `"all"`)
-- Fetch `program_type` from `coach_clients` alongside `client_id` in the client load query
-- Store program type per client in a `programTypeMap: Record<string, string>`
-- Add a new Select dropdown in the toolbar (next to existing status/tag filters): "Program Type" with all 6 options + "All"
-- Add program type to `filteredClients` filter logic
-- Show program type badge on each client card
-
----
-
-## Change 5: Bulk Program Type Assignment
-
-**File:** `src/components/clients/SelectableClientCards.tsx`
-
-- When clients are selected (`selectedIds.size > 0`), show an additional "Assign Program Type" button next to "Send Message"
-- On click, show a dropdown/popover with the 6 program types
-- On selection, batch update: `supabase.from("coach_clients").update({ program_type }).in("client_id", [...selectedIds]).eq("coach_id", user.id)`
-- Refresh local state to reflect changes immediately
-- Show success toast: "Program type updated for X clients"
+**File:** `src/components/nutrition/ClientNutritionHub.tsx`
+- Same emoji update in its CATEGORIES constant
 
 ---
 
 ## Files Modified
 
+| File | Change |
+|------|--------|
+| `src/pages/MasterLibraries.tsx` | Add Guides tab with `CoachNutritionGuides` |
+| `src/components/clients/workspace/PlanTab.tsx` | Add navigate link in empty state, refresh button, emoji fix |
+| `src/components/nutrition/CoachNutritionGuides.tsx` | Emoji fix |
+| `src/components/nutrition/ClientNutritionHub.tsx` | Emoji fix |
 
-| File                                               | Change                                                                  |
-| -------------------------------------------------- | ----------------------------------------------------------------------- |
-| Migration SQL                                      | Add `program_type` column to `coach_clients`                            |
-| `src/components/clients/ClientPreviewDialog.tsx`   | Editable goal dropdown, program type badge + editor, fetch program_type |
-| `src/pages/ClientDetail.tsx`                       | Fetch + display program type badge in header                            |
-| `src/components/clients/SelectableClientCards.tsx` | Program type filter, bulk assignment button, show program type on cards |
+## No Database Changes Needed
 
+The `nutrition_guide_sections` and `client_guide_overrides` tables already exist with proper RLS policies.
 
 ---
 
-## Improvements Included
+## Improvements
 
-1. **Program type visible on client cards** — each card shows a small badge so coaches can see at a glance
-2. **Bulk assignment** — select multiple clients, assign program type in one action
-3. **Filter by program type** — quickly find all clients on a specific program type
-4. **Goal is coach-editable** — coaches can update goals as clients progress through phases without navigating to settings
+1. **Direct link from PlanTab**: The empty state will link directly to Master Libraries → Guides tab so coaches don't have to hunt for it
+2. **Refresh button**: After setting up guides in Master Libraries, coaches can refresh the PlanTab guide list without navigating away
+3. **Consistent emojis**: ☀️ across all guide-related components
+4. **Single source of truth**: Master Libraries becomes the central hub for all guide management, while client PlanTab handles per-client overrides only
+
