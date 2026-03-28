@@ -487,12 +487,13 @@ const ThreadChatView = ({
             <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
           )}
           {!isRecording && (
-            <Input
+            <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
-              className="flex-1 h-10 text-[15px]"
+              className="flex-1 min-h-[40px] max-h-[120px] text-[15px] resize-none py-2"
+              rows={1}
             />
           )}
           {newMessage.trim() ? (
