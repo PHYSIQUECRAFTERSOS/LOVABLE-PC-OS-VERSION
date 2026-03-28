@@ -223,6 +223,7 @@ const ChatView = ({ conversationId, onBack }: ChatViewProps) => {
                   )}
                 >
                   {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
+                </div>
                 <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isOwn ? "justify-end" : "justify-start")}>
                   <span>{format(new Date(msg.created_at), "HH:mm")}</span>
                   {isOwn && (
