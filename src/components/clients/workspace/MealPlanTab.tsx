@@ -302,28 +302,8 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         )}
       </div>
 
-      {/* Generate Grocery List for Client */}
-      <Card className="border-border/50">
-        <CardContent className="py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Client Grocery List</span>
-          </div>
-          <Button
-            size="sm"
-            onClick={handleGenerateGroceryList}
-            disabled={generatingGrocery || planCards.length === 0}
-            className="gap-1.5"
-          >
-            {generatingGrocery ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ShoppingCart className="h-3.5 w-3.5" />
-            )}
-            Generate Grocery List
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Full Grocery List */}
+      <CoachGroceryList clientId={clientId} />
 
       {/* Add Plan Type Dialog */}
       <Dialog open={addPlanOpen} onOpenChange={setAddPlanOpen}>

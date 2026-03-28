@@ -187,6 +187,12 @@ const ClientDetail = () => {
           <TabsContent value="mealplan">
             <MealPlanTab clientId={clientId!} />
           </TabsContent>
+          <TabsContent value="supps">
+            <ClientSupplementPlan clientId={clientId!} />
+          </TabsContent>
+          <TabsContent value="plan">
+            <PlanTab clientId={clientId!} />
+          </TabsContent>
           <TabsContent value="progress">
             <ClientWorkspaceProgress clientId={clientId!} />
           </TabsContent>
