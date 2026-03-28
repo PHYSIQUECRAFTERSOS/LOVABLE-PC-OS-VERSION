@@ -78,7 +78,7 @@ export function useRankedLeaderboard(tab: string) {
       const { data: coachRoles } = await db
         .from("user_roles")
         .select("user_id")
-        .in("role", ["admin", "coach"]);
+        .in("role", ["admin", "coach", "manager"]);
       const coachIds = new Set((coachRoles || []).map((r: any) => r.user_id));
 
       let q = db.from("ranked_profiles").select("*");
