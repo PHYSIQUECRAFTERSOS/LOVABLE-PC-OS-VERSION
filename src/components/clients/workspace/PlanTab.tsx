@@ -402,6 +402,8 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                               </div>
                             </div>
 
+                            </div>
+
                             {isEditing && !isHidden ? (
                               <div className="space-y-2">
                                 <Input
@@ -433,9 +435,11 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                                 </Button>
                               </div>
                             ) : !isHidden ? (
-                              <div className="prose prose-sm prose-invert max-w-none text-xs text-muted-foreground line-clamp-4 [&_strong]:text-foreground [&_ul]:list-disc">
-                                <ReactMarkdown>{section.content || "*No content*"}</ReactMarkdown>
-                              </div>
+                              <GuideSection
+                                title={section.title}
+                                content={section.content || ""}
+                                sectionKey={section.section_key}
+                              />
                             ) : (
                               <p className="text-xs text-destructive/70 italic">Hidden for this client</p>
                             )}
