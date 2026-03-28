@@ -50,7 +50,7 @@ const EVENT_DOT: Record<string, string> = {
 
 const COMPLETED_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", custom: "Body Stats",
-  rest: "Photos", checkin: "Check-in",
+  rest: "Photos", checkin: "Check-in", nutrition: "Nutrition",
 };
 
 const WEEK_DAYS_FULL = [
