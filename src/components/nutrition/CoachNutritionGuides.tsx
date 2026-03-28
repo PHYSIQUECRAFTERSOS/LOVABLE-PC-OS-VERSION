@@ -18,7 +18,7 @@ import PhaseInfoEditor from "./PhaseInfoEditor";
 
 const DEFAULT_SECTIONS = [
   { section_key: "water_recommendation", title: "💧 Water Recommendation", sort_order: 0 },
-  { section_key: "daily_ritual", title: "🌅 Daily Morning Ritual", sort_order: 1 },
+  { section_key: "daily_ritual", title: "☀️ Daily Morning Ritual", sort_order: 1 },
   { section_key: "nutrition_tips", title: "📋 Nutrition Tracking Tips", sort_order: 2 },
   { section_key: "meal_planning", title: "🥗 Meal Planning Recommendations", sort_order: 3 },
   { section_key: "eating_out_cheat_sheet", title: "🍽️ Eating Out Cheat Sheet", sort_order: 4 },
