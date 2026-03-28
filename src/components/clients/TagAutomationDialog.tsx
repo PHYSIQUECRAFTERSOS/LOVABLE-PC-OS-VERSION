@@ -320,26 +320,12 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
                   />
                 </div>
 
-                {/* Add new tag */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="New tag name..."
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addNewTag()}
-                    className="flex-1"
-                  />
-                  <Button size="sm" variant="outline" onClick={addNewTag} disabled={!newTagName.trim()}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-
                 {/* Tag list */}
-                <ScrollArea className="flex-1 max-h-[280px]">
+                <ScrollArea className="flex-1 max-h-[320px]">
                   <div className="space-y-1">
                     {filteredTags.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        No tags yet. Create one above!
+                        {tagSearch ? "No tags match your search" : "No tags yet. Create an automation first!"}
                       </p>
                     )}
                     {filteredTags.map((tag) => {
