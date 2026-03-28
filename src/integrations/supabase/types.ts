@@ -1290,6 +1290,39 @@ export type Database = {
         }
         Relationships: []
       }
+      client_guide_overrides: {
+        Row: {
+          client_id: string
+          coach_id: string
+          content: string
+          id: string
+          is_hidden: boolean | null
+          section_key: string
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_id: string
+          coach_id: string
+          content?: string
+          id?: string
+          is_hidden?: boolean | null
+          section_key: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          coach_id?: string
+          content?: string
+          id?: string
+          is_hidden?: boolean | null
+          section_key?: string
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       client_health_metrics: {
         Row: {
           client_id: string
@@ -4389,6 +4422,7 @@ export type Database = {
       }
       nutrition_guide_sections: {
         Row: {
+          category: string | null
           coach_id: string
           content: string
           id: string
@@ -4399,6 +4433,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          category?: string | null
           coach_id: string
           content?: string
           id?: string
@@ -4409,6 +4444,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          category?: string | null
           coach_id?: string
           content?: string
           id?: string
