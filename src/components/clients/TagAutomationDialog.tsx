@@ -65,7 +65,9 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
       supabase.from("tag_automations").select("*").eq("coach_id", user.id),
     ]);
 
-    const uniqueTags = [...new Set((tagsRes.data || []).map((t: any) => t.tag))];
+    const tagsFromClients = (tagsRes.data || []).map((t: any) => t.tag);
+    const tagsFromAutomations = ((autosRes.data as TagAutomation[]) || []).map((a) => a.tag_name);
+    const uniqueTags = [...new Set([...tagsFromClients, ...tagsFromAutomations])].sort();
     const cTags = (clientTagsRes.data || []).map((t: any) => t.tag);
 
     setAllTags(uniqueTags);
