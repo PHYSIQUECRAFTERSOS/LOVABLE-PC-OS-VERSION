@@ -39,12 +39,13 @@ const EVENT_TYPES = [
   { value: "custom", label: "Body Stats", icon: FileText, color: "bg-teal-500" },
   { value: "rest", label: "Photos", icon: Camera, color: "bg-pink-500" },
   { value: "auto_message", label: "Auto Messages", icon: MessageSquare, color: "bg-orange-500" },
+  { value: "nutrition", label: "Nutrition", icon: UtensilsCrossed, color: "bg-red-500" },
 ];
 
 const EVENT_DOT: Record<string, string> = {
   workout: "bg-blue-500", cardio: "bg-green-500", checkin: "bg-purple-500",
   reminder: "bg-yellow-500", custom: "bg-teal-500", rest: "bg-pink-500",
-  auto_message: "bg-orange-500",
+  auto_message: "bg-orange-500", nutrition: "bg-red-500",
 };
 
 const COMPLETED_LABELS: Record<string, string> = {
