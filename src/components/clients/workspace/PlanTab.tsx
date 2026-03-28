@@ -13,8 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Save, Target, BookOpen, Loader2, ChevronDown, Pencil, RotateCcw, EyeOff, RefreshCw, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
 import RichTextToolbar from "@/components/nutrition/RichTextToolbar";
+import GuideSection from "@/components/nutrition/GuideSection";
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
@@ -351,19 +351,20 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
 
                 return (
                   <Collapsible key={cat.key} defaultOpen>
-                    <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 hover:bg-muted/20 rounded-md transition-colors group">
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                      <span className="text-xs font-semibold">{cat.label}</span>
+                    <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 px-1 hover:bg-muted/20 rounded-md transition-colors group">
+                      <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                      <div className="h-2 w-2 rounded-full bg-[#D4A017]" />
+                      <span className="text-sm font-semibold">{cat.label}</span>
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-3 mt-1 ml-2 border-l-2 border-border/30 pl-3">
+                    <CollapsibleContent className="space-y-4 mt-2 pl-2">
                       {catGuides.map((section: any) => {
                         const isEditing = overrideEditing[section.section_key];
                         const override = overrideValues[section.section_key];
                         const isHidden = override?.is_hidden;
 
                         return (
-                          <div key={section.id} className={`rounded-lg border p-3 space-y-2 ${isHidden ? "border-destructive/30 opacity-60" : "border-border/50"}`}>
-                            <div className="flex items-center justify-between">
+                          <div key={section.id} className={`space-y-2 ${isHidden ? "opacity-60" : ""}`}>
+                            <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/10 px-3 py-2">
                               <h4 className="text-sm font-semibold text-foreground">{section.title}</h4>
                               <div className="flex items-center gap-2">
                                 {isEditing ? (
@@ -401,6 +402,7 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                               </div>
                             </div>
 
+
                             {isEditing && !isHidden ? (
                               <div className="space-y-2">
                                 <Input
@@ -432,15 +434,17 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                                 </Button>
                               </div>
                             ) : !isHidden ? (
-                              <div className="prose prose-sm prose-invert max-w-none text-xs text-muted-foreground line-clamp-4 [&_strong]:text-foreground [&_ul]:list-disc">
-                                <ReactMarkdown>{section.content || "*No content*"}</ReactMarkdown>
-                              </div>
+                              <GuideSection
+                                title={section.title}
+                                content={section.content || ""}
+                                sectionKey={section.section_key}
+                              />
                             ) : (
                               <p className="text-xs text-destructive/70 italic">Hidden for this client</p>
                             )}
 
                             {isEditing && (
-                              <Badge variant="outline" className="text-[9px]">
+                              <Badge variant="outline" className="text-[9px] mt-1">
                                 {override?.is_hidden ? "Hidden" : "Custom Override"}
                               </Badge>
                             )}
