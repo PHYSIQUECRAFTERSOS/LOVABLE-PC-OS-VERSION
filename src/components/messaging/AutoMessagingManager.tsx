@@ -469,7 +469,11 @@ const AutoMessagingManager = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Target</Label>
-                    <Select value={trigTargetType} onValueChange={setTrigTargetType}>
+                    <Select value={trigTargetType} onValueChange={(val) => {
+                      setTrigTargetType(val);
+                      setClientSearch("");
+                      if (val === "all_clients") setExcludedClientIds(new Set());
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {TARGET_TYPES.map((t) => (
@@ -494,14 +498,88 @@ const AutoMessagingManager = () => {
                   {trigTargetType === "individual" && (
                     <div className="space-y-2">
                       <Label>Client</Label>
-                      <Select value={trigClientId} onValueChange={setTrigClientId}>
-                        <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                        <SelectContent>
-                          {clients?.map((c) => (
-                            <SelectItem key={c.client_id} value={c.client_id}>{c.full_name}</SelectItem>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                          placeholder="Search clients..."
+                          className="pl-9"
+                        />
+                      </div>
+                      <ScrollArea className="h-40 rounded-md border border-border">
+                        <div className="p-1">
+                          {filteredClients.map((c) => (
+                            <button
+                              key={c.client_id}
+                              type="button"
+                              onClick={() => setTrigClientId(c.client_id)}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                                trigClientId === c.client_id
+                                  ? "bg-primary/20 text-primary font-medium"
+                                  : "hover:bg-muted/60 text-foreground"
+                              }`}
+                            >
+                              <User className="h-3.5 w-3.5 shrink-0" />
+                              {c.full_name}
+                            </button>
                           ))}
-                        </SelectContent>
-                      </Select>
+                          {filteredClients.length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-3">No clients found</p>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                  {trigTargetType === "all_clients" && clients && clients.length > 0 && (
+                    <div className="space-y-2 md:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5" />
+                          Included Clients ({(clients?.length || 0) - excludedClientIds.size}/{clients?.length || 0})
+                        </Label>
+                        <div className="flex gap-1">
+                          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAllClients}>
+                            Select All
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={deselectAllClients}>
+                            Deselect All
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                          placeholder="Search clients..."
+                          className="pl-9"
+                        />
+                      </div>
+                      <ScrollArea className="h-48 rounded-md border border-border">
+                        <div className="p-1 space-y-0.5">
+                          {filteredClients.map((c) => {
+                            const isIncluded = !excludedClientIds.has(c.client_id);
+                            return (
+                              <label
+                                key={c.client_id}
+                                className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                                  isIncluded ? "bg-muted/40 hover:bg-muted/60" : "opacity-50 hover:opacity-70"
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={isIncluded}
+                                  onCheckedChange={() => toggleClientExclusion(c.client_id)}
+                                />
+                                <span className="text-sm">{c.full_name}</span>
+                              </label>
+                            );
+                          })}
+                          {filteredClients.length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-3">No clients found</p>
+                          )}
+                        </div>
+                      </ScrollArea>
                     </div>
                   )}
                   {trigType === "recurring" && (
