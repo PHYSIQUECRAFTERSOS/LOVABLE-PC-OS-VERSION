@@ -13,6 +13,7 @@ import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unli
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import ProgramBuilder from "./ProgramBuilder";
 import ProgramDetailView from "./ProgramDetailView";
 import { format } from "date-fns";

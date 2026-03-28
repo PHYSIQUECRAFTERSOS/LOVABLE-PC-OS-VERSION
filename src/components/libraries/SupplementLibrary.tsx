@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";

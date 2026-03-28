@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useXPAward } from "@/hooks/useXPAward";

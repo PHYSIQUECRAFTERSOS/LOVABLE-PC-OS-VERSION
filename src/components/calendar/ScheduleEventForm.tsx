@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
