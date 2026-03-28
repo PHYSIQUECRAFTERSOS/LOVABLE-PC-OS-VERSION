@@ -1,46 +1,77 @@
 
 
-# Fix: Daily Rewards Spam, Cardio XP Sync, and 0% Completion Ring
+# Coach Client Workspace: Grocery List, Supplements Tab, and Plan Tab
 
-## Issue 1: Daily Rewards Popup Showing Multiple Times
+## What's Being Built
 
-**Root Cause**: Two problems:
-1. The popup shows even when total XP is `+0` (screenshot confirms this — useless popup)
-2. The `useEffect` depends on `[user?.id]` which can re-fire during auth state settling, and the localStorage guard is inside an async function with a 1.5s delay — creating a race window where the component can unmount/remount before localStorage is written
+Three additions to the coach's client workspace (`ClientDetail.tsx`):
 
-**Fix** (`src/components/ranked/DailyRewardsPopup.tsx`):
-- Add a **module-level flag** (`let shownThisSession = false`) that prevents re-showing within the same app session, regardless of component mount/unmount cycles
-- Skip showing the popup entirely when `totalXP === 0` — a "+0 XP" popup has zero dopamine value and feels broken
-- Keep the localStorage date check as a cross-session guard
+1. **Full Grocery List in Meal Plan tab** — After generating, show the complete categorized grocery list with edit/delete capabilities for individual items
+2. **New "Supps" tab** — Shows the client's assigned supplement plan (from Master Libraries) with full details and timing
+3. **New "Plan" tab** — Shows/edits per-client nutrition guides (phase info, additional notes, guide sections) directly from the client workspace
 
-## Issue 2: Cardio XP Not Updating Dashboard Immediately
+---
 
-**Root Cause**: After `CardioPopup` completes, it calls `onCompleted()` which invalidates `today-actions` cache. But the **Rank Dashboard Card** uses separate React Query keys (`my-rank`, `xp-today`) that are never invalidated. The user has to leave and return for stale data to expire.
+## Plan
 
-**Fix** (`src/components/dashboard/CardioPopup.tsx`):
-- After completion + XP award, dispatch a `calendar-event-added` custom event (already listened to by TodayActions for instant refetch)
-- Use React Query's `queryClient.invalidateQueries` to immediately invalidate `my-rank` and `xp-today` keys so the rank card refreshes with new XP
-- Import `useQueryClient` from `@tanstack/react-query`
+### Step 1: Create `CoachGroceryList` component
 
-**Fix** (`src/components/dashboard/TodayActions.tsx`):
-- In `handleCardioCompleted`, also dispatch `calendar-event-added` event to ensure all listeners (including the completion ring's data source) refresh
+New file: `src/components/clients/workspace/CoachGroceryList.tsx`
 
-## Issue 3: Completion Ring Showing 0% When All Tasks Complete
+- Accepts `clientId` prop
+- Fetches `grocery_lists` where `client_id = clientId` (same query as `GroceryList.tsx` but using `clientId` instead of `user?.id`)
+- Shows full categorized list with checkboxes (same visual as client's `GroceryList`)
+- Adds **inline edit** — tap item name to edit, save on blur/enter
+- Adds **delete** — small trash icon per item, removes from the JSON array and updates
+- Adds **Generate/Regenerate** button calling the same edge function with `client_id: clientId`
+- All mutations update the `items` JSON column on `grocery_lists` (same pattern as existing `GroceryList.tsx`)
 
-**Root Cause**: The completion ring derives its data from `todayItems` state in `ClientDashboard`. When the user completes tasks and navigates back, `todayItems` starts as `[]` (initial state), showing 0/0 = 0%. The `TodayActions` component then loads cached (potentially stale) data, and `onDataLoaded` fires — but if cache is stale from before completion, the ring shows old data.
+### Step 2: Embed `CoachGroceryList` into `MealPlanTab`
 
-**Fix** (`src/pages/Dashboard.tsx`):
-- Listen for `calendar-event-added` events in `ClientDashboard` to force TodayActions cache invalidation and refetch
-- Add a `refreshKey` counter that increments on the event, passed to `TodayActions` to force a fresh query
+In `src/components/clients/workspace/MealPlanTab.tsx`:
+- Replace the current simple "Generate Grocery List" button card (lines 326-347) with the full `CoachGroceryList` component
+- Remove the `handleGenerateGroceryList` function and `generatingGrocery` state (moved into the new component)
 
-**Fix** (`src/components/dashboard/TodayActions.tsx`):
-- Accept an optional `refreshKey` prop that gets appended to the cache key, ensuring a fresh fetch when tasks are completed
-- Move the `onDataLoaded` call out of `queryFn` and into a `useEffect` that watches `data`, so it fires on every data update (including cache hits), not just when `queryFn` runs
+### Step 3: Add "Supps" tab to `ClientDetail.tsx`
+
+- Import `ClientSupplementPlan` from `@/components/nutrition/ClientSupplementPlan`
+- Import `Pill` icon from `lucide-react`
+- Add `{ value: "supps", label: "Supps", icon: Pill }` to `tabItems` array (after "mealplan")
+- Add `<TabsContent value="supps"><ClientSupplementPlan clientId={clientId!} /></TabsContent>`
+- `ClientSupplementPlan` already accepts an optional `clientId` prop and works for coach viewing — it fetches the client's active assignment, plan items, master supplements, overrides, and logs
+
+### Step 4: Add "Plan" tab to `ClientDetail.tsx`
+
+New file: `src/components/clients/workspace/PlanTab.tsx`
+
+- Accepts `clientId` prop
+- **Phase Info section**: Loads and edits `client_phase_info` for this specific client (same fields as `PhaseInfoEditor` but pre-scoped to `clientId` — no client dropdown needed)
+- **Additional Notes section**: Editable textarea for `additional_notes` field
+- **Guide Sections preview**: Read-only view of the coach's global guide sections from `nutrition_guide_sections` so the coach can see what the client sees
+- Includes a link/note: "Edit global guide templates in Nutrition > Guides"
+
+Add to `ClientDetail.tsx`:
+- Import `PlanTab` and `BookOpen` icon
+- Add `{ value: "plan", label: "Plan", icon: BookOpen }` to `tabItems` (after "supps")
+- Add `<TabsContent value="plan"><PlanTab clientId={clientId!} /></TabsContent>`
+
+### Step 5: Client-side supplement visibility
+
+The client already has a "Supps" tab in `Nutrition.tsx` (line 48-51) which renders `SupplementLogger`. That component checks for `hasAssignedPlan` and renders `ClientSupplementPlan` when a plan is assigned. This flow already works — no changes needed. The issue was the coach couldn't see it from the client workspace, which Step 3 fixes.
+
+---
 
 ## Files Changed
 
-1. `src/components/ranked/DailyRewardsPopup.tsx` — Module-level session guard + skip 0 XP
-2. `src/components/dashboard/CardioPopup.tsx` — Dispatch events + invalidate React Query after completion
-3. `src/components/dashboard/TodayActions.tsx` — Accept refreshKey prop, fix onDataLoaded to fire on all data updates
-4. `src/pages/Dashboard.tsx` — Listen for calendar-event-added, pass refreshKey to TodayActions
+1. **`src/components/clients/workspace/CoachGroceryList.tsx`** (NEW) — Full grocery list viewer/editor for coaches
+2. **`src/components/clients/workspace/MealPlanTab.tsx`** — Replace generate button with `CoachGroceryList`
+3. **`src/components/clients/workspace/PlanTab.tsx`** (NEW) — Per-client phase info + guide preview
+4. **`src/pages/ClientDetail.tsx`** — Add "Supps" and "Plan" tabs
+
+## Technical Details
+
+- `CoachGroceryList` reads/writes the same `grocery_lists` table and `items` JSON column. Edit/delete are optimistic updates to the JSON array, same pattern as the client's `GroceryList.tsx`
+- RLS on `grocery_lists` already allows coaches to read/write for their clients (coach role check)
+- `ClientSupplementPlan` already handles the `clientId` prop — it fetches `client_supplement_assignments`, `supplement_plan_items`, `master_supplements`, and `client_supplement_overrides`
+- The "Plan" tab reuses the same Supabase queries as `PhaseInfoEditor` but scoped to a single client instead of requiring a dropdown selector
 
