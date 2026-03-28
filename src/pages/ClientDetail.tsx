@@ -1,16 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TagAutomationDialog from "@/components/clients/TagAutomationDialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
-  LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill,
+  LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill, Tag,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
@@ -43,31 +44,31 @@ const ClientDetail = () => {
   const [programName, setProgramName] = useState<string | null>(null);
   const [programType, setProgramType] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
 
-  useEffect(() => {
+  const loadClientData = useCallback(async () => {
     if (!clientId || !userId) return;
-    const load = async () => {
-      setLoading(true);
-      const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
-        supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
-        supabase
-          .from("client_program_assignments")
-          .select("program_id, programs(name)")
-          .eq("client_id", clientId)
-          .eq("status", "active")
-          .limit(1)
-          .maybeSingle(),
-        supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
-      ]);
-      setProfile(profileRes.data as ClientProfile | null);
-      setTags((tagsRes.data || []).map((t: any) => t.tag));
-      setProgramName((programRes.data as any)?.programs?.name || null);
-      setProgramType((coachClientRes.data as any)?.program_type || null);
-      setLoading(false);
-    };
-    load();
+    setLoading(true);
+    const [profileRes, tagsRes, programRes, coachClientRes] = await Promise.all([
+      supabase.from("profiles").select("user_id, full_name, avatar_url, phone").eq("user_id", clientId).single(),
+      supabase.from("client_tags").select("tag").eq("client_id", clientId).eq("coach_id", userId),
+      supabase
+        .from("client_program_assignments")
+        .select("program_id, programs(name)")
+        .eq("client_id", clientId)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
+    ]);
+    setProfile(profileRes.data as ClientProfile | null);
+    setTags((tagsRes.data || []).map((t: any) => t.tag));
+    setProgramName((programRes.data as any)?.programs?.name || null);
+    setProgramType((coachClientRes.data as any)?.program_type || null);
+    setLoading(false);
   }, [clientId, userId]);
+
+  useEffect(() => { loadClientData(); }, [loadClientData]);
 
   if (loading) {
     return (
@@ -132,6 +133,15 @@ const ClientDetail = () => {
               <h1 className="font-display text-xl font-bold text-foreground truncate">
                 {profile.full_name || "Client"}
               </h1>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => setTagDialogOpen(true)}
+              >
+                <Tag className="h-3.5 w-3.5" />
+                Tags
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -211,6 +221,13 @@ const ClientDetail = () => {
         </Tabs>
       </div>
       <QuickLogFAB clientId={clientId} />
+      <TagAutomationDialog
+        open={tagDialogOpen}
+        onOpenChange={setTagDialogOpen}
+        clientId={clientId!}
+        clientName={profile.full_name || "Client"}
+        onTagsChanged={loadClientData}
+      />
     </AppLayout>
   );
 };
