@@ -15,11 +15,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2, ClipboardList } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { subDays, format, addDays, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import ClientPreviewDialog from "./ClientPreviewDialog";
+import { toast } from "sonner";
 
 export interface SelectableClient {
   id: string;
@@ -48,6 +54,16 @@ interface SelectableClientCardsProps {
   onClientStatusChanged?: () => void;
 }
 
+const PROGRAM_TYPES = [
+  "Weekly Progress Updates",
+  "Bi-Weekly Progress Updates",
+  "6 Week Program",
+  "Training Only Program",
+  "Training Only With Weekly Progress Updates",
+  "Nutrition Only With Weekly Progress Updates",
+  "Other",
+];
+
 /* ─── Compliance Badge ─── */
 const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
   const config = {
@@ -73,11 +89,14 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [programTypeFilter, setProgramTypeFilter] = useState<string>("all");
   const [coachFilter, setCoachFilter] = useState<string>("mine");
   const [loading, setLoading] = useState(true);
   const [complianceMap, setComplianceMap] = useState<Record<string, NutritionCompliance>>({});
   const [phaseMap, setPhaseMap] = useState<Record<string, PhaseInfo>>({});
+  const [programTypeMap, setProgramTypeMap] = useState<Record<string, string>>({});
   const [coaches, setCoaches] = useState<{ id: string; name: string }[]>([]);
+  const [bulkProgramOpen, setBulkProgramOpen] = useState(false);
 
   const isAdmin = role === "admin";
 
@@ -113,7 +132,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
       let query = supabase
         .from("coach_clients")
-        .select("client_id")
+        .select("client_id, program_type")
         .eq("status", "active");
       if (coachId) query = query.eq("coach_id", coachId);
 
@@ -121,9 +140,17 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
       if (!assignments?.length) {
         setClients([]);
+        setProgramTypeMap({});
         setLoading(false);
         return;
       }
+
+      // Build program type map
+      const ptMap: Record<string, string> = {};
+      assignments.forEach((a: any) => {
+        if (a.program_type) ptMap[a.client_id] = a.program_type;
+      });
+      setProgramTypeMap(ptMap);
 
       const clientIds = assignments.map((a) => a.client_id);
 
@@ -224,7 +251,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     };
 
     fetchCompliance();
-    // Auto-refresh every 5 minutes
     const interval = setInterval(fetchCompliance, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [clients]);
@@ -235,7 +261,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     const ids = clients.map((c) => c.id);
 
     const fetchPhases = async () => {
-      // Get active program assignments for all clients
       const { data: assignments } = await supabase
         .from("client_program_assignments")
         .select("client_id, program_id, current_phase_id, start_date")
@@ -244,7 +269,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
       if (!assignments?.length) return;
 
-      // Get all unique program IDs to fetch phases
       const programIds = [...new Set(assignments.map((a) => a.program_id))];
       const { data: allPhases } = await supabase
         .from("program_phases")
@@ -268,7 +292,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         const currentPhase = phases.find((p) => p.id === a.current_phase_id);
         if (!currentPhase) continue;
 
-        // Sum weeks of prior phases + current phase
         let totalWeeks = 0;
         for (const p of phases) {
           totalWeeks += p.duration_weeks;
@@ -298,15 +321,29 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     return Array.from(tags).sort();
   }, [clients]);
 
+  const usedProgramTypes = useMemo(() => {
+    const types = new Set<string>();
+    Object.values(programTypeMap).forEach((t) => types.add(t));
+    return Array.from(types).sort();
+  }, [programTypeMap]);
+
   const filteredClients = useMemo(() => {
     return clients.filter((c) => {
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (tagFilter !== "all" && !c.tags.includes(tagFilter)) return false;
       if (statusFilter === "high_compliance" && c.compliance < 70) return false;
       if (statusFilter === "low_compliance" && c.compliance >= 70) return false;
+      if (programTypeFilter !== "all") {
+        const clientPT = programTypeMap[c.id];
+        if (programTypeFilter === "unassigned") {
+          if (clientPT) return false;
+        } else {
+          if (clientPT !== programTypeFilter) return false;
+        }
+      }
       return true;
     });
-  }, [clients, search, statusFilter, tagFilter]);
+  }, [clients, search, statusFilter, tagFilter, programTypeFilter, programTypeMap]);
 
   useEffect(() => {
     const selected = clients.filter((c) => selectedIds.has(c.id));
@@ -330,6 +367,30 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedIds(next);
+  };
+
+  const handleBulkProgramType = async (programType: string) => {
+    if (!user || selectedIds.size === 0) return;
+    const ids = [...selectedIds];
+    const { error } = await supabase
+      .from("coach_clients")
+      .update({ program_type: programType } as any)
+      .in("client_id", ids)
+      .eq("coach_id", user.id);
+
+    if (error) {
+      toast.error("Failed to update program types");
+      return;
+    }
+
+    // Update local state
+    setProgramTypeMap((prev) => {
+      const next = { ...prev };
+      ids.forEach((id) => { next[id] = programType; });
+      return next;
+    });
+    setBulkProgramOpen(false);
+    toast.success(`Program type updated for ${ids.length} client${ids.length > 1 ? "s" : ""}`);
   };
 
   const allFilteredSelected =
@@ -370,10 +431,32 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
             {allFilteredSelected ? "Deselect All" : "Select All"}
           </Button>
           {selectedIds.size > 0 && (
-            <Button size="sm" onClick={onSendMessage} className="gap-2">
-              <MessageSquare className="h-3.5 w-3.5" />
-              Send Message ({selectedIds.size})
-            </Button>
+            <>
+              <Button size="sm" onClick={onSendMessage} className="gap-2">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Send Message ({selectedIds.size})
+              </Button>
+              <Popover open={bulkProgramOpen} onOpenChange={setBulkProgramOpen}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant="outline" className="gap-2">
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Assign Program Type ({selectedIds.size})
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-1" align="start">
+                  <p className="px-3 py-2 text-xs text-muted-foreground font-medium">Select program type:</p>
+                  {PROGRAM_TYPES.map((pt) => (
+                    <button
+                      key={pt}
+                      onClick={() => handleBulkProgramType(pt)}
+                      className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors"
+                    >
+                      {pt}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            </>
           )}
         </div>
         <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
@@ -410,6 +493,14 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
               </SelectContent>
             </Select>
           )}
+          <Select value={programTypeFilter} onValueChange={setProgramTypeFilter}>
+            <SelectTrigger className="h-9 w-[160px] text-sm"><SelectValue placeholder="Program Type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Program Types</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {usedProgramTypes.map((pt) => <SelectItem key={pt} value={pt}>{pt}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -429,6 +520,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           const isSelected = selectedIds.has(client.id);
           const comp = complianceMap[client.id];
           const phase = phaseMap[client.id];
+          const clientProgramType = programTypeMap[client.id];
           return (
             <Card
               key={client.id}
@@ -457,6 +549,12 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                         </span>
                       )}
                     </div>
+                    {clientProgramType && (
+                      <Badge variant="outline" className="text-[10px] mt-1 border-primary/30 text-primary">
+                        <ClipboardList className="h-2.5 w-2.5 mr-1" />
+                        {clientProgramType}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {comp && <ComplianceBadge {...comp} />}
@@ -518,7 +616,6 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         onClientDeactivated={() => {
           setPreviewClient(null);
           onClientStatusChanged?.();
-          // Re-fetch clients
           setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
         }}
         onClientDeleted={() => {
