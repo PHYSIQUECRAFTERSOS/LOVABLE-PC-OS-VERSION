@@ -221,6 +221,13 @@ const ClientDetail = () => {
         </Tabs>
       </div>
       <QuickLogFAB clientId={clientId} />
+      <TagAutomationDialog
+        open={tagDialogOpen}
+        onOpenChange={setTagDialogOpen}
+        clientId={clientId!}
+        clientName={profile.full_name || "Client"}
+        onTagsChanged={loadClientData}
+      />
     </AppLayout>
   );
 };
