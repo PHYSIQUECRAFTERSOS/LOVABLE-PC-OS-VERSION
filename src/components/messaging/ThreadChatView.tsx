@@ -119,7 +119,7 @@ const ThreadChatView = ({
       .select("*")
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true });
-    setMessages((data as Message[]) || []);
+    setMessages((data as unknown as Message[]) || []);
   };
 
   const fetchReactions = async () => {
