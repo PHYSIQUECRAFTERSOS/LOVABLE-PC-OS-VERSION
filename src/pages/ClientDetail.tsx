@@ -104,6 +104,8 @@ const ClientDetail = () => {
     { value: "training", label: "Training", icon: Dumbbell },
     { value: "nutrition", label: "Nutrition", icon: Target },
     { value: "mealplan", label: "Meal Plan", icon: ClipboardList },
+    { value: "supps", label: "Supps", icon: Pill },
+    { value: "plan", label: "Plan", icon: BookOpen },
     { value: "progress", label: "Progress", icon: BarChart3 },
     { value: "messaging", label: "Messages", icon: MessageSquare },
   ];
