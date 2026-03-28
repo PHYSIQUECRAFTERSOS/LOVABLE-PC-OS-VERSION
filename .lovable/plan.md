@@ -1,133 +1,66 @@
 
 
-# Plan: Per-Client Guide Overrides, Category Tags, and Rich Text Support
+# Plan: Fix Supplement Plan — Coach Editing, RLS Fix, Emoji Update
 
 ## Summary
 
-Three enhancements to the nutrition guides system: (1) per-client overrides so a coach can customize a specific guide section for one client while inheriting the rest from the master template, (2) category grouping of guide sections for better organization, and (3) basic markdown/rich text support for guide content.
+Four changes: (1) Remove the non-functional "Log" button when a coach views a client's supplement plan (RLS blocks coach inserts to `supplement_logs`), (2) change the fasted/morning ritual emoji from 🌅 to ☀️, (3) add inline editing capabilities for coaches directly in the client's Supps tab, (4) add an "Import from Library" flow.
 
 ---
 
-## Database Changes
+## Change 1: Remove Log Button for Coaches
 
-### New table: `client_guide_overrides`
-Stores per-client content overrides for specific guide sections. When a client has an override for a section_key, it replaces the master template content for that client only.
+The `supplement_logs` RLS policy only allows `client_id = auth.uid()`. When a coach views a client's supps tab, `client_id` is the client's ID but `auth.uid()` is the coach — so the insert fails.
 
-```sql
-CREATE TABLE IF NOT EXISTS client_guide_overrides (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  coach_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  section_key TEXT NOT NULL,
-  title TEXT,
-  content TEXT NOT NULL DEFAULT '',
-  is_hidden BOOLEAN DEFAULT FALSE, -- coach can hide a section for this client
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(client_id, section_key)
-);
-ALTER TABLE client_guide_overrides ENABLE ROW LEVEL SECURITY;
--- RLS: coach can manage overrides for their clients, client can read their own
-```
-
-### Add `category` column to `nutrition_guide_sections`
-```sql
-ALTER TABLE nutrition_guide_sections ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';
-```
-
-Categories will be: `hydration`, `daily_habits`, `tracking`, `eating_out`, `reference` — mapped from existing section_keys via an UPDATE statement.
+**Fix:** In `ClientSupplementPlan.tsx`, detect if the viewer is the coach (when `clientId` prop is provided) and hide the Log button entirely. Coaches don't need to log supplements for clients.
 
 ---
 
-## Change 1: Per-Client Guide Overrides
+## Change 2: Emoji Update
 
-### Coach side — `PlanTab.tsx`
-Currently shows guide sections as read-only or renders `CoachNutritionGuides`. Instead, each guide section in the Plan tab will show:
-- The master template content (greyed out, as default)
-- A "Customize for this client" toggle per section
-- When toggled on: an editable text area that saves to `client_guide_overrides`
-- A "Hide for this client" option (sets `is_hidden = true`)
-- A "Reset to default" button to delete the override
-
-### Client side — `ClientNutritionHub.tsx` and `GuideSection.tsx`
-- After fetching `nutrition_guide_sections` from the coach, also fetch `client_guide_overrides` for the current user
-- For each section: if an override exists and `is_hidden = true`, skip it; if override has content, use override content/title instead of master; otherwise use master
+In `ClientSupplementPlan.tsx`, change `TIMING_ICONS.fasted` from `🌅` to `☀️` (the standard iOS sun emoji used in text messages).
 
 ---
 
-## Change 2: Guide Categories/Tags
+## Change 3: Inline Coach Editing in Client Supps Tab
 
-### Category mapping
-| Category | Sections |
-|----------|----------|
-| 💧 Hydration | water_recommendation |
-| 🌅 Daily Habits | daily_ritual |
-| 📋 Tracking & Planning | nutrition_tips, meal_planning |
-| 🍽️ Eating Out | eating_out_cheat_sheet, eating_out_examples |
-| 📊 Reference | macro_cheat_sheet |
+When a coach views the client's supplement plan (`clientId` prop is provided), add editing capabilities:
 
-### Coach side — `CoachNutritionGuides.tsx`
-- Group guide section cards by category with collapsible category headers
-- Each category has a label and icon
-- Sections within a category remain individually toggleable/editable
+- **Edit dosage**: Each supplement card gets an "Edit" button that opens an inline form to change dosage, timing, and coach note (saves to `client_supplement_overrides` table with upsert)
+- **Delete item**: Each card gets a "Remove" button that sets `is_removed = true` in `client_supplement_overrides`
+- **Add supplement**: A header "Add Supplement" button opens a dialog where the coach can pick from `master_supplements`, set dosage/timing/note, and insert directly into `supplement_plan_items` for this client's assigned plan
+- **Undo remove**: Show a subtle "Removed items" section at the bottom with "Restore" option
 
-### Client side — `ClientNutritionHub.tsx`
-- Group rendered guide sections by category with category headers
-- Collapsed by default with tap-to-expand for cleaner mobile UX
+All changes use the existing `client_supplement_overrides` table for per-client modifications (dosage, timing, notes, removal), preserving the master plan template.
 
 ---
 
-## Change 3: Rich Text / Markdown Support
+## Change 4: Import from Master Libraries
 
-### Approach
-Use a lightweight markdown renderer (the project can use a simple custom parser or `react-markdown` — since `react-markdown` is a common dependency, we'll add it). This avoids building a full WYSIWYG editor while giving coaches formatting power.
+Add a "Import from Library" button in the coach view header that:
+1. Opens a dialog showing all supplements from `master_supplements` (coach's catalog)
+2. Coach picks one or more, sets timing slot and dosage
+3. Inserts them as new `supplement_plan_items` on the client's active plan
+4. Also add a quick "Open Libraries" link that navigates to `/libraries` with the supplements tab active
 
-### Coach side — All guide textareas
-- Add a small toolbar above each textarea with buttons: **Bold**, *Italic*, `• List`, `## Header`
-- Buttons insert markdown syntax at cursor position (e.g., wraps selected text in `**`)
-- Show a "Preview" toggle next to each section that renders the markdown
-- Placeholder text updated: "Supports **bold**, *italic*, - bullet lists, ## headers"
+---
 
-### Client side — `GuideSection.tsx`
-- Replace the plain `whitespace-pre-wrap` div with a markdown renderer
-- Style the rendered HTML with Tailwind prose classes (`.prose .prose-sm .prose-invert`)
+## Files Modified
 
-### Files affected
 | File | Change |
 |------|--------|
-| `src/components/nutrition/GuideSection.tsx` | Render markdown instead of plain text |
-| `src/components/nutrition/CoachNutritionGuides.tsx` | Add category grouping, markdown toolbar, preview toggle |
-| `src/components/clients/workspace/PlanTab.tsx` | Add per-client override UI per section |
-| `src/components/nutrition/ClientNutritionHub.tsx` | Fetch overrides, merge with master, group by category |
-| `src/components/nutrition/RichTextToolbar.tsx` | New — reusable markdown toolbar component |
-| Migration SQL | New table `client_guide_overrides`, add `category` column |
-| `package.json` | Add `react-markdown` dependency |
+| `src/components/nutrition/ClientSupplementPlan.tsx` | All 4 changes — hide log for coach, emoji fix, add edit/delete/add UI, import dialog |
+
+## No Database Changes Needed
+
+The existing `client_supplement_overrides` table already supports dosage overrides, timing overrides, coach note overrides, and `is_removed`. The `supplement_plan_items` table supports direct inserts for adding new items. All RLS policies are in place.
 
 ---
 
-## Technical Details
+## Recommendations
 
-### Override merge logic (client side)
-```text
-for each master guide section:
-  1. check client_guide_overrides for matching section_key
-  2. if override exists and is_hidden → skip section
-  3. if override exists with content → use override title/content
-  4. else → use master template title/content
-```
-
-### Markdown toolbar implementation
-Simple button bar that inserts markdown tokens around selected text in the textarea. No heavy editor library needed — just `textarea.selectionStart/End` manipulation.
-
-### Category grouping data structure
-```typescript
-const CATEGORIES = [
-  { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
-  { key: "daily_habits", label: "🌅 Daily Habits", sections: ["daily_ritual"] },
-  { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
-  { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
-  { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
-];
-```
-
-This is defined in code (not DB-driven) for simplicity, with the DB `category` column as a backup/future use.
+1. **Bulk import**: When importing, allow multi-select from the master catalog to add several supplements at once
+2. **Reorder items**: Add drag-to-reorder within timing groups so the coach can control display order
+3. **Plan swap shortcut**: Add a "Switch Plan" button so the coach can quickly reassign a different plan template without going to Master Libraries
+4. **Compliance view**: Show the coach which supplements the client has logged today (read-only) alongside the edit controls, so they can monitor adherence while editing
 
