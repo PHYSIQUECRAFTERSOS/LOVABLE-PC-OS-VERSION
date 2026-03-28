@@ -41,6 +41,7 @@ const ClientDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dash");
   const [programName, setProgramName] = useState<string | null>(null);
+  const [programType, setProgramType] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
 
   useEffect(() => {
