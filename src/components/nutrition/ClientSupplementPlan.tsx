@@ -368,36 +368,17 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
                       )}
                     </div>
 
-                    {/* Controls */}
-                    <div className="flex items-center gap-1 ml-3 shrink-0">
-                      {isCoachView ? (
-                        <>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => startEdit(item)}>
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeItem(item.id)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </>
-                      ) : (
-                        /* Client log controls */
-                        servings > 0 ? (
-                          <>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateLog(log.id, servings - 1)}>
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="text-sm font-bold text-primary tabular-nums min-w-[1.5rem] text-center">{servings}</span>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => updateLog(log.id, servings + 1)}>
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </>
-                        ) : (
-                          <Button size="sm" variant="outline" onClick={() => logItem(item.id)} className="h-7 px-3 text-xs border-primary/30 text-primary hover:bg-primary/10">
-                            <Check className="h-3 w-3 mr-1" /> Log
-                          </Button>
-                        )
-                      )}
-                    </div>
+                    {/* Controls — coach only */}
+                    {isCoachView && (
+                      <div className="flex items-center gap-1 ml-3 shrink-0">
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => startEdit(item)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeItem(item.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
