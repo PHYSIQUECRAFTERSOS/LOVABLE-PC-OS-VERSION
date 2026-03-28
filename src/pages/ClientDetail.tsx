@@ -44,6 +44,7 @@ const ClientDetail = () => {
   const [programName, setProgramName] = useState<string | null>(null);
   const [programType, setProgramType] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!clientId || !userId) return;
