@@ -27,6 +27,7 @@ const CATEGORIES = [
 const PlanTab = ({ clientId }: { clientId: string }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     current_phase_name: "",
     current_phase_description: "",
