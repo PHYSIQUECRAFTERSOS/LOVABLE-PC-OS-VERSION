@@ -363,8 +363,8 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                         const isHidden = override?.is_hidden;
 
                         return (
-                          <div key={section.id} className={`rounded-lg border p-3 space-y-2 ${isHidden ? "border-destructive/30 opacity-60" : "border-border/50"}`}>
-                            <div className="flex items-center justify-between">
+                          <div key={section.id} className={`space-y-2 ${isHidden ? "opacity-60" : ""}`}>
+                            <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/10 px-3 py-2">
                               <h4 className="text-sm font-semibold text-foreground">{section.title}</h4>
                               <div className="flex items-center gap-2">
                                 {isEditing ? (
