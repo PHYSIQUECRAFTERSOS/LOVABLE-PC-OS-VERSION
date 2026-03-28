@@ -272,7 +272,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       Object.entries(nutByDate).forEach(([dateStr, totals]) => {
         normalizedEvents.push({
           id: `nut-${dateStr}`,
-          title: `${totals.count} Meals Added`,
+          title: `${totals.count} Foods Added`,
           event_type: "nutrition",
           event_date: dateStr,
           is_completed: true,

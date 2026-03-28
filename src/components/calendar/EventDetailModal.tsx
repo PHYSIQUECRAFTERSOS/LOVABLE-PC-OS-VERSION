@@ -490,39 +490,100 @@ const EventDetailModal = ({
           {event.event_type === "nutrition" && !loadingNutrition && nutritionFoods.length > 0 && (() => {
             // Group by meal_type
             const mealGroups: Record<string, any[]> = {};
+            let dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
             nutritionFoods.forEach((f: any) => {
               const slot = f.meal_type || "Other";
               if (!mealGroups[slot]) mealGroups[slot] = [];
               mealGroups[slot].push(f);
+              dayTotals.calories += f.calories || 0;
+              dayTotals.protein += f.protein || 0;
+              dayTotals.carbs += f.carbs || 0;
+              dayTotals.fat += f.fat || 0;
             });
+
+            const MEAL_ORDER = ["breakfast", "pre-workout", "lunch", "post-workout", "dinner", "snack"];
+            const MEAL_LABELS: Record<string, string> = {
+              breakfast: "Breakfast", "pre-workout": "Pre-Workout", lunch: "Lunch",
+              "post-workout": "Post-Workout", dinner: "Dinner", snack: "Snacks",
+            };
+            const sortedMeals = Object.entries(mealGroups).sort(([a], [b]) => {
+              const ai = MEAL_ORDER.indexOf(a);
+              const bi = MEAL_ORDER.indexOf(b);
+              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+            });
+
             return (
               <div className="space-y-4">
-                {Object.entries(mealGroups).map(([mealType, foods]) => (
-                  <div key={mealType}>
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      {mealType}
-                    </h4>
-                    <div className="space-y-1">
-                      {foods.map((food: any) => {
-                        const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
-                        const brand = (food.food_items as any)?.brand || null;
-                        const qty = food.quantity_display ? `${food.quantity_display}${food.quantity_unit ? ` ${food.quantity_unit}` : ""}` : null;
-                        return (
-                          <div key={food.id} className="border-t border-border py-2.5">
-                            <p className="text-sm font-medium text-foreground">{name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {brand && <span className="text-xs text-muted-foreground">{brand}</span>}
-                              {qty && <span className="text-xs text-muted-foreground">{brand ? "·" : ""} {qty}</span>}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Calories: {Math.round(food.calories)} · P {Math.round(food.protein)}g · C {Math.round(food.carbs)}g · F {Math.round(food.fat)}g
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
+                {/* Day totals banner */}
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    {[
+                      { label: "Calories", value: Math.round(dayTotals.calories), unit: "" },
+                      { label: "Protein", value: Math.round(dayTotals.protein), unit: "g" },
+                      { label: "Carbs", value: Math.round(dayTotals.carbs), unit: "g" },
+                      { label: "Fat", value: Math.round(dayTotals.fat), unit: "g" },
+                    ].map(m => (
+                      <div key={m.label}>
+                        <p className="text-[10px] text-primary/70 uppercase tracking-wider font-medium">{m.label}</p>
+                        <p className="text-base font-bold text-primary tabular-nums">{m.value}{m.unit}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {sortedMeals.map(([mealType, foods]) => {
+                  const mealCals = foods.reduce((s: number, f: any) => s + (f.calories || 0), 0);
+                  const mealP = foods.reduce((s: number, f: any) => s + (f.protein || 0), 0);
+                  const mealC = foods.reduce((s: number, f: any) => s + (f.carbs || 0), 0);
+                  const mealF = foods.reduce((s: number, f: any) => s + (f.fat || 0), 0);
+                  return (
+                    <div key={mealType} className="rounded-lg border border-border overflow-hidden">
+                      {/* Meal section header with gold accent */}
+                      <div className="flex items-center justify-between px-3 py-2.5 border-l-[3px] border-l-primary bg-primary/5">
+                        <h4 className="text-sm font-bold text-primary uppercase tracking-wide">
+                          {MEAL_LABELS[mealType] || mealType}
+                        </h4>
+                        <span className="text-xs font-semibold text-primary tabular-nums">
+                          {Math.round(mealCals)} cal
+                        </span>
+                      </div>
+                      {/* Meal section macro sub-header */}
+                      <div className="px-3 py-1.5 bg-secondary/30 border-b border-border">
+                        <p className="text-[11px] text-primary/60 font-medium tabular-nums">
+                          P {Math.round(mealP)}g · C {Math.round(mealC)}g · F {Math.round(mealF)}g
+                        </p>
+                      </div>
+                      {/* Food items */}
+                      <div className="divide-y divide-border/40">
+                        {foods.map((food: any) => {
+                          const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
+                          const brand = (food.food_items as any)?.brand || null;
+                          const qty = food.quantity_display ? `${food.quantity_display}${food.quantity_unit ? ` ${food.quantity_unit}` : ""}` : null;
+                          return (
+                            <div key={food.id} className="px-3 py-2.5">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">{name}</p>
+                                  {(brand || qty) && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {brand}{brand && qty ? " · " : ""}{qty}
+                                    </p>
+                                  )}
+                                </div>
+                                <span className="text-xs font-semibold text-foreground tabular-nums shrink-0 ml-2">
+                                  {Math.round(food.calories)} cal
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
+                                P {Math.round(food.protein)}g · C {Math.round(food.carbs)}g · F {Math.round(food.fat)}g
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}
