@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import XPCelebrationOverlay from "./XPCelebrationOverlay";
@@ -39,31 +39,34 @@ const REWARD_LABELS: Record<string, { emoji: string; label: string }> = {
   streak_bonus_7: { emoji: "🔥", label: "7-day streak bonus" },
 };
 
-// Module-level flag: survives component mount/unmount within the same SPA session
-let shownThisSession = false;
-
 const DailyRewardsPopup = () => {
   const { user } = useAuth();
   const [showOverlay, setShowOverlay] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownItem[]>([]);
   const [totalXP, setTotalXP] = useState(0);
   const [evalDateLabel, setEvalDateLabel] = useState("");
+  const hasChecked = useRef(false);
 
   useEffect(() => {
     if (!user?.id) return;
-    // Session-level guard: never show more than once per app session
-    if (shownThisSession) return;
+    // Prevent duplicate runs within same component lifecycle
+    if (hasChecked.current) return;
+
+    const today = getLocalDateString();
+    const storageKey = `xp_rewards_seen_${user.id}`;
+
+    // Persistent cross-session guard: already shown today
+    const lastSeen = localStorage.getItem(storageKey);
+    if (lastSeen === today) return;
+
+    // Mark as checked immediately to prevent race conditions
+    hasChecked.current = true;
 
     const checkDailyRewards = async () => {
       const yesterday = toLocalDateString(subDays(new Date(), 1));
-      const today = getLocalDateString();
-      const storageKey = `xp_rewards_seen_${user.id}`;
-      const lastSeen = localStorage.getItem(storageKey);
-      // Cross-session guard: already shown today
-      if (lastSeen === today) {
-        shownThisSession = true; // Mark so we don't even re-query
-        return;
-      }
+
+      // Mark as seen FIRST to prevent repeated popups even if query fails
+      localStorage.setItem(storageKey, today);
 
       const db = supabase as any;
       const { data, error } = await db
@@ -99,11 +102,7 @@ const DailyRewardsPopup = () => {
       }
 
       // Skip showing if net XP is 0 — no dopamine value
-      if (total === 0) {
-        localStorage.setItem(storageKey, today);
-        shownThisSession = true;
-        return;
-      }
+      if (total === 0) return;
 
       if (items.length > 0) {
         setBreakdown(items);
@@ -112,8 +111,6 @@ const DailyRewardsPopup = () => {
           format(new Date(yesterday + "T12:00:00"), "MMM d")
         );
         setShowOverlay(true);
-        localStorage.setItem(storageKey, today);
-        shownThisSession = true;
       }
     };
 
