@@ -43,6 +43,7 @@ const EVENT_COLORS: Record<string, string> = {
   photos: "bg-orange-500/20 text-orange-400 border-orange-500/30",
   body_stats: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   steps: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  nutrition: "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
 const EVENT_DOT_COLORS: Record<string, string> = {
