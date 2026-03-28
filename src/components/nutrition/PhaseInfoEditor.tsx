@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Save, Target } from "lucide-react";
 import { toast } from "sonner";
 import { PHASE_TEMPLATES } from "@/constants/phaseTemplates";
-import { SearchableClientSelect } from "@/components/ui/searchable-client-select";
+
 
 const PhaseInfoEditor = () => {
   const { user } = useAuth();

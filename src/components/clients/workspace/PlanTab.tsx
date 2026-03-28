@@ -237,64 +237,7 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs">Current Phase Name</Label>
-              <Input
-                value={form.current_phase_name}
-                onChange={(e) => setForm((f) => ({ ...f, current_phase_name: e.target.value }))}
-                placeholder="e.g. Cut Phase"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Next Phase Name</Label>
-              <Input
-                value={form.next_phase_name}
-                onChange={(e) => setForm((f) => ({ ...f, next_phase_name: e.target.value }))}
-                placeholder="e.g. Maintenance"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">Current Phase Description</Label>
-            <Textarea
-              value={form.current_phase_description}
-              onChange={(e) => setForm((f) => ({ ...f, current_phase_description: e.target.value }))}
-              placeholder="Describe the current phase goals, focus areas..."
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">Next Phase Description</Label>
-            <Textarea
-              value={form.next_phase_description}
-              onChange={(e) => setForm((f) => ({ ...f, next_phase_description: e.target.value }))}
-              placeholder="Describe what comes next..."
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">Coach Notes</Label>
-            <Textarea
-              value={form.coach_notes}
-              onChange={(e) => setForm((f) => ({ ...f, coach_notes: e.target.value }))}
-              placeholder="Notes about this phase for the client..."
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">📝 Additional Notes (Client-specific)</Label>
-            <Textarea
-              value={form.additional_notes}
-              onChange={(e) => setForm((f) => ({ ...f, additional_notes: e.target.value }))}
-              placeholder="Any additional notes specific to this client..."
-              rows={4}
-            />
-          </div>
+          <PhaseDropdowns form={form} setForm={setForm} />
 
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
