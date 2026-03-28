@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 interface GuideSectionProps {
   title: string;
@@ -30,8 +31,8 @@ const GuideSection = ({ title, content, icon }: GuideSectionProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-          {content}
+        <div className="prose prose-sm prose-invert max-w-none text-sm text-muted-foreground leading-relaxed [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5">
+          <ReactMarkdown>{content}</ReactMarkdown>
         </div>
       </CardContent>
     </Card>
