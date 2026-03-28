@@ -1,77 +1,133 @@
 
 
-# Coach Client Workspace: Grocery List, Supplements Tab, and Plan Tab
+# Plan: Per-Client Guide Overrides, Category Tags, and Rich Text Support
 
-## What's Being Built
+## Summary
 
-Three additions to the coach's client workspace (`ClientDetail.tsx`):
-
-1. **Full Grocery List in Meal Plan tab** — After generating, show the complete categorized grocery list with edit/delete capabilities for individual items
-2. **New "Supps" tab** — Shows the client's assigned supplement plan (from Master Libraries) with full details and timing
-3. **New "Plan" tab** — Shows/edits per-client nutrition guides (phase info, additional notes, guide sections) directly from the client workspace
+Three enhancements to the nutrition guides system: (1) per-client overrides so a coach can customize a specific guide section for one client while inheriting the rest from the master template, (2) category grouping of guide sections for better organization, and (3) basic markdown/rich text support for guide content.
 
 ---
 
-## Plan
+## Database Changes
 
-### Step 1: Create `CoachGroceryList` component
+### New table: `client_guide_overrides`
+Stores per-client content overrides for specific guide sections. When a client has an override for a section_key, it replaces the master template content for that client only.
 
-New file: `src/components/clients/workspace/CoachGroceryList.tsx`
+```sql
+CREATE TABLE IF NOT EXISTS client_guide_overrides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  coach_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  section_key TEXT NOT NULL,
+  title TEXT,
+  content TEXT NOT NULL DEFAULT '',
+  is_hidden BOOLEAN DEFAULT FALSE, -- coach can hide a section for this client
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(client_id, section_key)
+);
+ALTER TABLE client_guide_overrides ENABLE ROW LEVEL SECURITY;
+-- RLS: coach can manage overrides for their clients, client can read their own
+```
 
-- Accepts `clientId` prop
-- Fetches `grocery_lists` where `client_id = clientId` (same query as `GroceryList.tsx` but using `clientId` instead of `user?.id`)
-- Shows full categorized list with checkboxes (same visual as client's `GroceryList`)
-- Adds **inline edit** — tap item name to edit, save on blur/enter
-- Adds **delete** — small trash icon per item, removes from the JSON array and updates
-- Adds **Generate/Regenerate** button calling the same edge function with `client_id: clientId`
-- All mutations update the `items` JSON column on `grocery_lists` (same pattern as existing `GroceryList.tsx`)
+### Add `category` column to `nutrition_guide_sections`
+```sql
+ALTER TABLE nutrition_guide_sections ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';
+```
 
-### Step 2: Embed `CoachGroceryList` into `MealPlanTab`
-
-In `src/components/clients/workspace/MealPlanTab.tsx`:
-- Replace the current simple "Generate Grocery List" button card (lines 326-347) with the full `CoachGroceryList` component
-- Remove the `handleGenerateGroceryList` function and `generatingGrocery` state (moved into the new component)
-
-### Step 3: Add "Supps" tab to `ClientDetail.tsx`
-
-- Import `ClientSupplementPlan` from `@/components/nutrition/ClientSupplementPlan`
-- Import `Pill` icon from `lucide-react`
-- Add `{ value: "supps", label: "Supps", icon: Pill }` to `tabItems` array (after "mealplan")
-- Add `<TabsContent value="supps"><ClientSupplementPlan clientId={clientId!} /></TabsContent>`
-- `ClientSupplementPlan` already accepts an optional `clientId` prop and works for coach viewing — it fetches the client's active assignment, plan items, master supplements, overrides, and logs
-
-### Step 4: Add "Plan" tab to `ClientDetail.tsx`
-
-New file: `src/components/clients/workspace/PlanTab.tsx`
-
-- Accepts `clientId` prop
-- **Phase Info section**: Loads and edits `client_phase_info` for this specific client (same fields as `PhaseInfoEditor` but pre-scoped to `clientId` — no client dropdown needed)
-- **Additional Notes section**: Editable textarea for `additional_notes` field
-- **Guide Sections preview**: Read-only view of the coach's global guide sections from `nutrition_guide_sections` so the coach can see what the client sees
-- Includes a link/note: "Edit global guide templates in Nutrition > Guides"
-
-Add to `ClientDetail.tsx`:
-- Import `PlanTab` and `BookOpen` icon
-- Add `{ value: "plan", label: "Plan", icon: BookOpen }` to `tabItems` (after "supps")
-- Add `<TabsContent value="plan"><PlanTab clientId={clientId!} /></TabsContent>`
-
-### Step 5: Client-side supplement visibility
-
-The client already has a "Supps" tab in `Nutrition.tsx` (line 48-51) which renders `SupplementLogger`. That component checks for `hasAssignedPlan` and renders `ClientSupplementPlan` when a plan is assigned. This flow already works — no changes needed. The issue was the coach couldn't see it from the client workspace, which Step 3 fixes.
+Categories will be: `hydration`, `daily_habits`, `tracking`, `eating_out`, `reference` — mapped from existing section_keys via an UPDATE statement.
 
 ---
 
-## Files Changed
+## Change 1: Per-Client Guide Overrides
 
-1. **`src/components/clients/workspace/CoachGroceryList.tsx`** (NEW) — Full grocery list viewer/editor for coaches
-2. **`src/components/clients/workspace/MealPlanTab.tsx`** — Replace generate button with `CoachGroceryList`
-3. **`src/components/clients/workspace/PlanTab.tsx`** (NEW) — Per-client phase info + guide preview
-4. **`src/pages/ClientDetail.tsx`** — Add "Supps" and "Plan" tabs
+### Coach side — `PlanTab.tsx`
+Currently shows guide sections as read-only or renders `CoachNutritionGuides`. Instead, each guide section in the Plan tab will show:
+- The master template content (greyed out, as default)
+- A "Customize for this client" toggle per section
+- When toggled on: an editable text area that saves to `client_guide_overrides`
+- A "Hide for this client" option (sets `is_hidden = true`)
+- A "Reset to default" button to delete the override
+
+### Client side — `ClientNutritionHub.tsx` and `GuideSection.tsx`
+- After fetching `nutrition_guide_sections` from the coach, also fetch `client_guide_overrides` for the current user
+- For each section: if an override exists and `is_hidden = true`, skip it; if override has content, use override content/title instead of master; otherwise use master
+
+---
+
+## Change 2: Guide Categories/Tags
+
+### Category mapping
+| Category | Sections |
+|----------|----------|
+| 💧 Hydration | water_recommendation |
+| 🌅 Daily Habits | daily_ritual |
+| 📋 Tracking & Planning | nutrition_tips, meal_planning |
+| 🍽️ Eating Out | eating_out_cheat_sheet, eating_out_examples |
+| 📊 Reference | macro_cheat_sheet |
+
+### Coach side — `CoachNutritionGuides.tsx`
+- Group guide section cards by category with collapsible category headers
+- Each category has a label and icon
+- Sections within a category remain individually toggleable/editable
+
+### Client side — `ClientNutritionHub.tsx`
+- Group rendered guide sections by category with category headers
+- Collapsed by default with tap-to-expand for cleaner mobile UX
+
+---
+
+## Change 3: Rich Text / Markdown Support
+
+### Approach
+Use a lightweight markdown renderer (the project can use a simple custom parser or `react-markdown` — since `react-markdown` is a common dependency, we'll add it). This avoids building a full WYSIWYG editor while giving coaches formatting power.
+
+### Coach side — All guide textareas
+- Add a small toolbar above each textarea with buttons: **Bold**, *Italic*, `• List`, `## Header`
+- Buttons insert markdown syntax at cursor position (e.g., wraps selected text in `**`)
+- Show a "Preview" toggle next to each section that renders the markdown
+- Placeholder text updated: "Supports **bold**, *italic*, - bullet lists, ## headers"
+
+### Client side — `GuideSection.tsx`
+- Replace the plain `whitespace-pre-wrap` div with a markdown renderer
+- Style the rendered HTML with Tailwind prose classes (`.prose .prose-sm .prose-invert`)
+
+### Files affected
+| File | Change |
+|------|--------|
+| `src/components/nutrition/GuideSection.tsx` | Render markdown instead of plain text |
+| `src/components/nutrition/CoachNutritionGuides.tsx` | Add category grouping, markdown toolbar, preview toggle |
+| `src/components/clients/workspace/PlanTab.tsx` | Add per-client override UI per section |
+| `src/components/nutrition/ClientNutritionHub.tsx` | Fetch overrides, merge with master, group by category |
+| `src/components/nutrition/RichTextToolbar.tsx` | New — reusable markdown toolbar component |
+| Migration SQL | New table `client_guide_overrides`, add `category` column |
+| `package.json` | Add `react-markdown` dependency |
+
+---
 
 ## Technical Details
 
-- `CoachGroceryList` reads/writes the same `grocery_lists` table and `items` JSON column. Edit/delete are optimistic updates to the JSON array, same pattern as the client's `GroceryList.tsx`
-- RLS on `grocery_lists` already allows coaches to read/write for their clients (coach role check)
-- `ClientSupplementPlan` already handles the `clientId` prop — it fetches `client_supplement_assignments`, `supplement_plan_items`, `master_supplements`, and `client_supplement_overrides`
-- The "Plan" tab reuses the same Supabase queries as `PhaseInfoEditor` but scoped to a single client instead of requiring a dropdown selector
+### Override merge logic (client side)
+```text
+for each master guide section:
+  1. check client_guide_overrides for matching section_key
+  2. if override exists and is_hidden → skip section
+  3. if override exists with content → use override title/content
+  4. else → use master template title/content
+```
+
+### Markdown toolbar implementation
+Simple button bar that inserts markdown tokens around selected text in the textarea. No heavy editor library needed — just `textarea.selectionStart/End` manipulation.
+
+### Category grouping data structure
+```typescript
+const CATEGORIES = [
+  { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
+  { key: "daily_habits", label: "🌅 Daily Habits", sections: ["daily_ritual"] },
+  { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
+  { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
+  { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
+];
+```
+
+This is defined in code (not DB-driven) for simplicity, with the DB `category` column as a backup/future use.
 
