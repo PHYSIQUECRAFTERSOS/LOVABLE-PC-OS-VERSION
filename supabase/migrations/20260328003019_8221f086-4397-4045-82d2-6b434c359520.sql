@@ -1,0 +1,1 @@
+ALTER TABLE public.auto_message_triggers ADD COLUMN IF NOT EXISTS excluded_client_ids uuid[] DEFAULT '{}';

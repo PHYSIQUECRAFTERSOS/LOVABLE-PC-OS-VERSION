@@ -180,6 +180,7 @@ export type Database = {
         Row: {
           coach_id: string
           created_at: string
+          excluded_client_ids: string[] | null
           id: string
           is_active: boolean
           last_evaluated_at: string | null
@@ -194,6 +195,7 @@ export type Database = {
         Insert: {
           coach_id: string
           created_at?: string
+          excluded_client_ids?: string[] | null
           id?: string
           is_active?: boolean
           last_evaluated_at?: string | null
@@ -208,6 +210,7 @@ export type Database = {
         Update: {
           coach_id?: string
           created_at?: string
+          excluded_client_ids?: string[] | null
           id?: string
           is_active?: boolean
           last_evaluated_at?: string | null

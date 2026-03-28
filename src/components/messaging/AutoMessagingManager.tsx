@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -21,8 +22,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil } from "lucide-react";
+import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User } from "lucide-react";
 import { format } from "date-fns";
 
 const TRIGGER_TYPES = [
@@ -68,6 +70,8 @@ const AutoMessagingManager = () => {
   const [trigClientId, setTrigClientId] = useState("");
   const [trigCron, setTrigCron] = useState("");
   const [editingTriggerId, setEditingTriggerId] = useState<string | null>(null);
+  const [excludedClientIds, setExcludedClientIds] = useState<Set<string>>(new Set());
+  const [clientSearch, setClientSearch] = useState("");
 
   // Delete confirmations
   const [deleteTriggerId, setDeleteTriggerId] = useState<string | null>(null);
@@ -237,18 +241,46 @@ const AutoMessagingManager = () => {
     setTrigTag("");
     setTrigClientId("");
     setTrigCron("");
+    setExcludedClientIds(new Set());
+    setClientSearch("");
+  };
+
+  const filteredClients = useMemo(() => {
+    if (!clients) return [];
+    if (!clientSearch.trim()) return clients;
+    const q = clientSearch.toLowerCase();
+    return clients.filter((c) => c.full_name.toLowerCase().includes(q));
+  }, [clients, clientSearch]);
+
+  const toggleClientExclusion = (clientId: string) => {
+    setExcludedClientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) {
+        next.delete(clientId);
+      } else {
+        next.add(clientId);
+      }
+      return next;
+    });
+  };
+
+  const selectAllClients = () => setExcludedClientIds(new Set());
+  const deselectAllClients = () => {
+    if (!clients) return;
+    setExcludedClientIds(new Set(clients.map((c) => c.client_id)));
   };
 
   const saveTriggerMutation = useMutation({
     mutationFn: async () => {
       if (!user || !trigTemplateId) throw new Error("Select a template");
-      const payload = {
+      const payload: any = {
         template_id: trigTemplateId,
         trigger_type: trigType,
         target_type: trigTargetType,
         target_tag: trigTargetType === "tag_group" ? trigTag : null,
         target_client_id: trigTargetType === "individual" ? trigClientId : null,
         recurrence_cron: trigType === "recurring" ? trigCron : null,
+        excluded_client_ids: trigTargetType === "all_clients" ? Array.from(excludedClientIds) : [],
       };
       if (editingTriggerId) {
         const { error } = await supabase
@@ -292,6 +324,8 @@ const AutoMessagingManager = () => {
     setTrigTag(t.target_tag || "");
     setTrigClientId(t.target_client_id || "");
     setTrigCron(t.recurrence_cron || "");
+    setExcludedClientIds(new Set((t as any).excluded_client_ids || []));
+    setClientSearch("");
     setShowTriggerForm(true);
   };
 
@@ -435,7 +469,11 @@ const AutoMessagingManager = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Target</Label>
-                    <Select value={trigTargetType} onValueChange={setTrigTargetType}>
+                    <Select value={trigTargetType} onValueChange={(val) => {
+                      setTrigTargetType(val);
+                      setClientSearch("");
+                      if (val === "all_clients") setExcludedClientIds(new Set());
+                    }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {TARGET_TYPES.map((t) => (
@@ -460,14 +498,88 @@ const AutoMessagingManager = () => {
                   {trigTargetType === "individual" && (
                     <div className="space-y-2">
                       <Label>Client</Label>
-                      <Select value={trigClientId} onValueChange={setTrigClientId}>
-                        <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                        <SelectContent>
-                          {clients?.map((c) => (
-                            <SelectItem key={c.client_id} value={c.client_id}>{c.full_name}</SelectItem>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                          placeholder="Search clients..."
+                          className="pl-9"
+                        />
+                      </div>
+                      <ScrollArea className="h-40 rounded-md border border-border">
+                        <div className="p-1">
+                          {filteredClients.map((c) => (
+                            <button
+                              key={c.client_id}
+                              type="button"
+                              onClick={() => setTrigClientId(c.client_id)}
+                              className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                                trigClientId === c.client_id
+                                  ? "bg-primary/20 text-primary font-medium"
+                                  : "hover:bg-muted/60 text-foreground"
+                              }`}
+                            >
+                              <User className="h-3.5 w-3.5 shrink-0" />
+                              {c.full_name}
+                            </button>
                           ))}
-                        </SelectContent>
-                      </Select>
+                          {filteredClients.length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-3">No clients found</p>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                  {trigTargetType === "all_clients" && clients && clients.length > 0 && (
+                    <div className="space-y-2 md:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5" />
+                          Included Clients ({(clients?.length || 0) - excludedClientIds.size}/{clients?.length || 0})
+                        </Label>
+                        <div className="flex gap-1">
+                          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAllClients}>
+                            Select All
+                          </Button>
+                          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={deselectAllClients}>
+                            Deselect All
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          value={clientSearch}
+                          onChange={(e) => setClientSearch(e.target.value)}
+                          placeholder="Search clients..."
+                          className="pl-9"
+                        />
+                      </div>
+                      <ScrollArea className="h-48 rounded-md border border-border">
+                        <div className="p-1 space-y-0.5">
+                          {filteredClients.map((c) => {
+                            const isIncluded = !excludedClientIds.has(c.client_id);
+                            return (
+                              <label
+                                key={c.client_id}
+                                className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors ${
+                                  isIncluded ? "bg-muted/40 hover:bg-muted/60" : "opacity-50 hover:opacity-70"
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={isIncluded}
+                                  onCheckedChange={() => toggleClientExclusion(c.client_id)}
+                                />
+                                <span className="text-sm">{c.full_name}</span>
+                              </label>
+                            );
+                          })}
+                          {filteredClients.length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-3">No clients found</p>
+                          )}
+                        </div>
+                      </ScrollArea>
                     </div>
                   )}
                   {trigType === "recurring" && (
@@ -502,6 +614,9 @@ const AutoMessagingManager = () => {
                           <p className="text-xs text-muted-foreground">
                             Template: {t.auto_message_templates?.name} · Target: {t.target_type}
                             {t.target_tag && ` (${t.target_tag})`}
+                            {t.target_type === "all_clients" && t.excluded_client_ids?.length > 0 && (
+                              <span className="text-primary/70"> · {t.excluded_client_ids.length} excluded</span>
+                            )}
                           </p>
                         </div>
                       </div>
