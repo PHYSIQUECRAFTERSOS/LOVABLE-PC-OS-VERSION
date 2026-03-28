@@ -42,14 +42,23 @@ async function ensureAllClientsRanked() {
 
   const clientIds = clients.map((c: any) => c.client_id);
 
+  // Exclude any user who also has a coach/admin/manager role
+  const { data: staffRoles } = await db
+    .from("user_roles")
+    .select("user_id")
+    .in("role", ["admin", "coach", "manager"])
+    .in("user_id", clientIds);
+  const staffSet = new Set((staffRoles || []).map((r: any) => r.user_id));
+  const pureClientIds = clientIds.filter((id: string) => !staffSet.has(id));
+
   // Fetch existing ranked profile user_ids
   const { data: existing } = await db
     .from("ranked_profiles")
     .select("user_id")
-    .in("user_id", clientIds);
+    .in("user_id", pureClientIds);
 
   const existingSet = new Set((existing || []).map((e: any) => e.user_id));
-  const missing = clientIds.filter((id: string) => !existingSet.has(id));
+  const missing = pureClientIds.filter((id: string) => !existingSet.has(id));
 
   if (missing.length > 0) {
     const rows = missing.map((id: string) => ({ user_id: id }));
@@ -69,7 +78,7 @@ export function useRankedLeaderboard(tab: string) {
       const { data: coachRoles } = await db
         .from("user_roles")
         .select("user_id")
-        .in("role", ["admin", "coach"]);
+        .in("role", ["admin", "coach", "manager"]);
       const coachIds = new Set((coachRoles || []).map((r: any) => r.user_id));
 
       let q = db.from("ranked_profiles").select("*");
