@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -324,15 +325,14 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
           {isCoach && clients.length > 0 && (
             <div className="space-y-1.5">
               <Label>Assign to Client</Label>
-              <Select value={targetClientId} onValueChange={setTargetClientId}>
-                <SelectTrigger><SelectValue placeholder="Optional — select client" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None (Personal)</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableClientSelect
+                clients={clients.map(c => ({ id: c.id, name: c.full_name }))}
+                value={targetClientId}
+                onValueChange={setTargetClientId}
+                placeholder="Optional — select client"
+                allowNone
+                noneLabel="None (Personal)"
+              />
             </div>
           )}
 

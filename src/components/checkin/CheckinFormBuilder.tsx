@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -365,14 +366,12 @@ const CheckinFormBuilder = () => {
               </div>
               <div className="space-y-2">
                 <Label>Client</Label>
-                <Select value={assignClientId} onValueChange={setAssignClientId}>
-                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                  <SelectContent>
-                    {clients?.map((c) => (
-                      <SelectItem key={c.client_id} value={c.client_id}>{c.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableClientSelect
+                  clients={(clients || []).map(c => ({ id: c.client_id, name: c.full_name }))}
+                  value={assignClientId}
+                  onValueChange={setAssignClientId}
+                  placeholder="Select client"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Recurrence</Label>

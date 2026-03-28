@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useXPAward } from "@/hooks/useXPAward";
@@ -234,14 +235,12 @@ const CardioManager = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Client</Label>
-                    <Select value={selectedClient} onValueChange={setSelectedClient}>
-                      <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                      <SelectContent>
-                        {clients?.map((c) => (
-                          <SelectItem key={c.client_id} value={c.client_id}>{c.full_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableClientSelect
+                      clients={(clients || []).map(c => ({ id: c.client_id, name: c.full_name }))}
+                      value={selectedClient}
+                      onValueChange={setSelectedClient}
+                      placeholder="Select client"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Cardio Type</Label>
