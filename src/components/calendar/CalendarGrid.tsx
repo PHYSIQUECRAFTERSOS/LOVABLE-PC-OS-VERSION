@@ -57,6 +57,7 @@ const EVENT_DOT_COLORS: Record<string, string> = {
   photos: "bg-orange-500",
   body_stats: "bg-purple-500",
   steps: "bg-blue-500",
+  nutrition: "bg-red-500",
 };
 
 interface CalendarGridProps {
