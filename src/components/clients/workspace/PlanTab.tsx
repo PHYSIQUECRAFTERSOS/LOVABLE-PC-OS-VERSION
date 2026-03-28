@@ -18,7 +18,7 @@ import RichTextToolbar from "@/components/nutrition/RichTextToolbar";
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
-  { key: "daily_habits", label: "🌅 Daily Habits", sections: ["daily_ritual"] },
+  { key: "daily_habits", label: "☀️ Daily Habits", sections: ["daily_ritual"] },
   { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
   { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
   { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
