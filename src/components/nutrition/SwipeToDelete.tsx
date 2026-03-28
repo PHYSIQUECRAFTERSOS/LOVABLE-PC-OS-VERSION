@@ -18,10 +18,15 @@ const SwipeToDelete = ({ children, onDelete, className }: SwipeToDeleteProps) =>
   const locked = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const directionDecided = useRef(false);
+  const isHorizontal = useRef(false);
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
     startY.current = e.touches[0].clientY;
     locked.current = false;
+    directionDecided.current = false;
+    isHorizontal.current = false;
     setSwiping(true);
   }, []);
 
@@ -30,16 +35,20 @@ const SwipeToDelete = ({ children, onDelete, className }: SwipeToDeleteProps) =>
     const dx = e.touches[0].clientX - startX.current;
     const dy = e.touches[0].clientY - startY.current;
 
-    // Lock direction on first significant movement
-    if (!locked.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-      locked.current = true;
-      if (Math.abs(dy) > Math.abs(dx)) {
-        // Vertical scroll — abort swipe
+    // Decide direction once with a 10px dead zone
+    if (!directionDecided.current) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return; // still in dead zone
+      directionDecided.current = true;
+      isHorizontal.current = Math.abs(dx) > Math.abs(dy);
+      if (!isHorizontal.current) {
+        // Vertical scroll — abort swipe entirely
         setSwiping(false);
         setOffset(0);
         return;
       }
     }
+
+    if (!isHorizontal.current) return;
 
     if (dx < 0) {
       setOffset(Math.max(dx, -140));
@@ -70,7 +79,7 @@ const SwipeToDelete = ({ children, onDelete, className }: SwipeToDeleteProps) =>
   };
 
   return (
-    <div className={cn("relative overflow-hidden", className)} ref={containerRef}>
+    <div className={cn("relative overflow-hidden", className)} ref={containerRef} style={{ touchAction: "pan-y" }}>
       {/* Delete button behind */}
       <div
         className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-destructive-foreground cursor-pointer"

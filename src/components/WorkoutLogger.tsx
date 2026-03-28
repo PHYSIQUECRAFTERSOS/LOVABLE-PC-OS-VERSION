@@ -418,24 +418,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const checkPR = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number): boolean => {
     if (!weight || weight <= 0 || !reps || reps <= 0) return false;
 
-    // Check against personal_records table
+    // Check against personal_records table (must STRICTLY beat, not match)
     const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
-    if (existingPR && (weight < existingPR.weight || (weight === existingPR.weight && reps <= existingPR.reps))) {
-      return false; // Does not beat the stored PR
+    if (existingPR) {
+      const beatsPR = (weight > existingPR.weight) || (weight === existingPR.weight && reps > existingPR.reps);
+      if (!beatsPR) return false;
     }
 
     // Check against ALL historical sets (every completed session ever)
     const historicalSets = allTimeBests[exerciseId] || [];
     for (const prev of historicalSets) {
-      // Not a PR if any historical set has equal or better performance
+      // Not a PR if any historical set matches or beats current performance
       if (prev.weight > weight || (prev.weight === weight && prev.reps >= reps)) {
         return false;
       }
     }
 
+    // Check against current session's already-completed sets (prevents duplicates within same workout)
+    const currentExercise = exercises.find(e => e.id === exerciseId);
+    if (currentExercise) {
+      for (const log of currentExercise.logs) {
+        if (log.completed && log.weight && log.reps) {
+          if (log.weight > weight || (log.weight === weight && log.reps >= reps)) {
+            return false;
+          }
+        }
+      }
+    }
+
     // Also check against PRs already detected this session (to avoid duplicate toasts)
     const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
-    if (existingAlert && weight <= existingAlert.weight && (weight < existingAlert.weight || reps <= existingAlert.reps)) {
+    if (existingAlert && (weight < existingAlert.weight || (weight === existingAlert.weight && reps <= existingAlert.reps))) {
       return false;
     }
 
@@ -446,7 +459,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     ]);
     toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
     return true;
-  }, [personalRecords, allTimeBests, prAlerts, toast]);
+  }, [personalRecords, allTimeBests, prAlerts, exercises, toast]);
 
   // Persist a single set to Supabase immediately
   const persistSet = async (exerciseId: string, log: ExerciseLogForm["logs"][0]) => {
