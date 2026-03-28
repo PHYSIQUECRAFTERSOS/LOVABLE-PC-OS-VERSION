@@ -2,7 +2,7 @@ import { useEffect, useRef, useMemo } from "react";
 import { format, isToday, isTomorrow, isYesterday, parseISO, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarGrid";
-import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell, UtensilsCrossed } from "lucide-react";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   workout: <Dumbbell className="h-5 w-5" />,
