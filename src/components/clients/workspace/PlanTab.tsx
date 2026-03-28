@@ -445,7 +445,7 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
                             )}
 
                             {isEditing && (
-                              <Badge variant="outline" className="text-[9px]">
+                              <Badge variant="outline" className="text-[9px] mt-1">
                                 {override?.is_hidden ? "Hidden" : "Custom Override"}
                               </Badge>
                             )}
