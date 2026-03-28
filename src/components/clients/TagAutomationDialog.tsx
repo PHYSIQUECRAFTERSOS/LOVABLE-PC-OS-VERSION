@@ -79,12 +79,17 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const addNewTag = () => {
-    const name = newTagName.trim().toUpperCase();
-    if (!name) return;
-    if (!allTags.includes(name)) setAllTags((prev) => [...prev, name]);
-    setSelectedTags((prev) => new Set(prev).add(name));
-    setNewTagName("");
+  const deleteTagGlobally = async (tag: string) => {
+    if (!user) return;
+    setDeletingTag(tag);
+    // Remove from all clients
+    await supabase.from("client_tags").delete().eq("coach_id", user.id).eq("tag", tag);
+    // Remove associated automation
+    await supabase.from("tag_automations").delete().eq("coach_id", user.id).eq("tag_name", tag);
+    toast.success(`Tag "${tag}" deleted`);
+    setDeletingTag(null);
+    loadData();
+    onTagsChanged?.();
   };
 
   const toggleTag = (tag: string) => {
