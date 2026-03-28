@@ -48,7 +48,8 @@ const MasterLibraries = () => {
   const { user } = useAuth();
   const userId = user?.id;
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("programs");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "programs");
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
