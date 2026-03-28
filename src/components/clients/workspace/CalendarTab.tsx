@@ -21,7 +21,7 @@ import {
 import {
   CalendarDays, Dumbbell, Heart, Camera, FileText, Bell,
   ChevronLeft, ChevronRight, Check, Plus, ClipboardList,
-  Activity, MessageSquare, Repeat, Trash2
+  Activity, MessageSquare, Repeat, Trash2, UtensilsCrossed
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
