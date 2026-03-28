@@ -11,10 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, Target, BookOpen, Loader2, ChevronDown, Pencil, RotateCcw, EyeOff, RefreshCw, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import RichTextToolbar from "@/components/nutrition/RichTextToolbar";
 import GuideSection from "@/components/nutrition/GuideSection";
+import { PHASE_TEMPLATES } from "@/constants/phaseTemplates";
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },

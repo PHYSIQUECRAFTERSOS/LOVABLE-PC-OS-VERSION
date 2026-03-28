@@ -4,12 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Save, Target } from "lucide-react";
 import { toast } from "sonner";
+import { PHASE_TEMPLATES } from "@/constants/phaseTemplates";
+import { SearchableClientSelect } from "@/components/ui/searchable-client-select";
 
 const PhaseInfoEditor = () => {
   const { user } = useAuth();
@@ -83,6 +85,38 @@ const PhaseInfoEditor = () => {
     }
   }, [phaseInfo, selectedClientId]);
 
+  const handleCurrentPhaseSelect = (phaseName: string) => {
+    if (phaseName === "custom") {
+      setForm((f) => ({ ...f, current_phase_name: "", current_phase_description: "" }));
+      return;
+    }
+    const template = PHASE_TEMPLATES.find((p) => p.name === phaseName);
+    if (!template) return;
+    const nextTemplate = PHASE_TEMPLATES.find((p) => p.name === template.nextPhase);
+    setForm((f) => ({
+      ...f,
+      current_phase_name: template.name,
+      current_phase_description: template.description,
+      ...(nextTemplate
+        ? { next_phase_name: nextTemplate.name, next_phase_description: nextTemplate.description }
+        : {}),
+    }));
+  };
+
+  const handleNextPhaseSelect = (phaseName: string) => {
+    if (phaseName === "custom") {
+      setForm((f) => ({ ...f, next_phase_name: "", next_phase_description: "" }));
+      return;
+    }
+    const template = PHASE_TEMPLATES.find((p) => p.name === phaseName);
+    if (!template) return;
+    setForm((f) => ({
+      ...f,
+      next_phase_name: template.name,
+      next_phase_description: template.description,
+    }));
+  };
+
   const handleSave = async () => {
     if (!user || !selectedClientId) return;
     setSaving(true);
@@ -107,6 +141,9 @@ const PhaseInfoEditor = () => {
       setSaving(false);
     }
   };
+
+  const currentPhaseIsTemplate = PHASE_TEMPLATES.some((p) => p.name === form.current_phase_name);
+  const nextPhaseIsTemplate = PHASE_TEMPLATES.some((p) => p.name === form.next_phase_name);
 
   return (
     <div className="space-y-4">
@@ -134,24 +171,51 @@ const PhaseInfoEditor = () => {
               <Target className="h-4 w-4 text-primary" />
               Phase Information
             </CardTitle>
+            {form.current_phase_name && (
+              <Badge variant="outline" className="w-fit border-primary/40 text-primary text-xs">
+                Current: {form.current_phase_name}
+              </Badge>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs">Current Phase Name</Label>
-                <Input
-                  value={form.current_phase_name}
-                  onChange={(e) => setForm((f) => ({ ...f, current_phase_name: e.target.value }))}
-                  placeholder="e.g. Cut Phase"
-                />
+                <Label className="text-xs">Current Phase</Label>
+                <Select
+                  value={currentPhaseIsTemplate ? form.current_phase_name : "custom"}
+                  onValueChange={handleCurrentPhaseSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select phase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PHASE_TEMPLATES.map((p) => (
+                      <SelectItem key={p.name} value={p.name}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs">Next Phase Name</Label>
-                <Input
-                  value={form.next_phase_name}
-                  onChange={(e) => setForm((f) => ({ ...f, next_phase_name: e.target.value }))}
-                  placeholder="e.g. Maintenance"
-                />
+                <Label className="text-xs">Next Phase</Label>
+                <Select
+                  value={nextPhaseIsTemplate ? form.next_phase_name : "custom"}
+                  onValueChange={handleNextPhaseSelect}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select phase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PHASE_TEMPLATES.map((p) => (
+                      <SelectItem key={p.name} value={p.name}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -160,7 +224,7 @@ const PhaseInfoEditor = () => {
               <Textarea
                 value={form.current_phase_description}
                 onChange={(e) => setForm((f) => ({ ...f, current_phase_description: e.target.value }))}
-                placeholder="Describe the current phase goals, focus areas..."
+                placeholder="Auto-filled from template — editable if needed"
                 rows={3}
               />
             </div>
@@ -170,13 +234,13 @@ const PhaseInfoEditor = () => {
               <Textarea
                 value={form.next_phase_description}
                 onChange={(e) => setForm((f) => ({ ...f, next_phase_description: e.target.value }))}
-                placeholder="Describe what comes next..."
+                placeholder="Auto-filled from template — editable if needed"
                 rows={3}
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">Coach Notes (Phase-specific)</Label>
+              <Label className="text-xs">Coach Notes</Label>
               <Textarea
                 value={form.coach_notes}
                 onChange={(e) => setForm((f) => ({ ...f, coach_notes: e.target.value }))}
