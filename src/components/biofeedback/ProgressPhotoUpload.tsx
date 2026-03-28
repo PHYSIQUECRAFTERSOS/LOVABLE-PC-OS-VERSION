@@ -51,6 +51,7 @@ const ProgressPhotoUpload = ({ onUploaded }: { onUploaded?: () => void }) => {
       toast({ title: "Error", description: dbError.message, variant: "destructive" });
     } else {
       toast({ title: "Photo uploaded! 📸" });
+      window.dispatchEvent(new Event("photos-uploaded"));
       onUploaded?.();
     }
   };

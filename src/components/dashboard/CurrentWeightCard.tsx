@@ -16,9 +16,11 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
   const [loading, setLoading] = useState(true);
   const targetId = clientId || user?.id;
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
     if (!targetId) return;
-    const fetch = async () => {
+    const fetchWeight = async () => {
       const { data } = await supabase
         .from("weight_logs")
         .select("weight, logged_at")
@@ -31,8 +33,15 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
       }
       setLoading(false);
     };
-    fetch();
-  }, [targetId]);
+    fetchWeight();
+  }, [targetId, refreshKey]);
+
+  // Listen for weight-logged events to refresh instantly
+  useEffect(() => {
+    const handler = () => setRefreshKey(k => k + 1);
+    window.addEventListener("weight-logged", handler);
+    return () => window.removeEventListener("weight-logged", handler);
+  }, []);
 
   const diff = latest && previous ? Number((latest.weight - previous.weight).toFixed(1)) : null;
 

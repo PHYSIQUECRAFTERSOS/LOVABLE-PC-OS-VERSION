@@ -57,6 +57,7 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
           source: "body_stats_popup",
         });
         if (error) throw error;
+        window.dispatchEvent(new Event("weight-logged"));
       }
 
       const filled = Object.entries(measurements).filter(([_, v]) => v && parseFloat(v) > 0);

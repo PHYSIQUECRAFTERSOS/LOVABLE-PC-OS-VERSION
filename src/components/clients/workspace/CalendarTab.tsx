@@ -21,7 +21,7 @@ import {
 import {
   CalendarDays, Dumbbell, Heart, Camera, FileText, Bell,
   ChevronLeft, ChevronRight, Check, Plus, ClipboardList,
-  Activity, MessageSquare, Repeat, Trash2
+  Activity, MessageSquare, Repeat, Trash2, UtensilsCrossed
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -39,17 +39,18 @@ const EVENT_TYPES = [
   { value: "custom", label: "Body Stats", icon: FileText, color: "bg-teal-500" },
   { value: "rest", label: "Photos", icon: Camera, color: "bg-pink-500" },
   { value: "auto_message", label: "Auto Messages", icon: MessageSquare, color: "bg-orange-500" },
+  { value: "nutrition", label: "Nutrition", icon: UtensilsCrossed, color: "bg-red-500" },
 ];
 
 const EVENT_DOT: Record<string, string> = {
   workout: "bg-blue-500", cardio: "bg-green-500", checkin: "bg-purple-500",
   reminder: "bg-yellow-500", custom: "bg-teal-500", rest: "bg-pink-500",
-  auto_message: "bg-orange-500",
+  auto_message: "bg-orange-500", nutrition: "bg-red-500",
 };
 
 const COMPLETED_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", custom: "Body Stats",
-  rest: "Photos", checkin: "Check-in",
+  rest: "Photos", checkin: "Check-in", nutrition: "Nutrition",
 };
 
 const WEEK_DAYS_FULL = [
@@ -233,7 +234,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       }
     }
 
-    const [eventsRes, sessionsRes] = await Promise.all([
+    const [eventsRes, sessionsRes, nutRes] = await Promise.all([
       supabase.from("calendar_events")
         .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
         .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
@@ -241,16 +242,58 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         .select("id, workout_id, created_at, completed_at, workouts(name)")
         .eq("client_id", clientId)
         .gte("created_at", `${start}T00:00:00`).lte("created_at", `${end}T23:59:59`),
+      supabase.from("nutrition_logs")
+        .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
+        .eq("client_id", clientId)
+        .gte("logged_at", start).lte("logged_at", end),
     ]);
 
-    const normalizedEvents = (eventsRes.data || []).map((e: any) => {
+    const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => {
       if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
         return { ...e, title: workoutLabelMap.get(e.linked_workout_id) };
       }
       return e;
     });
 
-    setEvents(normalizedEvents || []);
+    // Merge nutrition logs into daily summary events
+    const nutData = nutRes.data || [];
+    if (nutData.length > 0) {
+      const nutByDate: Record<string, { calories: number; protein: number; carbs: number; fat: number; count: number }> = {};
+      nutData.forEach((n: any) => {
+        const d = n.logged_at;
+        if (!nutByDate[d]) nutByDate[d] = { calories: 0, protein: 0, carbs: 0, fat: 0, count: 0 };
+        nutByDate[d].calories += n.calories || 0;
+        nutByDate[d].protein += n.protein || 0;
+        nutByDate[d].carbs += n.carbs || 0;
+        nutByDate[d].fat += n.fat || 0;
+        nutByDate[d].count += 1;
+      });
+
+      Object.entries(nutByDate).forEach(([dateStr, totals]) => {
+        normalizedEvents.push({
+          id: `nut-${dateStr}`,
+          title: `${totals.count} Meals Added`,
+          event_type: "nutrition",
+          event_date: dateStr,
+          is_completed: true,
+          completed_at: null,
+          is_recurring: false,
+          user_id: clientId,
+          description: `${Math.round(totals.calories)} Cals, Protein ${Math.round(totals.protein)}g, Carbs ${Math.round(totals.carbs)}g, Fat ${Math.round(totals.fat)}g`,
+          event_time: null,
+          end_time: null,
+          color: null,
+          notes: null,
+          target_client_id: null,
+          linked_workout_id: null,
+          linked_cardio_id: null,
+          linked_checkin_id: null,
+          recurrence_pattern: null,
+        } as CalEvent);
+      });
+    }
+
+    setEvents(normalizedEvents);
     setSessions((sessionsRes.data || []).map((s: any) => ({
       ...s,
       workouts: {

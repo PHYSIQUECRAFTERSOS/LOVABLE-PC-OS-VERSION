@@ -65,6 +65,18 @@ const ProgressWidgetGrid = () => {
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Listen for photo/weight updates to refresh instantly
+  useEffect(() => {
+    const handler = () => setRefreshKey(k => k + 1);
+    window.addEventListener("photos-uploaded", handler);
+    window.addEventListener("weight-logged", handler);
+    return () => {
+      window.removeEventListener("photos-uploaded", handler);
+      window.removeEventListener("weight-logged", handler);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -147,7 +159,7 @@ const ProgressWidgetGrid = () => {
     fetchHealthMetrics();
     fetchPhotos();
     fetchCalories();
-  }, [user, today]);
+  }, [user, today, refreshKey]);
 
   // Merge: take the higher of DB value or live HealthKit value
   const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";

@@ -47,6 +47,7 @@ const WeightTracker = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Weight logged!" });
+      window.dispatchEvent(new Event("weight-logged"));
       setWeight("");
       fetchHistory();
     }
