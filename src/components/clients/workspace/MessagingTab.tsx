@@ -229,7 +229,7 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
                           />
                         </div>
                       )}
-                      {msg.content && <p>{msg.content}</p>}
+                      {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                     </div>
                     <EmojiReactions messageId={msg.id} reactions={msgReactions} onReactionsChange={handleReactionsChange} />
                     <div className={cn("flex items-center gap-1 text-[10px] text-muted-foreground", isMe ? "justify-end" : "justify-start")}>

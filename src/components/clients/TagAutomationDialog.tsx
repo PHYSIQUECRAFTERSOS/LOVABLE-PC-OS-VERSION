@@ -37,6 +37,9 @@ interface Props {
   onTagsChanged?: () => void;
 }
 
+const normalizeAutomationText = (value: string | null | undefined) =>
+  value?.replace(/\r\n/g, "\n") ?? "";
+
 const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsChanged }: Props) => {
   const { user } = useAuth();
   const [tab, setTab] = useState("apply");
@@ -101,6 +104,54 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
     });
   };
 
+  const getOrCreateThreadId = async () => {
+    if (!user) return null;
+
+    const { data: existingThread, error: existingThreadError } = await supabase
+      .from("message_threads")
+      .select("id")
+      .eq("coach_id", user.id)
+      .eq("client_id", clientId)
+      .maybeSingle();
+
+    if (existingThreadError) {
+      throw existingThreadError;
+    }
+
+    if (existingThread?.id) {
+      return existingThread.id;
+    }
+
+    const { data: newThread, error: newThreadError } = await supabase
+      .from("message_threads")
+      .insert({ coach_id: user.id, client_id: clientId })
+      .select("id")
+      .single();
+
+    if (newThreadError) {
+      throw newThreadError;
+    }
+
+    return newThread?.id ?? null;
+  };
+
+  const getClientRecipientEmail = async () => {
+    const { data, error } = await supabase
+      .from("client_invites")
+      .select("email")
+      .eq("created_client_id", clientId)
+      .eq("invite_status", "accepted")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    return data?.email?.trim() || null;
+  };
+
   const handleApplyTags = async () => {
     if (!user) return;
     setApplying(true);
@@ -128,90 +179,108 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
     // Fire automations for newly added tags
     let messagesSent = 0;
     let emailsQueued = 0;
+    let messageFailures = 0;
+    let emailFailures = 0;
+    let suppressedEmails = 0;
+
+    const activeAutomations = toAdd
+      .map((tag) => ({ tag, automation: automations.find((a) => a.tag_name === tag && a.is_active) || null }))
+      .filter((entry): entry is { tag: string; automation: TagAutomation } => Boolean(entry.automation));
+
+    const needsThread = activeAutomations.some(({ automation }) =>
+      normalizeAutomationText(automation.message_content).trim()
+    );
+    const needsEmail = activeAutomations.some(({ automation }) =>
+      automation.send_email && normalizeAutomationText(automation.email_subject).trim() && normalizeAutomationText(automation.email_body).trim()
+    );
+
+    let cachedThreadId: string | null | undefined = undefined;
+    let recipientEmail: string | null = null;
+
+    if (needsEmail) {
+      try {
+        recipientEmail = await getClientRecipientEmail();
+      } catch (error) {
+        console.error("Failed to resolve tag automation recipient email", error);
+        emailFailures += activeAutomations.filter(({ automation }) => automation.send_email).length;
+      }
+    }
 
     for (const tag of toAdd) {
       const auto = automations.find((a) => a.tag_name === tag && a.is_active);
       if (!auto) continue;
 
       // Replace placeholders
-      const msgContent = auto.message_content.replace(/\{\{client_name\}\}/gi, clientName);
+      const msgContent = normalizeAutomationText(auto.message_content).replace(/\{\{client_name\}\}/gi, clientName);
 
       // Send in-app message
       if (msgContent.trim()) {
         try {
-          // Get or create thread
-          const { data: existingThread } = await supabase
-            .from("message_threads")
-            .select("id")
-            .eq("coach_id", user.id)
-            .eq("client_id", clientId)
-            .maybeSingle();
-
-          let threadId = existingThread?.id;
-          if (!threadId) {
-            const { data: newThread } = await supabase
-              .from("message_threads")
-              .insert({ coach_id: user.id, client_id: clientId })
-              .select("id")
-              .single();
-            threadId = newThread?.id;
+          if (cachedThreadId === undefined) {
+            cachedThreadId = await getOrCreateThreadId();
           }
 
-          if (threadId) {
-            await supabase.from("thread_messages").insert({
-              thread_id: threadId,
+          if (cachedThreadId) {
+            const { error: messageError } = await supabase.from("thread_messages").insert({
+              thread_id: cachedThreadId,
               sender_id: user.id,
               content: msgContent,
             });
+
+            if (messageError) {
+              throw messageError;
+            }
+
             messagesSent++;
           }
         } catch (e) {
           console.error("Failed to send tag automation message", e);
+          messageFailures++;
         }
       }
 
       // Send email
       if (auto.send_email && auto.email_subject && auto.email_body) {
         try {
-          // Get client email
-          const { data: clientProfile } = await supabase
-            .from("profiles")
-            .select("user_id")
-            .eq("user_id", clientId)
-            .single();
-
-          if (clientProfile) {
-            // We need the email from auth - fetch via the client's profile email
-            // Since we can't query auth.users, we'll use the client invite email
-            const { data: invite } = await supabase
-              .from("client_invites")
-              .select("email")
-              .eq("created_client_id", clientId)
-              .maybeSingle();
-
-            const recipientEmail = invite?.email;
-
-            if (recipientEmail) {
-              const emailBody = auto.email_body.replace(/\{\{client_name\}\}/gi, clientName);
-              const emailSubject = auto.email_subject.replace(/\{\{client_name\}\}/gi, clientName);
-
-              await supabase.functions.invoke("send-transactional-email", {
-                body: {
-                  templateName: "tag-action-notification",
-                  recipientEmail,
-                  idempotencyKey: `tag-auto-${clientId}-${tag}-${Date.now()}`,
-                  templateData: {
-                    clientName,
-                    emailSubject,
-                    emailBody,
-                  },
-                },
-              });
-              emailsQueued++;
-            }
+          if (!recipientEmail) {
+            emailFailures++;
+            continue;
           }
+
+          const emailBody = normalizeAutomationText(auto.email_body).replace(/\{\{client_name\}\}/gi, clientName);
+          const emailSubject = normalizeAutomationText(auto.email_subject).replace(/\{\{client_name\}\}/gi, clientName);
+
+          const { data, error } = await supabase.functions.invoke("send-transactional-email", {
+            body: {
+              templateName: "tag-action-notification",
+              recipientEmail,
+              idempotencyKey: `tag-auto-${clientId}-${tag}-${Date.now()}`,
+              templateData: {
+                clientName,
+                emailSubject,
+                emailBody,
+              },
+            },
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          const response = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+          if (response?.success === false && response?.reason === "email_suppressed") {
+            suppressedEmails++;
+            continue;
+          }
+
+          if (response?.error) {
+            throw new Error(String(response.error));
+          }
+
+          emailsQueued++;
         } catch (e) {
           console.error("Failed to queue tag automation email", e);
+          emailFailures++;
         }
       }
     }
@@ -222,6 +291,9 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
     if (toRemove.length) parts.push(`${toRemove.length} removed`);
     if (messagesSent) parts.push(`${messagesSent} message${messagesSent > 1 ? "s" : ""} sent`);
     if (emailsQueued) parts.push(`${emailsQueued} email${emailsQueued > 1 ? "s" : ""} queued`);
+    if (suppressedEmails) parts.push(`${suppressedEmails} email${suppressedEmails > 1 ? "s" : ""} suppressed`);
+    if (messageFailures) parts.push(`${messageFailures} message${messageFailures > 1 ? "s" : ""} failed`);
+    if (emailFailures) parts.push(`${emailFailures} email${emailFailures > 1 ? "s" : ""} failed`);
 
     if (parts.length) toast.success(parts.join(" · "));
     else toast.info("No changes made");

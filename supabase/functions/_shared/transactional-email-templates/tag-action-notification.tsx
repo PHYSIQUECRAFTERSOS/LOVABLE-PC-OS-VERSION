@@ -12,6 +12,13 @@ interface TagActionProps {
   emailBody?: string
 }
 
+const getParagraphs = (content?: string) =>
+  (content || 'You have a new update from your coach.')
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+
 const TagActionNotificationEmail = ({ clientName, emailBody }: TagActionProps) => (
   <Html lang="en" dir="ltr">
     <Head />
@@ -25,9 +32,16 @@ const TagActionNotificationEmail = ({ clientName, emailBody }: TagActionProps) =
         {clientName && (
           <Text style={greeting}>Hey {clientName},</Text>
         )}
-        <Text style={text}>
-          {emailBody || 'You have a new update from your coach.'}
-        </Text>
+        {getParagraphs(emailBody).map((paragraph, paragraphIndex) => (
+          <Text key={paragraphIndex} style={text}>
+            {paragraph.split('\n').map((line, lineIndex) => (
+              <React.Fragment key={`${paragraphIndex}-${lineIndex}`}>
+                {lineIndex > 0 && <br />}
+                {line}
+              </React.Fragment>
+            ))}
+          </Text>
+        ))}
         <Hr style={divider} />
         <Text style={footer}>
           — The {SITE_NAME} Team
@@ -49,5 +63,5 @@ const container = { padding: '32px 24px', maxWidth: '560px', margin: '0 auto' }
 const h1 = { fontSize: '24px', fontWeight: '700' as const, color: '#D4A017', margin: '0 0 24px', textAlign: 'center' as const }
 const divider = { borderColor: '#e5e5e5', margin: '24px 0' }
 const greeting = { fontSize: '16px', color: '#1a1a1a', fontWeight: '600' as const, margin: '0 0 12px' }
-const text = { fontSize: '15px', color: '#333333', lineHeight: '1.6', margin: '0 0 24px', whiteSpace: 'pre-line' as const }
+const text = { fontSize: '15px', color: '#333333', lineHeight: '1.6', margin: '0 0 24px' }
 const footer = { fontSize: '13px', color: '#999999', margin: '24px 0 0' }
