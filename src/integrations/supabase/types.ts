@@ -6289,6 +6289,45 @@ export type Database = {
         }
         Relationships: []
       }
+      tag_automations: {
+        Row: {
+          coach_id: string
+          created_at: string
+          email_body: string | null
+          email_subject: string | null
+          id: string
+          is_active: boolean
+          message_content: string
+          send_email: boolean
+          tag_name: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          email_body?: string | null
+          email_subject?: string | null
+          id?: string
+          is_active?: boolean
+          message_content?: string
+          send_email?: boolean
+          tag_name: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          email_body?: string | null
+          email_subject?: string | null
+          id?: string
+          is_active?: boolean
+          message_content?: string
+          send_email?: boolean
+          tag_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tdee_estimates: {
         Row: {
           adherence_pct: number
