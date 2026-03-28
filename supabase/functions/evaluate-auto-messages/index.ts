@@ -168,6 +168,13 @@ Deno.serve(async (req) => {
           .eq("coach_id", trigger.coach_id)
           .eq("status", "active");
         clientIds = cc?.map((c: any) => c.client_id) || [];
+
+        // Filter out excluded clients
+        const excluded: string[] = trigger.excluded_client_ids || [];
+        if (excluded.length > 0) {
+          const excludedSet = new Set(excluded);
+          clientIds = clientIds.filter((id: string) => !excludedSet.has(id));
+        }
       }
 
       if (clientIds.length === 0) continue;
