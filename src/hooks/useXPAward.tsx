@@ -123,6 +123,9 @@ export const RankedXPProvider = ({ children }: { children: ReactNode }) => {
             type: result.rankChange as RankEvent["type"],
             previousTier: result.previousTier as string | undefined,
           });
+          // Clear pending event since we just showed it in real-time
+          const { supabase: sb } = await import("@/integrations/supabase/client");
+          (sb as any).from("ranked_profiles").update({ pending_rank_event: null }).eq("user_id", userId).then(() => {});
         }
       } catch (e) {
         console.error("[useXPAward] Error:", e);
