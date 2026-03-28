@@ -38,6 +38,7 @@ import NotFound from "./pages/NotFound";
 import Subscribe from "./pages/Subscribe";
 import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
+import Unsubscribe from "./pages/Unsubscribe";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
