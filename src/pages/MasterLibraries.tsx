@@ -350,12 +350,13 @@ const MasterLibraries = () => {
         <h1 className="font-display text-2xl font-bold text-foreground">Master Libraries</h1>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="programs" className="gap-1.5 text-xs"><Layers className="h-3.5 w-3.5" /> Programs</TabsTrigger>
             <TabsTrigger value="exercises" className="gap-1.5 text-xs"><Dumbbell className="h-3.5 w-3.5" /> Exercises</TabsTrigger>
             <TabsTrigger value="meals" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> Meals</TabsTrigger>
             <TabsTrigger value="pc-recipes" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> PC Recipes</TabsTrigger>
             <TabsTrigger value="supplements" className="gap-1.5 text-xs"><Pill className="h-3.5 w-3.5" /> Supplements</TabsTrigger>
+            <TabsTrigger value="guides" className="gap-1.5 text-xs"><BookOpen className="h-3.5 w-3.5" /> Guides</TabsTrigger>
             <TabsTrigger value="checkin-forms" className="gap-1.5 text-xs"><ClipboardCheck className="h-3.5 w-3.5" /> Check-In Forms</TabsTrigger>
           </TabsList>
 
