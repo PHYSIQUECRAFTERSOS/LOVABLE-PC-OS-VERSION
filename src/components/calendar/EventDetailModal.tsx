@@ -95,15 +95,42 @@ const EventDetailModal = ({
   const [sessionData, setSessionData] = useState<SessionSummary | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null);
+  const [nutritionFoods, setNutritionFoods] = useState<any[]>([]);
+  const [loadingNutrition, setLoadingNutrition] = useState(false);
 
   useEffect(() => {
     if (!open || !event) {
       setWorkoutExercises([]);
       setSessionData(null);
       setEstimatedMinutes(null);
+      setNutritionFoods([]);
       return;
     }
 
+    // Load nutrition foods for nutrition events
+    if (event.event_type === "nutrition" && event.id.startsWith("nut-")) {
+      const dateStr = event.event_date;
+      const loadFoods = async () => {
+        setLoadingNutrition(true);
+        try {
+          const uid = clientId || (await supabase.auth.getUser()).data.user?.id;
+          if (!uid) return;
+          const { data } = await supabase
+            .from("nutrition_logs")
+            .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, food_items(name, brand)")
+            .eq("client_id", uid)
+            .eq("logged_at", dateStr)
+            .order("meal_type")
+            .order("created_at");
+          setNutritionFoods(data || []);
+        } catch (err) {
+          console.error("Failed to load nutrition foods:", err);
+        }
+        setLoadingNutrition(false);
+      };
+      loadFoods();
+      return;
+    }
     if (event.event_type !== "workout" || !event.linked_workout_id) return;
 
     const loadExercises = async () => {
