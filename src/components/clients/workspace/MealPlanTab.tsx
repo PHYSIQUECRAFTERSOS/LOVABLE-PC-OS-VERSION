@@ -39,11 +39,9 @@ import {
   UtensilsCrossed,
   Unlink,
   Link,
-  ShoppingCart,
-  Loader2,
 } from "lucide-react";
-import { format } from "date-fns";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
+import CoachGroceryList from "./CoachGroceryList";
 
 interface PlanCard {
   id: string;
@@ -70,7 +68,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [planCards, setPlanCards] = useState<PlanCard[]>([]);
-  const [generatingGrocery, setGeneratingGrocery] = useState(false);
   const [editingPlanDayType, setEditingPlanDayType] = useState<string | null>(null);
   const [addPlanOpen, setAddPlanOpen] = useState(false);
   const [newDayType, setNewDayType] = useState("rest");
@@ -174,24 +171,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
   };
 
-  const handleGenerateGroceryList = async () => {
-    setGeneratingGrocery(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-grocery-list", {
-        body: { client_id: clientId },
-      });
-      if (error) throw error;
-      if (data?.error) {
-        toast({ title: "Error", description: data.error, variant: "destructive" });
-        return;
-      }
-      toast({ title: "Grocery list generated for client!" });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message || "Failed to generate grocery list", variant: "destructive" });
-    } finally {
-      setGeneratingGrocery(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -323,28 +302,8 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         )}
       </div>
 
-      {/* Generate Grocery List for Client */}
-      <Card className="border-border/50">
-        <CardContent className="py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">Client Grocery List</span>
-          </div>
-          <Button
-            size="sm"
-            onClick={handleGenerateGroceryList}
-            disabled={generatingGrocery || planCards.length === 0}
-            className="gap-1.5"
-          >
-            {generatingGrocery ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ShoppingCart className="h-3.5 w-3.5" />
-            )}
-            Generate Grocery List
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Full Grocery List */}
+      <CoachGroceryList clientId={clientId} />
 
       {/* Add Plan Type Dialog */}
       <Dialog open={addPlanOpen} onOpenChange={setAddPlanOpen}>

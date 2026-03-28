@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
-  LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen,
+  LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
@@ -21,6 +21,8 @@ import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab"
 import MessagingTab from "@/components/clients/workspace/MessagingTab";
 import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
 import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
+import ClientSupplementPlan from "@/components/nutrition/ClientSupplementPlan";
+import PlanTab from "@/components/clients/workspace/PlanTab";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 
 interface ClientProfile {
@@ -102,6 +104,8 @@ const ClientDetail = () => {
     { value: "training", label: "Training", icon: Dumbbell },
     { value: "nutrition", label: "Nutrition", icon: Target },
     { value: "mealplan", label: "Meal Plan", icon: ClipboardList },
+    { value: "supps", label: "Supps", icon: Pill },
+    { value: "plan", label: "Plan", icon: BookOpen },
     { value: "progress", label: "Progress", icon: BarChart3 },
     { value: "messaging", label: "Messages", icon: MessageSquare },
   ];
@@ -182,6 +186,12 @@ const ClientDetail = () => {
           </TabsContent>
           <TabsContent value="mealplan">
             <MealPlanTab clientId={clientId!} />
+          </TabsContent>
+          <TabsContent value="supps">
+            <ClientSupplementPlan clientId={clientId!} />
+          </TabsContent>
+          <TabsContent value="plan">
+            <PlanTab clientId={clientId!} />
           </TabsContent>
           <TabsContent value="progress">
             <ClientWorkspaceProgress clientId={clientId!} />
