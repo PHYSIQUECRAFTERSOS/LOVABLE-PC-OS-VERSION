@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,8 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, BookOpen, Users } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Save, BookOpen, Users, ChevronDown, Eye } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import RichTextToolbar from "./RichTextToolbar";
 import PhaseInfoEditor from "./PhaseInfoEditor";
 
 const DEFAULT_SECTIONS = [
@@ -23,11 +26,21 @@ const DEFAULT_SECTIONS = [
   { section_key: "macro_cheat_sheet", title: "📊 Macro Replacement Chart", sort_order: 6 },
 ];
 
+const CATEGORIES = [
+  { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
+  { key: "daily_habits", label: "🌅 Daily Habits", sections: ["daily_ritual"] },
+  { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
+  { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
+  { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
+];
+
 const CoachNutritionGuides = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [sections, setSections] = useState<Record<string, { title: string; content: string; is_visible: boolean }>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [previewKeys, setPreviewKeys] = useState<Set<string>>(new Set());
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   const { data: existingSections, isLoading } = useQuery({
     queryKey: ["coach-guide-sections", user?.id],
@@ -94,6 +107,15 @@ const CoachNutritionGuides = () => {
     }));
   };
 
+  const togglePreview = (key: string) => {
+    setPreviewKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -117,54 +139,96 @@ const CoachNutritionGuides = () => {
 
       <TabsContent value="guides" className="space-y-4 mt-4">
         <p className="text-xs text-muted-foreground">
-          These guides are shared with all your clients under their Plan tab. Toggle visibility per section.
+          These guides are shared with all your clients under their Plan tab. Toggle visibility per section. Supports **bold**, *italic*, - bullet lists, ## headers.
         </p>
-        {DEFAULT_SECTIONS.map((def) => {
-          const section = sections[def.section_key];
-          if (!section) return null;
+
+        {CATEGORIES.map((cat) => {
+          const catSections = DEFAULT_SECTIONS.filter((d) => cat.sections.includes(d.section_key));
+          if (catSections.length === 0) return null;
+
           return (
-            <Card key={def.section_key} className="border-border/50">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">{def.title}</CardTitle>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                      <Label htmlFor={`vis-${def.section_key}`} className="text-xs text-muted-foreground">
-                        Visible
-                      </Label>
-                      <Switch
-                        id={`vis-${def.section_key}`}
-                        checked={section.is_visible}
-                        onCheckedChange={(v) => updateSection(def.section_key, "is_visible", v)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Input
-                  value={section.title}
-                  onChange={(e) => updateSection(def.section_key, "title", e.target.value)}
-                  placeholder="Section title"
-                  className="text-sm"
-                />
-                <Textarea
-                  value={section.content}
-                  onChange={(e) => updateSection(def.section_key, "content", e.target.value)}
-                  placeholder="Enter content here... (plain text, line breaks preserved)"
-                  rows={6}
-                  className="text-sm"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => handleSave(def.section_key)}
-                  disabled={saving === def.section_key}
-                >
-                  <Save className="h-3.5 w-3.5 mr-1" />
-                  {saving === def.section_key ? "Saving..." : "Save"}
-                </Button>
-              </CardContent>
-            </Card>
+            <Collapsible key={cat.key} defaultOpen>
+              <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 px-1 hover:bg-muted/20 rounded-md transition-colors group">
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                <span className="text-sm font-semibold">{cat.label}</span>
+                <span className="text-xs text-muted-foreground ml-auto">{catSections.length} section{catSections.length > 1 ? "s" : ""}</span>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 mt-1 ml-2 border-l-2 border-border/30 pl-3">
+                {catSections.map((def) => {
+                  const section = sections[def.section_key];
+                  if (!section) return null;
+                  const showPreview = previewKeys.has(def.section_key);
+
+                  return (
+                    <Card key={def.section_key} className="border-border/50">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm">{def.title}</CardTitle>
+                          <div className="flex items-center gap-3">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 text-xs"
+                              onClick={() => togglePreview(def.section_key)}
+                            >
+                              <Eye className="h-3 w-3" />
+                              {showPreview ? "Edit" : "Preview"}
+                            </Button>
+                            <div className="flex items-center gap-1.5">
+                              <Label htmlFor={`vis-${def.section_key}`} className="text-xs text-muted-foreground">
+                                Visible
+                              </Label>
+                              <Switch
+                                id={`vis-${def.section_key}`}
+                                checked={section.is_visible}
+                                onCheckedChange={(v) => updateSection(def.section_key, "is_visible", v)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <Input
+                          value={section.title}
+                          onChange={(e) => updateSection(def.section_key, "title", e.target.value)}
+                          placeholder="Section title"
+                          className="text-sm"
+                        />
+                        {showPreview ? (
+                          <div className="rounded-lg border border-border/50 p-4 min-h-[100px] prose prose-sm prose-invert max-w-none text-sm text-muted-foreground [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_strong]:text-foreground [&_ul]:list-disc [&_ol]:list-decimal [&_li]:my-0.5">
+                            <ReactMarkdown>{section.content || "*No content yet*"}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <>
+                            <RichTextToolbar
+                              textareaRef={{ current: textareaRefs.current[def.section_key] } as React.RefObject<HTMLTextAreaElement>}
+                              value={section.content}
+                              onChange={(v) => updateSection(def.section_key, "content", v)}
+                            />
+                            <Textarea
+                              ref={(el) => { textareaRefs.current[def.section_key] = el; }}
+                              value={section.content}
+                              onChange={(e) => updateSection(def.section_key, "content", e.target.value)}
+                              placeholder="Enter content... Supports **bold**, *italic*, - lists, ## headers"
+                              rows={6}
+                              className="text-sm font-mono"
+                            />
+                          </>
+                        )}
+                        <Button
+                          size="sm"
+                          onClick={() => handleSave(def.section_key)}
+                          disabled={saving === def.section_key}
+                        >
+                          <Save className="h-3.5 w-3.5 mr-1" />
+                          {saving === def.section_key ? "Saving..." : "Save"}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
           );
         })}
       </TabsContent>
