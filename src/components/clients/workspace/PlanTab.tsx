@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,14 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Save, Target, BookOpen, Loader2, ChevronDown, Pencil, RotateCcw, EyeOff } from "lucide-react";
+import { Save, Target, BookOpen, Loader2, ChevronDown, Pencil, RotateCcw, EyeOff, RefreshCw, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import RichTextToolbar from "@/components/nutrition/RichTextToolbar";
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
-  { key: "daily_habits", label: "🌅 Daily Habits", sections: ["daily_ritual"] },
+  { key: "daily_habits", label: "☀️ Daily Habits", sections: ["daily_ritual"] },
   { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
   { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
   { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
@@ -26,6 +27,7 @@ const CATEGORIES = [
 const PlanTab = ({ clientId }: { clientId: string }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     current_phase_name: "",
     current_phase_description: "",
@@ -302,10 +304,24 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
       {/* Guide Sections with Per-Client Override Controls */}
       <Card className="border-border/50">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <BookOpen className="h-4 w-4 text-primary" />
-            Nutrition Guides
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Nutrition Guides
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["coach-guide-sections", user?.id] });
+                queryClient.invalidateQueries({ queryKey: ["client-guide-overrides", clientId] });
+              }}
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </Button>
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
             Master templates apply to all clients. Customize or hide sections for this specific client.
           </p>
@@ -314,9 +330,18 @@ const PlanTab = ({ clientId }: { clientId: string }) => {
           {visibleGuides.length === 0 ? (
             <div className="text-center py-6">
               <BookOpen className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground">
-                No guide sections configured yet. Go to Master Libraries → Guides to set them up.
+              <p className="text-sm text-muted-foreground mb-3">
+                No guide sections configured yet.
               </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => navigate("/libraries?tab=guides")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Go to Master Libraries → Guides
+              </Button>
             </div>
           ) : (
             <div className="space-y-4">

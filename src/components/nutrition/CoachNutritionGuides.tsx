@@ -18,7 +18,7 @@ import PhaseInfoEditor from "./PhaseInfoEditor";
 
 const DEFAULT_SECTIONS = [
   { section_key: "water_recommendation", title: "💧 Water Recommendation", sort_order: 0 },
-  { section_key: "daily_ritual", title: "🌅 Daily Morning Ritual", sort_order: 1 },
+  { section_key: "daily_ritual", title: "☀️ Daily Morning Ritual", sort_order: 1 },
   { section_key: "nutrition_tips", title: "📋 Nutrition Tracking Tips", sort_order: 2 },
   { section_key: "meal_planning", title: "🥗 Meal Planning Recommendations", sort_order: 3 },
   { section_key: "eating_out_cheat_sheet", title: "🍽️ Eating Out Cheat Sheet", sort_order: 4 },
@@ -28,7 +28,7 @@ const DEFAULT_SECTIONS = [
 
 const CATEGORIES = [
   { key: "hydration", label: "💧 Hydration", sections: ["water_recommendation"] },
-  { key: "daily_habits", label: "🌅 Daily Habits", sections: ["daily_ritual"] },
+  { key: "daily_habits", label: "☀️ Daily Habits", sections: ["daily_ritual"] },
   { key: "tracking", label: "📋 Tracking & Planning", sections: ["nutrition_tips", "meal_planning"] },
   { key: "eating_out", label: "🍽️ Eating Out", sections: ["eating_out_cheat_sheet", "eating_out_examples"] },
   { key: "reference", label: "📊 Reference", sections: ["macro_cheat_sheet"] },
