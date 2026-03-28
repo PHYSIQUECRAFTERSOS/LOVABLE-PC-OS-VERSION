@@ -159,7 +159,7 @@ const ProgressWidgetGrid = () => {
     fetchHealthMetrics();
     fetchPhotos();
     fetchCalories();
-  }, [user, today]);
+  }, [user, today, refreshKey]);
 
   // Merge: take the higher of DB value or live HealthKit value
   const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";
