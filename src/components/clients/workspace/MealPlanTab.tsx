@@ -39,11 +39,9 @@ import {
   UtensilsCrossed,
   Unlink,
   Link,
-  ShoppingCart,
-  Loader2,
 } from "lucide-react";
-import { format } from "date-fns";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
+import CoachGroceryList from "./CoachGroceryList";
 
 interface PlanCard {
   id: string;
