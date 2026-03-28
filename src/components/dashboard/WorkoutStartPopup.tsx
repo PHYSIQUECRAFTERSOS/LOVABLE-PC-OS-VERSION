@@ -168,13 +168,17 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
             )}
           </div>
 
-          <DrawerFooter className="flex-row gap-3 pt-2">
-            <DrawerClose asChild>
-              <Button variant="outline" className="flex-1">Cancel</Button>
-            </DrawerClose>
+          <DrawerFooter className="flex-row gap-3 pt-2" data-vaul-no-drag>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+            >
+              Cancel
+            </Button>
             <Button
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-              onClick={() => { onStartWorkout(workoutId, calendarEventId); onClose(); }}
+              onClick={(e) => { e.stopPropagation(); onStartWorkout(workoutId, calendarEventId); onClose(); }}
               disabled={loading}
             >
               <Play className="h-4 w-4 mr-1" /> Start Workout
