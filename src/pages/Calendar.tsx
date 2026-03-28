@@ -248,7 +248,7 @@ const Calendar = () => {
         Object.entries(nutByDate).forEach(([dateStr, totals]) => {
           allEvents.push({
             id: `nut-${dateStr}`,
-            title: `${totals.count} Meals Added`,
+            title: `${totals.count} Foods Added`,
             event_type: "nutrition",
             event_date: dateStr,
             is_completed: true,
