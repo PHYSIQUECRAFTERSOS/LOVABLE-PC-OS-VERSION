@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff } from "lucide-react";
 import {
   DropdownMenu,
@@ -431,7 +431,7 @@ const ThreadChatView = ({
                           />
                         </div>
                       )}
-                      {msg.content && <p>{msg.content}</p>}
+                      {msg.content && <p className="whitespace-pre-wrap break-words">{msg.content}</p>}
                     </div>
 
                     {/* Reactions */}
@@ -487,12 +487,13 @@ const ThreadChatView = ({
             <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
           )}
           {!isRecording && (
-            <Input
+            <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
-              className="flex-1 h-10 text-[15px]"
+              className="flex-1 min-h-[40px] max-h-[120px] text-[15px] resize-none py-2"
+              rows={1}
             />
           )}
           {newMessage.trim() ? (
