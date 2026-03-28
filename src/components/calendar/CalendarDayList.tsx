@@ -39,6 +39,7 @@ const TYPE_ICON_COLOR: Record<string, string> = {
   rest: "text-muted-foreground",
   reminder: "text-yellow-500",
   custom: "text-primary",
+  nutrition: "text-red-500",
 };
 
 const TYPE_SUBTITLES: Record<string, string> = {
