@@ -85,7 +85,8 @@ export function useRankedLeaderboard(tab: string) {
       // Filter out coaches/admins
       const clientRankings = rankings.filter((r: any) => !coachIds.has(r.user_id));
 
-      const ids = rankings.map((r: any) => r.user_id);
+      const ids = clientRankings.map((r: any) => r.user_id);
+      if (ids.length === 0) return [];
       const { data: profiles } = await db
         .from("profiles")
         .select("user_id, full_name, avatar_url")
@@ -103,7 +104,7 @@ export function useRankedLeaderboard(tab: string) {
         (invites || []).map((inv: any) => [inv.created_client_id, inv])
       );
 
-      return rankings.map((r: any, i: number) => {
+      return clientRankings.map((r: any, i: number) => {
         const prof = profileMap.get(r.user_id) as any;
         const invite = inviteMap.get(r.user_id) as any;
         const profileName = prof?.full_name?.trim();
