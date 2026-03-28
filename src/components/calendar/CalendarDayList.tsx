@@ -2,7 +2,7 @@ import { useEffect, useRef, useMemo } from "react";
 import { format, isToday, isTomorrow, isYesterday, parseISO, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarGrid";
-import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell, UtensilsCrossed } from "lucide-react";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   workout: <Dumbbell className="h-5 w-5" />,
@@ -13,6 +13,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   checkin: <ClipboardCheck className="h-5 w-5" />,
   rest: <Moon className="h-5 w-5" />,
   reminder: <Bell className="h-5 w-5" />,
+  nutrition: <UtensilsCrossed className="h-5 w-5" />,
 };
 
 const TYPE_ACCENT: Record<string, string> = {
@@ -25,6 +26,7 @@ const TYPE_ACCENT: Record<string, string> = {
   rest: "border-l-muted bg-muted/10",
   reminder: "border-l-yellow-500 bg-yellow-500/5",
   custom: "border-l-primary bg-primary/5",
+  nutrition: "border-l-red-500 bg-red-500/5",
 };
 
 const TYPE_ICON_COLOR: Record<string, string> = {
@@ -37,6 +39,7 @@ const TYPE_ICON_COLOR: Record<string, string> = {
   rest: "text-muted-foreground",
   reminder: "text-yellow-500",
   custom: "text-primary",
+  nutrition: "text-red-500",
 };
 
 const TYPE_SUBTITLES: Record<string, string> = {
@@ -48,6 +51,7 @@ const TYPE_SUBTITLES: Record<string, string> = {
   checkin: "Submit your weekly check-in",
   rest: "Recovery day",
   reminder: "Scheduled reminder",
+  nutrition: "Daily nutrition intake",
 };
 
 interface CalendarDayListProps {

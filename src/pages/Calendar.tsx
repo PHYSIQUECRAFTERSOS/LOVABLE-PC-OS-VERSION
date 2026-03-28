@@ -144,7 +144,17 @@ const Calendar = () => {
             .abortSignal(signal)
         : Promise.resolve({ data: null });
 
-      const [calRes, sessRes, cardioRes] = await Promise.all([calendarPromise, sessionsPromise, cardioPromise]);
+      const nutritionFetch = !isCoach
+        ? supabase
+            .from("nutrition_logs")
+            .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
+            .eq("client_id", user.id)
+            .gte("logged_at", startStr)
+            .lte("logged_at", endStr)
+            .abortSignal(signal)
+        : Promise.resolve({ data: null });
+
+      const [calRes, sessRes, cardioRes, nutRes] = await Promise.all([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch]);
 
       if (calRes.error) throw calRes.error;
 
@@ -221,6 +231,43 @@ const Calendar = () => {
           });
         }
       });
+
+      // Merge nutrition logs into daily summary events
+      if (nutRes.data && nutRes.data.length > 0) {
+        const nutByDate: Record<string, { calories: number; protein: number; carbs: number; fat: number; count: number }> = {};
+        nutRes.data.forEach((n: any) => {
+          const d = n.logged_at;
+          if (!nutByDate[d]) nutByDate[d] = { calories: 0, protein: 0, carbs: 0, fat: 0, count: 0 };
+          nutByDate[d].calories += n.calories || 0;
+          nutByDate[d].protein += n.protein || 0;
+          nutByDate[d].carbs += n.carbs || 0;
+          nutByDate[d].fat += n.fat || 0;
+          nutByDate[d].count += 1;
+        });
+
+        Object.entries(nutByDate).forEach(([dateStr, totals]) => {
+          allEvents.push({
+            id: `nut-${dateStr}`,
+            title: `${totals.count} Meals Added`,
+            event_type: "nutrition",
+            event_date: dateStr,
+            is_completed: true,
+            completed_at: null,
+            is_recurring: false,
+            user_id: user.id,
+            description: `${Math.round(totals.calories)} Cals, Protein ${Math.round(totals.protein)}g, Carbs ${Math.round(totals.carbs)}g, Fat ${Math.round(totals.fat)}g`,
+            event_time: null,
+            end_time: null,
+            color: null,
+            notes: null,
+            target_client_id: null,
+            linked_workout_id: null,
+            linked_cardio_id: null,
+            linked_checkin_id: null,
+            recurrence_pattern: null,
+          });
+        });
+      }
 
       return allEvents;
     },

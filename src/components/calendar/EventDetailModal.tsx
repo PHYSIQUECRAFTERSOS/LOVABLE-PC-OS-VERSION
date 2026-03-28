@@ -5,7 +5,7 @@ import { CalendarEvent } from "./CalendarGrid";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer } from "lucide-react";
+import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
   reminder: "Reminder", custom: "Event", auto_message: "Auto Message",
-  photos: "Photos", body_stats: "Body Stats", steps: "Steps",
+  photos: "Photos", body_stats: "Body Stats", steps: "Steps", nutrition: "Nutrition",
 };
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
@@ -21,7 +21,7 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
   checkin: "bg-purple-500/20 text-purple-400", rest: "bg-muted text-muted-foreground",
   reminder: "bg-yellow-500/20 text-yellow-400", custom: "bg-primary/20 text-primary",
   auto_message: "bg-orange-500/20 text-orange-400", photos: "bg-purple-500/20 text-purple-400",
-  body_stats: "bg-orange-500/20 text-orange-400",
+  body_stats: "bg-orange-500/20 text-orange-400", nutrition: "bg-red-500/20 text-red-400",
 };
 
 const EVENT_ROUTES: Record<string, string> = {
@@ -95,15 +95,42 @@ const EventDetailModal = ({
   const [sessionData, setSessionData] = useState<SessionSummary | null>(null);
   const [loadingSession, setLoadingSession] = useState(false);
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null);
+  const [nutritionFoods, setNutritionFoods] = useState<any[]>([]);
+  const [loadingNutrition, setLoadingNutrition] = useState(false);
 
   useEffect(() => {
     if (!open || !event) {
       setWorkoutExercises([]);
       setSessionData(null);
       setEstimatedMinutes(null);
+      setNutritionFoods([]);
       return;
     }
 
+    // Load nutrition foods for nutrition events
+    if (event.event_type === "nutrition" && event.id.startsWith("nut-")) {
+      const dateStr = event.event_date;
+      const loadFoods = async () => {
+        setLoadingNutrition(true);
+        try {
+          const uid = clientId || (await supabase.auth.getUser()).data.user?.id;
+          if (!uid) return;
+          const { data } = await supabase
+            .from("nutrition_logs")
+            .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, food_items(name, brand)")
+            .eq("client_id", uid)
+            .eq("logged_at", dateStr)
+            .order("meal_type")
+            .order("created_at");
+          setNutritionFoods(data || []);
+        } catch (err) {
+          console.error("Failed to load nutrition foods:", err);
+        }
+        setLoadingNutrition(false);
+      };
+      loadFoods();
+      return;
+    }
     if (event.event_type !== "workout" || !event.linked_workout_id) return;
 
     const loadExercises = async () => {
@@ -267,7 +294,11 @@ const EventDetailModal = ({
 
           {/* Title row with status */}
           <div className="flex items-start gap-3">
-            {event.is_completed ? (
+            {event.event_type === "nutrition" ? (
+              <div className="mt-0.5 h-8 w-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                <UtensilsCrossed className="h-5 w-5 text-red-400" />
+              </div>
+            ) : event.is_completed ? (
               <div className="mt-0.5 h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
                 <Check className="h-5 w-5 text-white" />
               </div>
@@ -446,6 +477,55 @@ const EventDetailModal = ({
           {isWorkout && !loadingExercises && !loadingSession && exerciseDisplay.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">No exercise data available</p>
           )}
+
+          {/* Nutrition food list */}
+          {event.event_type === "nutrition" && loadingNutrition && (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          )}
+
+          {event.event_type === "nutrition" && !loadingNutrition && nutritionFoods.length > 0 && (() => {
+            // Group by meal_type
+            const mealGroups: Record<string, any[]> = {};
+            nutritionFoods.forEach((f: any) => {
+              const slot = f.meal_type || "Other";
+              if (!mealGroups[slot]) mealGroups[slot] = [];
+              mealGroups[slot].push(f);
+            });
+            return (
+              <div className="space-y-4">
+                {Object.entries(mealGroups).map(([mealType, foods]) => (
+                  <div key={mealType}>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                      {mealType}
+                    </h4>
+                    <div className="space-y-1">
+                      {foods.map((food: any) => {
+                        const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
+                        const brand = (food.food_items as any)?.brand || null;
+                        const qty = food.quantity_display ? `${food.quantity_display}${food.quantity_unit ? ` ${food.quantity_unit}` : ""}` : null;
+                        return (
+                          <div key={food.id} className="border-t border-border py-2.5">
+                            <p className="text-sm font-medium text-foreground">{name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {brand && <span className="text-xs text-muted-foreground">{brand}</span>}
+                              {qty && <span className="text-xs text-muted-foreground">{brand ? "·" : ""} {qty}</span>}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Calories: {Math.round(food.calories)} · P {Math.round(food.protein)}g · C {Math.round(food.carbs)}g · F {Math.round(food.fat)}g
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {event.notes && (
             <div className="bg-secondary/50 rounded-lg p-3">

@@ -30,7 +30,7 @@ const Nutrition = () => {
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl font-bold text-foreground">Nutrition</h1>
           <div className="flex items-center gap-2">
-            <USDAFoodSearch onImport={() => {}} />
+            {isCoach && <USDAFoodSearch onImport={() => {}} />}
             {isCoach && <MacroTargetEditor />}
           </div>
         </div>
