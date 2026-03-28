@@ -171,24 +171,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
   };
 
-  const handleGenerateGroceryList = async () => {
-    setGeneratingGrocery(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-grocery-list", {
-        body: { client_id: clientId },
-      });
-      if (error) throw error;
-      if (data?.error) {
-        toast({ title: "Error", description: data.error, variant: "destructive" });
-        return;
-      }
-      toast({ title: "Grocery list generated for client!" });
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message || "Failed to generate grocery list", variant: "destructive" });
-    } finally {
-      setGeneratingGrocery(false);
-    }
-  };
 
   if (loading) {
     return (
