@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
   reminder: "Reminder", custom: "Event", auto_message: "Auto Message",
-  photos: "Photos", body_stats: "Body Stats", steps: "Steps",
+  photos: "Photos", body_stats: "Body Stats", steps: "Steps", nutrition: "Nutrition",
 };
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
