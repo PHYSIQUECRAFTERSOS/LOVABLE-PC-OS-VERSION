@@ -127,6 +127,7 @@ interface CommandCenterData {
   missedYesterday: YesterdayWorkoutClient[];
   phaseDeadlines: PhaseDeadlineClient[];
   newClients: NewClientReadiness[];
+  programRenewals: ProgramRenewal[];
 }
 
 // ── Helpers ──
