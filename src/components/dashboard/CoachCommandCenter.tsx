@@ -163,7 +163,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
