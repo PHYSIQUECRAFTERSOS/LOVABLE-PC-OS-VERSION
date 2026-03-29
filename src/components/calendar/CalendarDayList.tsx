@@ -90,7 +90,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
   const containerRef = useRef<HTMLDivElement>(null);
   const dayHeaderRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Drag state
+  // Drag state – refs for native listeners, state only for rendering
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragEvent, setDragEvent] = useState<CalendarEvent | null>(null);
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
@@ -99,6 +99,9 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
   const didDrag = useRef(false);
   const autoScrollRaf = useRef<number | null>(null);
   const dragCardRef = useRef<HTMLDivElement | null>(null);
+  // Keep current drag state in refs so native listeners can access them
+  const dragEventRef = useRef<CalendarEvent | null>(null);
+  const dropTargetRef = useRef<string | null>(null);
 
   const today = new Date();
   const allDays = useMemo(() => {
@@ -148,19 +151,16 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
   }, []);
 
   const findDropTarget = useCallback((clientY: number): string | null => {
-    // Find which day section the touch is over
     let closest: string | null = null;
     let closestDist = Infinity;
     dayHeaderRefs.current.forEach((el, dateStr) => {
       const rect = el.getBoundingClientRect();
-      // Consider the day section from header top to next header
       const dist = Math.abs(clientY - (rect.top + rect.height / 2));
       if (clientY >= rect.top - 10 && dist < closestDist) {
         closestDist = dist;
         closest = dateStr;
       }
     });
-    // If we're past the last header, use it
     if (!closest) {
       let lastDate: string | null = null;
       let lastTop = -Infinity;
@@ -178,20 +178,20 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
 
   const startAutoScroll = useCallback((clientY: number) => {
     stopAutoScroll();
-    const container = containerRef.current?.closest('[class*="overflow"]') || document.scrollingElement || document.documentElement;
-    
+    const scrollEl = containerRef.current?.closest('[class*="overflow-y"]') as HTMLElement | null;
+
     const doScroll = () => {
       const vh = window.innerHeight;
-      if (clientY < AUTO_SCROLL_ZONE) {
-        // Scroll up
-        window.scrollBy(0, -AUTO_SCROLL_SPEED);
-      } else if (clientY > vh - AUTO_SCROLL_ZONE) {
-        // Scroll down
-        window.scrollBy(0, AUTO_SCROLL_SPEED);
+      if (scrollEl) {
+        if (clientY < AUTO_SCROLL_ZONE) scrollEl.scrollTop -= AUTO_SCROLL_SPEED;
+        else if (clientY > vh - AUTO_SCROLL_ZONE) scrollEl.scrollTop += AUTO_SCROLL_SPEED;
+      } else {
+        if (clientY < AUTO_SCROLL_ZONE) window.scrollBy(0, -AUTO_SCROLL_SPEED);
+        else if (clientY > vh - AUTO_SCROLL_ZONE) window.scrollBy(0, AUTO_SCROLL_SPEED);
       }
       autoScrollRaf.current = requestAnimationFrame(doScroll);
     };
-    
+
     if (clientY < AUTO_SCROLL_ZONE || clientY > window.innerHeight - AUTO_SCROLL_ZONE) {
       autoScrollRaf.current = requestAnimationFrame(doScroll);
     }
@@ -200,78 +200,99 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
   const endDrag = useCallback(() => {
     clearLongPress();
     stopAutoScroll();
-    
-    if (dragEvent && dropTargetDate && dropTargetDate !== dragEvent.event_date && onEventMoved) {
-      onEventMoved(dragEvent.id, dropTargetDate);
+
+    const ev = dragEventRef.current;
+    const target = dropTargetRef.current;
+    if (ev && target && target !== ev.event_date && onEventMoved) {
+      onEventMoved(ev.id, target);
     }
-    
+
+    dragEventRef.current = null;
+    dropTargetRef.current = null;
     setDragEvent(null);
     setDragPos(null);
     setDropTargetDate(null);
     didDrag.current = false;
     dragStartPos.current = null;
-    document.body.style.overflow = "";
     document.body.style.userSelect = "";
-  }, [dragEvent, dropTargetDate, onEventMoved, clearLongPress, stopAutoScroll]);
+  }, [onEventMoved, clearLongPress, stopAutoScroll]);
 
-  // Touch handlers
+  // ---- NATIVE touch listeners (non-passive) to reliably preventDefault on iOS ----
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+
+      // If not yet in drag mode, check if finger moved too far and cancel long press
+      if (!dragEventRef.current) {
+        if (dragStartPos.current) {
+          const dx = Math.abs(touch.clientX - dragStartPos.current.x);
+          const dy = Math.abs(touch.clientY - dragStartPos.current.y);
+          if (dx > 10 || dy > 10) {
+            clearLongPress();
+          }
+        }
+        return;
+      }
+
+      // In drag mode — prevent ALL scroll
+      e.preventDefault();
+      e.stopPropagation();
+
+      setDragPos({ x: touch.clientX, y: touch.clientY });
+      const target = findDropTarget(touch.clientY);
+      if (target) {
+        dropTargetRef.current = target;
+        setDropTargetDate(target);
+      }
+      startAutoScroll(touch.clientY);
+    };
+
+    const onTouchEnd = () => {
+      clearLongPress();
+      if (dragEventRef.current) {
+        endDrag();
+      }
+      didDrag.current = false;
+      dragStartPos.current = null;
+    };
+
+    // Register as NON-PASSIVE so preventDefault works on iOS Safari
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
+
+    return () => {
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [clearLongPress, endDrag, findDropTarget, startAutoScroll]);
+
+  // Touch start still via React (only sets up the long-press timer)
   const handleTouchStart = useCallback((e: React.TouchEvent, event: CalendarEvent) => {
     if (!isDraggable(event)) return;
-    
+
     const touch = e.touches[0];
     dragStartPos.current = { x: touch.clientX, y: touch.clientY };
     didDrag.current = false;
 
     longPressTimer.current = setTimeout(() => {
-      // Vibrate for haptic feedback
       if (navigator.vibrate) navigator.vibrate(30);
-      
+
+      dragEventRef.current = event;
+      dropTargetRef.current = event.event_date;
       setDragEvent(event);
       setDragPos({ x: touch.clientX, y: touch.clientY });
       setDropTargetDate(event.event_date);
       didDrag.current = true;
-      
-      // Prevent scrolling while dragging
-      document.body.style.overflow = "hidden";
       document.body.style.userSelect = "none";
     }, LONG_PRESS_MS);
   }, []);
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    
-    // If not yet in drag mode, check if moved too far (cancel long press)
-    if (!dragEvent) {
-      if (dragStartPos.current) {
-        const dx = Math.abs(touch.clientX - dragStartPos.current.x);
-        const dy = Math.abs(touch.clientY - dragStartPos.current.y);
-        if (dx > 10 || dy > 10) {
-          clearLongPress();
-        }
-      }
-      return;
-    }
-
-    e.preventDefault();
-    setDragPos({ x: touch.clientX, y: touch.clientY });
-    
-    const target = findDropTarget(touch.clientY);
-    if (target) setDropTargetDate(target);
-    
-    startAutoScroll(touch.clientY);
-  }, [dragEvent, clearLongPress, findDropTarget, startAutoScroll]);
-
-  const handleTouchEnd = useCallback(() => {
-    clearLongPress();
-    if (dragEvent) {
-      endDrag();
-    }
-    didDrag.current = false;
-    dragStartPos.current = null;
-  }, [dragEvent, endDrag, clearLongPress]);
-
   const handleClick = useCallback((event: CalendarEvent) => {
-    // Don't trigger click if we just finished a drag
     if (!didDrag.current) {
       onEventClick(event);
     }
@@ -280,11 +301,13 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
   // Mouse drag support (desktop)
   const handleMouseDown = useCallback((e: React.MouseEvent, event: CalendarEvent) => {
     if (!isDraggable(event)) return;
-    
+
     dragStartPos.current = { x: e.clientX, y: e.clientY };
     didDrag.current = false;
 
     longPressTimer.current = setTimeout(() => {
+      dragEventRef.current = event;
+      dropTargetRef.current = event.event_date;
       setDragEvent(event);
       setDragPos({ x: e.clientX, y: e.clientY });
       setDropTargetDate(event.event_date);
@@ -300,13 +323,14 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
       e.preventDefault();
       setDragPos({ x: e.clientX, y: e.clientY });
       const target = findDropTarget(e.clientY);
-      if (target) setDropTargetDate(target);
+      if (target) {
+        dropTargetRef.current = target;
+        setDropTargetDate(target);
+      }
       startAutoScroll(e.clientY);
     };
 
-    const onMouseUp = () => {
-      endDrag();
-    };
+    const onMouseUp = () => endDrag();
 
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
@@ -316,14 +340,14 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
     };
   }, [dragEvent, endDrag, findDropTarget, startAutoScroll]);
 
-  // Cancel long press on any scroll
+  // Cancel long press on any scroll (only when not actively dragging)
   useEffect(() => {
     const onScroll = () => {
-      if (!dragEvent) clearLongPress();
+      if (!dragEventRef.current) clearLongPress();
     };
     window.addEventListener("scroll", onScroll, true);
     return () => window.removeEventListener("scroll", onScroll, true);
-  }, [dragEvent, clearLongPress]);
+  }, [clearLongPress]);
 
   // Store day header refs
   const setDayHeaderRef = useCallback((dateStr: string, el: HTMLDivElement | null) => {
@@ -389,8 +413,6 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                       <div
                         key={event.id}
                         onTouchStart={canDrag ? (e) => handleTouchStart(e, event) : undefined}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
                         onMouseDown={canDrag ? (e) => handleMouseDown(e, event) : undefined}
                         onClick={() => handleClick(event)}
                         className={cn(
