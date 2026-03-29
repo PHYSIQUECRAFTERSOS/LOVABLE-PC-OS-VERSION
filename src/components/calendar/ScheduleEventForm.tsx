@@ -284,6 +284,8 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
       }
 
       toast({ title: "Event scheduled" });
+      // Dispatch so dashboard/calendar refresh instantly
+      window.dispatchEvent(new CustomEvent("calendar-event-added"));
       resetForm();
       onSave();
       onClose();
