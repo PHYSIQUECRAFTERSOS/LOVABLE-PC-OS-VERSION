@@ -99,7 +99,7 @@ const ClientDashboard = () => {
           total={totalCount}
           streak={consistencyStreak}
         />
-        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} refreshKey={refreshKey} />
+        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
       </div>
 
       {/* Progress Widget Grid */}
