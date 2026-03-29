@@ -440,6 +440,28 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   const isToday = getLocalDateString() === dateStr;
 
+  // IntersectionObserver: track when macro rings scroll out of view
+  const macroRingsRef = useRef<HTMLDivElement>(null);
+  const [ringsVisible, setRingsVisible] = useState(true);
+
+  useEffect(() => {
+    const el = macroRingsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setRingsVisible(entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const remaining = {
+    calories: Math.round(targets.calories - totals.calories),
+    protein: Math.round(targets.protein - totals.protein),
+    carbs: Math.round(targets.carbs - totals.carbs),
+    fat: Math.round(targets.fat - totals.fat),
+  };
+
   return (
     <div className="space-y-5">
       {/* Date Navigation */}
