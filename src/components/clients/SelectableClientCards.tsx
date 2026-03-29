@@ -342,7 +342,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         }
       }
       return true;
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name));
   }, [clients, search, statusFilter, tagFilter, programTypeFilter, programTypeMap]);
 
   useEffect(() => {
