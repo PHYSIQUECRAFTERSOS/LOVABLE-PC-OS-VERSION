@@ -223,9 +223,8 @@ const Subscribe = () => {
 
         <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
           All prices are listed in USD. Subscriptions automatically renew unless canceled at least 24
-          hours before the end of the current period. Weekly Updates and Bi-Weekly Updates are billed
-          monthly ($399.99 USD/month and $299.99 USD/month respectively). Training Only is billed
-          every 2 months ($174.99 USD/2 months). No long-term commitment required — cancel anytime.
+          hours before the end of the current period. Inner Circle is billed monthly ($997.00 USD/month).
+          Weekly Updates is billed monthly ($499.99 USD/month). No long-term commitment required — cancel anytime.
           Payment will be charged to your Apple ID account at confirmation of purchase. You can
           manage or cancel your subscription in your Apple ID Account Settings.
         </p>
