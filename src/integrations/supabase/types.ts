@@ -1608,6 +1608,51 @@ export type Database = {
           },
         ]
       }
+      client_program_tracker: {
+        Row: {
+          client_id: string
+          client_name: string
+          coach_id: string
+          created_at: string | null
+          end_date: string | null
+          id: string
+          notes: string | null
+          revenue: string | null
+          start_date: string
+          tier_name: string | null
+          updated_at: string | null
+          weeks: number
+        }
+        Insert: {
+          client_id: string
+          client_name: string
+          coach_id: string
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          revenue?: string | null
+          start_date?: string
+          tier_name?: string | null
+          updated_at?: string | null
+          weeks?: number
+        }
+        Update: {
+          client_id?: string
+          client_name?: string
+          coach_id?: string
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          revenue?: string | null
+          start_date?: string
+          tier_name?: string | null
+          updated_at?: string | null
+          weeks?: number
+        }
+        Relationships: []
+      }
       client_recipe_ingredients: {
         Row: {
           brand: string | null
@@ -1929,6 +1974,7 @@ export type Database = {
         Row: {
           contract_template_key: string | null
           created_at: string | null
+          default_weeks: number | null
           id: string
           name: string
           requires_contract: boolean
@@ -1936,6 +1982,7 @@ export type Database = {
         Insert: {
           contract_template_key?: string | null
           created_at?: string | null
+          default_weeks?: number | null
           id?: string
           name: string
           requires_contract?: boolean
@@ -1943,6 +1990,7 @@ export type Database = {
         Update: {
           contract_template_key?: string | null
           created_at?: string | null
+          default_weeks?: number | null
           id?: string
           name?: string
           requires_contract?: boolean

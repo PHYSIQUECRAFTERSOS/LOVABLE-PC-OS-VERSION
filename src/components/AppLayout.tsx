@@ -18,6 +18,7 @@ import {
   UsersRound,
   Menu,
   CreditCard,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -122,6 +123,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/challenges", icon: Flame, label: "Challenges" },
     { to: "/ranked", icon: Trophy, label: "Ranked" },
     { to: "/clients", icon: Users, label: "Clients" },
+    { to: "/client-tracker", icon: ClipboardList, label: "Tracker" },
     { to: "/team", icon: Shield, label: "Team" },
     { to: "/libraries", icon: Library, label: "Master Libraries" },
   ];

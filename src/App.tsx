@@ -39,6 +39,7 @@ import Subscribe from "./pages/Subscribe";
 import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
 import Unsubscribe from "./pages/Unsubscribe";
+import ClientTracker from "./pages/ClientTracker";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
@@ -98,6 +99,7 @@ const App = () => (
             <Route path="/clients" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><Clients /></ProtectedRoute>} />
             <Route path="/clients/:clientId" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><ClientDetail /></ProtectedRoute>} />
             <Route path="/libraries" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><MasterLibraries /></ProtectedRoute>} />
+            <Route path="/client-tracker" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><ClientTracker /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><Admin /></ProtectedRoute>} />
             <Route path="/body-stats" element={<ProtectedRoute><BodyStats /></ProtectedRoute>} />
             <Route path="/subscribe" element={<ProtectedRoute><Subscribe /></ProtectedRoute>} />

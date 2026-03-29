@@ -99,6 +99,15 @@ interface PhaseDeadlineClient {
   daysLeft: number;
 }
 
+interface ProgramRenewal {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  tierName: string | null;
+  endDate: string;
+  daysLeft: number;
+}
+
 interface NewClientReadiness {
   clientId: string;
   clientName: string;
@@ -118,6 +127,7 @@ interface CommandCenterData {
   missedYesterday: YesterdayWorkoutClient[];
   phaseDeadlines: PhaseDeadlineClient[];
   newClients: NewClientReadiness[];
+  programRenewals: ProgramRenewal[];
 }
 
 // ── Helpers ──
@@ -153,7 +163,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -166,7 +176,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
@@ -479,7 +489,31 @@ const CoachCommandCenter = () => {
         });
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients };
+      // ── Section 9: Program Renewals (from client_program_tracker) ──
+      const programRenewals: ProgramRenewal[] = [];
+      const { data: trackerRows } = await (supabase as any)
+        .from("client_program_tracker")
+        .select("client_id, client_name, tier_name, end_date")
+        .eq("coach_id", user.id);
+      if (trackerRows?.length) {
+        for (const row of trackerRows) {
+          const dLeft = differenceInDays(new Date(row.end_date), now);
+          if (dLeft <= 30) {
+            const profile = profileMap.get(row.client_id);
+            programRenewals.push({
+              clientId: row.client_id,
+              clientName: row.client_name,
+              avatarUrl: profile?.avatar_url,
+              tierName: row.tier_name,
+              endDate: format(new Date(row.end_date), "MMM d, yyyy"),
+              daysLeft: dLeft,
+            });
+          }
+        }
+        programRenewals.sort((a, b) => a.daysLeft - b.daysLeft);
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals };
     },
   });
 
@@ -487,7 +521,7 @@ const CoachCommandCenter = () => {
   if ((error || timedOut) && !data?.actionItems?.length) return <RetryBanner onRetry={refetch} />;
   if (!data) return null;
 
-  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients } = data;
+  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals } = data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -956,7 +990,56 @@ const CoachCommandCenter = () => {
         )}
       </div>
 
-      {/* ─── SECTION 8: Compliance Snapshot (moved to bottom) ─── */}
+      {/* ─── SECTION 9: Program Renewals ─── */}
+      {programRenewals.length > 0 && (
+        <div>
+          <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+            <CalendarClock className="h-5 w-5 text-primary" />
+            Program Renewals
+            <span className="ml-2 rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-bold text-yellow-400">{programRenewals.length}</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {programRenewals.map((r) => {
+              const urgBg = r.daysLeft <= 7 ? "border-red-500/40 bg-red-500/5" : r.daysLeft <= 14 ? "border-orange-500/40 bg-orange-500/5" : "border-yellow-500/40 bg-yellow-500/5";
+              const urgText = r.daysLeft <= 7 ? "text-red-400" : r.daysLeft <= 14 ? "text-orange-400" : "text-yellow-400";
+              return (
+                <Card key={r.clientId} className={`cursor-pointer hover:bg-accent/10 transition-colors ${urgBg}`} onClick={() => navigate(`/clients/${r.clientId}`)}>
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <UserAvatar src={r.avatarUrl} name={r.clientName} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{r.clientName}</p>
+                      <p className="text-[11px] text-muted-foreground">{r.tierName || "—"} · ends {r.endDate}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className={`text-lg font-bold font-display ${urgText}`}>{r.daysLeft <= 0 ? "Expired" : `${r.daysLeft}d`}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const firstName = r.clientName.split(" ")[0];
+                        setQuickMsgClient({
+                          id: r.clientId,
+                          name: r.clientName,
+                          avatar: r.avatarUrl,
+                          prefill: `Hey ${firstName}, your program wraps up on ${r.endDate}! I'd love to set up a quick renewal call to discuss your next phase. When works best for you? 💪`,
+                        });
+                      }}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                      Message
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── SECTION 10: Compliance Snapshot (moved to bottom) ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
           <Activity className="h-5 w-5 text-primary" />
