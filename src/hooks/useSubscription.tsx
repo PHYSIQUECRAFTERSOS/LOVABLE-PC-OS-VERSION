@@ -12,8 +12,8 @@ interface SubscriptionState {
 }
 
 const TIER_MAP: Record<string, { label: string; renewal: string }> = {
-  "com.physiquecrafters.app.innercircle": { label: "Inner Circle", renewal: "Renews monthly" },
   "com.physiquecrafters.app.monthly": { label: "Weekly Updates", renewal: "Renews monthly" },
+  "com.physiquecrafters.app.biweekly": { label: "Bi-Weekly Updates", renewal: "Renews monthly" },
 };
 
 const SubscriptionContext = createContext<SubscriptionState>({
