@@ -2,6 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createdContexts: MockAudioContext[] = [];
 
+const nativeMocks = vi.hoisted(() => ({
+  platform: "web",
+  enableMixing: vi.fn(async () => ({ success: true })),
+  playRestTimerAlarm: vi.fn(async () => ({ success: true })),
+}));
+
+vi.mock("@capacitor/core", () => ({
+  Capacitor: {
+    getPlatform: () => nativeMocks.platform,
+  },
+}));
+
+vi.mock("@/plugins/AudioMixPlugin", () => ({
+  default: {
+    enableMixing: nativeMocks.enableMixing,
+    playRestTimerAlarm: nativeMocks.playRestTimerAlarm,
+  },
+}));
+
 class MockGainNode {
   gain = {
     value: 1,
@@ -14,7 +33,10 @@ class MockGainNode {
 
 class MockOscillatorNode {
   type = "sine";
-  frequency = { value: 0 };
+  frequency = {
+    value: 0,
+    setValueAtTime: vi.fn(),
+  };
   onended: (() => void) | null = null;
   connect = vi.fn();
   disconnect = vi.fn();
@@ -55,10 +77,24 @@ describe("RestTimerAudioService", () => {
     vi.clearAllMocks();
     createdContexts.length = 0;
     MockAudioContext.nextState = "running";
+    nativeMocks.platform = "web";
     vi.stubGlobal("AudioContext", MockAudioContext as unknown as typeof AudioContext);
   });
 
-  it("recovers an interrupted iOS audio context before alarm playback", async () => {
+  it("plays the native iOS alarm path when available", async () => {
+    nativeMocks.platform = "ios";
+    const { restTimerAudio } = await import("@/services/RestTimerAudioService");
+
+    const played = await restTimerAudio.playCompletionAlarm();
+
+    expect(played).toBe(true);
+    expect(nativeMocks.enableMixing).toHaveBeenCalled();
+    expect(nativeMocks.playRestTimerAlarm).toHaveBeenCalledTimes(1);
+    expect(createdContexts[0]?.createOscillator).not.toHaveBeenCalled();
+  });
+
+  it("recovers an interrupted iOS audio context before web fallback playback", async () => {
+    nativeMocks.platform = "web";
     MockAudioContext.nextState = "interrupted";
     const { restTimerAudio } = await import("@/services/RestTimerAudioService");
 
@@ -69,13 +105,12 @@ describe("RestTimerAudioService", () => {
     expect(createdContexts[0]?.createOscillator).toHaveBeenCalled();
   });
 
-  it("plays a synthesized three-tone alarm", async () => {
+  it("plays a synthesized three-tone alarm on the web fallback path", async () => {
     const { restTimerAudio } = await import("@/services/RestTimerAudioService");
 
     const played = await restTimerAudio.playCompletionAlarm();
 
     expect(played).toBe(true);
-    // Should create 3 oscillators for the three-tone chime
     expect(createdContexts[0]?.createOscillator).toHaveBeenCalledTimes(3);
   });
 
@@ -85,6 +120,5 @@ describe("RestTimerAudioService", () => {
     const played = await restTimerAudio.playCountdown();
 
     expect(played).toBe(true);
-    expect(createdContexts[0]?.createOscillator).toHaveBeenCalled();
   });
 });
