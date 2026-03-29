@@ -97,8 +97,33 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       setTimeout(() => refetchRef.current?.(), 2500);
     };
     window.addEventListener("calendar-event-added", handler);
-    return () => window.removeEventListener("calendar-event-added", handler);
-  }, []);
+
+    // Realtime subscription for instant updates when coach schedules for client
+    const channel = supabase
+      .channel(`today-actions-rt-${user?.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "calendar_events",
+        },
+        (payload: any) => {
+          const row = payload.new || payload.old;
+          // Only refetch if the event is relevant to this user
+          if (row?.user_id === user?.id || row?.target_client_id === user?.id) {
+            invalidateCache(cacheKeyRef.current);
+            setTimeout(() => refetchRef.current?.(), 300);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("calendar-event-added", handler);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
