@@ -390,7 +390,7 @@ const Calendar = () => {
           </div>
         ) : (
           /* Client: vertical day list */
-          <CalendarDayList events={events} onEventClick={handleEventClick} />
+          <CalendarDayList events={events} onEventClick={handleEventClick} onEventMoved={handleEventMoved} />
         )}
       </div>
 
