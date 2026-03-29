@@ -10,10 +10,8 @@ type WorkerMock = {
 
 const mocks = vi.hoisted(() => ({
   worker: null as WorkerMock | null,
-  playCountdown: vi.fn<() => Promise<boolean>>(),
-  startKeepAlive: vi.fn(),
-  stopKeepAlive: vi.fn(),
-  stopCountdown: vi.fn(),
+  playCompletionAlarm: vi.fn<() => Promise<boolean>>(),
+  stopAlarm: vi.fn(),
   unlock: vi.fn(),
 }));
 
@@ -31,10 +29,8 @@ vi.mock("@/services/timerWorker", () => ({
 
 vi.mock("@/services/RestTimerAudioService", () => ({
   restTimerAudio: {
-    playCountdown: mocks.playCountdown,
-    startKeepAlive: mocks.startKeepAlive,
-    stopKeepAlive: mocks.stopKeepAlive,
-    stopCountdown: mocks.stopCountdown,
+    playCompletionAlarm: mocks.playCompletionAlarm,
+    stopAlarm: mocks.stopAlarm,
     unlock: mocks.unlock,
   },
 }));
@@ -45,35 +41,32 @@ describe("InlineRestTimer", () => {
     vi.clearAllMocks();
   });
 
-  it("retries countdown playback at completion if the 3-second attempt fails", async () => {
-    mocks.playCountdown.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  it("plays the completion alarm exactly when the timer finishes", async () => {
+    mocks.playCompletionAlarm.mockResolvedValue(true);
 
     render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={vi.fn()} />);
 
     await act(async () => {
       mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
     });
-    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
+    expect(mocks.playCompletionAlarm).not.toHaveBeenCalled();
 
     await act(async () => {
       mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
     });
-    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.playCompletionAlarm).toHaveBeenCalledTimes(1));
   });
 
-  it("does not replay the countdown on completion after a successful 3-second trigger", async () => {
-    mocks.playCountdown.mockResolvedValue(true);
+  it("stops the alarm when the timer is skipped", async () => {
+    const onSkip = vi.fn();
 
-    render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={vi.fn()} />);
-
-    await act(async () => {
-      mocks.worker?.onmessage?.({ data: { type: "tick", remaining: 3, remainingMs: 3000 } } as MessageEvent);
-    });
-    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
+    const { getByRole } = render(<InlineRestTimer seconds={60} onComplete={vi.fn()} onSkip={onSkip} />);
 
     await act(async () => {
-      mocks.worker?.onmessage?.({ data: { type: "done", remaining: 0, remainingMs: 0 } } as MessageEvent);
+      getByRole("button").click();
     });
-    await waitFor(() => expect(mocks.playCountdown).toHaveBeenCalledTimes(1));
+
+    expect(mocks.stopAlarm).toHaveBeenCalledTimes(1);
+    expect(onSkip).toHaveBeenCalledTimes(1);
   });
 });

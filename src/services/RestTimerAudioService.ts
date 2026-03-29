@@ -16,6 +16,7 @@ type ManagedAudioContextState = AudioContextState | "interrupted";
 class RestTimerAudioService {
   private ctx: AudioContext | null = null;
   private activeNodes: (OscillatorNode | GainNode)[] = [];
+  private unlocked = false;
 
   // ========== AUDIO CONTEXT MANAGEMENT ==========
 
@@ -72,6 +73,7 @@ class RestTimerAudioService {
       src.buffer = buf;
       src.connect(ctx.destination);
       src.start(0);
+      this.unlocked = true;
       console.log("[RestTimerAudio] AudioContext unlocked");
     } catch { /* ignore */ }
   }
@@ -82,6 +84,10 @@ class RestTimerAudioService {
    * Returns true if playback started.
    */
   async playCompletionAlarm(): Promise<boolean> {
+    if (!this.unlocked) {
+      console.warn("[RestTimerAudio] Alarm blocked — context not unlocked by user gesture yet");
+    }
+
     const ctx = await this.ensureRunningContext();
     if (!ctx) {
       console.warn("[RestTimerAudio] No AudioContext available");
@@ -146,6 +152,34 @@ class RestTimerAudioService {
       return true;
     } catch (err) {
       console.error("[RestTimerAudio] ❌ Alarm playback failed:", err);
+
+      try {
+        const fallbackCtx = await this.ensureRunningContext();
+        if (!fallbackCtx) return false;
+        const t = fallbackCtx.currentTime + 0.01;
+        const osc = fallbackCtx.createOscillator();
+        const gain = fallbackCtx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(1046, t);
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.7, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+        osc.connect(gain);
+        gain.connect(fallbackCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.27);
+        this.activeNodes = [osc, gain];
+        osc.onended = () => {
+          this.activeNodes = [];
+          try { osc.disconnect(); } catch {}
+          try { gain.disconnect(); } catch {}
+        };
+        console.log("[RestTimerAudio] ✅ Fallback alarm playing");
+        return true;
+      } catch (fallbackErr) {
+        console.error("[RestTimerAudio] ❌ Fallback alarm failed:", fallbackErr);
+      }
+
       return false;
     }
   }
@@ -178,6 +212,7 @@ class RestTimerAudioService {
       try { await this.ctx.close(); } catch { /* ignore */ }
     }
     this.ctx = null;
+    this.unlocked = false;
   }
 }
 

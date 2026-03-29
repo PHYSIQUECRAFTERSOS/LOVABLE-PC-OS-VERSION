@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -14,42 +16,98 @@ export function usePushNotifications() {
   const { user } = useAuth();
   const { toast } = useToast();
   const registeredRef = useRef(false);
+  const savedTokenRef = useRef<string | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!user || registeredRef.current) return;
 
     let isActive = true;
+    let appStateListener: { remove: () => Promise<void> } | null = null;
+    const isNativePlatform = Capacitor.isNativePlatform();
+
+    const clearRetryTimer = () => {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
+    const persistToken = async (tokenValue: string) => {
+      if (!isActive || savedTokenRef.current === tokenValue) return;
+
+      const { error } = await supabase
+        .from("push_tokens")
+        .upsert(
+          {
+            user_id: user.id,
+            token: tokenValue,
+            platform: Capacitor.getPlatform() || "ios",
+          },
+          { onConflict: "user_id,token" }
+        );
+
+      if (error) {
+        console.error("[Push] ❌ Token save error:", error.message);
+        registeredRef.current = false;
+        return;
+      }
+
+      savedTokenRef.current = tokenValue;
+      registeredRef.current = true;
+      clearRetryTimer();
+      console.log("[Push] ✅ Token saved to database");
+    };
+
+    const scheduleRetry = (reason: string) => {
+      if (!isNativePlatform || registeredRef.current || !isActive) return;
+      clearRetryTimer();
+      retryTimerRef.current = window.setTimeout(() => {
+        if (!isActive || registeredRef.current) return;
+        console.log(`[Push] Retrying registration (${reason})...`);
+        void attemptRegistration(`retry:${reason}`);
+      }, 3000);
+    };
+
+    const attemptRegistration = async (reason: string) => {
+      try {
+        console.log(`[Push] Starting registration (${reason}) for user:`, user.id.slice(0, 8));
+
+        const permResult = await PushNotifications.requestPermissions();
+        console.log("[Push] Permission result:", permResult.receive);
+
+        if (permResult.receive !== "granted") {
+          console.log("[Push] ⚠️ Permission not granted");
+          registeredRef.current = false;
+          return;
+        }
+
+        await PushNotifications.register();
+        console.log("[Push] ✅ register() called successfully");
+
+        if (!registeredRef.current) {
+          scheduleRetry("no-registration-event");
+        }
+      } catch (err: any) {
+        console.log("[Push] Registration attempt failed:", err?.message || err);
+        scheduleRetry("exception");
+      }
+    };
 
     const setup = async () => {
       try {
-        console.log("[Push] Starting registration for user:", user.id.slice(0, 8));
-
         await PushNotifications.removeAllListeners();
 
         await PushNotifications.addListener("registration", async (token) => {
           if (!isActive) return;
           console.log("[Push] ✅ Token received:", token.value.slice(0, 16) + "...");
-
-          const { error } = await supabase
-            .from("push_tokens" as any)
-            .upsert(
-              {
-                user_id: user.id,
-                token: token.value,
-                platform: "ios",
-              },
-              { onConflict: "user_id,token" }
-            );
-
-          if (error) {
-            console.error("[Push] ❌ Token save error:", error.message);
-          } else {
-            console.log("[Push] ✅ Token saved to database");
-          }
+          await persistToken(token.value);
         });
 
         await PushNotifications.addListener("registrationError", (err) => {
           console.error("[Push] ❌ Registration error:", JSON.stringify(err));
+          registeredRef.current = false;
+          scheduleRetry("registration-error");
         });
 
         await PushNotifications.addListener("pushNotificationReceived", (notification) => {
@@ -66,49 +124,40 @@ export function usePushNotifications() {
           window.location.href = route;
         });
 
-        const permResult = await PushNotifications.requestPermissions();
-        console.log("[Push] Permission result:", permResult.receive);
-
-        if (permResult.receive !== "granted") {
-          console.log("[Push] ⚠️ Permission not granted");
-          return;
-        }
-
-        await PushNotifications.register();
-        console.log("[Push] ✅ register() called successfully");
-
-        if (isActive) {
-          registeredRef.current = true;
-        }
-      } catch (err: any) {
-        // Plugin not available (running in browser) — this is expected
-        console.log("[Push] Plugin not available (expected on web):", err?.message || err);
-
-        // Retry once after 2s in case the native bridge wasn't ready
-        if (!registeredRef.current) {
-          setTimeout(async () => {
-            if (!isActive || registeredRef.current) return;
-            try {
-              console.log("[Push] Retrying registration...");
-              const permResult = await PushNotifications.requestPermissions();
-              if (permResult.receive === "granted") {
-                await PushNotifications.register();
-                registeredRef.current = true;
-                console.log("[Push] ✅ Retry succeeded");
-              }
-            } catch (retryErr: any) {
-              console.log("[Push] Retry also failed — not a native platform");
+        if (isNativePlatform) {
+          appStateListener = await App.addListener("appStateChange", ({ isActive: appIsActive }) => {
+            if (!appIsActive) return;
+            if (!registeredRef.current) {
+              void attemptRegistration("app-state-active");
             }
-          }, 2000);
+          });
         }
+
+        void attemptRegistration("initial");
+      } catch (err: any) {
+        console.log("[Push] Plugin not available (expected on web):", err?.message || err);
+        scheduleRetry("setup-failure");
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !registeredRef.current) {
+        void attemptRegistration("visibility-visible");
       }
     };
 
     void setup();
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       isActive = false;
       registeredRef.current = false;
+      savedTokenRef.current = null;
+      clearRetryTimer();
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (appStateListener) {
+        void appStateListener.remove();
+      }
       try {
         void PushNotifications.removeAllListeners();
       } catch {
