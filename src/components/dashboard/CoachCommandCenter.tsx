@@ -1005,7 +1005,7 @@ const CoachCommandCenter = () => {
               return (
                 <Card key={r.clientId} className={`cursor-pointer hover:bg-accent/10 transition-colors ${urgBg}`} onClick={() => navigate(`/clients/${r.clientId}`)}>
                   <CardContent className="p-3 flex items-center gap-3">
-                    <UserAvatar name={r.clientName} avatarUrl={r.avatarUrl} size="sm" />
+                    <UserAvatar src={r.avatarUrl} name={r.clientName} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{r.clientName}</p>
                       <p className="text-[11px] text-muted-foreground">{r.tierName || "—"} · ends {r.endDate}</p>

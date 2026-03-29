@@ -67,11 +67,11 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
   useEffect(() => {
     if (!open) return;
 
-    supabase
+    (supabase as any)
       .from("client_tiers")
-      .select("id, name, requires_contract, default_weeks" as any)
+      .select("id, name, requires_contract, default_weeks")
       .order("name")
-      .then(({ data }) => {
+      .then(({ data }: any) => {
         if (data) setTiers(data as Tier[]);
       });
 
