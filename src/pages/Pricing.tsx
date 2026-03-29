@@ -16,18 +16,6 @@ interface PricingTier {
 
 const tiers: PricingTier[] = [
   {
-    name: "Inner Circle",
-    duration: "1 month · Auto-renewable",
-    description: "Premium 1-on-1 coaching with weekly Zoom calls — our most exclusive tier.",
-    features: [
-      "Weekly 1-on-1 Zoom calls",
-      "Everything in Weekly Updates",
-      "Limited spots available",
-    ],
-    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_INNERCIRCLE",
-    price: "$997.00 USD/month",
-  },
-  {
     name: "Weekly Updates",
     duration: "1 month · Auto-renewable",
     description: "Weekly progress updates reviewing over your progress and we make changes to your program as necessary.",
@@ -39,6 +27,18 @@ const tiers: PricingTier[] = [
     stripeUrl: "https://buy.stripe.com/PLACEHOLDER_MONTHLY",
     popular: true,
     price: "$499.99 USD/month",
+  },
+  {
+    name: "Bi-Weekly Updates",
+    duration: "1 month · Auto-renewable",
+    description: "Bi-weekly progress updates with personalized program adjustments.",
+    features: [
+      "Custom training program",
+      "Custom meal plan",
+      "Custom supplement plan",
+    ],
+    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_BIWEEKLY",
+    price: "$399.00 USD/month",
   },
 ];
 const Pricing = () => {
