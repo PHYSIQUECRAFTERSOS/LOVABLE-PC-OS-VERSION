@@ -21,42 +21,32 @@ interface Plan {
 
 const DEFAULT_PLANS: Plan[] = [
   {
+    id: "innercircle",
+    productId: "com.physiquecrafters.app.innercircle",
+    title: "Inner Circle",
+    price: "$997.00 USD/month",
+    duration: "1 month · Auto-renewable",
+    features: [
+      "Weekly 1-on-1 Zoom calls",
+      "Everything in Weekly Updates",
+      "Limited spots available",
+    ],
+  },
+  {
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
     title: "Weekly Updates",
-    price: "$399.99 USD/month",
+    price: "$499.99 USD/month",
     duration: "1 month · Auto-renewable",
     badge: "MOST POPULAR",
     features: [
-      "Weekly progress updates each week reviewing over your progress and we make changes to your program as necessary",
-      "Customized Training Program",
-      "Customized Meal Plan",
-      "Customized Supplement Plan",
+      "Weekly progress updates reviewing over your progress and we make changes to your program as necessary",
+      "Custom training program",
+      "Custom meal plan",
+      "Custom supplement plan",
     ],
-  },
-  {
-    id: "biweekly",
-    productId: "com.physiquecrafters.app.biweekly",
-    title: "Bi-Weekly Updates",
-    price: "$299.99 USD/month",
-    duration: "1 month · Auto-renewable",
-    features: [
-      "Bi-weekly progress updates every other week reviewing over your progress and we make changes to your program as necessary",
-      "Customized Training Program",
-      "Customized Meal Plan",
-      "Customized Supplement Plan",
-    ],
-  },
-  {
-    id: "training",
-    productId: "com.physiquecrafters.app.training",
-    title: "Training Only",
-    price: "$174.99 USD/2 months",
-    duration: "2 months · Auto-renewable",
-    features: ["Customized Training Program updated every 2 months"],
   },
 ];
-
 const isNative = Capacitor.isNativePlatform();
 
 const Subscribe = () => {
