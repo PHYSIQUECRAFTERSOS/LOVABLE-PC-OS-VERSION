@@ -19,6 +19,7 @@ interface Tier {
   id: string;
   name: string;
   requires_contract: boolean;
+  default_weeks: number | null;
 }
 
 interface StaffOption {
