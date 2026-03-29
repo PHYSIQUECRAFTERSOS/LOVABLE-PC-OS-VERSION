@@ -117,6 +117,11 @@ class RestTimerAudioService {
   }
 
   private async nativePlay(): Promise<boolean> {
+    // Re-enable mixing before every play in case iOS reset the audio session
+    try {
+      await AudioMixPlugin.enableMixing();
+    } catch { /* plugin not available on web */ }
+
     if (!this.nativePreloaded) {
       await this.nativePreload();
     }
@@ -125,11 +130,13 @@ class RestTimerAudioService {
       // Stop any running instance so replay works cleanly
       try { await NativeAudio.stop({ assetId: NATIVE_ASSET_ID }); } catch { /* not playing */ }
       await NativeAudio.play({ assetId: NATIVE_ASSET_ID });
-      console.log("[RestTimerAudio] Native countdown playing");
+      console.log("[RestTimerAudio] ✅ Native countdown PLAYING");
       return true;
     } catch (err) {
-      console.error("[RestTimerAudio] Native play failed:", err);
-      return false;
+      console.error("[RestTimerAudio] ❌ Native play failed:", err);
+      // Fall back to web audio on native if NativeAudio fails
+      console.log("[RestTimerAudio] Attempting web audio fallback on native...");
+      return this.webPlay();
     }
   }
 

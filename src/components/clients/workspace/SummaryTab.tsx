@@ -553,6 +553,14 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     };
 
     loadExtended();
+
+    // Listen for FAB-scheduled events to refetch instantly
+    const handler = () => {
+      setTimeout(() => loadExtended(), 300);
+      setTimeout(() => loadExtended(), 1500);
+    };
+    window.addEventListener("calendar-event-added", handler);
+    return () => window.removeEventListener("calendar-event-added", handler);
   }, [clientId, user, selectedDateStr]);
 
   /* ─── Load steps data for client ─── */

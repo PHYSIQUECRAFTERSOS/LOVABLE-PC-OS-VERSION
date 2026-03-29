@@ -166,11 +166,11 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
         }
         case "photos":
           title = "Take Progress Photos";
-          eventType = "custom";
+          eventType = "photos";
           break;
         case "bodystats":
           title = "Track Body Stats";
-          eventType = "custom";
+          eventType = "body_stats";
           break;
       }
 
