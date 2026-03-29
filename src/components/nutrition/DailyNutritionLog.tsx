@@ -440,6 +440,28 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   const isToday = getLocalDateString() === dateStr;
 
+  // IntersectionObserver: track when macro rings scroll out of view
+  const macroRingsRef = useRef<HTMLDivElement>(null);
+  const [ringsVisible, setRingsVisible] = useState(true);
+
+  useEffect(() => {
+    const el = macroRingsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setRingsVisible(entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const remaining = {
+    calories: Math.round(targets.calories - totals.calories),
+    protein: Math.round(targets.protein - totals.protein),
+    carbs: Math.round(targets.carbs - totals.carbs),
+    fat: Math.round(targets.fat - totals.fat),
+  };
+
   return (
     <div className="space-y-5">
       {/* Date Navigation */}
@@ -504,7 +526,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       </div>
 
       {/* Daily Macro Summary */}
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div ref={macroRingsRef} className="rounded-lg border border-border bg-card p-4">
         {targets.is_refeed && (
           <div className="mb-3 rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary text-center">
             🔥 Refeed Day
@@ -672,7 +694,51 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         })}
       </div>
 
-      {/* Food Logger Modal */}
+      {/* Bottom Remaining Summary */}
+      {logs.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Remaining</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "Cal", value: remaining.calories, color: "text-primary" },
+              { label: "Protein", value: remaining.protein, suffix: "g", color: "text-[hsl(0_70%_55%)]" },
+              { label: "Carbs", value: remaining.carbs, suffix: "g", color: "text-[hsl(200_70%_55%)]" },
+              { label: "Fat", value: remaining.fat, suffix: "g", color: "text-[hsl(45_80%_55%)]" },
+            ].map(m => (
+              <div key={m.label} className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.label}</p>
+                <p className={`text-base font-bold tabular-nums ${m.value < 0 ? "text-destructive" : m.color}`}>
+                  {m.value < 0 ? `-${Math.abs(m.value)}` : m.value}{m.suffix || ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
+      {/* Floating Remaining Bar — visible when macro rings scroll out of view */}
+      {!ringsVisible && !editMode && !loggerOpen && (
+        <div className="fixed bottom-[4.5rem] left-0 right-0 z-[50] px-3 pb-[env(safe-area-inset-bottom,0px)] pointer-events-none">
+          <div className="mx-auto max-w-lg rounded-xl border border-border/50 bg-card/95 backdrop-blur-sm px-4 py-2.5 flex items-center justify-between pointer-events-auto shadow-lg">
+            {[
+              { label: "Cal", value: remaining.calories, color: "text-primary" },
+              { label: "P", value: remaining.protein, suffix: "g", color: "text-[hsl(0_70%_55%)]" },
+              { label: "C", value: remaining.carbs, suffix: "g", color: "text-[hsl(200_70%_55%)]" },
+              { label: "F", value: remaining.fat, suffix: "g", color: "text-[hsl(45_80%_55%)]" },
+            ].map(m => (
+              <div key={m.label} className="flex items-baseline gap-1">
+                <span className={`text-sm font-bold tabular-nums ${m.value < 0 ? "text-destructive" : m.color}`}>
+                  {m.value < 0 ? `-${Math.abs(m.value)}` : m.value}{m.suffix || ""}
+                </span>
+                <span className="text-[10px] text-muted-foreground">{m.label}</span>
+              </div>
+            ))}
+            <span className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">left</span>
+          </div>
+        </div>
+      )}
+
       <AddFoodScreen
         mealType={activeMealType}
         mealLabel={activeMealLabel}
