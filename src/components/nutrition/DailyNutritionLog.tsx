@@ -694,7 +694,29 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         })}
       </div>
 
-      {/* Food Logger Modal */}
+      {/* Bottom Remaining Summary */}
+      {logs.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Remaining</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: "Cal", value: remaining.calories, color: "text-primary" },
+              { label: "Protein", value: remaining.protein, suffix: "g", color: "text-[hsl(0_70%_55%)]" },
+              { label: "Carbs", value: remaining.carbs, suffix: "g", color: "text-[hsl(200_70%_55%)]" },
+              { label: "Fat", value: remaining.fat, suffix: "g", color: "text-[hsl(45_80%_55%)]" },
+            ].map(m => (
+              <div key={m.label} className="text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.label}</p>
+                <p className={`text-base font-bold tabular-nums ${m.value < 0 ? "text-destructive" : m.color}`}>
+                  {m.value < 0 ? `-${Math.abs(m.value)}` : m.value}{m.suffix || ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+
       <AddFoodScreen
         mealType={activeMealType}
         mealLabel={activeMealLabel}
