@@ -21,6 +21,7 @@ import ChallengeBanner from "@/components/dashboard/ChallengeBanner";
 import MyRankDashboardCard from "@/components/dashboard/MyRankDashboardCard";
 
 import PendingRankUpPopup from "@/components/ranked/PendingRankUpPopup";
+import DailyRewardsPopup from "@/components/ranked/DailyRewardsPopup";
 const Dashboard = () => {
   const { role } = useAuth();
   const isClient = role === "client";
@@ -74,6 +75,9 @@ const ClientDashboard = () => {
     <>
       {/* Pending Rank-Up Popup (shows missed rank changes on login) */}
       <PendingRankUpPopup />
+
+      {/* Daily XP Evaluation Popup (shows previous day's XP breakdown on first login) */}
+      <DailyRewardsPopup />
 
 
       {/* Challenge Banner */}
