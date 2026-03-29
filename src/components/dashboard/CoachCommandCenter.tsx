@@ -136,6 +136,7 @@ interface CommandCenterData {
   phaseDeadlines: PhaseDeadlineClient[];
   newClients: NewClientReadiness[];
   programRenewals: ProgramRenewal[];
+  m2mClients: M2MClient[];
 }
 
 // ── Helpers ──
