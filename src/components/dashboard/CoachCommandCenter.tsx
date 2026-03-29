@@ -28,6 +28,7 @@ import {
   Camera,
   ClipboardList,
   Eye,
+  Repeat,
 } from "lucide-react";
 import { useState } from "react";
 import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
@@ -108,6 +109,14 @@ interface ProgramRenewal {
   daysLeft: number;
 }
 
+interface M2MClient {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  tierName: string | null;
+  startDate: string;
+}
+
 interface NewClientReadiness {
   clientId: string;
   clientName: string;
@@ -128,6 +137,7 @@ interface CommandCenterData {
   phaseDeadlines: PhaseDeadlineClient[];
   newClients: NewClientReadiness[];
   programRenewals: ProgramRenewal[];
+  m2mClients: M2MClient[];
 }
 
 // ── Helpers ──
@@ -163,7 +173,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -176,7 +186,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
@@ -489,31 +499,43 @@ const CoachCommandCenter = () => {
         });
       }
 
-      // ── Section 9: Program Renewals (from client_program_tracker) ──
+      // ── Section 9: Program Renewals & M2M (from client_program_tracker) ──
       const programRenewals: ProgramRenewal[] = [];
+      const m2mClients: M2MClient[] = [];
       const { data: trackerRows } = await (supabase as any)
         .from("client_program_tracker")
-        .select("client_id, client_name, tier_name, end_date")
+        .select("client_id, client_name, tier_name, end_date, start_date, is_month_to_month")
         .eq("coach_id", user.id);
       if (trackerRows?.length) {
         for (const row of trackerRows) {
-          const dLeft = differenceInDays(new Date(row.end_date), now);
-          if (dLeft <= 30) {
-            const profile = profileMap.get(row.client_id);
-            programRenewals.push({
+          const profile = profileMap.get(row.client_id);
+          if (row.is_month_to_month) {
+            m2mClients.push({
               clientId: row.client_id,
               clientName: row.client_name,
               avatarUrl: profile?.avatar_url,
               tierName: row.tier_name,
-              endDate: format(new Date(row.end_date), "MMM d, yyyy"),
-              daysLeft: dLeft,
+              startDate: format(new Date(row.start_date), "MMM d, yyyy"),
             });
+          } else {
+            const dLeft = differenceInDays(new Date(row.end_date), now);
+            if (dLeft <= 30) {
+              programRenewals.push({
+                clientId: row.client_id,
+                clientName: row.client_name,
+                avatarUrl: profile?.avatar_url,
+                tierName: row.tier_name,
+                endDate: format(new Date(row.end_date), "MMM d, yyyy"),
+                daysLeft: dLeft,
+              });
+            }
           }
         }
         programRenewals.sort((a, b) => a.daysLeft - b.daysLeft);
+        m2mClients.sort((a, b) => a.clientName.localeCompare(b.clientName));
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals };
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals, m2mClients };
     },
   });
 
@@ -521,7 +543,7 @@ const CoachCommandCenter = () => {
   if ((error || timedOut) && !data?.actionItems?.length) return <RetryBanner onRetry={refetch} />;
   if (!data) return null;
 
-  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals = [] } = data;
+  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals = [], m2mClients = [] } = data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -1035,6 +1057,47 @@ const CoachCommandCenter = () => {
                 </Card>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── SECTION 9b: Month-to-Month Clients ─── */}
+      {m2mClients.length > 0 && (
+        <div>
+          <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+            <Repeat className="h-5 w-5 text-blue-400" />
+            Month-to-Month Clients
+            <span className="ml-2 rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-bold text-blue-400">{m2mClients.length}</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {m2mClients.map((c) => (
+              <Card key={c.clientId} className="cursor-pointer hover:bg-accent/10 transition-colors border-blue-500/20 bg-blue-500/5" onClick={() => navigate(`/clients/${c.clientId}`)}>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <UserAvatar src={c.avatarUrl} name={c.clientName} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{c.clientName}</p>
+                    <p className="text-[11px] text-muted-foreground">{c.tierName || "—"} · since {c.startDate}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full shrink-0">M2M</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQuickMsgClient({
+                        id: c.clientId,
+                        name: c.clientName,
+                        avatar: c.avatarUrl,
+                      });
+                    }}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                    Message
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       )}

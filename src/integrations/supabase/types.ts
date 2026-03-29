@@ -1616,6 +1616,7 @@ export type Database = {
           created_at: string | null
           end_date: string | null
           id: string
+          is_month_to_month: boolean
           notes: string | null
           revenue: string | null
           start_date: string
@@ -1630,6 +1631,7 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_month_to_month?: boolean
           notes?: string | null
           revenue?: string | null
           start_date?: string
@@ -1644,6 +1646,7 @@ export type Database = {
           created_at?: string | null
           end_date?: string | null
           id?: string
+          is_month_to_month?: boolean
           notes?: string | null
           revenue?: string | null
           start_date?: string
