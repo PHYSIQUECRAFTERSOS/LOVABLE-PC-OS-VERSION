@@ -542,7 +542,7 @@ const CoachCommandCenter = () => {
   if ((error || timedOut) && !data?.actionItems?.length) return <RetryBanner onRetry={refetch} />;
   if (!data) return null;
 
-  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals = [] } = data;
+  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals = [], m2mClients = [] } = data;
 
   return (
     <div className="space-y-6 animate-fade-in">
