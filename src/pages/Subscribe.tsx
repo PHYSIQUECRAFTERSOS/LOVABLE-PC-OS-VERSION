@@ -54,7 +54,7 @@ const Subscribe = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { checkSubscription, restorePurchases } = useSubscription();
-  const [selected, setSelected] = useState("innercircle");
+  const [selected, setSelected] = useState("weekly");
   const [subscribing, setSubscribing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
