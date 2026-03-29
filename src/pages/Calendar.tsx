@@ -285,6 +285,20 @@ const Calendar = () => {
     navigate("/training", { state: { startWorkoutId: workoutId } });
   };
 
+  const handleEventMoved = async (eventId: string, newDate: string) => {
+    try {
+      const { error } = await supabase
+        .from("calendar_events")
+        .update({ event_date: newDate })
+        .eq("id", eventId);
+      if (error) throw error;
+      toast({ title: "Event moved", description: `Rescheduled to ${format(new Date(newDate + "T12:00:00"), "MMM d")}` });
+      reloadEvents();
+    } catch (err: any) {
+      toast({ title: "Could not move event", description: err.message, variant: "destructive" });
+    }
+  };
+
   const handleComplete = async (event: CalendarEvent) => {
     if (event.id.startsWith("ws-") || event.id.startsWith("cl-")) {
       toast({ title: "Complete this from the Training page" });
@@ -376,7 +390,7 @@ const Calendar = () => {
           </div>
         ) : (
           /* Client: vertical day list */
-          <CalendarDayList events={events} onEventClick={handleEventClick} />
+          <CalendarDayList events={events} onEventClick={handleEventClick} onEventMoved={handleEventMoved} />
         )}
       </div>
 
