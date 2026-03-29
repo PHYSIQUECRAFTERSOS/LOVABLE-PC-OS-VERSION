@@ -1,83 +1,86 @@
 
 
-# Month-to-Month Client Status for Client Tracker
+# Fix Push Notifications + Rest Timer Alarm Sound
 
-## What We're Building
+## Problem Analysis
 
-Add a "commitment status" to the tracker so clients are either **Committed** (countdown with urgency colors) or **Month-to-Month** (no countdown, distinct badge). Coaches toggle this manually. The Command Center gets a separate "Month-to-Month Clients" section.
+### Push Notifications: Root Cause Found
+The `push_tokens` table is **completely empty** — zero rows. This means no device token has ever been saved. Without tokens, the edge function has nothing to send to APNs.
 
-## Database Change
+The registration hook (`usePushNotifications`) relies on `canUsePush()` which checks for the Capacitor bridge. On a remote-URL Capacitor app (your TestFlight build), `Capacitor.isNativePlatform()` often returns `false`, and the fallback checks (webkit messageHandlers, user-agent sniffing) may also fail depending on the WKWebView configuration. The hook silently exits before ever calling `PushNotifications.register()`.
 
-**Migration**: Add one column to `client_program_tracker`:
+Even if registration does fire, the token upsert uses `as any` type casting, which masks potential schema mismatches — but the table schema and RLS look correct, so the real blocker is that registration never starts.
 
-```sql
-ALTER TABLE public.client_program_tracker
-  ADD COLUMN IF NOT EXISTS is_month_to_month boolean NOT NULL DEFAULT false;
-```
+### Rest Timer Audio: Root Cause Found
+The current logic triggers audio at **3 seconds remaining** (via `msg.remainingMs <= 3000`), not at zero. You want it **only at zero**. The existing sound file (`Rest_Timer_3_Seconds.mp3`) is a 3-second countdown clip — wrong for a completion alarm. The multiple attempts to fix this kept the same trigger-at-3s logic and the same file.
 
-No other schema changes needed. The existing `weeks`, `start_date`, `end_date` columns remain — they just become irrelevant for display when `is_month_to_month = true`.
+---
 
-## Client Tracker Page (`ClientTracker.tsx`)
+## Fix 1: Push Notifications
 
-1. **Add "M2M" toggle button** on each row — a small icon button (e.g., `Repeat` icon from Lucide) that sets `is_month_to_month = true` and updates the DB. Clicking again reverts to committed.
+### Changes to `src/hooks/usePushNotifications.ts`
 
-2. **Display logic**:
-   - `is_month_to_month = true` → "Days Left" column shows a **blue/purple badge**: `"M2M Active"` instead of a countdown. No urgency color.
-   - `is_month_to_month = false` → current behavior (green/yellow/orange/red countdown).
+1. **Guarantee registration runs on native**: Remove the overly complex `canUsePush()` gating. On the Capacitor iOS build, always attempt registration inside a try/catch — if the plugin isn't available, it throws and we catch it. This is simpler and more reliable than bridge-sniffing.
 
-3. **Sorting**: M2M clients sort to the bottom of the table (after all committed clients sorted by days left). This keeps urgent renewals at top.
+2. **Add console logging at every step** so you can see in Xcode/Safari what's happening: permission request result, token value, upsert result.
 
-4. **Edit dialog**: Add a checkbox/switch "Month-to-Month" so it can also be toggled during edit.
+3. **Remove `as any` cast** on the `push_tokens` table — it exists in the types. Use proper typed access.
 
-5. **Add dialog**: Add optional "Month-to-Month" toggle when adding a client manually (for clients who start on M2M from day one, e.g., transfer clients).
+4. **Add a retry mechanism**: If the initial registration attempt fails (common on cold app start), retry once after 2 seconds.
 
-6. **Renew dialog**: After renewing, optionally offer "Convert to Month-to-Month" toggle — useful when a committed client finishes their term and you're extending them to M2M in one action.
+### Changes to `supabase/functions/send-push-notification/index.ts`
 
-## Command Center (`CoachCommandCenter.tsx`)
+5. **Add detailed logging** so edge function logs show exactly what's happening: user_id received, tokens found, APNs response status/body.
 
-1. **New data field**: Fetch `is_month_to_month` from `client_program_tracker`.
+6. **Use production APNs URL** — verify we're hitting `api.push.apple.com` not `api.sandbox.push.apple.com`. The current code uses production, which is correct for TestFlight and App Store builds.
 
-2. **Existing "Program Renewals" section**: Filter to only `is_month_to_month = false AND daysLeft <= 30`. No change to urgency colors (red/orange/yellow).
+### Verification Steps
+- After deploy, open the app on TestFlight
+- Check Xcode console for `[Push]` logs showing token received and saved
+- Query `push_tokens` table to confirm token appears
+- Send a test message from coach desktop → verify edge function logs show delivery
+- Verify banner appears on lock screen / home screen
 
-3. **New "Month-to-Month Clients" section**: Separate card below renewals showing all M2M clients as a simple list — name, tier, start date, and a "Message" button. Uses a distinct blue/purple accent. No urgency — these are retained clients.
+---
 
-## Files to Modify
+## Fix 2: Rest Timer Alarm Sound
+
+### New Approach: Play sound at ZERO only
+
+1. **Generate a new alarm tone** — a short (1-2 second), assertive "rest complete" chime/alarm using Web Audio API synthesis (two ascending tones). No external file dependency = no asset-loading failures. This eliminates the entire class of bugs where the MP3 fails to load, decode, or play.
+
+2. **Simplify the timer components** (`InlineRestTimer.tsx`, `FloatingRestTimer.tsx`):
+   - Remove all `triggerCountdown` / `countdownFiredRef` / `countdownPendingRef` logic
+   - Remove keepalive start/stop (no longer needed for a completion-only sound)
+   - On `msg.type === "done"`: call a simple `playCompletionAlarm()` method
+   - The alarm is synthesized inline — no preloading, no asset fetching, no race conditions
+
+3. **Update `RestTimerAudioService.ts`**:
+   - Add `playCompletionAlarm()` method that synthesizes a short two-tone chime (e.g., 880Hz → 1320Hz, 150ms each) using AudioContext oscillators
+   - On native: use the same oscillator approach (AudioContext works in Capacitor WKWebView) since NativeAudio has been unreliable
+   - Remove the countdown-specific methods or keep them as no-ops for backward compat
+   - The `unlock()` call on workout start still creates/resumes the AudioContext (satisfies iOS autoplay policy)
+
+4. **Update `WorkoutLogger.tsx`**:
+   - Keep the `restTimerAudio.unlock()` call on set completion (user gesture = iOS autoplay satisfied)
+   - Remove `restTimerAudio.preload()` calls (no asset to preload)
+
+### Why This Works
+- Synthesized audio has **zero load time** — no fetch, no decode, no cache
+- AudioContext is already unlocked by the user tap (completing a set)
+- The sound plays exactly once at timer completion — no 3-second pre-trigger, no retry logic, no keepalive
+- Works on both native (Capacitor WKWebView) and web (PWA)
+
+---
+
+## Files Modified
 
 | File | Change |
 |---|---|
-| **Migration SQL** | Add `is_month_to_month` boolean column |
-| `src/pages/ClientTracker.tsx` | M2M badge, toggle button, sorting, edit/add/renew dialog updates |
-| `src/components/dashboard/CoachCommandCenter.tsx` | Split renewals query, add M2M section |
-
-## UI Behavior Summary
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│ CLIENT TRACKER TABLE                                     │
-├──────────┬──────┬──────┬──────┬────────────┬────────────┤
-│ Client   │ Tier │ Weeks│ Start│ Days Left  │ Actions    │
-├──────────┼──────┼──────┼──────┼────────────┼────────────┤
-│ John     │ 6-Mo │ 26   │ Jan 1│ 🔴 5d left │ ↻ ✏️ 🗑️ 🔄│
-│ Sarah    │ 1-Yr │ 52   │ Mar 1│ 🟡 28d left│ ↻ ✏️ 🗑️ 🔄│
-│ Mike     │ Mo.  │ 4    │ Feb 1│ 🟢 45d left│ ↻ ✏️ 🗑️ 🔄│
-│ ───────  │ ──── │ ──── │ ──── │ ────────── │ ────────── │
-│ Chris G. │ 6-Mo │ 16   │ Mar 9│ 🔵 M2M     │ ↻ ✏️ 🗑️ 🔄│
-│ Alex     │ 1-Yr │ 52   │ Jan 5│ 🔵 M2M     │ ↻ ✏️ 🗑️ 🔄│
-└──────────┴──────┴──────┴──────┴────────────┴────────────┘
-                                  🔄 = M2M toggle
-```
-
-```text
-┌─ COMMAND CENTER ─────────────────────────┐
-│                                           │
-│ 🔔 Program Renewals (3)                  │
-│ ┌─ John ── 5d left ── 🔴 ── [Message] ┐ │
-│ ├─ Sarah ─ 28d left ─ 🟡 ── [Message] ┤ │
-│ └─ Mike ── 14d left ─ 🟠 ── [Message] ┘ │
-│                                           │
-│ 🔄 Month-to-Month Clients (2)           │
-│ ┌─ Chris G. ── 6-Month ── [Message] ──┐ │
-│ └─ Alex ────── 1-Year ─── [Message] ──┘ │
-└───────────────────────────────────────────┘
-```
+| `src/hooks/usePushNotifications.ts` | Simplify detection, add retry, add logging, fix types |
+| `supabase/functions/send-push-notification/index.ts` | Add detailed logging |
+| `src/services/RestTimerAudioService.ts` | Add `playCompletionAlarm()` with synthesized two-tone chime |
+| `src/components/workout/InlineRestTimer.tsx` | Remove 3s countdown logic, play alarm at done only |
+| `src/components/workout/FloatingRestTimer.tsx` | Same simplification |
+| `src/components/WorkoutLogger.tsx` | Remove `preload()` calls, keep `unlock()` |
 
