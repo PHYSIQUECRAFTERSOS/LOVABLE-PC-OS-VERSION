@@ -498,31 +498,43 @@ const CoachCommandCenter = () => {
         });
       }
 
-      // ── Section 9: Program Renewals (from client_program_tracker) ──
+      // ── Section 9: Program Renewals & M2M (from client_program_tracker) ──
       const programRenewals: ProgramRenewal[] = [];
+      const m2mClients: M2MClient[] = [];
       const { data: trackerRows } = await (supabase as any)
         .from("client_program_tracker")
-        .select("client_id, client_name, tier_name, end_date")
+        .select("client_id, client_name, tier_name, end_date, start_date, is_month_to_month")
         .eq("coach_id", user.id);
       if (trackerRows?.length) {
         for (const row of trackerRows) {
-          const dLeft = differenceInDays(new Date(row.end_date), now);
-          if (dLeft <= 30) {
-            const profile = profileMap.get(row.client_id);
-            programRenewals.push({
+          const profile = profileMap.get(row.client_id);
+          if (row.is_month_to_month) {
+            m2mClients.push({
               clientId: row.client_id,
               clientName: row.client_name,
               avatarUrl: profile?.avatar_url,
               tierName: row.tier_name,
-              endDate: format(new Date(row.end_date), "MMM d, yyyy"),
-              daysLeft: dLeft,
+              startDate: format(new Date(row.start_date), "MMM d, yyyy"),
             });
+          } else {
+            const dLeft = differenceInDays(new Date(row.end_date), now);
+            if (dLeft <= 30) {
+              programRenewals.push({
+                clientId: row.client_id,
+                clientName: row.client_name,
+                avatarUrl: profile?.avatar_url,
+                tierName: row.tier_name,
+                endDate: format(new Date(row.end_date), "MMM d, yyyy"),
+                daysLeft: dLeft,
+              });
+            }
           }
         }
         programRenewals.sort((a, b) => a.daysLeft - b.daysLeft);
+        m2mClients.sort((a, b) => a.clientName.localeCompare(b.clientName));
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals };
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals, m2mClients };
     },
   });
 
