@@ -1061,6 +1061,47 @@ const CoachCommandCenter = () => {
         </div>
       )}
 
+      {/* ─── SECTION 9b: Month-to-Month Clients ─── */}
+      {m2mClients.length > 0 && (
+        <div>
+          <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+            <Repeat className="h-5 w-5 text-blue-400" />
+            Month-to-Month Clients
+            <span className="ml-2 rounded-full bg-blue-500/20 px-2 py-0.5 text-xs font-bold text-blue-400">{m2mClients.length}</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {m2mClients.map((c) => (
+              <Card key={c.clientId} className="cursor-pointer hover:bg-accent/10 transition-colors border-blue-500/20 bg-blue-500/5" onClick={() => navigate(`/clients/${c.clientId}`)}>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <UserAvatar src={c.avatarUrl} name={c.clientName} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{c.clientName}</p>
+                    <p className="text-[11px] text-muted-foreground">{c.tierName || "—"} · since {c.startDate}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full shrink-0">M2M</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQuickMsgClient({
+                        id: c.clientId,
+                        name: c.clientName,
+                        avatar: c.avatarUrl,
+                      });
+                    }}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                    Message
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ─── SECTION 10: Compliance Snapshot (moved to bottom) ─── */}
       <div>
         <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
