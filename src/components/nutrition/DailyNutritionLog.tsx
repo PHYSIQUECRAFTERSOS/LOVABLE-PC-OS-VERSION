@@ -526,7 +526,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       </div>
 
       {/* Daily Macro Summary */}
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div ref={macroRingsRef} className="rounded-lg border border-border bg-card p-4">
         {targets.is_refeed && (
           <div className="mb-3 rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary text-center">
             🔥 Refeed Day
