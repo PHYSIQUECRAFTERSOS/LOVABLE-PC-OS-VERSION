@@ -413,8 +413,6 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                       <div
                         key={event.id}
                         onTouchStart={canDrag ? (e) => handleTouchStart(e, event) : undefined}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
                         onMouseDown={canDrag ? (e) => handleMouseDown(e, event) : undefined}
                         onClick={() => handleClick(event)}
                         className={cn(
