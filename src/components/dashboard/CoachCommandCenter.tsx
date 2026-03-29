@@ -489,7 +489,31 @@ const CoachCommandCenter = () => {
         });
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients };
+      // ── Section 9: Program Renewals (from client_program_tracker) ──
+      const programRenewals: ProgramRenewal[] = [];
+      const { data: trackerRows } = await (supabase as any)
+        .from("client_program_tracker")
+        .select("client_id, client_name, tier_name, end_date")
+        .eq("coach_id", user.id);
+      if (trackerRows?.length) {
+        for (const row of trackerRows) {
+          const dLeft = differenceInDays(new Date(row.end_date), now);
+          if (dLeft <= 30) {
+            const profile = profileMap.get(row.client_id);
+            programRenewals.push({
+              clientId: row.client_id,
+              clientName: row.client_name,
+              avatarUrl: profile?.avatar_url,
+              tierName: row.tier_name,
+              endDate: format(new Date(row.end_date), "MMM d, yyyy"),
+              daysLeft: dLeft,
+            });
+          }
+        }
+        programRenewals.sort((a, b) => a.daysLeft - b.daysLeft);
+      }
+
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals };
     },
   });
 
