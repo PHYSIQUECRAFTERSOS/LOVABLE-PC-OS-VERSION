@@ -99,6 +99,15 @@ interface PhaseDeadlineClient {
   daysLeft: number;
 }
 
+interface ProgramRenewal {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  tierName: string | null;
+  endDate: string;
+  daysLeft: number;
+}
+
 interface NewClientReadiness {
   clientId: string;
   clientName: string;
