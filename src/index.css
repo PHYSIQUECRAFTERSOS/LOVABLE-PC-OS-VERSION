@@ -93,7 +93,7 @@
     height: 100%;
     width: 100%;
     overflow: hidden;
-    background-color: hsl(0 0% 7%);
+    background-color: #0a0a0a;
     position: fixed;
     top: 0;
     left: 0;
