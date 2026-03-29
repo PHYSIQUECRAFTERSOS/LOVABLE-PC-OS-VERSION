@@ -1,43 +1,102 @@
 
 
-# Subscription Tier Update + Legal Pages Scroll Fix
+# Client Program Tracker — Replacing the PC Auto Client Tracker
 
-## Changes Required
+## Overview
 
-### 1. Update Subscription Tiers (3 → 2)
+Build a new "Client Tracker" section in the coach-side navigation that replaces the Excel spreadsheet. Each coach sees only their own clients. Data auto-populates when a new client is invited (start date + weeks from tier). Coaches can manually edit all fields. Clients approaching program end (30/14/7 days) surface on the Command Center with color-coded urgency.
 
-Remove Bi-Weekly and Training Only tiers. Add new "Inner Circle" tier at $997/month. Update "Weekly Updates" price from $399.99 to $499.99.
+## Database Changes
 
-**New tiers:**
-- **Inner Circle**: `com.physiquecrafters.app.innercircle` — $997 USD/month, 1 month auto-renewable. Features: Weekly 1-on-1 Zoom calls, everything in Weekly Updates, limited spots available.
-- **Weekly Updates**: `com.physiquecrafters.app.monthly` (same product ID) — $499.99 USD/month, 1 month auto-renewable. Badge: MOST POPULAR. Features: Weekly progress updates, custom training program, custom meal plan, custom supplement plan.
+### New table: `client_program_tracker`
 
-**Files to modify:**
+```text
+id              uuid PK default gen_random_uuid()
+coach_id        uuid NOT NULL (references auth.users)
+client_id       uuid NOT NULL (references auth.users)
+client_name     text NOT NULL
+weeks           integer NOT NULL
+start_date      date NOT NULL
+end_date        date GENERATED ALWAYS AS (start_date + (weeks * 7) * interval '1 day')
+revenue         text (free-text, e.g. "$2399 USD 6 month PIF")
+notes           text
+tier_name       text
+created_at      timestamptz DEFAULT now()
+updated_at      timestamptz DEFAULT now()
+UNIQUE(coach_id, client_id)
+```
 
-- **`src/pages/Subscribe.tsx`**: Replace `DEFAULT_PLANS` array with 2 new plans. Update disclaimer text at bottom to reflect new pricing. Default selected plan = `"innercircle"`.
-- **`src/hooks/useSubscription.tsx`**: Update `TIER_MAP` — remove `biweekly` and `training` entries, add `innercircle` entry, update `monthly` label/price.
-- **`src/components/subscription/SubscriptionCard.tsx`**: No structural changes needed — it reads from `TIER_MAP` dynamically.
-- **`src/pages/Pricing.tsx`**: Replace 4 tiers with 2 matching tiers (Inner Circle + Weekly Updates).
-- **`src/pages/TermsOfService.tsx`**: Update Section 7 payment terms to list only the 2 new tiers with correct prices.
-- **`src/pages/PrivacyPolicy.tsx`**: No pricing references — no changes needed here for tiers.
+`days_left` will be computed in the UI as `differenceInDays(end_date, today)` — no stored column needed since it changes daily.
 
-**Native iOS (App Store Connect + Xcode):**
-You will need to manually create the new product `com.physiquecrafters.app.innercircle` in App Store Connect (Subscriptions section) with price $997/month. Update the price of `com.physiquecrafters.app.monthly` to $499.99. Remove or deprecate `com.physiquecrafters.app.biweekly` and `com.physiquecrafters.app.training` from the subscription group.
+### RLS Policies
+- SELECT/INSERT/UPDATE/DELETE: `coach_id = auth.uid()` OR `has_role(auth.uid(), 'admin')`
+- Admin can see all rows (for Command Center aggregation across coaches)
 
-The Swift `StoreKitPlugin.swift` does NOT hardcode product IDs — it receives them from JavaScript, so no Swift changes are needed.
+### Tier-to-weeks mapping
+Add a `default_weeks` integer column to `client_tiers` table so each tier auto-populates weeks:
+- 1 Year = 52
+- 6 Month = 26
+- Monthly = 4
+- 6 Week = 6
+- etc.
 
-### 2. Fix Terms of Service & Privacy Policy Scroll
+### Auto-populate on invite acceptance
+Update the `send-client-invite` edge function (or add a database trigger on `coach_clients` INSERT) to automatically create a `client_program_tracker` row when a client is assigned, pulling `tier_name` and `default_weeks` from the invite/tier.
 
-**Root cause**: `index.css` applies `overflow: hidden; position: fixed;` to `html`, `body`, and `#root`. This locks the viewport. Pages like AppLayout have their own internal scroll containers (`overflow-y-auto`), but TermsOfService and PrivacyPolicy render as plain `min-h-screen` divs with no scroll container — so they cannot scroll.
+### Auto-remove on deactivate/delete
+Add a trigger or update the `manage-client-status` edge function: when a client is deactivated or deleted, delete their `client_program_tracker` row.
 
-**Fix in `src/pages/TermsOfService.tsx` and `src/pages/PrivacyPolicy.tsx`**:
-- Change the outer `div` from `min-h-screen` to `h-full overflow-y-auto` so it becomes a scroll container within the fixed viewport.
-- This matches how AppLayout handles scrolling and requires no global CSS changes.
+## New UI Components
 
-### Summary of files to modify:
-1. `src/pages/Subscribe.tsx` — new 2-tier plan data + updated disclaimer
-2. `src/hooks/useSubscription.tsx` — updated TIER_MAP
-3. `src/pages/Pricing.tsx` — new 2-tier layout
-4. `src/pages/TermsOfService.tsx` — updated pricing in Section 7 + scroll fix
-5. `src/pages/PrivacyPolicy.tsx` — scroll fix only
+### 1. Client Tracker Page (`src/pages/ClientTracker.tsx`)
+- Route: `/client-tracker` (coach/admin only)
+- Nav: Add to `coachNav` in AppLayout between "Clients" and "Team"
+- Table view with columns: Client Name, Tier, Weeks, Start Date, End Date, Days Left, Revenue, Notes
+- Color-coded "Days Left" badges:
+  - Green: > 30 days
+  - Yellow (#F59E0B): 15-30 days
+  - Orange (#F97316): 8-14 days
+  - Red (#EF4444): 0-7 days
+  - Gray (strikethrough): negative (expired)
+- Inline editing: click any cell to edit (weeks, notes, revenue, start date)
+- "Add Entry" button for manually adding a tracker row (with client select dropdown)
+- Sort by days left (ascending) by default
+- Search/filter by client name
+
+### 2. Command Center Integration
+Add a new "Program Renewals" section to `CoachCommandCenter.tsx`:
+- Query `client_program_tracker` for the coach's clients where `days_left <= 30`
+- Show as cards sorted by urgency (fewest days first)
+- Color bands: Yellow (30d), Orange (14d), Red (7d)
+- Each card shows: client name, days left, tier, end date
+- "Message" button to open QuickMessageDialog with a prefilled renewal prompt
+- Admin view shows all coaches' clients approaching renewal
+
+### 3. Auto-populate on Add Client
+Update `AddClientWithAssignmentDialog.tsx`:
+- After successful invite, insert a `client_program_tracker` row using the selected tier's `default_weeks`, today as `start_date`, the tier name, and the assigned coach
+
+### 4. Renewal Flow
+On the tracker page, a "Renew" button per client:
+- Opens a small modal: "Add weeks" input (pre-filled from tier)
+- On confirm: updates `end_date` by adding new weeks to current `end_date` (extend behavior)
+- Optionally update notes (e.g., "Renewed 26 weeks on March 29")
+
+## Files to Create/Modify
+
+1. **Migration SQL** — create `client_program_tracker` table + RLS + add `default_weeks` to `client_tiers`
+2. **`src/pages/ClientTracker.tsx`** — new page with table UI
+3. **`src/App.tsx`** — add route `/client-tracker`
+4. **`src/components/AppLayout.tsx`** — add nav item for coaches
+5. **`src/components/clients/AddClientWithAssignmentDialog.tsx`** — auto-insert tracker row on invite
+6. **`src/components/dashboard/CoachCommandCenter.tsx`** — add "Program Renewals" section
+7. **`supabase/functions/manage-client-status/index.ts`** — delete tracker row on client deactivation/deletion
+
+## Technical Notes
+
+- End date is computed as `start_date + (weeks * 7) days` — using a generated column in Postgres avoids manual sync
+- Days left is computed client-side for real-time accuracy
+- The tracker is coach-scoped via RLS: Aaron only sees his clients, Kevin sees his own (and as admin, can see all)
+- Revenue field is free-text to accommodate varied payment structures (PIF, monthly, Klarna, CAD/USD, promos)
+- Existing active clients will need a one-time manual data entry (or a bulk import tool)
 
