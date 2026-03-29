@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import AppLayout from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { differenceInDays, format } from "date-fns";
-import { Plus, Search, RotateCcw, Pencil, Trash2, ClipboardList, RefreshCw } from "lucide-react";
+import { Plus, Search, RotateCcw, Pencil, Trash2, ClipboardList, Repeat } from "lucide-react";
 
 interface TrackerRow {
   id: string;
@@ -26,6 +27,7 @@ interface TrackerRow {
   revenue: string | null;
   notes: string | null;
   tier_name: string | null;
+  is_month_to_month: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,9 +61,10 @@ const ClientTracker = () => {
   const [renewRow, setRenewRow] = useState<TrackerRow | null>(null);
   const [renewWeeks, setRenewWeeks] = useState(0);
   const [renewNotes, setRenewNotes] = useState("");
+  const [renewConvertM2M, setRenewConvertM2M] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
-  const [addForm, setAddForm] = useState({ client_id: "", client_name: "", weeks: 4, start_date: format(new Date(), "yyyy-MM-dd"), revenue: "", notes: "", tier_name: "" });
+  const [addForm, setAddForm] = useState({ client_id: "", client_name: "", weeks: 4, start_date: format(new Date(), "yyyy-MM-dd"), revenue: "", notes: "", tier_name: "", is_month_to_month: false });
   const [tiers, setTiers] = useState<{ id: string; name: string; default_weeks: number | null }[]>([]);
 
   const fetchRows = useCallback(async () => {
@@ -122,6 +125,7 @@ const ClientTracker = () => {
         revenue: addForm.revenue || null,
         notes: addForm.notes || null,
         tier_name: addForm.tier_name || null,
+        is_month_to_month: addForm.is_month_to_month,
       });
     if (error) {
       if (error.code === "23505") {
@@ -133,7 +137,7 @@ const ClientTracker = () => {
     }
     toast({ title: "Client added to tracker" });
     setAddOpen(false);
-    setAddForm({ client_id: "", client_name: "", weeks: 4, start_date: format(new Date(), "yyyy-MM-dd"), revenue: "", notes: "", tier_name: "" });
+    setAddForm({ client_id: "", client_name: "", weeks: 4, start_date: format(new Date(), "yyyy-MM-dd"), revenue: "", notes: "", tier_name: "", is_month_to_month: false });
     fetchRows();
   };
 
@@ -148,6 +152,7 @@ const ClientTracker = () => {
         revenue: editRow.revenue,
         notes: editRow.notes,
         tier_name: editRow.tier_name,
+        is_month_to_month: editRow.is_month_to_month,
       })
       .eq("id", editRow.id);
     if (error) {
@@ -163,21 +168,40 @@ const ClientTracker = () => {
     if (!renewRow || renewWeeks <= 0) return;
     const newWeeks = renewRow.weeks + renewWeeks;
     const noteAppend = `\nRenewed +${renewWeeks}w on ${format(new Date(), "MMM d, yyyy")}${renewNotes ? ` — ${renewNotes}` : ""}`;
+    const updatePayload: Record<string, any> = {
+      weeks: newWeeks,
+      notes: (renewRow.notes || "") + noteAppend,
+    };
+    if (renewConvertM2M) {
+      updatePayload.is_month_to_month = true;
+    }
     const { error } = await (supabase as any)
       .from("client_program_tracker")
-      .update({
-        weeks: newWeeks,
-        notes: (renewRow.notes || "") + noteAppend,
-      })
+      .update(updatePayload)
       .eq("id", renewRow.id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: `Renewed — ${renewWeeks} weeks added` });
+    toast({ title: renewConvertM2M ? `Renewed & converted to Month-to-Month` : `Renewed — ${renewWeeks} weeks added` });
     setRenewRow(null);
     setRenewWeeks(0);
     setRenewNotes("");
+    setRenewConvertM2M(false);
+    fetchRows();
+  };
+
+  const handleToggleM2M = async (row: TrackerRow) => {
+    const newVal = !row.is_month_to_month;
+    const { error } = await (supabase as any)
+      .from("client_program_tracker")
+      .update({ is_month_to_month: newVal })
+      .eq("id", row.id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: newVal ? "Converted to Month-to-Month" : "Reverted to Committed" });
     fetchRows();
   };
 
@@ -199,11 +223,21 @@ const ClientTracker = () => {
     (r.tier_name || "").toLowerCase().includes(search.toLowerCase())
   );
 
+  // Sort: committed clients by days left (ascending), M2M clients at bottom
   const sorted = [...filtered].sort((a, b) => {
+    if (a.is_month_to_month !== b.is_month_to_month) {
+      return a.is_month_to_month ? 1 : -1;
+    }
+    if (a.is_month_to_month) {
+      return a.client_name.localeCompare(b.client_name);
+    }
     const aDays = differenceInDays(new Date(a.end_date), new Date());
     const bDays = differenceInDays(new Date(b.end_date), new Date());
     return aDays - bDays;
   });
+
+  const committedCount = filtered.filter(r => !r.is_month_to_month).length;
+  const m2mCount = filtered.filter(r => r.is_month_to_month).length;
 
   return (
     <AppLayout>
@@ -243,7 +277,7 @@ const ClientTracker = () => {
                     <TableHead className="text-center">Weeks</TableHead>
                     <TableHead>Start</TableHead>
                     <TableHead>End</TableHead>
-                    <TableHead className="text-center">Days Left</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
                     <TableHead>Revenue</TableHead>
                     <TableHead>Notes</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -255,36 +289,70 @@ const ClientTracker = () => {
                   ) : sorted.length === 0 ? (
                     <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No clients in tracker yet. Click "Add" to get started.</TableCell></TableRow>
                   ) : (
-                    sorted.map((row) => {
-                      const daysLeft = differenceInDays(new Date(row.end_date), new Date());
-                      return (
-                        <TableRow key={row.id} className="group">
-                          <TableCell className="font-medium">{row.client_name}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{row.tier_name || "—"}</TableCell>
-                          <TableCell className="text-center">{row.weeks}</TableCell>
-                          <TableCell className="text-sm">{format(new Date(row.start_date), "MMM d, yyyy")}</TableCell>
-                          <TableCell className="text-sm">{format(new Date(row.end_date), "MMM d, yyyy")}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge className={urgencyColor(daysLeft)}>{urgencyLabel(daysLeft)}</Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground max-w-[120px] truncate">{row.revenue || "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">{row.notes || "—"}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setRenewRow(row); setRenewWeeks(0); setRenewNotes(""); }}>
-                                <RotateCcw className="h-3.5 w-3.5 text-primary" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditRow({ ...row })}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleDelete(row.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
+                    <>
+                      {sorted.map((row, idx) => {
+                        const daysLeft = differenceInDays(new Date(row.end_date), new Date());
+                        const isM2M = row.is_month_to_month;
+                        // Show separator before first M2M row
+                        const showSeparator = isM2M && idx > 0 && !sorted[idx - 1].is_month_to_month;
+                        return (
+                          <>
+                            {showSeparator && (
+                              <TableRow key={`sep-${row.id}`}>
+                                <TableCell colSpan={9} className="py-1 px-4">
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <div className="flex-1 h-px bg-border" />
+                                    <Repeat className="h-3 w-3 text-blue-400" />
+                                    <span className="text-blue-400 font-medium">Month-to-Month ({m2mCount})</span>
+                                    <div className="flex-1 h-px bg-border" />
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow key={row.id} className="group">
+                              <TableCell className="font-medium">{row.client_name}</TableCell>
+                              <TableCell className="text-muted-foreground text-sm">{row.tier_name || "—"}</TableCell>
+                              <TableCell className="text-center">{row.weeks}</TableCell>
+                              <TableCell className="text-sm">{format(new Date(row.start_date), "MMM d, yyyy")}</TableCell>
+                              <TableCell className="text-sm">{isM2M ? "—" : format(new Date(row.end_date), "MMM d, yyyy")}</TableCell>
+                              <TableCell className="text-center">
+                                {isM2M ? (
+                                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">M2M Active</Badge>
+                                ) : (
+                                  <Badge className={urgencyColor(daysLeft)}>{urgencyLabel(daysLeft)}</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[120px] truncate">{row.revenue || "—"}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[150px] truncate">{row.notes || "—"}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className={`h-7 w-7 p-0 ${isM2M ? "text-blue-400" : "text-muted-foreground"}`}
+                                    onClick={() => handleToggleM2M(row)}
+                                    title={isM2M ? "Revert to Committed" : "Convert to Month-to-Month"}
+                                  >
+                                    <Repeat className="h-3.5 w-3.5" />
+                                  </Button>
+                                  {!isM2M && (
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setRenewRow(row); setRenewWeeks(0); setRenewNotes(""); setRenewConvertM2M(false); }}>
+                                      <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                                    </Button>
+                                  )}
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditRow({ ...row })}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => handleDelete(row.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        );
+                      })}
+                    </>
                   )}
                 </TableBody>
               </Table>
@@ -335,6 +403,13 @@ const ClientTracker = () => {
                   <Input type="date" value={addForm.start_date} onChange={(e) => setAddForm({ ...addForm, start_date: e.target.value })} />
                 </div>
               </div>
+              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                <div>
+                  <Label className="text-sm font-medium">Month-to-Month</Label>
+                  <p className="text-xs text-muted-foreground">No end date countdown</p>
+                </div>
+                <Switch checked={addForm.is_month_to_month} onCheckedChange={(v) => setAddForm({ ...addForm, is_month_to_month: v })} />
+              </div>
               <div className="space-y-2">
                 <Label>Revenue</Label>
                 <Input value={addForm.revenue} onChange={(e) => setAddForm({ ...addForm, revenue: e.target.value })} placeholder="$2399 USD 6 month PIF" />
@@ -374,6 +449,13 @@ const ClientTracker = () => {
                     <Input type="date" value={editRow.start_date} onChange={(e) => setEditRow({ ...editRow, start_date: e.target.value })} />
                   </div>
                 </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <div>
+                    <Label className="text-sm font-medium">Month-to-Month</Label>
+                    <p className="text-xs text-muted-foreground">No end date countdown</p>
+                  </div>
+                  <Switch checked={editRow.is_month_to_month} onCheckedChange={(v) => setEditRow({ ...editRow, is_month_to_month: v })} />
+                </div>
                 <div className="space-y-2">
                   <Label>Revenue</Label>
                   <Input value={editRow.revenue || ""} onChange={(e) => setEditRow({ ...editRow, revenue: e.target.value })} />
@@ -410,8 +492,15 @@ const ClientTracker = () => {
                   <Label>Renewal Note (optional)</Label>
                   <Input value={renewNotes} onChange={(e) => setRenewNotes(e.target.value)} placeholder="6 month renewal PIF" />
                 </div>
+                <div className="flex items-center justify-between rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2">
+                  <div>
+                    <Label className="text-sm font-medium text-blue-400">Convert to Month-to-Month</Label>
+                    <p className="text-xs text-muted-foreground">No more countdown after renewal</p>
+                  </div>
+                  <Switch checked={renewConvertM2M} onCheckedChange={setRenewConvertM2M} />
+                </div>
                 <Button className="w-full" onClick={handleRenew} disabled={renewWeeks <= 0}>
-                  <RotateCcw className="h-4 w-4 mr-1" /> Renew
+                  <RotateCcw className="h-4 w-4 mr-1" /> {renewConvertM2M ? "Renew & Convert to M2M" : "Renew"}
                 </Button>
               </div>
             )}
