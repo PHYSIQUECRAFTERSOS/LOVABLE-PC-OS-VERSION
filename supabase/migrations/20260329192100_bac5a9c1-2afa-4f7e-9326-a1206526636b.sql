@@ -1,0 +1,1 @@
+ALTER TABLE public.client_program_tracker ADD COLUMN IF NOT EXISTS is_month_to_month boolean NOT NULL DEFAULT false;
