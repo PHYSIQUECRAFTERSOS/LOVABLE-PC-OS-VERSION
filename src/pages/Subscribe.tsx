@@ -151,7 +151,7 @@ const Subscribe = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col safe-top safe-bottom">
+    <div className="h-full overflow-y-auto bg-background text-foreground flex flex-col safe-top safe-bottom">
       <div className="p-4">
         <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-6 w-6" />

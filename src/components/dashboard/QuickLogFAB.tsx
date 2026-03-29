@@ -338,13 +338,21 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
             )}
 
             {/* Action buttons */}
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" className="flex-1" onClick={resetDrawer}>
+            <div className="flex gap-3 pt-2" data-vaul-no-drag>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={(e) => { e.stopPropagation(); resetDrawer(); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
                 Cancel
               </Button>
               <Button
                 className="flex-1 bg-primary hover:bg-primary/90"
-                onClick={handleSchedule}
+                onClick={(e) => { e.stopPropagation(); handleSchedule(); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 disabled={saving}
               >
                 {saving ? "Scheduling..." : "Schedule"}

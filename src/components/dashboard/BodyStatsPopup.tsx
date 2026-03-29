@@ -170,9 +170,11 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
           )}
         </div>
 
-        <DrawerFooter className="pt-2">
+        <DrawerFooter className="pt-2" data-vaul-no-drag>
           <Button
-            onClick={handleSave}
+            onClick={(e) => { e.stopPropagation(); handleSave(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             disabled={saving}
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
             size="lg"
