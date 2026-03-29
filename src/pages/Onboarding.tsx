@@ -398,7 +398,7 @@ const Onboarding = () => {
   const progressPct = (step / TOTAL_STEPS) * 100;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-full overflow-y-auto flex-col bg-background">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
         <div className="max-w-lg mx-auto space-y-2">
           <div className="flex items-center justify-between">

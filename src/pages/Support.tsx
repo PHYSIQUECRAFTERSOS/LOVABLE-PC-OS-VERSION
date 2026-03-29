@@ -93,7 +93,7 @@ const Support = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       <div className="mx-auto max-w-2xl px-4 py-12 space-y-8">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">Support</h1>
