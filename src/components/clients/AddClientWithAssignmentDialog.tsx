@@ -176,6 +176,25 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
       const emailSent = res.data?.email_sent !== false;
       const setupUrl = res.data?.invite?.setup_url;
 
+      // Auto-insert tracker row
+      const selectedTier = tiers.find((t) => t.id === form.tier_id);
+      if (selectedTier) {
+        const trackerWeeks = selectedTier.default_weeks || 4;
+        await (supabase as any)
+          .from("client_program_tracker")
+          .upsert({
+            coach_id: form.assigned_coach_id,
+            client_id: res.data?.invite?.created_client_id || "pending",
+            client_name: `${form.first_name.trim()} ${form.last_name.trim()}`,
+            weeks: trackerWeeks,
+            start_date: new Date().toLocaleDateString("en-CA"),
+            tier_name: selectedTier.name,
+          }, { onConflict: "coach_id,client_id" })
+          .then(({ error: tErr }: any) => {
+            if (tErr) console.error("Tracker insert error:", tErr);
+          });
+      }
+
       if (emailSent) {
         toast({
           title: "Invite Sent",

@@ -133,6 +133,13 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Delete from client_program_tracker
+      try {
+        await adminClient.from("client_program_tracker").delete().eq("client_id", clientId);
+      } catch (e) {
+        console.error("Error cleaning client_program_tracker:", e);
+      }
+
       // Delete from tables that use user_id
       const userIdTables = [
         "profiles",
