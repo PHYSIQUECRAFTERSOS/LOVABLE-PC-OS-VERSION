@@ -108,6 +108,14 @@ interface ProgramRenewal {
   daysLeft: number;
 }
 
+interface M2MClient {
+  clientId: string;
+  clientName: string;
+  avatarUrl?: string | null;
+  tierName: string | null;
+  startDate: string;
+}
+
 interface NewClientReadiness {
   clientId: string;
   clientName: string;
