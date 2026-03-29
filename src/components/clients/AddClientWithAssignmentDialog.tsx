@@ -69,7 +69,7 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
 
     supabase
       .from("client_tiers")
-      .select("id, name, requires_contract")
+      .select("id, name, requires_contract, default_weeks" as any)
       .order("name")
       .then(({ data }) => {
         if (data) setTiers(data as Tier[]);
