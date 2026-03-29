@@ -1,102 +1,83 @@
 
 
-# Client Program Tracker — Replacing the PC Auto Client Tracker
+# Month-to-Month Client Status for Client Tracker
 
-## Overview
+## What We're Building
 
-Build a new "Client Tracker" section in the coach-side navigation that replaces the Excel spreadsheet. Each coach sees only their own clients. Data auto-populates when a new client is invited (start date + weeks from tier). Coaches can manually edit all fields. Clients approaching program end (30/14/7 days) surface on the Command Center with color-coded urgency.
+Add a "commitment status" to the tracker so clients are either **Committed** (countdown with urgency colors) or **Month-to-Month** (no countdown, distinct badge). Coaches toggle this manually. The Command Center gets a separate "Month-to-Month Clients" section.
 
-## Database Changes
+## Database Change
 
-### New table: `client_program_tracker`
+**Migration**: Add one column to `client_program_tracker`:
 
-```text
-id              uuid PK default gen_random_uuid()
-coach_id        uuid NOT NULL (references auth.users)
-client_id       uuid NOT NULL (references auth.users)
-client_name     text NOT NULL
-weeks           integer NOT NULL
-start_date      date NOT NULL
-end_date        date GENERATED ALWAYS AS (start_date + (weeks * 7) * interval '1 day')
-revenue         text (free-text, e.g. "$2399 USD 6 month PIF")
-notes           text
-tier_name       text
-created_at      timestamptz DEFAULT now()
-updated_at      timestamptz DEFAULT now()
-UNIQUE(coach_id, client_id)
+```sql
+ALTER TABLE public.client_program_tracker
+  ADD COLUMN IF NOT EXISTS is_month_to_month boolean NOT NULL DEFAULT false;
 ```
 
-`days_left` will be computed in the UI as `differenceInDays(end_date, today)` — no stored column needed since it changes daily.
+No other schema changes needed. The existing `weeks`, `start_date`, `end_date` columns remain — they just become irrelevant for display when `is_month_to_month = true`.
 
-### RLS Policies
-- SELECT/INSERT/UPDATE/DELETE: `coach_id = auth.uid()` OR `has_role(auth.uid(), 'admin')`
-- Admin can see all rows (for Command Center aggregation across coaches)
+## Client Tracker Page (`ClientTracker.tsx`)
 
-### Tier-to-weeks mapping
-Add a `default_weeks` integer column to `client_tiers` table so each tier auto-populates weeks:
-- 1 Year = 52
-- 6 Month = 26
-- Monthly = 4
-- 6 Week = 6
-- etc.
+1. **Add "M2M" toggle button** on each row — a small icon button (e.g., `Repeat` icon from Lucide) that sets `is_month_to_month = true` and updates the DB. Clicking again reverts to committed.
 
-### Auto-populate on invite acceptance
-Update the `send-client-invite` edge function (or add a database trigger on `coach_clients` INSERT) to automatically create a `client_program_tracker` row when a client is assigned, pulling `tier_name` and `default_weeks` from the invite/tier.
+2. **Display logic**:
+   - `is_month_to_month = true` → "Days Left" column shows a **blue/purple badge**: `"M2M Active"` instead of a countdown. No urgency color.
+   - `is_month_to_month = false` → current behavior (green/yellow/orange/red countdown).
 
-### Auto-remove on deactivate/delete
-Add a trigger or update the `manage-client-status` edge function: when a client is deactivated or deleted, delete their `client_program_tracker` row.
+3. **Sorting**: M2M clients sort to the bottom of the table (after all committed clients sorted by days left). This keeps urgent renewals at top.
 
-## New UI Components
+4. **Edit dialog**: Add a checkbox/switch "Month-to-Month" so it can also be toggled during edit.
 
-### 1. Client Tracker Page (`src/pages/ClientTracker.tsx`)
-- Route: `/client-tracker` (coach/admin only)
-- Nav: Add to `coachNav` in AppLayout between "Clients" and "Team"
-- Table view with columns: Client Name, Tier, Weeks, Start Date, End Date, Days Left, Revenue, Notes
-- Color-coded "Days Left" badges:
-  - Green: > 30 days
-  - Yellow (#F59E0B): 15-30 days
-  - Orange (#F97316): 8-14 days
-  - Red (#EF4444): 0-7 days
-  - Gray (strikethrough): negative (expired)
-- Inline editing: click any cell to edit (weeks, notes, revenue, start date)
-- "Add Entry" button for manually adding a tracker row (with client select dropdown)
-- Sort by days left (ascending) by default
-- Search/filter by client name
+5. **Add dialog**: Add optional "Month-to-Month" toggle when adding a client manually (for clients who start on M2M from day one, e.g., transfer clients).
 
-### 2. Command Center Integration
-Add a new "Program Renewals" section to `CoachCommandCenter.tsx`:
-- Query `client_program_tracker` for the coach's clients where `days_left <= 30`
-- Show as cards sorted by urgency (fewest days first)
-- Color bands: Yellow (30d), Orange (14d), Red (7d)
-- Each card shows: client name, days left, tier, end date
-- "Message" button to open QuickMessageDialog with a prefilled renewal prompt
-- Admin view shows all coaches' clients approaching renewal
+6. **Renew dialog**: After renewing, optionally offer "Convert to Month-to-Month" toggle — useful when a committed client finishes their term and you're extending them to M2M in one action.
 
-### 3. Auto-populate on Add Client
-Update `AddClientWithAssignmentDialog.tsx`:
-- After successful invite, insert a `client_program_tracker` row using the selected tier's `default_weeks`, today as `start_date`, the tier name, and the assigned coach
+## Command Center (`CoachCommandCenter.tsx`)
 
-### 4. Renewal Flow
-On the tracker page, a "Renew" button per client:
-- Opens a small modal: "Add weeks" input (pre-filled from tier)
-- On confirm: updates `end_date` by adding new weeks to current `end_date` (extend behavior)
-- Optionally update notes (e.g., "Renewed 26 weeks on March 29")
+1. **New data field**: Fetch `is_month_to_month` from `client_program_tracker`.
 
-## Files to Create/Modify
+2. **Existing "Program Renewals" section**: Filter to only `is_month_to_month = false AND daysLeft <= 30`. No change to urgency colors (red/orange/yellow).
 
-1. **Migration SQL** — create `client_program_tracker` table + RLS + add `default_weeks` to `client_tiers`
-2. **`src/pages/ClientTracker.tsx`** — new page with table UI
-3. **`src/App.tsx`** — add route `/client-tracker`
-4. **`src/components/AppLayout.tsx`** — add nav item for coaches
-5. **`src/components/clients/AddClientWithAssignmentDialog.tsx`** — auto-insert tracker row on invite
-6. **`src/components/dashboard/CoachCommandCenter.tsx`** — add "Program Renewals" section
-7. **`supabase/functions/manage-client-status/index.ts`** — delete tracker row on client deactivation/deletion
+3. **New "Month-to-Month Clients" section**: Separate card below renewals showing all M2M clients as a simple list — name, tier, start date, and a "Message" button. Uses a distinct blue/purple accent. No urgency — these are retained clients.
 
-## Technical Notes
+## Files to Modify
 
-- End date is computed as `start_date + (weeks * 7) days` — using a generated column in Postgres avoids manual sync
-- Days left is computed client-side for real-time accuracy
-- The tracker is coach-scoped via RLS: Aaron only sees his clients, Kevin sees his own (and as admin, can see all)
-- Revenue field is free-text to accommodate varied payment structures (PIF, monthly, Klarna, CAD/USD, promos)
-- Existing active clients will need a one-time manual data entry (or a bulk import tool)
+| File | Change |
+|---|---|
+| **Migration SQL** | Add `is_month_to_month` boolean column |
+| `src/pages/ClientTracker.tsx` | M2M badge, toggle button, sorting, edit/add/renew dialog updates |
+| `src/components/dashboard/CoachCommandCenter.tsx` | Split renewals query, add M2M section |
+
+## UI Behavior Summary
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ CLIENT TRACKER TABLE                                     │
+├──────────┬──────┬──────┬──────┬────────────┬────────────┤
+│ Client   │ Tier │ Weeks│ Start│ Days Left  │ Actions    │
+├──────────┼──────┼──────┼──────┼────────────┼────────────┤
+│ John     │ 6-Mo │ 26   │ Jan 1│ 🔴 5d left │ ↻ ✏️ 🗑️ 🔄│
+│ Sarah    │ 1-Yr │ 52   │ Mar 1│ 🟡 28d left│ ↻ ✏️ 🗑️ 🔄│
+│ Mike     │ Mo.  │ 4    │ Feb 1│ 🟢 45d left│ ↻ ✏️ 🗑️ 🔄│
+│ ───────  │ ──── │ ──── │ ──── │ ────────── │ ────────── │
+│ Chris G. │ 6-Mo │ 16   │ Mar 9│ 🔵 M2M     │ ↻ ✏️ 🗑️ 🔄│
+│ Alex     │ 1-Yr │ 52   │ Jan 5│ 🔵 M2M     │ ↻ ✏️ 🗑️ 🔄│
+└──────────┴──────┴──────┴──────┴────────────┴────────────┘
+                                  🔄 = M2M toggle
+```
+
+```text
+┌─ COMMAND CENTER ─────────────────────────┐
+│                                           │
+│ 🔔 Program Renewals (3)                  │
+│ ┌─ John ── 5d left ── 🔴 ── [Message] ┐ │
+│ ├─ Sarah ─ 28d left ─ 🟡 ── [Message] ┤ │
+│ └─ Mike ── 14d left ─ 🟠 ── [Message] ┘ │
+│                                           │
+│ 🔄 Month-to-Month Clients (2)           │
+│ ┌─ Chris G. ── 6-Month ── [Message] ──┐ │
+│ └─ Alex ────── 1-Year ─── [Message] ──┘ │
+└───────────────────────────────────────────┘
+```
 
