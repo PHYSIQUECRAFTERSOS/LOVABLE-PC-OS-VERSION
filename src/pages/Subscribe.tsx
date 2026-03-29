@@ -120,9 +120,21 @@ const Subscribe = () => {
       }
 
       console.error("Purchase error:", err);
+
+      // Provide a more descriptive error based on the error type
+      const errorMsg = String(code).toLowerCase();
+      let description = "Please try again.";
+      if (errorMsg.includes("invalid") || errorMsg.includes("product")) {
+        description = "This plan is temporarily unavailable. Please try again later or contact support.";
+      } else if (errorMsg.includes("network") || errorMsg.includes("connect")) {
+        description = "Please check your internet connection and try again.";
+      } else if (errorMsg.includes("not allowed") || errorMsg.includes("restrict")) {
+        description = "In-app purchases may be restricted on this device. Check Settings → Screen Time.";
+      }
+
       toast({
-        title: "Something went wrong",
-        description: "Please try again.",
+        title: "Unable to complete purchase",
+        description,
         variant: "destructive",
       });
     } finally {

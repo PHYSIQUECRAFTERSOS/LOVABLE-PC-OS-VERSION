@@ -91,8 +91,10 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   useEffect(() => {
     const handler = () => {
       invalidateCache(cacheKeyRef.current);
-      // Small delay to ensure DB write is visible
-      setTimeout(() => refetchRef.current?.(), 150);
+      // Staggered refetch to ensure DB write propagates (especially on remote URL setups)
+      setTimeout(() => refetchRef.current?.(), 300);
+      setTimeout(() => refetchRef.current?.(), 1000);
+      setTimeout(() => refetchRef.current?.(), 2500);
     };
     window.addEventListener("calendar-event-added", handler);
     return () => window.removeEventListener("calendar-event-added", handler);

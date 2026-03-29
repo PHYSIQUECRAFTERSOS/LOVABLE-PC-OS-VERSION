@@ -12,6 +12,11 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     allowsLinkPreview: false,
+    backgroundColor: '#0a0a0a',
+    scrollEnabled: false,
+  },
+  android: {
+    backgroundColor: '#0a0a0a',
   },
   plugins: {
     Camera: {

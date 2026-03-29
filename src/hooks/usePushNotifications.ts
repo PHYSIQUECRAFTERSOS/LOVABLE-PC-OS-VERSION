@@ -13,11 +13,18 @@ import { PushNotifications } from "@capacitor/push-notifications";
  */
 const canUsePush = (): boolean => {
   try {
-    // Check if the PushNotifications plugin is available
+    // Primary check: Capacitor plugin API
     if (Capacitor.isPluginAvailable('PushNotifications')) return true;
-    // Fallback: check for native bridge (Capacitor iOS injects this)
-    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
-    if ((window as any).webkit?.messageHandlers?.bridge) return true;
+    // Fallback: Capacitor native bridge (injected by Capacitor iOS shell into remote URLs)
+    const win = window as any;
+    if (win.Capacitor?.isNativePlatform?.()) return true;
+    // WKWebView bridge detection — Capacitor iOS injects message handlers
+    if (win.webkit?.messageHandlers?.bridge) return true;
+    if (win.webkit?.messageHandlers?.cap) return true;
+    // Capacitor injects a global with platform info even on remote URLs
+    if (win.Capacitor?.platform === 'ios' || win.Capacitor?.platform === 'android') return true;
+    // User-agent sniffing as last resort (Capacitor iOS WKWebView)
+    if (typeof navigator !== 'undefined' && /Capacitor/i.test(navigator.userAgent)) return true;
     return false;
   } catch {
     return false;
