@@ -101,8 +101,7 @@ const DailyRewardsPopup = () => {
         items.push({ label, xp });
       }
 
-      // Skip showing if net XP is 0 — no dopamine value
-      if (total === 0) return;
+      // Show popup regardless of net XP — user wants visibility into gains AND losses
 
       if (items.length > 0) {
         setBreakdown(items);

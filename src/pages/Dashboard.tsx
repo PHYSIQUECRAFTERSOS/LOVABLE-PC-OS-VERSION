@@ -21,6 +21,7 @@ import ChallengeBanner from "@/components/dashboard/ChallengeBanner";
 import MyRankDashboardCard from "@/components/dashboard/MyRankDashboardCard";
 
 import PendingRankUpPopup from "@/components/ranked/PendingRankUpPopup";
+import DailyRewardsPopup from "@/components/ranked/DailyRewardsPopup";
 const Dashboard = () => {
   const { role } = useAuth();
   const isClient = role === "client";
