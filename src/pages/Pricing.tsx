@@ -11,6 +11,7 @@ interface PricingTier {
   features: string[];
   stripeUrl: string;
   popular?: boolean;
+  price: string;
 }
 
 const tiers: PricingTier[] = [
