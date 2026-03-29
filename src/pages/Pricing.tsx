@@ -130,7 +130,8 @@ const Pricing = () => {
       <section className="border-t border-border/40 px-5 py-10">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Subscriptions are managed and processed externally through our secure payment provider. 
+            All prices in USD. Final price in your local currency will be shown at checkout.
+            Subscriptions automatically renew unless canceled at least 24 hours before the end of the current period.
             Physique Crafters coaching programs are digital services delivered through this app. 
             By subscribing, you agree to our{" "}
             <Link to="/terms-of-service" className="underline hover:text-foreground">Terms of Service</Link>

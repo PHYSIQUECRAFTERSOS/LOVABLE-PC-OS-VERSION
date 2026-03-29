@@ -6,7 +6,7 @@ const PrivacyPolicy = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
