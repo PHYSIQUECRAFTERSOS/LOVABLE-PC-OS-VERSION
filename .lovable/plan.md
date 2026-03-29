@@ -1,19 +1,43 @@
 
 
-# Fix Plan: White Space, Cardio Buttons, Daily XP Popup
+# Nutrition Tracker: Always-Visible Macro Remaining
 
-## Issue 1: White Space at Bottom of Screen
+## The Problem
+When clients scroll down to log Dinner or Snacks, they lose sight of their macro targets at the top. They have to scroll all the way back up to check how much protein/carbs/fat/calories they have remaining before deciding what to log. This creates friction and slows down the logging experience.
 
-**Root cause**: The `DrawerContent` in `drawer.tsx` uses `bg-background` which maps to `hsl(0 0% 7%)`. However, when the vaul drawer's `shouldScaleBackground` is enabled, it transforms the root content and can reveal the underlying browser viewport color. On iOS Capacitor, the area below the drawer (around the home indicator) may show the WKWebView's default background rather than the app's dark theme.
+## Recommended Approach: Compact Floating Remaining Bar
 
-The bottom nav uses `safe-bottom` padding but the main content area and the root `<div>` may not fully cover the safe-area-inset-bottom gap on notched devices. The `pb-24` on `<main>` is generous, but the actual bottom nav `safe-bottom` class only adds *padding*, not background extension.
+After reviewing both options and how MacroFactor and MyFitnessPal handle this, the best solution is a **compact sticky bottom bar** that shows remaining macros as text. Here is why:
 
-**Fix**: Add `safe-bottom` padding to the `DrawerFooter` so drawer buttons clear the home indicator. Also ensure the bottom nav background extends fully through the safe area by adding an explicit `bg-card` pseudo-element or using `pb-[env(safe-area-inset-bottom)]` directly on the nav. The CSS `safe-bottom` class already exists, so this is likely a drawer-specific issue where the footer content doesn't account for the home indicator bar.
+- **Non-sticky rings** (MFP style) would mean the client loses ALL macro visibility once they scroll past the top -- worse than current state when they are mid-list near Lunch/Dinner
+- A **bottom summary section** (below Snacks) only helps when fully scrolled down, not while browsing mid-list
+- A **slim floating bar** gives instant visibility at ALL scroll positions without eating screen real estate -- this is what MacroFactor's "remaining" banner does
 
-**Files**: `src/components/dashboard/CardioPopup.tsx` (add safe-bottom to footer), `src/components/ui/drawer.tsx` (add safe-bottom padding to DrawerContent)
+The bar will be a thin, translucent strip pinned above the bottom nav showing:
+```text
+┌─────────────────────────────────────────────────┐
+│  1,041 cal    228P    532C    80F   remaining    │
+└─────────────────────────────────────────────────┘
+```
 
-## Issue 2: Cardio Popup Cancel / Mark as Complete Buttons Not Working
+It will only appear when the top macro rings scroll out of view (using IntersectionObserver), so it does not double-up information when the rings are visible.
 
-**Root cause**: The previous fix added `data-vaul-no-drag` and `e.stopPropagation()` to `CardioPopup.tsx`. Looking at the current code (lines 230-245), the fix IS already applied. However, the vaul drawer's drag-to-dismiss gesture can still intercept `pointerdown`/`touchstart` events before the `click` fires on iOS.
+## Technical Plan
 
-The issue is that `data-vaul-no-drag` is on the `DrawerFooter` div, but vaul's internal gesture handler attaches at the `DrawerContent` level. On iOS Safari/WKWebView, the `touchstart` → `touchend` → `click` chain can be interrupted by the drawer's pan-recognizer even with `data-vaul-no-
+### File: `src/components/nutrition/DailyNutritionLog.tsx`
+
+1. Add a `ref` to the macro rings card (line 507) and use `IntersectionObserver` to track when it scrolls out of view
+2. When rings are not visible, render a fixed bottom bar showing remaining values:
+   - `remaining.calories = targets.calories - totals.calories`
+   - Same for protein, carbs, fat
+   - Color-code: gold for calories, red for protein, blue for carbs, yellow for fat (matching existing ring colors)
+   - Negative values shown in red with a minus sign
+3. Position the bar at `bottom: 4.5rem` (above the bottom nav) with `z-[50]`, using `bg-card/95 backdrop-blur-sm` for the premium dark glass look
+4. Bar is hidden during edit mode (the sticky action bar takes that space)
+
+### Additional Improvement: Bottom Totals Section
+
+Also add a static "Daily Totals" card below the Snacks section (after line 672) showing remaining macros as a clean summary -- this gives a natural endpoint when scrolling and reinforces the floating bar data.
+
+### No new files or database changes required.
+
