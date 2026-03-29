@@ -1,30 +1,29 @@
 import { useEffect, useRef } from "react";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { PushNotifications } from "@capacitor/push-notifications";
-
-/**
- * Always attempt push registration on any platform.
- * If the plugin isn't available, PushNotifications calls will throw
- * and we catch gracefully. No more bridge-sniffing.
- */
 
 export function usePushNotifications() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const toastRef = useRef(toast);
   const registeredRef = useRef(false);
   const savedTokenRef = useRef<string | null>(null);
   const retryTimerRef = useRef<number | null>(null);
 
+  toastRef.current = toast;
+
   useEffect(() => {
-    if (!user || registeredRef.current) return;
+    const userId = user?.id;
+    if (!userId) return;
 
     let isActive = true;
     let appStateListener: { remove: () => Promise<void> } | null = null;
-    const isNativePlatform = Capacitor.isNativePlatform();
+    const platform = Capacitor.getPlatform();
+    const shouldAttemptPush = platform !== "web";
 
     const clearRetryTimer = () => {
       if (retryTimerRef.current !== null) {
@@ -33,23 +32,35 @@ export function usePushNotifications() {
       }
     };
 
+    const scheduleRetry = (reason: string) => {
+      if (!shouldAttemptPush || registeredRef.current || !isActive) return;
+
+      clearRetryTimer();
+      retryTimerRef.current = window.setTimeout(() => {
+        if (!isActive || registeredRef.current) return;
+        console.log(`[Push] Retrying registration (${reason})`);
+        void attemptRegistration(`retry:${reason}`);
+      }, 2500);
+    };
+
     const persistToken = async (tokenValue: string) => {
       if (!isActive || savedTokenRef.current === tokenValue) return;
 
-      const { error } = await supabase
-        .from("push_tokens")
-        .upsert(
-          {
-            user_id: user.id,
-            token: tokenValue,
-            platform: Capacitor.getPlatform() || "ios",
-          },
-          { onConflict: "user_id,token" }
-        );
+      console.log("[Push] Persisting APNs token for user:", userId.slice(0, 8));
+
+      const { error } = await supabase.from("push_tokens").upsert(
+        {
+          user_id: userId,
+          token: tokenValue,
+          platform,
+        },
+        { onConflict: "user_id,token" }
+      );
 
       if (error) {
-        console.error("[Push] ❌ Token save error:", error.message);
+        console.error("[Push] ❌ Token save failed:", error.message);
         registeredRef.current = false;
+        scheduleRetry("persist-failed");
         return;
       }
 
@@ -59,60 +70,64 @@ export function usePushNotifications() {
       console.log("[Push] ✅ Token saved to database");
     };
 
-    const scheduleRetry = (reason: string) => {
-      if (!isNativePlatform || registeredRef.current || !isActive) return;
-      clearRetryTimer();
-      retryTimerRef.current = window.setTimeout(() => {
-        if (!isActive || registeredRef.current) return;
-        console.log(`[Push] Retrying registration (${reason})...`);
-        void attemptRegistration(`retry:${reason}`);
-      }, 3000);
-    };
-
     const attemptRegistration = async (reason: string) => {
+      if (!shouldAttemptPush || !isActive) return;
+
       try {
-        console.log(`[Push] Starting registration (${reason}) for user:`, user.id.slice(0, 8));
+        console.log(`[Push] Starting registration (${reason}) on ${platform} for user ${userId.slice(0, 8)}`);
 
-        const permResult = await PushNotifications.requestPermissions();
-        console.log("[Push] Permission result:", permResult.receive);
+        const checkedPermissions = await PushNotifications.checkPermissions().catch(() => ({ receive: "prompt" as const }));
+        console.log("[Push] Existing permission state:", checkedPermissions.receive);
 
-        if (permResult.receive !== "granted") {
-          console.log("[Push] ⚠️ Permission not granted");
+        const permissionResult = checkedPermissions.receive === "prompt"
+          ? await PushNotifications.requestPermissions()
+          : checkedPermissions;
+
+        console.log("[Push] Permission result:", permissionResult.receive);
+
+        if (permissionResult.receive !== "granted") {
+          console.warn("[Push] Notification permission not granted");
           registeredRef.current = false;
           return;
         }
 
         await PushNotifications.register();
-        console.log("[Push] ✅ register() called successfully");
-
-        if (!registeredRef.current) {
-          scheduleRetry("no-registration-event");
-        }
+        console.log("[Push] register() called — waiting for native APNs callback");
+        scheduleRetry("awaiting-native-callback");
       } catch (err: any) {
-        console.log("[Push] Registration attempt failed:", err?.message || err);
+        console.error("[Push] Registration attempt failed:", err?.message || err);
         scheduleRetry("exception");
       }
     };
 
     const setup = async () => {
+      if (!shouldAttemptPush) {
+        console.log("[Push] Web platform detected — native push registration skipped");
+        return;
+      }
+
       try {
-        await PushNotifications.removeAllListeners();
+        try {
+          await PushNotifications.removeAllListeners();
+        } catch {
+          // ignore
+        }
 
         await PushNotifications.addListener("registration", async (token) => {
           if (!isActive) return;
-          console.log("[Push] ✅ Token received:", token.value.slice(0, 16) + "...");
+          console.log("[Push] ✅ Native registration token received:", `${token.value.slice(0, 16)}...`);
           await persistToken(token.value);
         });
 
         await PushNotifications.addListener("registrationError", (err) => {
-          console.error("[Push] ❌ Registration error:", JSON.stringify(err));
+          console.error("[Push] ❌ Native registration error:", JSON.stringify(err));
           registeredRef.current = false;
           scheduleRetry("registration-error");
         });
 
         await PushNotifications.addListener("pushNotificationReceived", (notification) => {
           console.log("[Push] Foreground notification:", notification);
-          toast({
+          toastRef.current({
             title: notification.title || "New notification",
             description: notification.body || "",
           });
@@ -124,19 +139,16 @@ export function usePushNotifications() {
           window.location.href = route;
         });
 
-        if (isNativePlatform) {
-          appStateListener = await App.addListener("appStateChange", ({ isActive: appIsActive }) => {
-            if (!appIsActive) return;
-            if (!registeredRef.current) {
-              void attemptRegistration("app-state-active");
-            }
-          });
-        }
+        appStateListener = await App.addListener("appStateChange", ({ isActive: appIsActive }) => {
+          if (appIsActive && !registeredRef.current) {
+            void attemptRegistration("app-state-active");
+          }
+        });
 
         void attemptRegistration("initial");
       } catch (err: any) {
-        console.log("[Push] Plugin not available (expected on web):", err?.message || err);
-        scheduleRetry("setup-failure");
+        console.error("[Push] Setup failed:", err?.message || err);
+        scheduleRetry("setup-failed");
       }
     };
 
@@ -161,15 +173,12 @@ export function usePushNotifications() {
       try {
         void PushNotifications.removeAllListeners();
       } catch {
-        // Not available
+        // ignore
       }
     };
-  }, [user, toast]);
+  }, [user?.id]);
 }
 
-/**
- * Call this to clear the badge and delivered notifications when user reads messages
- */
 export async function clearPushBadge() {
   try {
     await PushNotifications.removeAllDeliveredNotifications();
@@ -178,9 +187,6 @@ export async function clearPushBadge() {
   }
 }
 
-/**
- * Send push notification to a user via the edge function
- */
 export async function sendPushToUser(
   userId: string,
   title: string,
