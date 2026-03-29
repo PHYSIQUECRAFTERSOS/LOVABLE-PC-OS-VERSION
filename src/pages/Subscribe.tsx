@@ -21,18 +21,6 @@ interface Plan {
 
 const DEFAULT_PLANS: Plan[] = [
   {
-    id: "innercircle",
-    productId: "com.physiquecrafters.app.innercircle",
-    title: "Inner Circle",
-    price: "$997.00 USD/month",
-    duration: "1 month · Auto-renewable",
-    features: [
-      "Weekly 1-on-1 Zoom calls",
-      "Everything in Weekly Updates",
-      "Limited spots available",
-    ],
-  },
-  {
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
     title: "Weekly Updates",
@@ -41,6 +29,19 @@ const DEFAULT_PLANS: Plan[] = [
     badge: "MOST POPULAR",
     features: [
       "Weekly progress updates reviewing over your progress and we make changes to your program as necessary",
+      "Custom training program",
+      "Custom meal plan",
+      "Custom supplement plan",
+    ],
+  },
+  {
+    id: "biweekly",
+    productId: "com.physiquecrafters.app.biweekly",
+    title: "Bi-Weekly Updates",
+    price: "$399.00 USD/month",
+    duration: "1 month · Auto-renewable",
+    features: [
+      "Bi-weekly progress updates",
       "Custom training program",
       "Custom meal plan",
       "Custom supplement plan",
