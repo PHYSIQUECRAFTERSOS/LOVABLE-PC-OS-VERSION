@@ -20,6 +20,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import AudioMixPlugin from "@/plugins/AudioMixPlugin";
 
 const NATIVE_ASSET_ID = "rest_timer_countdown";
 const NATIVE_ASSET_PATH = "public/audio/Rest_Timer_3_Seconds.mp3";
@@ -63,6 +64,14 @@ class RestTimerAudioService {
 
     this.nativePreloading = (async () => {
       try {
+        // Configure AVAudioSession for mixing BEFORE preloading
+        try {
+          await AudioMixPlugin.enableMixing();
+          console.log("[RestTimerAudio] AudioMixPlugin mixing enabled");
+        } catch (mixErr) {
+          console.warn("[RestTimerAudio] AudioMixPlugin not available:", mixErr);
+        }
+
         const NativeAudio = await this.getNativeAudio();
         // CRITICAL: focus:false tells the native layer to NOT steal audio focus,
         // so Spotify / Apple Music keeps playing alongside our sound.
@@ -74,13 +83,31 @@ class RestTimerAudioService {
           isUrl: false,
         });
         this.nativePreloaded = true;
-        console.log("[RestTimerAudio] Native preload OK");
+        console.log("[RestTimerAudio] Native preload OK — assetPath:", NATIVE_ASSET_PATH);
       } catch (err: any) {
         if (err?.message?.includes("already exists")) {
           this.nativePreloaded = true;
           console.log("[RestTimerAudio] Native asset already loaded");
         } else {
           console.error("[RestTimerAudio] Native preload failed:", err);
+          // Try alternate path without public/ prefix
+          try {
+            const NativeAudio = await this.getNativeAudio();
+            await NativeAudio.preload({
+              assetId: NATIVE_ASSET_ID,
+              assetPath: "audio/Rest_Timer_3_Seconds.mp3",
+              audioChannelNum: 1,
+              isUrl: false,
+            });
+            this.nativePreloaded = true;
+            console.log("[RestTimerAudio] Native preload OK with alternate path");
+          } catch (err2: any) {
+            if (err2?.message?.includes("already exists")) {
+              this.nativePreloaded = true;
+            } else {
+              console.error("[RestTimerAudio] Native preload failed with alternate path too:", err2);
+            }
+          }
         }
       }
     })();
@@ -90,6 +117,11 @@ class RestTimerAudioService {
   }
 
   private async nativePlay(): Promise<boolean> {
+    // Re-enable mixing before every play in case iOS reset the audio session
+    try {
+      await AudioMixPlugin.enableMixing();
+    } catch { /* plugin not available on web */ }
+
     if (!this.nativePreloaded) {
       await this.nativePreload();
     }
@@ -98,11 +130,13 @@ class RestTimerAudioService {
       // Stop any running instance so replay works cleanly
       try { await NativeAudio.stop({ assetId: NATIVE_ASSET_ID }); } catch { /* not playing */ }
       await NativeAudio.play({ assetId: NATIVE_ASSET_ID });
-      console.log("[RestTimerAudio] Native countdown playing");
+      console.log("[RestTimerAudio] ✅ Native countdown PLAYING");
       return true;
     } catch (err) {
-      console.error("[RestTimerAudio] Native play failed:", err);
-      return false;
+      console.error("[RestTimerAudio] ❌ Native play failed:", err);
+      // Fall back to web audio on native if NativeAudio fails
+      console.log("[RestTimerAudio] Attempting web audio fallback on native...");
+      return this.webPlay();
     }
   }
 
