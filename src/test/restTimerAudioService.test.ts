@@ -90,7 +90,7 @@ describe("RestTimerAudioService", () => {
     expect(played).toBe(true);
     expect(nativeMocks.enableMixing).toHaveBeenCalled();
     expect(nativeMocks.playRestTimerAlarm).toHaveBeenCalledTimes(1);
-    expect(createdContexts[0]?.createOscillator).not.toHaveBeenCalled();
+    expect(createdContexts).toHaveLength(0);
   });
 
   it("recovers an interrupted iOS audio context before web fallback playback", async () => {
