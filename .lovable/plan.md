@@ -1,43 +1,43 @@
 
 
-# Nutrition Tracker: Always-Visible Macro Remaining
+# Subscription Tier Update + Legal Pages Scroll Fix
 
-## The Problem
-When clients scroll down to log Dinner or Snacks, they lose sight of their macro targets at the top. They have to scroll all the way back up to check how much protein/carbs/fat/calories they have remaining before deciding what to log. This creates friction and slows down the logging experience.
+## Changes Required
 
-## Recommended Approach: Compact Floating Remaining Bar
+### 1. Update Subscription Tiers (3 → 2)
 
-After reviewing both options and how MacroFactor and MyFitnessPal handle this, the best solution is a **compact sticky bottom bar** that shows remaining macros as text. Here is why:
+Remove Bi-Weekly and Training Only tiers. Add new "Inner Circle" tier at $997/month. Update "Weekly Updates" price from $399.99 to $499.99.
 
-- **Non-sticky rings** (MFP style) would mean the client loses ALL macro visibility once they scroll past the top -- worse than current state when they are mid-list near Lunch/Dinner
-- A **bottom summary section** (below Snacks) only helps when fully scrolled down, not while browsing mid-list
-- A **slim floating bar** gives instant visibility at ALL scroll positions without eating screen real estate -- this is what MacroFactor's "remaining" banner does
+**New tiers:**
+- **Inner Circle**: `com.physiquecrafters.app.innercircle` — $997 USD/month, 1 month auto-renewable. Features: Weekly 1-on-1 Zoom calls, everything in Weekly Updates, limited spots available.
+- **Weekly Updates**: `com.physiquecrafters.app.monthly` (same product ID) — $499.99 USD/month, 1 month auto-renewable. Badge: MOST POPULAR. Features: Weekly progress updates, custom training program, custom meal plan, custom supplement plan.
 
-The bar will be a thin, translucent strip pinned above the bottom nav showing:
-```text
-┌─────────────────────────────────────────────────┐
-│  1,041 cal    228P    532C    80F   remaining    │
-└─────────────────────────────────────────────────┘
-```
+**Files to modify:**
 
-It will only appear when the top macro rings scroll out of view (using IntersectionObserver), so it does not double-up information when the rings are visible.
+- **`src/pages/Subscribe.tsx`**: Replace `DEFAULT_PLANS` array with 2 new plans. Update disclaimer text at bottom to reflect new pricing. Default selected plan = `"innercircle"`.
+- **`src/hooks/useSubscription.tsx`**: Update `TIER_MAP` — remove `biweekly` and `training` entries, add `innercircle` entry, update `monthly` label/price.
+- **`src/components/subscription/SubscriptionCard.tsx`**: No structural changes needed — it reads from `TIER_MAP` dynamically.
+- **`src/pages/Pricing.tsx`**: Replace 4 tiers with 2 matching tiers (Inner Circle + Weekly Updates).
+- **`src/pages/TermsOfService.tsx`**: Update Section 7 payment terms to list only the 2 new tiers with correct prices.
+- **`src/pages/PrivacyPolicy.tsx`**: No pricing references — no changes needed here for tiers.
 
-## Technical Plan
+**Native iOS (App Store Connect + Xcode):**
+You will need to manually create the new product `com.physiquecrafters.app.innercircle` in App Store Connect (Subscriptions section) with price $997/month. Update the price of `com.physiquecrafters.app.monthly` to $499.99. Remove or deprecate `com.physiquecrafters.app.biweekly` and `com.physiquecrafters.app.training` from the subscription group.
 
-### File: `src/components/nutrition/DailyNutritionLog.tsx`
+The Swift `StoreKitPlugin.swift` does NOT hardcode product IDs — it receives them from JavaScript, so no Swift changes are needed.
 
-1. Add a `ref` to the macro rings card (line 507) and use `IntersectionObserver` to track when it scrolls out of view
-2. When rings are not visible, render a fixed bottom bar showing remaining values:
-   - `remaining.calories = targets.calories - totals.calories`
-   - Same for protein, carbs, fat
-   - Color-code: gold for calories, red for protein, blue for carbs, yellow for fat (matching existing ring colors)
-   - Negative values shown in red with a minus sign
-3. Position the bar at `bottom: 4.5rem` (above the bottom nav) with `z-[50]`, using `bg-card/95 backdrop-blur-sm` for the premium dark glass look
-4. Bar is hidden during edit mode (the sticky action bar takes that space)
+### 2. Fix Terms of Service & Privacy Policy Scroll
 
-### Additional Improvement: Bottom Totals Section
+**Root cause**: `index.css` applies `overflow: hidden; position: fixed;` to `html`, `body`, and `#root`. This locks the viewport. Pages like AppLayout have their own internal scroll containers (`overflow-y-auto`), but TermsOfService and PrivacyPolicy render as plain `min-h-screen` divs with no scroll container — so they cannot scroll.
 
-Also add a static "Daily Totals" card below the Snacks section (after line 672) showing remaining macros as a clean summary -- this gives a natural endpoint when scrolling and reinforces the floating bar data.
+**Fix in `src/pages/TermsOfService.tsx` and `src/pages/PrivacyPolicy.tsx`**:
+- Change the outer `div` from `min-h-screen` to `h-full overflow-y-auto` so it becomes a scroll container within the fixed viewport.
+- This matches how AppLayout handles scrolling and requires no global CSS changes.
 
-### No new files or database changes required.
+### Summary of files to modify:
+1. `src/pages/Subscribe.tsx` — new 2-tier plan data + updated disclaimer
+2. `src/hooks/useSubscription.tsx` — updated TIER_MAP
+3. `src/pages/Pricing.tsx` — new 2-tier layout
+4. `src/pages/TermsOfService.tsx` — updated pricing in Section 7 + scroll fix
+5. `src/pages/PrivacyPolicy.tsx` — scroll fix only
 
