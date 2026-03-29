@@ -20,6 +20,7 @@
  */
 
 import { Capacitor } from "@capacitor/core";
+import AudioMixPlugin from "@/plugins/AudioMixPlugin";
 
 const NATIVE_ASSET_ID = "rest_timer_countdown";
 const NATIVE_ASSET_PATH = "public/audio/Rest_Timer_3_Seconds.mp3";
