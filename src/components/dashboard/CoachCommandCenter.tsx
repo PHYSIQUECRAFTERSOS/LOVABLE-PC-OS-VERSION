@@ -28,6 +28,7 @@ import {
   Camera,
   ClipboardList,
   Eye,
+  Repeat,
 } from "lucide-react";
 import { useState } from "react";
 import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
