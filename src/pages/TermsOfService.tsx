@@ -78,8 +78,8 @@ const TermsOfService = () => {
             This app offers the following auto-renewable subscription plans, available for purchase through Apple's In-App Purchase system:
           </p>
           <ul className="text-sm text-foreground/80 leading-relaxed list-disc pl-6 space-y-2">
-            <li><strong>Inner Circle:</strong> $997.00 USD per month. Includes weekly 1-on-1 Zoom calls and everything in Weekly Updates. Limited spots available.</li>
-            <li><strong>Weekly Updates:</strong> $499.99 USD per month. Includes weekly progress updates, custom training program, custom meal plan, and custom supplement plan.</li>
+             <li><strong>Weekly Updates:</strong> $499.99 USD per month. Includes weekly progress updates, custom training program, custom meal plan, and custom supplement plan.</li>
+             <li><strong>Bi-Weekly Updates:</strong> $399.00 USD per month. Includes bi-weekly progress updates, custom training program, custom meal plan, and custom supplement plan.</li>
           </ul>
           <p className="text-sm text-foreground/80 leading-relaxed">
             Payment will be charged to your Apple ID account at confirmation of purchase. Subscriptions automatically renew unless auto-renew is turned off at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period at the rate of your selected plan. You can manage and cancel your subscriptions by going to your Account Settings on the App Store after purchase. Any unused portion of a free trial period, if offered, will be forfeited when you purchase a subscription. Prices are in USD and may vary in other countries. All prices are subject to change, and price changes will take effect at the start of the next subscription period following the date of the price change. Refunds are handled according to Apple's refund policies.
