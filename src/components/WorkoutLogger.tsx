@@ -184,9 +184,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
-    // Pre-init audio on session start so countdown sound is ready
+    // Pre-init audio on session start so alarm is ready
     restTimerAudio.unlock();
-    restTimerAudio.preload();
     const initSession = async () => {
       if (resumeSessionId) {
         // Resuming: restore startTime from DB
