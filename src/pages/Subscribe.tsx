@@ -21,49 +21,39 @@ interface Plan {
 
 const DEFAULT_PLANS: Plan[] = [
   {
+    id: "innercircle",
+    productId: "com.physiquecrafters.app.innercircle",
+    title: "Inner Circle",
+    price: "$997.00 USD/month",
+    duration: "1 month · Auto-renewable",
+    features: [
+      "Weekly 1-on-1 Zoom calls",
+      "Everything in Weekly Updates",
+      "Limited spots available",
+    ],
+  },
+  {
     id: "weekly",
     productId: "com.physiquecrafters.app.monthly",
     title: "Weekly Updates",
-    price: "$399.99 USD/month",
+    price: "$499.99 USD/month",
     duration: "1 month · Auto-renewable",
     badge: "MOST POPULAR",
     features: [
-      "Weekly progress updates each week reviewing over your progress and we make changes to your program as necessary",
-      "Customized Training Program",
-      "Customized Meal Plan",
-      "Customized Supplement Plan",
+      "Weekly progress updates reviewing over your progress and we make changes to your program as necessary",
+      "Custom training program",
+      "Custom meal plan",
+      "Custom supplement plan",
     ],
-  },
-  {
-    id: "biweekly",
-    productId: "com.physiquecrafters.app.biweekly",
-    title: "Bi-Weekly Updates",
-    price: "$299.99 USD/month",
-    duration: "1 month · Auto-renewable",
-    features: [
-      "Bi-weekly progress updates every other week reviewing over your progress and we make changes to your program as necessary",
-      "Customized Training Program",
-      "Customized Meal Plan",
-      "Customized Supplement Plan",
-    ],
-  },
-  {
-    id: "training",
-    productId: "com.physiquecrafters.app.training",
-    title: "Training Only",
-    price: "$174.99 USD/2 months",
-    duration: "2 months · Auto-renewable",
-    features: ["Customized Training Program updated every 2 months"],
   },
 ];
-
 const isNative = Capacitor.isNativePlatform();
 
 const Subscribe = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { checkSubscription, restorePurchases } = useSubscription();
-  const [selected, setSelected] = useState("weekly");
+  const [selected, setSelected] = useState("innercircle");
   const [subscribing, setSubscribing] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -233,9 +223,8 @@ const Subscribe = () => {
 
         <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
           All prices are listed in USD. Subscriptions automatically renew unless canceled at least 24
-          hours before the end of the current period. Weekly Updates and Bi-Weekly Updates are billed
-          monthly ($399.99 USD/month and $299.99 USD/month respectively). Training Only is billed
-          every 2 months ($174.99 USD/2 months). No long-term commitment required — cancel anytime.
+          hours before the end of the current period. Inner Circle is billed monthly ($997.00 USD/month).
+          Weekly Updates is billed monthly ($499.99 USD/month). No long-term commitment required — cancel anytime.
           Payment will be charged to your Apple ID account at confirmation of purchase. You can
           manage or cancel your subscription in your Apple ID Account Settings.
         </p>

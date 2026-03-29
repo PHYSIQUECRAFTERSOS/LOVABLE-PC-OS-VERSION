@@ -11,74 +11,43 @@ interface PricingTier {
   features: string[];
   stripeUrl: string;
   popular?: boolean;
+  price: string;
 }
 
 const tiers: PricingTier[] = [
   {
-    name: "1-Year Program",
-    duration: "12 months",
-    description: "Maximum transformation — our most committed coaching tier with the best value.",
+    name: "Inner Circle",
+    duration: "1 month · Auto-renewable",
+    description: "Premium 1-on-1 coaching with weekly Zoom calls — our most exclusive tier.",
     features: [
-      "Personalized training programs",
-      "Custom nutrition targets & meal plans",
-      "Weekly check-ins with your coach",
-      "Direct messaging with coach",
-      "Progress photo tracking & AI body comp",
-      "Full app access with ranked challenges",
+      "Weekly 1-on-1 Zoom calls",
+      "Everything in Weekly Updates",
+      "Limited spots available",
     ],
-    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_1YEAR",
-    popular: true,
+    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_INNERCIRCLE",
+    price: "$997.00 USD/month",
   },
   {
-    name: "6-Month Program",
-    duration: "6 months",
-    description: "Serious commitment to physique transformation with structured coaching.",
+    name: "Weekly Updates",
+    duration: "1 month · Auto-renewable",
+    description: "Weekly progress updates reviewing over your progress and we make changes to your program as necessary.",
     features: [
-      "Personalized training programs",
-      "Custom nutrition targets & meal plans",
-      "Weekly check-ins with your coach",
-      "Direct messaging with coach",
-      "Progress photo tracking & AI body comp",
-      "Full app access with ranked challenges",
-    ],
-    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_6MONTH",
-  },
-  {
-    name: "Monthly Program",
-    duration: "Month-to-month",
-    description: "Flexible monthly coaching — cancel anytime.",
-    features: [
-      "Personalized training programs",
-      "Custom nutrition targets & meal plans",
-      "Weekly check-ins with your coach",
-      "Direct messaging with coach",
-      "Progress photo tracking",
-      "Full app access",
+      "Custom training program",
+      "Custom meal plan",
+      "Custom supplement plan",
     ],
     stripeUrl: "https://buy.stripe.com/PLACEHOLDER_MONTHLY",
-  },
-  {
-    name: "6-Week Program",
-    duration: "6 weeks",
-    description: "An intensive short-term program for rapid kickstart results.",
-    features: [
-      "Personalized training programs",
-      "Custom nutrition targets",
-      "Weekly check-ins with your coach",
-      "Direct messaging with coach",
-      "Progress photo tracking",
-    ],
-    stripeUrl: "https://buy.stripe.com/PLACEHOLDER_6WEEK",
+    popular: true,
+    price: "$499.99 USD/month",
   },
 ];
-
 const Pricing = () => {
   const { user } = useAuth();
   const location = useLocation();
   const isLoggedIn = !!user;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="h-full overflow-y-auto bg-background text-foreground">
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
@@ -129,9 +98,9 @@ const Pricing = () => {
               )}
               <CardContent className="p-6 pt-8">
                 <h3 className="text-xl font-bold">{tier.name}</h3>
+                <p className="mt-1 text-lg font-bold text-primary">{tier.price}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{tier.duration}</p>
                 <p className="mt-3 text-sm text-muted-foreground">{tier.description}</p>
-
                 <ul className="mt-5 space-y-2">
                   {tier.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
@@ -161,7 +130,8 @@ const Pricing = () => {
       <section className="border-t border-border/40 px-5 py-10">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Subscriptions are managed and processed externally through our secure payment provider. 
+            All prices in USD. Final price in your local currency will be shown at checkout.
+            Subscriptions automatically renew unless canceled at least 24 hours before the end of the current period.
             Physique Crafters coaching programs are digital services delivered through this app. 
             By subscribing, you agree to our{" "}
             <Link to="/terms-of-service" className="underline hover:text-foreground">Terms of Service</Link>
