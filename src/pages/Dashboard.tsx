@@ -76,6 +76,9 @@ const ClientDashboard = () => {
       {/* Pending Rank-Up Popup (shows missed rank changes on login) */}
       <PendingRankUpPopup />
 
+      {/* Daily XP Evaluation Popup (shows previous day's XP breakdown on first login) */}
+      <DailyRewardsPopup />
+
 
       {/* Challenge Banner */}
       <ChallengeBanner />
