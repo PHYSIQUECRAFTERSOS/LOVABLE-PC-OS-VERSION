@@ -115,6 +115,8 @@ Deno.serve(async (req) => {
       notification_type = "message",
     } = await req.json();
 
+    console.log("[Push] Received request — user_id:", user_id?.slice(0, 8), "type:", notification_type, "title:", title);
+
     if (!user_id || !title || !body) {
       return new Response(
         JSON.stringify({ error: "user_id, title, and body are required" }),
@@ -129,33 +131,35 @@ Deno.serve(async (req) => {
       .eq("user_id", user_id)
       .maybeSingle();
 
-    // Default to enabled if no prefs row exists
     const messagesEnabled = prefs?.messages_enabled ?? true;
     const checkinEnabled = prefs?.checkin_reminders_enabled ?? true;
 
     if (notification_type === "message" && !messagesEnabled) {
+      console.log("[Push] Skipped — messages disabled for user:", user_id.slice(0, 8));
       return new Response(
         JSON.stringify({ skipped: true, reason: "messages_disabled" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     if (notification_type === "checkin" && !checkinEnabled) {
+      console.log("[Push] Skipped — checkin disabled for user:", user_id.slice(0, 8));
       return new Response(
         JSON.stringify({ skipped: true, reason: "checkin_disabled" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch device tokens
-    const { data: tokens } = await supabaseAdmin
+    // Fetch device tokens — get ALL platforms
+    const { data: tokens, error: tokenError } = await supabaseAdmin
       .from("push_tokens")
-      .select("token")
-      .eq("user_id", user_id)
-      .eq("platform", "ios");
+      .select("token, platform")
+      .eq("user_id", user_id);
+
+    console.log("[Push] Tokens found:", tokens?.length ?? 0, "error:", tokenError?.message ?? "none");
 
     if (!tokens?.length) {
       return new Response(
-        JSON.stringify({ skipped: true, reason: "no_ios_tokens" }),
+        JSON.stringify({ skipped: true, reason: "no_tokens" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -174,6 +178,7 @@ Deno.serve(async (req) => {
       .is("read_at", null);
 
     const badge = badgeCount ?? 0;
+    console.log("[Push] Badge count:", badge);
 
     // Get APNs credentials
     const apnsKeyBase64 = Deno.env.get("APNS_KEY_BASE64");
@@ -182,7 +187,7 @@ Deno.serve(async (req) => {
     const bundleId = "com.physiquecrafters.app";
 
     if (!apnsKeyBase64 || !apnsKeyId || !apnsTeamId) {
-      console.error("APNs credentials not configured");
+      console.error("[Push] ❌ APNs credentials not configured");
       return new Response(
         JSON.stringify({ error: "APNs not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -191,10 +196,11 @@ Deno.serve(async (req) => {
 
     // Build JWT
     const jwt = await buildApnsJwt(apnsKeyBase64, apnsKeyId, apnsTeamId);
+    console.log("[Push] APNs JWT built successfully");
 
     // Send to each device token
     const results = [];
-    for (const { token } of tokens) {
+    for (const { token, platform } of tokens) {
       const apnsPayload = {
         aps: {
           alert: { title, body },
@@ -206,6 +212,8 @@ Deno.serve(async (req) => {
       };
 
       try {
+        console.log("[Push] Sending to token:", token.slice(0, 12) + "...", "platform:", platform);
+
         const response = await fetch(
           `https://api.push.apple.com/3/device/${token}`,
           {
@@ -223,14 +231,15 @@ Deno.serve(async (req) => {
         );
 
         const responseText = await response.text();
+        console.log("[Push] APNs response — status:", response.status, "body:", responseText || "(empty)");
 
         if (shouldRemoveToken(response.status, responseText)) {
-          // Token is invalid — remove it
           await supabaseAdmin
             .from("push_tokens")
             .delete()
             .eq("token", token);
           results.push({ token: token.slice(0, 8), status: "removed_invalid" });
+          console.log("[Push] Removed invalid token:", token.slice(0, 12));
         } else {
           results.push({
             token: token.slice(0, 8),
@@ -239,6 +248,7 @@ Deno.serve(async (req) => {
           });
         }
       } catch (err) {
+        console.error("[Push] ❌ Delivery error for token:", token.slice(0, 12), err);
         results.push({
           token: token.slice(0, 8),
           status: "error",
@@ -247,12 +257,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log("[Push] ✅ Complete — results:", JSON.stringify(results));
     return new Response(
       JSON.stringify({ sent: true, badge, results }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("Push notification error:", err);
+    console.error("[Push] ❌ Unhandled error:", err);
     return new Response(
       JSON.stringify({ error: (err as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

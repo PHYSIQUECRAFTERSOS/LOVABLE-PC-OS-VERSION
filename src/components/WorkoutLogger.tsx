@@ -545,7 +545,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
     if (ex.restSeconds > 0) {
       restTimerAudio.unlock(); // Prime iOS audio on user gesture
-      restTimerAudio.preload(); // Pre-fetch countdown sound
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };

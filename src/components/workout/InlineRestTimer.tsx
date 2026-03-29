@@ -13,31 +13,12 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
   const [timeRemaining, setTimeRemaining] = useState(initialSeconds);
   const workerRef = useRef<Worker | null>(null);
   const completedRef = useRef(false);
-  const countdownFiredRef = useRef(false);
-  const countdownPendingRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-
-  const triggerCountdown = useCallback(async () => {
-    if (countdownFiredRef.current || countdownPendingRef.current) return false;
-
-    countdownPendingRef.current = true;
-    try {
-      const didPlay = await restTimerAudio.playCountdown();
-      if (didPlay) {
-        countdownFiredRef.current = true;
-      }
-      return didPlay;
-    } finally {
-      countdownPendingRef.current = false;
-    }
-  }, []);
 
   useEffect(() => {
     setTimeRemaining(initialSeconds);
     completedRef.current = false;
-    countdownFiredRef.current = false;
-    countdownPendingRef.current = false;
 
     const endTime = Date.now() + initialSeconds * 1000;
     const worker = createTimerWorker();
@@ -48,45 +29,29 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
       if (msg.type === "tick") {
         setTimeRemaining(msg.remaining);
-
-        // Trigger countdown audio at <= 3 seconds remaining
-        if (msg.remainingMs <= 3000 && msg.remainingMs > 0 && !countdownFiredRef.current) {
-          void triggerCountdown();
-        }
       }
 
       if (msg.type === "done" && !completedRef.current) {
         completedRef.current = true;
         setTimeRemaining(0);
-        // Fire countdown if it never fired (e.g., timer was < 3s)
-        if (!countdownFiredRef.current) {
-          void triggerCountdown();
-        }
-        restTimerAudio.stopKeepAlive();
+        // Play alarm exactly at zero
+        void restTimerAudio.playCompletionAlarm();
         setTimeout(() => onCompleteRef.current(), 800);
       }
     };
 
     worker.postMessage({ type: "start", endTime });
 
-    // Start keepalive to prevent iOS from suspending AudioContext
-    restTimerAudio.startKeepAlive();
-
     // Visibility change handler — recalculate on return
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        // Resume AudioContext
         restTimerAudio.unlock();
-        // Worker is still running, but force a re-check
         const remainingMs = Math.max(0, endTime - Date.now());
-        if (remainingMs <= 3000 && remainingMs > 0 && !countdownFiredRef.current) {
-          void triggerCountdown();
-        }
         if (remainingMs <= 0 && !completedRef.current) {
           completedRef.current = true;
           setTimeRemaining(0);
           worker.postMessage({ type: "stop" });
-          restTimerAudio.stopKeepAlive();
+          void restTimerAudio.playCompletionAlarm();
           setTimeout(() => onCompleteRef.current(), 800);
         }
       }
@@ -97,20 +62,17 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
-      restTimerAudio.stopKeepAlive();
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialSeconds, triggerCountdown]);
+  }, [initialSeconds]);
 
   const handleSkip = useCallback(() => {
-    countdownPendingRef.current = false;
     if (workerRef.current) {
       workerRef.current.postMessage({ type: "stop" });
       workerRef.current.terminate();
       workerRef.current = null;
     }
-    restTimerAudio.stopCountdown();
-    restTimerAudio.stopKeepAlive();
+    restTimerAudio.stopAlarm();
     onSkip();
   }, [onSkip]);
 
