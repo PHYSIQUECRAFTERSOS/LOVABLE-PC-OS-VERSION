@@ -176,7 +176,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
