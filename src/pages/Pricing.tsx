@@ -98,8 +98,8 @@ const Pricing = () => {
               )}
               <CardContent className="p-6 pt-8">
                 <h3 className="text-xl font-bold">{tier.name}</h3>
+                <p className="mt-1 text-lg font-bold text-primary">{tier.price}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{tier.duration}</p>
-                <p className="mt-3 text-sm text-muted-foreground">{tier.description}</p>
 
                 <ul className="mt-5 space-y-2">
                   {tier.features.map((f) => (
