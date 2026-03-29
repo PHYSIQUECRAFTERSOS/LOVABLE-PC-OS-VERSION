@@ -184,9 +184,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
-    // Pre-init audio on session start so countdown sound is ready
+    // Pre-init audio on session start so alarm is ready
     restTimerAudio.unlock();
-    restTimerAudio.preload();
     const initSession = async () => {
       if (resumeSessionId) {
         // Resuming: restore startTime from DB
@@ -546,7 +545,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
     if (ex.restSeconds > 0) {
       restTimerAudio.unlock(); // Prime iOS audio on user gesture
-      restTimerAudio.preload(); // Pre-fetch countdown sound
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
