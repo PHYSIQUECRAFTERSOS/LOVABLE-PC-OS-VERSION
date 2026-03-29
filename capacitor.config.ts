@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
     scrollEnabled: false,
   },
   android: {
-    backgroundColor: '#121212',
+    backgroundColor: '#0a0a0a',
   },
   plugins: {
     Camera: {
