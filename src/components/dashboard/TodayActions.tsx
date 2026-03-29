@@ -68,10 +68,9 @@ const ACTION_ROUTES: Record<string, string> = {
 interface TodayActionsProps {
   date?: string;
   onDataLoaded?: (items: ActionItem[]) => void;
-  refreshKey?: number;
 }
 
-const TodayActions = ({ date, onDataLoaded, refreshKey = 0 }: TodayActionsProps) => {
+const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
@@ -81,19 +80,23 @@ const TodayActions = ({ date, onDataLoaded, refreshKey = 0 }: TodayActionsProps)
   const [cardioPopup, setCardioPopup] = useState<{ eventId: string; title: string; description?: string | null } | null>(null);
   const [photosPopup, setPhotosPopup] = useState<{ eventId: string } | null>(null);
 
-  const cacheKey = `today-actions-${user?.id}-${targetDate}-${refreshKey}`;
+  // Stable cache key — no refreshKey to avoid race conditions
+  const cacheKey = `today-actions-${user?.id}-${targetDate}`;
+  const cacheKeyRef = useRef(cacheKey);
+  cacheKeyRef.current = cacheKey;
+
+  const refetchRef = useRef<(() => void) | null>(null);
 
   // Listen for FAB-scheduled events to refetch instantly
   useEffect(() => {
     const handler = () => {
-      invalidateCache(cacheKey);
-      refetchRef.current?.();
+      invalidateCache(cacheKeyRef.current);
+      // Small delay to ensure DB write is visible
+      setTimeout(() => refetchRef.current?.(), 150);
     };
     window.addEventListener("calendar-event-added", handler);
     return () => window.removeEventListener("calendar-event-added", handler);
-  }, [cacheKey]);
-
-  const refetchRef = useRef<(() => void) | null>(null);
+  }, []);
 
   const { data: actions = [], loading, refetch } = useDataFetch<ActionItem[]>({
     queryKey: cacheKey,
