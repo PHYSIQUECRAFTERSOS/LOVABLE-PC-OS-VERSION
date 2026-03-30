@@ -230,7 +230,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Main Content */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Mobile Header — safe-area aware */}
-        <header className="flex md:hidden items-center justify-between h-auto min-h-[56px] px-4 border-b border-border bg-card safe-top">
+        <header className="flex md:hidden items-center justify-between h-auto min-h-[56px] px-4 pt-[env(safe-area-inset-top,0px)] border-b border-border bg-card">
           <h1 className="font-display text-base font-bold tracking-tight min-w-0 truncate">
             PHYSIQUE <span className="text-gradient-gold">CRAFTERS</span>
           </h1>
@@ -285,14 +285,14 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </main>
 
         {/* Mobile Bottom Nav — safe-area aware */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm safe-bottom">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom,0px)]">
           {mobileBottomItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-0.5 pt-2.5 pb-1.5 text-[10px] font-medium transition-colors relative",
+                  "flex flex-1 flex-col items-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors relative",
                   isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
