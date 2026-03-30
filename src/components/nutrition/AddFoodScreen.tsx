@@ -170,6 +170,13 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   useEffect(() => {
     if (open) {
+      setSearch("");
+      setResults([]);
+      setBestMatches([]);
+      setMoreResultsList([]);
+      setOffResults([]);
+      setUsedQuery("");
+      setExpandedId(null);
       setActiveTab("all");
       setTimeout(() => searchRef.current?.focus(), 100);
       fetchHistory();
