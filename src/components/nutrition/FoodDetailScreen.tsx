@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { ChevronDown, ShieldCheck, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +91,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   const quantity = parseFloat(quantityStr) || 0;
   const customGrams = parseFloat(customGramsStr) || 0;
   const [showServingDropdown, setShowServingDropdown] = useState(false);
+  const userInteracted = useRef(false);
   const { user } = useAuth();
 
   // Smart Serving Memory: silently pre-fill from last used serving
@@ -105,7 +106,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           .eq("user_id", user.id)
           .eq("food_id", food.id)
           .maybeSingle();
-        if (cancelled || !data) return;
+        if (cancelled || !data || userInteracted.current) return;
         const mem = data as unknown as { serving_size: number; serving_unit: string };
         if (mem.serving_unit === "g" || mem.serving_unit === "grams") {
           setUseGrams(true);
@@ -177,7 +178,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -315,7 +316,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 type="text"
                 inputMode="decimal"
                 value={customGramsStr}
-                onChange={(e) => setCustomGramsStr(e.target.value)}
+                onChange={(e) => { userInteracted.current = true; setCustomGramsStr(e.target.value); }}
                 onFocus={(e) => e.target.select()}
                 placeholder="0"
                 className="flex-1 bg-transparent border-0 text-sm text-foreground p-0 h-auto focus-visible:ring-0"
@@ -336,7 +337,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 type="text"
                 inputMode="decimal"
                 value={quantityStr}
-                onChange={(e) => setQuantityStr(e.target.value)}
+                onChange={(e) => { userInteracted.current = true; setQuantityStr(e.target.value); }}
                 onFocus={(e) => e.target.select()}
                 placeholder="0"
                 className="w-14 bg-secondary border-0 text-sm text-center text-foreground rounded-lg h-8 focus-visible:ring-1 focus-visible:ring-primary/50"
@@ -359,8 +360,14 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
         <div className="flex items-center justify-between rounded-xl bg-card border border-border px-4 py-3">
           <span className="text-sm text-muted-foreground">Meal</span>
           <span className="text-sm font-medium text-foreground">{mealLabel}</span>
+        {/* Bottom Log button — always reachable even when iOS keyboard pushes header off-screen */}
+        <div className="pt-2 pb-4">
+          <Button onClick={handleConfirm} className="w-full rounded-xl text-sm font-semibold py-3">
+            Log Food
+          </Button>
         </div>
       </div>
+    </div>
     </div>
   );
 }

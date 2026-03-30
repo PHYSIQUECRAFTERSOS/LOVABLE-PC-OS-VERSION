@@ -856,7 +856,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           .eq("id", foodItemId)
           .maybeSingle();
         if (fullFood) {
-          micros = extractMicros(fullFood, entry.quantity);
+          const useGramsMode = (entry as any).useGrams;
+          const servingSize = parseFloat(String(fullFood.serving_size)) || 100;
+          const microMultiplier = useGramsMode
+            ? entry.totalGrams / servingSize
+            : entry.quantity;
+          micros = extractMicros(fullFood, microMultiplier);
         }
       } catch (err) {
         console.warn("[handleDetailConfirm] Could not fetch micros:", err);
@@ -868,7 +873,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       food_item_id: foodItemId,
       custom_name: entry.food.name, // ALWAYS set custom_name as fallback
       meal_type: mealType,
-      servings: entry.quantity,
+      servings: (entry as any).useGrams
+        ? entry.totalGrams / (parseFloat(detailFood?.serving_size as any) || 100)
+        : entry.quantity,
       calories: Math.round(entry.calories),
       protein: Math.round(entry.protein),
       carbs: Math.round(entry.carbs),
@@ -876,7 +883,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fiber: Math.round(entry.fiber),
       sugar: Math.round(entry.sugar),
       sodium: Math.round(entry.sodium),
-      quantity_display: (entry as any).useGrams ? (entry as any).customGrams * entry.quantity : entry.quantity,
+      quantity_display: (entry as any).useGrams ? entry.totalGrams : entry.quantity,
       quantity_unit: (entry as any).useGrams ? "g" : "serving",
       logged_at: effectiveDate,
       tz_corrected: true,
