@@ -856,7 +856,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           .eq("id", foodItemId)
           .maybeSingle();
         if (fullFood) {
-          micros = extractMicros(fullFood, entry.quantity);
+          const useGramsMode = (entry as any).useGrams;
+          const servingSize = parseFloat(fullFood.serving_size) || 100;
+          const microMultiplier = useGramsMode
+            ? entry.totalGrams / servingSize
+            : entry.quantity;
+          micros = extractMicros(fullFood, microMultiplier);
         }
       } catch (err) {
         console.warn("[handleDetailConfirm] Could not fetch micros:", err);
