@@ -382,9 +382,10 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                 <div
                   key={idx}
                   draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
+                   onDragStart={() => handleDragStart(idx)}
+                   onDrag={handleDrag}
+                   onDragOver={(e) => handleDragOver(e, idx)}
+                   onDragEnd={handleDragEnd}
                   className={`border rounded-lg p-4 space-y-3 bg-card/50 transition-all ${
                     dragIdx === idx ? "opacity-50 border-primary" : ""
                   } ${inSuperset ? `border-l-4 ${borderColor}` : ""}`}
