@@ -314,11 +314,17 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
 
       {/* Exercises */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Exercises</CardTitle>
-          <Button size="sm" onClick={() => setShowExercisePicker(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Add Exercise
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Switch checked={showRir} onCheckedChange={setShowRir} className="scale-75" />
+              <Label className="text-xs text-muted-foreground">RIR</Label>
+            </div>
+            <Button size="sm" onClick={() => setShowExercisePicker(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Exercise
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {exercises.length === 0 ? (
