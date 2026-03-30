@@ -116,6 +116,7 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [nextGroupIdx, setNextGroupIdx] = useState(0);
+  const [showRir, setShowRir] = useState(false);
 
   const addExercise = (exercise: any) => {
     setExercises([
