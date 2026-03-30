@@ -160,10 +160,10 @@ const ClientStructuredMealPlan = ({
       custom_name: item.custom_name,
       meal_type: mealKey,
       servings: 1,
-      calories: item.calories,
-      protein: item.protein,
-      carbs: item.carbs,
-      fat: item.fat,
+      calories: Math.round(Number(item.calories) || 0),
+      protein: Math.round(Number(item.protein) || 0),
+      carbs: Math.round(Number(item.carbs) || 0),
+      fat: Math.round(Number(item.fat) || 0),
       logged_at: dateStr,
       tz_corrected: true,
       quantity_display: item.gram_amount || item.serving_size || null,
@@ -233,10 +233,10 @@ const ClientStructuredMealPlan = ({
         .filter((i) => i.day_id === selectedDayId)
         .reduce(
           (acc, i) => ({
-            calories: acc.calories + i.calories,
-            protein: acc.protein + i.protein,
-            carbs: acc.carbs + i.carbs,
-            fat: acc.fat + i.fat,
+            calories: acc.calories + (Number(i.calories) || 0),
+            protein: acc.protein + (Number(i.protein) || 0),
+            carbs: acc.carbs + (Number(i.carbs) || 0),
+            fat: acc.fat + (Number(i.fat) || 0),
           }),
           { calories: 0, protein: 0, carbs: 0, fat: 0 }
         )
@@ -349,10 +349,10 @@ const ClientStructuredMealPlan = ({
 
         const sectionTotals = sectionItems.reduce(
           (acc, i) => ({
-            calories: acc.calories + i.calories,
-            protein: acc.protein + i.protein,
-            carbs: acc.carbs + i.carbs,
-            fat: acc.fat + i.fat,
+            calories: acc.calories + (Number(i.calories) || 0),
+            protein: acc.protein + (Number(i.protein) || 0),
+            carbs: acc.carbs + (Number(i.carbs) || 0),
+            fat: acc.fat + (Number(i.fat) || 0),
           }),
           { calories: 0, protein: 0, carbs: 0, fat: 0 }
         );

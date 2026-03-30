@@ -284,10 +284,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   const totals = logs.reduce(
     (acc, l) => ({
-      calories: acc.calories + l.calories,
-      protein: acc.protein + l.protein,
-      carbs: acc.carbs + l.carbs,
-      fat: acc.fat + l.fat,
+      calories: acc.calories + (Number(l.calories) || 0),
+      protein: acc.protein + (Number(l.protein) || 0),
+      carbs: acc.carbs + (Number(l.carbs) || 0),
+      fat: acc.fat + (Number(l.fat) || 0),
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
@@ -298,16 +298,23 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     setLoggerOpen(true);
   };
 
-  const getMealTotals = (items: NutritionLog[]) =>
-    items.reduce(
+  const getMealTotals = (items: NutritionLog[]) => {
+    const raw = items.reduce(
       (acc, l) => ({
-        calories: Math.round(acc.calories + l.calories),
-        protein: Math.round(acc.protein + l.protein),
-        carbs: Math.round(acc.carbs + l.carbs),
-        fat: Math.round(acc.fat + l.fat),
+        calories: acc.calories + (Number(l.calories) || 0),
+        protein: acc.protein + (Number(l.protein) || 0),
+        carbs: acc.carbs + (Number(l.carbs) || 0),
+        fat: acc.fat + (Number(l.fat) || 0),
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
+    return {
+      calories: Math.round(raw.calories),
+      protein: Math.round(raw.protein),
+      carbs: Math.round(raw.carbs),
+      fat: Math.round(raw.fat),
+    };
+  };
 
   const handleCopyFromPlan = async (mealKey: string) => {
     if (!activeDayId) {
@@ -358,8 +365,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   const selectedLogs = logs.filter(l => selectedIds.has(l.id));
   const selectedTotals = selectedLogs.reduce((acc, l) => ({
-    calories: acc.calories + l.calories, protein: acc.protein + l.protein,
-    carbs: acc.carbs + l.carbs, fat: acc.fat + l.fat,
+    calories: acc.calories + (Number(l.calories) || 0), protein: acc.protein + (Number(l.protein) || 0),
+    carbs: acc.carbs + (Number(l.carbs) || 0), fat: acc.fat + (Number(l.fat) || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
   const handleSaveMealFromTracker = async () => {

@@ -36,8 +36,8 @@ const MacroRing = ({ label, current, target, color, unit = "g" }: MacroRingProps
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xs sm:text-sm font-bold text-foreground">{current}</span>
-          <span className="text-[9px] sm:text-[10px] text-muted-foreground">/ {target}</span>
+          <span className="text-xs sm:text-sm font-bold text-foreground">{Math.round(current)}</span>
+          <span className="text-[9px] sm:text-[10px] text-muted-foreground">/ {Math.round(target)}</span>
         </div>
       </div>
       <span className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate max-w-full">{label}</span>
