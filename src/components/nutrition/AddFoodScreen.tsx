@@ -857,7 +857,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           .maybeSingle();
         if (fullFood) {
           const useGramsMode = (entry as any).useGrams;
-          const servingSize = parseFloat(fullFood.serving_size) || 100;
+          const servingSize = parseFloat(String(fullFood.serving_size)) || 100;
           const microMultiplier = useGramsMode
             ? entry.totalGrams / servingSize
             : entry.quantity;
