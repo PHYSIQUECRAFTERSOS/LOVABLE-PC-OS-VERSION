@@ -375,8 +375,8 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                     </div>
                   </div>
 
-                  {/* Core Settings Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                   {/* Core Settings Row */}
+                  <div className={`grid grid-cols-2 ${showRir ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-3`}>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground uppercase">Sets</Label>
                       <Input
@@ -412,16 +412,18 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] text-muted-foreground uppercase">RIR</Label>
-                      <Input
-                        type="number" min={0} max={5}
-                        value={ex.rir ?? ""}
-                        onChange={(e) => updateExercise(idx, "rir", e.target.value ? parseInt(e.target.value) : undefined)}
-                        placeholder="2"
-                        className="h-8 text-sm"
-                      />
-                    </div>
+                    {showRir && (
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] text-muted-foreground uppercase">RIR</Label>
+                        <Input
+                          type="number" min={0} max={5}
+                          value={ex.rir ?? ""}
+                          onChange={(e) => updateExercise(idx, "rir", e.target.value ? parseInt(e.target.value) : undefined)}
+                          placeholder="2"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Intensity & Loading Row */}
