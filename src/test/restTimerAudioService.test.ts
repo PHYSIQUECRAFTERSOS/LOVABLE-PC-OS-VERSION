@@ -81,7 +81,7 @@ describe("RestTimerAudioService", () => {
     vi.stubGlobal("AudioContext", MockAudioContext as unknown as typeof AudioContext);
   });
 
-  it("plays the native iOS alarm path when available", async () => {
+  it("on iOS uses the synthesized alarm first while preparing the native mix session", async () => {
     nativeMocks.platform = "ios";
     const { restTimerAudio } = await import("@/services/RestTimerAudioService");
 
@@ -89,8 +89,20 @@ describe("RestTimerAudioService", () => {
 
     expect(played).toBe(true);
     expect(nativeMocks.enableMixing).toHaveBeenCalled();
+    expect(nativeMocks.playRestTimerAlarm).not.toHaveBeenCalled();
+    expect(createdContexts[0]?.createOscillator).toHaveBeenCalledTimes(3);
+  });
+
+  it("falls back to the native iOS alarm if Web Audio is unavailable", async () => {
+    nativeMocks.platform = "ios";
+    vi.stubGlobal("AudioContext", undefined as unknown as typeof AudioContext);
+    const { restTimerAudio } = await import("@/services/RestTimerAudioService");
+
+    const played = await restTimerAudio.playCompletionAlarm();
+
+    expect(played).toBe(true);
+    expect(nativeMocks.enableMixing).toHaveBeenCalled();
     expect(nativeMocks.playRestTimerAlarm).toHaveBeenCalledTimes(1);
-    expect(createdContexts).toHaveLength(0);
   });
 
   it("recovers an interrupted iOS audio context before web fallback playback", async () => {

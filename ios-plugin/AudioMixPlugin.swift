@@ -46,10 +46,10 @@ public class AudioMixPlugin: CAPPlugin, CAPBridgedPlugin {
             try session.setCategory(
                 .playback,
                 mode: .default,
-                options: [.mixWithOthers, .duckOthers]
+                options: [.mixWithOthers]
             )
             try session.setActive(true)
-            CAPLog.print("[AudioMixPlugin] AVAudioSession set to .playback + mixWithOthers + duckOthers")
+            CAPLog.print("[AudioMixPlugin] AVAudioSession set to .playback + mixWithOthers")
         } catch {
             CAPLog.print("[AudioMixPlugin] Failed to configure AVAudioSession: \(error)")
         }
