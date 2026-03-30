@@ -873,7 +873,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       food_item_id: foodItemId,
       custom_name: entry.food.name, // ALWAYS set custom_name as fallback
       meal_type: mealType,
-      servings: entry.quantity,
+      servings: (entry as any).useGrams
+        ? entry.totalGrams / (parseFloat(detailFood?.serving_size as any) || 100)
+        : entry.quantity,
       calories: Math.round(entry.calories),
       protein: Math.round(entry.protein),
       carbs: Math.round(entry.carbs),
