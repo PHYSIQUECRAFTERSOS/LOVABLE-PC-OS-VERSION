@@ -233,10 +233,10 @@ const ClientStructuredMealPlan = ({
         .filter((i) => i.day_id === selectedDayId)
         .reduce(
           (acc, i) => ({
-            calories: acc.calories + i.calories,
-            protein: acc.protein + i.protein,
-            carbs: acc.carbs + i.carbs,
-            fat: acc.fat + i.fat,
+            calories: acc.calories + (Number(i.calories) || 0),
+            protein: acc.protein + (Number(i.protein) || 0),
+            carbs: acc.carbs + (Number(i.carbs) || 0),
+            fat: acc.fat + (Number(i.fat) || 0),
           }),
           { calories: 0, protein: 0, carbs: 0, fat: 0 }
         )
