@@ -185,8 +185,46 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
     setExercises(newEx);
   };
 
-  // Drag and drop
+  // Drag and drop with auto-scroll
+  const scrollRafRef = useRef<number | null>(null);
+
+  const stopAutoScroll = () => {
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = null;
+    }
+  };
+
   const handleDragStart = (idx: number) => setDragIdx(idx);
+
+  const handleDrag = (e: React.DragEvent) => {
+    // e.clientY is 0 when drag ends or leaves window
+    if (e.clientY === 0) { stopAutoScroll(); return; }
+
+    const edgeZone = 80; // px from viewport edge to start scrolling
+    const speed = 12;
+
+    if (e.clientY < edgeZone) {
+      // Scroll up
+      stopAutoScroll();
+      const loop = () => {
+        window.scrollBy(0, -speed);
+        scrollRafRef.current = requestAnimationFrame(loop);
+      };
+      scrollRafRef.current = requestAnimationFrame(loop);
+    } else if (e.clientY > window.innerHeight - edgeZone) {
+      // Scroll down
+      stopAutoScroll();
+      const loop = () => {
+        window.scrollBy(0, speed);
+        scrollRafRef.current = requestAnimationFrame(loop);
+      };
+      scrollRafRef.current = requestAnimationFrame(loop);
+    } else {
+      stopAutoScroll();
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
     if (dragIdx === null || dragIdx === idx) return;
@@ -196,7 +234,11 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
     setExercises(newList);
     setDragIdx(idx);
   };
-  const handleDragEnd = () => setDragIdx(null);
+
+  const handleDragEnd = () => {
+    stopAutoScroll();
+    setDragIdx(null);
+  };
 
   const formatRestLabel = (seconds: number) => {
     const opt = REST_OPTIONS.find((o) => o.value === seconds);
