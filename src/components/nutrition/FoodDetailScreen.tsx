@@ -316,7 +316,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
                 type="text"
                 inputMode="decimal"
                 value={customGramsStr}
-                onChange={(e) => setCustomGramsStr(e.target.value)}
+                onChange={(e) => { userInteracted.current = true; setCustomGramsStr(e.target.value); }}
                 onFocus={(e) => e.target.select()}
                 placeholder="0"
                 className="flex-1 bg-transparent border-0 text-sm text-foreground p-0 h-auto focus-visible:ring-0"
