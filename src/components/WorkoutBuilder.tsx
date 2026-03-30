@@ -126,7 +126,7 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
         sets: 3,
         reps: "8–10",
         tempo: "",
-        restSeconds: 90,
+        restSeconds: 120,
         notes: "",
         videoOverride: "",
         youtubeUrl: exercise.youtube_url || "",
