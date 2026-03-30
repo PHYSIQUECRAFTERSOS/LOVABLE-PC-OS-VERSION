@@ -116,6 +116,7 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [nextGroupIdx, setNextGroupIdx] = useState(0);
+  const [showRir, setShowRir] = useState(false);
 
   const addExercise = (exercise: any) => {
     setExercises([
@@ -126,7 +127,7 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
         sets: 3,
         reps: "8–10",
         tempo: "",
-        restSeconds: 90,
+        restSeconds: 120,
         notes: "",
         videoOverride: "",
         youtubeUrl: exercise.youtube_url || "",
@@ -313,11 +314,17 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
 
       {/* Exercises */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Exercises</CardTitle>
-          <Button size="sm" onClick={() => setShowExercisePicker(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Add Exercise
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Switch checked={showRir} onCheckedChange={setShowRir} className="scale-75" />
+              <Label className="text-xs text-muted-foreground">RIR</Label>
+            </div>
+            <Button size="sm" onClick={() => setShowExercisePicker(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Exercise
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {exercises.length === 0 ? (
@@ -374,8 +381,8 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                     </div>
                   </div>
 
-                  {/* Core Settings Row */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                   {/* Core Settings Row */}
+                  <div className={`grid grid-cols-2 ${showRir ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-3`}>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] text-muted-foreground uppercase">Sets</Label>
                       <Input
@@ -411,16 +418,18 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] text-muted-foreground uppercase">RIR</Label>
-                      <Input
-                        type="number" min={0} max={5}
-                        value={ex.rir ?? ""}
-                        onChange={(e) => updateExercise(idx, "rir", e.target.value ? parseInt(e.target.value) : undefined)}
-                        placeholder="2"
-                        className="h-8 text-sm"
-                      />
-                    </div>
+                    {showRir && (
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] text-muted-foreground uppercase">RIR</Label>
+                        <Input
+                          type="number" min={0} max={5}
+                          value={ex.rir ?? ""}
+                          onChange={(e) => updateExercise(idx, "rir", e.target.value ? parseInt(e.target.value) : undefined)}
+                          placeholder="2"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Intensity & Loading Row */}
