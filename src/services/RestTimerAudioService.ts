@@ -86,11 +86,9 @@ class RestTimerAudioService {
     return (await this.resumeContext(ctx)) ? ctx : null;
   }
 
-  async unlock(): Promise<void> {
-    await this.enableNativeAudioSession();
-
+  private async primeWebAudioContext(): Promise<boolean> {
     const ctx = await this.ensureRunningContext();
-    if (!ctx) return;
+    if (!ctx) return false;
 
     try {
       const buf = ctx.createBuffer(1, 1, ctx.sampleRate);
@@ -100,15 +98,13 @@ class RestTimerAudioService {
       src.start(0);
       this.unlocked = true;
       console.log("[RestTimerAudio] AudioContext unlocked");
+      return true;
     } catch {
-      // ignore
+      return false;
     }
   }
 
-  async playCompletionAlarm(): Promise<boolean> {
-    const nativePlayed = await this.tryNativeAlarm();
-    if (nativePlayed) return true;
-
+  private async playSynthAlarm(): Promise<boolean> {
     if (!this.unlocked) {
       console.warn("[RestTimerAudio] Alarm fallback using Web Audio before explicit unlock");
     }
@@ -216,6 +212,29 @@ class RestTimerAudioService {
 
       return false;
     }
+  }
+
+  async unlock(): Promise<void> {
+    const webUnlockPromise = this.primeWebAudioContext();
+    const nativeSessionPromise = this.enableNativeAudioSession();
+
+    await webUnlockPromise;
+    await nativeSessionPromise;
+  }
+
+  async playCompletionAlarm(): Promise<boolean> {
+    const nativeSessionPromise = this.enableNativeAudioSession();
+    const synthPlayed = await this.playSynthAlarm();
+    await nativeSessionPromise;
+
+    if (synthPlayed) {
+      if (this.isNativeIOS()) {
+        console.log("[RestTimerAudio] ✅ Synth alarm playing with iOS mix session");
+      }
+      return true;
+    }
+
+    return this.tryNativeAlarm();
   }
 
   stopAlarm(): void {
