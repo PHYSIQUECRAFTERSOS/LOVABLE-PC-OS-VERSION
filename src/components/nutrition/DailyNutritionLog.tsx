@@ -365,8 +365,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   const selectedLogs = logs.filter(l => selectedIds.has(l.id));
   const selectedTotals = selectedLogs.reduce((acc, l) => ({
-    calories: acc.calories + l.calories, protein: acc.protein + l.protein,
-    carbs: acc.carbs + l.carbs, fat: acc.fat + l.fat,
+    calories: acc.calories + (Number(l.calories) || 0), protein: acc.protein + (Number(l.protein) || 0),
+    carbs: acc.carbs + (Number(l.carbs) || 0), fat: acc.fat + (Number(l.fat) || 0),
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
 
   const handleSaveMealFromTracker = async () => {
