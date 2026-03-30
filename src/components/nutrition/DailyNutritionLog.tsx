@@ -766,7 +766,12 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       {/* Edit Mode: Action Sticky Bar */}
       {editMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background border-t border-border z-[55]">
+        <div className={cn(
+          "fixed left-0 right-0 p-4 bg-background border-t border-border z-[55] transition-all",
+          showSaveMealDialog
+            ? "bottom-auto top-[25%] rounded-b-2xl shadow-2xl border-b border-border pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            : "bottom-0 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        )}>
           {showSaveMealDialog ? (
             <div className="space-y-3 animate-fade-in">
               <div className="flex items-center justify-between">
