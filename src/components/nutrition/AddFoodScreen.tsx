@@ -883,7 +883,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       fiber: Math.round(entry.fiber),
       sugar: Math.round(entry.sugar),
       sodium: Math.round(entry.sodium),
-      quantity_display: (entry as any).useGrams ? (entry as any).customGrams * entry.quantity : entry.quantity,
+      quantity_display: (entry as any).useGrams ? entry.totalGrams : entry.quantity,
       quantity_unit: (entry as any).useGrams ? "g" : "serving",
       logged_at: effectiveDate,
       tz_corrected: true,
