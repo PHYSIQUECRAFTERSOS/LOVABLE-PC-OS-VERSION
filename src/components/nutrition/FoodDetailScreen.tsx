@@ -91,6 +91,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   const quantity = parseFloat(quantityStr) || 0;
   const customGrams = parseFloat(customGramsStr) || 0;
   const [showServingDropdown, setShowServingDropdown] = useState(false);
+  const userInteracted = useRef(false);
   const { user } = useAuth();
 
   // Smart Serving Memory: silently pre-fill from last used serving
