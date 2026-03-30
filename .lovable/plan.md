@@ -1,86 +1,36 @@
 
 
-# Fix Push Notifications + Rest Timer Alarm Sound
+## Bug Analysis and Fix Plan
 
-## Problem Analysis
+### Bug 1: Quantity Display Discrepancy (1218g vs 40g)
 
-### Push Notifications: Root Cause Found
-The `push_tokens` table is **completely empty** — zero rows. This means no device token has ever been saved. Without tokens, the edge function has nothing to send to APNs.
+**Root Cause**: In `handleDetailConfirm` (AddFoodScreen.tsx line 866-884), three fields are stored incorrectly when logging via the FoodDetailScreen in grams mode:
 
-The registration hook (`usePushNotifications`) relies on `canUsePush()` which checks for the Capacitor bridge. On a remote-URL Capacitor app (your TestFlight build), `Capacitor.isNativePlatform()` often returns `false`, and the fallback checks (webkit messageHandlers, user-agent sniffing) may also fail depending on the WKWebView configuration. The hook silently exits before ever calling `PushNotifications.register()`.
+1. **`quantity_display`** (line 879): Uses `customGrams * entry.quantity`. This is fragile — if `customGrams` or `quantity` get stale due to the async serving memory effect in FoodDetailScreen overwriting user input, the stored value diverges from what the user intended. The entry already has `totalGrams` which is the canonical computed value.
 
-Even if registration does fire, the token upsert uses `as any` type casting, which masks potential schema mismatches — but the table schema and RLS look correct, so the real blocker is that registration never starts.
+2. **`servings`** (line 871): Stores `entry.quantity` (the "Number of Servings" field, typically 1). But `servings` in `nutrition_logs` is used by `EditFoodModal` as a multiplier against `food_items.serving_size` to reconstruct gram amounts. When `servings=1` but the user logged 40g of a food with 30.45g serving_size, the Edit modal computes wrong values.
 
-### Rest Timer Audio: Root Cause Found
-The current logic triggers audio at **3 seconds remaining** (via `msg.remainingMs <= 3000`), not at zero. You want it **only at zero**. The existing sound file (`Rest_Timer_3_Seconds.mp3`) is a 3-second countdown clip — wrong for a completion alarm. The multiple attempts to fix this kept the same trigger-at-3s logic and the same file.
+3. **`extractMicros`** (line 859): Passes `entry.quantity` (number of servings) instead of the actual multiplier, producing wrong micronutrient values.
 
----
+**Additionally**: The FoodDetailScreen serving memory `useEffect` can overwrite `customGramsStr` after the user has already typed a value (race condition with async Supabase fetch).
 
-## Fix 1: Push Notifications
+**Fix** (2 files):
 
-### Changes to `src/hooks/usePushNotifications.ts`
+**`src/components/nutrition/FoodDetailScreen.tsx`**:
+- Add a `userInteracted` ref that flips to `true` on any input change
+- Guard the serving memory callback: skip state updates if `userInteracted.current === true`
+- This prevents the async memory fetch from clobbering user input
 
-1. **Guarantee registration runs on native**: Remove the overly complex `canUsePush()` gating. On the Capacitor iOS build, always attempt registration inside a try/catch — if the plugin isn't available, it throws and we catch it. This is simpler and more reliable than bridge-sniffing.
-
-2. **Add console logging at every step** so you can see in Xcode/Safari what's happening: permission request result, token value, upsert result.
-
-3. **Remove `as any` cast** on the `push_tokens` table — it exists in the types. Use proper typed access.
-
-4. **Add a retry mechanism**: If the initial registration attempt fails (common on cold app start), retry once after 2 seconds.
-
-### Changes to `supabase/functions/send-push-notification/index.ts`
-
-5. **Add detailed logging** so edge function logs show exactly what's happening: user_id received, tokens found, APNs response status/body.
-
-6. **Use production APNs URL** — verify we're hitting `api.push.apple.com` not `api.sandbox.push.apple.com`. The current code uses production, which is correct for TestFlight and App Store builds.
-
-### Verification Steps
-- After deploy, open the app on TestFlight
-- Check Xcode console for `[Push]` logs showing token received and saved
-- Query `push_tokens` table to confirm token appears
-- Send a test message from coach desktop → verify edge function logs show delivery
-- Verify banner appears on lock screen / home screen
+**`src/components/nutrition/AddFoodScreen.tsx`** (`handleDetailConfirm`):
+- Change `quantity_display` to use `entry.totalGrams` (already correctly computed as `effectiveGrams`)
+- Change `servings` to compute the actual multiplier: `entry.totalGrams / (detailFood?.serving_size || 100)` for grams mode, `entry.quantity` for serving mode
+- Fix `extractMicros` to use the same computed multiplier instead of `entry.quantity`
 
 ---
 
-## Fix 2: Rest Timer Alarm Sound
+### Bug 2: FoodDetailScreen UI pushed off-screen by iOS keyboard
 
-### New Approach: Play sound at ZERO only
+**Root Cause**: The FoodDetailScreen uses `fixed inset-0` positioning. On iOS (PWA/Capacitor), when the software keyboard opens, the viewport shrinks and the browser scrolls to keep the focused input visible, pushing the header (with the "Log" button) above the visible area. Even after dismissing the keyboard or switching tabs, the layout can remain offset.
 
-1. **Generate a new alarm tone** — a short (1-2 second), assertive "rest complete" chime/alarm using Web Audio API synthesis (two ascending tones). No external file dependency = no asset-loading failures. This eliminates the entire class of bugs where the MP3 fails to load, decode, or play.
-
-2. **Simplify the timer components** (`InlineRestTimer.tsx`, `FloatingRestTimer.tsx`):
-   - Remove all `triggerCountdown` / `countdownFiredRef` / `countdownPendingRef` logic
-   - Remove keepalive start/stop (no longer needed for a completion-only sound)
-   - On `msg.type === "done"`: call a simple `playCompletionAlarm()` method
-   - The alarm is synthesized inline — no preloading, no asset fetching, no race conditions
-
-3. **Update `RestTimerAudioService.ts`**:
-   - Add `playCompletionAlarm()` method that synthesizes a short two-tone chime (e.g., 880Hz → 1320Hz, 150ms each) using AudioContext oscillators
-   - On native: use the same oscillator approach (AudioContext works in Capacitor WKWebView) since NativeAudio has been unreliable
-   - Remove the countdown-specific methods or keep them as no-ops for backward compat
-   - The `unlock()` call on workout start still creates/resumes the AudioContext (satisfies iOS autoplay policy)
-
-4. **Update `WorkoutLogger.tsx`**:
-   - Keep the `restTimerAudio.unlock()` call on set completion (user gesture = iOS autoplay satisfied)
-   - Remove `restTimerAudio.preload()` calls (no asset to preload)
-
-### Why This Works
-- Synthesized audio has **zero load time** — no fetch, no decode, no cache
-- AudioContext is already unlocked by the user tap (completing a set)
-- The sound plays exactly once at timer completion — no 3-second pre-trigger, no retry logic, no keepalive
-- Works on both native (Capacitor WKWebView) and web (PWA)
-
----
-
-## Files Modified
-
-| File | Change |
-|---|---|
-| `src/hooks/usePushNotifications.ts` | Simplify detection, add retry, add logging, fix types |
-| `supabase/functions/send-push-notification/index.ts` | Add detailed logging |
-| `src/services/RestTimerAudioService.ts` | Add `playCompletionAlarm()` with synthesized two-tone chime |
-| `src/components/workout/InlineRestTimer.tsx` | Remove 3s countdown logic, play alarm at done only |
-| `src/components/workout/FloatingRestTimer.tsx` | Same simplification |
-| `src/components/WorkoutLogger.tsx` | Remove `preload()` calls, keep `unlock()` |
-
+**Fix** (`src/components/nutrition/FoodDetailScreen.tsx`):
+- Add a sticky duplicate "Log" button at the bottom of the scrollable content area (inside `pb
