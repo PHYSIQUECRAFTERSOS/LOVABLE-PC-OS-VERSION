@@ -989,7 +989,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (selectedPCRecipe) {
     return (
-      <PCRecipeDetail
+      <OverlayPortal><PCRecipeDetail
         recipe={selectedPCRecipe}
         mealType={mealType}
         mealLabel={mealLabel}
