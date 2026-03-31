@@ -1,4 +1,4 @@
-const CACHE_NAME = 'physique-crafters-v8';
+const CACHE_NAME = 'physique-crafters-v9';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -12,6 +12,14 @@ function isBackendOrApiRequest(url) {
     url.pathname.startsWith('/storage/v1/') ||
     url.pathname.startsWith('/functions/v1/')
   );
+}
+
+function isCapacitorContext() {
+  // Capacitor apps set a custom user-agent or load from capacitor://
+  // We detect via the navigator.standalone or window context not being available in SW,
+  // so instead we check the referrer or simply treat all navigation as network-only
+  // since this SW runs inside a native WebView pointing to a remote URL.
+  return true; // In this app, server.url is set — SW always runs in native context
 }
 
 self.addEventListener('install', (event) => {
@@ -37,13 +45,11 @@ self.addEventListener('activate', (event) => {
         })
       );
     }).then(() => {
-      // Force all open tabs to use this new service worker immediately
       return self.clients.claim();
     })
   );
 });
 
-// Listen for skip-waiting messages from the app
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -58,7 +64,25 @@ self.addEventListener('fetch', (event) => {
   // Never cache API/backend requests
   if (url.origin !== self.location.origin || isBackendOrApiRequest(url)) return;
 
-  // NETWORK-FIRST for everything: always try fresh, fall back to cache only when offline
+  // For navigation requests (HTML pages), ALWAYS go network-only.
+  // This prevents the native Capacitor app from serving stale cached HTML.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        // Only fall back to cache when truly offline
+        const cachedResponse = await caches.match('/index.html');
+        if (cachedResponse) return cachedResponse;
+        return new Response('Offline - content not available', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: new Headers({ 'Content-Type': 'text/plain' }),
+        });
+      })
+    );
+    return;
+  }
+
+  // NETWORK-FIRST for all other assets (JS, CSS, images)
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -73,12 +97,6 @@ self.addEventListener('fetch', (event) => {
       .catch(async () => {
         const cachedResponse = await caches.match(event.request);
         if (cachedResponse) return cachedResponse;
-
-        // For navigation requests, try the app shell
-        if (event.request.mode === 'navigate') {
-          const appShell = await caches.match('/index.html');
-          if (appShell) return appShell;
-        }
 
         return new Response('Offline - content not available', {
           status: 503,
