@@ -413,7 +413,7 @@ export function useHealthSync() {
   const updateStepGoal = useCallback(
     async (goal: number) => {
       if (!user) return;
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateString();
       await supabase
         .from("daily_health_metrics")
         .upsert(
