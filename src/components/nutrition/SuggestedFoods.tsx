@@ -185,7 +185,7 @@ const SuggestedFoods = ({ remaining, userId, dateStr, onLogged }: SuggestedFoods
               disabled={loggingId === food.id}
               className="flex items-start gap-2 rounded-lg border border-border/50 bg-secondary/30 p-2.5 text-left transition-colors hover:bg-secondary/60 active:scale-[0.98] disabled:opacity-50"
             >
-              <span className="text-base shrink-0 mt-0.5">{getFoodEmoji(food.name)}</span>
+              <span className="text-base shrink-0 mt-0.5">{getFoodEmoji({ name: food.name })}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-foreground truncate">{food.name}</p>
                 {food.brand && (
