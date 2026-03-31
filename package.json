@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "cap:sync": "npx cap sync ios && bash scripts/post-cap-sync.sh",
+    "cap:build": "npm run build && npm run cap:sync && npx cap open ios"
   },
   "dependencies": {
     "@capacitor-community/native-audio": "^8.0.0",
