@@ -329,6 +329,53 @@ const DivisionSubGroup = ({
   );
 };
 
+/* ── Placement Player Row ────────────────────────────────────── */
+
+const PlacementPlayerRow = ({ entry }: { entry: any }) => {
+  const initials = (entry.name || "U")
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  const days = entry.placement_days_completed || 0;
+  const total = 7;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 px-4 py-2.5 transition-colors",
+        entry.isMe && "bg-primary/5"
+      )}
+    >
+      <Avatar className="h-7 w-7 shrink-0">
+        {entry.avatar_url && <AvatarImage src={entry.avatar_url} alt={entry.name} />}
+        <AvatarFallback
+          className="text-[10px] font-semibold bg-primary/20 text-primary"
+        >
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+
+      <span
+        className={cn(
+          "text-sm font-medium truncate flex-1",
+          entry.isMe ? "text-primary" : "text-foreground"
+        )}
+      >
+        {entry.name}
+      </span>
+
+      <div className="text-right shrink-0">
+        <p className="text-xs font-bold text-primary">
+          🏁 Day {days}/{total}
+        </p>
+        <p className="text-[9px] text-muted-foreground">In Placement</p>
+      </div>
+    </div>
+  );
+};
+
 /* ── Player Row (Divisions view) ────────────────────────────── */
 
 const DivisionPlayerRow = ({
