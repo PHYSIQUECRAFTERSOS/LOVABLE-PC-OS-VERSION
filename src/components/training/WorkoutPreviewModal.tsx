@@ -31,6 +31,10 @@ interface WorkoutPreviewModalProps {
   workoutId: string | null;
   workoutName: string;
   onStartWorkout: (workoutId: string) => void;
+  /** Override the bottom button label (default: "Start Workout") */
+  actionLabel?: string;
+  /** Override the bottom button icon (default: Play) */
+  actionIcon?: React.ReactNode;
 }
 
 const WorkoutPreviewModal = ({
