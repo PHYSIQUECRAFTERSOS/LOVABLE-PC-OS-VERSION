@@ -1,4 +1,4 @@
-const CACHE_NAME = 'physique-crafters-v4';
+const CACHE_NAME = 'physique-crafters-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -36,9 +36,18 @@ self.addEventListener('activate', (event) => {
           return Promise.resolve();
         })
       );
+    }).then(() => {
+      // Force all open tabs to use this new service worker immediately
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
+});
+
+// Listen for skip-waiting messages from the app
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
