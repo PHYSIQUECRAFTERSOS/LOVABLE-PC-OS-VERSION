@@ -116,16 +116,21 @@ const RankedLeaderboard = () => {
 /* ── Divisions Accordion View ──────────────────────────────── */
 
 const DivisionsView = ({ entries, search }: { entries: any[]; search: string }) => {
-  // Group by tier
-  const tierGroups = useMemo(() => {
+  // Group by tier — separate placement clients
+  const { tierGroups, placementClients } = useMemo(() => {
     const groups: Record<string, any[]> = {};
+    const placement: any[] = [];
     for (const tier of TIER_ORDER) groups[tier] = [];
     for (const e of entries) {
-      const t = e.current_tier || "bronze";
-      if (groups[t]) groups[t].push(e);
-      else groups["bronze"].push(e);
+      if (e.placement_status === "pending" || e.placement_status === "in_progress") {
+        placement.push(e);
+      } else {
+        const t = e.current_tier || "bronze";
+        if (groups[t]) groups[t].push(e);
+        else groups["bronze"].push(e);
+      }
     }
-    return groups;
+    return { tierGroups: groups, placementClients: placement };
   }, [entries]);
 
   // Find tier with most players to auto-expand
