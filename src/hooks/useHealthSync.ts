@@ -38,9 +38,9 @@ function pluginTimeout<T>(promise: Promise<T>, ms: number, label: string): Promi
 }
 
 // ── Auto-sync constants ──
-const AUTO_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
-const FOREGROUND_SYNC_THROTTLE_MS = 30 * 60 * 1000; // 30 minutes
-const INITIAL_SYNC_DELAY_MS = 5000; // 5 seconds after mount
+const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const FOREGROUND_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+const INITIAL_SYNC_DELAY_MS = 3000; // 3 seconds after mount
 
 export function useHealthSync() {
   const { user } = useAuth();
