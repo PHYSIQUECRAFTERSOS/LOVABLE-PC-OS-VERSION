@@ -60,33 +60,40 @@ const Subscribe = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successPlan, setSuccessPlan] = useState("");
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+
+  const fetchProducts = async (): Promise<boolean> => {
+    try {
+      const productIds = DEFAULT_PLANS.map((p) => p.productId);
+      const result = await Promise.race([
+        StoreKit.getProducts({ productIds }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
+      if (result && result.products && result.products.length > 0) {
+        setPlans((prev) =>
+          prev.map((plan) => {
+            const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
+            if (live) {
+              return { ...plan, price: live.price, title: live.displayName || plan.title };
+            }
+            return plan;
+          })
+        );
+        setProductsLoaded(true);
+        return true;
+      }
+      console.warn("[Subscribe] getProducts returned empty or timed out", result);
+      return false;
+    } catch (err) {
+      console.warn("[Subscribe] getProducts failed", err);
+      return false;
+    }
+  };
 
   // Fetch live pricing from App Store on mount (graceful fallback to defaults)
   useEffect(() => {
     if (!isNative) return;
-    const fetchPrices = async () => {
-      try {
-        const productIds = DEFAULT_PLANS.map((p) => p.productId);
-        const result = await Promise.race([
-          StoreKit.getProducts({ productIds }),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]);
-        if (result && result.products && result.products.length > 0) {
-          setPlans((prev) =>
-            prev.map((plan) => {
-              const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
-              if (live) {
-                return { ...plan, price: live.price, title: live.displayName || plan.title };
-              }
-              return plan;
-            })
-          );
-        }
-      } catch {
-        // Silently fall back to hardcoded prices
-      }
-    };
-    fetchPrices();
+    fetchProducts();
   }, []);
 
   const handleSubscribe = async () => {
@@ -100,6 +107,19 @@ const Subscribe = () => {
 
     setSubscribing(true);
     try {
+      // If products weren't loaded on mount, retry before purchasing
+      if (!productsLoaded) {
+        const loaded = await fetchProducts();
+        if (!loaded) {
+          toast({
+            title: "Unable to connect to App Store",
+            description: "Could not load product information. Please check your internet connection and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Call purchase with explicit product ID
       await StoreKit.purchase({ productId: plan.productId });
 
@@ -110,25 +130,33 @@ const Subscribe = () => {
     } catch (err: any) {
       // User tapped "Cancel" on the Apple payment sheet — NOT an error
       const code = err?.code || err?.message || "";
+      const codeStr = String(code).toLowerCase();
       if (
         code === "USER_CANCELLED" ||
         code === "PURCHASE_PENDING" ||
-        String(code).toLowerCase().includes("cancel")
+        codeStr.includes("cancel")
       ) {
         // Silent dismiss — do not show error toast
         return;
       }
 
-      console.error("Purchase error:", err);
+      // Full diagnostic logging — this is our debugger on device
+      console.warn("[Subscribe] Purchase error:", JSON.stringify({
+        code: err?.code,
+        message: err?.message,
+        errorMessage: err?.errorMessage,
+        raw: String(err),
+      }));
 
-      // Provide a more descriptive error based on the error type
-      const errorMsg = String(code).toLowerCase();
-      let description = "Please try again.";
-      if (errorMsg.includes("invalid") || errorMsg.includes("product")) {
-        description = "This plan is temporarily unavailable. Please try again later or contact support.";
-      } else if (errorMsg.includes("network") || errorMsg.includes("connect")) {
+      // Surface the actual native error in the toast for debugging
+      const nativeMsg = err?.message || err?.errorMessage || err?.code || String(err);
+      let description = `Error: ${nativeMsg}`;
+
+      if (codeStr.includes("invalid") || codeStr.includes("product")) {
+        description = `This plan is temporarily unavailable (${nativeMsg}). Please try again later or contact support.`;
+      } else if (codeStr.includes("network") || codeStr.includes("connect")) {
         description = "Please check your internet connection and try again.";
-      } else if (errorMsg.includes("not allowed") || errorMsg.includes("restrict")) {
+      } else if (codeStr.includes("not allowed") || codeStr.includes("restrict")) {
         description = "In-app purchases may be restricted on this device. Check Settings → Screen Time.";
       }
 
