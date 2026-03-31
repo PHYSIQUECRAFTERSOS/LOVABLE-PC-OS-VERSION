@@ -9,7 +9,8 @@ import {
   useXPHistory,
 } from "@/hooks/useRanked";
 import TierBadge from "./TierBadge";
-import { getDivisionLabel, COACH_PRESETS } from "@/utils/rankedXP";
+import { getDivisionLabel, COACH_PRESETS, calculateTierAndDivision, PLACEMENT_XP_MAP, TIER_FLOOR } from "@/utils/rankedXP";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   TrendingUp,
