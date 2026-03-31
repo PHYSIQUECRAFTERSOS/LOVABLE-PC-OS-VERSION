@@ -542,7 +542,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
             );
           })}
         </div>
-      </div>
+      </div></OverlayPortal>
     );
   }
 
