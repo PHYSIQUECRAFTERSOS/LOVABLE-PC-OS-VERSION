@@ -43,6 +43,11 @@ const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const FOREGROUND_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 const INITIAL_SYNC_DELAY_MS = 3000; // 3 seconds after mount
 
+// ── GLOBAL sync lock (shared across all hook instances) ──
+// Prevents StepsCard + HealthSyncBootstrap from querying HealthKit simultaneously
+let globalSyncing = false;
+let globalLastSync = 0;
+
 interface UseHealthSyncOptions {
   enableAutoSync?: boolean;
 }
@@ -57,8 +62,6 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
   const [syncing, setSyncing] = useState(false);
 
   const connectionRef = useRef<HealthConnection | null>(null);
-  const lastSyncRef = useRef<number>(0);
-  const syncingRef = useRef(false);
 
   const isNative = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
@@ -69,7 +72,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
     if (connection?.last_sync_at) {
       const lastSyncedAt = new Date(connection.last_sync_at).getTime();
       if (Number.isFinite(lastSyncedAt)) {
-        lastSyncRef.current = Math.max(lastSyncRef.current, lastSyncedAt);
+        globalLastSync = Math.max(globalLastSync, lastSyncedAt);
       }
     }
   }, [connection]);
@@ -227,8 +230,8 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
   /**
    * Sync health data now.
-   * DOES NOT re-request authorization — that only happens during connect().
-   * Queries steps, distance, and energy INDEPENDENTLY so partial success is possible.
+   * Uses a GLOBAL lock so multiple hook instances (StepsCard + HealthSyncBootstrap)
+   * cannot query HealthKit concurrently — concurrent native bridge calls cause failures.
    */
   const syncNow = useCallback(async (connectionOverride?: HealthConnection) => {
     const conn = connectionOverride ?? connectionRef.current;
@@ -237,12 +240,12 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       return;
     }
 
-    // Prevent concurrent syncs
-    if (syncingRef.current) {
-      console.log("[HealthSync] syncNow skipped — already syncing");
+    // GLOBAL lock — prevents concurrent HealthKit queries from any hook instance
+    if (globalSyncing) {
+      console.log("[HealthSync] syncNow skipped — another sync is already in progress (global lock)");
       return;
     }
-    syncingRef.current = true;
+    globalSyncing = true;
     setSyncing(true);
 
     try {
@@ -256,11 +259,11 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
       if (isNative && platform === "ios") {
         // ── Query each metric independently for resilience ──
-        // If one fails, the others can still succeed.
         let stepsValues: { date: string; value: number }[] = [];
         let energyValues: { date: string; value: number }[] = [];
         let distanceValues: { date: string; value: number }[] = [];
         let anySuccess = false;
+        const failedQueries: string[] = [];
 
         try {
           const result = await pluginTimeout(
@@ -272,6 +275,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           console.log(`[HealthSync] Steps query OK: ${stepsValues.length} days`);
         } catch (err) {
           console.warn("[HealthSync] Steps query failed (continuing):", err);
+          failedQueries.push(`steps: ${String(err)}`);
         }
 
         try {
@@ -284,6 +288,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           console.log(`[HealthSync] Energy query OK: ${energyValues.length} days`);
         } catch (err) {
           console.warn("[HealthSync] Energy query failed (continuing):", err);
+          failedQueries.push(`energy: ${String(err)}`);
         }
 
         try {
@@ -296,13 +301,30 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           console.log(`[HealthSync] Distance query OK: ${distanceValues.length} days`);
         } catch (err) {
           console.warn("[HealthSync] Distance query failed (continuing):", err);
+          failedQueries.push(`distance: ${String(err)}`);
         }
 
         if (!anySuccess) {
-          throw new Error("All HealthKit queries failed. Please check Health permissions in Settings → Health → Physique Crafters.");
+          // Include the actual errors in the log for debugging
+          const detail = failedQueries.join("; ");
+          console.error("[HealthSync] All queries failed. Details:", detail);
+
+          // Differentiate between timeout errors and permission/availability errors
+          const allTimedOut = failedQueries.every(q => q.includes("timed out"));
+          const hasPermErr = failedQueries.some(q =>
+            q.includes("authorization") || q.includes("not authorized") || q.includes("permission")
+          );
+
+          if (hasPermErr) {
+            throw new Error("HealthKit access not authorized. Open Settings → Health → Physique Crafters and enable all permissions.");
+          } else if (allTimedOut) {
+            throw new Error("HealthKit queries timed out. This can happen if the app was recently installed. Please try again.");
+          } else {
+            throw new Error("Health sync temporarily failed. Please try again in a moment.");
+          }
         }
 
-        // Build a map of date → metrics, only including non-zero values
+        // Build a map of date → metrics
         const metricsMap = new Map<string, {
           steps?: number;
           active_energy_kcal?: number;
@@ -325,7 +347,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           metricsMap.set(entry.date, existing);
         }
 
-        // Build upsert rows — only include fields that had successful queries
+        // Build upsert rows
         const metricRows = Array.from(metricsMap.entries()).map(([date, metrics]) => ({
           user_id: user.id,
           metric_date: date,
@@ -376,7 +398,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         })
         .eq("id", conn.id);
 
-      lastSyncRef.current = Date.now();
+      globalLastSync = Date.now();
       await Promise.all([fetchConnection(), fetchMetrics()]);
     } catch (err) {
       console.error("[HealthSync] Sync error:", err);
@@ -396,7 +418,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         .eq("id", conn.id);
       throw new Error(userMessage);
     } finally {
-      syncingRef.current = false;
+      globalSyncing = false;
       setSyncing(false);
     }
   }, [user, isNative, platform, fetchConnection, fetchMetrics]);
@@ -405,14 +427,13 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
   useEffect(() => {
     if (!enableAutoSync || !user || !isNative || platform !== "ios") return;
 
-    // Don't require connection state for setup — we'll check at sync time
     console.log("[HealthSync] Setting up auto-sync (30-min interval + foreground trigger)");
 
     // Initial sync after short delay
     const initialTimer = setTimeout(() => {
       const conn = connectionRef.current;
       if (!conn?.is_connected) return;
-      const timeSinceLastSync = Date.now() - lastSyncRef.current;
+      const timeSinceLastSync = Date.now() - globalLastSync;
       if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS) {
         console.log("[HealthSync] Running initial auto-sync…");
         syncNow().catch((err) => console.warn("[HealthSync] Initial auto-sync failed:", err));
@@ -423,6 +444,10 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
     const intervalId = setInterval(() => {
       const conn = connectionRef.current;
       if (!conn?.is_connected) return;
+      if (globalSyncing) {
+        console.log("[HealthSync] Scheduled sync skipped — global lock active");
+        return;
+      }
       console.log("[HealthSync] Running scheduled 30-min auto-sync…");
       syncNow().catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
     }, AUTO_SYNC_INTERVAL_MS);
@@ -433,8 +458,8 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       if (isActive) {
         const conn = connectionRef.current;
         if (!conn?.is_connected) return;
-        const timeSinceLastSync = Date.now() - lastSyncRef.current;
-        if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS && !syncingRef.current) {
+        const timeSinceLastSync = Date.now() - globalLastSync;
+        if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS && !globalSyncing) {
           console.log("[HealthSync] App resumed — running foreground auto-sync…");
           syncNow().catch((err) => console.warn("[HealthSync] Foreground auto-sync failed:", err));
         } else {
