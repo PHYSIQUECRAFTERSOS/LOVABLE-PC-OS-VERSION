@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
+import { getLocalDateString } from "@/utils/localDate";
 
 interface WearableConnection {
   id: string;
@@ -138,8 +139,8 @@ const HealthIntegrations = () => {
           client_id: user.id,
           provider: prov,
           access_token: w.access_token,
-          start_date: new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0],
-          end_date: new Date().toISOString().split("T")[0],
+          start_date: new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA"),
+          end_date: getLocalDateString(),
         },
       });
       if (error) throw error;
