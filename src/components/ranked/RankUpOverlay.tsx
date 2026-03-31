@@ -125,17 +125,117 @@ const RankUpOverlay = ({ tier, division, type, previousTier, placementScore, pla
   useEffect(() => {
     if (prefersReduced) return;
     if (type === "division_up") rankUpAudio.playDivisionUp();
-    else if (type === "tier_up") rankUpAudio.playTierUp();
+    else if (type === "tier_up" || type === "placement_reveal") rankUpAudio.playTierUp();
     else if (type === "champion_in") rankUpAudio.playChampionIn();
     // No sound for demotions
   }, [type, prefersReduced]);
 
-  // Haptic feedback for tier-ups
+  // Haptic feedback for tier-ups and placement reveals
   useEffect(() => {
-    if (isTierUp && navigator.vibrate) {
+    if ((isTierUp || isPlacement) && navigator.vibrate) {
       navigator.vibrate([100, 50, 200]);
     }
-  }, [isTierUp]);
+  }, [isTierUp, isPlacement]);
+
+  // ─── Render: PLACEMENT REVEAL ───
+  if (isPlacement) {
+    const tierName = TIER_CONFIG[tier?.toLowerCase() as TierName]?.name?.toUpperCase() ?? tier?.toUpperCase();
+    return (
+      <div
+        className={`fixed inset-0 z-[100] flex items-center justify-center transition-opacity duration-300 ${dismissing ? "opacity-0" : "opacity-100"}`}
+        style={{ backgroundColor: "rgba(0,0,0,0.92)" }}
+        onClick={dismiss}
+      >
+        <style>{`
+          @keyframes placementFadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes placementBadgePop {
+            0% { transform: scale(0.2); opacity: 0; }
+            60% { transform: scale(1.2); opacity: 1; }
+            80% { transform: scale(0.95); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes placementGlow {
+            0%, 100% { filter: drop-shadow(0 0 15px ${color}60); }
+            50% { filter: drop-shadow(0 0 35px ${color}bb); }
+          }
+          @keyframes scoreCount {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+          }
+        `}</style>
+
+        {!prefersReduced && stage >= 2 && (
+          <RankUpConfetti tier={tier} intensity="tier" delay={0} />
+        )}
+
+        <div className="flex flex-col items-center gap-5 px-4 relative z-[5]">
+          {/* Header text */}
+          <div
+            style={{
+              animation: stage >= 1 ? "placementFadeIn 0.6s ease-out forwards" : "none",
+              opacity: stage >= 1 ? undefined : 0,
+            }}
+          >
+            <p className="text-xs font-bold tracking-[0.3em] text-primary uppercase text-center">
+              Placement Complete
+            </p>
+          </div>
+
+          {/* Score */}
+          {stage >= 2 && placementScore !== undefined && (
+            <div
+              className="text-center"
+              style={{ animation: "scoreCount 0.5s ease-out forwards" }}
+            >
+              <p className="text-4xl font-black tabular-nums" style={{ color }}>
+                {Math.round(placementScore)}%
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Compliance Score</p>
+            </div>
+          )}
+
+          {/* Badge */}
+          <div
+            className="relative"
+            style={{
+              width: "min(60vw, 280px)",
+              height: "min(60vw, 280px)",
+              animation: stage >= 3 ? "placementBadgePop 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards" : "none",
+              opacity: stage >= 3 ? undefined : 0,
+            }}
+          >
+            <img
+              src={badgeSrc}
+              className="w-full h-full object-contain"
+              alt={tier}
+              draggable={false}
+              style={{
+                animation: stage >= 5 ? "placementGlow 2s ease-in-out infinite" : "none",
+              }}
+            />
+          </div>
+
+          {/* Rank label */}
+          {stage >= 4 && (
+            <div
+              className="text-center"
+              style={{ animation: "placementFadeIn 0.5s ease-out forwards" }}
+            >
+              <h1 className="text-3xl font-black tracking-wider" style={{ color }}>
+                {label}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-2">
+                Your journey begins here. Climb the ranks! 🏆
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // ─── Render: DEMOTION ───
   if (isDemotion) {
