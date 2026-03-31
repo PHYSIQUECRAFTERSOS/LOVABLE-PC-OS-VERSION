@@ -369,7 +369,7 @@ export function useHealthSync() {
     const conn = connectionRef.current;
     if (!user || !isNative || platform !== "ios" || !conn?.is_connected) return;
 
-    console.log("[HealthSync] Setting up auto-sync (2h interval + foreground trigger)");
+    console.log("[HealthSync] Setting up auto-sync (30-min interval + foreground trigger)");
 
     // Initial sync after short delay (catch data from when app was closed)
     const initialTimer = setTimeout(() => {
