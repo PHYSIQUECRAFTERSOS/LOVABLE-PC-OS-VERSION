@@ -31,87 +31,94 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
   const [dailyStepGoal, setDailyStepGoal] = useState(initialTargets?.daily_step_goal ?? 10000);
   const [stepGoalError, setStepGoalError] = useState("");
 
-  // Store percentages as the source of truth for sliders
-  const initPcts = useMemo(() => {
-    if (!initialTargets || initialTargets.calories === 0) return { protein: 40, carbs: 40, fat: 20 };
-    const pCal = initialTargets.protein * 4;
-    const cCal = initialTargets.carbs * 4;
-    const fCal = initialTargets.fat * 9;
-    const total = pCal + cCal + fCal;
-    if (total === 0) return { protein: 40, carbs: 40, fat: 20 };
+  // Grams as source of truth
+  const initGrams = useMemo(() => {
+    if (!initialTargets || initialTargets.calories === 0) {
+      const cal = initialTargets?.calories || 2150;
+      return {
+        protein: Math.round((cal * 0.4) / 4),
+        carbs: Math.round((cal * 0.4) / 4),
+        fat: Math.round((cal * 0.2) / 9),
+      };
+    }
     return {
-      protein: Math.round((pCal / total) * 100),
-      carbs: Math.round((cCal / total) * 100),
-      fat: Math.round((fCal / total) * 100),
+      protein: initialTargets.protein,
+      carbs: initialTargets.carbs,
+      fat: initialTargets.fat,
     };
   }, [initialTargets]);
 
-  const [proteinPct, setProteinPct] = useState(initPcts.protein);
-  const [carbsPct, setCarbsPct] = useState(initPcts.carbs);
-  const [fatPct, setFatPct] = useState(initPcts.fat);
+  const [proteinG, setProteinG] = useState(initGrams.protein);
+  const [carbsG, setCarbsG] = useState(initGrams.carbs);
+  const [fatG, setFatG] = useState(initGrams.fat);
 
-  // Computed grams
-  const grams = useMemo(() => ({
-    protein: Math.round((calories * proteinPct / 100) / 4),
-    carbs: Math.round((calories * carbsPct / 100) / 4),
-    fat: Math.round((calories * fatPct / 100) / 9),
-  }), [calories, proteinPct, carbsPct, fatPct]);
+  // String state for inline gram inputs (avoids stuck-zero bug)
+  const [proteinStr, setProteinStr] = useState(String(initGrams.protein));
+  const [carbsStr, setCarbsStr] = useState(String(initGrams.carbs));
+  const [fatStr, setFatStr] = useState(String(initGrams.fat));
 
-  // Slider handlers that keep total at 100%
-  const handleProteinChange = useCallback((val: number[]) => {
-    const newP = val[0];
-    const remaining = 100 - newP;
-    const oldOther = carbsPct + fatPct;
-    if (oldOther === 0) {
-      setCarbsPct(Math.round(remaining * 0.67));
-      setFatPct(remaining - Math.round(remaining * 0.67));
+  // Derived percentages from grams + calories
+  const pcts = useMemo(() => {
+    const totalMacroCals = (proteinG * 4) + (carbsG * 4) + (fatG * 9);
+    if (totalMacroCals === 0) return { protein: 0, carbs: 0, fat: 0 };
+    return {
+      protein: Math.round((proteinG * 4 / totalMacroCals) * 100),
+      carbs: Math.round((carbsG * 4 / totalMacroCals) * 100),
+      fat: Math.round((fatG * 9 / totalMacroCals) * 100),
+    };
+  }, [proteinG, carbsG, fatG]);
+
+  // Slider percentages relative to total calories (for slider position)
+  const sliderPcts = useMemo(() => {
+    if (calories === 0) return { protein: 0, carbs: 0, fat: 0 };
+    return {
+      protein: Math.round((proteinG * 4 / calories) * 100),
+      carbs: Math.round((carbsG * 4 / calories) * 100),
+      fat: Math.round((fatG * 9 / calories) * 100),
+    };
+  }, [proteinG, carbsG, fatG, calories]);
+
+  // When user types grams directly
+  const handleGramInput = useCallback((macro: "protein" | "carbs" | "fat", value: string) => {
+    const numVal = parseInt(value) || 0;
+    if (macro === "protein") {
+      setProteinStr(value);
+      setProteinG(numVal);
+    } else if (macro === "carbs") {
+      setCarbsStr(value);
+      setCarbsG(numVal);
     } else {
-      const newC = Math.round((carbsPct / oldOther) * remaining);
-      setCarbsPct(newC);
-      setFatPct(remaining - newC);
+      setFatStr(value);
+      setFatG(numVal);
     }
-    setProteinPct(newP);
-  }, [carbsPct, fatPct]);
+  }, []);
 
-  const handleCarbsChange = useCallback((val: number[]) => {
-    const newC = val[0];
-    const remaining = 100 - newC;
-    const oldOther = proteinPct + fatPct;
-    if (oldOther === 0) {
-      setProteinPct(Math.round(remaining * 0.67));
-      setFatPct(remaining - Math.round(remaining * 0.67));
+  // When user moves a slider — convert percentage to grams for that macro, keep others fixed
+  const handleSliderChange = useCallback((macro: "protein" | "carbs" | "fat", val: number[]) => {
+    const newPct = val[0];
+    if (macro === "protein") {
+      const newG = Math.round((calories * newPct / 100) / 4);
+      setProteinG(newG);
+      setProteinStr(String(newG));
+    } else if (macro === "carbs") {
+      const newG = Math.round((calories * newPct / 100) / 4);
+      setCarbsG(newG);
+      setCarbsStr(String(newG));
     } else {
-      const newP = Math.round((proteinPct / oldOther) * remaining);
-      setProteinPct(newP);
-      setFatPct(remaining - newP);
+      const newG = Math.round((calories * newPct / 100) / 9);
+      setFatG(newG);
+      setFatStr(String(newG));
     }
-    setCarbsPct(newC);
-  }, [proteinPct, fatPct]);
-
-  const handleFatChange = useCallback((val: number[]) => {
-    const newF = val[0];
-    const remaining = 100 - newF;
-    const oldOther = proteinPct + carbsPct;
-    if (oldOther === 0) {
-      setProteinPct(Math.round(remaining * 0.5));
-      setCarbsPct(remaining - Math.round(remaining * 0.5));
-    } else {
-      const newP = Math.round((proteinPct / oldOther) * remaining);
-      setProteinPct(newP);
-      setCarbsPct(remaining - newP);
-    }
-    setFatPct(newF);
-  }, [proteinPct, carbsPct]);
+  }, [calories]);
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
 
-    const proteinG = goalType === "calories_only" ? 0 : grams.protein;
-    const carbsG = goalType === "full_macros" ? grams.carbs : 0;
-    const fatG = goalType === "full_macros" ? grams.fat : 0;
+    const finalProtein = goalType === "calories_only" ? 0 : proteinG;
+    const finalCarbs = goalType === "full_macros" ? carbsG : 0;
+    const finalFat = goalType === "full_macros" ? fatG : 0;
 
-    // Validate step goal
     if (dailyStepGoal < 1000 || dailyStepGoal > 100000) {
       setStepGoalError("Must be between 1,000 and 100,000");
       setSaving(false);
@@ -122,9 +129,9 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       client_id: clientId,
       coach_id: user.id,
       calories,
-      protein: proteinG,
-      carbs: carbsG,
-      fat: fatG,
+      protein: finalProtein,
+      carbs: finalCarbs,
+      fat: finalFat,
       daily_step_goal: dailyStepGoal,
     } as any, { onConflict: "client_id,effective_date" });
 
@@ -139,10 +146,13 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
   };
 
   const macroBarSegments = [
-    { pct: proteinPct, color: "bg-blue-500", label: "Protein" },
-    { pct: carbsPct, color: "bg-amber-500", label: "Carbs" },
-    { pct: fatPct, color: "bg-rose-500", label: "Fat" },
+    { pct: pcts.protein, color: "bg-blue-500", label: "Protein" },
+    { pct: pcts.carbs, color: "bg-amber-500", label: "Carbs" },
+    { pct: pcts.fat, color: "bg-rose-500", label: "Fat" },
   ];
+
+  // Computed macro calories total for the preview
+  const macroCalsTotal = (proteinG * 4) + (carbsG * 4) + (fatG * 9);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,27 +210,33 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
                 ))}
               </div>
 
-              {/* Protein Slider */}
+              {/* Protein Slider + Editable Gram Input */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="h-3 w-3 rounded-full bg-blue-500" />
                     <span className="text-sm font-medium">Protein</span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-sm font-bold">{grams.protein}g</span>
-                    <span className="text-xs text-muted-foreground ml-1.5">{proteinPct}%</span>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      inputMode="numeric"
+                      value={proteinStr}
+                      onChange={e => handleGramInput("protein", e.target.value)}
+                      className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-blue-500"
+                    />
+                    <span className="text-sm font-bold">g</span>
+                    <span className="text-xs text-muted-foreground ml-1">{pcts.protein}%</span>
                   </div>
                 </div>
                 <Slider
-                  value={[proteinPct]}
-                  onValueChange={handleProteinChange}
+                  value={[sliderPcts.protein]}
+                  onValueChange={val => handleSliderChange("protein", val)}
                   min={5} max={70} step={1}
                   className="[&_[role=slider]]:border-blue-500 [&_span:first-child>span]:bg-blue-500"
                 />
               </div>
 
-              {/* Carbs Slider */}
+              {/* Carbs Slider + Editable Gram Input */}
               {goalType === "full_macros" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -228,21 +244,27 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
                       <div className="h-3 w-3 rounded-full bg-amber-500" />
                       <span className="text-sm font-medium">Carbs</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold">{grams.carbs}g</span>
-                      <span className="text-xs text-muted-foreground ml-1.5">{carbsPct}%</span>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        inputMode="numeric"
+                        value={carbsStr}
+                        onChange={e => handleGramInput("carbs", e.target.value)}
+                        className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-amber-500"
+                      />
+                      <span className="text-sm font-bold">g</span>
+                      <span className="text-xs text-muted-foreground ml-1">{pcts.carbs}%</span>
                     </div>
                   </div>
                   <Slider
-                    value={[carbsPct]}
-                    onValueChange={handleCarbsChange}
+                    value={[sliderPcts.carbs]}
+                    onValueChange={val => handleSliderChange("carbs", val)}
                     min={5} max={70} step={1}
                     className="[&_[role=slider]]:border-amber-500 [&_span:first-child>span]:bg-amber-500"
                   />
                 </div>
               )}
 
-              {/* Fat Slider */}
+              {/* Fat Slider + Editable Gram Input */}
               {goalType === "full_macros" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -250,14 +272,20 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
                       <div className="h-3 w-3 rounded-full bg-rose-500" />
                       <span className="text-sm font-medium">Fat</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-sm font-bold">{grams.fat}g</span>
-                      <span className="text-xs text-muted-foreground ml-1.5">{fatPct}%</span>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        inputMode="numeric"
+                        value={fatStr}
+                        onChange={e => handleGramInput("fat", e.target.value)}
+                        className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-rose-500"
+                      />
+                      <span className="text-sm font-bold">g</span>
+                      <span className="text-xs text-muted-foreground ml-1">{pcts.fat}%</span>
                     </div>
                   </div>
                   <Slider
-                    value={[fatPct]}
-                    onValueChange={handleFatChange}
+                    value={[sliderPcts.fat]}
+                    onValueChange={val => handleSliderChange("fat", val)}
                     min={5} max={60} step={1}
                     className="[&_[role=slider]]:border-rose-500 [&_span:first-child>span]:bg-rose-500"
                   />
@@ -269,9 +297,9 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Live Macro Preview</p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: "Protein", g: grams.protein, pct: proteinPct, color: "text-blue-400", bgColor: "bg-blue-500/10" },
-                    { label: "Carbs", g: goalType === "full_macros" ? grams.carbs : "—", pct: goalType === "full_macros" ? carbsPct : "—", color: "text-amber-400", bgColor: "bg-amber-500/10" },
-                    { label: "Fat", g: goalType === "full_macros" ? grams.fat : "—", pct: goalType === "full_macros" ? fatPct : "—", color: "text-rose-400", bgColor: "bg-rose-500/10" },
+                    { label: "Protein", g: proteinG, pct: pcts.protein, color: "text-blue-400", bgColor: "bg-blue-500/10" },
+                    { label: "Carbs", g: goalType === "full_macros" ? carbsG : "—", pct: goalType === "full_macros" ? pcts.carbs : "—", color: "text-amber-400", bgColor: "bg-amber-500/10" },
+                    { label: "Fat", g: goalType === "full_macros" ? fatG : "—", pct: goalType === "full_macros" ? pcts.fat : "—", color: "text-rose-400", bgColor: "bg-rose-500/10" },
                   ].map(m => (
                     <div key={m.label} className={`text-center p-3 rounded-lg ${m.bgColor}`}>
                       <p className={`text-xl font-bold ${m.color}`}>{m.g}{typeof m.g === "number" ? "g" : ""}</p>
@@ -281,8 +309,15 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
                   ))}
                 </div>
                 <div className="text-center">
-                  <p className="text-xs text-muted-foreground">Total Calories</p>
-                  <p className="text-2xl font-bold text-primary">{calories.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Macro Calories</p>
+                  <p className={`text-2xl font-bold ${macroCalsTotal === calories ? "text-primary" : "text-muted-foreground"}`}>
+                    {macroCalsTotal.toLocaleString()}
+                  </p>
+                  {macroCalsTotal !== calories && (
+                    <p className="text-[10px] text-amber-400 mt-0.5">
+                      {macroCalsTotal > calories ? "+" : ""}{macroCalsTotal - calories} vs {calories} target
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
