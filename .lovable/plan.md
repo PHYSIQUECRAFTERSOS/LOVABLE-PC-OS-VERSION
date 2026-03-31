@@ -1,112 +1,61 @@
 
 
-## Diagnosis
+## Diagnosis Summary
 
-### The Core Problem: `npx cap sync` erases custom native files
+I've audited your entire setup. Here is what is happening and why none of the three fixes are reaching your TestFlight build:
 
-This is a **known Capacitor behavior**. `npx cap sync ios` copies the `dist/` web build into `ios/App/App/public/` and updates native dependencies. During this process, Capacitor may regenerate parts of the iOS project structure, and **any Swift files you manually dragged into Xcode are only tracked by the `.xcodeproj` file — not by Capacitor**. If the `.xcodeproj` gets regenerated or if the file references break, your plugins disappear from the sidebar.
+### Problem 1: StoreKit purchases fail ("Unable to connect to App Store")
 
-Your `ios-plugin/` folder in the repo contains the source files, but there is **no automation** that copies them into the Xcode project after sync. You've been doing this manually, and when you forget one (like HealthKitPlugin), that feature silently breaks.
+**Root cause found**: Your Xcode screenshot shows `StoreKitPlugin.swift` with `pluginMethods` containing only `checkSubscription` and `restorePurchases` -- it is **missing `purchase`, `getProducts`, and `showPaywall`**. This is an **old version** of the file that predates the current repo version. The `post-cap-sync.sh` script copies the correct file to `ios/App/App/Plugins/StoreKitPlugin.swift`, but Xcode may still be compiling the OLD file if it was originally added from a different location (e.g. directly under `App/App/` instead of `App/App/Plugins/`).
 
-### What I see in your Xcode screenshot
+The repo's `ios-plugin/StoreKitPlugin.swift` has all 5 methods. Your Xcode only has 2. The native binary therefore has no `purchase` or `getProducts` bridge methods, so `StoreKit.getProducts()` and `StoreKit.purchase()` both silently fail.
 
-Looking at the left sidebar:
-- **Present**: StoreKitPlugin, StoreKitBridge, StoreKitManager, PushNotificationsBridge (marked "A" = added), HealthKitPlugin (marked "A"), AudioMixPlugin (marked "A"), PaywallView (marked "M" = modified), AppDelegate
-- The "A" markers mean these files are **untracked by git** — they exist only in the Xcode project folder, not synced from your repo. That's why they vanish.
+**Fix (Xcode-side, not code-side)**:
+1. In Xcode, right-click `StoreKitPlugin` in the sidebar and choose "Show in Finder" to find which file Xcode is actually compiling
+2. Delete that old file reference from the Xcode project
+3. Drag the file from `ios/App/App/Plugins/StoreKitPlugin.swift` (the one the script copies) into the Xcode sidebar under `Plug ins`
+4. Check "Copy items if needed" + select the "App" target
+5. Verify the `pluginMethods` array now lists all 5 methods: `purchase`, `checkSubscription`, `restorePurchases`, `getProducts`, `showPaywall`
 
-### Why each bug occurs
+Similarly, check `StoreKitBridge` and `StoreKitManager` visible in your sidebar. These files are **not in the repo** (`ios-plugin/` only has `StoreKitPlugin.swift`). They may be legacy files from an earlier implementation that are interfering. If `StoreKitBridge` contains a second class also named `StoreKitPlugin` or registers a conflicting plugin, it could shadow the correct one.
 
-| Bug | Root Cause |
-|-----|-----------|
-| **Steps not syncing** | HealthKitPlugin.swift was missing from the last TestFlight build — the JS calls `HealthKit.querySteps()` but the native plugin isn't registered, so every call rejects |
-| **Subscribe not working** | Likely the same class of issue — check that StoreKitManager.swift still references only the 2 active product IDs, and that the PaywallView doesn't reference the removed `training` product |
-| **Old version 20% of time** | The service worker cache (`physique-crafters-v8`) serves stale assets. On iOS Capacitor with `server.url` pointing to production, the WebView loads from the remote URL and the SW sometimes serves cached HTML |
-| **Overlay still broken** | The overlay CSS fix was deployed to the web (`index.css` with `.overlay-fullscreen`) but if the SW serves a cached older `index.css`, the fix doesn't apply |
+**Action needed**: Send me a screenshot of what `StoreKitBridge.swift` and `StoreKitManager.swift` contain (first ~30 lines each) so I can confirm whether they conflict.
+
+### Problem 2: HealthKit sync fails
+
+You confirmed HealthKitPlugin.swift IS in Compile Sources now. The sync error ("Health sync temporarily failed") in your screenshot is the improved error message from the latest code, meaning the web code IS reaching the device. The native plugin is compiled. The failure is likely a transient issue or the plugin needs a fresh authorization prompt after reinstall.
+
+**Test**: After rebuilding with the fixed StoreKitPlugin, test the manual sync button again. If it still fails, I will add diagnostic console logging to surface the exact native error.
+
+### Problem 3: Overlay gap on food search
+
+Looking at your screenshot (IMG_4389), there is a visible gap between the iOS status bar and the "Breakfast" header. The `.overlay-fullscreen` CSS class applies `padding-top: env(safe-area-inset-top, 0px)` (which is ~59px on iPhone 15/16 Pro for the Dynamic Island), and then the header has `pt-2` (8px). Total: ~67px. This looks correct for accounting for the notch/Dynamic Island.
+
+However, comparing to IMG_4390 (the main nutrition view under the app shell), the header sits tighter. The difference is that the app shell header uses `pt-[env(safe-area-inset-top,0px)]` as an inline style on the header element itself, while the overlay applies safe area padding on the container and adds header padding on top.
+
+**Fix**: Reduce the overlay's safe area padding approach to match the app shell exactly. Instead of padding the container, apply the safe area inset directly to the header row.
 
 ---
 
 ## Plan
 
-### 1. Create a post-sync script that auto-copies native plugins
+### Change 1: Fix overlay header alignment (`src/index.css`)
 
-**New file: `scripts/post-cap-sync.sh`**
+Remove `padding-top` from `.overlay-fullscreen` and let each overlay header handle its own safe-area offset (matching the app shell pattern).
 
-A shell script that copies all files from `ios-plugin/` into `ios/App/App/Plugins/` after every `npx cap sync`. This ensures the Swift files are always physically present on disk.
-
-```bash
-#!/bin/bash
-PLUGIN_SRC="ios-plugin"
-PLUGIN_DST="ios/App/App/Plugins"
-mkdir -p "$PLUGIN_DST"
-cp -v "$PLUGIN_SRC"/*.swift "$PLUGIN_DST/"
-echo "✅ Native plugins synced to Xcode project"
-```
-
-**Update `package.json`** — add a convenience script:
-```json
-"scripts": {
-  "cap:sync": "npx cap sync ios && bash scripts/post-cap-sync.sh",
-  "cap:build": "npm run build && npm run cap:sync && npx cap open ios"
+```css
+.overlay-fullscreen {
+  position: fixed;
+  inset: 0;
+  background-color: hsl(var(--background));
+  display: flex;
+  flex-direction: column;
+  /* Remove padding-top from here */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overscroll-behavior-y: contain;
 }
 ```
 
-This way, running `npm run cap:sync` always restores the plugin files.
+### Change 2: Add safe-area-inset to overlay headers (7 files)
 
-**Important caveat**: This puts the `.swift` files on disk, but they also need to be **referenced in the Xcode project file** (`.xcodeproj`). The first time after cloning, you still need to drag them into Xcode once. After that, as long as you don't delete the `ios/` folder, the references persist. The script ensures the actual files are there even if git doesn't track the `ios/` folder.
-
-### 2. Add `ios-plugin/` copy instructions to a pre-build checklist
-
-**Update `ios-plugin/README.md`** — add a "After cap sync" section that documents:
-- Always run `bash scripts/post-cap-sync.sh` after `npx cap sync`
-- Or use `npm run cap:sync` instead of `npx cap sync ios` directly
-- First time only: drag the files from `ios/App/App/Plugins/` into the Xcode sidebar and check "Copy items if needed"
-
-### 3. Fix the stale app / old version problem
-
-The `capacitor.config.ts` has `server.url: 'https://app.physiquecrafters.com'` which means the iOS app loads the **remote** website, not the local `dist/` bundle. Combined with the service worker, this causes:
-- 80% of the time: network-first fetch succeeds → fresh version
-- 20% of the time: network is slow or flaky → SW serves cached old version
-
-**Fix in `public/sw.js`**: For navigation requests (HTML), **never serve from cache** inside a Capacitor native app. Bump cache to v9 to force purge.
-
-### 4. Bump service worker cache version
-
-**File: `public/sw.js`** — change `CACHE_NAME` from `physique-crafters-v8` to `physique-crafters-v9` and add a check: if the request is a navigation request AND we're in a Capacitor context, always go network-only (no cache fallback for HTML).
-
-### 5. No code changes needed for HealthKit
-
-The HealthKit sync code in `useHealthSync.ts` is correct. The failure was purely because the native `HealthKitPlugin.swift` wasn't compiled into the app binary. Once you rebuild with the plugin file present in Xcode, steps will sync.
-
-### 6. No code changes needed for overlays
-
-The `.overlay-fullscreen` CSS class fix is already in `index.css`. The issue on device is the same stale cache problem — once the SW cache is busted (step 4), the overlay fix will apply.
-
----
-
-## Summary of file changes
-
-| File | Change |
-|------|--------|
-| `scripts/post-cap-sync.sh` | **New** — copies `ios-plugin/*.swift` into `ios/App/App/Plugins/` |
-| `package.json` | Add `cap:sync` and `cap:build` convenience scripts |
-| `public/sw.js` | Bump to v9, never cache-serve navigation requests |
-| `ios-plugin/README.md` | Add post-sync instructions |
-
-### Your new build sequence
-
-```bash
-git pull origin main
-npm install
-npm run build
-npm run cap:sync        # ← this replaces "npx cap sync ios"
-npx cap open ios
-# In Xcode: Clean Build (⇧⌘K) → Archive → Upload to TestFlight
-```
-
-### What you still need to verify in Xcode (not fixable from Lovable)
-
-1. **StoreKitManager.swift** — confirm the product ID array does NOT contain `com.physiquecrafters.app.training`
-2. **PaywallView.swift** — confirm no `case "com.physiquecrafters.app.training"` blocks remain
-3. **Signing & Capabilities** — confirm both "HealthKit" and "In-App Purchase" capabilities are enabled
-4. **Info.plist** — confirm `NSHealthShareUsageDescription` key exists
-
+In each overlay file, change the header div from `pt-2` to include the safe area
