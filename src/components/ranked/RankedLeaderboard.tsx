@@ -153,6 +153,37 @@ const DivisionsView = ({ entries, search }: { entries: any[]; search: string }) 
 
   return (
     <div className="divide-y divide-border">
+      {/* Placement section at top */}
+      {placementClients.length > 0 && (
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="w-full">
+            <div
+              className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer"
+              style={{ borderLeft: "3px solid hsl(var(--primary))" }}
+            >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-primary/20 flex items-center justify-center">
+                <span className="text-lg font-black text-primary">?</span>
+              </div>
+              <span className="text-sm font-bold tracking-wide uppercase flex-1 text-left text-primary">
+                Placement
+              </span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="h-3 w-3" />
+                {placementClients.length}
+              </span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="pb-1">
+              {placementClients.map((entry: any) => (
+                <PlacementPlayerRow key={entry.user_id} entry={entry} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
       {TIER_DISPLAY_ORDER.map((tier) => (
         <TierSection
           key={tier}
