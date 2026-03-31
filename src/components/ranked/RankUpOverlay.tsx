@@ -58,17 +58,18 @@ const DURATIONS: Record<string, number> = {
 
 const RAY_COUNT = 12;
 
-const RankUpOverlay = ({ tier, division, type, previousTier, onDismiss }: RankUpOverlayProps) => {
+const RankUpOverlay = ({ tier, division, type, previousTier, placementScore, placementLabel, onDismiss }: RankUpOverlayProps) => {
   const [stage, setStage] = useState(0);
   const [dismissing, setDismissing] = useState(false);
   const prefersReduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
   const color = getTierColor(tier);
   const label = getDivisionLabel(tier, division);
-  const isPromotion = type === "division_up" || type === "tier_up" || type === "champion_in";
+  const isPromotion = type === "division_up" || type === "tier_up" || type === "champion_in" || type === "placement_reveal";
   const isTierUp = type === "tier_up" || type === "champion_in";
+  const isPlacement = type === "placement_reveal";
   const isDemotion = type === "division_down" || type === "tier_down";
-  const duration = DURATIONS[type];
+  const duration = DURATIONS[type] || 5000;
 
   const badgeSrc = ANIM_BADGES[tier?.toLowerCase()] || ANIM_BADGES.bronze;
   const oldBadgeSrc = previousTier ? (OLD_BADGES[previousTier?.toLowerCase()] || OLD_BADGES.bronze) : null;
