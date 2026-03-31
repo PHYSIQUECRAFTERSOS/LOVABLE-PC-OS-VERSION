@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
+import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -106,7 +106,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
       fetchHistory();
       fetchCustomFoods();
       setSearchTab("search");
-      setTimeout(() => searchRef.current?.focus(), 150);
+      setTimeout(() => searchRef.current?.focus(), 400);
     }
     if (!showFoodSearch) {
       stopBarcodeScanner();
@@ -465,7 +465,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
   if (showFoodSearch) {
     return (
-      <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+      <OverlayPortal><div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
           <button onClick={() => { setShowFoodSearch(false); stopBarcodeScanner(); }} className="p-1.5 rounded-lg hover:bg-secondary">
             <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -669,12 +669,12 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
             )}
           </div>
         )}
-      </div>
+      </div></OverlayPortal>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-[55] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+    <OverlayPortal><div className="fixed inset-0 z-[55] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
         <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-secondary">
           <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -833,7 +833,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

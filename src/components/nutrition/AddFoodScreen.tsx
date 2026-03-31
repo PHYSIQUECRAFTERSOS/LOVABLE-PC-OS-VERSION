@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
+import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { FrequentMealsSection } from "@/components/nutrition/FrequentMealsSection";
 import type { MealFood } from "@/services/mealTemplateService";
 import FoodDetailScreen from "@/components/nutrition/FoodDetailScreen";
@@ -179,7 +179,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setUsedQuery("");
       setExpandedId(null);
       setActiveTab("all");
-      setTimeout(() => searchRef.current?.focus(), 100);
+      setTimeout(() => searchRef.current?.focus(), 400);
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
@@ -947,10 +947,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (!open) return null;
 
-  // Sub-screens
+  // Sub-screens — all wrapped in OverlayPortal
   if (selectedMeal) {
     return (
-      <SavedMealDetail
+      <OverlayPortal><SavedMealDetail
         meal={selectedMeal}
         mealType={mealType}
         mealLabel={mealLabel}
@@ -959,29 +959,29 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         onLogged={() => { setSelectedMeal(null); onLogged(); }}
         onDeleted={() => { setSelectedMeal(null); fetchSavedMeals(); }}
         onUpdated={() => fetchSavedMeals()}
-      />
+      /></OverlayPortal>
     );
   }
 
   if (showCreateMeal) {
     return (
-      <CreateMealSheet
+      <OverlayPortal><CreateMealSheet
         mealType={mealType}
         onClose={() => setShowCreateMeal(false)}
         onSaved={() => { setShowCreateMeal(false); fetchSavedMeals(); }}
-      />
+      /></OverlayPortal>
     );
   }
 
   if (showCopyMeal) {
     return (
-      <CopyPreviousMealSheet
+      <OverlayPortal><CopyPreviousMealSheet
         mealType={mealType}
         mealLabel={mealLabel}
         logDate={effectiveDate}
         onClose={() => setShowCopyMeal(false)}
         onCopied={() => { setShowCopyMeal(false); onLogged(); }}
-      />
+      /></OverlayPortal>
     );
   }
 
@@ -989,20 +989,20 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (selectedPCRecipe) {
     return (
-      <PCRecipeDetail
+      <OverlayPortal><PCRecipeDetail
         recipe={selectedPCRecipe}
         mealType={mealType}
         mealLabel={mealLabel}
         logDate={effectiveDate}
         onBack={() => setSelectedPCRecipe(null)}
         onLogged={() => { setSelectedPCRecipe(null); onLogged(); }}
-      />
+      /></OverlayPortal>
     );
   }
 
   if (detailFood) {
     return (
-      <FoodDetailScreen
+      <OverlayPortal><FoodDetailScreen
         food={{
           id: detailFood.id,
           name: detailFood.name,
@@ -1026,7 +1026,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         mealLabel={mealLabel}
         onConfirm={handleDetailConfirm}
         onBack={() => setDetailFood(null)}
-      />
+      /></OverlayPortal>
     );
   }
 
@@ -1073,7 +1073,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     : pcRecipes;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+    <OverlayPortal><div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -1552,7 +1552,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
         editFood={editingCustomFood}
       />
-    </div>
+    </div></OverlayPortal>
   );
 };
 

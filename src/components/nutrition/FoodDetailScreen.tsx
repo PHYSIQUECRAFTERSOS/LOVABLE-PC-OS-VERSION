@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ChevronDown, ShieldCheck, ArrowLeft } from "lucide-react";
-import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
+import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -180,7 +180,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <OverlayPortal><div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -371,7 +371,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           </Button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }
 

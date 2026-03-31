@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
+import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -141,7 +141,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+    <OverlayPortal><div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -296,7 +296,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
           </Button>
         </div>
       )}
-    </div>
+    </div></OverlayPortal>
   );
 };
 

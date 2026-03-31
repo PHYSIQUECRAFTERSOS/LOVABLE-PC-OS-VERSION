@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
+import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -169,7 +169,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
   useEffect(() => {
     if (showAddFood && user) {
       fetchHistory();
-      setTimeout(() => searchRef.current?.focus(), 150);
+      setTimeout(() => searchRef.current?.focus(), 400);
     }
   }, [showAddFood, user]);
 
@@ -483,7 +483,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
   if (showAddFood) {
     const displayList = searchQuery.length >= 2 ? searchResults : history;
     return (
-      <div className="fixed inset-0 z-[55] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+      <OverlayPortal><div className="fixed inset-0 z-[55] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
           <button onClick={() => setShowAddFood(false)} className="p-1.5 rounded-lg hover:bg-secondary">
             <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -542,12 +542,12 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
             );
           })}
         </div>
-      </div>
+      </div></OverlayPortal>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-[70] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+    <OverlayPortal><div className="fixed inset-0 z-[70] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -734,7 +734,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
