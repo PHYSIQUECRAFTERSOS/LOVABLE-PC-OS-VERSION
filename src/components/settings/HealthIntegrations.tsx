@@ -204,7 +204,15 @@ const HealthIntegrations = () => {
       await healthSync.syncNow();
       toast({ title: "Sync complete", description: "Apple Health data synced" });
     } catch (err: any) {
-      toast({ title: "Sync failed", description: err.message, variant: "destructive" });
+      // Auto-retry once after 3s before showing error
+      console.warn("[HealthIntegrations] First sync attempt failed, retrying…", err);
+      try {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await healthSync.syncNow();
+        toast({ title: "Sync complete", description: "Apple Health data synced" });
+      } catch (retryErr: any) {
+        toast({ title: "Sync failed", description: retryErr.message, variant: "destructive" });
+      }
     } finally {
       setSyncingProvider(null);
     }
