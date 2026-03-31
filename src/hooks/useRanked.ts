@@ -61,7 +61,11 @@ async function ensureAllClientsRanked() {
   const missing = pureClientIds.filter((id: string) => !existingSet.has(id));
 
   if (missing.length > 0) {
-    const rows = missing.map((id: string) => ({ user_id: id }));
+    const rows = missing.map((id: string) => ({
+      user_id: id,
+      placement_status: "pending",
+      placement_days_completed: 0,
+    }));
     await db.from("ranked_profiles").insert(rows);
   }
 }
