@@ -114,13 +114,13 @@ const SuggestedFoods = ({ remaining, userId, dateStr, onLogged }: SuggestedFoods
       // Check for serving memory
       const { data: memory } = await supabase
         .from("user_food_serving_memory")
-        .select("quantity, unit")
+        .select("serving_size, serving_unit")
         .eq("user_id", userId)
         .eq("food_id", food.id)
         .maybeSingle();
 
-      const servings = memory?.quantity ?? 1;
-      const unitUsed = memory?.unit ?? food.serving_unit;
+      const servings = memory?.serving_size ?? 1;
+      const unitUsed = memory?.serving_unit ?? food.serving_unit;
 
       // Calculate macros based on servings
       let multiplier = servings;
