@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { Target, Flame } from "lucide-react";
+import { getLocalDateString } from "@/utils/localDate";
 
 type GoalType = "calories_only" | "calories_protein" | "full_macros";
 
