@@ -41,6 +41,25 @@ function getMultiplier(streak: number, isBoost: boolean, boostExpires: string | 
   return Math.round(m * 100) / 100;
 }
 
+// ── Placement config ────────────────────────────────────────────
+const PLACEMENT_DURATION_DAYS = 7;
+const PLACEMENT_XP_MAP = [
+  { minScore: 95, xp: 1650, label: "Gold III" },
+  { minScore: 90, xp: 1250, label: "Gold V" },
+  { minScore: 80, xp: 1100, label: "Silver I" },
+  { minScore: 65, xp: 800,  label: "Silver III" },
+  { minScore: 50, xp: 500,  label: "Silver V" },
+  { minScore: 30, xp: 200,  label: "Bronze III" },
+  { minScore: 0,  xp: 0,    label: "Bronze V" },
+];
+
+function getPlacementXP(score: number) {
+  for (const tier of PLACEMENT_XP_MAP) {
+    if (score >= tier.minScore) return tier;
+  }
+  return { xp: 0, label: "Bronze V", minScore: 0 };
+}
+
 // ── XP values ───────────────────────────────────────────────────
 const XP = {
   calories_on_target: 7,
@@ -139,13 +158,218 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
   if (!profile) {
     const { data: created } = await db
       .from("ranked_profiles")
-      .insert({ user_id: clientId })
+      .insert({ user_id: clientId, placement_status: "pending", placement_days_completed: 0 })
       .select()
       .single();
     profile = created;
   }
   if (!profile) return { skipped: true, reason: "no_profile" };
 
+  // ── PLACEMENT SERIES HANDLING ─────────────────────────────────
+  const placementStatus = profile.placement_status || "completed";
+
+  if (placementStatus === "pending" || placementStatus === "in_progress") {
+    return await handlePlacementDay(db, clientId, evalDate, profile);
+  }
+
+  // ── Normal XP evaluation (placement_status = 'completed' or 'coach_override') ──
+  return await normalEvaluation(db, clientId, evalDate, profile);
+}
+
+// ── Placement day handler ───────────────────────────────────────
+async function handlePlacementDay(db: any, clientId: string, evalDate: string, profile: any) {
+  const currentDay = (profile.placement_days_completed || 0) + 1;
+  const startDate = profile.placement_start_date || evalDate;
+
+  // Start placement if pending
+  const updates: any = {
+    placement_status: "in_progress",
+    placement_days_completed: currentDay,
+    updated_at: new Date().toISOString(),
+  };
+  if (!profile.placement_start_date) {
+    updates.placement_start_date = evalDate;
+  }
+
+  // Insert a marker transaction (no XP awarded during placement)
+  await db.from("xp_transactions").insert({
+    user_id: clientId,
+    xp_amount: 0,
+    base_amount: 0,
+    multiplier: 1,
+    transaction_type: "daily_eval",
+    description: `Placement day ${currentDay}/${PLACEMENT_DURATION_DAYS}: ${evalDate}`,
+  });
+
+  // If this is the final day, calculate placement score
+  if (currentDay >= PLACEMENT_DURATION_DAYS) {
+    const score = await calculatePlacementScore(db, clientId, startDate, evalDate);
+    const placement = getPlacementXP(score.overall);
+    const calc = calculateTierAndDivision(placement.xp);
+
+    updates.placement_status = "completed";
+    updates.placement_score = {
+      workout_pct: score.workoutPct,
+      nutrition_pct: score.nutritionPct,
+      cardio_pct: score.cardioPct,
+      overall: score.overall,
+      final_xp: placement.xp,
+      final_label: placement.label,
+    };
+    updates.total_xp = placement.xp;
+    updates.current_tier = calc.tier;
+    updates.current_division = calc.tier === "champion" ? null : calc.division;
+    updates.current_division_xp = calc.divisionXP;
+
+    // Write pending rank event for placement reveal
+    updates.pending_rank_event = [{
+      type: "placement_reveal",
+      tier: calc.tier,
+      division: calc.division,
+      score: score.overall,
+      label: placement.label,
+      timestamp: new Date().toISOString(),
+    }];
+
+    // Insert placement result transaction
+    await db.from("xp_transactions").insert({
+      user_id: clientId,
+      xp_amount: placement.xp,
+      base_amount: placement.xp,
+      multiplier: 1,
+      transaction_type: "placement_result",
+      description: `Placement complete: ${placement.label} (Score: ${Math.round(score.overall)}%)`,
+    });
+
+    console.log(`[daily-xp] Placement complete for ${clientId}: ${placement.label} (${Math.round(score.overall)}%) → ${placement.xp} XP`);
+  }
+
+  await db.from("ranked_profiles").update(updates).eq("user_id", clientId);
+
+  return {
+    skipped: false,
+    placement: true,
+    day: currentDay,
+    completed: currentDay >= PLACEMENT_DURATION_DAYS,
+    ...(updates.placement_score ? { placementScore: updates.placement_score } : {}),
+  };
+}
+
+// ── Calculate placement score from 7-day window ─────────────────
+async function calculatePlacementScore(db: any, clientId: string, startDate: string, endDate: string) {
+  // Workouts: scheduled vs completed
+  const { data: scheduledWorkouts } = await db
+    .from("calendar_events")
+    .select("id, linked_workout_id, is_completed")
+    .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`)
+    .eq("event_type", "workout")
+    .gte("event_date", startDate)
+    .lte("event_date", endDate);
+
+  const { data: completedSessions } = await db
+    .from("workout_sessions")
+    .select("workout_id")
+    .eq("client_id", clientId)
+    .gte("session_date", startDate)
+    .lte("session_date", endDate)
+    .eq("status", "completed");
+
+  const completedWorkoutIds = new Set((completedSessions || []).map((s: any) => s.workout_id));
+  const workoutsScheduled = (scheduledWorkouts || []).length;
+  const workoutsCompleted = (scheduledWorkouts || []).filter((w: any) =>
+    w.is_completed || (w.linked_workout_id && completedWorkoutIds.has(w.linked_workout_id))
+  ).length;
+
+  // Cardio: scheduled vs completed
+  const { data: scheduledCardio } = await db
+    .from("calendar_events")
+    .select("id, linked_cardio_id, is_completed")
+    .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`)
+    .eq("event_type", "cardio")
+    .gte("event_date", startDate)
+    .lte("event_date", endDate);
+
+  const { data: completedCardioLogs } = await db
+    .from("cardio_logs")
+    .select("assignment_id")
+    .eq("client_id", clientId)
+    .gte("logged_at", startDate)
+    .lte("logged_at", endDate)
+    .eq("completed", true);
+
+  const completedCardioIds = new Set((completedCardioLogs || []).filter((c: any) => c.assignment_id).map((c: any) => c.assignment_id));
+  const cardioScheduled = (scheduledCardio || []).length;
+  const cardioCompleted = (scheduledCardio || []).filter((c: any) =>
+    c.is_completed || (c.linked_cardio_id && completedCardioIds.has(c.linked_cardio_id))
+  ).length;
+
+  // Nutrition: days with calories within ±150 of target
+  // Build list of dates in range
+  const dates: string[] = [];
+  const cur = new Date(startDate);
+  const end = new Date(endDate);
+  while (cur <= end) {
+    dates.push(cur.toISOString().split("T")[0]);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  let nutritionDaysOnTarget = 0;
+  let nutritionDaysWithTargets = 0;
+
+  for (const date of dates) {
+    const { data: target } = await db
+      .from("nutrition_targets")
+      .select("calories")
+      .eq("client_id", clientId)
+      .lte("effective_date", date)
+      .order("effective_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!target) continue;
+    nutritionDaysWithTargets++;
+
+    const { data: logs } = await db
+      .from("nutrition_logs")
+      .select("calories")
+      .eq("client_id", clientId)
+      .eq("logged_at", date);
+
+    if (!logs || logs.length === 0) continue;
+    const totalCals = logs.reduce((s: number, l: any) => s + (l.calories || 0), 0);
+    if (Math.abs(totalCals - target.calories) <= 150) {
+      nutritionDaysOnTarget++;
+    }
+  }
+
+  // Calculate weighted score
+  const workoutPct = workoutsScheduled > 0 ? (workoutsCompleted / workoutsScheduled) * 100 : -1;
+  const nutritionPct = nutritionDaysWithTargets > 0 ? (nutritionDaysOnTarget / nutritionDaysWithTargets) * 100 : -1;
+  const cardioPct = cardioScheduled > 0 ? (cardioCompleted / cardioScheduled) * 100 : -1;
+
+  const weights = { workout: 0.4, nutrition: 0.4, cardio: 0.2 };
+  const pillars = [
+    { pct: workoutPct, key: "workout" as const },
+    { pct: nutritionPct, key: "nutrition" as const },
+    { pct: cardioPct, key: "cardio" as const },
+  ];
+  const active = pillars.filter((p) => p.pct >= 0);
+  if (active.length === 0) {
+    return { workoutPct: 0, nutritionPct: 0, cardioPct: 0, overall: 50 };
+  }
+  const totalWeight = active.reduce((s, p) => s + weights[p.key], 0);
+  const overall = active.reduce((s, p) => s + (p.pct * weights[p.key]) / totalWeight, 0);
+
+  return {
+    workoutPct: Math.max(0, Math.round(workoutPct * 100) / 100),
+    nutritionPct: Math.max(0, Math.round(nutritionPct * 100) / 100),
+    cardioPct: Math.max(0, Math.round(cardioPct * 100) / 100),
+    overall: Math.round(overall * 100) / 100,
+  };
+}
+
+// ── Normal XP evaluation (existing logic) ───────────────────────
+async function normalEvaluation(db: any, clientId: string, evalDate: string, profile: any) {
   const txBatch: Array<{ txType: string; base: number; desc: string }> = [];
 
   // ── 3. Nutrition compliance ────────────────────────────────────
@@ -234,9 +458,7 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
 
   if (missedWorkouts && missedWorkouts.length > 0) {
     for (const w of missedWorkouts) {
-      // Cross-check: was the workout actually completed in workout_sessions?
       if (w.linked_workout_id && completedWorkoutIds.has(w.linked_workout_id)) {
-        // Auto-fix the calendar event
         await db.from("calendar_events")
           .update({ is_completed: true, completed_at: `${evalDate}T23:59:59Z` })
           .eq("id", w.id);
@@ -258,7 +480,6 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
 
   if (missedCardio && missedCardio.length > 0) {
     for (const c of missedCardio) {
-      // Cross-check: was cardio actually logged?
       if (c.linked_cardio_id && completedCardioAssignmentIds.has(c.linked_cardio_id)) {
         await db.from("calendar_events")
           .update({ is_completed: true, completed_at: `${evalDate}T23:59:59Z` })
@@ -389,7 +610,6 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
   else if (finalDiv < oldDiv && totalXPChange > 0) rankChange = "division_up";
   else if (finalDiv > oldDiv && totalXPChange < 0) rankChange = "division_down";
 
-  // Build pending rank event for the client to see on next login
   let pendingRankEvent = null;
   if (rankChange !== "none") {
     pendingRankEvent = {
@@ -423,9 +643,7 @@ async function evaluateClient(db: any, clientId: string, evalDate: string) {
     updated_at: new Date().toISOString(),
   };
 
-  // Only set pending_rank_event if there's a new one; don't overwrite existing unseen events
   if (pendingRankEvent) {
-    // Append to existing pending events array, or create new
     const existingPending = profile.pending_rank_event;
     if (Array.isArray(existingPending)) {
       updatePayload.pending_rank_event = [...existingPending, pendingRankEvent];
