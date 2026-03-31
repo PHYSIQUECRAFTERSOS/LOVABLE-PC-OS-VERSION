@@ -1122,7 +1122,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             setExercises(prev => [...prev, {
               exerciseId: newEx.id, exerciseName: newEx.name, thumbnail: newEx.youtube_thumbnail,
               youtubeUrl: null,
-              exerciseOrder: prev.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 90,
+              exerciseOrder: prev.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 120,
               rir: "2", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
             }]);
             loadLibrary();
