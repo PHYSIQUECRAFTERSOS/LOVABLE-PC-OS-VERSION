@@ -558,12 +558,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {comp && <ComplianceBadge {...comp} />}
-                    {client.tags.length > 0 && (
-                      <Badge variant="secondary" className="text-[10px] hidden lg:inline-flex">
-                        {client.tags[0]}
-                        {client.tags.length > 1 && ` +${client.tags.length - 1}`}
-                      </Badge>
-                    )}
+                    {/* Tags removed from card for space — still filterable via Tags dropdown */}
                   </div>
                 </div>
                 {phase && (() => {
