@@ -124,7 +124,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   // Toggles
   const [useRpe, setUseRpe] = useState(false);
   const [useTempo, setUseTempo] = useState(false);
-  const [useRir, setUseRir] = useState(true);
+  const [useRir, setUseRir] = useState(false);
 
   // Exercise library state
   const [libraryExercises, setLibraryExercises] = useState<Exercise[]>([]);
@@ -209,7 +209,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       : []);
     setUseRpe(Boolean(draft.useRpe));
     setUseTempo(Boolean(draft.useTempo));
-    setUseRir(draft.useRir !== undefined ? Boolean(draft.useRir) : true);
+    setUseRir(draft.useRir !== undefined ? Boolean(draft.useRir) : false);
   }, []);
 
   const persistDraftToSession = useCallback(() => {
@@ -355,7 +355,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
           setExercises([]);
           setUseRpe(false);
           setUseTempo(false);
-          setUseRir(true);
+          setUseRir(false);
           lastPersistedSnapshotRef.current = "";
           return;
         }
@@ -492,7 +492,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
-      setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
+      setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
       setPreviewExerciseIdx(null);
       savedSuccessfullyRef.current = false;
       hydratedRef.current = false;
@@ -540,7 +540,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     // Reset state immediately since user is intentionally discarding
     setWorkoutName(""); setInstructions(""); setExercises([]);
     setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
-    setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
+    setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
     setPreviewExerciseIdx(null);
     savedSuccessfullyRef.current = true;
     latestDraftRef.current.saved = true;
@@ -562,7 +562,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     const newEx: WorkoutExercise = {
       exerciseId: ex.id, exerciseName: ex.name, thumbnail: ex.youtube_thumbnail,
       youtubeUrl: ex.youtube_url || null,
-      exerciseOrder: 0, sets: 3, reps: "10", tempo: "", restSeconds: 90,
+      exerciseOrder: 0, sets: 3, reps: "10", tempo: "", restSeconds: 120,
       rir: "2", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
     };
     setExercises(prev => {
@@ -1122,7 +1122,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             setExercises(prev => [...prev, {
               exerciseId: newEx.id, exerciseName: newEx.name, thumbnail: newEx.youtube_thumbnail,
               youtubeUrl: null,
-              exerciseOrder: prev.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 90,
+              exerciseOrder: prev.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 120,
               rir: "2", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
             }]);
             loadLibrary();
