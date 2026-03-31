@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { Target, Flame } from "lucide-react";
+import { getLocalDateString } from "@/utils/localDate";
 
 type GoalType = "calories_only" | "calories_protein" | "full_macros";
 
@@ -125,6 +126,7 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       return;
     }
 
+    const today = getLocalDateString();
     const { error } = await supabase.from("nutrition_targets").upsert({
       client_id: clientId,
       coach_id: user.id,
@@ -133,6 +135,7 @@ const NutritionGoalModal = ({ open, onOpenChange, clientId, initialTargets, onSa
       carbs: finalCarbs,
       fat: finalFat,
       daily_step_goal: dailyStepGoal,
+      effective_date: today,
     } as any, { onConflict: "client_id,effective_date" });
 
     setSaving(false);

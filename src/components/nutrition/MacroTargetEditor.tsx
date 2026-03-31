@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getLocalDateString } from "@/utils/localDate";
 
 interface Client {
   user_id: string;
@@ -81,6 +82,7 @@ const MacroTargetEditor = () => {
   const handleSave = async () => {
     if (!user || !selectedClient) return;
     setLoading(true);
+    const today = getLocalDateString();
     const { error } = await supabase.from("nutrition_targets").upsert({
       client_id: selectedClient,
       coach_id: user.id,
@@ -89,6 +91,7 @@ const MacroTargetEditor = () => {
       carbs: parseInt(carbs) || 200,
       fat: parseInt(fat) || 70,
       is_refeed: isRefeed,
+      effective_date: today,
     }, { onConflict: "client_id,effective_date" });
     setLoading(false);
     if (error) {
