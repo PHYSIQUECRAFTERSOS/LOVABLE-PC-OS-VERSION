@@ -1,43 +1,43 @@
 
 
-## Plan: Workout Preview, Inline Phase Rename, and New/Import Buttons in Client Training Tab
+## Plan: Ranked Placement Series System (IMPLEMENTED)
 
-### Problem
-1. Clicking a workout in the client's Training tab only opens the editor — no way to preview exercises without editing
-2. Phase names require clicking a small edit icon to rename — not as fast as clicking the name directly (like Trainerize)
-3. No "New" or "Import" buttons to create workouts or import from master/other clients within a phase
+### What Was Built
+A 7-day placement series for new clients entering the ranked system. During placement, clients see a "?" badge and progress tracker instead of a rank. After 7 days, their compliance is evaluated and they receive a starting rank (capped at Gold III / 1,650 XP). Coaches can also manually place clients via the XP Manager.
 
-### Changes — Single File: `src/components/clients/workspace/TrainingTab.tsx`
+### Database Changes
+- Added `placement_status` (pending/in_progress/completed/coach_override), `placement_start_date`, `placement_days_completed`, `placement_score` columns to `ranked_profiles`
+- Existing profiles default to `completed` (unaffected)
+- New profiles created with `placement_status = 'pending'`
 
-**1. Workout Preview on Click**
-- Import `WorkoutPreviewModal` from `@/components/training/WorkoutPreviewModal`
-- Add state: `previewWorkoutId`, `previewWorkoutName`
-- Make the workout card's main area (name + day badge) clickable → opens `WorkoutPreviewModal`
-- The edit pencil icon stays as a separate action on hover
-- The "Start Workout" button in the preview modal will be hidden for coach role (coaches preview, not start)
+### Scoring Formula
+- Workouts (40%): Completed vs scheduled calendar events
+- Nutrition (40%): Days within ±150 cal of target
+- Cardio (20%): Completed vs scheduled cardio events
+- Missing pillars redistribute weight
 
-**2. Inline Phase Rename on Click**
-- Make the phase name (`<h4>`) directly clickable to enter edit mode (click stops propagation so it doesn't toggle collapse)
-- Remove the separate Edit2 icon button since clicking the name does the same thing
-- On blur or Enter → save via existing `renamePhase()`
+### Score → XP Mapping
+| Score | Starting Rank | XP |
+|-------|--------------|-----|
+| 95-100% | Gold III | 1,650 |
+| 90-94% | Gold V | 1,250 |
+| 80-89% | Silver I | 1,100 |
+| 65-79% | Silver III | 800 |
+| 50-64% | Silver V | 500 |
+| 30-49% | Bronze III | 200 |
+| 0-29% | Bronze V | 0 |
 
-**3. New + Import Buttons per Phase**
-- Add a toolbar row inside each expanded phase with "New" and "Import" buttons
-- **New**: Opens the existing `WorkoutBuilderModal` (already used in ProgramDetailView) to create a workout, then inserts a `program_workouts` row linking it to the phase
-- **Import**: Opens a dropdown/dialog with two options:
-  - "From Master Library" — fetches coach's template workouts, lets them pick one, clones it into the client's program
-  - "From Client's Program" — opens a searchable client select, loads that client's program workouts, lets them pick and clone
-
-**4. Import Implementation**
-- Add state for import dialog: `importOpen`, `importPhaseId`, `importSource` ("master" | "client")
-- For master import: query `workouts` where `coach_id = user.id` and `is_template = true`
-- For client import: use `SearchableClientSelect` to pick a client, then load their program workouts
-- Clone logic reuses the existing `cloneWorkout` pattern already in `handleAssignProgram`
-
-### Technical Details
-- Import `WorkoutPreviewModal` and `WorkoutBuilderModal` components
-- Import `SearchableClientSelect` for client picker in import flow
-- The `WorkoutPreviewModal` already exists and works perfectly — just need to wire it up
-- `WorkoutBuilderModal` already handles creating workouts and returning the ID via `onSave(workoutId, name)`
-- After creating/importing, insert into `program_workouts` with the target `phase_id` and reload
-
+### Files Changed
+| File | Change |
+|------|--------|
+| `supabase/migrations/` | Added placement columns |
+| `supabase/functions/daily-xp-evaluation/index.ts` | Placement day tracking + finalization logic |
+| `src/utils/rankedXP.ts` | PLACEMENT_XP_MAP, calculatePlacementScore, getPlacementXP helpers |
+| `src/hooks/useRanked.ts` | New profiles get placement_status='pending' |
+| `src/components/ranked/PlacementTracker.tsx` | NEW — 7-dot progress tracker + "?" badge |
+| `src/components/ranked/MyRankCard.tsx` | Shows PlacementTracker during placement |
+| `src/components/dashboard/MyRankDashboardCard.tsx` | Compact placement tracker in dashboard |
+| `src/components/ranked/RankUpOverlay.tsx` | Added placement_reveal celebration variant |
+| `src/components/ranked/PendingRankUpPopup.tsx` | Handles placement_reveal events |
+| `src/components/ranked/XPManager.tsx` | Added "Place Client" coach override section |
+| `src/components/ranked/RankedLeaderboard.tsx` | Shows "Placement in Progress" for in-placement clients |
