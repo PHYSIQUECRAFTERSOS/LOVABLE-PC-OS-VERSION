@@ -540,7 +540,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     // Reset state immediately since user is intentionally discarding
     setWorkoutName(""); setInstructions(""); setExercises([]);
     setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
-    setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
+    setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
     setPreviewExerciseIdx(null);
     savedSuccessfullyRef.current = true;
     latestDraftRef.current.saved = true;
