@@ -165,44 +165,92 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         tagMap[t.client_id].push(t.tag);
       });
 
+      const last7Start = format(subDays(new Date(), 6), "yyyy-MM-dd");
       const last7Days = Array.from({ length: 7 }, (_, i) =>
-        format(subDays(new Date(), i), "yyyy-MM-dd")
-      ).reverse();
-
-      const clientsData = await Promise.all(
-        (profilesRes.data || []).map(async (p) => {
-          const { data: sessions } = await supabase
-            .from("workout_sessions")
-            .select("created_at, completed_at")
-            .eq("client_id", p.user_id)
-            .gte("created_at", `${last7Days[0]}T00:00:00`);
-
-          const completed = (sessions || []).filter((s) => s.completed_at).length;
-          const compliance = Math.round(
-            (completed / Math.max((sessions || []).length, 1)) * 100
-          );
-
-          let streak = 0;
-          for (let i = 6; i >= 0; i--) {
-            const dayComplete = (sessions || []).some(
-              (s) =>
-                format(new Date(s.created_at), "yyyy-MM-dd") === last7Days[i] &&
-                s.completed_at
-            );
-            if (dayComplete) streak++;
-            else break;
-          }
-
-          return {
-            id: p.user_id,
-            name: p.full_name || "Client",
-            avatar_url: p.avatar_url,
-            compliance,
-            streak,
-            tags: tagMap[p.user_id] || [],
-          };
-        })
+        format(subDays(new Date(), 6 - i), "yyyy-MM-dd")
       );
+
+      // Batch-fetch calendar events (workouts + cardio) and nutrition logs for all clients
+      const [calEventsRes, nutritionLogsRes, nutritionTargetsRes] = await Promise.all([
+        supabase
+          .from("calendar_events")
+          .select("target_client_id, user_id, event_date, event_type, is_completed")
+          .or(`target_client_id.in.(${clientIds.join(",")}),user_id.in.(${clientIds.join(",")})`)
+          .gte("event_date", last7Start)
+          .lte("event_date", last7Days[6])
+          .in("event_type", ["workout", "cardio"]),
+        supabase
+          .from("nutrition_logs")
+          .select("client_id, calories, logged_at")
+          .in("client_id", clientIds)
+          .gte("logged_at", last7Start)
+          .lte("logged_at", last7Days[6]),
+        supabase
+          .from("nutrition_targets")
+          .select("client_id, calories")
+          .in("client_id", clientIds),
+      ]);
+
+      const calEvents = calEventsRes.data || [];
+      const nutritionLogs = nutritionLogsRes.data || [];
+      const nutritionTargets = nutritionTargetsRes.data || [];
+
+      // Build nutrition target set (clients who have a nutrition target)
+      const hasNutritionTarget = new Set<string>();
+      nutritionTargets.forEach((t) => {
+        if (t.calories && t.calories > 0) hasNutritionTarget.add(t.client_id);
+      });
+
+      // Build nutrition days logged per client
+      const nutritionDaysByClient: Record<string, Set<string>> = {};
+      nutritionLogs.forEach((l) => {
+        if (Number(l.calories || 0) > 0) {
+          if (!nutritionDaysByClient[l.client_id]) nutritionDaysByClient[l.client_id] = new Set();
+          nutritionDaysByClient[l.client_id].add(String(l.logged_at));
+        }
+      });
+
+      const clientsData = (profilesRes.data || []).map((p) => {
+        // Calendar events for this client (as target or creator)
+        const clientEvents = calEvents.filter(
+          (e) => e.target_client_id === p.user_id || e.user_id === p.user_id
+        );
+        const totalEvents = clientEvents.length;
+        const completedEvents = clientEvents.filter((e) => e.is_completed).length;
+
+        // Nutrition: count days with nutrition target where they logged
+        const nutritionDaysExpected = hasNutritionTarget.has(p.user_id) ? 7 : 0;
+        const nutritionDaysLogged = nutritionDaysByClient[p.user_id]?.size || 0;
+
+        const totalPossible = totalEvents + nutritionDaysExpected;
+        const totalAchieved = completedEvents + Math.min(nutritionDaysLogged, nutritionDaysExpected);
+        const compliance = totalPossible > 0
+          ? Math.round((totalAchieved / totalPossible) * 100)
+          : 0;
+
+        // Streak: consecutive days from today backwards where all scheduled events were completed + nutrition logged
+        let streak = 0;
+        for (let i = 6; i >= 0; i--) {
+          const day = last7Days[i];
+          const dayEvents = clientEvents.filter((e) => e.event_date === day);
+          const dayAllComplete = dayEvents.length > 0 ? dayEvents.every((e) => e.is_completed) : true;
+          const dayNutritionOk = !hasNutritionTarget.has(p.user_id) || (nutritionDaysByClient[p.user_id]?.has(day) ?? false);
+          const hadAnything = dayEvents.length > 0 || hasNutritionTarget.has(p.user_id);
+
+          if (hadAnything && dayAllComplete && dayNutritionOk) streak++;
+          else if (hadAnything) break;
+          // skip days with nothing scheduled
+        }
+
+        return {
+          id: p.user_id,
+          name: p.full_name || "Client",
+          avatar_url: p.avatar_url,
+          compliance,
+          streak,
+          tags: tagMap[p.user_id] || [],
+        };
+      });
 
       setClients(clientsData);
       setLoading(false);
