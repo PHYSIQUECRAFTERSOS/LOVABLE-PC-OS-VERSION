@@ -43,7 +43,12 @@ const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const FOREGROUND_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 const INITIAL_SYNC_DELAY_MS = 3000; // 3 seconds after mount
 
-export function useHealthSync() {
+interface UseHealthSyncOptions {
+  enableAutoSync?: boolean;
+}
+
+export function useHealthSync(options: UseHealthSyncOptions = {}) {
+  const { enableAutoSync = false } = options;
   const { user } = useAuth();
   const [connection, setConnection] = useState<HealthConnection | null>(null);
   const [todayMetrics, setTodayMetrics] = useState<DailyMetrics | null>(null);
@@ -61,6 +66,12 @@ export function useHealthSync() {
 
   useEffect(() => {
     connectionRef.current = connection;
+    if (connection?.last_sync_at) {
+      const lastSyncedAt = new Date(connection.last_sync_at).getTime();
+      if (Number.isFinite(lastSyncedAt)) {
+        lastSyncRef.current = Math.max(lastSyncRef.current, lastSyncedAt);
+      }
+    }
   }, [connection]);
 
   const fetchConnection = useCallback(async () => {
@@ -297,28 +308,30 @@ export function useHealthSync() {
           metricsMap.set(entry.date, existing);
         }
 
-        // Upsert each day's metrics
-        for (const [date, metrics] of metricsMap) {
-          await supabase
+        const metricRows = Array.from(metricsMap.entries()).map(([date, metrics]) => ({
+          user_id: user.id,
+          metric_date: date,
+          steps: metrics.steps,
+          active_energy_kcal: metrics.active_energy_kcal,
+          walking_running_distance_km: metrics.walking_running_distance_km,
+          source: "apple_health",
+          synced_at: new Date().toISOString(),
+        }));
+
+        if (metricRows.length > 0) {
+          const { error: metricsError } = await supabase
             .from("daily_health_metrics")
-            .upsert(
-              {
-                user_id: user.id,
-                metric_date: date,
-                steps: metrics.steps,
-                active_energy_kcal: metrics.active_energy_kcal,
-                walking_running_distance_km: metrics.walking_running_distance_km,
-                source: "apple_health",
-                synced_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id,metric_date" }
-            );
+            .upsert(metricRows, { onConflict: "user_id,metric_date" });
+
+          if (metricsError) {
+            throw metricsError;
+          }
         }
 
         console.log(`[HealthSync] Synced ${metricsMap.size} days from HealthKit`);
       } else {
         // Non-native or Android: placeholder upsert
-        await supabase
+        const { error: placeholderError } = await supabase
           .from("daily_health_metrics")
           .upsert(
             {
@@ -329,6 +342,10 @@ export function useHealthSync() {
             },
             { onConflict: "user_id,metric_date" }
           );
+
+        if (placeholderError) {
+          throw placeholderError;
+        }
       }
 
       await supabase
@@ -367,6 +384,8 @@ export function useHealthSync() {
 
   // ── Auto-sync: 2-hour interval + foreground resume ──
   useEffect(() => {
+    if (!enableAutoSync) return;
+
     const conn = connectionRef.current;
     if (!user || !isNative || platform !== "ios" || !conn?.is_connected) return;
 
@@ -408,7 +427,7 @@ export function useHealthSync() {
       clearInterval(intervalId);
       listenerHandle?.remove();
     };
-  }, [user, isNative, platform, connection?.is_connected, syncNow]);
+  }, [enableAutoSync, user, isNative, platform, connection?.is_connected, syncNow]);
 
   const updateStepGoal = useCallback(
     async (goal: number) => {

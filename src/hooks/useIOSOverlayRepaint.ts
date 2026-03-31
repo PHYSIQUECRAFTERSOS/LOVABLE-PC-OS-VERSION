@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * Forces iOS WebKit to repaint the underlying compositor layers
@@ -13,15 +13,33 @@ import { useEffect } from "react";
  *
  * Safe to call on all platforms — it's a no-op repaint on non-iOS.
  */
-export function useIOSOverlayRepaint() {
+function triggerIOSOverlayRepaint() {
+  if (typeof document === "undefined") return;
+
+  requestAnimationFrame(() => {
+    document.body.style.transform = "translateZ(0)";
+    requestAnimationFrame(() => {
+      document.body.style.transform = "";
+    });
+  });
+}
+
+export function useIOSOverlayRepaint(isVisible = true) {
+  const wasVisibleRef = useRef(isVisible);
+
+  useEffect(() => {
+    if (wasVisibleRef.current && !isVisible) {
+      triggerIOSOverlayRepaint();
+    }
+
+    wasVisibleRef.current = isVisible;
+  }, [isVisible]);
+
   useEffect(() => {
     return () => {
-      requestAnimationFrame(() => {
-        document.body.style.transform = "translateZ(0)";
-        requestAnimationFrame(() => {
-          document.body.style.transform = "";
-        });
-      });
+      if (wasVisibleRef.current) {
+        triggerIOSOverlayRepaint();
+      }
     };
   }, []);
 }

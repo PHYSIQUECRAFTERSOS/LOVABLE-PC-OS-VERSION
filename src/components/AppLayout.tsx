@@ -230,7 +230,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Main Content */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Mobile Header — safe-area aware */}
-        <header className="flex md:hidden items-center justify-between h-auto min-h-[56px] px-4 pt-[env(safe-area-inset-top,0px)] border-b border-border bg-card">
+        <header className="flex md:hidden items-center justify-between h-auto min-h-[56px] px-4 pt-[env(safe-area-inset-top,0px)] border-b border-border bg-card relative z-50" style={{ transform: 'translateZ(0)' }}>
           <h1 className="font-display text-base font-bold tracking-tight min-w-0 truncate">
             PHYSIQUE <span className="text-gradient-gold">CRAFTERS</span>
           </h1>

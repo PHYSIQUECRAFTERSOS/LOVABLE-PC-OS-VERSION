@@ -43,6 +43,7 @@ import ClientTracker from "./pages/ClientTracker";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
+import HealthSyncBootstrap from "./components/HealthSyncBootstrap";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ const App = () => (
         <Sonner />
         <PWAInstallPrompt />
         <PushNotificationsInit />
+        <HealthSyncBootstrap />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />

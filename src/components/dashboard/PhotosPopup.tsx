@@ -43,7 +43,7 @@ const POSES: { angle: Angle; label: string; subtitle: string; guideImage: string
 ];
 
 const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) => {
-  useIOSOverlayRepaint();
+  useIOSOverlayRepaint(open);
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");
@@ -141,7 +141,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">

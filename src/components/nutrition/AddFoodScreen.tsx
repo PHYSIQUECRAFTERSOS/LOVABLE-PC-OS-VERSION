@@ -943,7 +943,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   };
 
   // iOS WebKit compositor repaint fix — shared hook
-  useIOSOverlayRepaint();
+  useIOSOverlayRepaint(open);
 
   if (!open) return null;
 

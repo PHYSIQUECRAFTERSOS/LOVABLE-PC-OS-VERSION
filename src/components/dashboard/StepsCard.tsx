@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Footprints, RefreshCw, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
+import { getLocalDateString } from "@/utils/localDate";
 
 const StepsCard = () => {
   const {
@@ -96,9 +97,7 @@ const StepsCard = () => {
             {weekMetrics.map((day) => {
               const daySteps = day.steps ?? 0;
               const height = Math.max((daySteps / maxSteps) * 100, 4);
-              const isToday =
-                day.metric_date ===
-                new Date().toISOString().split("T")[0];
+              const isToday = day.metric_date === getLocalDateString();
               return (
                 <div
                   key={day.metric_date}

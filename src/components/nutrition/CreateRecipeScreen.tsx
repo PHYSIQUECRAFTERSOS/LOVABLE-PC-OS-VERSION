@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +27,7 @@ interface CreateRecipeScreenProps {
 }
 
 const CreateRecipeScreen = ({ onClose, onSaved }: CreateRecipeScreenProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -134,7 +136,7 @@ const CreateRecipeScreen = ({ onClose, onSaved }: CreateRecipeScreenProps) => {
 
   if (showIngredientSearch) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+      <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
           <button onClick={() => setShowIngredientSearch(false)} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
             <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -157,7 +159,7 @@ const CreateRecipeScreen = ({ onClose, onSaved }: CreateRecipeScreenProps) => {
   const canSave = name.trim() && ingredients.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
