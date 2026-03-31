@@ -965,7 +965,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (showCreateMeal) {
     return (
-      <CreateMealSheet
+      <OverlayPortal><CreateMealSheet
         mealType={mealType}
         onClose={() => setShowCreateMeal(false)}
         onSaved={() => { setShowCreateMeal(false); fetchSavedMeals(); }}
