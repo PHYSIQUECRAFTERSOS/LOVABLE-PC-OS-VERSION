@@ -1552,7 +1552,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
         editFood={editingCustomFood}
       />
-    </div>
+    </div></OverlayPortal>
   );
 };
 
