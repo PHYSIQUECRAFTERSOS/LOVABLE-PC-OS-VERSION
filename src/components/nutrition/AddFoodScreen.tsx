@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
+import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { FrequentMealsSection } from "@/components/nutrition/FrequentMealsSection";
 import type { MealFood } from "@/services/mealTemplateService";
 import FoodDetailScreen from "@/components/nutrition/FoodDetailScreen";
