@@ -180,9 +180,9 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   };
 
   return (
-    <OverlayPortal><div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <OverlayPortal><div className="overlay-fullscreen z-[60] animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
+      <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
