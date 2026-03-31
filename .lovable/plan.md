@@ -1,47 +1,43 @@
 
 
-## Plan: Fix Client Cards — Remove Tags + Revamp Compliance Score
+## Plan: Workout Preview, Inline Phase Rename, and New/Import Buttons in Client Training Tab
 
-### Problem 1: Client names are obscured
-Tags (e.g., "PROGRAM COMPLETE[ WEEKLY]") clutter the card and push the client name out of view, especially on smaller screens.
+### Problem
+1. Clicking a workout in the client's Training tab only opens the editor — no way to preview exercises without editing
+2. Phase names require clicking a small edit icon to rename — not as fast as clicking the name directly (like Trainerize)
+3. No "New" or "Import" buttons to create workouts or import from master/other clients within a phase
 
-### Problem 2: Compliance score is inaccurate
-Current compliance only counts `workout_sessions` with `completed_at` vs total sessions. It ignores nutrition tracking and cardio — so a client doing everything right still shows 37%.
+### Changes — Single File: `src/components/clients/workspace/TrainingTab.tsx`
 
----
+**1. Workout Preview on Click**
+- Import `WorkoutPreviewModal` from `@/components/training/WorkoutPreviewModal`
+- Add state: `previewWorkoutId`, `previewWorkoutName`
+- Make the workout card's main area (name + day badge) clickable → opens `WorkoutPreviewModal`
+- The edit pencil icon stays as a separate action on hover
+- The "Start Workout" button in the preview modal will be hidden for coach role (coaches preview, not start)
 
-### Fix 1: Remove Tag Badge from Client Cards
+**2. Inline Phase Rename on Click**
+- Make the phase name (`<h4>`) directly clickable to enter edit mode (click stops propagation so it doesn't toggle collapse)
+- Remove the separate Edit2 icon button since clicking the name does the same thing
+- On blur or Enter → save via existing `renamePhase()`
 
-**File**: `src/components/clients/SelectableClientCards.tsx`
+**3. New + Import Buttons per Phase**
+- Add a toolbar row inside each expanded phase with "New" and "Import" buttons
+- **New**: Opens the existing `WorkoutBuilderModal` (already used in ProgramDetailView) to create a workout, then inserts a `program_workouts` row linking it to the phase
+- **Import**: Opens a dropdown/dialog with two options:
+  - "From Master Library" — fetches coach's template workouts, lets them pick one, clones it into the client's program
+  - "From Client's Program" — opens a searchable client select, loads that client's program workouts, lets them pick and clone
 
-Remove the tags badge block (lines 561-566) that renders `client.tags[0]` on the right side of each card. Tags remain in the data model and are still filterable via the Tags dropdown — they just won't render on the card itself, freeing up space for the name and program type badge.
+**4. Import Implementation**
+- Add state for import dialog: `importOpen`, `importPhaseId`, `importSource` ("master" | "client")
+- For master import: query `workouts` where `coach_id = user.id` and `is_template = true`
+- For client import: use `SearchableClientSelect` to pick a client, then load their program workouts
+- Clone logic reuses the existing `cloneWorkout` pattern already in `handleAssignProgram`
 
----
-
-### Fix 2: Revamp 7-Day Compliance Score
-
-**File**: `src/components/clients/SelectableClientCards.tsx`
-
-Replace the current workout-only compliance calculation (lines 172-204) with a holistic 7-day score based on three pillars:
-
-| Pillar | Source | "Scheduled" | "Completed" |
-|---|---|---|---|
-| Workouts | `calendar_events` where `event_type` contains workout-related types | Events with `linked_workout_id` or workout event_type in last 7 days | `is_completed = true` |
-| Cardio | `calendar_events` where `event_type = 'cardio'` | Cardio events in last 7 days | `is_completed = true` |
-| Nutrition | `nutrition_logs` | Days in last 7 where a nutrition target exists | Days where total logged calories > 0 |
-
-**Calculation**: 
-```
-compliance = (completedEvents + nutritionDaysLogged) / (totalEvents + nutritionDaysExpected) × 100
-```
-
-This uses `calendar_events` (which already has `is_completed`, `event_type`, `user_id`) as the source of truth for scheduled workouts and cardio, and cross-references `nutrition_logs` + `nutrition_targets` for nutrition tracking days.
-
-**Implementation**: Batch-fetch all calendar events and nutrition data for all client IDs in a single query set (not N+1), then compute per-client scores in JS. The streak calculation also updates to use this combined data.
-
-### File Changes
-
-| File | Change |
-|---|---|
-| `src/components/clients/SelectableClientCards.tsx` | Remove tag badge from card UI; replace compliance calc with calendar_events + nutrition-based 7-day score |
+### Technical Details
+- Import `WorkoutPreviewModal` and `WorkoutBuilderModal` components
+- Import `SearchableClientSelect` for client picker in import flow
+- The `WorkoutPreviewModal` already exists and works perfectly — just need to wire it up
+- `WorkoutBuilderModal` already handles creating workouts and returning the ID via `onSave(workoutId, name)`
+- After creating/importing, insert into `program_workouts` with the target `phase_id` and reload
 
