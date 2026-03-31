@@ -76,6 +76,7 @@ const XPManager = () => {
       {section === "top_movers" && <TopMoversSection />}
       {section === "stagnant" && <StagnantSection />}
       {section === "award" && <AwardXPSection />}
+      {section === "place" && <PlaceClientSection />}
       {section === "ledger" && <ClientLedgerSection />}
     </div>
   );
