@@ -43,6 +43,73 @@ export const XP_VALUES = {
   decay_per_day: -30,
 } as const;
 
+// ── Placement Series Configuration ─────────────────────────────
+export const PLACEMENT_DURATION_DAYS = 7;
+export const PLACEMENT_MAX_XP = 1650; // Gold III
+
+// Score (0–100) → Starting XP
+export const PLACEMENT_XP_MAP: Array<{ minScore: number; xp: number; label: string }> = [
+  { minScore: 95, xp: 1650, label: "Gold III" },
+  { minScore: 90, xp: 1250, label: "Gold V" },
+  { minScore: 80, xp: 1100, label: "Silver I" },
+  { minScore: 65, xp: 800,  label: "Silver III" },
+  { minScore: 50, xp: 500,  label: "Silver V" },
+  { minScore: 30, xp: 200,  label: "Bronze III" },
+  { minScore: 0,  xp: 0,    label: "Bronze V" },
+];
+
+export function getPlacementXP(score: number): { xp: number; label: string } {
+  for (const tier of PLACEMENT_XP_MAP) {
+    if (score >= tier.minScore) return { xp: tier.xp, label: tier.label };
+  }
+  return { xp: 0, label: "Bronze V" };
+}
+
+/**
+ * Calculate placement score from 7-day compliance data.
+ * Each pillar scores 0–100%. If a pillar has no scheduled events,
+ * its weight redistributes to the other pillars.
+ */
+export function calculatePlacementScore(data: {
+  workoutsCompleted: number;
+  workoutsScheduled: number;
+  nutritionDaysOnTarget: number;
+  nutritionDaysWithTargets: number;
+  cardioCompleted: number;
+  cardioScheduled: number;
+}): { workoutPct: number; nutritionPct: number; cardioPct: number; overall: number } {
+  const workoutPct = data.workoutsScheduled > 0
+    ? Math.min(100, (data.workoutsCompleted / data.workoutsScheduled) * 100)
+    : -1; // -1 means "no data, redistribute"
+  const nutritionPct = data.nutritionDaysWithTargets > 0
+    ? Math.min(100, (data.nutritionDaysOnTarget / data.nutritionDaysWithTargets) * 100)
+    : -1;
+  const cardioPct = data.cardioScheduled > 0
+    ? Math.min(100, (data.cardioCompleted / data.cardioScheduled) * 100)
+    : -1;
+
+  // Default weights
+  const weights = { workout: 0.4, nutrition: 0.4, cardio: 0.2 };
+  const pillars = [
+    { pct: workoutPct, key: "workout" as const },
+    { pct: nutritionPct, key: "nutrition" as const },
+    { pct: cardioPct, key: "cardio" as const },
+  ];
+
+  const active = pillars.filter((p) => p.pct >= 0);
+  if (active.length === 0) return { workoutPct: 0, nutritionPct: 0, cardioPct: 0, overall: 50 };
+
+  const totalWeight = active.reduce((s, p) => s + weights[p.key], 0);
+  const overall = active.reduce((s, p) => s + (p.pct * weights[p.key]) / totalWeight, 0);
+
+  return {
+    workoutPct: Math.max(0, workoutPct),
+    nutritionPct: Math.max(0, nutritionPct),
+    cardioPct: Math.max(0, cardioPct),
+    overall: Math.round(overall * 100) / 100,
+  };
+}
+
 export const COACH_PRESETS = {
   pr_hit:           { xp: 20, label: "PR Hit",         icon: "Trophy" },
   perfect_week:     { xp: 50, label: "Perfect Week",   icon: "Star" },
