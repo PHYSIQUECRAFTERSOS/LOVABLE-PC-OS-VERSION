@@ -79,8 +79,8 @@ export function useHealthSync() {
 
   const fetchMetrics = useCallback(async () => {
     if (!user) return;
-    const today = new Date().toISOString().split("T")[0];
-    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    const today = getLocalDateString();
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA");
 
     const [todayRes, weekRes] = await Promise.all([
       supabase
