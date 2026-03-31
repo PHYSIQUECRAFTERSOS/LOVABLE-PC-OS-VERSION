@@ -355,7 +355,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
           setExercises([]);
           setUseRpe(false);
           setUseTempo(false);
-          setUseRir(true);
+          setUseRir(false);
           lastPersistedSnapshotRef.current = "";
           return;
         }
