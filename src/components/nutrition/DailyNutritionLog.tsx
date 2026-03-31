@@ -15,6 +15,7 @@ import { getFoodEmoji } from "@/utils/foodEmoji";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import MacroRing from "./MacroRing";
+import SuggestedFoods from "./SuggestedFoods";
 import AddFoodScreen from "./AddFoodScreen";
 import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
 import CopyDayDialog from "./CopyDayDialog";
