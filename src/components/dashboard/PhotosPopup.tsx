@@ -296,7 +296,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
           </Button>
         </div>
       )}
-    </div>
+    </div></OverlayPortal>
   );
 };
 

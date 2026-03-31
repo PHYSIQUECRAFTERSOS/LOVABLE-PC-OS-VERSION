@@ -243,7 +243,7 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
           {logging ? "Adding..." : `Add to ${mealLabel}`}
         </Button>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

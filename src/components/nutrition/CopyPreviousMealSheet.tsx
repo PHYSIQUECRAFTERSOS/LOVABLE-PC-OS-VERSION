@@ -247,7 +247,7 @@ const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied
           </div>
         )}
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
