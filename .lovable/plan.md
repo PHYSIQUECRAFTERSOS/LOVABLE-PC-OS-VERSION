@@ -1,43 +1,89 @@
 
+Goal: fix the two regressions that appeared in the last few hours without destabilizing the rest of Physique Crafters OS.
 
-## Plan: Faster Health Sync Intervals
+What I found
+1. Steps sync is genuinely stuck for the affected client account:
+   - `health_connections` shows the Apple Health connection in `sync_status = error`
+   - `last_sync_at` is stale
+   - `sync_error` says HealthKit is not authorized
+   - `daily_health_metrics` is frozen at the older 6,022-step row
+2. The current sync code is too brittle:
+   - `useHealthSync.ts` re-requests HealthKit authorization before every sync
+   - if that auth call or any one metric query fails, the entire sync is marked failed
+   - that means one bad permission/state can block step updates completely
+3. The overlay bug is not just a repaint issue:
+   - nutrition overlays are rendered inline inside the page tree, not in a top-level portal
+   - they use `fixed inset-0 + 100dvh + safe-area padding + autofocus`
+   - on native iPhone, that combination can drift when the keyboard opens/closes, which matches your screenshots: gray band at top, Breakfast pushed down, header/nav displaced after backspace/back
+4. The recent “repaint” fix helps after closing overlays, but it does not solve the root cause while the overlay is open.
 
-### Current State
-- **Scheduled sync**: every 2 hours (`AUTO_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000`)
-- **Foreground resume throttle**: 30 minutes (`FOREGROUND_SYNC_THROTTLE_MS = 30 * 60 * 1000`)
-- **Initial sync delay**: 5 seconds after mount
+Do I know what the issue is? Yes.
+- Steps broke because the sync path is failing hard on HealthKit authorization/query state instead of recovering gracefully.
+- Nutrition overlay broke because the full-screen screens are mounted in the wrong layer for iOS and are reacting badly to the visual viewport/keyboard.
 
-### Recommendation
-Reduce to **30-minute scheduled sync** and **5-minute foreground throttle**. This is completely safe — the HealthKit query is a lightweight local-device read (no network call, no API rate limit). It queries aggregated daily stats from the on-device HealthKit store, which Apple designed for frequent access. The Supabase upsert is a single row per day, trivial load.
+Implementation plan
 
-Going lower than 30 minutes for the background interval wastes battery for minimal benefit. The real win is the **foreground throttle drop to 5 minutes** — every time a client comes back from a walk and opens the app, if 5+ minutes have passed, steps update immediately.
+1. Harden Apple Health syncing so steps keep updating
+Files:
+- `src/hooks/useHealthSync.ts`
+- `src/components/settings/HealthIntegrations.tsx`
+- `src/components/dashboard/StepsCard.tsx`
+- `src/components/HealthSyncBootstrap.tsx`
 
-### Changes
+Changes:
+- Stop treating every sync as a fresh permission flow. Keep `requestAuthorization()` for connect/reconnect, not as a required blocker before every sync.
+- Make sync resilient:
+  - query steps, distance, and energy independently
+  - allow partial success
+  - if steps succeed, complete the sync and update `last_sync_at`
+  - do not overwrite good rows with zeroes from failed subqueries
+  - clear `sync_error` automatically after a successful sync
+- Improve stale-connection recovery:
+  - if connection is marked `error`, foreground resume/manual sync should still retry cleanly
+  - add explicit logging around resume trigger, interval trigger, and query failures so future regressions are easy to trace
+- Keep the 30-minute interval and 5-minute resume throttle, but make sure the path actually executes successfully again.
 
-**File: `src/hooks/useHealthSync.ts`** (3 constant changes, lines 41-43)
+2. Fix the nutrition overlay at the root layer, not just with repaint hacks
+Files:
+- `src/components/AppLayout.tsx`
+- `src/index.css`
+- `src/components/nutrition/AddFoodScreen.tsx`
+- `src/components/nutrition/FoodDetailScreen.tsx`
+- `src/components/nutrition/CreateMealSheet.tsx`
+- `src/components/nutrition/CopyPreviousMealSheet.tsx`
+- `src/components/nutrition/PCRecipeDetail.tsx`
+- `src/components/nutrition/SavedMealDetail.tsx`
+- possibly `src/components/dashboard/PhotosPopup.tsx`
 
-```text
-Before:
-  AUTO_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000   // 2 hours
-  FOREGROUND_SYNC_THROTTLE_MS = 30 * 60 * 1000  // 30 minutes
-  INITIAL_SYNC_DELAY_MS = 5000                   // 5 seconds
+Changes:
+- Move full-screen iOS overlays to a shared top-level fullscreen shell rendered via portal to `document.body`.
+- Standardize one overlay layout pattern:
+  - true fullscreen root
+  - safe-area aware top/bottom padding
+  - internal scroll area only
+  - no competing inline `fixed inset-0` wrappers scattered across components
+- Remove the immediate auto-focus on Add Food open for iPhone, or delay it until the viewport is stable. This is likely what’s kicking off the top-gap/keyboard drift.
+- Review and trim the recent root/layout CSS hardening so it doesn’t pin the whole app into a bad fixed-state on iOS during keyboard transitions.
+- Keep `useIOSOverlayRepaint` as a close/unmount safety net, not as the main fix.
 
-After:
-  AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000        // 30 minutes
-  FOREGROUND_SYNC_THROTTLE_MS = 5 * 60 * 1000   // 5 minutes
-  INITIAL_SYNC_DELAY_MS = 3000                   // 3 seconds
-```
+3. Make the visuals match the intended native layout again
+Specific outcome to restore:
+- top-left Physique Crafters branding sits flush where it did before
+- top-right settings/hamburger remain visible
+- bottom nav shows Home / Calendar / Training / Nutrition / Messages properly
+- Add Food screen header sits higher with no gray dead space above it
+- back/backspace from food flows does not push the app chrome down or hide it
 
-Update the two log messages referencing "2-hour" to say "30-min" (lines 372, 385).
+4. Regression test the exact broken flows
+I will validate these paths after implementation:
+- Dashboard → Nutrition → Add Food → type/search → open food → back → back
+- repeat with keyboard open/closed and after backspace
+- switch to another tab after closing Add Food and confirm header/bottom nav remain correct
+- Apple Health manual sync
+- app resume after more than 5 minutes
+- verify `health_connections.last_sync_at` advances and `daily_health_metrics` updates for today instead of staying at 6,022
 
-### Why this is safe
-- HealthKit reads are local on-device — zero network cost, zero rate limits
-- The upsert is a single `daily_health_metrics` row (conflict on `user_id,metric_date`) — negligible DB load
-- No new tables, no new queries, no new components — just 3 constants changed
-- Battery impact is minimal: the sync only runs when the app is in the foreground (Capacitor `appStateChange`) or during the setInterval which only fires while the JS context is alive
-
-### What the client experiences after this change
-- Opens app after a walk → steps update within seconds (foreground trigger, 5-min throttle)
-- Keeps app open during a walk → steps refresh every 30 minutes automatically
-- Pulls to refresh on StepsCard → instant sync (manual `syncNow()` has no throttle)
-
+Technical notes
+- No database schema change is needed.
+- The HealthKit Swift plugin can remain in place unless JS-side hardening is not enough; if needed, I will then do a second pass on the plugin query behavior.
+- This is a native iPhone issue, so after the code fix you should pull the latest changes and run `npx cap sync` before testing on device.
