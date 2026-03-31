@@ -1,89 +1,47 @@
 
-Goal: fix the two regressions that appeared in the last few hours without destabilizing the rest of Physique Crafters OS.
 
-What I found
-1. Steps sync is genuinely stuck for the affected client account:
-   - `health_connections` shows the Apple Health connection in `sync_status = error`
-   - `last_sync_at` is stale
-   - `sync_error` says HealthKit is not authorized
-   - `daily_health_metrics` is frozen at the older 6,022-step row
-2. The current sync code is too brittle:
-   - `useHealthSync.ts` re-requests HealthKit authorization before every sync
-   - if that auth call or any one metric query fails, the entire sync is marked failed
-   - that means one bad permission/state can block step updates completely
-3. The overlay bug is not just a repaint issue:
-   - nutrition overlays are rendered inline inside the page tree, not in a top-level portal
-   - they use `fixed inset-0 + 100dvh + safe-area padding + autofocus`
-   - on native iPhone, that combination can drift when the keyboard opens/closes, which matches your screenshots: gray band at top, Breakfast pushed down, header/nav displaced after backspace/back
-4. The recent “repaint” fix helps after closing overlays, but it does not solve the root cause while the overlay is open.
+## Diagnosis
 
-Do I know what the issue is? Yes.
-- Steps broke because the sync path is failing hard on HealthKit authorization/query state instead of recovering gracefully.
-- Nutrition overlay broke because the full-screen screens are mounted in the wrong layer for iOS and are reacting badly to the visual viewport/keyboard.
+The "Unable to complete purchase" error is being thrown by the `handleSubscribe` catch block in `Subscribe.tsx` (line 135). The error from StoreKit native side reaches JS but doesn't match any of the specific error patterns (cancel, invalid, network, etc.), so it falls through to the generic "Please try again" message.
 
-Implementation plan
+The root problem: **we have no visibility into what the actual StoreKit error is.** The `console.error` on line 122 logs it, but the native iOS app's WebView console isn't easily accessible. The toast only shows the generic message.
 
-1. Harden Apple Health syncing so steps keep updating
-Files:
-- `src/hooks/useHealthSync.ts`
-- `src/components/settings/HealthIntegrations.tsx`
-- `src/components/dashboard/StepsCard.tsx`
-- `src/components/HealthSyncBootstrap.tsx`
+Additionally, there's a potential timing issue: the `getProducts` call uses a 5-second race timeout. If it times out but the screen still shows hardcoded prices, the user can tap "Subscribe Now" — and StoreKit may fail because the product wasn't properly fetched in the current session.
 
-Changes:
-- Stop treating every sync as a fresh permission flow. Keep `requestAuthorization()` for connect/reconnect, not as a required blocker before every sync.
-- Make sync resilient:
-  - query steps, distance, and energy independently
-  - allow partial success
-  - if steps succeed, complete the sync and update `last_sync_at`
-  - do not overwrite good rows with zeroes from failed subqueries
-  - clear `sync_error` automatically after a successful sync
-- Improve stale-connection recovery:
-  - if connection is marked `error`, foreground resume/manual sync should still retry cleanly
-  - add explicit logging around resume trigger, interval trigger, and query failures so future regressions are easy to trace
-- Keep the 30-minute interval and 5-minute resume throttle, but make sure the path actually executes successfully again.
+## Plan
 
-2. Fix the nutrition overlay at the root layer, not just with repaint hacks
-Files:
-- `src/components/AppLayout.tsx`
-- `src/index.css`
-- `src/components/nutrition/AddFoodScreen.tsx`
-- `src/components/nutrition/FoodDetailScreen.tsx`
-- `src/components/nutrition/CreateMealSheet.tsx`
-- `src/components/nutrition/CopyPreviousMealSheet.tsx`
-- `src/components/nutrition/PCRecipeDetail.tsx`
-- `src/components/nutrition/SavedMealDetail.tsx`
-- possibly `src/components/dashboard/PhotosPopup.tsx`
+### 1. Add diagnostic logging and show the actual StoreKit error to the user
 
-Changes:
-- Move full-screen iOS overlays to a shared top-level fullscreen shell rendered via portal to `document.body`.
-- Standardize one overlay layout pattern:
-  - true fullscreen root
-  - safe-area aware top/bottom padding
-  - internal scroll area only
-  - no competing inline `fixed inset-0` wrappers scattered across components
-- Remove the immediate auto-focus on Add Food open for iPhone, or delay it until the viewport is stable. This is likely what’s kicking off the top-gap/keyboard drift.
-- Review and trim the recent root/layout CSS hardening so it doesn’t pin the whole app into a bad fixed-state on iOS during keyboard transitions.
-- Keep `useIOSOverlayRepaint` as a close/unmount safety net, not as the main fix.
+**File: `src/pages/Subscribe.tsx`**
+- In the catch block, include the actual native error message in the toast `description` so you can see exactly what StoreKit is reporting (e.g., "Purchase failed: No In-App Purchase product IDs were found", "StoreKit error domain=...", sandbox issues, etc.)
+- Add `console.warn` with the full error object serialized (code, message, errorMessage) so it appears in future console log captures
+- This alone will tell us if it's a product ID mismatch, a sandbox account issue, a missing agreement, or something else
 
-3. Make the visuals match the intended native layout again
-Specific outcome to restore:
-- top-left Physique Crafters branding sits flush where it did before
-- top-right settings/hamburger remain visible
-- bottom nav shows Home / Calendar / Training / Nutrition / Messages properly
-- Add Food screen header sits higher with no gray dead space above it
-- back/backspace from food flows does not push the app chrome down or hide it
+### 2. Add a product availability gate before purchase
 
-4. Regression test the exact broken flows
-I will validate these paths after implementation:
-- Dashboard → Nutrition → Add Food → type/search → open food → back → back
-- repeat with keyboard open/closed and after backspace
-- switch to another tab after closing Add Food and confirm header/bottom nav remain correct
-- Apple Health manual sync
-- app resume after more than 5 minutes
-- verify `health_connections.last_sync_at` advances and `daily_health_metrics` updates for today instead of staying at 6,022
+**File: `src/pages/Subscribe.tsx`**
+- Track whether live products were successfully fetched from StoreKit (`productsLoaded` state)
+- Before calling `StoreKit.purchase()`, if products were NOT loaded, attempt a fresh `getProducts` call first
+- If that also fails, show a specific error: "Unable to connect to App Store. Please check your connection and try again."
+- This prevents the case where `getProducts` timed out silently but the user can still tap Subscribe
 
-Technical notes
-- No database schema change is needed.
-- The HealthKit Swift plugin can remain in place unless JS-side hardening is not enough; if needed, I will then do a second pass on the plugin query behavior.
-- This is a native iPhone issue, so after the code fix you should pull the latest changes and run `npx cap sync` before testing on device.
+### 3. Surface the native error code in the toast for immediate debugging
+
+**File: `src/pages/Subscribe.tsx`**
+- Change the default `description` from "Please try again." to include the actual error code/message from StoreKit, e.g.: `"Error: ${err?.message || err?.code || 'Unknown'}. Please try again or contact support."`
+- This is critical for debugging since you can't access the native console — the toast IS your debugger right now
+
+### 4. Bump service worker cache
+
+**File: `public/sw.js`**
+- Bump `CACHE_NAME` from `v6` to `v7` so the iPhone picks up these diagnostic changes immediately
+
+### Technical detail
+
+The Swift plugin code itself looks correct. The three most likely causes for the native StoreKit failure are:
+1. **Sandbox account expired or needs re-authentication** — Apple sandbox accounts need periodic re-sign-in via Settings → App Store → Sandbox Account
+2. **Missing "Paid Applications" agreement** in App Store Connect (must be active and not expired)
+3. **Product ID state** — if the product was recently modified in App Store Connect, it may be in "Developer Action Needed" state
+
+By surfacing the actual error message in the toast, you'll know immediately which of these is the cause and can fix it on the App Store Connect side if needed. No code-side fix will resolve an App Store Connect configuration issue, but the diagnostic visibility will.
+
