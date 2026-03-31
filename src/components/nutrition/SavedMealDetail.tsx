@@ -169,7 +169,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
   useEffect(() => {
     if (showAddFood && user) {
       fetchHistory();
-      setTimeout(() => searchRef.current?.focus(), 150);
+      setTimeout(() => searchRef.current?.focus(), 400);
     }
   }, [showAddFood, user]);
 

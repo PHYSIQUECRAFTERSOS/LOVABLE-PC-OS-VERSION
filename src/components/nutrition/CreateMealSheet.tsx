@@ -106,7 +106,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
       fetchHistory();
       fetchCustomFoods();
       setSearchTab("search");
-      setTimeout(() => searchRef.current?.focus(), 150);
+      setTimeout(() => searchRef.current?.focus(), 400);
     }
     if (!showFoodSearch) {
       stopBarcodeScanner();
