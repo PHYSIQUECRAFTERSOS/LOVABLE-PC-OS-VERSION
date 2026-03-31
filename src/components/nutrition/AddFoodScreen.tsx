@@ -1002,7 +1002,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (detailFood) {
     return (
-      <FoodDetailScreen
+      <OverlayPortal><FoodDetailScreen
         food={{
           id: detailFood.id,
           name: detailFood.name,
