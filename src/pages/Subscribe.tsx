@@ -107,6 +107,19 @@ const Subscribe = () => {
 
     setSubscribing(true);
     try {
+      // If products weren't loaded on mount, retry before purchasing
+      if (!productsLoaded) {
+        const loaded = await fetchProducts();
+        if (!loaded) {
+          toast({
+            title: "Unable to connect to App Store",
+            description: "Could not load product information. Please check your internet connection and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Call purchase with explicit product ID
       await StoreKit.purchase({ productId: plan.productId });
 
@@ -117,25 +130,33 @@ const Subscribe = () => {
     } catch (err: any) {
       // User tapped "Cancel" on the Apple payment sheet — NOT an error
       const code = err?.code || err?.message || "";
+      const codeStr = String(code).toLowerCase();
       if (
         code === "USER_CANCELLED" ||
         code === "PURCHASE_PENDING" ||
-        String(code).toLowerCase().includes("cancel")
+        codeStr.includes("cancel")
       ) {
         // Silent dismiss — do not show error toast
         return;
       }
 
-      console.error("Purchase error:", err);
+      // Full diagnostic logging — this is our debugger on device
+      console.warn("[Subscribe] Purchase error:", JSON.stringify({
+        code: err?.code,
+        message: err?.message,
+        errorMessage: err?.errorMessage,
+        raw: String(err),
+      }));
 
-      // Provide a more descriptive error based on the error type
-      const errorMsg = String(code).toLowerCase();
-      let description = "Please try again.";
-      if (errorMsg.includes("invalid") || errorMsg.includes("product")) {
-        description = "This plan is temporarily unavailable. Please try again later or contact support.";
-      } else if (errorMsg.includes("network") || errorMsg.includes("connect")) {
+      // Surface the actual native error in the toast for debugging
+      const nativeMsg = err?.message || err?.errorMessage || err?.code || String(err);
+      let description = `Error: ${nativeMsg}`;
+
+      if (codeStr.includes("invalid") || codeStr.includes("product")) {
+        description = `This plan is temporarily unavailable (${nativeMsg}). Please try again later or contact support.`;
+      } else if (codeStr.includes("network") || codeStr.includes("connect")) {
         description = "Please check your internet connection and try again.";
-      } else if (errorMsg.includes("not allowed") || errorMsg.includes("restrict")) {
+      } else if (codeStr.includes("not allowed") || codeStr.includes("restrict")) {
         description = "In-app purchases may be restricted on this device. Check Settings → Screen Time.";
       }
 
