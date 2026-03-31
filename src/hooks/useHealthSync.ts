@@ -382,7 +382,7 @@ export function useHealthSync() {
 
     // 2-hour interval
     const intervalId = setInterval(() => {
-      console.log("[HealthSync] Running scheduled 2-hour auto-sync…");
+      console.log("[HealthSync] Running scheduled 30-min auto-sync…");
       syncNow().catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
     }, AUTO_SYNC_INTERVAL_MS);
 
