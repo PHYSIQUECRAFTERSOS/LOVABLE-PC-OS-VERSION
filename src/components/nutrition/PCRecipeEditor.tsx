@@ -70,6 +70,7 @@ interface PCRecipeEditorProps {
 }
 
 const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState(editRecipe?.name || "");

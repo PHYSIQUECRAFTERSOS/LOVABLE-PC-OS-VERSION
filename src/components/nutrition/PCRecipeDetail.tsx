@@ -16,6 +16,7 @@ interface PCRecipeDetailProps {
 }
 
 const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged }: PCRecipeDetailProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [ingredients, setIngredients] = useState<any[]>([]);

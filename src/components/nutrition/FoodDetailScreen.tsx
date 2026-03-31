@@ -56,6 +56,7 @@ interface Props {
 }
 
 export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm, onBack }: Props) {
+  useIOSOverlayRepaint();
   const servingOptions = useMemo(() => {
     const options: ServingOption[] = [];
 

@@ -942,19 +942,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
-  // Force iOS WebKit to repaint the underlying AppLayout navigation
-  // when this full-screen overlay unmounts. Without this, the bottom nav
-  // and header can disappear on native iOS after closing sub-screens.
-  useEffect(() => {
-    if (open) return;
-    // Trigger a compositor pass to repaint underlying fixed-position elements
-    requestAnimationFrame(() => {
-      document.body.style.transform = 'translateZ(0)';
-      requestAnimationFrame(() => {
-        document.body.style.transform = '';
-      });
-    });
-  }, [open]);
+  // iOS WebKit compositor repaint fix — shared hook
+  useIOSOverlayRepaint();
 
   if (!open) return null;
 

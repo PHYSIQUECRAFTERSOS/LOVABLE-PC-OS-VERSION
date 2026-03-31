@@ -25,6 +25,7 @@ interface CopyPreviousMealSheetProps {
 }
 
 const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied }: CopyPreviousMealSheetProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [days, setDays] = useState<any[]>([]);

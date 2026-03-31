@@ -43,6 +43,7 @@ const POSES: { angle: Angle; label: string; subtitle: string; guideImage: string
 ];
 
 const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");
