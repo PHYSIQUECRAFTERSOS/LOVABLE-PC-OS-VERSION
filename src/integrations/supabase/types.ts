@@ -5536,6 +5536,10 @@ export type Database = {
           longest_streak: number
           new_client_boost_expires: string | null
           pending_rank_event: Json | null
+          placement_days_completed: number
+          placement_score: Json | null
+          placement_start_date: string | null
+          placement_status: string
           total_xp: number
           updated_at: string | null
           user_id: string
@@ -5556,6 +5560,10 @@ export type Database = {
           longest_streak?: number
           new_client_boost_expires?: string | null
           pending_rank_event?: Json | null
+          placement_days_completed?: number
+          placement_score?: Json | null
+          placement_start_date?: string | null
+          placement_status?: string
           total_xp?: number
           updated_at?: string | null
           user_id: string
@@ -5576,6 +5584,10 @@ export type Database = {
           longest_streak?: number
           new_client_boost_expires?: string | null
           pending_rank_event?: Json | null
+          placement_days_completed?: number
+          placement_score?: Json | null
+          placement_start_date?: string | null
+          placement_status?: string
           total_xp?: number
           updated_at?: string | null
           user_id?: string
