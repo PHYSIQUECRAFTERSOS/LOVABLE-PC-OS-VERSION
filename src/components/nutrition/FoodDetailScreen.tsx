@@ -178,7 +178,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain' }}>
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -360,6 +360,8 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
         <div className="flex items-center justify-between rounded-xl bg-card border border-border px-4 py-3">
           <span className="text-sm text-muted-foreground">Meal</span>
           <span className="text-sm font-medium text-foreground">{mealLabel}</span>
+        </div>
+
         {/* Bottom Log button — always reachable even when iOS keyboard pushes header off-screen */}
         <div className="pt-2 pb-4">
           <Button onClick={handleConfirm} className="w-full rounded-xl text-sm font-semibold py-3">
@@ -367,7 +369,6 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           </Button>
         </div>
       </div>
-    </div>
     </div>
   );
 }
