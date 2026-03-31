@@ -193,7 +193,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   );
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-background safe-left safe-right">
+    <div className="fixed inset-0 flex overflow-hidden bg-background safe-left safe-right" style={{ overscrollBehavior: 'none' }}>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card">
         <div className="flex h-16 items-center px-6 border-b border-border">
@@ -285,7 +285,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </main>
 
         {/* Mobile Bottom Nav — safe-area aware */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom,0px)]">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom,0px)]" style={{ transform: 'translateZ(0)' }}>
           {mobileBottomItems.map((item) => (
             <NavLink
               key={item.to}
