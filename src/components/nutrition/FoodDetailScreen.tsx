@@ -360,6 +360,8 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
         <div className="flex items-center justify-between rounded-xl bg-card border border-border px-4 py-3">
           <span className="text-sm text-muted-foreground">Meal</span>
           <span className="text-sm font-medium text-foreground">{mealLabel}</span>
+        </div>
+
         {/* Bottom Log button — always reachable even when iOS keyboard pushes header off-screen */}
         <div className="pt-2 pb-4">
           <Button onClick={handleConfirm} className="w-full rounded-xl text-sm font-semibold py-3">
@@ -367,7 +369,6 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           </Button>
         </div>
       </div>
-    </div>
     </div>
   );
 }
