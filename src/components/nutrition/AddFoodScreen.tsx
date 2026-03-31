@@ -959,7 +959,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         onLogged={() => { setSelectedMeal(null); onLogged(); }}
         onDeleted={() => { setSelectedMeal(null); fetchSavedMeals(); }}
         onUpdated={() => fetchSavedMeals()}
-      />
+      /></OverlayPortal>
     );
   }
 
