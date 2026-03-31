@@ -83,7 +83,6 @@ const RankUpOverlay = ({ tier, division, type, previousTier, placementScore, pla
   // Stage progression
   useEffect(() => {
     if (isDemotion) {
-      // Demotions: simple 2-stage
       const t1 = setTimeout(() => setStage(1), 200);
       const t2 = setTimeout(() => setStage(2), 800);
       const t3 = setTimeout(dismiss, duration);
@@ -96,6 +95,18 @@ const RankUpOverlay = ({ tier, division, type, previousTier, placementScore, pla
       const t3 = setTimeout(() => setStage(3), 800);
       const t4 = setTimeout(dismiss, duration);
       return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+    }
+
+    if (isPlacement) {
+      const timers = [
+        setTimeout(() => setStage(1), 400),
+        setTimeout(() => setStage(2), 1000),
+        setTimeout(() => setStage(3), 1800),
+        setTimeout(() => setStage(4), 2800),
+        setTimeout(() => setStage(5), 4200),
+        setTimeout(dismiss, duration),
+      ];
+      return () => timers.forEach(clearTimeout);
     }
 
     // Tier up & Champion
