@@ -969,7 +969,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         mealType={mealType}
         onClose={() => setShowCreateMeal(false)}
         onSaved={() => { setShowCreateMeal(false); fetchSavedMeals(); }}
-      />
+      /></OverlayPortal>
     );
   }
 
