@@ -1,4 +1,4 @@
-const CACHE_NAME = 'physique-crafters-v5';
+const CACHE_NAME = 'physique-crafters-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

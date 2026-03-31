@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import HealthKit from "@/plugins/HealthKitPlugin";
+import { getLocalDateString } from "@/utils/localDate";
 
 export interface HealthConnection {
   id: string;
@@ -78,8 +79,8 @@ export function useHealthSync() {
 
   const fetchMetrics = useCallback(async () => {
     if (!user) return;
-    const today = new Date().toISOString().split("T")[0];
-    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    const today = getLocalDateString();
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA");
 
     const [todayRes, weekRes] = await Promise.all([
       supabase
@@ -247,8 +248,8 @@ export function useHealthSync() {
         .update({ sync_status: "syncing" })
         .eq("id", conn.id);
 
-      const today = new Date().toISOString().split("T")[0];
-      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+      const today = getLocalDateString();
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA");
 
       if (isNative && platform === "ios") {
         // ── Re-request authorization to ensure "determined" state ──
@@ -412,7 +413,7 @@ export function useHealthSync() {
   const updateStepGoal = useCallback(
     async (goal: number) => {
       if (!user) return;
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateString();
       await supabase
         .from("daily_health_metrics")
         .upsert(
