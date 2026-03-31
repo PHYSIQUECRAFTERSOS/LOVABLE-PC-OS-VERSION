@@ -47,12 +47,13 @@ interface RankUpOverlayProps {
   onDismiss: () => void;
 }
 
-const DURATIONS = {
+const DURATIONS: Record<string, number> = {
   division_up: 3000,
   tier_up: 5500,
   champion_in: 7000,
   division_down: 3000,
   tier_down: 3000,
+  placement_reveal: 6000,
 };
 
 const RAY_COUNT = 12;
