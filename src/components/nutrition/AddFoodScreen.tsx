@@ -981,7 +981,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         logDate={effectiveDate}
         onClose={() => setShowCopyMeal(false)}
         onCopied={() => { setShowCopyMeal(false); onLogged(); }}
-      />
+      /></OverlayPortal>
     );
   }
 
