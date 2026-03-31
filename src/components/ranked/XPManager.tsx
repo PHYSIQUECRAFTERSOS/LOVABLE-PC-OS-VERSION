@@ -48,6 +48,7 @@ const XPManager = () => {
     { key: "top_movers", label: "Top Movers", icon: TrendingUp },
     { key: "stagnant", label: "Stagnant", icon: Clock },
     { key: "award", label: "Award XP", icon: Award },
+    { key: "place", label: "Place Client", icon: MapPin },
     { key: "ledger", label: "Ledger", icon: Search },
   ];
 
