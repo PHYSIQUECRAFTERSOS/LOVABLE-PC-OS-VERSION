@@ -675,7 +675,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
   return (
     <OverlayPortal><div className="overlay-fullscreen z-[55] animate-fade-in">
-      <div className="flex items-center gap-3 px-4 pt-2 pb-3 border-b border-border">
+      <div className="flex items-center gap-3 px-4 safe-top pb-3 border-b border-border">
         <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-secondary">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
