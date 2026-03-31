@@ -60,33 +60,40 @@ const Subscribe = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successPlan, setSuccessPlan] = useState("");
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+
+  const fetchProducts = async (): Promise<boolean> => {
+    try {
+      const productIds = DEFAULT_PLANS.map((p) => p.productId);
+      const result = await Promise.race([
+        StoreKit.getProducts({ productIds }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      ]);
+      if (result && result.products && result.products.length > 0) {
+        setPlans((prev) =>
+          prev.map((plan) => {
+            const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
+            if (live) {
+              return { ...plan, price: live.price, title: live.displayName || plan.title };
+            }
+            return plan;
+          })
+        );
+        setProductsLoaded(true);
+        return true;
+      }
+      console.warn("[Subscribe] getProducts returned empty or timed out", result);
+      return false;
+    } catch (err) {
+      console.warn("[Subscribe] getProducts failed", err);
+      return false;
+    }
+  };
 
   // Fetch live pricing from App Store on mount (graceful fallback to defaults)
   useEffect(() => {
     if (!isNative) return;
-    const fetchPrices = async () => {
-      try {
-        const productIds = DEFAULT_PLANS.map((p) => p.productId);
-        const result = await Promise.race([
-          StoreKit.getProducts({ productIds }),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]);
-        if (result && result.products && result.products.length > 0) {
-          setPlans((prev) =>
-            prev.map((plan) => {
-              const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
-              if (live) {
-                return { ...plan, price: live.price, title: live.displayName || plan.title };
-              }
-              return plan;
-            })
-          );
-        }
-      } catch {
-        // Silently fall back to hardcoded prices
-      }
-    };
-    fetchPrices();
+    fetchProducts();
   }, []);
 
   const handleSubscribe = async () => {
