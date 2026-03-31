@@ -562,7 +562,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     const newEx: WorkoutExercise = {
       exerciseId: ex.id, exerciseName: ex.name, thumbnail: ex.youtube_thumbnail,
       youtubeUrl: ex.youtube_url || null,
-      exerciseOrder: 0, sets: 3, reps: "10", tempo: "", restSeconds: 90,
+      exerciseOrder: 0, sets: 3, reps: "10", tempo: "", restSeconds: 120,
       rir: "2", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
     };
     setExercises(prev => {
