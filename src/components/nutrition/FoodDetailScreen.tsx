@@ -371,7 +371,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           </Button>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }
 
