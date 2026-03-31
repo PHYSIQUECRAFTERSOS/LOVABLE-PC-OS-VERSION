@@ -947,10 +947,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (!open) return null;
 
-  // Sub-screens
+  // Sub-screens — all wrapped in OverlayPortal
   if (selectedMeal) {
     return (
-      <SavedMealDetail
+      <OverlayPortal><SavedMealDetail
         meal={selectedMeal}
         mealType={mealType}
         mealLabel={mealLabel}
