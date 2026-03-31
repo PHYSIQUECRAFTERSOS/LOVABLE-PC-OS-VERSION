@@ -178,7 +178,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain' }}>
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ height: '100dvh', overscrollBehaviorY: 'contain', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
