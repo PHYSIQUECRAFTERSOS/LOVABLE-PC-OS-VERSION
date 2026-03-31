@@ -465,7 +465,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
   if (showFoodSearch) {
     return (
-      <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
+      <OverlayPortal><div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', height: '100dvh', overscrollBehaviorY: 'contain' }}>
         <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
           <button onClick={() => { setShowFoodSearch(false); stopBarcodeScanner(); }} className="p-1.5 rounded-lg hover:bg-secondary">
             <ArrowLeft className="h-5 w-5 text-foreground" />
