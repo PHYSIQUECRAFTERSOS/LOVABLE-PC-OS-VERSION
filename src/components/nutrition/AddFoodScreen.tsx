@@ -1026,7 +1026,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         mealLabel={mealLabel}
         onConfirm={handleDetailConfirm}
         onBack={() => setDetailFood(null)}
-      />
+      /></OverlayPortal>
     );
   }
 
