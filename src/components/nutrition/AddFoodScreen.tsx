@@ -975,7 +975,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   if (showCopyMeal) {
     return (
-      <CopyPreviousMealSheet
+      <OverlayPortal><CopyPreviousMealSheet
         mealType={mealType}
         mealLabel={mealLabel}
         logDate={effectiveDate}
