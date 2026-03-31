@@ -4,10 +4,12 @@ import { useAuth } from "@/hooks/useAuth";
 import RankUpOverlay from "./RankUpOverlay";
 
 interface PendingRankEvent {
-  type: "division_up" | "tier_up" | "champion_in" | "division_down" | "tier_down";
+  type: "division_up" | "tier_up" | "champion_in" | "division_down" | "tier_down" | "placement_reveal";
   tier: string;
   division: number;
-  previousTier: string;
+  previousTier?: string;
+  score?: number;
+  label?: string;
   timestamp: string;
 }
 
@@ -37,7 +39,7 @@ const PendingRankUpPopup = () => {
       if (Array.isArray(profile.pending_rank_event)) {
         events = profile.pending_rank_event;
       } else if (typeof profile.pending_rank_event === "object") {
-        events = [profile.pending_rank_event];
+        events = [profile.pending_rank_event as PendingRankEvent];
       }
 
       if (events.length === 0) return;
@@ -48,9 +50,9 @@ const PendingRankUpPopup = () => {
         .update({ pending_rank_event: null })
         .eq("user_id", user.id);
 
-      // Show the most impactful event (prioritize tier_up/champion_in, then division_up)
-      // Sort by priority: champion_in > tier_up > division_up > division_down > tier_down
+      // Sort by priority: placement_reveal > champion_in > tier_up > division_up > division_down > tier_down
       const PRIORITY: Record<string, number> = {
+        placement_reveal: 6,
         champion_in: 5,
         tier_up: 4,
         division_up: 3,
@@ -73,7 +75,6 @@ const PendingRankUpPopup = () => {
     setQueue((prev) => {
       const next = prev.slice(1);
       if (next.length > 0) {
-        // Show next event after a brief pause
         setTimeout(() => setCurrentEvent(next[0]), 400);
       } else {
         setCurrentEvent(null);
@@ -91,6 +92,8 @@ const PendingRankUpPopup = () => {
       division={currentEvent.division}
       type={currentEvent.type}
       previousTier={currentEvent.previousTier}
+      placementScore={currentEvent.score}
+      placementLabel={currentEvent.label}
       onDismiss={handleDismiss}
     />
   );
