@@ -285,7 +285,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </main>
 
         {/* Mobile Bottom Nav — safe-area aware */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom,0px)]">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border bg-card/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom,0px)]" style={{ transform: 'translateZ(0)' }}>
           {mobileBottomItems.map((item) => (
             <NavLink
               key={item.to}
