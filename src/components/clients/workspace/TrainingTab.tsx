@@ -12,12 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight,
-  ArrowUp, ArrowDown, Edit2, Link2, Unlink, Search, Pencil
+  ArrowUp, ArrowDown, Edit2, Link2, Unlink, Search, Pencil,
+  Download, Loader2
 } from "lucide-react";
 import ClientWorkoutEditorModal from "@/components/training/ClientWorkoutEditorModal";
+import WorkoutPreviewModal from "@/components/training/WorkoutPreviewModal";
+import WorkoutBuilderModal from "@/components/training/WorkoutBuilderModal";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
@@ -57,6 +62,26 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorWorkoutId, setEditorWorkoutId] = useState("");
   const [editorWorkoutName, setEditorWorkoutName] = useState("");
+
+  // Workout preview modal
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
+  const [previewWorkoutName, setPreviewWorkoutName] = useState("");
+
+  // Workout builder modal (New workout)
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderPhaseId, setBuilderPhaseId] = useState<string | null>(null);
+
+  // Import dialog
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPhaseId, setImportPhaseId] = useState<string | null>(null);
+  const [importSource, setImportSource] = useState<"master" | "client">("master");
+  const [importWorkouts, setImportWorkouts] = useState<any[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSelectedClient, setImportSelectedClient] = useState("");
+  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
+  const [importSelectedWorkout, setImportSelectedWorkout] = useState("");
+  const [importing, setImporting] = useState(false);
 
   // Workout selection for bulk actions
   const [selectedWorkouts, setSelectedWorkouts] = useState<Set<string>>(new Set());
@@ -156,6 +181,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setEditorOpen(true);
   };
 
+  const openWorkoutPreview = (pw: ProgramWorkout) => {
+    setPreviewWorkoutId(pw.workout_id);
+    setPreviewWorkoutName(pw.workout_name);
+    setPreviewOpen(true);
+  };
+
   // ── Duplicate workout day ──
   const duplicateWorkout = async (pw: ProgramWorkout, phaseId: string) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
@@ -211,6 +242,27 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setShowAssign(true);
   };
 
+  // ── Clone workout helper ──
+  const cloneWorkoutToClient = async (sourceWorkoutId: string): Promise<any | null> => {
+    if (!user) return null;
+    const { data: origW } = await supabase.from("workouts")
+      .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkoutId).single();
+    if (!origW) return null;
+    const { data: clientW } = await supabase.from("workouts").insert({
+      coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
+      instructions: origW.instructions, phase: origW.phase, is_template: false,
+      workout_type: (origW as any).workout_type || "regular",
+    } as any).select().single();
+    if (!clientW) return null;
+    const { data: exes } = await supabase.from("workout_exercises")
+      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
+      .eq("workout_id", sourceWorkoutId);
+    if (exes && exes.length > 0) {
+      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
+    }
+    return clientW;
+  };
+
   const handleAssignProgram = async () => {
     if (!selectedMaster || !user) return;
     setAssigning(true);
@@ -239,31 +291,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }).select().single();
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-        const cloneWorkout = async (sourceWorkoutId: string) => {
-          const { data: origW } = await supabase.from("workouts")
-            .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkoutId).single();
-          if (!origW) return null;
-          const { data: clientW } = await supabase.from("workouts").insert({
-            coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
-            instructions: origW.instructions, phase: origW.phase, is_template: false,
-            workout_type: (origW as any).workout_type || "regular",
-          } as any).select().single();
-          if (!clientW) return null;
-          const { data: exes } = await supabase.from("workout_exercises")
-            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
-            .eq("workout_id", sourceWorkoutId);
-          if (exes && exes.length > 0) {
-            await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
-          }
-          return clientW;
-        };
-
         const { data: phaseDirectPWs } = await supabase.from("program_workouts")
           .select("*").eq("phase_id", phase.id).order("sort_order");
 
         if (phaseDirectPWs && phaseDirectPWs.length > 0) {
           for (const pw of phaseDirectPWs) {
-            const clientW = await cloneWorkout(pw.workout_id);
+            const clientW = await cloneWorkoutToClient(pw.workout_id);
             if (!clientW) continue;
             await supabase.from("program_workouts").insert({
               phase_id: newPhase!.id, workout_id: clientW.id,
@@ -281,7 +314,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               .select().single();
             const { data: masterPW } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
             for (const pw of (masterPW || [])) {
-              const clientW = await cloneWorkout(pw.workout_id);
+              const clientW = await cloneWorkoutToClient(pw.workout_id);
               if (!clientW) continue;
               await supabase.from("program_workouts").insert({
                 week_id: newWeek!.id, workout_id: clientW.id,
@@ -374,13 +407,117 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     });
   };
 
+  // ── New workout created via builder ──
+  const handleNewWorkoutCreated = async (workoutId: string, workoutName: string) => {
+    if (!builderPhaseId) return;
+    const phase = phases.find(p => p.id === builderPhaseId);
+    const sortOrder = phase ? phase.directWorkouts.length + 1 : 1;
+    await supabase.from("program_workouts").insert({
+      phase_id: builderPhaseId, workout_id: workoutId,
+      day_of_week: 0, day_label: workoutName, sort_order: sortOrder,
+    });
+    toast({ title: "Workout added to phase" });
+    setBuilderOpen(false);
+    setBuilderPhaseId(null);
+    loadClientProgram();
+  };
+
+  // ── Import flow ──
+  const openImportDialog = async (phaseId: string) => {
+    setImportPhaseId(phaseId);
+    setImportSource("master");
+    setImportSelectedWorkout("");
+    setImportSelectedClient("");
+    setImportOpen(true);
+    // Load master workouts
+    loadMasterWorkouts();
+    // Load clients for client import
+    loadImportClients();
+  };
+
+  const loadMasterWorkouts = async () => {
+    if (!user) return;
+    setImportLoading(true);
+    const { data } = await supabase.from("workouts")
+      .select("id, name, description, workout_type")
+      .eq("coach_id", user.id).eq("is_template", true)
+      .order("name");
+    setImportWorkouts(data || []);
+    setImportLoading(false);
+  };
+
+  const loadImportClients = async () => {
+    if (!user) return;
+    const { data } = await supabase.from("coach_clients")
+      .select("client_id, profiles!coach_clients_client_id_fkey(full_name)")
+      .eq("coach_id", user.id).eq("status", "active");
+    setImportClients((data || []).filter((c: any) => c.client_id !== clientId).map((c: any) => ({
+      id: c.client_id,
+      name: (c.profiles as any)?.full_name || "Client",
+    })));
+  };
+
+  const loadClientWorkouts = async (selectedClientId: string) => {
+    setImportLoading(true);
+    // Get the client's active program workouts
+    const { data: assignData } = await supabase.from("client_program_assignments")
+      .select("program_id").eq("client_id", selectedClientId).eq("status", "active")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!assignData) {
+      setImportWorkouts([]);
+      setImportLoading(false);
+      return;
+    }
+    const { data: phasesData } = await supabase.from("program_phases")
+      .select("id").eq("program_id", assignData.program_id);
+    const phaseIds = (phasesData || []).map(p => p.id);
+    if (phaseIds.length === 0) {
+      setImportWorkouts([]);
+      setImportLoading(false);
+      return;
+    }
+    const { data: pws } = await supabase.from("program_workouts")
+      .select("workout_id, workouts(id, name, description, workout_type)")
+      .in("phase_id", phaseIds);
+    const unique = new Map<string, any>();
+    for (const pw of (pws || [])) {
+      const w = (pw as any).workouts;
+      if (w && !unique.has(w.id)) unique.set(w.id, w);
+    }
+    setImportWorkouts(Array.from(unique.values()));
+    setImportLoading(false);
+  };
+
+  const handleImportWorkout = async () => {
+    if (!importSelectedWorkout || !importPhaseId || !user) return;
+    setImporting(true);
+    try {
+      const clientW = await cloneWorkoutToClient(importSelectedWorkout);
+      if (!clientW) throw new Error("Failed to clone workout");
+      const phase = phases.find(p => p.id === importPhaseId);
+      const sortOrder = phase ? phase.directWorkouts.length + 1 : 1;
+      await supabase.from("program_workouts").insert({
+        phase_id: importPhaseId, workout_id: clientW.id,
+        day_of_week: 0, day_label: clientW.name, sort_order: sortOrder,
+      });
+      toast({ title: "Workout imported" });
+      setImportOpen(false);
+      loadClientProgram();
+    } catch (err: any) {
+      toast({ title: "Import failed", description: err.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const allWorkouts = phases.flatMap(p => p.directWorkouts);
 
   // ── Workout card ──
   const renderWorkoutCard = (pw: ProgramWorkout, phaseId: string, displayDayNumber?: number | null, customTag?: string | null) => (
-    <div key={pw.id} className="flex items-center gap-2 p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors group">
+    <div key={pw.id} className="flex items-center gap-2 p-3 border rounded-lg bg-card/50 hover:bg-muted/30 transition-colors group cursor-pointer"
+      onClick={() => openWorkoutPreview(pw)}>
       {selectionMode && (
-        <Checkbox checked={selectedWorkouts.has(pw.id)} onCheckedChange={() => toggleWorkoutSelection(pw.id)} className="shrink-0" />
+        <Checkbox checked={selectedWorkouts.has(pw.id)} onCheckedChange={() => toggleWorkoutSelection(pw.id)} className="shrink-0" onClick={e => e.stopPropagation()} />
       )}
       <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
         <Dumbbell className="h-4 w-4 text-primary" />
@@ -395,7 +532,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           <p className="text-sm font-medium truncate">{pw.workout_name}</p>
         </div>
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openWorkoutEditor(pw)} title="Edit workout">
           <Pencil className="h-3 w-3" />
         </Button>
@@ -549,7 +686,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                       onKeyDown={e => e.key === "Enter" && renamePhase(phase.id, phaseNameEdit)}
                       onClick={e => e.stopPropagation()} className="h-7 w-48 text-sm" />
                   ) : (
-                    <h4 className="font-semibold text-sm text-foreground">{phase.name}</h4>
+                    <h4 className="font-semibold text-sm text-foreground cursor-text hover:text-primary transition-colors"
+                      onClick={e => {
+                        e.stopPropagation();
+                        guardEdit(() => { setEditingPhase(phase.id); setPhaseNameEdit(phase.name); });
+                      }}
+                      title="Click to rename">{phase.name}</h4>
                   )}
                   <div className="flex items-center gap-2 mt-0.5">
                     {isCurrent && <Badge className="text-[9px] h-4">Current</Badge>}
@@ -561,7 +703,6 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phase.id, "up")} disabled={phaseIdx === 0}><ArrowUp className="h-3 w-3" /></Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phase.id, "down")} disabled={phaseIdx === phases.length - 1}><ArrowDown className="h-3 w-3" /></Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => guardEdit(() => { setEditingPhase(phase.id); setPhaseNameEdit(phase.name); })}><Edit2 className="h-3 w-3" /></Button>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => duplicatePhase(phase)}><Copy className="h-3 w-3" /></Button>
                 {!selectionMode && (
                   <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2"
@@ -577,6 +718,18 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
             {isExpanded && (
               <CardContent className="pt-0 space-y-2 pb-4">
+                {/* New + Import toolbar */}
+                <div className="flex items-center gap-2 mb-2">
+                  <Button size="sm" variant="outline" className="h-8 text-xs"
+                    onClick={() => guardEdit(() => { setBuilderPhaseId(phase.id); setBuilderOpen(true); })}>
+                    <Plus className="h-3 w-3 mr-1" /> New
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 text-xs"
+                    onClick={() => guardEdit(() => openImportDialog(phase.id))}>
+                    <Download className="h-3 w-3 mr-1" /> Import
+                  </Button>
+                </div>
+
                 {(() => {
                   const sorted = [...phase.directWorkouts].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
                   let dayCounter = 1;
@@ -670,6 +823,28 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Workout Preview Modal (coach — edit instead of start) */}
+      <WorkoutPreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        workoutId={previewWorkoutId}
+        workoutName={previewWorkoutName}
+        actionLabel="Edit Workout"
+        actionIcon={<Pencil className="h-4 w-4 mr-2" />}
+        onStartWorkout={() => {
+          if (previewWorkoutId) {
+            setPreviewOpen(false);
+            if (assignment?.is_linked_to_master) {
+              setShowDetach(true);
+            } else {
+              setEditorWorkoutId(previewWorkoutId);
+              setEditorWorkoutName(previewWorkoutName);
+              setEditorOpen(true);
+            }
+          }
+        }}
+      />
+
       {/* Full-screen Workout Editor Modal */}
       <ClientWorkoutEditorModal
         open={editorOpen}
@@ -679,6 +854,102 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         workoutName={editorWorkoutName}
         clientId={clientId}
       />
+
+      {/* Workout Builder Modal (New workout) */}
+      {user && (
+        <WorkoutBuilderModal
+          open={builderOpen}
+          onClose={() => { setBuilderOpen(false); setBuilderPhaseId(null); }}
+          onSave={handleNewWorkoutCreated}
+          coachId={user.id}
+        />
+      )}
+
+      {/* Import Workout Dialog */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import Workout</DialogTitle>
+            <DialogDescription>Import a workout from your template library or another client's program.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Source toggle */}
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => { setImportSource("master"); loadMasterWorkouts(); setImportSelectedWorkout(""); }}
+                className={`p-3 rounded-lg border text-left transition-colors ${importSource === "master" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Dumbbell className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Master Library</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Your template workouts</p>
+              </button>
+              <button onClick={() => { setImportSource("client"); setImportSelectedWorkout(""); setImportWorkouts([]); }}
+                className={`p-3 rounded-lg border text-left transition-colors ${importSource === "client" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Copy className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">From Client</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Copy from another client</p>
+              </button>
+            </div>
+
+            {/* Client selector for client import */}
+            {importSource === "client" && (
+              <div className="space-y-2">
+                <Label className="text-sm">Select Client</Label>
+                <SearchableClientSelect
+                  clients={importClients}
+                  value={importSelectedClient}
+                  onValueChange={(v) => {
+                    setImportSelectedClient(v);
+                    setImportSelectedWorkout("");
+                    if (v) loadClientWorkouts(v);
+                  }}
+                  placeholder="Choose a client..."
+                />
+              </div>
+            )}
+
+            {/* Workout list */}
+            <div className="space-y-2">
+              <Label className="text-sm">Select Workout</Label>
+              {importLoading ? (
+                <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+              ) : importWorkouts.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  {importSource === "client" && !importSelectedClient ? "Select a client first" : "No workouts found"}
+                </p>
+              ) : (
+                <ScrollArea className="max-h-60">
+                  <div className="space-y-1">
+                    {importWorkouts.map(w => (
+                      <button key={w.id} onClick={() => setImportSelectedWorkout(w.id)}
+                        className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors ${
+                          importSelectedWorkout === w.id ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
+                        }`}>
+                        <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                          <Dumbbell className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{w.name}</p>
+                          {w.workout_type && w.workout_type !== "regular" && (
+                            <span className="text-[10px] text-muted-foreground">{w.workout_type}</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            <Button className="w-full" disabled={!importSelectedWorkout || importing} onClick={handleImportWorkout}>
+              {importing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+              Import Workout
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -709,34 +980,30 @@ const AssignDialog = ({ open, onOpenChange, programs, selected, onSelect, onAssi
           <button onClick={() => onModeChange("import")}
             className={`p-3 rounded-lg border text-left transition-colors ${mode === "import" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
             <div className="flex items-center gap-2 mb-1">
-              <Unlink className="h-4 w-4 text-muted-foreground" />
+              <Copy className="h-4 w-4 text-primary" />
               <span className="text-sm font-semibold">Import</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Independent copy. No sync.</p>
+            <p className="text-[11px] text-muted-foreground">Independent copy. Edit freely.</p>
           </button>
         </div>
-        <div>
-          <Label>Select Program</Label>
-          <Select value={selected} onValueChange={onSelect}>
-            <SelectTrigger><SelectValue placeholder="Choose a program" /></SelectTrigger>
-            <SelectContent>
-              {programs.map(p => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name} {p.is_master ? "⭐" : ""} {p.goal_type ? `(${p.goal_type})` : ""} v{p.version_number || 1}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-2">
+          <Label className="text-sm">Master Program</Label>
+          {programs.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-3 text-center">No template programs found. Create one in Master Libraries first.</p>
+          ) : (
+            <Select value={selected} onValueChange={onSelect}>
+              <SelectTrigger><SelectValue placeholder="Choose a program..." /></SelectTrigger>
+              <SelectContent>
+                {programs.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-        <div className="p-3 rounded-lg bg-muted/30 border">
-          <p className="text-[11px] text-muted-foreground">
-            {mode === "subscribe"
-              ? "⚡ Subscribe: Client stays linked to master. Push updates will sync automatically."
-              : "📋 Import: Client gets an independent copy. Master changes won't affect them."}
-          </p>
-        </div>
-        <Button onClick={onAssign} disabled={!selected || loading} className="w-full">
-          {loading ? "Assigning..." : mode === "subscribe" ? "Subscribe Client" : "Import Program"}
+        <Button className="w-full" disabled={!selected || loading} onClick={onAssign}>
+          {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          {mode === "subscribe" ? "Subscribe Client" : "Import Program"}
         </Button>
       </div>
     </DialogContent>

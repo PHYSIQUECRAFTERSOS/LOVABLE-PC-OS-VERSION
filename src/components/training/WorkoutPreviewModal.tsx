@@ -31,6 +31,10 @@ interface WorkoutPreviewModalProps {
   workoutId: string | null;
   workoutName: string;
   onStartWorkout: (workoutId: string) => void;
+  /** Override the bottom button label (default: "Start Workout") */
+  actionLabel?: string;
+  /** Override the bottom button icon (default: Play) */
+  actionIcon?: React.ReactNode;
 }
 
 const WorkoutPreviewModal = ({
@@ -39,6 +43,8 @@ const WorkoutPreviewModal = ({
   workoutId,
   workoutName,
   onStartWorkout,
+  actionLabel = "Start Workout",
+  actionIcon,
 }: WorkoutPreviewModalProps) => {
   const [exercises, setExercises] = useState<ExerciseDetail[]>([]);
   const [loading, setLoading] = useState(false);
@@ -222,7 +228,7 @@ const WorkoutPreviewModal = ({
               }
             }}
           >
-            <Play className="h-4 w-4 mr-2" /> Start Workout
+            {actionIcon || <Play className="h-4 w-4 mr-2" />} {actionLabel}
           </Button>
         </div>
       </DialogContent>
