@@ -492,7 +492,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     if (!open && savedSuccessfullyRef.current) {
       setWorkoutName(""); setInstructions(""); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
-      setUseRpe(false); setUseTempo(false); setUseRir(true); setSelectionMode(false);
+      setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
       setPreviewExerciseIdx(null);
       savedSuccessfullyRef.current = false;
       hydratedRef.current = false;
