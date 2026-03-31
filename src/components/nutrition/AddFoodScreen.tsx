@@ -996,7 +996,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         logDate={effectiveDate}
         onBack={() => setSelectedPCRecipe(null)}
         onLogged={() => { setSelectedPCRecipe(null); onLogged(); }}
-      />
+      /></OverlayPortal>
     );
   }
 
