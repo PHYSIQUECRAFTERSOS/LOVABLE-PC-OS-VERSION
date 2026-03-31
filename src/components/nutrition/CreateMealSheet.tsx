@@ -669,7 +669,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
             )}
           </div>
         )}
-      </div>
+      </div></OverlayPortal>
     );
   }
 
