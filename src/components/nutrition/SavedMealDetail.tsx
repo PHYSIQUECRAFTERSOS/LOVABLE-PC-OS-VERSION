@@ -734,7 +734,7 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div></OverlayPortal>
   );
 };
 

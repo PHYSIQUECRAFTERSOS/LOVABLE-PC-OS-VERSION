@@ -833,7 +833,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div></OverlayPortal>
   );
 };
 
