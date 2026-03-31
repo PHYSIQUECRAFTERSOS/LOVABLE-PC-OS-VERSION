@@ -248,8 +248,8 @@ export function useHealthSync() {
         .update({ sync_status: "syncing" })
         .eq("id", conn.id);
 
-      const today = new Date().toISOString().split("T")[0];
-      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+      const today = getLocalDateString();
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA");
 
       if (isNative && platform === "ios") {
         // ── Re-request authorization to ensure "determined" state ──
