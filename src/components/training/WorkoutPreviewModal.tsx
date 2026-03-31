@@ -228,7 +228,7 @@ const WorkoutPreviewModal = ({
               }
             }}
           >
-            <Play className="h-4 w-4 mr-2" /> Start Workout
+            {actionIcon || <Play className="h-4 w-4 mr-2" />} {actionLabel}
           </Button>
         </div>
       </DialogContent>
