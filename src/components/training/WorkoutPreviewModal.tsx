@@ -43,6 +43,8 @@ const WorkoutPreviewModal = ({
   workoutId,
   workoutName,
   onStartWorkout,
+  actionLabel = "Start Workout",
+  actionIcon,
 }: WorkoutPreviewModalProps) => {
   const [exercises, setExercises] = useState<ExerciseDetail[]>([]);
   const [loading, setLoading] = useState(false);
