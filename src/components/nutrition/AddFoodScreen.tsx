@@ -179,7 +179,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       setUsedQuery("");
       setExpandedId(null);
       setActiveTab("all");
-      setTimeout(() => searchRef.current?.focus(), 100);
+      setTimeout(() => searchRef.current?.focus(), 400);
       fetchHistory();
       fetchSavedMeals();
       fetchPCRecipes();
