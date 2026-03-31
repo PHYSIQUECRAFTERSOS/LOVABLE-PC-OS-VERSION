@@ -19,6 +19,7 @@ import {
   calculateTierAndDivision,
 } from "@/utils/rankedXP";
 import { Flame, TrendingUp } from "lucide-react";
+import PlacementTracker from "./PlacementTracker";
 
 interface MyRankCardProps {
   profile: any;
@@ -26,6 +27,17 @@ interface MyRankCardProps {
 
 const MyRankCard = ({ profile }: MyRankCardProps) => {
   if (!profile) return null;
+
+  // Show placement tracker if in placement
+  const placementStatus = profile.placement_status || "completed";
+  if (placementStatus === "pending" || placementStatus === "in_progress") {
+    return (
+      <PlacementTracker
+        daysCompleted={profile.placement_days_completed || 0}
+        status={placementStatus}
+      />
+    );
+  }
 
   const tierColor = getTierColor(profile.current_tier);
   const label = getDivisionLabel(

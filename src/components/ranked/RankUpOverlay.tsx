@@ -40,8 +40,10 @@ const OLD_BADGES: Record<string, string> = {
 interface RankUpOverlayProps {
   tier: string;
   division: number;
-  type: "division_up" | "tier_up" | "champion_in" | "division_down" | "tier_down";
+  type: "division_up" | "tier_up" | "champion_in" | "division_down" | "tier_down" | "placement_reveal";
   previousTier?: string;
+  placementScore?: number;
+  placementLabel?: string;
   onDismiss: () => void;
 }
 
