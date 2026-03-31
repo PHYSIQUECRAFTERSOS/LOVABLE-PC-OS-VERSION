@@ -116,16 +116,21 @@ const RankedLeaderboard = () => {
 /* ── Divisions Accordion View ──────────────────────────────── */
 
 const DivisionsView = ({ entries, search }: { entries: any[]; search: string }) => {
-  // Group by tier
-  const tierGroups = useMemo(() => {
+  // Group by tier — separate placement clients
+  const { tierGroups, placementClients } = useMemo(() => {
     const groups: Record<string, any[]> = {};
+    const placement: any[] = [];
     for (const tier of TIER_ORDER) groups[tier] = [];
     for (const e of entries) {
-      const t = e.current_tier || "bronze";
-      if (groups[t]) groups[t].push(e);
-      else groups["bronze"].push(e);
+      if (e.placement_status === "pending" || e.placement_status === "in_progress") {
+        placement.push(e);
+      } else {
+        const t = e.current_tier || "bronze";
+        if (groups[t]) groups[t].push(e);
+        else groups["bronze"].push(e);
+      }
     }
-    return groups;
+    return { tierGroups: groups, placementClients: placement };
   }, [entries]);
 
   // Find tier with most players to auto-expand
@@ -148,6 +153,37 @@ const DivisionsView = ({ entries, search }: { entries: any[]; search: string }) 
 
   return (
     <div className="divide-y divide-border">
+      {/* Placement section at top */}
+      {placementClients.length > 0 && (
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="w-full">
+            <div
+              className="flex items-center gap-3 px-4 py-3 hover:bg-secondary/30 transition-colors cursor-pointer"
+              style={{ borderLeft: "3px solid hsl(var(--primary))" }}
+            >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-primary/20 flex items-center justify-center">
+                <span className="text-lg font-black text-primary">?</span>
+              </div>
+              <span className="text-sm font-bold tracking-wide uppercase flex-1 text-left text-primary">
+                Placement
+              </span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="h-3 w-3" />
+                {placementClients.length}
+              </span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="pb-1">
+              {placementClients.map((entry: any) => (
+                <PlacementPlayerRow key={entry.user_id} entry={entry} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
       {TIER_DISPLAY_ORDER.map((tier) => (
         <TierSection
           key={tier}
@@ -289,6 +325,53 @@ const DivisionSubGroup = ({
       {open && players.length === 0 && (
         <p className="ml-7 py-1 text-[10px] text-muted-foreground/60 italic">Empty</p>
       )}
+    </div>
+  );
+};
+
+/* ── Placement Player Row ────────────────────────────────────── */
+
+const PlacementPlayerRow = ({ entry }: { entry: any }) => {
+  const initials = (entry.name || "U")
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  const days = entry.placement_days_completed || 0;
+  const total = 7;
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 px-4 py-2.5 transition-colors",
+        entry.isMe && "bg-primary/5"
+      )}
+    >
+      <Avatar className="h-7 w-7 shrink-0">
+        {entry.avatar_url && <AvatarImage src={entry.avatar_url} alt={entry.name} />}
+        <AvatarFallback
+          className="text-[10px] font-semibold bg-primary/20 text-primary"
+        >
+          {initials}
+        </AvatarFallback>
+      </Avatar>
+
+      <span
+        className={cn(
+          "text-sm font-medium truncate flex-1",
+          entry.isMe ? "text-primary" : "text-foreground"
+        )}
+      >
+        {entry.name}
+      </span>
+
+      <div className="text-right shrink-0">
+        <p className="text-xs font-bold text-primary">
+          🏁 Day {days}/{total}
+        </p>
+        <p className="text-[9px] text-muted-foreground">In Placement</p>
+      </div>
     </div>
   );
 };
