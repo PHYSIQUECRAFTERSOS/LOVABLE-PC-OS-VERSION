@@ -823,19 +823,24 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Workout Preview Modal (coach — hide start button) */}
+      {/* Workout Preview Modal (coach — edit instead of start) */}
       <WorkoutPreviewModal
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         workoutId={previewWorkoutId}
         workoutName={previewWorkoutName}
+        actionLabel="Edit Workout"
+        actionIcon={<Pencil className="h-4 w-4 mr-2" />}
         onStartWorkout={() => {
-          // Coach clicks "Edit" instead of start
           if (previewWorkoutId) {
             setPreviewOpen(false);
-            setEditorWorkoutId(previewWorkoutId);
-            setEditorWorkoutName(previewWorkoutName);
-            setEditorOpen(true);
+            if (assignment?.is_linked_to_master) {
+              setShowDetach(true);
+            } else {
+              setEditorWorkoutId(previewWorkoutId);
+              setEditorWorkoutName(previewWorkoutName);
+              setEditorOpen(true);
+            }
           }
         }}
       />
