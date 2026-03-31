@@ -160,9 +160,14 @@ export function getMultiplier(streak: number, isBoost: boolean, boostExpires: st
 export async function ensureRankedProfile(userId: string) {
   const { data } = await db.from("ranked_profiles").select("*").eq("user_id", userId).maybeSingle();
   if (data) return data;
+  // New profiles start in placement mode
   const { data: created, error } = await db
     .from("ranked_profiles")
-    .insert({ user_id: userId })
+    .insert({
+      user_id: userId,
+      placement_status: "pending",
+      placement_days_completed: 0,
+    })
     .select()
     .single();
   if (error) {
