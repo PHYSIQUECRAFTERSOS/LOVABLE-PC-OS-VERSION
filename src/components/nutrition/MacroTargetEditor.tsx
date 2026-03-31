@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getLocalDateString } from "@/utils/localDate";
 
 interface Client {
   user_id: string;
