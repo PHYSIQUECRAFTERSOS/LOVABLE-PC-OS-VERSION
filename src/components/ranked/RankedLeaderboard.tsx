@@ -408,7 +408,9 @@ const LeaderboardRow = ({
           )}
         </p>
         <p className="text-[10px] text-muted-foreground">
-          {getDivisionLabel(entry.current_tier, entry.current_division)}
+          {entry.placement_status === "pending" || entry.placement_status === "in_progress"
+            ? "🏁 Placement in Progress"
+            : getDivisionLabel(entry.current_tier, entry.current_division)}
         </p>
       </div>
 

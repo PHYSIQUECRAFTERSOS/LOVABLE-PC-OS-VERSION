@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import TierBadge from "@/components/ranked/TierBadge";
+import PlacementTracker from "@/components/ranked/PlacementTracker";
 import ConfettiBurst from "@/components/workout/ConfettiBurst";
 import { getDivisionLabel, calculateTierAndDivision, getTierColor } from "@/utils/rankedXP";
 import { ChevronRight, Flame, TrendingUp } from "lucide-react";
@@ -46,6 +47,9 @@ const MyRankDashboardCard = () => {
   const [fireConfetti, setFireConfetti] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
 
+  const placementStatus = profile?.placement_status || "completed";
+  const isInPlacement = placementStatus === "pending" || placementStatus === "in_progress";
+
   const label = profile ? getDivisionLabel(profile.current_tier, profile.current_division) : "";
   const calc = profile ? calculateTierAndDivision(profile.total_xp) : { divisionXP: 0, xpNeeded: 0 };
   const divisionXP = calc.divisionXP;
@@ -55,12 +59,12 @@ const MyRankDashboardCard = () => {
   const progressPct = isChampion ? 100 : xpNeeded > 0 ? (divisionXP / xpNeeded) * 100 : 0;
   const tierColor = profile ? getTierColor(profile.current_tier) : "#CD7F32";
   const streak = profile?.current_streak || 0;
-  const nearRankUp = !isChampion && xpToNext > 0 && xpToNext <= 10;
+  const nearRankUp = !isChampion && !isInPlacement && xpToNext > 0 && xpToNext <= 10;
   const position = profile?.position || 0;
   const totalPlayers = profile?.totalPlayers || 0;
 
   useEffect(() => {
-    if (!dashboardXPGain || !profile) return;
+    if (!dashboardXPGain || !profile || isInPlacement) return;
 
     const gain = dashboardXPGain;
     clearDashboardXP();
@@ -76,7 +80,6 @@ const MyRankDashboardCard = () => {
     const t2 = setTimeout(() => {
       setChipPhase("done");
       setDisplayProgress(null);
-      // If bar overflows (rank up), fire micro-confetti
       if (progressPct >= 100 || (divisionXP < gain.amount && !isChampion)) {
         setFireConfetti(true);
         setBarFlash(true);
@@ -99,14 +102,31 @@ const MyRankDashboardCard = () => {
   if (isLoading) return <Skeleton className="h-24 rounded-xl" />;
   if (!profile) return null;
 
+  // Placement mode: show compact placement tracker
+  if (isInPlacement) {
+    return (
+      <button
+        onClick={() => navigate("/ranked")}
+        className="w-full flex items-center gap-3 rounded-xl border border-primary/30 bg-card px-3 py-3 text-left transition-all hover:bg-primary/5 overflow-hidden"
+      >
+        <div className="flex-1 min-w-0">
+          <PlacementTracker
+            daysCompleted={profile.placement_days_completed || 0}
+            status={placementStatus}
+            compact
+          />
+        </div>
+        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+      </button>
+    );
+  }
+
   const barWidth = displayProgress !== null ? displayProgress : progressPct;
 
   return (
     <div className="relative">
-      {/* Micro-confetti on rank-up */}
       <ConfettiBurst fire={fireConfetti} />
 
-      {/* Flying XP chip */}
       {animatingXP && chipPhase !== "done" && (
         <div
           className={`fixed left-1/2 z-50 pointer-events-none font-bold text-sm rounded-full px-3 py-1 shadow-lg transition-all ${
@@ -147,7 +167,6 @@ const MyRankDashboardCard = () => {
         </div>
 
         <div className="flex-1 min-w-0 space-y-1">
-          {/* Top row: label + streak + XP today */}
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-sm font-bold text-foreground truncate">{label}</p>
             {streak > 0 && (
@@ -163,7 +182,6 @@ const MyRankDashboardCard = () => {
             )}
           </div>
 
-          {/* Progress bar */}
           <div className="w-full">
             <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted/40">
               <div
@@ -175,7 +193,6 @@ const MyRankDashboardCard = () => {
                 }}
               />
             </div>
-            {/* Bottom row: XP progress + position */}
             <div className="flex items-center justify-between mt-0.5">
               <p className="text-[10px] text-muted-foreground">
                 {isChampion ? "Top rank achieved" : `${divisionXP} / ${xpNeeded} XP`}
