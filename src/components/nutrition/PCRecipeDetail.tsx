@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ interface PCRecipeDetailProps {
 }
 
 const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged }: PCRecipeDetailProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [ingredients, setIngredients] = useState<any[]>([]);

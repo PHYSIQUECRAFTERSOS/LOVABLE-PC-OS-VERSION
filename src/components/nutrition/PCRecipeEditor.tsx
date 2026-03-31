@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ interface PCRecipeEditorProps {
 }
 
 const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState(editRecipe?.name || "");

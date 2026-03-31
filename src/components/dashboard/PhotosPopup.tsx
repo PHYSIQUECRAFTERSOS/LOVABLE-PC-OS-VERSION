@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ const POSES: { angle: Angle; label: string; subtitle: string; guideImage: string
 ];
 
 const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");

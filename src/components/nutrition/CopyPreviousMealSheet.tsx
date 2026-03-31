@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ interface CopyPreviousMealSheetProps {
 }
 
 const CopyPreviousMealSheet = ({ mealType, mealLabel, logDate, onClose, onCopied }: CopyPreviousMealSheetProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [days, setDays] = useState<any[]>([]);

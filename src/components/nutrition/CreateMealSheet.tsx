@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ const computeMacros = (item: StagedItem, newQty: number, unit: "serving" | "g"):
 type SearchTab = "search" | "custom" | "barcode";
 
 const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState("");

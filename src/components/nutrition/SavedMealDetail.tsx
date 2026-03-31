@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ const computeMacros = (item: any, newQty: number, unit: string) => {
 };
 
 const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged, onDeleted, onUpdated }: SavedMealDetailProps) => {
+  useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [items, setItems] = useState<any[]>([]);

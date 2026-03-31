@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ChevronDown, ShieldCheck, ArrowLeft } from "lucide-react";
+import { useIOSOverlayRepaint } from "@/hooks/useIOSOverlayRepaint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm, onBack }: Props) {
+  useIOSOverlayRepaint();
   const servingOptions = useMemo(() => {
     const options: ServingOption[] = [];
 
