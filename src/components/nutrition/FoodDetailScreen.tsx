@@ -182,7 +182,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   return (
     <OverlayPortal><div className="overlay-fullscreen z-[60] animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-2 pb-3 border-b border-border">
+      <div className="flex items-center justify-between px-4 safe-top pb-3 border-b border-border">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
