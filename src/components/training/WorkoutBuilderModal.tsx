@@ -209,7 +209,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       : []);
     setUseRpe(Boolean(draft.useRpe));
     setUseTempo(Boolean(draft.useTempo));
-    setUseRir(draft.useRir !== undefined ? Boolean(draft.useRir) : true);
+    setUseRir(draft.useRir !== undefined ? Boolean(draft.useRir) : false);
   }, []);
 
   const persistDraftToSession = useCallback(() => {
