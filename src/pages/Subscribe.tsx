@@ -62,7 +62,7 @@ const Subscribe = () => {
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
   const [loadedProductIds, setLoadedProductIds] = useState<Set<string>>(new Set());
 
-  const fetchProducts = async (): Promise<boolean> => {
+  const fetchProducts = async (): Promise<Set<string>> => {
     try {
       const productIds = DEFAULT_PLANS.map((p) => p.productId);
       const result = await Promise.race([
@@ -81,13 +81,13 @@ const Subscribe = () => {
             return plan;
           })
         );
-        return true;
+        return fetchedIds;
       }
       console.warn("[Subscribe] getProducts returned empty or timed out", result);
-      return false;
+      return new Set();
     } catch (err) {
       console.warn("[Subscribe] getProducts failed", err);
-      return false;
+      return new Set();
     }
   };
 
@@ -111,7 +111,7 @@ const Subscribe = () => {
       // If the selected product wasn't loaded on mount, retry before purchasing
       if (!loadedProductIds.has(plan.productId)) {
         const loaded = await fetchProducts();
-        if (!loaded || !loadedProductIds.has(plan.productId)) {
+        if (!loaded.has(plan.productId)) {
           // Last resort: check if the product exists individually
           try {
             const singleCheck = await StoreKit.getProducts({ productIds: [plan.productId] });
