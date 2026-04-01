@@ -60,7 +60,7 @@ const Subscribe = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successPlan, setSuccessPlan] = useState("");
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
-  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [loadedProductIds, setLoadedProductIds] = useState<Set<string>>(new Set());
 
   const fetchProducts = async (): Promise<boolean> => {
     try {
