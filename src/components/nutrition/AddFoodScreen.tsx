@@ -945,6 +945,56 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   // iOS WebKit compositor repaint fix — shared hook
   useIOSOverlayRepaint(open);
 
+  // iOS keyboard layout-shift fix
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    // When the iOS keyboard opens/closes, visualViewport height changes.
+    // We pin the overlay height to the visual viewport to prevent displacement.
+    const syncHeight = () => {
+      if (overlayRef.current) {
+        overlayRef.current.style.height = `${vv.height}px`;
+        // Reset any scroll offset iOS may have applied to the page
+        window.scrollTo(0, 0);
+      }
+    };
+
+    // Also reset on any input blur (keyboard dismiss) to recover layout
+    const handleBlur = (e: FocusEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        // Small delay to let iOS finish the keyboard animation
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          if (overlayRef.current) {
+            overlayRef.current.style.height = `${vv.height}px`;
+          }
+          // Force repaint to restore touch targets
+          document.body.style.transform = "translateZ(0)";
+          requestAnimationFrame(() => {
+            document.body.style.transform = "";
+          });
+        }, 100);
+      }
+    };
+
+    syncHeight();
+    vv.addEventListener("resize", syncHeight);
+    document.addEventListener("focusout", handleBlur, true);
+
+    return () => {
+      vv.removeEventListener("resize", syncHeight);
+      document.removeEventListener("focusout", handleBlur, true);
+      if (overlayRef.current) {
+        overlayRef.current.style.height = "";
+      }
+    };
+  }, [open]);
+
   if (!open) return null;
 
   // Sub-screens — all wrapped in OverlayPortal
