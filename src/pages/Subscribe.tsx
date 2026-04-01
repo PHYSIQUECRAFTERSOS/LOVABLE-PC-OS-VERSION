@@ -111,7 +111,7 @@ const Subscribe = () => {
       // If the selected product wasn't loaded on mount, retry before purchasing
       if (!loadedProductIds.has(plan.productId)) {
         const loaded = await fetchProducts();
-        if (!loaded || !loadedProductIds.has(plan.productId)) {
+        if (!loaded.has(plan.productId)) {
           // Last resort: check if the product exists individually
           try {
             const singleCheck = await StoreKit.getProducts({ productIds: [plan.productId] });

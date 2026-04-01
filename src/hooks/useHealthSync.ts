@@ -429,14 +429,24 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
     console.log("[HealthSync] Setting up auto-sync (2-hour interval + foreground trigger)");
 
-    // Initial sync after short delay
+    // Initial sync after short delay — with one auto-retry if bridge is not ready
     const initialTimer = setTimeout(() => {
       const conn = connectionRef.current;
       if (!conn?.is_connected) return;
       const timeSinceLastSync = Date.now() - globalLastSync;
       if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS) {
         console.log("[HealthSync] Running initial auto-sync…");
-        syncNow().catch((err) => console.warn("[HealthSync] Initial auto-sync failed:", err));
+        syncNow().catch((err) => {
+          console.warn("[HealthSync] Initial auto-sync failed, retrying in 5s:", err);
+          setTimeout(() => {
+            const retryConn = connectionRef.current;
+            if (retryConn?.is_connected && !globalSyncing) {
+              syncNow().catch((retryErr) =>
+                console.warn("[HealthSync] Auto-sync retry also failed:", retryErr)
+              );
+            }
+          }, 5000);
+        });
       }
     }, INITIAL_SYNC_DELAY_MS);
 
