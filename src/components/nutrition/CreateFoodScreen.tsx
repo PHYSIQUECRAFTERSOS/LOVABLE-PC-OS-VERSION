@@ -160,7 +160,7 @@ const CreateFoodScreen = ({ open, onOpenChange, onSaved, editFood }: CreateFoodS
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto z-[70]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Custom Food" : "Create Custom Food"}</DialogTitle>
         </DialogHeader>
