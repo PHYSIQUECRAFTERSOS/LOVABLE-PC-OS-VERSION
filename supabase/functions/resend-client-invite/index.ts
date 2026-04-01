@@ -238,7 +238,7 @@ serve(async (req) => {
       success: true,
       email_sent: emailSent,
       invite_id: invite.id,
-      setup_url: emailSent ? undefined : setupUrl,
+      setup_url: setupUrl,
       resent_at: new Date().toISOString(),
       coach_name: coachName,
     }, 200);

@@ -266,7 +266,7 @@ serve(async (req) => {
         last_name: invite.last_name,
         invite_status: invite.invite_status,
         expires_at: invite.expires_at,
-        setup_url: emailSent ? undefined : setupUrl,
+        setup_url: setupUrl,
       },
       coach_name: coachName,
     }, 200);
