@@ -62,7 +62,7 @@ const Subscribe = () => {
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
   const [loadedProductIds, setLoadedProductIds] = useState<Set<string>>(new Set());
 
-  const fetchProducts = async (): Promise<boolean> => {
+  const fetchProducts = async (): Promise<Set<string>> => {
     try {
       const productIds = DEFAULT_PLANS.map((p) => p.productId);
       const result = await Promise.race([
@@ -81,13 +81,13 @@ const Subscribe = () => {
             return plan;
           })
         );
-        return true;
+        return fetchedIds;
       }
       console.warn("[Subscribe] getProducts returned empty or timed out", result);
-      return false;
+      return new Set();
     } catch (err) {
       console.warn("[Subscribe] getProducts failed", err);
-      return false;
+      return new Set();
     }
   };
 
