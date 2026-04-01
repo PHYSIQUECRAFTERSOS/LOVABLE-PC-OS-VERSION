@@ -1073,7 +1073,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     : pcRecipes;
 
   return (
-    <OverlayPortal><div className="overlay-fullscreen z-[60] animate-fade-in">
+    <><OverlayPortal><div className="overlay-fullscreen z-[60] animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 safe-top pb-3 border-b border-border">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -1544,15 +1544,18 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         )}
       </div>
 
-      <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} defaultMealType={mealType} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
-      <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={effectiveDate} onLogged={onLogged} />
-      <CreateFoodScreen
-        open={showCreateFood}
-        onOpenChange={(v) => { if (!v) { setShowCreateFood(false); setEditingCustomFood(null); } }}
-        onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
-        editFood={editingCustomFood}
-      />
     </div></OverlayPortal>
+
+    {/* Render dialogs OUTSIDE the z-60 overlay so they stack correctly */}
+    <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} defaultMealType={mealType} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
+    <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={effectiveDate} onLogged={onLogged} />
+    <CreateFoodScreen
+      open={showCreateFood}
+      onOpenChange={(v) => { if (!v) { setShowCreateFood(false); setEditingCustomFood(null); } }}
+      onSaved={() => { setShowCreateFood(false); setEditingCustomFood(null); fetchCustomFoods(); }}
+      editFood={editingCustomFood}
+    />
+    </>
   );
 };
 
