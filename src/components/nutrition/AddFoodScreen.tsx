@@ -1073,7 +1073,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     : pcRecipes;
 
   return (
-    <OverlayPortal><div className="overlay-fullscreen z-[60] animate-fade-in">
+    <><OverlayPortal><div className="overlay-fullscreen z-[60] animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 safe-top pb-3 border-b border-border">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
