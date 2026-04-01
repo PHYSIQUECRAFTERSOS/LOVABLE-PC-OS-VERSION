@@ -292,8 +292,6 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
               {phase === "slow" ? "Still working..." : "Send Invite"}
             </Button>
           )}
-            </Button>
-          )}
         </form>
       </DialogContent>
     </Dialog>
