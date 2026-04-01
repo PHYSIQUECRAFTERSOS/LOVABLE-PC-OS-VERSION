@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuthenticatedUser } from "../_shared/auth-utils.ts";
 import { getOrCreateInviteEmailToken } from "../_shared/invite-email-utils.ts";
 
 const corsHeaders = {
@@ -102,19 +103,12 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify calling user is a coach/admin
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+    const authResult = await requireAuthenticatedUser(req);
+    if ("error" in authResult) {
+      return jsonResponse({ error: authResult.error }, authResult.status);
     }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (authError || !user) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
-    }
+    const { user } = authResult;
 
     // Check role
     const { data: rolesData } = await supabase
