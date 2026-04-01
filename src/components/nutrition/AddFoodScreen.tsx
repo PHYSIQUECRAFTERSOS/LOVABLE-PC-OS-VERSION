@@ -952,28 +952,18 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     if (!open) return;
 
     const vv = window.visualViewport;
-    if (!vv) return;
 
-    // When the iOS keyboard opens/closes, visualViewport height changes.
-    // We pin the overlay height to the visual viewport to prevent displacement.
-    const syncHeight = () => {
-      if (overlayRef.current) {
-        overlayRef.current.style.height = `${vv.height}px`;
-        // Reset any scroll offset iOS may have applied to the page
-        window.scrollTo(0, 0);
-      }
+    // On viewport resize (keyboard open/close), just reset scroll — do NOT pin height
+    const handleResize = () => {
+      window.scrollTo(0, 0);
     };
 
-    // Also reset on any input blur (keyboard dismiss) to recover layout
+    // On input blur (keyboard dismiss), reset scroll and force repaint
     const handleBlur = (e: FocusEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        // Small delay to let iOS finish the keyboard animation
         setTimeout(() => {
           window.scrollTo(0, 0);
-          if (overlayRef.current) {
-            overlayRef.current.style.height = `${vv.height}px`;
-          }
-          // Force repaint to restore touch targets
+          // Force compositor repaint to restore touch targets
           document.body.style.transform = "translateZ(0)";
           requestAnimationFrame(() => {
             document.body.style.transform = "";
@@ -982,16 +972,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       }
     };
 
-    syncHeight();
-    vv.addEventListener("resize", syncHeight);
+    vv?.addEventListener("resize", handleResize);
     document.addEventListener("focusout", handleBlur, true);
 
     return () => {
-      vv.removeEventListener("resize", syncHeight);
+      vv?.removeEventListener("resize", handleResize);
       document.removeEventListener("focusout", handleBlur, true);
-      if (overlayRef.current) {
-        overlayRef.current.style.height = "";
-      }
     };
   }, [open]);
 
