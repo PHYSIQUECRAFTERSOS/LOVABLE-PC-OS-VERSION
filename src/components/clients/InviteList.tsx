@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Loader2,
   Copy,
+  Check,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -27,6 +28,7 @@ interface Invite {
   created_at: string;
   updated_at: string;
   tags: string[];
+  invite_token?: string;
 }
 
 interface InviteListProps {
@@ -46,6 +48,42 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [resending, setResending] = useState<string | null>(null);
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+
+  const setCopiedState = (inviteId: string) => {
+    setCopiedInviteId(inviteId);
+    window.setTimeout(() => {
+      setCopiedInviteId((current) => (current === inviteId ? null : current));
+    }, 2000);
+  };
+
+  const buildSetupUrl = (inviteToken?: string) => {
+    if (!inviteToken) return null;
+    return `${window.location.origin}/setup?token=${inviteToken}`;
+  };
+
+  const handleCopySetupLink = async (invite: Invite) => {
+    const setupUrl = buildSetupUrl(invite.invite_token);
+
+    if (!setupUrl) {
+      toast({
+        title: "Setup Link Unavailable",
+        description: "Resend the invite to generate a fresh setup link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await navigator.clipboard.writeText(setupUrl).catch(() => {
+      throw new Error("Failed to copy setup link");
+    });
+
+    setCopiedState(invite.id);
+    toast({
+      title: "Setup Link Copied",
+      description: `Share the setup link directly with ${invite.first_name}.`,
+    });
+  };
 
   const fetchInvites = async () => {
     if (!user) return;
@@ -89,14 +127,17 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
         throw new Error(data?.error || "Failed to resend invite");
       }
 
+      if (data.setup_url) {
+        await navigator.clipboard.writeText(data.setup_url).catch(() => {});
+        setCopiedState(invite.id);
+      }
+
       if (data.email_sent) {
         toast({
           title: "Invite Resent",
-          description: `New invite email sent to ${invite.email}. Expires in 7 days.`,
+          description: `New invite email sent to ${invite.email}. The setup link was copied too.`,
         });
       } else if (data.setup_url) {
-        // Email couldn't be sent automatically — show URL for manual sharing
-        await navigator.clipboard.writeText(data.setup_url).catch(() => {});
         toast({
           title: "Invite Updated — Link Copied",
           description: `New invite link generated and copied to clipboard. Share it with ${invite.first_name} manually.`,
@@ -141,6 +182,8 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
         const isPending = invite.invite_status === "pending";
         const isInvalidated = invite.invite_status === "invalidated";
         const canResend = isExpired || isPending || isInvalidated;
+        const canCopySetupLink = isPending && Boolean(invite.invite_token);
+        const isCopied = copiedInviteId === invite.id;
 
         return (
           <Card key={invite.id} className="hover:border-primary/20 transition-colors">
@@ -174,22 +217,36 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
                   )}
                 </div>
 
-                {canResend && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleResend(invite)}
-                    disabled={resending === invite.id}
-                    className="ml-3 shrink-0"
-                  >
-                    {resending === invite.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3 w-3" />
-                    )}
-                    Resend
-                  </Button>
-                )}
+                <div className="ml-3 flex shrink-0 items-center gap-2">
+                  {canCopySetupLink && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCopySetupLink(invite)}
+                      className="gap-1.5"
+                    >
+                      {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      {isCopied ? "Copied" : "Copy Setup Link"}
+                    </Button>
+                  )}
+
+                  {canResend && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleResend(invite)}
+                      disabled={resending === invite.id}
+                      className="gap-1.5"
+                    >
+                      {resending === invite.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3" />
+                      )}
+                      Resend
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

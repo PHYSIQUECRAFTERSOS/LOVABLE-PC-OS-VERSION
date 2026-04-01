@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getOrCreateInviteEmailToken } from "../_shared/invite-email-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -227,8 +228,13 @@ serve(async (req) => {
     const emailHtml = buildInviteEmailHtml(first_name, coachName, setupUrl);
     const emailText = `Hi ${first_name},\n\n${coachName} has invited you to join Physique Crafters. Set up your account to start your training program.\n\nGet Started: ${setupUrl}\n\nThis link expires in 7 days.\n\nDownload the App:\nApp Store: ${APP_STORE_URL}\nGoogle Play: ${PLAY_STORE_URL}`;
 
-    let emailSent = true;
+    let emailSent = false;
     try {
+      const emailTokenResult = await getOrCreateInviteEmailToken(supabase, email);
+
+      if (!emailTokenResult.canSend) {
+        console.warn("[send-client-invite] Invite email suppressed for:", email.toLowerCase());
+      } else {
       const { error: queueError } = await supabase.rpc("enqueue_email", {
         queue_name: "transactional_emails",
         payload: {
@@ -240,6 +246,8 @@ serve(async (req) => {
           text: emailText,
           purpose: "transactional",
           label: "client_invite",
+          unsubscribe_token: emailTokenResult.unsubscribeToken,
+          idempotency_key: messageId,
           message_id: messageId,
           queued_at: new Date().toISOString(),
         },
@@ -247,13 +255,13 @@ serve(async (req) => {
 
       if (queueError) {
         console.error("[send-client-invite] Queue error:", queueError);
-        emailSent = false;
       } else {
+        emailSent = true;
         console.log("[send-client-invite] Email queued successfully, message_id:", messageId);
+      }
       }
     } catch (queueErr) {
       console.error("[send-client-invite] Queue exception:", queueErr);
-      emailSent = false;
     }
 
     return jsonResponse({

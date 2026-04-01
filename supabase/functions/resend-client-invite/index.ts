@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getOrCreateInviteEmailToken } from "../_shared/invite-email-utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -208,6 +209,11 @@ serve(async (req) => {
 
     let emailSent = false;
     try {
+      const emailTokenResult = await getOrCreateInviteEmailToken(supabase, invite.email);
+
+      if (!emailTokenResult.canSend) {
+        console.warn("[resend-invite] Invite email suppressed for:", invite.email.toLowerCase());
+      } else {
       const { error: queueError } = await supabase.rpc("enqueue_email", {
         queue_name: "transactional_emails",
         payload: {
@@ -219,6 +225,8 @@ serve(async (req) => {
           text: emailText,
           purpose: "transactional",
           label: "client_invite_resend",
+          unsubscribe_token: emailTokenResult.unsubscribeToken,
+          idempotency_key: messageId,
           message_id: messageId,
           queued_at: new Date().toISOString(),
         },
@@ -229,6 +237,7 @@ serve(async (req) => {
       } else {
         emailSent = true;
         console.log("[resend-invite] Email queued successfully, message_id:", messageId);
+      }
       }
     } catch (queueErr) {
       console.error("[resend-invite] Queue exception:", queueErr);
