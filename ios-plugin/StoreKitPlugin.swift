@@ -11,7 +11,9 @@ import Capacitor
 import StoreKit
 import SwiftUI
 
-enum StoreError: Error {
+// Local verification error — named uniquely to avoid duplicate-symbol
+// conflicts with StoreKitManager.swift which defines its own StoreError.
+private enum StoreKitPluginError: Error {
     case failedVerification
 }
 
