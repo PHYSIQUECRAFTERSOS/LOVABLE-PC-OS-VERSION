@@ -8,6 +8,7 @@ const config: CapacitorConfig = {
     url: 'https://app.physiquecrafters.com',
     cleartext: true,
     allowNavigation: ['app.physiquecrafters.com'],
+    androidScheme: 'https',
   },
   ios: {
     contentInset: 'automatic',
