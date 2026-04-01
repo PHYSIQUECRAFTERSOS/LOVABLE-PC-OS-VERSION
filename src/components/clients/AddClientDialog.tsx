@@ -39,6 +39,7 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
   const { user } = useAuth();
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [lastSetupUrl, setLastSetupUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: "",
     first_name: "",
