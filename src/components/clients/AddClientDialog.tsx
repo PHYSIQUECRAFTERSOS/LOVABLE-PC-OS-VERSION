@@ -62,6 +62,7 @@ const SetupLinkSection = ({ url, onDone }: { url: string; onDone: () => void }) 
   );
 };
 
+const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
