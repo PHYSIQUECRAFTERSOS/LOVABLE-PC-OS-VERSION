@@ -1,68 +1,75 @@
 
-Goal: correct the native iOS StoreKit error-scope misunderstanding and then safely finish the broader fixes for Health sync, subscriptions, and the Add Food overlay without touching unrelated features.
+Current diagnosis:
+- The build is still failing because the native StoreKit files in Xcode are not using one consistent API.
+- Your screenshot shows `PaywallView.swift` calling `storeManager.purchase(product)` with a `Product`.
+- That error only happens when the manager currently loaded in Xcode expects `purchase(_ productId: String)`.
+- The uploaded `StoreKitPlugin.swift` is also still the older non-consolidated version: it defines its own `StoreError` and talks to StoreKit directly instead of delegating to the manager.
+- So this is now a file-alignment issue, not a web app issue.
 
-What I found
-- The screenshot error is real: `Cannot find 'StoreError' in scope` in both `StoreKitPlugin.swift` and `storekitmanager.swift`.
-- In the version-controlled repo, `ios-plugin/StoreKitPlugin.swift` defines `enum StoreError`, but `storekitmanager.swift` does not exist there.
-- In your uploaded Xcode files, `storekitmanager.swift` uses `StoreError.failedVerification` but does not define the enum either.
-- That means deleting the enum from `StoreKitPlugin.swift` was not sufficient in your current native project state. Right now, neither file owns the shared error type.
-
-Why this happened
-- Your Xcode project has drifted from the repo/native plugin folder.
-- The previous assumption was “`storekitmanager.swift` already defines `StoreError`.” Your uploaded files show that is false in the current TestFlight/native code.
-- So the fix is not “delete the enum and stop.” The fix is to give both files a valid error type in one consistent place.
-
-Recommended native fix in Xcode
-1. Keep a single shared error definition.
-2. Put it in `storekitmanager.swift` near the top:
-```swift
-enum StoreError: Error {
-    case failedVerification
-}
-```
-3. Remove the duplicate enum from `StoreKitPlugin.swift` if it still exists there.
-4. Clean build folder and rebuild.
-5. Confirm both files compile with only one `StoreError` definition in the target.
-
-Safer alternative
-- If you want to avoid cross-file coupling, rename each helper error locally instead:
-  - `StoreKitPlugin.swift` → `StoreKitPluginError`
-  - `storekitmanager.swift` → `StoreKitManagerError`
-- Then update each `throw` line to use its local enum.
-- This is slightly more verbose but avoids future duplicate-symbol confusion.
-
-Implementation plan for the full app fix
-1. Native StoreKit stabilization
-- Reconcile Xcode-native files against repo plugin files.
-- Ensure exactly one valid verification error type exists.
-- Verify product IDs remain:
-  - `com.physiquecrafters.app.monthly`
-  - `com.physiquecrafters.app.biweekly`
-- Ensure `StoreKitPlugin` and `storekitmanager.swift` do not compete with inconsistent product lists or verification helpers.
-
-2. Subscription web/native bridge fix
-- Keep the `Subscribe.tsx` improvement that validates loaded product IDs using the return value from `fetchProducts()`, not stale React state.
-- Do not change paywall copy, pricing text, or plan UI.
-
-3. Health sync recovery
-- Keep health sync scoped to the existing 2-hour cadence.
-- Add the limited retry on initial auto-sync so temporary native bridge startup issues do not immediately surface as “Health sync temporarily failed.”
-- Preserve one-tap manual sync from “Sync All Devices.”
-
-4. Add Food overlay fix
-- Keep changes isolated to `src/components/nutrition/AddFoodScreen.tsx`.
-- Remove fragile iOS keyboard viewport pinning logic that leaves the overlay shifted after dismiss.
-- Use the existing fixed overlay structure and only reset scroll/repaint on keyboard close so bottom navigation remains visible/clickable.
-
-Files involved
-- Native/Xcode:
-  - `StoreKitPlugin.swift`
+What to fix:
+1. Replace the native StoreKit implementation as a matched set
+- Treat these 3 files as one unit and align them together:
   - `storekitmanager.swift`
-  - possibly `AppDelegate.swift` only for verification, not necessarily changes
-- Repo/web:
-  - `src/pages/Subscribe.tsx`
-  - `src/hooks/useHealthSync.ts`
-  - `src/components/nutrition/AddFoodScreen.tsx`
+  - `StoreKitPlugin.swift`
+  - `PaywallView.swift`
+- Do not mix old and new snippets.
 
-Important note
-- Before any further TestFlight build, the native Xcode files need to be treated as the source of truth for StoreKit compilation. Right now the repo and Xcode project are out of sync, so I would first align them and then proceed with the scoped web fixes.
+2. Use one single StoreKit contract
+- `StoreKitManager` should be the only file that:
+  - defines `StoreError`
+  - loads App Store products
+  - performs purchases
+  - refreshes entitlements
+  - restores purchases
+- `StoreKitPlugin` should only delegate to `StoreKitManager`.
+- `PaywallView` should use the same manager API as the plugin.
+
+3. Standardize the purchase method
+- Pick the consolidated signature and use it everywhere:
+  - `purchase(_ productId: String) async throws -> Transaction`
+- Then update `PaywallView` to call:
+  - `try await storeManager.purchase(product.id)`
+- This removes the exact compile error in your screenshot.
+
+4. Remove the old plugin logic
+- In `StoreKitPlugin.swift`, remove:
+  - local `StoreError`
+  - direct `Product.products(for:)`
+  - direct entitlement scanning duplicated from the manager
+- The plugin should call manager methods for:
+  - purchase
+  - check subscription
+  - restore purchases
+  - get products
+
+5. Keep `AppDelegate.swift` minimal
+- `let _ = StoreKitManager.shared` is fine to warm the manager on launch.
+- No broader changes needed there unless another compile error appears.
+
+Files affected:
+- Native/Xcode only:
+  - `storekitmanager.swift`
+  - `StoreKitPlugin.swift`
+  - `PaywallView.swift`
+  - verify `AppDelegate.swift`
+- No database changes.
+- No backend changes.
+
+Why this should solve it:
+- It removes the current mismatch between `Product`-based and `String`-based purchase calls.
+- It avoids duplicate StoreKit logic across files.
+- It avoids the earlier `StoreError` conflict by defining it exactly once.
+- It gives both the SwiftUI paywall and the Capacitor bridge the same source of truth.
+
+Verification steps after alignment:
+1. Clean Build Folder in Xcode.
+2. Build locally until there are zero native compile errors.
+3. Verify paywall products load.
+4. Verify purchase flow opens Apple sheet.
+5. Verify restore purchases returns active plan.
+6. Then test Health sync again, since the current blocker is the native build mismatch.
+7. Finally test Add Food overlay on device, since that is separate from the StoreKit compile issue.
+
+Important note:
+- The current failure is not caused by the already-planned web fixes in `Subscribe.tsx`, `useHealthSync.ts`, or `AddFoodScreen.tsx`.
+- The immediate blocker is that Xcode still has a mixed native StoreKit implementation. The next implementation pass should focus on rewriting those three native files as one consistent set.
