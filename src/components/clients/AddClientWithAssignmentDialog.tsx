@@ -197,7 +197,12 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
           });
       }
 
-      if (emailSent) {
+      if (emailSent && setupUrl) {
+        toast({
+          title: "Invite Sent",
+          description: `Invitation email sent to ${form.email}. Setup link available to copy.`,
+        });
+      } else if (emailSent) {
         toast({
           title: "Invite Sent",
           description: `Invitation email sent to ${form.email}.`,
@@ -210,18 +215,17 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
         });
       }
 
-      setForm({
-        email: "",
-        first_name: "",
-        last_name: "",
-        phone: "",
-        tier_id: "",
-        tier_name: "",
-        client_type: "full_access",
-        tags: "",
-        assigned_coach_id: user.id,
-      });
-      onOpenChange(false);
+      if (setupUrl) {
+        setLastSetupUrl(setupUrl);
+        setLinkCopied(false);
+      } else {
+        setForm({
+          email: "", first_name: "", last_name: "", phone: "",
+          tier_id: "", tier_name: "", client_type: "full_access",
+          tags: "", assigned_coach_id: user.id,
+        });
+        onOpenChange(false);
+      }
       onInviteSent();
     } catch (err: any) {
       fail();
