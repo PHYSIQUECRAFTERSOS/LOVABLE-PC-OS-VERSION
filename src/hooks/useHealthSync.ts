@@ -39,8 +39,8 @@ function pluginTimeout<T>(promise: Promise<T>, ms: number, label: string): Promi
 }
 
 // ── Auto-sync constants ──
-const AUTO_SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const FOREGROUND_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+const AUTO_SYNC_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const FOREGROUND_SYNC_THROTTLE_MS = 30 * 60 * 1000; // 30 minutes
 const INITIAL_SYNC_DELAY_MS = 3000; // 3 seconds after mount
 
 // ── GLOBAL sync lock (shared across all hook instances) ──
@@ -427,7 +427,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
   useEffect(() => {
     if (!enableAutoSync || !user || !isNative || platform !== "ios") return;
 
-    console.log("[HealthSync] Setting up auto-sync (30-min interval + foreground trigger)");
+    console.log("[HealthSync] Setting up auto-sync (2-hour interval + foreground trigger)");
 
     // Initial sync after short delay
     const initialTimer = setTimeout(() => {
@@ -440,7 +440,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       }
     }, INITIAL_SYNC_DELAY_MS);
 
-    // 30-minute interval
+    // 2-hour interval
     const intervalId = setInterval(() => {
       const conn = connectionRef.current;
       if (!conn?.is_connected) return;
@@ -448,7 +448,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         console.log("[HealthSync] Scheduled sync skipped — global lock active");
         return;
       }
-      console.log("[HealthSync] Running scheduled 30-min auto-sync…");
+      console.log("[HealthSync] Running scheduled 2-hour auto-sync…");
       syncNow().catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
     }, AUTO_SYNC_INTERVAL_MS);
 
