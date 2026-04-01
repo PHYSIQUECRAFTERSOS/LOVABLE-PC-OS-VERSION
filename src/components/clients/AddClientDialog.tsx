@@ -265,7 +265,19 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
             />
           </div>
 
-          {phase === "failed" ? (
+          {lastSetupUrl ? (
+            <SetupLinkSection
+              url={lastSetupUrl}
+              onDone={() => {
+                setLastSetupUrl(null);
+                setForm({
+                  email: "", first_name: "", last_name: "", phone: "",
+                  tier_id: "", tier_name: "", client_type: "full_access", tags: "",
+                });
+                onOpenChange(false);
+              }}
+            />
+          ) : phase === "failed" ? (
             <Button type="button" variant="destructive" className="w-full" onClick={handleSubmit as any}>
               <RefreshCw className="h-4 w-4" />
               Retry
@@ -278,6 +290,8 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
                 <Send className="h-4 w-4" />
               )}
               {phase === "slow" ? "Still working..." : "Send Invite"}
+            </Button>
+          )}
             </Button>
           )}
         </form>
