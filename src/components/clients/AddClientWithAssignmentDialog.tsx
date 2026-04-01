@@ -352,7 +352,7 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
             <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
               <p className="text-sm font-medium text-foreground">✅ Invite Created Successfully</p>
               <p className="text-xs text-muted-foreground">
-                The invite email has been queued. You can also share this setup link directly:
+                 The invite email has been queued. You can copy this setup link now, or later from Clients → Invites → Copy Setup Link.
               </p>
               <div className="flex items-center gap-2">
                 <Input value={lastSetupUrl} readOnly className="text-xs" />
