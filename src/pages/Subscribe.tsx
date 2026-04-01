@@ -70,6 +70,8 @@ const Subscribe = () => {
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
       ]);
       if (result && result.products && result.products.length > 0) {
+        const fetchedIds = new Set(result.products.map((p: StoreKitProduct) => p.id));
+        setLoadedProductIds(fetchedIds);
         setPlans((prev) =>
           prev.map((plan) => {
             const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
@@ -79,7 +81,6 @@ const Subscribe = () => {
             return plan;
           })
         );
-        setProductsLoaded(true);
         return true;
       }
       console.warn("[Subscribe] getProducts returned empty or timed out", result);
