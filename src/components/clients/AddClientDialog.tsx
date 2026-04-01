@@ -124,7 +124,12 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
       const emailSent = res.data?.email_sent !== false;
       const setupUrl = res.data?.invite?.setup_url;
 
-      if (emailSent) {
+      if (emailSent && setupUrl) {
+        toast({
+          title: "Invite Sent",
+          description: `Invitation email sent to ${form.email}. Setup link also available to copy.`,
+        });
+      } else if (emailSent) {
         toast({
           title: "Invite Sent",
           description: `Invitation email sent to ${form.email}. They have 7 days to set up their account.`,
@@ -137,17 +142,22 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
         });
       }
 
-      setForm({
-        email: "",
-        first_name: "",
-        last_name: "",
-        phone: "",
-        tier_id: "",
-        tier_name: "",
-        client_type: "full_access",
-        tags: "",
-      });
-      onOpenChange(false);
+      // Show setup link dialog if available
+      if (setupUrl) {
+        setLastSetupUrl(setupUrl);
+      } else {
+        setForm({
+          email: "",
+          first_name: "",
+          last_name: "",
+          phone: "",
+          tier_id: "",
+          tier_name: "",
+          client_type: "full_access",
+          tags: "",
+        });
+        onOpenChange(false);
+      }
       onInviteSent();
     } catch (err: any) {
       fail();
