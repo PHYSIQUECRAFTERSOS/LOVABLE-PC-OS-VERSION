@@ -225,6 +225,7 @@ serve(async (req) => {
     // Queue branded invite email via enqueue_email (pgmq)
     const messageId = `client-invite-${invite.id}-${Date.now()}`;
     const emailHtml = buildInviteEmailHtml(first_name, coachName, setupUrl);
+    const emailText = `Hi ${first_name},\n\n${coachName} has invited you to join Physique Crafters. Set up your account to start your training program.\n\nGet Started: ${setupUrl}\n\nThis link expires in 7 days.\n\nDownload the App:\nApp Store: ${APP_STORE_URL}\nGoogle Play: ${PLAY_STORE_URL}`;
 
     let emailSent = true;
     try {
@@ -236,9 +237,11 @@ serve(async (req) => {
           sender_domain: "notify.physiquecrafters.com",
           subject: `${coachName} has invited you to join Physique Crafters`,
           html: emailHtml,
+          text: emailText,
           purpose: "transactional",
           label: "client_invite",
           message_id: messageId,
+          queued_at: new Date().toISOString(),
         },
       });
 
@@ -263,7 +266,7 @@ serve(async (req) => {
         last_name: invite.last_name,
         invite_status: invite.invite_status,
         expires_at: invite.expires_at,
-        setup_url: emailSent ? undefined : setupUrl,
+        setup_url: setupUrl,
       },
       coach_name: coachName,
     }, 200);

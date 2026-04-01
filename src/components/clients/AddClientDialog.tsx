@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send, RefreshCw } from "lucide-react";
+import { Loader2, Send, RefreshCw, Copy, Check } from "lucide-react";
 
 interface Tier {
   id: string;
@@ -35,10 +35,38 @@ interface AddClientDialogProps {
   onInviteSent: () => void;
 }
 
+const SetupLinkSection = ({ url, onDone }: { url: string; onDone: () => void }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+      <p className="text-sm font-medium text-foreground">✅ Invite Created Successfully</p>
+      <p className="text-xs text-muted-foreground">
+        The invite email has been queued. You can also share this setup link directly:
+      </p>
+      <div className="flex items-center gap-2">
+        <Input value={url} readOnly className="text-xs" />
+        <Button type="button" size="sm" variant="outline" onClick={handleCopy} className="shrink-0 gap-1.5">
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <Button type="button" className="w-full" onClick={onDone}>
+        Done
+      </Button>
+    </div>
+  );
+};
+
 const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
+  const [lastSetupUrl, setLastSetupUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: "",
     first_name: "",
@@ -124,7 +152,12 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
       const emailSent = res.data?.email_sent !== false;
       const setupUrl = res.data?.invite?.setup_url;
 
-      if (emailSent) {
+      if (emailSent && setupUrl) {
+        toast({
+          title: "Invite Sent",
+          description: `Invitation email sent to ${form.email}. Setup link also available to copy.`,
+        });
+      } else if (emailSent) {
         toast({
           title: "Invite Sent",
           description: `Invitation email sent to ${form.email}. They have 7 days to set up their account.`,
@@ -137,17 +170,22 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
         });
       }
 
-      setForm({
-        email: "",
-        first_name: "",
-        last_name: "",
-        phone: "",
-        tier_id: "",
-        tier_name: "",
-        client_type: "full_access",
-        tags: "",
-      });
-      onOpenChange(false);
+      // Show setup link dialog if available
+      if (setupUrl) {
+        setLastSetupUrl(setupUrl);
+      } else {
+        setForm({
+          email: "",
+          first_name: "",
+          last_name: "",
+          phone: "",
+          tier_id: "",
+          tier_name: "",
+          client_type: "full_access",
+          tags: "",
+        });
+        onOpenChange(false);
+      }
       onInviteSent();
     } catch (err: any) {
       fail();
@@ -254,7 +292,19 @@ const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogPr
             />
           </div>
 
-          {phase === "failed" ? (
+          {lastSetupUrl ? (
+            <SetupLinkSection
+              url={lastSetupUrl}
+              onDone={() => {
+                setLastSetupUrl(null);
+                setForm({
+                  email: "", first_name: "", last_name: "", phone: "",
+                  tier_id: "", tier_name: "", client_type: "full_access", tags: "",
+                });
+                onOpenChange(false);
+              }}
+            />
+          ) : phase === "failed" ? (
             <Button type="button" variant="destructive" className="w-full" onClick={handleSubmit as any}>
               <RefreshCw className="h-4 w-4" />
               Retry
