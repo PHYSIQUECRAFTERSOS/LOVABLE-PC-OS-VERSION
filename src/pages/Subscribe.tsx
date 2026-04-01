@@ -108,16 +108,29 @@ const Subscribe = () => {
 
     setSubscribing(true);
     try {
-      // If products weren't loaded on mount, retry before purchasing
-      if (!productsLoaded) {
+      // If the selected product wasn't loaded on mount, retry before purchasing
+      if (!loadedProductIds.has(plan.productId)) {
         const loaded = await fetchProducts();
-        if (!loaded) {
-          toast({
-            title: "Unable to connect to App Store",
-            description: "Could not load product information. Please check your internet connection and try again.",
-            variant: "destructive",
-          });
-          return;
+        if (!loaded || !loadedProductIds.has(plan.productId)) {
+          // Last resort: check if the product exists individually
+          try {
+            const singleCheck = await StoreKit.getProducts({ productIds: [plan.productId] });
+            if (!singleCheck?.products?.length) {
+              toast({
+                title: "Unable to connect to App Store",
+                description: `Product "${plan.title}" is not available. Please check your internet connection or contact support.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          } catch {
+            toast({
+              title: "Unable to connect to App Store",
+              description: "Could not load product information. Please check your internet connection and try again.",
+              variant: "destructive",
+            });
+            return;
+          }
         }
       }
 
