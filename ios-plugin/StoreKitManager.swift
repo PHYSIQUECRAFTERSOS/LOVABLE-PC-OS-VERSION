@@ -141,7 +141,7 @@ final class StoreKitManager: ObservableObject {
     }
 
     // ── Verification helper ──────────────────────────────────────
-    func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
+    nonisolated func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
         case .unverified(_, _):
             throw StoreError.failedVerification
