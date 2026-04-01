@@ -60,7 +60,7 @@ const Subscribe = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successPlan, setSuccessPlan] = useState("");
   const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
-  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [loadedProductIds, setLoadedProductIds] = useState<Set<string>>(new Set());
 
   const fetchProducts = async (): Promise<boolean> => {
     try {
@@ -70,6 +70,8 @@ const Subscribe = () => {
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
       ]);
       if (result && result.products && result.products.length > 0) {
+        const fetchedIds = new Set(result.products.map((p: StoreKitProduct) => p.id));
+        setLoadedProductIds(fetchedIds);
         setPlans((prev) =>
           prev.map((plan) => {
             const live = result.products.find((p: StoreKitProduct) => p.id === plan.productId);
@@ -79,7 +81,6 @@ const Subscribe = () => {
             return plan;
           })
         );
-        setProductsLoaded(true);
         return true;
       }
       console.warn("[Subscribe] getProducts returned empty or timed out", result);
@@ -107,16 +108,29 @@ const Subscribe = () => {
 
     setSubscribing(true);
     try {
-      // If products weren't loaded on mount, retry before purchasing
-      if (!productsLoaded) {
+      // If the selected product wasn't loaded on mount, retry before purchasing
+      if (!loadedProductIds.has(plan.productId)) {
         const loaded = await fetchProducts();
-        if (!loaded) {
-          toast({
-            title: "Unable to connect to App Store",
-            description: "Could not load product information. Please check your internet connection and try again.",
-            variant: "destructive",
-          });
-          return;
+        if (!loaded || !loadedProductIds.has(plan.productId)) {
+          // Last resort: check if the product exists individually
+          try {
+            const singleCheck = await StoreKit.getProducts({ productIds: [plan.productId] });
+            if (!singleCheck?.products?.length) {
+              toast({
+                title: "Unable to connect to App Store",
+                description: `Product "${plan.title}" is not available. Please check your internet connection or contact support.`,
+                variant: "destructive",
+              });
+              return;
+            }
+          } catch {
+            toast({
+              title: "Unable to connect to App Store",
+              description: "Could not load product information. Please check your internet connection and try again.",
+              variant: "destructive",
+            });
+            return;
+          }
         }
       }
 
