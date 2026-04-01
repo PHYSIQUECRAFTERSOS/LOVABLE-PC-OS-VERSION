@@ -203,7 +203,7 @@ public class StoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
         case .unverified(_, _):
-            throw StoreError.failedVerification
+            throw StoreKitPluginError.failedVerification
         case .verified(let safe):
             return safe
         }
