@@ -39,6 +39,8 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [lastSetupUrl, setLastSetupUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [form, setForm] = useState({
     email: "",
     first_name: "",
