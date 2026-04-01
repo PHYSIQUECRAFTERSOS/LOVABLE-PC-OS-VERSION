@@ -11,7 +11,9 @@ import Capacitor
 import StoreKit
 import SwiftUI
 
-enum StoreError: Error {
+// Local verification error — named uniquely to avoid duplicate-symbol
+// conflicts with StoreKitManager.swift which defines its own StoreError.
+private enum StoreKitPluginError: Error {
     case failedVerification
 }
 
@@ -201,7 +203,7 @@ public class StoreKitPlugin: CAPPlugin, CAPBridgedPlugin {
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
         case .unverified(_, _):
-            throw StoreError.failedVerification
+            throw StoreKitPluginError.failedVerification
         case .verified(let safe):
             return safe
         }
