@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Send, RefreshCw } from "lucide-react";
+import { Loader2, Send, RefreshCw, Copy, Check } from "lucide-react";
 
 interface Tier {
   id: string;
@@ -39,6 +39,8 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [lastSetupUrl, setLastSetupUrl] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [form, setForm] = useState({
     email: "",
     first_name: "",
@@ -195,7 +197,12 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
           });
       }
 
-      if (emailSent) {
+      if (emailSent && setupUrl) {
+        toast({
+          title: "Invite Sent",
+          description: `Invitation email sent to ${form.email}. Setup link available to copy.`,
+        });
+      } else if (emailSent) {
         toast({
           title: "Invite Sent",
           description: `Invitation email sent to ${form.email}.`,
@@ -208,18 +215,17 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
         });
       }
 
-      setForm({
-        email: "",
-        first_name: "",
-        last_name: "",
-        phone: "",
-        tier_id: "",
-        tier_name: "",
-        client_type: "full_access",
-        tags: "",
-        assigned_coach_id: user.id,
-      });
-      onOpenChange(false);
+      if (setupUrl) {
+        setLastSetupUrl(setupUrl);
+        setLinkCopied(false);
+      } else {
+        setForm({
+          email: "", first_name: "", last_name: "", phone: "",
+          tier_id: "", tier_name: "", client_type: "full_access",
+          tags: "", assigned_coach_id: user.id,
+        });
+        onOpenChange(false);
+      }
       onInviteSent();
     } catch (err: any) {
       fail();
@@ -342,7 +348,46 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
             />
           </div>
 
-          {phase === "failed" ? (
+          {lastSetupUrl ? (
+            <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+              <p className="text-sm font-medium text-foreground">✅ Invite Created Successfully</p>
+              <p className="text-xs text-muted-foreground">
+                The invite email has been queued. You can also share this setup link directly:
+              </p>
+              <div className="flex items-center gap-2">
+                <Input value={lastSetupUrl} readOnly className="text-xs" />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(lastSetupUrl).catch(() => {});
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className="shrink-0 gap-1.5"
+                >
+                  {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {linkCopied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => {
+                  setLastSetupUrl(null);
+                  setForm({
+                    email: "", first_name: "", last_name: "", phone: "",
+                    tier_id: "", tier_name: "", client_type: "full_access",
+                    tags: "", assigned_coach_id: user?.id || "",
+                  });
+                  onOpenChange(false);
+                }}
+              >
+                Done
+              </Button>
+            </div>
+          ) : phase === "failed" ? (
             <Button type="button" variant="destructive" className="w-full" onClick={handleSubmit as any}>
               <RefreshCw className="h-4 w-4" />
               Retry
