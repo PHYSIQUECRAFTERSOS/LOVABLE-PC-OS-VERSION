@@ -35,7 +35,33 @@ interface AddClientDialogProps {
   onInviteSent: () => void;
 }
 
-const AddClientDialog = ({ open, onOpenChange, onInviteSent }: AddClientDialogProps) => {
+const SetupLinkSection = ({ url, onDone }: { url: string; onDone: () => void }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+      <p className="text-sm font-medium text-foreground">✅ Invite Created Successfully</p>
+      <p className="text-xs text-muted-foreground">
+        The invite email has been queued. You can also share this setup link directly:
+      </p>
+      <div className="flex items-center gap-2">
+        <Input value={url} readOnly className="text-xs" />
+        <Button type="button" size="sm" variant="outline" onClick={handleCopy} className="shrink-0 gap-1.5">
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <Button type="button" className="w-full" onClick={onDone}>
+        Done
+      </Button>
+    </div>
+  );
+};
+
   const { user } = useAuth();
   const { toast } = useToast();
   const [tiers, setTiers] = useState<Tier[]>([]);
