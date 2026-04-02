@@ -1,21 +1,28 @@
 
 
-## Fix: Select dropdowns hidden behind Dialog overlay
+## Fix: Select dropdowns unclickable inside Dialogs
 
 ### Root Cause
-The `SelectContent` component (in `src/components/ui/select.tsx`) renders its dropdown via a Radix Portal at `z-50`. The `DialogContent` and `DialogOverlay` (in `src/components/ui/dialog.tsx`) both render at `z-[70]`. Since the Select portal is a sibling of the Dialog portal in the DOM, the dropdown appears behind the dialog overlay — clicks seem to do nothing, and the tier/staff lists are invisible.
+Radix Dialog is `modal` by default. When modal, it sets `pointer-events: none` on `document.body` and only grants `pointer-events: auto` to the dialog content itself. The Select dropdown uses `SelectPrimitive.Portal`, which renders as a **sibling** of the Dialog portal on `<body>`. Since `<body>` has `pointer-events: none`, the Select dropdown inherits it — making it completely unclickable despite being visually visible (z-index is fine at `z-[80]`).
 
-This likely broke when the dialog z-index was elevated to `z-[70]` (probably to fix a different stacking issue with toasts or other overlays).
+This likely broke when the Dialog overlay was elevated to `z-[70]` which may have triggered Radix to re-evaluate its modal behavior, or a Radix library update tightened the modal pointer-events logic.
 
 ### Fix
-**File: `src/components/ui/select.tsx`** — Increase the `SelectContent` z-index from `z-50` to `z-[80]` so it renders above the dialog.
+**File: `src/components/ui/select.tsx`** — Add `pointer-events-auto` to the `SelectPrimitive.Content` className so the dropdown always receives clicks, even when rendered as a portal sibling of a modal Dialog.
 
-This is a one-line change on the `SelectContent` className: replace `z-50` with `z-[80]`.
+One-line change on line 69:
+```
+// Before
+"relative z-[80] max-h-96 min-w-[8rem] overflow-hidden ..."
 
-No other files need to change. No database changes. No edge function changes. The email invite flow remains untouched.
+// After  
+"relative z-[80] max-h-96 min-w-[8rem] overflow-hidden pointer-events-auto ..."
+```
 
-### Why this is safe
-- Only affects the visual stacking order of Select dropdowns
-- `z-[80]` is higher than the dialog's `z-[70]` but won't conflict with anything else (toasts use `z-[100]`)
-- This restores the original behavior where Select dropdowns were visible inside dialogs
+This is the standard fix for Radix Select-inside-Dialog. It only affects the dropdown popover layer — no side effects on other components.
+
+### Files to modify
+- `src/components/ui/select.tsx` — add `pointer-events-auto` to SelectContent className
+
+No database changes. No edge function changes. No other files affected.
 
