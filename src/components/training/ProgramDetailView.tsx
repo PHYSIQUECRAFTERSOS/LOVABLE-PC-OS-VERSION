@@ -1357,6 +1357,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                       onSelect={setCopyStartDate}
                       initialFocus
                       className={cn("p-3 pointer-events-auto")}
+                      classNames={copyStartDate ? { day_today: "text-muted-foreground" } : undefined}
                     />
                   </PopoverContent>
                 </Popover>
