@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Lock } from "lucide-react";
 import ThreadChatView from "./ThreadChatView";
 
 const ClientMessaging = () => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [threadId, setThreadId] = useState<string | null>(null);
   const [coachName, setCoachName] = useState("");
   const [coachAvatar, setCoachAvatar] = useState<string | null>(null);
@@ -101,7 +103,7 @@ const ClientMessaging = () => {
         threadId={threadId}
         otherUserName={coachName}
         otherUserAvatar={coachAvatar}
-        showBackToDashboard
+        showBackToDashboard={isMobile}
       />
     </div>
   );
