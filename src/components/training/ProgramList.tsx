@@ -525,15 +525,19 @@ const ProgramList = () => {
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openVersionHistory(program.id)} title="Version history">
                     <History className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAsMaster(program.id, !program.is_master)} title={program.is_master ? "Unmark master" : "Mark as master"}>
-                    {program.is_master ? <Unlink className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
-                  </Button>
+                  {canEditProgram(program) && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAsMaster(program.id, !program.is_master)} title={program.is_master ? "Make Private" : "Share with Team"}>
+                      {program.is_master ? <Lock className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateProgram(program.id)} title="Duplicate">
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteProgram(program.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {canDeleteProgram(program) && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteProgram(program.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
