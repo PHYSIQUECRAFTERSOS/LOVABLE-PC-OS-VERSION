@@ -194,8 +194,8 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           <p className="text-xs text-muted-foreground">{mealLabel}</p>
           <p className="text-sm font-semibold text-foreground">Add Food</p>
         </div>
-        <Button size="sm" onClick={handleConfirm} className="rounded-lg text-sm font-semibold px-5">
-          Log
+        <Button size="sm" onClick={handleConfirm} disabled={logging} className="rounded-lg text-sm font-semibold px-5">
+          {logging ? "Logging..." : "Log"}
         </Button>
       </div>
 
