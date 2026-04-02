@@ -85,6 +85,13 @@ export function useRankedLeaderboard(tab: string) {
         .in("role", ["admin", "coach", "manager"]);
       const coachIds = new Set((coachRoles || []).map((r: any) => r.user_id));
 
+      // Fetch active client IDs to only show active clients
+      const { data: activeClients } = await db
+        .from("coach_clients")
+        .select("client_id")
+        .eq("status", "active");
+      const activeClientIds = new Set((activeClients || []).map((c: any) => c.client_id));
+
       let q = db.from("ranked_profiles").select("*");
       if (tab === "all_time" || tab === "divisions") q = q.order("total_xp", { ascending: false });
       else if (tab === "this_week") q = q.order("weekly_xp", { ascending: false });
@@ -95,8 +102,8 @@ export function useRankedLeaderboard(tab: string) {
       const { data: rankings } = await q.limit(200);
       if (!rankings?.length) return [];
 
-      // Filter out coaches/admins
-      const clientRankings = rankings.filter((r: any) => !coachIds.has(r.user_id));
+      // Filter out coaches/admins AND inactive/deleted clients
+      const clientRankings = rankings.filter((r: any) => !coachIds.has(r.user_id) && activeClientIds.has(r.user_id));
 
       const ids = clientRankings.map((r: any) => r.user_id);
       if (ids.length === 0) return [];
