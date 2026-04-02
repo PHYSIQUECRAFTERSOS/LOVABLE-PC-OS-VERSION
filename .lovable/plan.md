@@ -1,35 +1,66 @@
 
 
-## Fix: Desktop Message Actions + Remove Duplicate Mobile Popup
+## Trainerize-Style Desktop Messages Layout
 
 ### Problem
-1. **Desktop**: Right-click context menu exists but users don't discover it. Need a visible three-dot icon on hover (like Trainerize) for Edit/Copy/Delete.
-2. **Mobile**: Long-pressing a message shows TWO popups — both the bottom Sheet AND the ContextMenu. Only the bottom Sheet should appear.
+The Messages page currently renders as a full-screen overlay (`fixed inset-0 z-50`) that hides all navigation. On desktop, there's no sidebar and no way to navigate to other pages without going back. On mobile this is fine (native-feel), but on desktop it should show the full AppLayout with a split-panel messaging view.
 
 ### Solution
 
-**Single file: `src/components/messaging/MessageContextMenu.tsx`**
+**1. `src/pages/Messages.tsx` — Wrap in AppLayout on desktop**
+- Remove the `fixed inset-0 z-50` overlay approach
+- Wrap the page in `<AppLayout>` so the desktop sidebar (Overview, Messages, Community, Ranked, Clients, etc.) is always visible
+- The mobile experience stays the same (full-screen with safe areas) by conditionally rendering the overlay only on mobile (`md:` breakpoint)
+- On desktop, render the messaging content inside AppLayout's `<main>` area with no padding override
 
-**1. Add hover three-dot button for desktop**
-- Add a `hovered` state to the component
-- Wrap the message children in a `group` container with `onMouseEnter`/`onMouseLeave`
-- On hover, show a small `MoreVertical` (three-dot) icon button positioned next to the message bubble
-- Clicking the three-dot opens a `DropdownMenu` with Edit, Copy Text, Delete options (same actions as the existing context menu)
-- The right-click context menu stays as a secondary option for power users
+**2. `src/components/messaging/CoachMessaging.tsx` — Split panel on desktop**
+- On desktop (`md:` and above): render a two-column layout side-by-side
+  - Left column (~320px): Thread list with Conversations/Automations tabs
+  - Right column (flex-1): Active thread's `ThreadChatView`, or an empty state ("Select a conversation")
+- On mobile: keep the current behavior (thread list → full-screen chat with back button)
+- Use `useIsMobile()` hook or Tailwind `hidden md:flex` classes to switch layouts
+- When selecting a thread on desktop, it loads in the right panel without replacing the thread list
 
-**2. Fix duplicate mobile popup**
-- The ContextMenu (right-click) fires on mobile alongside the long-press Sheet
-- Add `e.preventDefault()` in the touch handlers OR disable the `ContextMenu` on touch devices
-- Use a simple approach: on touch start, set a flag; if the flag is set when context menu would open, prevent it
-- Alternatively, conditionally render the `ContextMenu` wrapper only on non-touch or use `pointer-events` logic to suppress one
+**3. `src/components/messaging/ClientMessaging.tsx` — Desktop layout with sidebar context**
+- Client only has one thread (with their coach), so on desktop the chat fills the content area naturally
+- Remove the back-to-dashboard button on desktop since AppLayout sidebar provides navigation
+- Keep `showBackToDashboard` for mobile only
 
-**Implementation detail:**
-- Add `MoreVertical` import from lucide-react
-- Add `DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuTrigger` imports
-- The three-dot icon appears on hover, positioned to the side of the bubble (left side for own messages, right side for others' — matching Trainerize pattern)
-- On mobile (touch devices), the three-dot icon is hidden and only the bottom Sheet long-press works
-- The `ContextMenuTrigger` wrapper stays but we prevent the native context menu from also triggering the Sheet
+**4. Mobile behavior preserved**
+- On mobile (`< md`), Messages still renders as the full-screen overlay with safe area handling
+- The slide-in animation and bottom-nav hiding behavior remain untouched
+- CoachMessaging on mobile still does the thread list → full chat swap
+
+### Layout on Desktop (Coach)
+```text
+┌──────────────┬────────────────┬──────────────────────────┐
+│  Sidebar     │  Thread List   │  Active Chat             │
+│  (AppLayout) │  ~320px        │  (ThreadChatView)        │
+│              │                │                          │
+│  Overview    │  [Search...]   │  ┌─ Header ─────────┐    │
+│  Messages ●  │  Kevin (Client)│  │ Scott Szeto       │    │
+│  Community   │  Scott Szeto   │  ├───────────────────┤    │
+│  Challenges  │  Zane Karuna   │  │                   │    │
+│  Ranked      │  Alley Raymond │  │  Messages...      │    │
+│  Clients     │  Test Account  │  │                   │    │
+│  Tracker     │                │  ├───────────────────┤    │
+│  Team        │  [Automations] │  │ Type a message... │    │
+│  Libraries   │                │  └───────────────────┘    │
+│  ─────────── │                │                          │
+│  Settings    │                │                          │
+│  Admin       │                │                          │
+│  Sign Out    │                │                          │
+└──────────────┴────────────────┴──────────────────────────┘
+```
 
 ### Files Modified
-- `src/components/messaging/MessageContextMenu.tsx`
+- `src/pages/Messages.tsx` — conditional AppLayout wrapper (desktop) vs overlay (mobile)
+- `src/components/messaging/CoachMessaging.tsx` — split-panel layout on desktop
+- `src/components/messaging/ClientMessaging.tsx` — hide back button on desktop
+
+### Improvements
+- Full navigation access while messaging (matches Trainerize UX)
+- Coach can see thread list and active chat simultaneously on desktop
+- Unread badge on Messages nav item visible at all times
+- No layout change needed for mobile — preserves the native-feel experience
 
