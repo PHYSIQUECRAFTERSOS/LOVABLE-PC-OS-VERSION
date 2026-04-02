@@ -1,32 +1,35 @@
 
 
-## Fix: Show Placement Status on Client Profile (Coach + Client Views)
+## Fix: Desktop Message Actions + Remove Duplicate Mobile Popup
 
 ### Problem
-The coach's client workspace (SummaryTab) always shows the tier badge (e.g., "Bronze V") even when the client is in the placement series. This is because:
-1. The `RankedProfile` interface doesn't include `placement_status` or `placement_days_completed`
-2. The query to `ranked_profiles` doesn't fetch these fields
-3. The rank card rendering doesn't check for placement state
+1. **Desktop**: Right-click context menu exists but users don't discover it. Need a visible three-dot icon on hover (like Trainerize) for Edit/Copy/Delete.
+2. **Mobile**: Long-pressing a message shows TWO popups — both the bottom Sheet AND the ContextMenu. Only the bottom Sheet should appear.
 
-The client-side Dashboard already handles this correctly via `MyRankDashboardCard` — no changes needed there.
+### Solution
 
-### Fix (single file)
+**Single file: `src/components/messaging/MessageContextMenu.tsx`**
 
-**`src/components/clients/workspace/SummaryTab.tsx`**
+**1. Add hover three-dot button for desktop**
+- Add a `hovered` state to the component
+- Wrap the message children in a `group` container with `onMouseEnter`/`onMouseLeave`
+- On hover, show a small `MoreVertical` (three-dot) icon button positioned next to the message bubble
+- Clicking the three-dot opens a `DropdownMenu` with Edit, Copy Text, Delete options (same actions as the existing context menu)
+- The right-click context menu stays as a secondary option for power users
 
-1. **Extend the `RankedProfile` interface** — add `placement_status` and `placement_days_completed` fields
+**2. Fix duplicate mobile popup**
+- The ContextMenu (right-click) fires on mobile alongside the long-press Sheet
+- Add `e.preventDefault()` in the touch handlers OR disable the `ContextMenu` on touch devices
+- Use a simple approach: on touch start, set a flag; if the flag is set when context menu would open, prevent it
+- Alternatively, conditionally render the `ContextMenu` wrapper only on non-touch or use `pointer-events` logic to suppress one
 
-2. **Update the Supabase query** — add `placement_status, placement_days_completed` to the `.select()` call on line ~613
-
-3. **Import `PlacementTracker`** from `@/components/ranked/PlacementTracker`
-
-4. **Update the rank card render block** (line ~729) — before rendering the tier badge, check `rankedProfile.placement_status`. If `"pending"` or `"in_progress"`, render the compact `PlacementTracker` instead of the tier badge + progress bar. This mirrors the exact same pattern used in `MyRankDashboardCard` (lines 106-122).
-
-### Improvements
-- The placement card in the coach view will show "Day X of 7" progress, matching the Ranked leaderboard
-- Prevents coaches from seeing a misleading "Bronze V" for new clients
-- Consistent experience: coach sees the same placement state the client sees on their own dashboard
+**Implementation detail:**
+- Add `MoreVertical` import from lucide-react
+- Add `DropdownMenu`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuTrigger` imports
+- The three-dot icon appears on hover, positioned to the side of the bubble (left side for own messages, right side for others' — matching Trainerize pattern)
+- On mobile (touch devices), the three-dot icon is hidden and only the bottom Sheet long-press works
+- The `ContextMenuTrigger` wrapper stays but we prevent the native context menu from also triggering the Sheet
 
 ### Files Modified
-- `src/components/clients/workspace/SummaryTab.tsx` (interface, query, conditional render)
+- `src/components/messaging/MessageContextMenu.tsx`
 
