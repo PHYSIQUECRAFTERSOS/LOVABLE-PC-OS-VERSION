@@ -51,8 +51,8 @@ interface ActionItem {
 
 interface ComplianceSnapshot {
   trainingPct: number;
-  nutritionPct: number;
   checkinPct: number;
+  overallPct: number;
   activeClients: number;
   atRiskClients: number;
 }
