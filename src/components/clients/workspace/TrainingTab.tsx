@@ -362,6 +362,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setEditingPhase(null);
   };
 
+  const renameProgram = async (newName: string) => {
+    if (!program || !newName.trim()) { setEditingProgramName(false); return; }
+    await supabase.from("programs").update({ name: newName.trim() }).eq("id", program.id);
+    setProgram((prev: any) => ({ ...prev, name: newName.trim() }));
+    setEditingProgramName(false);
+    toast({ title: "Program renamed" });
+  };
+
   const duplicatePhase = async (phase: Phase) => {
     if (!program) return;
     await supabase.from("program_phases").insert({
