@@ -10,6 +10,7 @@ This folder contains all custom Swift plugins for the Capacitor iOS app:
 | `StoreKitPlugin.swift` | In-app purchase bridge (StoreKit 2) |
 | `AudioMixPlugin.swift` | Audio mixing for rank-up sounds during workouts |
 | `PushNotificationsBridge.swift` | Push notification registration bridge |
+| `CacheBusterPlugin.swift` | Clears WKWebView cache on every app launch to prevent stale versions |
 
 ---
 

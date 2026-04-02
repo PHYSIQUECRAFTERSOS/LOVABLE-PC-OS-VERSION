@@ -9,12 +9,14 @@ const config: CapacitorConfig = {
     cleartext: true,
     allowNavigation: ['app.physiquecrafters.com'],
     androidScheme: 'https',
+    iosScheme: 'https',
   },
   ios: {
     contentInset: 'automatic',
     allowsLinkPreview: false,
     backgroundColor: '#0a0a0a',
     scrollEnabled: false,
+    limitsNavigationsToAppBoundDomains: false,
   },
   android: {
     backgroundColor: '#0a0a0a',
