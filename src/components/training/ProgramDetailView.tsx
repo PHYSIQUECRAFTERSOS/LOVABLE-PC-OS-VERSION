@@ -301,6 +301,20 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [importableWorkouts, setImportableWorkouts] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
 
+  // Scroll to phase after save + reload
+  useEffect(() => {
+    if (scrollToPhaseRef.current !== null && !loading && phases.length > 0) {
+      const idx = scrollToPhaseRef.current;
+      scrollToPhaseRef.current = null;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.querySelector(`[data-phase-index="${idx}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      });
+    }
+  }, [loading, phases]);
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
