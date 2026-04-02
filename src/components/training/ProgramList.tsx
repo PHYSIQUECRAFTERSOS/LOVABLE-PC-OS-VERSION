@@ -423,10 +423,18 @@ const ProgramList = () => {
   };
 
   const markAsMaster = async (programId: string, isMaster: boolean) => {
+    const program = programs.find(p => p.id === programId);
+    if (program && program.coach_id !== userId && !isAdmin) {
+      toast({ title: "Permission denied", description: "Only the creator can change sharing status.", variant: "destructive" });
+      return;
+    }
     await supabase.from("programs").update({ is_master: isMaster } as any).eq("id", programId);
-    toast({ title: isMaster ? "Marked as Master Program" : "Removed Master status" });
+    toast({ title: isMaster ? "Shared with Team" : "Made Private" });
     loadPrograms();
   };
+
+  const canEditProgram = (program: any) => program.coach_id === userId || isAdmin;
+  const canDeleteProgram = (program: any) => program.coach_id === userId || isAdmin;
 
   // Drill-down view into a program
   if (drillProgramId) {
