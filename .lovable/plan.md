@@ -1,28 +1,20 @@
 
 
-## Fix: Select dropdowns unclickable inside Dialogs
+## Fix: Scroll to active phase after saving a workout
 
-### Root Cause
-Radix Dialog is `modal` by default. When modal, it sets `pointer-events: none` on `document.body` and only grants `pointer-events: auto` to the dialog content itself. The Select dropdown uses `SelectPrimitive.Portal`, which renders as a **sibling** of the Dialog portal on `<body>`. Since `<body>` has `pointer-events: none`, the Select dropdown inherits it — making it completely unclickable despite being visually visible (z-index is fine at `z-[80]`).
-
-This likely broke when the Dialog overlay was elevated to `z-[70]` which may have triggered Radix to re-evaluate its modal behavior, or a Radix library update tightened the modal pointer-events logic.
+### Problem
+When saving a workout in the Program Detail View, `handleWorkoutSaved` calls `loadProgram()` on line 656, which reloads all phases and resets the scroll position to the top. The user loses their place, especially frustrating when working on Phase 2 or Phase 3.
 
 ### Fix
-**File: `src/components/ui/select.tsx`** — Add `pointer-events-auto` to the `SelectPrimitive.Content` className so the dropdown always receives clicks, even when rendered as a portal sibling of a modal Dialog.
+**File: `src/components/training/ProgramDetailView.tsx`**
 
-One-line change on line 69:
-```
-// Before
-"relative z-[80] max-h-96 min-w-[8rem] overflow-hidden ..."
+1. Add a `ref` to track which phase index should be scrolled to after a reload (e.g. `scrollToPhaseRef = useRef<number | null>(null)`).
 
-// After  
-"relative z-[80] max-h-96 min-w-[8rem] overflow-hidden pointer-events-auto ..."
-```
+2. In `handleWorkoutSaved`, before calling `loadProgram()`, set `scrollToPhaseRef.current = builderTargetPhase`.
 
-This is the standard fix for Radix Select-inside-Dialog. It only affects the dropdown popover layer — no side effects on other components.
+3. Add a `useEffect` that watches `phases` + `loading`: when loading finishes and `scrollToPhaseRef.current` is set, scroll the corresponding phase element into view, then clear the ref.
 
-### Files to modify
-- `src/components/ui/select.tsx` — add `pointer-events-auto` to SelectContent className
+4. Add `data-phase-index={idx}` attributes to each phase container in the render section so we can target them for scrolling.
 
-No database changes. No edge function changes. No other files affected.
+This is a scroll-only UX change — no database changes, no logic changes, no edge function changes.
 
