@@ -306,6 +306,16 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importTargetPhase, setImportTargetPhase] = useState(0);
   const [importableWorkouts, setImportableWorkouts] = useState<any[]>([]);
+
+  // Copy to client dialog
+  const [showCopyToClientDialog, setShowCopyToClientDialog] = useState(false);
+  const [copyPhaseIdx, setCopyPhaseIdx] = useState(0);
+  const [copyClients, setCopyClients] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCopyClient, setSelectedCopyClient] = useState("");
+  const [copyStartOption, setCopyStartOption] = useState<"after_last" | "specific_date">("after_last");
+  const [copyStartDate, setCopyStartDate] = useState<Date | undefined>(new Date());
+  const [copying, setCopying] = useState(false);
+  const [copyClientsLoading, setCopyClientsLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
   // Scroll to phase after save + reload
