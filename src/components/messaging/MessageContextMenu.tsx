@@ -211,10 +211,9 @@ const MessageContextMenu = ({
         {hasActions && (
           <div
             className={cn(
-              "absolute top-1/2 -translate-y-1/2 hidden group-hover:flex items-center",
+              "absolute top-1/2 -translate-y-1/2 items-center",
+              "hidden md:group-hover:flex",
               "opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-              // Touch devices: always hidden via pointer query
-              "pointer-coarse:!hidden",
               isOwn ? "-left-8" : "-right-8"
             )}
           >
