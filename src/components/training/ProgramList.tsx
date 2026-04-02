@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unlink, RefreshCw, History, ArrowUpDown } from "lucide-react";
+import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unlink, RefreshCw, History, ArrowUpDown, Share2, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
