@@ -38,6 +38,7 @@ import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import EventDetailModal from "@/components/calendar/EventDetailModal";
 import TierBadge from "@/components/ranked/TierBadge";
+import PlacementTracker from "@/components/ranked/PlacementTracker";
 import { calculateTierAndDivision, getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { format, subDays, addDays, isToday } from "date-fns";
@@ -81,6 +82,8 @@ interface RankedProfile {
   current_tier: string;
   current_division: number | null;
   current_streak: number;
+  placement_status: string | null;
+  placement_days_completed: number | null;
 }
 
 interface CalendarAction {
@@ -610,7 +613,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     const loadRankedAndHealth = async () => {
       const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
       const [rankedRes, healthRes] = await Promise.all([
-        (supabase as any).from("ranked_profiles").select("total_xp, current_tier, current_division, current_streak").eq("user_id", clientId).maybeSingle(),
+        (supabase as any).from("ranked_profiles").select("total_xp, current_tier, current_division, current_streak, placement_status, placement_days_completed").eq("user_id", clientId).maybeSingle(),
         supabase.from("daily_health_metrics").select("metric_date, steps, walking_running_distance_km").eq("user_id", clientId).gte("metric_date", sevenAgo).order("metric_date", { ascending: true }),
       ]);
       if (rankedRes.data) setRankedProfile(rankedRes.data as RankedProfile);
@@ -727,6 +730,20 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       {/* ── Client Rank Card ── */}
       {rankedProfile && (() => {
+        const isInPlacement = rankedProfile.placement_status === "pending" || rankedProfile.placement_status === "in_progress";
+        if (isInPlacement) {
+          return (
+            <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-card px-3 py-3 overflow-hidden">
+              <div className="flex-1 min-w-0">
+                <PlacementTracker
+                  daysCompleted={rankedProfile.placement_days_completed || 0}
+                  status={rankedProfile.placement_status || "pending"}
+                  compact
+                />
+              </div>
+            </div>
+          );
+        }
         const rankCalc = calculateTierAndDivision(rankedProfile.total_xp);
         const rankLabel = getDivisionLabel(rankedProfile.current_tier, rankedProfile.current_division ?? 5);
         const rankTierColor = getTierColor(rankedProfile.current_tier);
