@@ -1102,8 +1102,8 @@ const CoachCommandCenter = () => {
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <MetricCard icon={Zap} label="Training" value={`${snapshot.trainingPct}%`} pct={snapshot.trainingPct} />
-          <MetricCard icon={UtensilsCrossed} label="Nutrition" value={`${snapshot.nutritionPct}%`} pct={snapshot.nutritionPct} />
           <MetricCard icon={ClipboardCheck} label="Check-ins" value={`${snapshot.checkinPct}%`} pct={snapshot.checkinPct} />
+          <MetricCard icon={Activity} label="Overall" value={`${snapshot.overallPct}%`} pct={snapshot.overallPct} />
           <MetricCard icon={Users} label="Active" value={String(snapshot.activeClients)} />
           <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
         </div>
