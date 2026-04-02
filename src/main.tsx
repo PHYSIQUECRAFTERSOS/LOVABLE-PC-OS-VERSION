@@ -3,23 +3,28 @@ import App from "./App.tsx";
 import "./index.css";
 
 // Auto-update: detect new service worker and reload to latest version
-if ('serviceWorker' in navigator) {
+if ("serviceWorker" in navigator) {
   navigator.serviceWorker.ready.then((registration) => {
-    registration.addEventListener('updatefound', () => {
+    registration.addEventListener("updatefound", () => {
       const newWorker = registration.installing;
       if (!newWorker) return;
-      newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'activated') {
-          // New SW activated — reload to pick up latest assets
+
+      newWorker.addEventListener("statechange", () => {
+        if (newWorker.state === "activated") {
           window.location.reload();
         }
       });
     });
 
-    // Check for updates every 5 minutes while the app is open
-    setInterval(() => {
-      registration.update();
-    }, 5 * 60 * 1000);
+    const checkForUpdates = () => {
+      try {
+        void registration.update()?.catch(() => undefined);
+      } catch {
+        return;
+      }
+    };
+
+    setInterval(checkForUpdates, 5 * 60 * 1000);
   });
 }
 
