@@ -510,8 +510,11 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
+  const logFoodRef = useRef(false);
+
   const logFood = async (item: FoodItem) => {
-    if (!user) return;
+    if (!user || logFoodRef.current) return;
+    logFoodRef.current = true;
 
     let foodToLog = item;
     let foodItemId: string | null = null;
