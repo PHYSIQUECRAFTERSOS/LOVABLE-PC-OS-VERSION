@@ -8,10 +8,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Plus, Search, FolderOpen, Layers, Trash2, Copy, MoreHorizontal,
   Users, Link2, Unlink, RefreshCw, History, Dumbbell, UtensilsCrossed,
-  Target, ClipboardCheck, Pill, BookOpen,
+  Target, ClipboardCheck, Pill, BookOpen, ChevronRight, Share2, Lock,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -45,8 +46,9 @@ const GOAL_LABELS: Record<string, string> = {
 };
 
 const MasterLibraries = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const userId = user?.id;
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "programs");
@@ -59,6 +61,9 @@ const MasterLibraries = () => {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
   const [linkedCounts, setLinkedCounts] = useState<Record<string, number>>({});
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
+  const [sharedExpanded, setSharedExpanded] = useState(true);
+  const [personalExpanded, setPersonalExpanded] = useState(true);
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -85,16 +90,30 @@ const MasterLibraries = () => {
   const loadPrograms = async () => {
     if (!userId) return;
     setLoading(true);
-    const { data } = await supabase
+    // Fetch own templates + shared master templates (RLS handles cross-coach visibility)
+    const { data: ownData } = await supabase
       .from("programs")
-      .select("id, name, description, goal_type, is_master, created_at, duration_weeks, tags, version_number")
+      .select("id, name, description, goal_type, is_master, created_at, duration_weeks, tags, version_number, coach_id")
       .eq("coach_id", userId)
       .eq("is_template", true)
       .order("created_at", { ascending: false });
-    setPrograms(data || []);
 
-    if (data && data.length > 0) {
-      const ids = data.map((p: any) => p.id);
+    const { data: sharedData } = await supabase
+      .from("programs")
+      .select("id, name, description, goal_type, is_master, created_at, duration_weeks, tags, version_number, coach_id")
+      .eq("is_master", true)
+      .eq("is_template", true)
+      .neq("coach_id", userId)
+      .order("created_at", { ascending: false });
+
+    // Merge, deduplicate by id
+    const merged = [...(ownData || []), ...(sharedData || [])];
+    const seen = new Set<string>();
+    const unique = merged.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+    setPrograms(unique);
+
+    if (unique.length > 0) {
+      const ids = unique.map((p: any) => p.id);
       const { data: phases } = await supabase.from("program_phases").select("program_id").in("program_id", ids);
       const pc: Record<string, number> = {};
       (phases || []).forEach((p: any) => { pc[p.program_id] = (pc[p.program_id] || 0) + 1; });
@@ -109,6 +128,18 @@ const MasterLibraries = () => {
       const lc: Record<string, number> = {};
       (assignments || []).forEach((a: any) => { lc[a.forked_from_program_id] = (lc[a.forked_from_program_id] || 0) + 1; });
       setLinkedCounts(lc);
+
+      // Fetch creator names for shared programs
+      const otherCoachIds = [...new Set(unique.filter(p => p.coach_id !== userId).map(p => p.coach_id))];
+      if (otherCoachIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", otherCoachIds);
+        const cn: Record<string, string> = {};
+        (profiles || []).forEach((p: any) => { cn[p.user_id] = p.full_name || "Coach"; });
+        setCreatorNames(cn);
+      }
     }
     setLoading(false);
   };
@@ -136,6 +167,12 @@ const MasterLibraries = () => {
   const filteredPrograms = programs.filter(p =>
     !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const sharedPrograms = filteredPrograms.filter(p => p.is_master === true);
+  const personalPrograms = filteredPrograms.filter(p => p.is_master !== true && p.coach_id === userId);
+
+  const canEditProgram = (program: any) => program.coach_id === userId || isAdmin;
+  const canDeleteProgram = (program: any) => program.coach_id === userId || isAdmin;
 
   const duplicateProgram = async (programId: string) => {
     if (!user) return;
@@ -185,8 +222,13 @@ const MasterLibraries = () => {
   };
 
   const markAsMaster = async (programId: string, isMaster: boolean) => {
+    const program = programs.find(p => p.id === programId);
+    if (program && program.coach_id !== userId && !isAdmin) {
+      toast({ title: "Permission denied", description: "Only the creator can change sharing status.", variant: "destructive" });
+      return;
+    }
     await supabase.from("programs").update({ is_master: isMaster } as any).eq("id", programId);
-    toast({ title: isMaster ? "Marked as Master" : "Removed Master status" });
+    toast({ title: isMaster ? "Shared with Team" : "Made Private" });
     loadPrograms();
   };
 
@@ -346,6 +388,83 @@ const MasterLibraries = () => {
     </div>
   );
 
+  const renderProgramItem = (program: any) => (
+    <button
+      key={program.id}
+      onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
+      className={`w-full text-left p-3 rounded-lg border transition-colors group ${
+        selectedProgramId === program.id
+          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+          : "border-transparent hover:bg-muted/50"
+      }`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{program.name}</p>
+          {program.coach_id !== userId && creatorNames[program.coach_id] && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">by {creatorNames[program.coach_id]}</p>
+          )}
+          <div className="flex flex-wrap gap-1 mt-1">
+            {phaseCounts[program.id] > 0 && (
+              <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
+                <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
+              </Badge>
+            )}
+            {program.duration_weeks && (
+              <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
+            )}
+            {linkedCounts[program.id] > 0 && (
+              <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
+                <Users className="h-2 w-2" /> {linkedCounts[program.id]}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div
+              role="button"
+              className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
+              <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
+            </DropdownMenuItem>
+            {canEditProgram(program) && linkedCounts[program.id] > 0 && (
+              <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
+                <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
+              <History className="h-3.5 w-3.5 mr-2" /> Versions
+            </DropdownMenuItem>
+            {canEditProgram(program) && (
+              <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
+                {program.is_master ? <Lock className="h-3.5 w-3.5 mr-2" /> : <Share2 className="h-3.5 w-3.5 mr-2" />}
+                {program.is_master ? "Make Private" : "Share with Team"}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
+              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
+            </DropdownMenuItem>
+            {canDeleteProgram(program) && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
+                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </button>
+  );
+
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-4">
@@ -391,78 +510,41 @@ const MasterLibraries = () => {
                           <p className="text-sm text-muted-foreground">No programs yet.</p>
                         </div>
                       ) : (
-                        filteredPrograms.map((program) => (
-                          <button
-                            key={program.id}
-                            onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
-                            className={`w-full text-left p-3 rounded-lg border transition-colors group ${
-                              selectedProgramId === program.id
-                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                                : "border-transparent hover:bg-muted/50"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{program.name}</p>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {program.is_master && (
-                                    <Badge className="text-[9px] px-1 py-0 bg-primary/20 text-primary gap-0.5">
-                                      <Link2 className="h-2 w-2" /> Master
-                                    </Badge>
-                                  )}
-                                  {phaseCounts[program.id] > 0 && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
-                                      <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
-                                    </Badge>
-                                  )}
-                                  {program.duration_weeks && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
-                                  )}
-                                  {linkedCounts[program.id] > 0 && (
-                                    <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
-                                      <Users className="h-2 w-2" /> {linkedCounts[program.id]}
-                                    </Badge>
-                                  )}
-                                </div>
+                        <>
+                          {/* Shared Section */}
+                          <Collapsible open={sharedExpanded} onOpenChange={setSharedExpanded}>
+                            <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-1.5 rounded hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center gap-1.5">
+                                <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${sharedExpanded ? "rotate-90" : ""}`} />
+                                <Share2 className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-xs font-semibold text-foreground">Shared</span>
                               </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <div
-                                    role="button"
-                                    className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
-                                  </div>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
-                                    <Users className="h-3.5 w-3.5 mr-2" /> Assign
-                                  </DropdownMenuItem>
-                                  {linkedCounts[program.id] > 0 && (
-                                    <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
-                                      <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
-                                    <History className="h-3.5 w-3.5 mr-2" /> Versions
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
-                                    {program.is_master ? <Unlink className="h-3.5 w-3.5 mr-2" /> : <Link2 className="h-3.5 w-3.5 mr-2" />}
-                                    {program.is_master ? "Unmark Master" : "Mark as Master"}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
-                                    <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </button>
-                        ))
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{sharedPrograms.length}</Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-1 mt-1">
+                              {sharedPrograms.length === 0 ? (
+                                <p className="text-[11px] text-muted-foreground px-2 py-3 text-center">No shared programs yet.</p>
+                              ) : sharedPrograms.map((program) => renderProgramItem(program))}
+                            </CollapsibleContent>
+                          </Collapsible>
+
+                          {/* Personal Section */}
+                          <Collapsible open={personalExpanded} onOpenChange={setPersonalExpanded}>
+                            <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-1.5 rounded hover:bg-muted/50 transition-colors mt-2">
+                              <div className="flex items-center gap-1.5">
+                                <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${personalExpanded ? "rotate-90" : ""}`} />
+                                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-semibold text-foreground">Personal</span>
+                              </div>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{personalPrograms.length}</Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-1 mt-1">
+                              {personalPrograms.length === 0 ? (
+                                <p className="text-[11px] text-muted-foreground px-2 py-3 text-center">No personal programs.</p>
+                              ) : personalPrograms.map((program) => renderProgramItem(program))}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </>
                       )}
                     </div>
                   </ScrollArea>

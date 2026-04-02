@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unlink, RefreshCw, History, ArrowUpDown } from "lucide-react";
+import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unlink, RefreshCw, History, ArrowUpDown, Share2, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,8 +26,9 @@ const GOAL_LABELS: Record<string, string> = {
 };
 
 const ProgramList = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const userId = user?.id;
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,7 @@ const ProgramList = () => {
   const [drillProgramName, setDrillProgramName] = useState("");
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
   const [linkedCounts, setLinkedCounts] = useState<Record<string, number>>({});
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -64,24 +66,35 @@ const ProgramList = () => {
   const loadPrograms = async () => {
     if (!userId) return;
     setLoading(true);
-    const { data } = await supabase
+    // Fetch own templates + shared master templates
+    const { data: ownData } = await supabase
       .from("programs")
-      .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number")
+      .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number, coach_id")
       .eq("coach_id", userId)
       .eq("is_template", true)
       .order("created_at", { ascending: false });
-    setPrograms(data || []);
 
-    if (data && data.length > 0) {
-      const ids = data.map((p: any) => p.id);
+    const { data: sharedData } = await supabase
+      .from("programs")
+      .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number, coach_id")
+      .eq("is_master", true)
+      .eq("is_template", true)
+      .neq("coach_id", userId)
+      .order("created_at", { ascending: false });
 
-      // Phase counts
+    const merged = [...(ownData || []), ...(sharedData || [])];
+    const seen = new Set<string>();
+    const unique = merged.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+    setPrograms(unique);
+
+    if (unique.length > 0) {
+      const ids = unique.map((p: any) => p.id);
+
       const { data: phases } = await supabase.from("program_phases").select("program_id").in("program_id", ids);
       const pc: Record<string, number> = {};
       (phases || []).forEach((p: any) => { pc[p.program_id] = (pc[p.program_id] || 0) + 1; });
       setPhaseCounts(pc);
 
-      // Linked client counts
       const { data: assignments } = await supabase
         .from("client_program_assignments")
         .select("forked_from_program_id")
@@ -91,6 +104,18 @@ const ProgramList = () => {
       const lc: Record<string, number> = {};
       (assignments || []).forEach((a: any) => { lc[a.forked_from_program_id] = (lc[a.forked_from_program_id] || 0) + 1; });
       setLinkedCounts(lc);
+
+      // Fetch creator names for shared programs
+      const otherCoachIds = [...new Set(unique.filter(p => p.coach_id !== userId).map(p => p.coach_id))];
+      if (otherCoachIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", otherCoachIds);
+        const cn: Record<string, string> = {};
+        (profiles || []).forEach((p: any) => { cn[p.user_id] = p.full_name || "Coach"; });
+        setCreatorNames(cn);
+      }
     }
 
     setLoading(false);
@@ -398,10 +423,18 @@ const ProgramList = () => {
   };
 
   const markAsMaster = async (programId: string, isMaster: boolean) => {
+    const program = programs.find(p => p.id === programId);
+    if (program && program.coach_id !== userId && !isAdmin) {
+      toast({ title: "Permission denied", description: "Only the creator can change sharing status.", variant: "destructive" });
+      return;
+    }
     await supabase.from("programs").update({ is_master: isMaster } as any).eq("id", programId);
-    toast({ title: isMaster ? "Marked as Master Program" : "Removed Master status" });
+    toast({ title: isMaster ? "Shared with Team" : "Made Private" });
     loadPrograms();
   };
+
+  const canEditProgram = (program: any) => program.coach_id === userId || isAdmin;
+  const canDeleteProgram = (program: any) => program.coach_id === userId || isAdmin;
 
   // Drill-down view into a program
   if (drillProgramId) {
@@ -451,10 +484,13 @@ const ProgramList = () => {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1.5">
                     <CardTitle className="text-base">{program.name}</CardTitle>
+                    {program.coach_id !== userId && creatorNames[program.coach_id] && (
+                      <p className="text-[10px] text-muted-foreground">by {creatorNames[program.coach_id]}</p>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="text-[10px]">{GOAL_LABELS[program.goal_type] || program.goal_type || "General"}</Badge>
-                      {program.is_master && <Badge className="text-[10px] gap-1 bg-primary/20 text-primary"><Link2 className="h-2.5 w-2.5" /> Master</Badge>}
-                      {!program.is_master && <Badge variant="outline" className="text-[10px]">Template</Badge>}
+                      {program.is_master && <Badge className="text-[10px] gap-1 bg-primary/20 text-primary"><Share2 className="h-2.5 w-2.5" /> Shared</Badge>}
+                      {!program.is_master && <Badge variant="outline" className="text-[10px]">Personal</Badge>}
                       {phaseCounts[program.id] > 0 && <Badge variant="outline" className="text-[10px] gap-1"><Layers className="h-2.5 w-2.5" /> {phaseCounts[program.id]} phases</Badge>}
                       {program.duration_weeks && <Badge variant="outline" className="text-[10px]">{program.duration_weeks}w</Badge>}
                       <Badge variant="outline" className="text-[10px]">v{program.version_number || 1}</Badge>
@@ -489,15 +525,19 @@ const ProgramList = () => {
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openVersionHistory(program.id)} title="Version history">
                     <History className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAsMaster(program.id, !program.is_master)} title={program.is_master ? "Unmark master" : "Mark as master"}>
-                    {program.is_master ? <Unlink className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
-                  </Button>
+                  {canEditProgram(program) && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => markAsMaster(program.id, !program.is_master)} title={program.is_master ? "Make Private" : "Share with Team"}>
+                      {program.is_master ? <Lock className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateProgram(program.id)} title="Duplicate">
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteProgram(program.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {canDeleteProgram(program) && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteProgram(program.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
