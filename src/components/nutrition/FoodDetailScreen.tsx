@@ -160,7 +160,11 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   const carbsDash = (carbsPct / 100) * circumference;
   const fatDash = (fatPct / 100) * circumference;
 
+  const [logging, setLogging] = useState(false);
+
   const handleConfirm = () => {
+    if (logging) return;
+    setLogging(true);
     onConfirm({
       food,
       servingDescription: useGrams ? `${customGrams}g` : selectedServing.description,
@@ -190,8 +194,8 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           <p className="text-xs text-muted-foreground">{mealLabel}</p>
           <p className="text-sm font-semibold text-foreground">Add Food</p>
         </div>
-        <Button size="sm" onClick={handleConfirm} className="rounded-lg text-sm font-semibold px-5">
-          Log
+        <Button size="sm" onClick={handleConfirm} disabled={logging} className="rounded-lg text-sm font-semibold px-5">
+          {logging ? "Logging..." : "Log"}
         </Button>
       </div>
 
@@ -366,8 +370,8 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
 
         {/* Bottom Log button — always reachable even when iOS keyboard pushes header off-screen */}
         <div className="pt-2 pb-4">
-          <Button onClick={handleConfirm} className="w-full rounded-xl text-sm font-semibold py-3">
-            Log Food
+          <Button onClick={handleConfirm} disabled={logging} className="w-full rounded-xl text-sm font-semibold py-3">
+            {logging ? "Logging..." : "Log Food"}
           </Button>
         </div>
       </div>

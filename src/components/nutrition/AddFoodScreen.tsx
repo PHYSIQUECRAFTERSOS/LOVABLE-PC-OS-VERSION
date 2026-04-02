@@ -510,8 +510,11 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
+  const logFoodRef = useRef(false);
+
   const logFood = async (item: FoodItem) => {
-    if (!user) return;
+    if (!user || logFoodRef.current) return;
+    logFoodRef.current = true;
 
     let foodToLog = item;
     let foodItemId: string | null = null;
@@ -605,6 +608,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       } catch { /* ignore */ }
       onLogged();
     }
+    logFoodRef.current = false;
   };
 
   const logSavedMealQuick = async (meal: any) => {
@@ -837,109 +841,125 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setDetailFood(item);
   };
 
+  const detailLoggingRef = useRef(false);
+
   const handleDetailConfirm = async (entry: FoodDetailEntry) => {
-    if (!user) return;
+    if (!user || detailLoggingRef.current) return;
+    detailLoggingRef.current = true;
 
-    let foodItemId = detailFood?.id;
-    
-    // Import any non-local food (off, usda, fatsecret) into food_items for FK reference
-    if (detailFood && detailFood.source !== "local") {
-      const imported = await importOFFFood(detailFood);
-      if (imported) {
-        foodItemId = imported.id;
-      } else {
-        // Import failed — still log with custom_name only, no FK
-        foodItemId = null;
-      }
-    }
+    // Capture detailFood before clearing
+    const foodSnapshot = detailFood;
 
-    // Fetch micronutrient data for detail-logged food
-    let micros: Record<string, number> = {};
-    if (foodItemId) {
+    // Optimistic: close detail screen + notify parent instantly
+    setDetailFood(null);
+    const t = toast({ title: `${entry.food.name} logged` });
+    setTimeout(() => t.dismiss(), 1000);
+    onLogged();
+
+    // Background persist — non-blocking
+    (async () => {
       try {
-        const { extractMicros } = await import("@/utils/micronutrientHelper");
-        const { data: fullFood } = await supabase
-          .from("food_items")
-          .select("*")
-          .eq("id", foodItemId)
-          .maybeSingle();
-        if (fullFood) {
-          const useGramsMode = (entry as any).useGrams;
-          const servingSize = parseFloat(String(fullFood.serving_size)) || 100;
-          const microMultiplier = useGramsMode
-            ? entry.totalGrams / servingSize
-            : entry.quantity;
-          micros = extractMicros(fullFood, microMultiplier);
+        let foodItemId = foodSnapshot?.id;
+
+        // Import any non-local food
+        if (foodSnapshot && foodSnapshot.source !== "local") {
+          const imported = await importOFFFood(foodSnapshot);
+          if (imported) {
+            foodItemId = imported.id;
+          } else {
+            foodItemId = null;
+          }
         }
-      } catch (err) {
-        console.warn("[handleDetailConfirm] Could not fetch micros:", err);
-      }
-    }
 
-    const insertPayload: Record<string, any> = {
-      client_id: user.id,
-      food_item_id: foodItemId,
-      custom_name: entry.food.name, // ALWAYS set custom_name as fallback
-      meal_type: mealType,
-      servings: (entry as any).useGrams
-        ? entry.totalGrams / (parseFloat(detailFood?.serving_size as any) || 100)
-        : entry.quantity,
-      calories: Math.round(entry.calories),
-      protein: Math.round(entry.protein),
-      carbs: Math.round(entry.carbs),
-      fat: Math.round(entry.fat),
-      fiber: Math.round(entry.fiber),
-      sugar: Math.round(entry.sugar),
-      sodium: Math.round(entry.sodium),
-      quantity_display: (entry as any).useGrams ? entry.totalGrams : entry.quantity,
-      quantity_unit: (entry as any).useGrams ? "g" : "serving",
-      logged_at: effectiveDate,
-      tz_corrected: true,
-      ...micros,
-    };
-
-    let { error } = await supabase.from("nutrition_logs").insert(insertPayload as any);
-
-    // Retry without food_item_id if FK constraint fails
-    if (error && foodItemId) {
-      console.warn("[handleDetailConfirm] FK insert failed, retrying without food_item_id:", error.message);
-      insertPayload.food_item_id = null;
-      const retry = await supabase.from("nutrition_logs").insert(insertPayload as any);
-      error = retry.error;
-    }
-
-    if (error) {
-      toast({ title: "Couldn't save this food. Please try again." });
-    } else {
-      const t = toast({ title: `${entry.food.name} logged` });
-      setTimeout(() => t.dismiss(), 1000);
-      // Log to user_food_history (fire-and-forget)
-      if (foodItemId) {
-        supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
-        const entryAny = entry as any;
-        supabase.from("user_food_serving_memory" as any).upsert({
-          user_id: user.id,
-          food_id: foodItemId,
-          serving_size: entryAny.useGrams ? entryAny.customGrams : entry.quantity,
-          serving_unit: entryAny.useGrams ? "g" : entry.servingDescription,
-          last_logged_at: new Date().toISOString(),
-          log_count: 1,
-        } as any, { onConflict: "user_id,food_id" }).then(({ error: memErr }) => {
-          if (memErr) console.warn("[ServingMemory] upsert failed:", memErr);
-        });
-      }
-      setDetailFood(null);
-      try {
-        const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
-        const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
-        const newStreak = streakData as unknown as number;
-        const msg = getMilestoneMessage(newStreak);
-        if (msg) {
-          setTimeout(() => toast({ title: `🔥 ${newStreak} day streak!`, description: msg }), 1500);
+        // Fetch micronutrient data
+        let micros: Record<string, number> = {};
+        if (foodItemId) {
+          try {
+            const { extractMicros } = await import("@/utils/micronutrientHelper");
+            const { data: fullFood } = await supabase
+              .from("food_items")
+              .select("*")
+              .eq("id", foodItemId)
+              .maybeSingle();
+            if (fullFood) {
+              const useGramsMode = (entry as any).useGrams;
+              const servingSize = parseFloat(String(fullFood.serving_size)) || 100;
+              const microMultiplier = useGramsMode
+                ? entry.totalGrams / servingSize
+                : entry.quantity;
+              micros = extractMicros(fullFood, microMultiplier);
+            }
+          } catch (err) {
+            console.warn("[handleDetailConfirm] Could not fetch micros:", err);
+          }
         }
-      } catch { /* ignore */ }
-      onLogged();
-    }
+
+        const insertPayload: Record<string, any> = {
+          client_id: user.id,
+          food_item_id: foodItemId,
+          custom_name: entry.food.name,
+          meal_type: mealType,
+          servings: (entry as any).useGrams
+            ? entry.totalGrams / (parseFloat(foodSnapshot?.serving_size as any) || 100)
+            : entry.quantity,
+          calories: Math.round(entry.calories),
+          protein: Math.round(entry.protein),
+          carbs: Math.round(entry.carbs),
+          fat: Math.round(entry.fat),
+          fiber: Math.round(entry.fiber),
+          sugar: Math.round(entry.sugar),
+          sodium: Math.round(entry.sodium),
+          quantity_display: (entry as any).useGrams ? entry.totalGrams : entry.quantity,
+          quantity_unit: (entry as any).useGrams ? "g" : "serving",
+          logged_at: effectiveDate,
+          tz_corrected: true,
+          ...micros,
+        };
+
+        let { error } = await supabase.from("nutrition_logs").insert(insertPayload as any);
+
+        // Retry without food_item_id if FK constraint fails
+        if (error && foodItemId) {
+          console.warn("[handleDetailConfirm] FK insert failed, retrying without food_item_id:", error.message);
+          insertPayload.food_item_id = null;
+          const retry = await supabase.from("nutrition_logs").insert(insertPayload as any);
+          error = retry.error;
+        }
+
+        if (error) {
+          toast({ title: "Couldn't save this food. Please try again.", variant: "destructive" });
+        } else {
+          // Fire-and-forget: history + serving memory + streak
+          if (foodItemId) {
+            supabase.rpc("log_food_to_history" as any, { p_user_id: user.id, p_food_id: foodItemId }).then(() => {});
+            const entryAny = entry as any;
+            supabase.from("user_food_serving_memory" as any).upsert({
+              user_id: user.id,
+              food_id: foodItemId,
+              serving_size: entryAny.useGrams ? entryAny.customGrams : entry.quantity,
+              serving_unit: entryAny.useGrams ? "g" : entry.servingDescription,
+              last_logged_at: new Date().toISOString(),
+              log_count: 1,
+            } as any, { onConflict: "user_id,food_id" }).then(({ error: memErr }) => {
+              if (memErr) console.warn("[ServingMemory] upsert failed:", memErr);
+            });
+          }
+          try {
+            const { getLocalDateString: getLocalDate } = await import("@/utils/localDate");
+            const { data: streakData } = await supabase.rpc("get_logging_streak_v2" as any, { p_user_id: user.id, p_today: getLocalDate() });
+            const newStreak = streakData as unknown as number;
+            const msg = getMilestoneMessage(newStreak);
+            if (msg) {
+              setTimeout(() => toast({ title: `🔥 ${newStreak} day streak!`, description: msg }), 1500);
+            }
+          } catch { /* ignore */ }
+          // Refresh again after actual insert to sync real data
+          onLogged();
+        }
+      } finally {
+        detailLoggingRef.current = false;
+      }
+    })();
   };
 
   // iOS WebKit compositor repaint fix — shared hook
