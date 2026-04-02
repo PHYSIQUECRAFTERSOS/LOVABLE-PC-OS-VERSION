@@ -370,8 +370,8 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
 
         {/* Bottom Log button — always reachable even when iOS keyboard pushes header off-screen */}
         <div className="pt-2 pb-4">
-          <Button onClick={handleConfirm} className="w-full rounded-xl text-sm font-semibold py-3">
-            Log Food
+          <Button onClick={handleConfirm} disabled={logging} className="w-full rounded-xl text-sm font-semibold py-3">
+            {logging ? "Logging..." : "Log Food"}
           </Button>
         </div>
       </div>
