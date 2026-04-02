@@ -45,8 +45,9 @@ const GOAL_LABELS: Record<string, string> = {
 };
 
 const MasterLibraries = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const userId = user?.id;
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "programs");
@@ -59,6 +60,9 @@ const MasterLibraries = () => {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
   const [linkedCounts, setLinkedCounts] = useState<Record<string, number>>({});
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
+  const [sharedExpanded, setSharedExpanded] = useState(true);
+  const [personalExpanded, setPersonalExpanded] = useState(true);
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
