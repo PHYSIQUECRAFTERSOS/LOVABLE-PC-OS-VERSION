@@ -286,6 +286,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [builderTargetPhase, setBuilderTargetPhase] = useState(0);
   const [editingWorkout, setEditingWorkout] = useState<ProgramWorkout | null>(null);
+  const scrollToPhaseRef = useRef<number | null>(null);
 
   // Workout metadata (exercise counts, durations, thumbnails)
   const [workoutMeta, setWorkoutMeta] = useState<Record<string, WorkoutMeta>>({});
