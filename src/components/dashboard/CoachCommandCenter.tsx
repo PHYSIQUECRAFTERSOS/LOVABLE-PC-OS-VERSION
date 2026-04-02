@@ -20,7 +20,7 @@ import {
   XCircle,
   ArrowRight,
   Activity,
-  UtensilsCrossed,
+  
   ClipboardCheck,
   CalendarClock,
   Clock,
@@ -51,8 +51,8 @@ interface ActionItem {
 
 interface ComplianceSnapshot {
   trainingPct: number;
-  nutritionPct: number;
   checkinPct: number;
+  overallPct: number;
   activeClients: number;
   atRiskClients: number;
 }
@@ -173,7 +173,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -186,7 +186,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, nutritionPct: 0, checkinPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
@@ -194,65 +194,97 @@ const CoachCommandCenter = () => {
       const last7Days = Array.from({ length: 7 }, (_, i) => format(subDays(now, 6 - i), "yyyy-MM-dd"));
       const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
 
-      // 2. Parallel data fetch — split to avoid deep type inference
+      // 2. Parallel data fetch — calendar-events-driven compliance
       const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds).abortSignal(signal);
+      // Calendar events for last 7 days (workout + checkin only) — source of truth for compliance
+      const calEventsReq = supabase.from("calendar_events").select("user_id, target_client_id, event_type, is_completed, event_date, linked_workout_id, title").in("event_type", ["workout", "checkin"]).gte("event_date", last7Start).lte("event_date", format(now, "yyyy-MM-dd")).abortSignal(signal);
+      // Workout sessions for double-verification (catch completed workouts where calendar wasn't flagged)
       const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal);
-      const nutritionReq = supabase.from("nutrition_logs").select("client_id, logged_at").in("client_id", clientIds).gte("logged_at", `${last7Start}T00:00:00`).abortSignal(signal);
-      const checkinsReq = supabase.from("weekly_checkins").select("client_id, week_date").in("client_id", clientIds).gte("week_date", last7Start).abortSignal(signal);
       const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false }).abortSignal(signal);
       const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20).abortSignal(signal);
       // Yesterday's scheduled workouts (coach schedules via target_client_id OR client's own)
       const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title").eq("event_date", yesterday).eq("event_type", "workout").abortSignal(signal);
 
-      const [profilesRes, sessionsRes, nutritionRes, checkinsRes, riskRes, messagesRes, yesterdayCalRes] = await Promise.all([
-        profilesReq, sessionsReq, nutritionReq, checkinsReq, riskReq, messagesReq, yesterdayCalReq,
+      const [profilesRes, calEventsRes, sessionsRes, riskRes, messagesRes, yesterdayCalRes] = await Promise.all([
+        profilesReq, calEventsReq, sessionsReq, riskReq, messagesReq, yesterdayCalReq,
       ]);
 
       const profiles = (profilesRes.data || []) as ClientProfile[];
+      const allCalEvents = calEventsRes.data || [];
       const sessions = sessionsRes.data || [];
-      const nutritionLogs = nutritionRes.data || [];
-      const checkins = checkinsRes.data || [];
       const riskScores = riskRes.data || [];
       const unreadMessages = messagesRes.data || [];
 
       const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
 
-      // ── Per-client metrics ──
+      // Build a set of (clientId, workoutId) pairs that have completed workout_sessions for double-verification
+      const completedSessionKeys = new Set<string>();
+      for (const s of sessions) {
+        if (s.completed_at && s.workout_id) {
+          completedSessionKeys.add(`${s.client_id}::${s.workout_id}`);
+        }
+      }
+
+      // ── Per-client metrics (calendar-events-driven) ──
       const clientMetrics = clientIds.map((cid) => {
         const profile = profileMap.get(cid);
-        const clientSessions = sessions.filter((s) => s.client_id === cid);
-        const completed = clientSessions.filter((s) => s.completed_at).length;
-        const totalSessions = clientSessions.length;
-        const trainingPct = totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0;
 
-        const clientNutrition = nutritionLogs.filter((n) => n.client_id === cid);
-        const nutritionDays = new Set(clientNutrition.map((n) => format(new Date(n.logged_at), "yyyy-MM-dd"))).size;
-        const nutritionPct = Math.round((nutritionDays / 7) * 100);
+        // Get calendar events for this client (coach-scheduled via target_client_id OR client's own)
+        const clientEvents = allCalEvents.filter((e) => {
+          const effectiveClient = e.target_client_id || e.user_id;
+          return effectiveClient === cid;
+        });
 
-        const clientCheckins = checkins.filter((c) => c.client_id === cid);
-        const checkinDone = clientCheckins.length > 0;
+        const workoutEvents = clientEvents.filter((e) => e.event_type === "workout");
+        const checkinEvents = clientEvents.filter((e) => e.event_type === "checkin");
 
-        // Streak calc
+        // Double-verify: a workout event is "completed" if is_completed OR matching workout_session exists
+        const completedWorkouts = workoutEvents.filter((e) => {
+          if (e.is_completed) return true;
+          if (e.linked_workout_id) {
+            return completedSessionKeys.has(`${cid}::${e.linked_workout_id}`);
+          }
+          return false;
+        }).length;
+        const totalWorkouts = workoutEvents.length;
+        const trainingPct = totalWorkouts > 0 ? Math.round((completedWorkouts / totalWorkouts) * 100) : 100;
+
+        const completedCheckins = checkinEvents.filter((e) => e.is_completed).length;
+        const totalCheckins = checkinEvents.length;
+        const checkinPct = totalCheckins > 0 ? Math.round((completedCheckins / totalCheckins) * 100) : 100;
+
+        const totalScheduled = totalWorkouts + totalCheckins;
+        const totalCompleted = completedWorkouts + completedCheckins;
+
+        // Overall compliance: simple ratio of completed/scheduled, 100% if nothing scheduled
+        const overallCompliance = totalScheduled > 0 ? Math.round((totalCompleted / totalScheduled) * 100) : 100;
+
+        // Missed counts (actual scheduled events that weren't completed)
+        const missedWorkouts = totalWorkouts - completedWorkouts;
+        const missedCheckins = totalCheckins - completedCheckins;
+
+        // Streak: consecutive days (from today backwards) where all scheduled events were completed
         let streak = 0;
         for (let i = 6; i >= 0; i--) {
-          if (clientSessions.some((s) => format(new Date(s.created_at), "yyyy-MM-dd") === last7Days[i] && s.completed_at)) streak++;
+          const dayStr = last7Days[i];
+          const dayEvents = clientEvents.filter((e) => e.event_date === dayStr);
+          if (dayEvents.length === 0) continue; // skip days with no events
+          const allDone = dayEvents.every((e) => {
+            if (e.is_completed) return true;
+            if (e.event_type === "workout" && e.linked_workout_id) {
+              return completedSessionKeys.has(`${cid}::${e.linked_workout_id}`);
+            }
+            return false;
+          });
+          if (allDone) streak++;
           else break;
         }
 
-        // Overall compliance weighted
-        const overallCompliance = Math.round(trainingPct * 0.4 + nutritionPct * 0.35 + (checkinDone ? 100 : 0) * 0.15 + 50 * 0.1);
-
-        // Days since last activity
-        const allDates = [
-          ...clientSessions.map((s) => new Date(s.created_at).getTime()),
-          ...clientNutrition.map((n) => new Date(n.logged_at).getTime()),
-        ];
+        // Days since last activity (from sessions)
+        const clientSessions = sessions.filter((s) => s.client_id === cid);
+        const allDates = clientSessions.map((s) => new Date(s.created_at).getTime());
         const lastActivity = allDates.length > 0 ? Math.max(...allDates) : 0;
         const daysInactive = lastActivity > 0 ? Math.floor((now.getTime() - lastActivity) / (1000 * 60 * 60 * 24)) : 99;
-
-        // Missed days
-        const missedWorkoutDays = 7 - completed;
-        const missedNutritionDays = 7 - nutritionDays;
 
         // Risk from DB
         const latestRisk = riskScores.find((r) => r.client_id === cid);
@@ -262,14 +294,14 @@ const CoachCommandCenter = () => {
           clientName: profile?.full_name || "Client",
           avatarUrl: profile?.avatar_url,
           trainingPct,
-          nutritionPct,
-          checkinDone,
+          checkinPct,
           overallCompliance,
           streak,
           daysInactive,
-          missedWorkoutDays,
-          missedNutritionDays,
-          checkinCount: clientCheckins.length,
+          missedWorkouts,
+          missedCheckins,
+          totalScheduled,
+          checkinCount: completedCheckins,
           riskScore: latestRisk?.score ?? (daysInactive > 3 ? 60 : overallCompliance < 50 ? 50 : 20),
           riskSignals: latestRisk?.signals as string[] ?? [],
         };
@@ -278,28 +310,28 @@ const CoachCommandCenter = () => {
       // ── Section 1: Action Items ──
       const actionItems: ActionItem[] = clientMetrics
         .filter((c) => {
-          return c.missedWorkoutDays >= 2 || c.missedNutritionDays >= 2 || !c.checkinDone || c.overallCompliance < 70;
+          // Only flag if there are actual missed scheduled events or low compliance with scheduled events
+          return c.missedWorkouts >= 2 || c.missedCheckins >= 1 || (c.totalScheduled > 0 && c.overallCompliance < 70);
         })
         .map((c) => {
           const reasons: string[] = [];
-          if (c.missedWorkoutDays >= 2) reasons.push(`${c.missedWorkoutDays} missed workouts`);
-          if (c.missedNutritionDays >= 2) reasons.push(`${c.missedNutritionDays}d no nutrition log`);
-          if (!c.checkinDone) reasons.push("No check-in");
-          if (c.overallCompliance < 70) reasons.push(`Compliance ${c.overallCompliance}%`);
+          if (c.missedWorkouts >= 2) reasons.push(`${c.missedWorkouts} missed workouts`);
+          if (c.missedCheckins >= 1) reasons.push(`${c.missedCheckins} missed check-in${c.missedCheckins > 1 ? "s" : ""}`);
+          if (c.totalScheduled > 0 && c.overallCompliance < 70) reasons.push(`Compliance ${c.overallCompliance}%`);
           return { clientId: c.clientId, clientName: c.clientName, avatarUrl: c.avatarUrl, reasons, compliancePct: c.overallCompliance };
         })
         .sort((a, b) => a.compliancePct - b.compliancePct);
 
       // ── Section 2: Snapshot ──
       const avgTraining = clientMetrics.length > 0 ? Math.round(clientMetrics.reduce((s, c) => s + c.trainingPct, 0) / clientMetrics.length) : 0;
-      const avgNutrition = clientMetrics.length > 0 ? Math.round(clientMetrics.reduce((s, c) => s + c.nutritionPct, 0) / clientMetrics.length) : 0;
-      const checkinRate = clientMetrics.length > 0 ? Math.round((clientMetrics.filter((c) => c.checkinDone).length / clientMetrics.length) * 100) : 0;
+      const avgCheckin = clientMetrics.length > 0 ? Math.round(clientMetrics.reduce((s, c) => s + c.checkinPct, 0) / clientMetrics.length) : 0;
+      const avgOverall = clientMetrics.length > 0 ? Math.round(clientMetrics.reduce((s, c) => s + c.overallCompliance, 0) / clientMetrics.length) : 0;
       const atRiskCount = clientMetrics.filter((c) => c.riskScore >= 61).length;
 
       const snapshot: ComplianceSnapshot = {
         trainingPct: avgTraining,
-        nutritionPct: avgNutrition,
-        checkinPct: checkinRate,
+        checkinPct: avgCheckin,
+        overallPct: avgOverall,
         activeClients: clientMetrics.length,
         atRiskClients: atRiskCount,
       };
@@ -323,10 +355,10 @@ const CoachCommandCenter = () => {
         .sort((a, b) => b.riskScore - a.riskScore)
         .map((c) => {
           const signals: string[] = [];
-          if (c.missedWorkoutDays >= 3) signals.push("3+ missed workouts");
-          if (c.missedNutritionDays >= 3) signals.push("3+ days no nutrition");
+          if (c.missedWorkouts >= 3) signals.push("3+ missed workouts");
+          if (c.missedCheckins >= 1) signals.push("Missed check-in");
           if (c.daysInactive >= 7) signals.push("7d inactive");
-          if (!c.checkinDone) signals.push("Missed check-in");
+          if (c.daysInactive >= 7) signals.push("7d inactive");
           if (c.overallCompliance < 50) signals.push("Low compliance");
           return { clientId: c.clientId, clientName: c.clientName, avatarUrl: c.avatarUrl, riskScore: c.riskScore, daysInactive: c.daysInactive, signals };
         });
@@ -1070,8 +1102,8 @@ const CoachCommandCenter = () => {
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <MetricCard icon={Zap} label="Training" value={`${snapshot.trainingPct}%`} pct={snapshot.trainingPct} />
-          <MetricCard icon={UtensilsCrossed} label="Nutrition" value={`${snapshot.nutritionPct}%`} pct={snapshot.nutritionPct} />
           <MetricCard icon={ClipboardCheck} label="Check-ins" value={`${snapshot.checkinPct}%`} pct={snapshot.checkinPct} />
+          <MetricCard icon={Activity} label="Overall" value={`${snapshot.overallPct}%`} pct={snapshot.overallPct} />
           <MetricCard icon={Users} label="Active" value={String(snapshot.activeClients)} />
           <MetricCard icon={Shield} label="At Risk" value={String(snapshot.atRiskClients)} isAlert={snapshot.atRiskClients > 0} />
         </div>
