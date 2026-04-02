@@ -1,6 +1,20 @@
 import { createRoot } from "react-dom/client";
+import { Capacitor } from '@capacitor/core';
 import App from "./App.tsx";
 import "./index.css";
+
+// Native cache bust: clear WKWebView cache on every app launch
+async function clearNativeCache() {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { default: CacheBuster } = await import('./plugins/CacheBusterPlugin');
+      await CacheBuster.clearCache();
+      console.log('[CacheBuster] Native cache cleared');
+    } catch (e) {
+      console.warn('[CacheBuster] Plugin not available:', e);
+    }
+  }
+}
 
 // Auto-update: detect new service worker and reload to latest version
 if ("serviceWorker" in navigator) {
@@ -28,4 +42,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Clear native cache then render
+clearNativeCache().finally(() => {
+  createRoot(document.getElementById("root")!).render(<App />);
+});
