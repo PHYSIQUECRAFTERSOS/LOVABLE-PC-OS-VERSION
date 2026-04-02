@@ -1295,7 +1295,84 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         </DialogContent>
       </Dialog>
 
-      {/* Workout Builder Modal */}
+      {/* Copy Phase to Client Dialog */}
+      <Dialog open={showCopyToClientDialog} onOpenChange={setShowCopyToClientDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy Phase to Client</DialogTitle>
+            <DialogDescription>
+              Clone "{phases[copyPhaseIdx]?.name}" and assign it to a client's program.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Select Client</Label>
+              {copyClientsLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <SearchableClientSelect
+                  clients={copyClients}
+                  value={selectedCopyClient}
+                  onValueChange={setSelectedCopyClient}
+                  placeholder="Search clients..."
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Schedule</Label>
+              <RadioGroup value={copyStartOption} onValueChange={(v) => setCopyStartOption(v as any)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="after_last" id="after_last" />
+                  <Label htmlFor="after_last" className="text-sm font-normal cursor-pointer">
+                    Immediately after last scheduled training phase
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="specific_date" id="specific_date" />
+                  <Label htmlFor="specific_date" className="text-sm font-normal cursor-pointer">
+                    Start on a specific date
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              {copyStartOption === "specific_date" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !copyStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {copyStartDate ? format(copyStartDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={copyStartDate}
+                      onSelect={setCopyStartDate}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCopyToClientDialog(false)}>Cancel</Button>
+            <Button onClick={handleCopyPhaseToClient} disabled={copying || !selectedCopyClient}>
+              {copying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Users className="h-3.5 w-3.5 mr-1" />}
+              Copy to Client
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {user && (
         <WorkoutBuilderModal
           open={showWorkoutBuilder}
