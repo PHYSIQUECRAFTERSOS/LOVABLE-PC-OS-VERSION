@@ -484,10 +484,13 @@ const ProgramList = () => {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1.5">
                     <CardTitle className="text-base">{program.name}</CardTitle>
+                    {program.coach_id !== userId && creatorNames[program.coach_id] && (
+                      <p className="text-[10px] text-muted-foreground">by {creatorNames[program.coach_id]}</p>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="text-[10px]">{GOAL_LABELS[program.goal_type] || program.goal_type || "General"}</Badge>
-                      {program.is_master && <Badge className="text-[10px] gap-1 bg-primary/20 text-primary"><Link2 className="h-2.5 w-2.5" /> Master</Badge>}
-                      {!program.is_master && <Badge variant="outline" className="text-[10px]">Template</Badge>}
+                      {program.is_master && <Badge className="text-[10px] gap-1 bg-primary/20 text-primary"><Share2 className="h-2.5 w-2.5" /> Shared</Badge>}
+                      {!program.is_master && <Badge variant="outline" className="text-[10px]">Personal</Badge>}
                       {phaseCounts[program.id] > 0 && <Badge variant="outline" className="text-[10px] gap-1"><Layers className="h-2.5 w-2.5" /> {phaseCounts[program.id]} phases</Badge>}
                       {program.duration_weeks && <Badge variant="outline" className="text-[10px]">{program.duration_weeks}w</Badge>}
                       <Badge variant="outline" className="text-[10px]">v{program.version_number || 1}</Badge>
