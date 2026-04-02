@@ -1,60 +1,32 @@
 
 
-## Fix: Instant Food Logging with Double-Tap Prevention
+## Fix: Show Placement Status on Client Profile (Coach + Client Views)
 
 ### Problem
-When pressing "Log" on the Food Detail Screen, there's a 1-2 second delay before the entry appears in the tracker. Users tap again thinking it didn't register, creating duplicates. The delay comes from:
-1. `importOFFFood()` — imports external foods into `food_items` (network call)
-2. Micronutrient fetch — queries `food_items` for micro data
-3. No disabled/loading state on the Log button — allows double-taps
+The coach's client workspace (SummaryTab) always shows the tier badge (e.g., "Bronze V") even when the client is in the placement series. This is because:
+1. The `RankedProfile` interface doesn't include `placement_status` or `placement_days_completed`
+2. The query to `ranked_profiles` doesn't fetch these fields
+3. The rank card rendering doesn't check for placement state
 
-### Solution
-Optimistic close + background persistence + double-tap guard.
+The client-side Dashboard already handles this correctly via `MyRankDashboardCard` — no changes needed there.
 
-**File: `src/components/nutrition/FoodDetailScreen.tsx`**
-- Add a `logging` state (boolean)
-- Set `logging = true` in `handleConfirm`, disable both Log buttons while true
-- This prevents double-taps at the source
+### Fix (single file)
 
-**File: `src/components/nutrition/AddFoodScreen.tsx`**
-Two changes in `handleDetailConfirm`:
-1. **Immediately close the detail screen and call `onLogged()`** before doing the Supabase insert — this gives instant UI feedback (the tracker refreshes immediately via the custom event)
-2. **Move blocking work to background**: fire `importOFFFood`, micro fetch, and the insert in a fire-and-forget async block. Show error toast only if insert fails.
-3. **Add a `loggingRef` guard** to prevent `handleDetailConfirm` from executing twice
+**`src/components/clients/workspace/SummaryTab.tsx`**
 
-Same pattern applied to `logFood` (the inline quick-add path):
-1. Add an `isLogging` ref guard to prevent double execution
-2. Call `onLogged()` and show toast immediately after the insert succeeds (already done), but ensure the button is disabled during the operation
+1. **Extend the `RankedProfile` interface** — add `placement_status` and `placement_days_completed` fields
 
-### Technical Details
+2. **Update the Supabase query** — add `placement_status, placement_days_completed` to the `.select()` call on line ~613
 
-**FoodDetailScreen.tsx changes:**
-- Add `const [logging, setLogging] = useState(false)`
-- In `handleConfirm`: set `setLogging(true)` before calling `onConfirm`
-- Both Log buttons get `disabled={logging}` and show "Logging..." text when active
+3. **Import `PlacementTracker`** from `@/components/ranked/PlacementTracker`
 
-**AddFoodScreen.tsx changes in `handleDetailConfirm`:**
-```
-// 1. Immediately dismiss detail screen + notify parent
-setDetailFood(null);
-toast({ title: `${entry.food.name} logged` });
-onLogged(); // triggers tracker refresh instantly
+4. **Update the rank card render block** (line ~729) — before rendering the tier badge, check `rankedProfile.placement_status`. If `"pending"` or `"in_progress"`, render the compact `PlacementTracker` instead of the tier badge + progress bar. This mirrors the exact same pattern used in `MyRankDashboardCard` (lines 106-122).
 
-// 2. Background persist (no await blocking UI)
-(async () => {
-  // importOFFFood, fetch micros, insert — all in background
-  // Show error toast if insert fails
-})();
-```
+### Improvements
+- The placement card in the coach view will show "Day X of 7" progress, matching the Ranked leaderboard
+- Prevents coaches from seeing a misleading "Bronze V" for new clients
+- Consistent experience: coach sees the same placement state the client sees on their own dashboard
 
-**AddFoodScreen.tsx changes in `logFood`:**
-- Add `const loggingRef = useRef(false)` guard
-- At start: `if (loggingRef.current) return; loggingRef.current = true;`
-- In finally: `loggingRef.current = false;`
-
-### Files to Modify
-- `src/components/nutrition/FoodDetailScreen.tsx` — loading state on Log buttons
-- `src/components/nutrition/AddFoodScreen.tsx` — optimistic close pattern + double-tap guard on both `handleDetailConfirm` and `logFood`
-
-No database changes needed.
+### Files Modified
+- `src/components/clients/workspace/SummaryTab.tsx` (interface, query, conditional render)
 
