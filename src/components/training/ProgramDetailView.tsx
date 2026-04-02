@@ -286,6 +286,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [builderTargetPhase, setBuilderTargetPhase] = useState(0);
   const [editingWorkout, setEditingWorkout] = useState<ProgramWorkout | null>(null);
+  const scrollToPhaseRef = useRef<number | null>(null);
 
   // Workout metadata (exercise counts, durations, thumbnails)
   const [workoutMeta, setWorkoutMeta] = useState<Record<string, WorkoutMeta>>({});
@@ -299,6 +300,20 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [importTargetPhase, setImportTargetPhase] = useState(0);
   const [importableWorkouts, setImportableWorkouts] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
+
+  // Scroll to phase after save + reload
+  useEffect(() => {
+    if (scrollToPhaseRef.current !== null && !loading && phases.length > 0) {
+      const idx = scrollToPhaseRef.current;
+      scrollToPhaseRef.current = null;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = document.querySelector(`[data-phase-index="${idx}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+      });
+    }
+  }, [loading, phases]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -653,6 +668,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       setShowWorkoutBuilder(false);
       setEditingWorkout(null);
       showSaveStatus("saved");
+      scrollToPhaseRef.current = builderTargetPhase;
       await loadProgram();
     } catch (err: any) {
       console.error("[ProgramSave] Failed to save workout link:", err);
@@ -920,7 +936,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       {/* Phases */}
       <div className="space-y-3">
         {phases.map((phase, phaseIdx) => (
-          <Card key={phaseIdx} className="border-l-4 border-l-primary/40">
+          <Card key={phaseIdx} data-phase-index={phaseIdx} className="border-l-4 border-l-primary/40">
             <Collapsible open={!phase.collapsed} onOpenChange={(open) => updatePhase(phaseIdx, { collapsed: !open })}>
               <CollapsibleTrigger asChild>
                 <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
