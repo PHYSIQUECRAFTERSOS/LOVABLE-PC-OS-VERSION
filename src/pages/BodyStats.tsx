@@ -125,23 +125,9 @@ const BodyStats = () => {
 
   return (
     <div className="h-full overflow-y-auto bg-background flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <button
-          onClick={handleCancel}
-          className="text-sm font-medium text-muted-foreground hover:text-foreground min-w-[60px]"
-        >
-          Cancel
-        </button>
+      {/* Header — title only */}
+      <div className="flex items-center justify-center px-4 py-3 safe-top border-b border-border">
         <h1 className="text-base font-bold text-foreground">Today</h1>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 min-w-[60px] justify-end disabled:opacity-50"
-        >
-          <Save className="h-4 w-4" />
-          {saving ? "Saving..." : "Save"}
-        </button>
       </div>
 
       {/* Content */}
@@ -170,6 +156,24 @@ const BodyStats = () => {
           {weightError && (
             <p className="text-xs text-destructive">{weightError}</p>
           )}
+        </div>
+
+        {/* Cancel / Save buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleCancel}
+            className="flex-1 h-11 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 h-11 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
 
         {/* Measurements Section — coach-controlled */}
