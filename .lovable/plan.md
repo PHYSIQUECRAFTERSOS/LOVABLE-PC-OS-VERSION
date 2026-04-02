@@ -1,66 +1,50 @@
 
 
-## Trainerize-Style Desktop Messages Layout
+## Fix: Desktop Three-Dot Message Actions Not Visible
 
-### Problem
-The Messages page currently renders as a full-screen overlay (`fixed inset-0 z-50`) that hides all navigation. On desktop, there's no sidebar and no way to navigate to other pages without going back. On mobile this is fine (native-feel), but on desktop it should show the full AppLayout with a split-panel messaging view.
+### Root Cause
+The three-dot hover button exists in the DOM but is invisible. Two issues:
+
+1. **Overflow clipping**: The button is positioned at `-left-8` / `-right-8` (outside the container bounds). The parent scroll container (`overflow-y-auto`) also clips horizontal overflow, making the button unreachable and invisible.
+
+2. **Layout approach**: Absolute positioning outside the container doesn't work within a scrollable area.
 
 ### Solution
 
-**1. `src/pages/Messages.tsx` — Wrap in AppLayout on desktop**
-- Remove the `fixed inset-0 z-50` overlay approach
-- Wrap the page in `<AppLayout>` so the desktop sidebar (Overview, Messages, Community, Ranked, Clients, etc.) is always visible
-- The mobile experience stays the same (full-screen with safe areas) by conditionally rendering the overlay only on mobile (`md:` breakpoint)
-- On desktop, render the messaging content inside AppLayout's `<main>` area with no padding override
+**File: `src/components/messaging/MessageContextMenu.tsx`**
 
-**2. `src/components/messaging/CoachMessaging.tsx` — Split panel on desktop**
-- On desktop (`md:` and above): render a two-column layout side-by-side
-  - Left column (~320px): Thread list with Conversations/Automations tabs
-  - Right column (flex-1): Active thread's `ThreadChatView`, or an empty state ("Select a conversation")
-- On mobile: keep the current behavior (thread list → full-screen chat with back button)
-- Use `useIsMobile()` hook or Tailwind `hidden md:flex` classes to switch layouts
-- When selecting a thread on desktop, it loads in the right panel without replacing the thread list
+Change the three-dot button from absolute-positioned-outside to **inline within the message row**. Instead of placing it at `-left-8` outside the container, render it as a flex sibling that appears on hover:
 
-**3. `src/components/messaging/ClientMessaging.tsx` — Desktop layout with sidebar context**
-- Client only has one thread (with their coach), so on desktop the chat fills the content area naturally
-- Remove the back-to-dashboard button on desktop since AppLayout sidebar provides navigation
-- Keep `showBackToDashboard` for mobile only
+1. **Remove the absolute-positioned three-dot div** (lines 211-244)
+2. **Restructure the wrapper**: Change from `group relative` wrapping just `{children}` to a flex row that includes the three-dot button inline:
+   - For own messages: `[three-dot] [children]` (button on left of bubble)
+   - For other's messages: `[children] [three-dot]` (button on right of bubble)
+3. **Show/hide via opacity on hover**: The button takes up a small fixed space (w-7) but is `opacity-0` until `group-hover:opacity-100`, so it fades in without shifting layout
+4. **Keep `hidden md:flex`**: Only show on desktop; mobile keeps the long-press Sheet
 
-**4. Mobile behavior preserved**
-- On mobile (`< md`), Messages still renders as the full-screen overlay with safe area handling
-- The slide-in animation and bottom-nav hiding behavior remain untouched
-- CoachMessaging on mobile still does the thread list → full chat swap
+The button will be inside the scroll container's flow, so no clipping occurs.
 
-### Layout on Desktop (Coach)
+### Technical Detail
+
 ```text
-┌──────────────┬────────────────┬──────────────────────────┐
-│  Sidebar     │  Thread List   │  Active Chat             │
-│  (AppLayout) │  ~320px        │  (ThreadChatView)        │
-│              │                │                          │
-│  Overview    │  [Search...]   │  ┌─ Header ─────────┐    │
-│  Messages ●  │  Kevin (Client)│  │ Scott Szeto       │    │
-│  Community   │  Scott Szeto   │  ├───────────────────┤    │
-│  Challenges  │  Zane Karuna   │  │                   │    │
-│  Ranked      │  Alley Raymond │  │  Messages...      │    │
-│  Clients     │  Test Account  │  │                   │    │
-│  Tracker     │                │  ├───────────────────┤    │
-│  Team        │  [Automations] │  │ Type a message... │    │
-│  Libraries   │                │  └───────────────────┘    │
-│  ─────────── │                │                          │
-│  Settings    │                │                          │
-│  Admin       │                │                          │
-│  Sign Out    │                │                          │
-└──────────────┴────────────────┴──────────────────────────┘
+Before (broken):
+  <div class="group relative">
+    {children}                          ← message bubble
+    <div class="absolute -left-8">      ← CLIPPED by overflow-y-auto
+      <DropdownMenu>...</DropdownMenu>
+    </div>
+  </div>
+
+After (fixed):
+  <div class="group flex items-center gap-1">
+    <div class="hidden md:flex opacity-0 group-hover:opacity-100 shrink-0">
+      <DropdownMenu>...</DropdownMenu>  ← inline, not clipped
+    </div>
+    {children}                          ← message bubble
+  </div>
+  (order reversed for isOwn vs not-own)
 ```
 
 ### Files Modified
-- `src/pages/Messages.tsx` — conditional AppLayout wrapper (desktop) vs overlay (mobile)
-- `src/components/messaging/CoachMessaging.tsx` — split-panel layout on desktop
-- `src/components/messaging/ClientMessaging.tsx` — hide back button on desktop
-
-### Improvements
-- Full navigation access while messaging (matches Trainerize UX)
-- Coach can see thread list and active chat simultaneously on desktop
-- Unread badge on Messages nav item visible at all times
-- No layout change needed for mobile — preserves the native-feel experience
+- `src/components/messaging/MessageContextMenu.tsx` — restructure three-dot from absolute to inline flex
 
