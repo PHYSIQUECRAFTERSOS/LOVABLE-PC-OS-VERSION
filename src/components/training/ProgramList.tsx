@@ -66,24 +66,35 @@ const ProgramList = () => {
   const loadPrograms = async () => {
     if (!userId) return;
     setLoading(true);
-    const { data } = await supabase
+    // Fetch own templates + shared master templates
+    const { data: ownData } = await supabase
       .from("programs")
-      .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number")
+      .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number, coach_id")
       .eq("coach_id", userId)
       .eq("is_template", true)
       .order("created_at", { ascending: false });
-    setPrograms(data || []);
 
-    if (data && data.length > 0) {
-      const ids = data.map((p: any) => p.id);
+    const { data: sharedData } = await supabase
+      .from("programs")
+      .select("id, name, description, goal_type, start_date, end_date, is_template, is_master, client_id, created_at, duration_weeks, tags, version_number, coach_id")
+      .eq("is_master", true)
+      .eq("is_template", true)
+      .neq("coach_id", userId)
+      .order("created_at", { ascending: false });
 
-      // Phase counts
+    const merged = [...(ownData || []), ...(sharedData || [])];
+    const seen = new Set<string>();
+    const unique = merged.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
+    setPrograms(unique);
+
+    if (unique.length > 0) {
+      const ids = unique.map((p: any) => p.id);
+
       const { data: phases } = await supabase.from("program_phases").select("program_id").in("program_id", ids);
       const pc: Record<string, number> = {};
       (phases || []).forEach((p: any) => { pc[p.program_id] = (pc[p.program_id] || 0) + 1; });
       setPhaseCounts(pc);
 
-      // Linked client counts
       const { data: assignments } = await supabase
         .from("client_program_assignments")
         .select("forked_from_program_id")
@@ -93,6 +104,18 @@ const ProgramList = () => {
       const lc: Record<string, number> = {};
       (assignments || []).forEach((a: any) => { lc[a.forked_from_program_id] = (lc[a.forked_from_program_id] || 0) + 1; });
       setLinkedCounts(lc);
+
+      // Fetch creator names for shared programs
+      const otherCoachIds = [...new Set(unique.filter(p => p.coach_id !== userId).map(p => p.coach_id))];
+      if (otherCoachIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", otherCoachIds);
+        const cn: Record<string, string> = {};
+        (profiles || []).forEach((p: any) => { cn[p.user_id] = p.full_name || "Coach"; });
+        setCreatorNames(cn);
+      }
     }
 
     setLoading(false);
