@@ -613,7 +613,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
     const loadRankedAndHealth = async () => {
       const sevenAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
       const [rankedRes, healthRes] = await Promise.all([
-        (supabase as any).from("ranked_profiles").select("total_xp, current_tier, current_division, current_streak").eq("user_id", clientId).maybeSingle(),
+        (supabase as any).from("ranked_profiles").select("total_xp, current_tier, current_division, current_streak, placement_status, placement_days_completed").eq("user_id", clientId).maybeSingle(),
         supabase.from("daily_health_metrics").select("metric_date, steps, walking_running_distance_km").eq("user_id", clientId).gte("metric_date", sevenAgo).order("metric_date", { ascending: true }),
       ]);
       if (rankedRes.data) setRankedProfile(rankedRes.data as RankedProfile);
