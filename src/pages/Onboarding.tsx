@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 import OnboardingGoals from "@/components/onboarding/OnboardingGoals";
 import OnboardingMetrics from "@/components/onboarding/OnboardingMetrics";
 import OnboardingBodyComp from "@/components/onboarding/OnboardingBodyComp";
@@ -166,7 +167,8 @@ const Onboarding = () => {
   const [saving, setSaving] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const [postStep, setPostStep] = useState<"none" | "photo" | "health" | "done">("none");
+  const [postStep, setPostStep] = useState<"none" | "photo" | "health" | "success">("none");
+  const [firstName, setFirstName] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -195,11 +197,20 @@ const Onboarding = () => {
         }
         setInitialLoading(false);
       });
+
+    // Fetch first name for success screen
+    supabase
+      .from("profiles")
+      .select("first_name")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data: profile }) => {
+        if (profile?.first_name) setFirstName(profile.first_name);
+      });
   }, [user]);
 
   const updateField = useCallback(<K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) => {
     setData(prev => ({ ...prev, [key]: value }));
-    // Clear validation error on change
     setValidationErrors(prev => {
       if (prev[key]) {
         const next = { ...prev };
@@ -210,31 +221,61 @@ const Onboarding = () => {
     });
   }, []);
 
-  const saveProgress = useCallback(async (nextStep: number, completed = false) => {
-    if (!user) return;
+  const saveProgress = useCallback(async (nextStep: number, completed = false): Promise<boolean> => {
+    if (!user) return false;
     setSaving(true);
-    const payload: any = {
-      user_id: user.id,
-      ...data,
-      current_step: nextStep,
-      onboarding_completed: completed,
-      completed_at: completed ? new Date().toISOString() : null,
-    };
-    // Remove fields not in DB
-    delete payload.waiver_signature; // stored as base64, we save it separately if needed
+    try {
+      const payload: any = {
+        user_id: user.id,
+        ...data,
+        current_step: nextStep,
+        onboarding_completed: completed,
+        completed_at: completed ? new Date().toISOString() : null,
+      };
+      delete payload.waiver_signature;
 
-    const { data: existing } = await supabase
-      .from("onboarding_profiles")
-      .select("id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      const { data: existing } = await supabase
+        .from("onboarding_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    if (existing) {
-      await supabase.from("onboarding_profiles").update(payload).eq("user_id", user.id);
-    } else {
-      await supabase.from("onboarding_profiles").insert(payload);
+      let error;
+      if (existing) {
+        ({ error } = await supabase.from("onboarding_profiles").update(payload).eq("user_id", user.id));
+      } else {
+        ({ error } = await supabase.from("onboarding_profiles").insert(payload));
+      }
+
+      if (error) {
+        console.error("[Onboarding] saveProgress failed:", error);
+        toast.error("Failed to save your progress. Please try again.");
+        return false;
+      }
+
+      // Verify the write landed when completing
+      if (completed) {
+        const { data: verify } = await supabase
+          .from("onboarding_profiles")
+          .select("onboarding_completed")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!verify?.onboarding_completed) {
+          console.error("[Onboarding] Completion flag not persisted after write");
+          toast.error("Something went wrong saving your profile. Please try again.");
+          return false;
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error("[Onboarding] saveProgress exception:", err);
+      toast.error("Connection error. Please check your internet and try again.");
+      return false;
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }, [user, data]);
 
   const validateStep = (): boolean => {
@@ -253,7 +294,7 @@ const Onboarding = () => {
         if (!data.activity_level) errors.activity_level = "This field is required before continuing.";
         break;
       case 3:
-        break; // Body comp optional
+        break;
       case 4:
         if (!data.training_location) errors.training_location = "This field is required before continuing.";
         if (data.training_location === "home") {
@@ -282,7 +323,7 @@ const Onboarding = () => {
         if (data.tracked_macros_before === null) errors.tracked_macros_before = "This field is required before continuing.";
         break;
       case 8:
-        break; // Injuries optional
+        break;
       case 9:
         if (!data.workout_days_current) errors.workout_days_current = "This field is required before continuing.";
         if (!data.workout_days_realistic) errors.workout_days_realistic = "This field is required before continuing.";
@@ -298,10 +339,9 @@ const Onboarding = () => {
         if (!data.work_on_most) errors.work_on_most = "This field is required before continuing.";
         break;
       case 11:
-        // Final notes are optional - no minimum required
         break;
       case 12:
-        break; // Health sync optional
+        break;
       case 13:
         if (!data.waiver_signed) errors.waiver_signed = "You must accept the terms to continue.";
         if (!data.waiver_signature) errors.waiver_signature = "Please sign the waiver above.";
@@ -315,7 +355,6 @@ const Onboarding = () => {
   const goNext = async () => {
     if (!validateStep()) return;
     if (step < TOTAL_STEPS) {
-      // Non-blocking save for body comp step
       if (step === 3) {
         setStep(step + 1);
         saveProgress(step + 1).catch(console.error);
@@ -335,12 +374,15 @@ const Onboarding = () => {
 
   const handleComplete = async () => {
     if (!validateStep()) return;
-    await saveProgress(TOTAL_STEPS, true);
+
+    const saved = await saveProgress(TOTAL_STEPS, true);
+    if (!saved) return; // Don't proceed — user can retry
+
     if (user) {
-      // Sync onboarding weight to weight_logs
+      // Sync onboarding weight to weight_logs (non-blocking)
       if (data.weight_lb && data.weight_lb > 0) {
         const today = new Date().toISOString().split("T")[0];
-        await supabase.from("weight_logs").upsert(
+        supabase.from("weight_logs").upsert(
           {
             client_id: user.id,
             weight: data.weight_lb,
@@ -348,43 +390,55 @@ const Onboarding = () => {
             source: "onboarding",
           },
           { onConflict: "client_id,logged_at" }
-        );
+        ).then(({ error }) => {
+          if (error) console.error("[Onboarding] weight sync error:", error);
+        });
       }
 
-      const { data: assignment } = await supabase
+      // Send auto-message to coach (non-blocking)
+      supabase
         .from("coach_clients")
         .select("coach_id")
         .eq("client_id", user.id)
         .eq("status", "active")
         .limit(1)
-        .maybeSingle();
+        .maybeSingle()
+        .then(async ({ data: assignment }) => {
+          if (!assignment) return;
+          const { data: thread } = await supabase
+            .from("message_threads")
+            .select("id")
+            .eq("coach_id", assignment.coach_id)
+            .eq("client_id", user.id)
+            .maybeSingle();
 
-      if (assignment) {
-        const { data: thread } = await supabase
-          .from("message_threads")
-          .select("id")
-          .eq("coach_id", assignment.coach_id)
-          .eq("client_id", user.id)
-          .maybeSingle();
-
-        if (thread?.id) {
-          await supabase.from("thread_messages").insert({
-            thread_id: thread.id,
-            sender_id: user.id,
-            content: "✅ I've completed my onboarding profile! Ready to get started.",
-          });
-        }
-      }
+          if (thread?.id) {
+            await supabase.from("thread_messages").insert({
+              thread_id: thread.id,
+              sender_id: user.id,
+              content: "✅ I've completed my onboarding profile! Ready to get started.",
+            });
+          }
+        })
+        .catch(console.error);
     }
+
     setPostStep("photo");
   };
+
+  const handleGoToDashboard = useCallback(() => {
+    navigate("/dashboard", { replace: true });
+  }, [navigate]);
 
   // Post-onboarding overlay screens
   if (postStep === "photo") {
     return <OnboardingProfilePhoto onComplete={() => setPostStep("health")} />;
   }
   if (postStep === "health") {
-    return <OnboardingHealthSyncFull onComplete={() => navigate("/dashboard", { replace: true })} />;
+    return <OnboardingHealthSyncFull onComplete={() => setPostStep("success")} />;
+  }
+  if (postStep === "success") {
+    return <OnboardingSuccessScreen firstName={firstName} onGoToDashboard={handleGoToDashboard} />;
   }
 
   if (initialLoading) {
@@ -460,6 +514,51 @@ const Onboarding = () => {
             </Button>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Success Screen ─── */
+
+interface SuccessProps {
+  firstName: string;
+  onGoToDashboard: () => void;
+}
+
+const OnboardingSuccessScreen = ({ firstName, onGoToDashboard }: SuccessProps) => {
+  useEffect(() => {
+    const timer = setTimeout(onGoToDashboard, 3000);
+    return () => clearTimeout(timer);
+  }, [onGoToDashboard]);
+
+  const greeting = firstName ? `Welcome, ${firstName}!` : "Welcome!";
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background px-6">
+      <div className="w-full max-w-sm flex flex-col items-center text-center space-y-8 animate-fade-in">
+        {/* Animated check */}
+        <div className="h-28 w-28 rounded-full bg-primary/10 flex items-center justify-center animate-scale-in">
+          <CheckCircle2 className="h-14 w-14 text-primary" />
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-foreground">{greeting}</h2>
+          <p className="text-lg font-semibold text-primary">You're all set.</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Your coach has been notified and will review your profile. Let's get started!
+          </p>
+        </div>
+
+        <Button
+          className="w-full h-12 text-base font-semibold gap-2"
+          onClick={onGoToDashboard}
+        >
+          GO TO DASHBOARD
+          <ArrowRight className="h-5 w-5" />
+        </Button>
+
+        <p className="text-xs text-muted-foreground">Auto-redirecting in a few seconds…</p>
       </div>
     </div>
   );
