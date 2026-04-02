@@ -90,6 +90,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Phase editing
   const [editingPhase, setEditingPhase] = useState<string | null>(null);
   const [phaseNameEdit, setPhaseNameEdit] = useState("");
+  const [editingProgramName, setEditingProgramName] = useState(false);
+  const [programNameEdit, setProgramNameEdit] = useState("");
 
   // Assign dialog
   const [showAssign, setShowAssign] = useState(false);
