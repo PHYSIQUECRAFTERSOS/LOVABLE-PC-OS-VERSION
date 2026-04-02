@@ -730,6 +730,20 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       {/* ── Client Rank Card ── */}
       {rankedProfile && (() => {
+        const isInPlacement = rankedProfile.placement_status === "pending" || rankedProfile.placement_status === "in_progress";
+        if (isInPlacement) {
+          return (
+            <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-card px-3 py-3 overflow-hidden">
+              <div className="flex-1 min-w-0">
+                <PlacementTracker
+                  daysCompleted={rankedProfile.placement_days_completed || 0}
+                  status={rankedProfile.placement_status || "pending"}
+                  compact
+                />
+              </div>
+            </div>
+          );
+        }
         const rankCalc = calculateTierAndDivision(rankedProfile.total_xp);
         const rankLabel = getDivisionLabel(rankedProfile.current_tier, rankedProfile.current_division ?? 5);
         const rankTierColor = getTierColor(rankedProfile.current_tier);
