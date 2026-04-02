@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, Copy, Trash2, X, Check } from "lucide-react";
+import { Pencil, Copy, Trash2, X, Check, MoreVertical } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,11 +20,11 @@ import {
   SheetContent,
 } from "@/components/ui/sheet";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface MessageContextMenuProps {
@@ -57,6 +57,7 @@ const MessageContextMenu = ({
   const [saving, setSaving] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchMoved = useRef(false);
+  const isTouchDevice = useRef(false);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -109,6 +110,7 @@ const MessageContextMenu = ({
 
   // Long-press handlers for mobile
   const handleTouchStart = useCallback(() => {
+    isTouchDevice.current = true;
     touchMoved.current = false;
     longPressTimer.current = setTimeout(() => {
       if (!touchMoved.current) {
@@ -126,7 +128,14 @@ const MessageContextMenu = ({
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   }, []);
 
-  const menuItems = (
+  // Prevent native context menu on touch devices to avoid duplicate popup
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if (isTouchDevice.current) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const sheetMenuItems = (
     <>
       {isOwn && content && !hasAttachment && (
         <button
@@ -184,44 +193,63 @@ const MessageContextMenu = ({
     );
   }
 
+  const hasActions = (isOwn && content && !hasAttachment) || content || isOwn;
+
   return (
     <>
-      {/* Desktop: right-click context menu */}
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
+      {/* Message wrapper with hover three-dot menu for desktop */}
+      <div
+        className="group relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={handleContextMenu}
+      >
+        {children}
+
+        {/* Desktop: three-dot hover button */}
+        {hasActions && (
           <div
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            className="select-none"
+            className={cn(
+              "absolute top-1/2 -translate-y-1/2 items-center",
+              "hidden md:group-hover:flex",
+              "opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+              isOwn ? "-left-8" : "-right-8"
+            )}
           >
-            {children}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
+                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align={isOwn ? "end" : "start"} className="w-40">
+                {isOwn && content && !hasAttachment && (
+                  <DropdownMenuItem onClick={handleEditStart}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                  </DropdownMenuItem>
+                )}
+                {content && (
+                  <DropdownMenuItem onClick={handleCopy}>
+                    <Copy className="h-4 w-4 mr-2" /> Copy Text
+                  </DropdownMenuItem>
+                )}
+                {isOwn && (
+                  <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-destructive focus:text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent className="w-48">
-          {isOwn && content && !hasAttachment && (
-            <ContextMenuItem onClick={handleEditStart}>
-              <Pencil className="h-4 w-4 mr-2" /> Edit
-            </ContextMenuItem>
-          )}
-          {content && (
-            <ContextMenuItem onClick={handleCopy}>
-              <Copy className="h-4 w-4 mr-2" /> Copy Text
-            </ContextMenuItem>
-          )}
-          {isOwn && (
-            <ContextMenuItem onClick={() => setShowDeleteDialog(true)} className="text-destructive focus:text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </ContextMenuItem>
-          )}
-        </ContextMenuContent>
-      </ContextMenu>
+        )}
+      </div>
 
       {/* Mobile: bottom sheet on long-press */}
       <Sheet open={showSheet} onOpenChange={setShowSheet}>
         <SheetContent side="bottom" className="px-0 pb-8 pt-2 rounded-t-2xl">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" />
-          <div className="flex flex-col">{menuItems}</div>
+          <div className="flex flex-col">{sheetMenuItems}</div>
         </SheetContent>
       </Sheet>
 
