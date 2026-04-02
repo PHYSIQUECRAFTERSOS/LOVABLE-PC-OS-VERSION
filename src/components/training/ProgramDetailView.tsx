@@ -654,6 +654,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       setShowWorkoutBuilder(false);
       setEditingWorkout(null);
       showSaveStatus("saved");
+      scrollToPhaseRef.current = builderTargetPhase;
       await loadProgram();
     } catch (err: any) {
       console.error("[ProgramSave] Failed to save workout link:", err);
