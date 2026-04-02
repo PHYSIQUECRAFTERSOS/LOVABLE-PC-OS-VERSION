@@ -160,7 +160,11 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
   const carbsDash = (carbsPct / 100) * circumference;
   const fatDash = (fatPct / 100) * circumference;
 
+  const [logging, setLogging] = useState(false);
+
   const handleConfirm = () => {
+    if (logging) return;
+    setLogging(true);
     onConfirm({
       food,
       servingDescription: useGrams ? `${customGrams}g` : selectedServing.description,
