@@ -433,78 +433,41 @@ const MasterLibraries = () => {
                           <p className="text-sm text-muted-foreground">No programs yet.</p>
                         </div>
                       ) : (
-                        filteredPrograms.map((program) => (
-                          <button
-                            key={program.id}
-                            onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
-                            className={`w-full text-left p-3 rounded-lg border transition-colors group ${
-                              selectedProgramId === program.id
-                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                                : "border-transparent hover:bg-muted/50"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{program.name}</p>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {program.is_master && (
-                                    <Badge className="text-[9px] px-1 py-0 bg-primary/20 text-primary gap-0.5">
-                                      <Link2 className="h-2 w-2" /> Master
-                                    </Badge>
-                                  )}
-                                  {phaseCounts[program.id] > 0 && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
-                                      <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
-                                    </Badge>
-                                  )}
-                                  {program.duration_weeks && (
-                                    <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
-                                  )}
-                                  {linkedCounts[program.id] > 0 && (
-                                    <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
-                                      <Users className="h-2 w-2" /> {linkedCounts[program.id]}
-                                    </Badge>
-                                  )}
-                                </div>
+                        <>
+                          {/* Shared Section */}
+                          <Collapsible open={sharedExpanded} onOpenChange={setSharedExpanded}>
+                            <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-1.5 rounded hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center gap-1.5">
+                                <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${sharedExpanded ? "rotate-90" : ""}`} />
+                                <Share2 className="h-3.5 w-3.5 text-primary" />
+                                <span className="text-xs font-semibold text-foreground">Shared</span>
                               </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <div
-                                    role="button"
-                                    className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
-                                  </div>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
-                                    <Users className="h-3.5 w-3.5 mr-2" /> Assign
-                                  </DropdownMenuItem>
-                                  {linkedCounts[program.id] > 0 && (
-                                    <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
-                                      <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
-                                    <History className="h-3.5 w-3.5 mr-2" /> Versions
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
-                                    {program.is_master ? <Unlink className="h-3.5 w-3.5 mr-2" /> : <Link2 className="h-3.5 w-3.5 mr-2" />}
-                                    {program.is_master ? "Unmark Master" : "Mark as Master"}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
-                                    <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </button>
-                        ))
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{sharedPrograms.length}</Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-1 mt-1">
+                              {sharedPrograms.length === 0 ? (
+                                <p className="text-[11px] text-muted-foreground px-2 py-3 text-center">No shared programs yet.</p>
+                              ) : sharedPrograms.map((program) => renderProgramItem(program))}
+                            </CollapsibleContent>
+                          </Collapsible>
+
+                          {/* Personal Section */}
+                          <Collapsible open={personalExpanded} onOpenChange={setPersonalExpanded}>
+                            <CollapsibleTrigger className="flex items-center justify-between w-full px-2 py-1.5 rounded hover:bg-muted/50 transition-colors mt-2">
+                              <div className="flex items-center gap-1.5">
+                                <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${personalExpanded ? "rotate-90" : ""}`} />
+                                <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-xs font-semibold text-foreground">Personal</span>
+                              </div>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{personalPrograms.length}</Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="space-y-1 mt-1">
+                              {personalPrograms.length === 0 ? (
+                                <p className="text-[11px] text-muted-foreground px-2 py-3 text-center">No personal programs.</p>
+                              ) : personalPrograms.map((program) => renderProgramItem(program))}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </>
                       )}
                     </div>
                   </ScrollArea>
