@@ -608,6 +608,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       } catch { /* ignore */ }
       onLogged();
     }
+    logFoodRef.current = false;
   };
 
   const logSavedMealQuick = async (meal: any) => {
