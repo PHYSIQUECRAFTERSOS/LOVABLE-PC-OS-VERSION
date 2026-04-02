@@ -1,85 +1,67 @@
 
 
-## Rewrite Command Center Compliance to Use Calendar Events Only
+## Shared Master Programs in Master Libraries
 
-### Problem
-Compliance is currently calculated from:
-- `workout_sessions` (completed vs total sessions in last 7 days) — wrong because a brand-new client with no scheduled workouts shows "7 missed workouts"
-- `nutrition_logs` (days logged out of 7) — included in compliance but shouldn't be
-- `weekly_checkins` (binary check) — correct intent but should also be calendar-based
+### What Changes
 
-This means:
-- **Zane** (just joined, no workouts scheduled before today) shows 7 missed workouts — should show 100% (0 events, 0 missed)
-- **Scott** (just added, no program yet) shows 7 missed workouts — should show 100%
-- **Kevin** (doing everything) shows 58% because nutrition weighting drags it down
+The `is_master` column already exists on the `programs` table. Currently it's a flag but not used for cross-coach visibility. We'll use it as the "shared" marker — programs with `is_master = true` are visible to ALL coaches/admins on the team, regardless of who created them.
 
-### Solution
+### Database Changes
 
-**File: `src/components/dashboard/CoachCommandCenter.tsx`**
+**New RLS policy on `programs` table:**
+- Add a SELECT policy: any authenticated user with `coach` or `admin` role can read programs where `is_master = true AND is_template = true`
+- This lets Aaron (or any future coach) see Kevin's shared master programs, and vice versa
 
-Replace the data source and compliance formula:
-
-**1. Fetch calendar events for last 7 days instead of workout_sessions/nutrition_logs**
-- Query `calendar_events` where `event_type` in `('workout', 'checkin')` for the last 7 days
-- Filter to events belonging to each client (via `target_client_id` OR `user_id`)
-- This is the source of truth for what was *actually scheduled*
-
-**2. New per-client compliance calculation**
-```
-scheduledWorkouts = calendar events with event_type = 'workout' for this client in last 7 days
-completedWorkouts = those where is_completed = true
-scheduledCheckins = calendar events with event_type = 'checkin' for this client in last 7 days  
-completedCheckins = those where is_completed = true
-
-totalScheduled = scheduledWorkouts + scheduledCheckins
-totalCompleted = completedWorkouts + completedCheckins
-
-compliance = totalScheduled > 0 ? round((totalCompleted / totalScheduled) * 100) : 100
+```sql
+CREATE POLICY "Coaches can view shared master programs"
+ON public.programs
+FOR SELECT
+TO authenticated
+USING (
+  is_master = true 
+  AND is_template = true 
+  AND (has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin'))
+);
 ```
 
-If a client has zero scheduled events → 100% compliance (nothing to miss).
+### Frontend Changes — `src/pages/MasterLibraries.tsx`
 
-**3. Update action item reasons**
-- Remove "Xd no nutrition log" reason entirely
-- Keep "X missed workouts" (now = scheduled workout events not completed)
-- Keep "No check-in" (now = scheduled checkin events not completed)
-- Update threshold: only flag if there are actual missed events
+**1. Split programs into Shared vs Personal (like Trainerize screenshot)**
 
-**4. Update snapshot section**
-- `trainingPct` = avg of per-client workout compliance (scheduled vs completed workout events)
-- Remove `nutritionPct` from the `ComplianceSnapshot` interface (or repurpose it)
-- `checkinPct` = avg of per-client checkin compliance from calendar events
+Update `loadPrograms()`:
+- Fetch ALL template programs where `coach_id = userId` OR `is_master = true` (the RLS policy handles the rest)
+- Separate into two lists: `sharedPrograms` (is_master = true) and `personalPrograms` (is_master = false AND coach_id = userId)
 
-**5. Cross-reference with workout_sessions for accuracy**
-- For workout calendar events, also check `workout_sessions` table (existing double-verification pattern) to catch cases where a workout was completed but calendar wasn't flagged
+**2. Update the sidebar UI:**
+- Add a "Shared" folder section at the top with a count badge (like Trainerize's "Shared 99+")
+- Add a "Personal" folder section below with a count badge
+- Each section is collapsible
+- Programs marked as master show under Shared; others show under Personal
+- Show the creator's name on shared programs (fetch profile for coach_id)
 
-**6. Remove nutrition from weighted compliance formula**
-- Old: `training * 0.4 + nutrition * 0.35 + checkin * 0.15 + 50 * 0.1`
-- New: `totalScheduled > 0 ? (totalCompleted / totalScheduled) * 100 : 100`
-- Simple, transparent, calendar-driven
+**3. Update the "Mark as Master" action:**
+- Rename to "Share with Team" / "Make Private" for clarity
+- When toggled to shared, the program becomes visible to all coaches
+- When toggled to private, only the creator can see it
 
-### Data flow change
-```text
-Before:
-  workout_sessions (last 7d) → training compliance
-  nutrition_logs (last 7d)   → nutrition compliance  
-  weekly_checkins (last 7d)  → checkin binary
-  → weighted formula → overallCompliance
+**4. Permissions for shared programs:**
+- Any coach can VIEW and USE (assign to their clients) shared master programs
+- Only the CREATOR (or admin) can EDIT or DELETE a shared program
+- The three-dot menu conditionally shows Edit/Delete only if `program.coach_id === userId` or user is admin
 
-After:
-  calendar_events (last 7d, type = workout|checkin) → per client
-  + workout_sessions cross-check for completion verification
-  → (completed / scheduled) * 100 → overallCompliance
-  → 100% if nothing scheduled
-```
+### File: `src/components/training/ProgramList.tsx`
+
+Same changes mirrored here since ProgramList is used in the Training page's program management — update `loadPrograms()` to also fetch shared master programs with the same Shared/Personal split.
 
 ### Files Modified
-- `src/components/dashboard/CoachCommandCenter.tsx` — rewrite compliance data fetching and calculation
+1. **Database migration** — new RLS SELECT policy for shared master programs
+2. **`src/pages/MasterLibraries.tsx`** — split sidebar into Shared/Personal sections, update query, show creator name, conditionally gate edit/delete
+3. **`src/components/training/ProgramList.tsx`** — same query update for shared visibility
 
-### Improvements included
-1. **Zero-event = 100%**: New clients with no scheduled events won't be flagged
-2. **Calendar is source of truth**: Compliance reflects what the coach actually scheduled, not arbitrary 7-day expectations
-3. **Double-verification**: Cross-references `workout_sessions` completion status with calendar events (existing pattern from the XP engine)
-4. **Cleaner action items**: No more "7d no nutrition log" noise for clients who aren't expected to log nutrition
-5. **Accurate streak**: Streak calculated from consecutive days with all scheduled events completed
+### Summary
+- `is_master = true` = shared with all team coaches
+- `is_master = false` = personal template, only visible to creator
+- Trainerize-style Shared/Personal folder structure in sidebar
+- Any coach can assign shared programs to their clients
+- Only creator or admin can edit/delete shared programs
 
