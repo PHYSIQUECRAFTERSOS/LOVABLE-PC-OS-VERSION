@@ -168,6 +168,12 @@ const MasterLibraries = () => {
     !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const sharedPrograms = filteredPrograms.filter(p => p.is_master === true);
+  const personalPrograms = filteredPrograms.filter(p => p.is_master !== true && p.coach_id === userId);
+
+  const canEditProgram = (program: any) => program.coach_id === userId || isAdmin;
+  const canDeleteProgram = (program: any) => program.coach_id === userId || isAdmin;
+
   const duplicateProgram = async (programId: string) => {
     if (!user) return;
     try {
