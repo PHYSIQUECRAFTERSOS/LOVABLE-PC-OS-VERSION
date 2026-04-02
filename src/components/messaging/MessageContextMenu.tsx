@@ -197,26 +197,20 @@ const MessageContextMenu = ({
 
   return (
     <>
-      {/* Message wrapper with hover three-dot menu for desktop */}
+      {/* Message wrapper with inline hover three-dot menu for desktop */}
       <div
-        className="group relative"
+        className={cn(
+          "group flex items-center gap-1",
+          isOwn ? "flex-row" : "flex-row-reverse"
+        )}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onContextMenu={handleContextMenu}
       >
-        {children}
-
-        {/* Desktop: three-dot hover button */}
+        {/* Desktop: inline three-dot hover button */}
         {hasActions && (
-          <div
-            className={cn(
-              "absolute top-1/2 -translate-y-1/2 items-center",
-              "hidden md:group-hover:flex",
-              "opacity-0 group-hover:opacity-100 transition-opacity duration-150",
-              isOwn ? "-left-8" : "-right-8"
-            )}
-          >
+          <div className="hidden md:flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
@@ -243,6 +237,8 @@ const MessageContextMenu = ({
             </DropdownMenu>
           </div>
         )}
+
+        <div className="flex-1 min-w-0">{children}</div>
       </div>
 
       {/* Mobile: bottom sheet on long-press */}
