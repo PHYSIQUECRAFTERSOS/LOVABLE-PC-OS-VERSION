@@ -38,6 +38,7 @@ import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import DateNavigator from "@/components/dashboard/DateNavigator";
 import EventDetailModal from "@/components/calendar/EventDetailModal";
 import TierBadge from "@/components/ranked/TierBadge";
+import PlacementTracker from "@/components/ranked/PlacementTracker";
 import { calculateTierAndDivision, getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { format, subDays, addDays, isToday } from "date-fns";
