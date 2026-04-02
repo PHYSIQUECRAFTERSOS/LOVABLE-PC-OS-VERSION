@@ -26,8 +26,9 @@ const GOAL_LABELS: Record<string, string> = {
 };
 
 const ProgramList = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const userId = user?.id;
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,7 @@ const ProgramList = () => {
   const [drillProgramName, setDrillProgramName] = useState("");
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
   const [linkedCounts, setLinkedCounts] = useState<Record<string, number>>({});
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
