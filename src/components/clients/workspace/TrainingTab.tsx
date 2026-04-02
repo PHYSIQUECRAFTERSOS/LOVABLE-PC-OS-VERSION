@@ -90,6 +90,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Phase editing
   const [editingPhase, setEditingPhase] = useState<string | null>(null);
   const [phaseNameEdit, setPhaseNameEdit] = useState("");
+  const [editingProgramName, setEditingProgramName] = useState(false);
+  const [programNameEdit, setProgramNameEdit] = useState("");
 
   // Assign dialog
   const [showAssign, setShowAssign] = useState(false);
@@ -360,6 +362,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setEditingPhase(null);
   };
 
+  const renameProgram = async (newName: string) => {
+    if (!program || !newName.trim()) { setEditingProgramName(false); return; }
+    await supabase.from("programs").update({ name: newName.trim() }).eq("id", program.id);
+    setProgram((prev: any) => ({ ...prev, name: newName.trim() }));
+    setEditingProgramName(false);
+    toast({ title: "Program renamed" });
+  };
+
   const duplicatePhase = async (phase: Phase) => {
     if (!program) return;
     await supabase.from("program_phases").insert({
@@ -622,7 +632,22 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         <CardContent className="pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-foreground text-lg">{program.name}</h3>
+              {editingProgramName ? (
+                <Input
+                  autoFocus
+                  value={programNameEdit}
+                  onChange={e => setProgramNameEdit(e.target.value)}
+                  onBlur={() => renameProgram(programNameEdit)}
+                  onKeyDown={e => e.key === "Enter" && renameProgram(programNameEdit)}
+                  className="h-8 w-64 text-lg font-semibold"
+                />
+              ) : (
+                <h3
+                  className="font-semibold text-foreground text-lg cursor-text hover:text-primary transition-colors"
+                  onClick={() => { setProgramNameEdit(program.name); setEditingProgramName(true); }}
+                  title="Click to rename"
+                >{program.name}</h3>
+              )}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {program.goal_type && <Badge variant="secondary" className="text-[10px]">{program.goal_type}</Badge>}
                 <span className="text-xs text-muted-foreground">
