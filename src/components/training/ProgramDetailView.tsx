@@ -7,12 +7,19 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import {
   ArrowLeft, Plus, Trash2, Copy, ChevronDown, ChevronRight, Dumbbell, Layers, ArrowUp, ArrowDown,
   MoreHorizontal, Pencil, Download, Save, Loader2, GripVertical, Clock, Play, Check, AlertCircle,
+  Users, CalendarIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -299,6 +306,16 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importTargetPhase, setImportTargetPhase] = useState(0);
   const [importableWorkouts, setImportableWorkouts] = useState<any[]>([]);
+
+  // Copy to client dialog
+  const [showCopyToClientDialog, setShowCopyToClientDialog] = useState(false);
+  const [copyPhaseIdx, setCopyPhaseIdx] = useState(0);
+  const [copyClients, setCopyClients] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCopyClient, setSelectedCopyClient] = useState("");
+  const [copyStartOption, setCopyStartOption] = useState<"after_last" | "specific_date">("after_last");
+  const [copyStartDate, setCopyStartDate] = useState<Date | undefined>(new Date());
+  const [copying, setCopying] = useState(false);
+  const [copyClientsLoading, setCopyClientsLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
   // Scroll to phase after save + reload
@@ -765,6 +782,179 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   };
 
 
+  // ── Copy Phase to Client ──
+  const loadCopyClients = useCallback(async () => {
+    if (!userId) return;
+    setCopyClientsLoading(true);
+    try {
+      const { data: ccRows } = await supabase
+        .from("coach_clients")
+        .select("client_id")
+        .eq("coach_id", userId)
+        .eq("status", "active");
+      const clientIds = (ccRows || []).map(r => r.client_id);
+      if (clientIds.length === 0) { setCopyClients([]); return; }
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", clientIds);
+      setCopyClients(
+        (profiles || []).map(p => ({ id: p.user_id, name: p.full_name || "Unknown" })).sort((a, b) => a.name.localeCompare(b.name))
+      );
+    } finally {
+      setCopyClientsLoading(false);
+    }
+  }, [userId]);
+
+  const openCopyToClientDialog = (phaseIdx: number) => {
+    setCopyPhaseIdx(phaseIdx);
+    setSelectedCopyClient("");
+    setCopyStartOption("after_last");
+    setCopyStartDate(new Date());
+    setShowCopyToClientDialog(true);
+    loadCopyClients();
+  };
+
+  const handleCopyPhaseToClient = async () => {
+    if (!userId || !selectedCopyClient) return;
+    const phase = phases[copyPhaseIdx];
+    if (!phase || !phase.id) {
+      toast({ title: "Phase must be saved first", description: "Save the program, then try again.", variant: "destructive" });
+      return;
+    }
+    setCopying(true);
+    try {
+      // 1. Determine start date
+      let startDate: string;
+      if (copyStartOption === "specific_date" && copyStartDate) {
+        startDate = format(copyStartDate, "yyyy-MM-dd");
+      } else {
+        // Find latest active assignment end date
+        const { data: assignments } = await supabase
+          .from("client_program_assignments")
+          .select("start_date, program_id, programs(duration_weeks)")
+          .eq("client_id", selectedCopyClient)
+          .eq("status", "active")
+          .order("start_date", { ascending: false })
+          .limit(1);
+        const latest = assignments?.[0];
+        if (latest && (latest as any).programs?.duration_weeks) {
+          const endMs = new Date(latest.start_date).getTime() + ((latest as any).programs.duration_weeks * 7 * 86400000);
+          startDate = format(new Date(endMs), "yyyy-MM-dd");
+        } else {
+          startDate = format(new Date(), "yyyy-MM-dd");
+        }
+      }
+
+      // 2. Create new program for client
+      const phaseProgramName = `${phase.name} — ${programDetails?.name || programName}`;
+      const { data: newProg, error: progErr } = await supabase
+        .from("programs")
+        .insert({
+          coach_id: userId,
+          name: phaseProgramName,
+          description: programDetails?.description || null,
+          duration_weeks: phase.durationWeeks,
+          is_template: false,
+          is_master: false,
+        } as any)
+        .select("id")
+        .single();
+      if (progErr) throw progErr;
+
+      // 3. Clone the phase
+      const { data: newPhase, error: phaseErr } = await supabase
+        .from("program_phases")
+        .insert({
+          program_id: newProg.id,
+          name: phase.name,
+          description: phase.description || null,
+          phase_order: 1,
+          duration_weeks: phase.durationWeeks,
+          training_style: phase.trainingStyle,
+          intensity_system: phase.intensitySystem,
+          custom_intensity: phase.customIntensity || null,
+          progression_rule: phase.progressionRule,
+        })
+        .select("id")
+        .single();
+      if (phaseErr) throw phaseErr;
+
+      // 4. Clone workouts + exercises
+      for (const pw of phase.workouts) {
+        // Clone the workout
+        const { data: origW } = await supabase
+          .from("workouts")
+          .select("name, description, instructions, phase, workout_type")
+          .eq("id", pw.workoutId)
+          .single();
+        if (!origW) continue;
+
+        const { data: clonedW, error: cloneErr } = await supabase
+          .from("workouts")
+          .insert({
+            coach_id: userId,
+            name: origW.name,
+            description: origW.description,
+            instructions: origW.instructions,
+            phase: origW.phase,
+            is_template: false,
+            workout_type: (origW as any).workout_type || "regular",
+            source_workout_id: pw.workoutId,
+          } as any)
+          .select("id")
+          .single();
+        if (cloneErr) throw cloneErr;
+
+        // Clone exercises
+        const { data: exes } = await supabase
+          .from("workout_exercises")
+          .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
+          .eq("workout_id", pw.workoutId);
+        if (exes && exes.length > 0) {
+          await supabase.from("workout_exercises").insert(
+            exes.map((ex: any) => ({ ...ex, workout_id: clonedW.id }))
+          );
+        }
+
+        // Link to phase
+        await supabase.from("program_workouts").insert({
+          phase_id: newPhase.id,
+          workout_id: clonedW.id,
+          day_of_week: pw.dayOfWeek,
+          day_label: pw.dayLabel,
+          sort_order: pw.sortOrder,
+          exclude_from_numbering: pw.excludeFromNumbering || false,
+          custom_tag: pw.customTag || null,
+        });
+      }
+
+      // 5. Create assignment
+      const { error: assignErr } = await supabase
+        .from("client_program_assignments")
+        .insert({
+          client_id: selectedCopyClient,
+          coach_id: userId,
+          program_id: newProg.id,
+          current_phase_id: newPhase.id,
+          start_date: startDate,
+          status: "active",
+          current_week_number: 1,
+          is_linked_to_master: false,
+          master_version_number: 1,
+        });
+      if (assignErr) throw assignErr;
+
+      toast({ title: "Phase copied to client", description: `${phase.name} has been assigned successfully.` });
+      setShowCopyToClientDialog(false);
+    } catch (err: any) {
+      console.error("[CopyToClient] Error:", err);
+      toast({ title: "Failed to copy phase", description: err.message, variant: "destructive" });
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const showSaveStatus = (status: "saving" | "saved" | "failed") => {
     if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
     setSaveStatus(status);
@@ -960,6 +1150,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => startRenamePhase(phaseIdx)}><Pencil className="h-3.5 w-3.5 mr-2" /> Rename</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => duplicatePhase(phaseIdx)}><Copy className="h-3.5 w-3.5 mr-2" /> Duplicate</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openCopyToClientDialog(phaseIdx)}><Users className="h-3.5 w-3.5 mr-2" /> Copy to Client</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {phases.length > 1 && <DropdownMenuItem className="text-destructive" onClick={() => removePhase(phaseIdx)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete</DropdownMenuItem>}
                       </DropdownMenuContent>
@@ -1104,7 +1295,84 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         </DialogContent>
       </Dialog>
 
-      {/* Workout Builder Modal */}
+      {/* Copy Phase to Client Dialog */}
+      <Dialog open={showCopyToClientDialog} onOpenChange={setShowCopyToClientDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy Phase to Client</DialogTitle>
+            <DialogDescription>
+              Clone "{phases[copyPhaseIdx]?.name}" and assign it to a client's program.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Select Client</Label>
+              {copyClientsLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <SearchableClientSelect
+                  clients={copyClients}
+                  value={selectedCopyClient}
+                  onValueChange={setSelectedCopyClient}
+                  placeholder="Search clients..."
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Schedule</Label>
+              <RadioGroup value={copyStartOption} onValueChange={(v) => setCopyStartOption(v as any)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="after_last" id="after_last" />
+                  <Label htmlFor="after_last" className="text-sm font-normal cursor-pointer">
+                    Immediately after last scheduled training phase
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="specific_date" id="specific_date" />
+                  <Label htmlFor="specific_date" className="text-sm font-normal cursor-pointer">
+                    Start on a specific date
+                  </Label>
+                </div>
+              </RadioGroup>
+
+              {copyStartOption === "specific_date" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !copyStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {copyStartDate ? format(copyStartDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={copyStartDate}
+                      onSelect={setCopyStartDate}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCopyToClientDialog(false)}>Cancel</Button>
+            <Button onClick={handleCopyPhaseToClient} disabled={copying || !selectedCopyClient}>
+              {copying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Users className="h-3.5 w-3.5 mr-1" />}
+              Copy to Client
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {user && (
         <WorkoutBuilderModal
           open={showWorkoutBuilder}
