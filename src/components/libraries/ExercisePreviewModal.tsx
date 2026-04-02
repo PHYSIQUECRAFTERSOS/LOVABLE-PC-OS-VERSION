@@ -69,9 +69,15 @@ const ExercisePreviewModal = ({ exercise, open, onOpenChange, onEdit, onDeleted 
     onDeleted?.(exercise.id);
   };
 
+  // Prevent parent Dialog from closing while the AlertDialog is open
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && confirmOpen) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-w-3xl p-0 gap-0 overflow-hidden">
           <div className="flex flex-col md:flex-row">
             {/* Left: Video */}
@@ -113,7 +119,10 @@ const ExercisePreviewModal = ({ exercise, open, onOpenChange, onEdit, onDeleted 
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setConfirmOpen(true)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmOpen(true);
+                    }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -158,7 +167,7 @@ const ExercisePreviewModal = ({ exercise, open, onOpenChange, onEdit, onDeleted 
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation — rendered outside Dialog to avoid focus trap conflicts */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -170,11 +179,14 @@ const ExercisePreviewModal = ({ exercise, open, onOpenChange, onEdit, onDeleted 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
+              onClick={(e) => {
+                e.preventDefault();
+                handleDelete();
+              }}
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? "Deleting…" : "Delete Now"}
+              {deleting ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
