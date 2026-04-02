@@ -355,8 +355,8 @@ const CoachCommandCenter = () => {
         .sort((a, b) => b.riskScore - a.riskScore)
         .map((c) => {
           const signals: string[] = [];
-          if (c.missedWorkoutDays >= 3) signals.push("3+ missed workouts");
-          if (c.missedNutritionDays >= 3) signals.push("3+ days no nutrition");
+          if (c.missedWorkouts >= 3) signals.push("3+ missed workouts");
+          if (c.missedCheckins >= 1) signals.push("Missed check-in");
           if (c.daysInactive >= 7) signals.push("7d inactive");
           if (!c.checkinDone) signals.push("Missed check-in");
           if (c.overallCompliance < 50) signals.push("Low compliance");
