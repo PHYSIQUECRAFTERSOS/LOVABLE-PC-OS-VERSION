@@ -82,6 +82,8 @@ interface RankedProfile {
   current_tier: string;
   current_division: number | null;
   current_streak: number;
+  placement_status: string | null;
+  placement_days_completed: number | null;
 }
 
 interface CalendarAction {
