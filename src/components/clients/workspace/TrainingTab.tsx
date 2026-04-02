@@ -632,7 +632,22 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         <CardContent className="pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-foreground text-lg">{program.name}</h3>
+              {editingProgramName ? (
+                <Input
+                  autoFocus
+                  value={programNameEdit}
+                  onChange={e => setProgramNameEdit(e.target.value)}
+                  onBlur={() => renameProgram(programNameEdit)}
+                  onKeyDown={e => e.key === "Enter" && renameProgram(programNameEdit)}
+                  className="h-8 w-64 text-lg font-semibold"
+                />
+              ) : (
+                <h3
+                  className="font-semibold text-foreground text-lg cursor-text hover:text-primary transition-colors"
+                  onClick={() => { setProgramNameEdit(program.name); setEditingProgramName(true); }}
+                  title="Click to rename"
+                >{program.name}</h3>
+              )}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {program.goal_type && <Badge variant="secondary" className="text-[10px]">{program.goal_type}</Badge>}
                 <span className="text-xs text-muted-foreground">
