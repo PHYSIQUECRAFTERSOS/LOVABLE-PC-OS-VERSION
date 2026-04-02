@@ -379,48 +379,53 @@ const Onboarding = () => {
     if (!saved) return; // Don't proceed — user can retry
 
     if (user) {
-      // Sync onboarding weight to weight_logs (non-blocking)
+      // Sync onboarding weight to weight_logs (non-blocking, fire-and-forget)
       if (data.weight_lb && data.weight_lb > 0) {
         const today = new Date().toISOString().split("T")[0];
-        supabase.from("weight_logs").upsert(
-          {
-            client_id: user.id,
-            weight: data.weight_lb,
-            logged_at: today,
-            source: "onboarding",
-          },
-          { onConflict: "client_id,logged_at" }
-        ).then(({ error }) => {
+        (async () => {
+          const { error } = await supabase.from("weight_logs").upsert(
+            {
+              client_id: user.id,
+              weight: data.weight_lb!,
+              logged_at: today,
+              source: "onboarding",
+            },
+            { onConflict: "client_id,logged_at" }
+          );
           if (error) console.error("[Onboarding] weight sync error:", error);
-        });
+        })();
       }
 
-      // Send auto-message to coach (non-blocking)
-      supabase
-        .from("coach_clients")
-        .select("coach_id")
-        .eq("client_id", user.id)
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle()
-        .then(async ({ data: assignment }) => {
+      // Send auto-message to coach (non-blocking, fire-and-forget)
+      (async () => {
+        try {
+          const { data: assignment } = await supabase
+            .from("coach_clients")
+            .select("coach_id")
+            .eq("client_id", user.id!)
+            .eq("status", "active")
+            .limit(1)
+            .maybeSingle();
+
           if (!assignment) return;
           const { data: thread } = await supabase
             .from("message_threads")
             .select("id")
             .eq("coach_id", assignment.coach_id)
-            .eq("client_id", user.id)
+            .eq("client_id", user.id!)
             .maybeSingle();
 
           if (thread?.id) {
             await supabase.from("thread_messages").insert({
               thread_id: thread.id,
-              sender_id: user.id,
+              sender_id: user.id!,
               content: "✅ I've completed my onboarding profile! Ready to get started.",
             });
           }
-        })
-        .catch(console.error);
+        } catch (err) {
+          console.error("[Onboarding] auto-message error:", err);
+        }
+      })();
     }
 
     setPostStep("photo");
