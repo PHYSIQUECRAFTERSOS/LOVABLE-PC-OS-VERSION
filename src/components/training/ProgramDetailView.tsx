@@ -922,7 +922,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
       {/* Phases */}
       <div className="space-y-3">
         {phases.map((phase, phaseIdx) => (
-          <Card key={phaseIdx} className="border-l-4 border-l-primary/40">
+          <Card key={phaseIdx} data-phase-index={phaseIdx} className="border-l-4 border-l-primary/40">
             <Collapsible open={!phase.collapsed} onOpenChange={(open) => updatePhase(phaseIdx, { collapsed: !open })}>
               <CollapsibleTrigger asChild>
                 <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors">
