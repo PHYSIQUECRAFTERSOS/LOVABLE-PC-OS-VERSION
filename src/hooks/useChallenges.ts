@@ -331,9 +331,24 @@ export function useChallengeLeaderboard() {
       if (pErr) throw pErr;
       if (!participants?.length) return [];
 
-      // Aggregate points per user across all active challenges
+      // Fetch active client IDs — only show active clients on leaderboard
+      const { data: activeClients } = await db
+        .from("coach_clients")
+        .select("client_id")
+        .eq("status", "active");
+      const activeClientIds = new Set((activeClients || []).map((c: any) => c.client_id));
+
+      // Exclude coaches/admins
+      const { data: staffRoles } = await db
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["admin", "coach", "manager"]);
+      const staffIds = new Set((staffRoles || []).map((r: any) => r.user_id));
+
+      // Aggregate points per user across all active challenges (active clients only)
       const userPoints: Record<string, number> = {};
       participants.forEach((p: any) => {
+        if (!activeClientIds.has(p.user_id) || staffIds.has(p.user_id)) return;
         userPoints[p.user_id] = (userPoints[p.user_id] || 0) + (Number(p.current_value) || 0);
       });
 

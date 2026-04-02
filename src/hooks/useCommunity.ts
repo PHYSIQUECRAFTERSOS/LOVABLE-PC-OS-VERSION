@@ -152,19 +152,29 @@ export function useLeaderboard() {
         .from("community_user_stats")
         .select("*")
         .order("engagement_score", { ascending: false })
-        .limit(10);
+        .limit(30);
       if (error) throw error;
 
       const userIds = (data || []).map((s) => s.user_id);
-      const [profilesRes, rolesRes] = await Promise.all([
+      const [profilesRes, rolesRes, activeClientsRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds.length ? userIds : [""]),
         supabase.from("user_roles").select("user_id, role").in("user_id", userIds.length ? userIds : [""]),
+        (supabase as any).from("coach_clients").select("client_id").eq("status", "active"),
       ]);
 
       const profileMap = Object.fromEntries((profilesRes.data || []).map((p) => [p.user_id, p]));
       const roleMap = Object.fromEntries((rolesRes.data || []).map((r) => [r.user_id, r.role]));
+      const activeClientIds = new Set((activeClientsRes.data || []).map((c: any) => c.client_id));
+      const coachRoles = new Set(["admin", "coach", "manager"]);
 
-      return (data || []).map((s) => ({
+      // Only include active clients and coaches/admins (staff always visible)
+      const filtered = (data || []).filter((s) => {
+        const role = roleMap[s.user_id];
+        if (coachRoles.has(role)) return true;
+        return activeClientIds.has(s.user_id);
+      });
+
+      return filtered.slice(0, 10).map((s) => ({
         ...s,
         full_name: profileMap[s.user_id]?.full_name || "Unknown",
         avatar_url: profileMap[s.user_id]?.avatar_url || null,
