@@ -1150,6 +1150,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => startRenamePhase(phaseIdx)}><Pencil className="h-3.5 w-3.5 mr-2" /> Rename</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => duplicatePhase(phaseIdx)}><Copy className="h-3.5 w-3.5 mr-2" /> Duplicate</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openCopyToClientDialog(phaseIdx)}><Users className="h-3.5 w-3.5 mr-2" /> Copy to Client</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {phases.length > 1 && <DropdownMenuItem className="text-destructive" onClick={() => removePhase(phaseIdx)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete</DropdownMenuItem>}
                       </DropdownMenuContent>
