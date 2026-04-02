@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { X, Save } from "lucide-react";
+import { Save } from "lucide-react";
 
 const MEASUREMENT_FIELDS = [
   { key: "neck_in", label: "Neck" },
