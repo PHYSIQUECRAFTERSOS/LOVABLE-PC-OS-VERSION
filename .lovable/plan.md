@@ -1,50 +1,60 @@
 
 
-## Add "Copy to Client" for Individual Phases in Master Libraries
+## Fix: Instant Food Logging with Double-Tap Prevention
 
-### What This Does
-Adds a "Copy to → Client's Program" option in the three-dot menu of each phase in the Program Detail View. When clicked, it opens a dialog (Trainerize-style) where the coach can:
-1. Search and select a client from a dropdown
-2. Choose scheduling: "Immediately after last scheduled training phase" or "Start on [specific date]"
-3. If the client has no existing program/phase, it defaults to starting immediately (today)
+### Problem
+When pressing "Log" on the Food Detail Screen, there's a 1-2 second delay before the entry appears in the tracker. Users tap again thinking it didn't register, creating duplicates. The delay comes from:
+1. `importOFFFood()` — imports external foods into `food_items` (network call)
+2. Micronutrient fetch — queries `food_items` for micro data
+3. No disabled/loading state on the Log button — allows double-taps
 
-### Files to Modify
+### Solution
+Optimistic close + background persistence + double-tap guard.
 
-**`src/components/training/ProgramDetailView.tsx`** — Main changes:
+**File: `src/components/nutrition/FoodDetailScreen.tsx`**
+- Add a `logging` state (boolean)
+- Set `logging = true` in `handleConfirm`, disable both Log buttons while true
+- This prevents double-taps at the source
 
-1. **Add state variables** for the copy-to-client dialog:
-   - `showCopyToClientDialog`, `copyPhaseIdx`, `copyClients`, `selectedCopyClient`, `copyStartOption` ("after_last" | "specific_date"), `copyStartDate`, `copying`, `copyClientsLoading`
+**File: `src/components/nutrition/AddFoodScreen.tsx`**
+Two changes in `handleDetailConfirm`:
+1. **Immediately close the detail screen and call `onLogged()`** before doing the Supabase insert — this gives instant UI feedback (the tracker refreshes immediately via the custom event)
+2. **Move blocking work to background**: fire `importOFFFood`, micro fetch, and the insert in a fire-and-forget async block. Show error toast only if insert fails.
+3. **Add a `loggingRef` guard** to prevent `handleDetailConfirm` from executing twice
 
-2. **Add `loadCopyClients()` function** — fetches active coach clients with profile names (same pattern as `MasterLibraries.loadClients()`)
-
-3. **Add `openCopyToClientDialog(phaseIdx)` function** — sets the phase index and loads clients
-
-4. **Add `handleCopyPhaseToClient()` function** — the core logic:
-   - Determines start date: if "after_last", queries `client_program_assignments` for the client's latest active program end date (start_date + duration_weeks), else uses the manually selected date. If no existing program, defaults to today.
-   - Creates a new `programs` row for the client (named after the phase, e.g., "Phase 3 — [Program Name]")
-   - Copies the single phase as a `program_phases` row
-   - Clones all `program_workouts` → `workouts` → `workout_exercises` for that phase (same pattern as `MasterLibraries.assignToClient`)
-   - Marks any existing active `client_program_assignments` as completed
-   - Creates a new `client_program_assignments` row with the start date
-
-5. **Add "Copy to Client" menu item** in the phase three-dot `DropdownMenu` (line ~962), between "Duplicate" and the separator before "Delete":
-   ```
-   <DropdownMenuItem onClick={() => openCopyToClientDialog(phaseIdx)}>
-     <Users className="h-3.5 w-3.5 mr-2" /> Copy to Client
-   </DropdownMenuItem>
-   ```
-
-6. **Add the Copy to Client Dialog** — renders after the existing dialogs:
-   - Uses `SearchableClientSelect` for client selection (searchable dropdown)
-   - Two radio options: "Immediately after last scheduled training phase" and "Start on [date picker]"
-   - Copy button with loading state
-   - Import `SearchableClientSelect` from `@/components/ui/searchable-client-select`
-   - Import `RadioGroup, RadioGroupItem` from `@/components/ui/radio-group`
-   - Import `Users` icon from lucide-react (already partially imported)
+Same pattern applied to `logFood` (the inline quick-add path):
+1. Add an `isLogging` ref guard to prevent double execution
+2. Call `onLogged()` and show toast immediately after the insert succeeds (already done), but ensure the button is disabled during the operation
 
 ### Technical Details
-- Reuses the proven clone pattern from `MasterLibraries.assignToClient` (lines 244-323) but scoped to a single phase
-- "After last" scheduling: queries `client_program_assignments` where `status = 'active'` for the selected client, computes end date as `start_date + duration_weeks * 7 days`. If none found, uses today
-- The new program created for the client will have `is_template: false`, `is_master: false`
-- Each workout in the phase gets deep-cloned (workout + exercises) so the client has independent copies
+
+**FoodDetailScreen.tsx changes:**
+- Add `const [logging, setLogging] = useState(false)`
+- In `handleConfirm`: set `setLogging(true)` before calling `onConfirm`
+- Both Log buttons get `disabled={logging}` and show "Logging..." text when active
+
+**AddFoodScreen.tsx changes in `handleDetailConfirm`:**
+```
+// 1. Immediately dismiss detail screen + notify parent
+setDetailFood(null);
+toast({ title: `${entry.food.name} logged` });
+onLogged(); // triggers tracker refresh instantly
+
+// 2. Background persist (no await blocking UI)
+(async () => {
+  // importOFFFood, fetch micros, insert — all in background
+  // Show error toast if insert fails
+})();
+```
+
+**AddFoodScreen.tsx changes in `logFood`:**
+- Add `const loggingRef = useRef(false)` guard
+- At start: `if (loggingRef.current) return; loggingRef.current = true;`
+- In finally: `loggingRef.current = false;`
+
+### Files to Modify
+- `src/components/nutrition/FoodDetailScreen.tsx` — loading state on Log buttons
+- `src/components/nutrition/AddFoodScreen.tsx` — optimistic close pattern + double-tap guard on both `handleDetailConfirm` and `logFood`
+
+No database changes needed.
 
