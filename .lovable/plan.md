@@ -1,93 +1,47 @@
 
 
-## Add Unit Preferences Toggle for Clients + Coach-Side Conversion
+## Fix Onboarding Completion Flow, Health Sync Resilience, and Signature Color
 
-### Overview
-Add a Trainerize-style "Units" settings section for clients to toggle between imperial/metric for weight, body measurements, and distance. All data continues to be stored in imperial (lbs, inches, km) in the database. Client-side displays convert on-the-fly based on their preference. Coach-side always displays in imperial (lbs for weight, inches for measurements, km for distance) regardless of client settings.
+### Bugs Found
 
-### Database Change
-Add three columns to the `profiles` table:
-- `preferred_weight_unit` TEXT DEFAULT 'lbs' — options: 'lbs' or 'kg'
-- `preferred_measurement_unit` TEXT DEFAULT 'in' — options: 'in' or 'cm'
-- `preferred_distance_unit` TEXT DEFAULT 'miles' — options: 'miles' or 'km'
+**1. Signature draws in BLACK instead of WHITE (confirmed bug)**
+The canvas setup `useEffect` runs with `[]` deps on component mount. But the `<canvas>` element is conditionally rendered — it only appears after the user scrolls to the bottom (`hasScrolledToBottom`). On mount, `canvasRef.current` is `null`, so the white stroke style (`#ffffff`) is never applied. When the canvas finally renders, it uses the browser default: black. This matches Calvin's report exactly.
 
-No new tables needed. Storage format stays imperial — conversions are display-only.
+**Fix**: Add `hasScrolledToBottom` to the useEffect dependency array so the canvas context gets initialized when it actually appears in the DOM.
 
-### New Files
+**2. Post-onboarding "glitch" / spinner before dashboard (confirmed bug)**
+After onboarding completes, the user navigates to `/dashboard`. Each route has its own `<ProtectedRoute>` wrapper, so a **new instance** mounts with `onboardingChecked = false`. This triggers a Supabase query to verify `onboarding_completed`, showing a loading spinner until the query resolves. If the query takes even 500ms, the user sees a flash of spinner after the success screen — feels like a "glitch" and prompts them to refresh.
 
-**1. `src/hooks/useUnitPreferences.ts`**
-- Custom hook that fetches the three unit preferences from `profiles`
-- Provides conversion helper functions:
-  - `convertWeight(lbs)` → returns value in user's preferred unit
-  - `convertMeasurement(inches)` → returns value in user's preferred unit
-  - `convertDistance(km)` → returns value in user's preferred unit
-  - `parseWeightInput(value)` → converts user input back to lbs for storage
-  - `parseMeasurementInput(value)` → converts user input back to inches for storage
-  - `parseDistanceInput(value)` → converts user input back to km for storage
-  - `weightLabel`, `measurementLabel`, `distanceLabel` — unit suffix strings
-- Coach/admin roles always return imperial defaults (no conversion)
+**Fix**: Pass `{ state: { onboardingComplete: true } }` via `navigate()` from the onboarding success screen. In `ProtectedRoute`, check for this navigation state and skip the DB query when present — the completion was already verified by `saveProgress`.
 
-**2. `src/components/settings/UnitPreferences.tsx`**
-- Trainerize-style settings card with three sections: WEIGHT, DISTANCE, BODY MEASUREMENTS
-- Each section shows two radio-style rows with checkmark for active selection (matching the uploaded screenshot)
-- Persists to `profiles` table on selection change
-- Only shown to clients (not coaches/admins)
+**3. Health Sync step resilience (preventive fix)**
+The `OnboardingHealthSyncFull` post-step works correctly for non-native (skips to settings). But `OnboardingHealthSync` (step 12 in-form) could hang if `DeviceMotionEvent.requestPermission()` never resolves on certain browsers. Add a timeout to the permission request so it can't block indefinitely. Also add a catch-all error handler so any failure during the health sync post-step always calls `onComplete()` with a toast, never leaving the user stuck.
 
-### Modified Files
+---
 
-**3. `src/pages/Profile.tsx`**
-- Import and render `<UnitPreferences />` after `<NotificationSettings />`
-- Only render for client role
+### Files to Change
 
-**4. `src/pages/BodyStats.tsx`**
-- Use `useUnitPreferences` hook
-- Display weight input field with dynamic unit label (lbs/kg)
-- Display measurement fields with dynamic unit label (in/cm)
-- Convert input values back to imperial before saving to `body_stats`
+**`src/components/onboarding/OnboardingWaiver.tsx`**
+- Change the canvas setup `useEffect` to depend on `hasScrolledToBottom`
+- This ensures `ctx.strokeStyle = "#ffffff"` is applied when the canvas actually exists
 
-**5. `src/components/workout/ExerciseCard.tsx`**
-- Use `useUnitPreferences` hook
-- Show "lbs" or "kg" column header based on preference
-- Convert weight display values from stored lbs → client unit
-- Convert input back to lbs before passing to parent
-- PR display uses client's unit
+**`src/components/ProtectedRoute.tsx`**
+- Read `location.state?.onboardingComplete` from React Router
+- If `true` and role is `client`, skip the Supabase onboarding check and set `onboardingChecked = true` / `needsOnboarding = false` immediately
 
-**6. `src/components/workout/WorkoutSummary.tsx`**
-- Convert total volume and PR weights to client's unit
-- Update "lbs Volume" label dynamically
+**`src/pages/Onboarding.tsx`**
+- Update `handleGoToDashboard` to pass `{ state: { onboardingComplete: true } }` in the navigate call
 
-**7. `src/components/dashboard/WeightHistoryScreen.tsx`**
-- Initialize unit toggle from user's preference instead of hardcoded "lbs"
-- Keep existing toggle so users can temporarily switch
+**`src/components/onboarding/OnboardingHealthSync.tsx`**
+- Add a 5-second timeout around `DeviceMotionEvent.requestPermission()` so it can't hang forever
+- On timeout, treat as "denied" and allow the user to proceed
 
-**8. `src/components/dashboard/DistanceTrendModal.tsx`**
-- Use `useUnitPreferences` for distance display
-- Convert km values to miles if client prefers miles
-- Update tooltip and axis labels
+**`src/components/onboarding/OnboardingHealthSyncFull.tsx`**
+- Wrap the entire `handleConnect` in a try/catch that always calls `onComplete()` on unrecoverable error, so the user is never stuck on this screen
 
-**9. `src/components/dashboard/ProgressWidgetGrid.tsx`**
-- Convert distance display to client's preferred unit
-
-**10. `src/components/biofeedback/MeasurementsForm.tsx`**
-- Use `useUnitPreferences` for measurement labels (in/cm)
-- Convert input back to inches/original units before saving
-
-**11. Coach-side files (NO changes needed for unit display)**
-- `ClientWorkspaceWeight`, `SummaryTab`, `ProgressTab` — these already display raw DB values which are in imperial. No conversion applied. Coach always sees lbs/inches/km.
-
-### Conversion Constants
-- 1 lb = 0.453592 kg
-- 1 inch = 2.54 cm
-- 1 km = 0.621371 miles
-
-### Key Design Decisions
-- **Storage stays imperial** — no migration of existing data. All conversions are display-layer only.
-- **Coach always sees imperial** — the hook returns no-op conversions for coach/admin roles
-- **Onboarding unchanged** — keeps existing feet/inches/lbs flow as requested
-- **Distance stored as km** (from HealthKit) — converted to miles for display if preferred
-
-### Improvements
-- Unit preference persists across sessions (stored in profiles)
-- Consistent unit display across all screens (workout, body stats, weight history, distance)
-- Coach never has to guess units — always sees standardized imperial values
+### Testing
+- Verify signature draws in white on the waiver canvas
+- Verify post-onboarding navigates to dashboard with no spinner flash
+- Verify health sync skip/connect paths all reach the success screen
+- Test Google Fit edge function responds correctly
 
