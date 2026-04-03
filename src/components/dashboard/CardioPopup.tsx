@@ -90,50 +90,23 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
 
       if (error) throw error;
 
-      let earned = XP_VALUES.cardio_completed;
-
-      // Award Ranked XP
+      // Award Ranked XP (fire-and-forget)
       if (user?.id) {
-        try {
-          const result = await triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title);
-          // triggerXP doesn't return a value currently, use base amount
-        } catch (e) {
-          console.error("[CardioPopup] Ranked XP error:", e);
-        }
+        triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title).catch(console.error);
       }
+
+      // Haptic
+      if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+
+      // Close popup immediately, then trigger dashboard refresh
+      onClose();
+      onCompleted();
 
       // Dispatch event so dashboard ring + TodayActions refetch instantly
       window.dispatchEvent(new CustomEvent("calendar-event-added"));
       // Invalidate rank/XP queries so the dashboard card updates
       queryClient.invalidateQueries({ queryKey: ["my-rank"] });
       queryClient.invalidateQueries({ queryKey: ["xp-today"] });
-
-      // Transition to celebration state
-      setXpEarned(earned);
-      setCelebrationState(true);
-
-      // Haptic
-      if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
-
-      // Animate XP counter
-      const duration = 800;
-      const start = performance.now();
-      const tick = (now: number) => {
-        const elapsed = now - start;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setDisplayXP(Math.round(eased * earned));
-        if (progress < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-
-      // Auto-close after 3.5s
-      setTimeout(() => {
-        onCompleted();
-        onClose();
-        setCelebrationState(false);
-        setDisplayXP(0);
-      }, 3500);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
       setCompleting(false);
