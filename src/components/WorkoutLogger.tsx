@@ -543,7 +543,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      restTimerAudio.unlock(); // Prime iOS audio on user gesture
+      
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
