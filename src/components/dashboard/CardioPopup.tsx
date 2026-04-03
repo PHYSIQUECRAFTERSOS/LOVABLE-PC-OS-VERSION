@@ -7,8 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
-import CardioIcon from "@/assets/Cardio_icon.png";
-import ConfettiBurst from "@/components/workout/ConfettiBurst";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
