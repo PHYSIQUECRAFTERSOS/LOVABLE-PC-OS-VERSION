@@ -531,7 +531,7 @@ const ExerciseCard = ({
         })}
 
         {isBW && (
-          <p className="text-[10px] text-muted-foreground mt-1">💡 Bodyweight exercise — use 0 lbs or add weight for resistance</p>
+          <p className="text-[10px] text-muted-foreground mt-1">💡 Bodyweight exercise — use 0 {weightLabel} or add weight for resistance</p>
         )}
 
         <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={onAddSet}>

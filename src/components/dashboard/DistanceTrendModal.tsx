@@ -182,7 +182,7 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
                       borderRadius: "8px",
                       fontSize: 12,
                     }}
-                    formatter={(value: number) => [value != null ? `${value.toFixed(1)} km` : "–", "Distance"]}
+                    formatter={(value: number) => [value != null ? `${value.toFixed(1)} ${distanceLabel}` : "–", "Distance"]}
                   />
                   <Area
                     type="monotone"

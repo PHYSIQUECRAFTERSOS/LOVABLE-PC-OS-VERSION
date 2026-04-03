@@ -240,11 +240,11 @@ const WorkoutSummary = ({
 
         <StatCard icon={TrendingUp} delay={1100}>
           <AnimatedNumber
-            value={totalVolume}
+            value={Math.round(convertWeight(totalVolume))}
             delay={1200}
             className="text-xl font-bold tabular-nums"
           />
-          <span className="text-[10px] uppercase text-muted-foreground tracking-wider">lbs Volume</span>
+          <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{weightLabel} Volume</span>
         </StatCard>
 
         <StatCard icon={Flame} delay={1200}>

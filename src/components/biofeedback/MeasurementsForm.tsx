@@ -87,7 +87,7 @@ const MeasurementsForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
           <div className="grid grid-cols-2 gap-3">
             {FIELDS.map(({ key, label }) => (
               <div key={key}>
-                <Label className="text-xs">{label} (in/cm)</Label>
+                <Label className="text-xs">{label} ({measurementLabel})</Label>
                 <Input
                   type="number"
                   step="0.1"

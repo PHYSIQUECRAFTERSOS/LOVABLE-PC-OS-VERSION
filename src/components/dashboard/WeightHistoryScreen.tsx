@@ -193,17 +193,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                 <Scale className="h-5 w-5 text-primary" />
                 {title}
               </DialogTitle>
-              {/* Unit toggle */}
-              <div className="flex rounded-full border border-border overflow-hidden text-xs">
-                <button
-                  onClick={() => setUnit("lbs")}
-                  className={cn("px-3 py-1 transition-colors", unit === "lbs" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary")}
-                >lbs</button>
-                <button
-                  onClick={() => setUnit("kg")}
-                  className={cn("px-3 py-1 transition-colors", unit === "kg" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary")}
-                >kg</button>
-              </div>
+              {/* Unit toggle removed — uses profile preference */}
             </div>
           </DialogHeader>
 

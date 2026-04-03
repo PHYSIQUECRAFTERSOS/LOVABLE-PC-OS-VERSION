@@ -270,7 +270,7 @@ const ProgressWidgetGrid = () => {
               <span className="text-xs text-muted-foreground truncate">Distance</span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-              {hasDistance ? `${finalDistance.toFixed(1)} km` : "–"}
+              {hasDistance ? `${convertDistance(finalDistance).toFixed(1)} ${distanceLabel}` : "–"}
             </div>
             <MiniSparkline data={distanceSpark} />
           </button>
