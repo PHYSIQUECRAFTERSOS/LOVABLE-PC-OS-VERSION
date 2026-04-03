@@ -134,7 +134,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     if (!targetId || !logWeight) return;
     setSaving(true);
     const dateStr = format(logDate, "yyyy-MM-dd");
-    const weightVal = unit === "kg" ? parseFloat(logWeight) / LBS_TO_KG : parseFloat(logWeight);
+    const weightVal = parseWeightInput(parseFloat(logWeight));
     const { error } = await supabase.from("weight_logs").upsert(
       { client_id: targetId, weight: Number(weightVal.toFixed(1)), logged_at: dateStr, source: "manual", notes: logNotes || null },
       { onConflict: "client_id,logged_at" }
