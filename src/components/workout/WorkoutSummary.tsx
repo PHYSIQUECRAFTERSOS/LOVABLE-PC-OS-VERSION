@@ -6,6 +6,7 @@ import TierBadge from "@/components/ranked/TierBadge";
 import { getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 import AnimatedNumber from "./AnimatedNumber";
 import ConfettiBurst from "./ConfettiBurst";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 interface PRDetail {
   exerciseName: string;
