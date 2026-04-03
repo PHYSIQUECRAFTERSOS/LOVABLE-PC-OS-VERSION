@@ -343,7 +343,7 @@ const ExerciseCard = ({
 
         {allTimePR && (
           <p className="text-xs text-primary mt-1 flex items-center gap-1">
-            <Trophy className="h-3 w-3" /> All-Time PR: {allTimePR.weight} lbs × {allTimePR.reps} reps
+            <Trophy className="h-3 w-3" /> All-Time PR: {convertWeight(allTimePR.weight)} {weightLabel} × {allTimePR.reps} reps
           </p>
         )}
       </CardHeader>
