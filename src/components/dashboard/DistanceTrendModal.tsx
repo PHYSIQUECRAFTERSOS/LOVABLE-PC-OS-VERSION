@@ -93,7 +93,7 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
 
   const chartData = data.map((d) => ({
     ...d,
-    distance: d.distance ?? undefined,
+    distance: d.distance != null ? convertDistance(d.distance) : undefined,
   }));
 
   const title = clientName ? `${clientName}'s Distance` : "My Distance";
