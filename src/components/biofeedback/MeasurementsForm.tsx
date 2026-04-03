@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ruler } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 const FIELDS = [
   { key: "neck", label: "Neck" },
@@ -33,6 +34,7 @@ const HEALTH_FIELDS = [
 const MeasurementsForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { measurementLabel, parseMeasurementInput } = useUnitPreferences();
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -42,16 +44,16 @@ const MeasurementsForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
 
     const entry: Record<string, any> = {
       client_id: user.id,
-      neck: values.neck ? parseFloat(values.neck) : null,
-      chest: values.chest ? parseFloat(values.chest) : null,
-      left_arm: values.left_arm ? parseFloat(values.left_arm) : null,
-      right_arm: values.right_arm ? parseFloat(values.right_arm) : null,
-      waist: values.waist ? parseFloat(values.waist) : null,
-      hips: values.hips ? parseFloat(values.hips) : null,
-      left_thigh: values.left_thigh ? parseFloat(values.left_thigh) : null,
-      right_thigh: values.right_thigh ? parseFloat(values.right_thigh) : null,
-      left_calf: values.left_calf ? parseFloat(values.left_calf) : null,
-      right_calf: values.right_calf ? parseFloat(values.right_calf) : null,
+      neck: values.neck ? parseMeasurementInput(parseFloat(values.neck)) : null,
+      chest: values.chest ? parseMeasurementInput(parseFloat(values.chest)) : null,
+      left_arm: values.left_arm ? parseMeasurementInput(parseFloat(values.left_arm)) : null,
+      right_arm: values.right_arm ? parseMeasurementInput(parseFloat(values.right_arm)) : null,
+      waist: values.waist ? parseMeasurementInput(parseFloat(values.waist)) : null,
+      hips: values.hips ? parseMeasurementInput(parseFloat(values.hips)) : null,
+      left_thigh: values.left_thigh ? parseMeasurementInput(parseFloat(values.left_thigh)) : null,
+      right_thigh: values.right_thigh ? parseMeasurementInput(parseFloat(values.right_thigh)) : null,
+      left_calf: values.left_calf ? parseMeasurementInput(parseFloat(values.left_calf)) : null,
+      right_calf: values.right_calf ? parseMeasurementInput(parseFloat(values.right_calf)) : null,
       body_fat_pct: values.body_fat_pct ? parseFloat(values.body_fat_pct) : null,
       blood_pressure_systolic: values.blood_pressure_systolic ? parseInt(values.blood_pressure_systolic) : null,
       blood_pressure_diastolic: values.blood_pressure_diastolic ? parseInt(values.blood_pressure_diastolic) : null,
@@ -85,7 +87,7 @@ const MeasurementsForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
           <div className="grid grid-cols-2 gap-3">
             {FIELDS.map(({ key, label }) => (
               <div key={key}>
-                <Label className="text-xs">{label} (in/cm)</Label>
+                <Label className="text-xs">{label} ({measurementLabel})</Label>
                 <Input
                   type="number"
                   step="0.1"

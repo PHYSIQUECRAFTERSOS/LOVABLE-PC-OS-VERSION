@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MapPin } from "lucide-react";
@@ -35,6 +36,7 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
   const [rangeIdx, setRangeIdx] = useState(1);
   const [data, setData] = useState<DistanceDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const { convertDistance, distanceLabel } = useUnitPreferences();
 
   useEffect(() => {
     if (!open || !clientId) return;
@@ -78,17 +80,20 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
   }, [open, clientId, rangeIdx]);
 
   const validDays = data.filter((d) => d.distance !== null && d.distance > 0);
-  const avgDist = validDays.length > 0
-    ? (validDays.reduce((s, d) => s + (d.distance || 0), 0) / validDays.length).toFixed(1)
-    : "0";
-  const bestDay = validDays.length > 0
-    ? Math.max(...validDays.map((d) => d.distance || 0)).toFixed(1)
-    : "0";
-  const totalDist = validDays.reduce((s, d) => s + (d.distance || 0), 0).toFixed(1);
+  const avgDistRaw = validDays.length > 0
+    ? validDays.reduce((s, d) => s + (d.distance || 0), 0) / validDays.length
+    : 0;
+  const bestDayRaw = validDays.length > 0
+    ? Math.max(...validDays.map((d) => d.distance || 0))
+    : 0;
+  const totalDistRaw = validDays.reduce((s, d) => s + (d.distance || 0), 0);
+  const avgDist = convertDistance(avgDistRaw).toFixed(1);
+  const bestDay = convertDistance(bestDayRaw).toFixed(1);
+  const totalDist = convertDistance(totalDistRaw).toFixed(1);
 
   const chartData = data.map((d) => ({
     ...d,
-    distance: d.distance ?? undefined,
+    distance: d.distance != null ? convertDistance(d.distance) : undefined,
   }));
 
   const title = clientName ? `${clientName}'s Distance` : "My Distance";
@@ -126,15 +131,15 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Daily</p>
-              <p className="text-lg font-bold text-foreground tabular-nums">{avgDist} km</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{avgDist} {distanceLabel}</p>
             </div>
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Day</p>
-              <p className="text-lg font-bold text-foreground tabular-nums">{bestDay} km</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{bestDay} {distanceLabel}</p>
             </div>
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
-              <p className="text-lg font-bold text-foreground tabular-nums">{totalDist} km</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{totalDist} {distanceLabel}</p>
             </div>
           </div>
 
@@ -177,7 +182,7 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
                       borderRadius: "8px",
                       fontSize: 12,
                     }}
-                    formatter={(value: number) => [value != null ? `${value.toFixed(1)} km` : "–", "Distance"]}
+                    formatter={(value: number) => [value != null ? `${value.toFixed(1)} ${distanceLabel}` : "–", "Distance"]}
                   />
                   <Area
                     type="monotone"

@@ -5145,6 +5145,9 @@ export type Database = {
           id: string
           measurements_enabled: boolean | null
           phone: string | null
+          preferred_distance_unit: string
+          preferred_measurement_unit: string
+          preferred_weight_unit: string
           timezone: string | null
           updated_at: string
           user_id: string
@@ -5158,6 +5161,9 @@ export type Database = {
           id?: string
           measurements_enabled?: boolean | null
           phone?: string | null
+          preferred_distance_unit?: string
+          preferred_measurement_unit?: string
+          preferred_weight_unit?: string
           timezone?: string | null
           updated_at?: string
           user_id: string
@@ -5171,6 +5177,9 @@ export type Database = {
           id?: string
           measurements_enabled?: boolean | null
           phone?: string | null
+          preferred_distance_unit?: string
+          preferred_measurement_unit?: string
+          preferred_weight_unit?: string
           timezone?: string | null
           updated_at?: string
           user_id?: string

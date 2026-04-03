@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,6 +13,7 @@ import { Scale, Plus, CalendarIcon, Trash2 } from "lucide-react";
 import { format, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
@@ -65,13 +66,13 @@ function rollingAverage(data: { date: string; weight: number }[], window = 7) {
 const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { convertWeight, parseWeightInput, weightLabel, weightUnit } = useUnitPreferences();
   const targetId = clientId || user?.id;
 
   const [entries, setEntries] = useState<WeightEntry[]>([]);
   const [recentEntries, setRecentEntries] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rangeIdx, setRangeIdx] = useState(2); // default 3M
-  const [unit, setUnit] = useState<"lbs" | "kg">("lbs");
+  const [rangeIdx, setRangeIdx] = useState(2);
   const [showLogSheet, setShowLogSheet] = useState(false);
   const [logWeight, setLogWeight] = useState("");
   const [logDate, setLogDate] = useState<Date>(new Date());
@@ -79,8 +80,8 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const convert = (lbs: number) => unit === "kg" ? Number((lbs * LBS_TO_KG).toFixed(1)) : lbs;
-  const unitLabel = unit;
+  const convert = (lbs: number) => convertWeight(lbs);
+  const unitLabel = weightLabel;
 
   const fetchEntries = useCallback(async () => {
     if (!targetId) return;
@@ -134,7 +135,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     if (!targetId || !logWeight) return;
     setSaving(true);
     const dateStr = format(logDate, "yyyy-MM-dd");
-    const weightVal = unit === "kg" ? parseFloat(logWeight) / LBS_TO_KG : parseFloat(logWeight);
+    const weightVal = parseWeightInput(parseFloat(logWeight));
     const { error } = await supabase.from("weight_logs").upsert(
       { client_id: targetId, weight: Number(weightVal.toFixed(1)), logged_at: dateStr, source: "manual", notes: logNotes || null },
       { onConflict: "client_id,logged_at" }
@@ -193,17 +194,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                 <Scale className="h-5 w-5 text-primary" />
                 {title}
               </DialogTitle>
-              {/* Unit toggle */}
-              <div className="flex rounded-full border border-border overflow-hidden text-xs">
-                <button
-                  onClick={() => setUnit("lbs")}
-                  className={cn("px-3 py-1 transition-colors", unit === "lbs" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary")}
-                >lbs</button>
-                <button
-                  onClick={() => setUnit("kg")}
-                  className={cn("px-3 py-1 transition-colors", unit === "kg" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary")}
-                >kg</button>
-              </div>
+              {/* Unit toggle removed — uses profile preference */}
             </div>
           </DialogHeader>
 

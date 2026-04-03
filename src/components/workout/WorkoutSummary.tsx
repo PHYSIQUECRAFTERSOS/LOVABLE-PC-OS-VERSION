@@ -6,6 +6,7 @@ import TierBadge from "@/components/ranked/TierBadge";
 import { getDivisionLabel, getTierColor } from "@/utils/rankedXP";
 import AnimatedNumber from "./AnimatedNumber";
 import ConfettiBurst from "./ConfettiBurst";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 interface PRDetail {
   exerciseName: string;
@@ -82,7 +83,7 @@ const StatCard = ({
 );
 
 /* ──────────────── PR Row ──────────────── */
-const PRRow = ({ pr, index }: { pr: PRDetail; index: number }) => (
+const PRRow = ({ pr, index, convertWeight, weightLabel }: { pr: PRDetail; index: number; convertWeight: (v: number) => number; weightLabel: string }) => (
   <div
     className="flex items-center justify-between text-sm animate-stagger-fade-up relative overflow-hidden rounded-md px-2 py-1"
     style={{ animationDelay: `${2200 + index * 200}ms` }}
@@ -90,7 +91,7 @@ const PRRow = ({ pr, index }: { pr: PRDetail; index: number }) => (
     <div className="absolute inset-0 animate-shimmer-sweep rounded-md" style={{ animationDelay: `${2400 + index * 200}ms` }} />
     <span className="font-medium relative z-[1]">{pr.exerciseName}</span>
     <span className="text-primary font-bold tabular-nums relative z-[1]">
-      → {pr.weight} lb × {pr.reps}
+      → {convertWeight(pr.weight)} {weightLabel} × {pr.reps}
     </span>
   </div>
 );
@@ -174,6 +175,7 @@ const WorkoutSummary = ({
   rankData,
   onDone,
 }: WorkoutSummaryProps) => {
+  const { convertWeight, weightLabel } = useUnitPreferences();
   const message = useMemo(() => {
     if (isFirstSession) return "First session logged! Every rep from here is progress. Welcome to your journey. 🚀";
     if (prs.length >= 2) return `You crushed ${prs.length} PRs today! Incredible session. 🔥🏆`;
@@ -238,11 +240,11 @@ const WorkoutSummary = ({
 
         <StatCard icon={TrendingUp} delay={1100}>
           <AnimatedNumber
-            value={totalVolume}
+            value={Math.round(convertWeight(totalVolume))}
             delay={1200}
             className="text-xl font-bold tabular-nums"
           />
-          <span className="text-[10px] uppercase text-muted-foreground tracking-wider">lbs Volume</span>
+          <span className="text-[10px] uppercase text-muted-foreground tracking-wider">{weightLabel} Volume</span>
         </StatCard>
 
         <StatCard icon={Flame} delay={1200}>
@@ -269,7 +271,7 @@ const WorkoutSummary = ({
               Personal Records This Session
             </h3>
             {prs.map((pr, i) => (
-              <PRRow key={i} pr={pr} index={i} />
+              <PRRow key={i} pr={pr} index={i} convertWeight={convertWeight} weightLabel={weightLabel} />
             ))}
           </CardContent>
         </Card>

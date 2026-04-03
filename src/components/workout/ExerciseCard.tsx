@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/popover";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
 import { cn } from "@/lib/utils";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 interface SetLog {
   setNumber: number;
@@ -270,6 +271,7 @@ const ExerciseCard = ({
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const { convertWeight, parseWeightInput, weightLabel } = useUnitPreferences();
 
   // Long-press support
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -341,7 +343,7 @@ const ExerciseCard = ({
 
         {allTimePR && (
           <p className="text-xs text-primary mt-1 flex items-center gap-1">
-            <Trophy className="h-3 w-3" /> All-Time PR: {allTimePR.weight} lbs × {allTimePR.reps} reps
+            <Trophy className="h-3 w-3" /> All-Time PR: {convertWeight(allTimePR.weight)} {weightLabel} × {allTimePR.reps} reps
           </p>
         )}
       </CardHeader>
@@ -384,7 +386,7 @@ const ExerciseCard = ({
         <div className="grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 px-1 items-center">
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Set</span>
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Previous</span>
-          <span className="text-[10px] font-medium text-muted-foreground uppercase">lbs</span>
+          <span className="text-[10px] font-medium text-muted-foreground uppercase">{weightLabel}</span>
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Reps</span>
           <span className="w-14" />
         </div>
@@ -392,7 +394,7 @@ const ExerciseCard = ({
         {logs.map((log, setIdx) => {
           const prev = previousSets.find(p => p.set_number === log.setNumber);
           const prevLabel = prev && (prev.weight !== null && prev.weight !== undefined)
-            ? `${prev.weight === 0 ? "BW" : prev.weight}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
+            ? `${prev.weight === 0 ? "BW" : convertWeight(prev.weight)}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
             : "—";
 
           const setRow = (
@@ -415,14 +417,14 @@ const ExerciseCard = ({
                 <Input
                   type="text"
                   inputMode="numeric"
-                  value={log.weight !== undefined && log.weight !== null ? String(log.weight) : ""}
+                  value={log.weight !== undefined && log.weight !== null ? String(convertWeight(log.weight)) : ""}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === "" || val === "0") {
                       onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
                     } else {
                       const num = parseFloat(val);
-                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
+                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
                     }
                   }}
                   placeholder={isBW ? "BW" : "0"}
@@ -529,7 +531,7 @@ const ExerciseCard = ({
         })}
 
         {isBW && (
-          <p className="text-[10px] text-muted-foreground mt-1">💡 Bodyweight exercise — use 0 lbs or add weight for resistance</p>
+          <p className="text-[10px] text-muted-foreground mt-1">💡 Bodyweight exercise — use 0 {weightLabel} or add weight for resistance</p>
         )}
 
         <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={onAddSet}>

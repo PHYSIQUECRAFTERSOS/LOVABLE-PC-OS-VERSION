@@ -1,5 +1,6 @@
 import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
 import { useNavigate } from "react-router-dom";
@@ -50,6 +51,7 @@ const ProgressWidgetGrid = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { todayMetrics, weekMetrics, isNative, connection } = useHealthSync();
+  const { convertDistance, distanceLabel } = useUnitPreferences();
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [todayCals, setTodayCals] = useState<number>(0);
@@ -268,7 +270,7 @@ const ProgressWidgetGrid = () => {
               <span className="text-xs text-muted-foreground truncate">Distance</span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-              {hasDistance ? `${finalDistance.toFixed(1)} km` : "–"}
+              {hasDistance ? `${convertDistance(finalDistance).toFixed(1)} ${distanceLabel}` : "–"}
             </div>
             <MiniSparkline data={distanceSpark} />
           </button>

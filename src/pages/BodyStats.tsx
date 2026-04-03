@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Save } from "lucide-react";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 const MEASUREMENT_FIELDS = [
   { key: "neck_in", label: "Neck" },
@@ -24,6 +25,7 @@ const BodyStats = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { weightLabel, measurementLabel, parseWeightInput, parseMeasurementInput } = useUnitPreferences();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get("eventId");
 
@@ -73,14 +75,14 @@ const BodyStats = () => {
       const record: Record<string, any> = {
         client_id: user.id,
         log_date: logDate,
-        body_weight_lbs: parseFloat(bodyWeight),
+        body_weight_lbs: parseWeightInput(parseFloat(bodyWeight)),
       };
 
       // Add measurement values if any
       MEASUREMENT_FIELDS.forEach(({ key }) => {
         const val = measurements[key];
         if (val && !isNaN(parseFloat(val))) {
-          record[key] = parseFloat(val);
+          record[key] = parseMeasurementInput(parseFloat(val));
         }
       });
 
@@ -96,7 +98,7 @@ const BodyStats = () => {
       await supabase.from("weight_logs").upsert(
         {
           client_id: user.id,
-          weight: parseFloat(bodyWeight),
+          weight: parseWeightInput(parseFloat(bodyWeight)),
           logged_at: logDate,
           source: "body_stats_page",
         },
@@ -151,7 +153,7 @@ const BodyStats = () => {
               className="text-right text-lg font-bold h-12 flex-1 bg-secondary/30 border-border"
               autoFocus
             />
-            <span className="text-sm text-muted-foreground font-medium w-8">lbs</span>
+            <span className="text-sm text-muted-foreground font-medium w-8">{weightLabel}</span>
           </div>
           {weightError && (
             <p className="text-xs text-destructive">{weightError}</p>
@@ -198,7 +200,7 @@ const BodyStats = () => {
                         placeholder="—"
                         className="text-right text-sm h-9 bg-secondary/30 border-border"
                       />
-                      <span className="text-xs text-muted-foreground w-4">in</span>
+                      <span className="text-xs text-muted-foreground w-4">{measurementLabel}</span>
                     </div>
                   </div>
                 ))}
