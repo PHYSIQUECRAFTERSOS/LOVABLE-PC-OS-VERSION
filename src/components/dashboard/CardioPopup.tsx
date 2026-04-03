@@ -71,12 +71,9 @@ interface CardioPopupProps {
 const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }: CardioPopupProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { triggerXP, triggerCelebration } = useXPAward();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
   const [completing, setCompleting] = useState(false);
-  const [celebrationState, setCelebrationState] = useState(false);
-  const [xpEarned, setXpEarned] = useState(0);
-  const [displayXP, setDisplayXP] = useState(0);
 
   const handleComplete = async () => {
     setCompleting(true);
