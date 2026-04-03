@@ -98,7 +98,7 @@ const BodyStats = () => {
       await supabase.from("weight_logs").upsert(
         {
           client_id: user.id,
-          weight: parseFloat(bodyWeight),
+          weight: parseWeightInput(parseFloat(bodyWeight)),
           logged_at: logDate,
           source: "body_stats_page",
         },
