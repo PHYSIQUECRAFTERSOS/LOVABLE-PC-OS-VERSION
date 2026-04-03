@@ -271,7 +271,7 @@ const WorkoutSummary = ({
               Personal Records This Session
             </h3>
             {prs.map((pr, i) => (
-              <PRRow key={i} pr={pr} index={i} />
+              <PRRow key={i} pr={pr} index={i} convertWeight={convertWeight} weightLabel={weightLabel} />
             ))}
           </CardContent>
         </Card>
