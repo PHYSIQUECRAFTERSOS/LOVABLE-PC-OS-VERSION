@@ -13,7 +13,7 @@ import { Scale, Plus, CalendarIcon, Trash2 } from "lucide-react";
 import { format, subMonths } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import {
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
