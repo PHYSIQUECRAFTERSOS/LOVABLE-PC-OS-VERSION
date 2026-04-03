@@ -65,13 +65,13 @@ function rollingAverage(data: { date: string; weight: number }[], window = 7) {
 const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { convertWeight, parseWeightInput, weightLabel, weightUnit } = useUnitPreferences();
   const targetId = clientId || user?.id;
 
   const [entries, setEntries] = useState<WeightEntry[]>([]);
   const [recentEntries, setRecentEntries] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rangeIdx, setRangeIdx] = useState(2); // default 3M
-  const [unit, setUnit] = useState<"lbs" | "kg">("lbs");
+  const [rangeIdx, setRangeIdx] = useState(2);
   const [showLogSheet, setShowLogSheet] = useState(false);
   const [logWeight, setLogWeight] = useState("");
   const [logDate, setLogDate] = useState<Date>(new Date());
@@ -79,8 +79,8 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const convert = (lbs: number) => unit === "kg" ? Number((lbs * LBS_TO_KG).toFixed(1)) : lbs;
-  const unitLabel = unit;
+  const convert = (lbs: number) => convertWeight(lbs);
+  const unitLabel = weightLabel;
 
   const fetchEntries = useCallback(async () => {
     if (!targetId) return;
