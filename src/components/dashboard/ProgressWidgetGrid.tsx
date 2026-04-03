@@ -1,5 +1,6 @@
 import { useState, useEffect, forwardRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
 import { useNavigate } from "react-router-dom";
