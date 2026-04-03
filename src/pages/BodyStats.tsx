@@ -200,7 +200,7 @@ const BodyStats = () => {
                         placeholder="—"
                         className="text-right text-sm h-9 bg-secondary/30 border-border"
                       />
-                      <span className="text-xs text-muted-foreground w-4">in</span>
+                      <span className="text-xs text-muted-foreground w-4">{measurementLabel}</span>
                     </div>
                   </div>
                 ))}

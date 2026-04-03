@@ -116,6 +116,7 @@ const Profile = () => {
             </Card>
             <HealthIntegrations />
             <NotificationSettings />
+            {role === "client" && <UnitPreferences />}
             <ChangePasswordSection />
             <Card>
               <CardHeader>
