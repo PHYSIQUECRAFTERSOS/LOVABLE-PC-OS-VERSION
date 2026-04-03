@@ -7,8 +7,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
-import CardioIcon from "@/assets/Cardio_icon.png";
-import ConfettiBurst from "@/components/workout/ConfettiBurst";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
@@ -73,12 +71,9 @@ interface CardioPopupProps {
 const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }: CardioPopupProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { triggerXP, triggerCelebration } = useXPAward();
+  const { triggerXP } = useXPAward();
   const queryClient = useQueryClient();
   const [completing, setCompleting] = useState(false);
-  const [celebrationState, setCelebrationState] = useState(false);
-  const [xpEarned, setXpEarned] = useState(0);
-  const [displayXP, setDisplayXP] = useState(0);
 
   const handleComplete = async () => {
     setCompleting(true);
@@ -90,50 +85,23 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
 
       if (error) throw error;
 
-      let earned = XP_VALUES.cardio_completed;
-
-      // Award Ranked XP
+      // Award Ranked XP (fire-and-forget)
       if (user?.id) {
-        try {
-          const result = await triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title);
-          // triggerXP doesn't return a value currently, use base amount
-        } catch (e) {
-          console.error("[CardioPopup] Ranked XP error:", e);
-        }
+        triggerXP(user.id, "cardio_completed", XP_VALUES.cardio_completed, "Completed cardio: " + title).catch(console.error);
       }
+
+      // Haptic
+      if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
+
+      // Close popup immediately, then trigger dashboard refresh
+      onClose();
+      onCompleted();
 
       // Dispatch event so dashboard ring + TodayActions refetch instantly
       window.dispatchEvent(new CustomEvent("calendar-event-added"));
       // Invalidate rank/XP queries so the dashboard card updates
       queryClient.invalidateQueries({ queryKey: ["my-rank"] });
       queryClient.invalidateQueries({ queryKey: ["xp-today"] });
-
-      // Transition to celebration state
-      setXpEarned(earned);
-      setCelebrationState(true);
-
-      // Haptic
-      if (navigator.vibrate) navigator.vibrate([50, 30, 80]);
-
-      // Animate XP counter
-      const duration = 800;
-      const start = performance.now();
-      const tick = (now: number) => {
-        const elapsed = now - start;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        setDisplayXP(Math.round(eased * earned));
-        if (progress < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-
-      // Auto-close after 3.5s
-      setTimeout(() => {
-        onCompleted();
-        onClose();
-        setCelebrationState(false);
-        setDisplayXP(0);
-      }, 3500);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
       setCompleting(false);
@@ -144,111 +112,40 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
   const detailLine = buildDetailLine(title, description);
 
   return (
-    <Drawer open={open} onOpenChange={(o) => !o && !celebrationState && onClose()}>
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
       <DrawerContent>
-        {celebrationState ? (
-          /* ── Celebration State ── */
-          <div className="relative flex flex-col items-center py-10 px-4 space-y-5 overflow-hidden">
-            <ConfettiBurst fire={true} />
-
-            {/* Icon with pulse */}
-            <style>{`
-              @keyframes cardioPulse {
-                0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px hsl(43, 72%, 55%)); }
-                50% { transform: scale(1.15); filter: drop-shadow(0 0 24px hsl(43, 80%, 65%)); }
-              }
-              @keyframes cardioBounceIn {
-                0% { transform: scale(0.2); opacity: 0; }
-                60% { transform: scale(1.2); opacity: 1; }
-                100% { transform: scale(1); opacity: 1; }
-              }
-              @keyframes xpShimmerCardio {
-                0% { background-position: -200% 0; }
-                100% { background-position: 200% 0; }
-              }
-              @keyframes checkScale {
-                0% { transform: scale(0); }
-                60% { transform: scale(1.3); }
-                100% { transform: scale(1); }
-              }
-            `}</style>
-
-            {/* Checkmark burst */}
-            <div
-              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center"
-              style={{ animation: "checkScale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards" }}
-            >
-              <Check className="h-5 w-5 text-white" />
-            </div>
-
-            {/* Cardio icon */}
-            <div style={{ animation: "cardioBounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards" }}>
-              <div
-                className="h-24 w-24 rounded-2xl bg-primary/10 border-2 border-primary/40 flex items-center justify-center overflow-hidden"
-                style={{ animation: "cardioPulse 2s ease-in-out 0.6s infinite" }}
-              >
-                <img src={CardioIcon} alt="Cardio" className="h-16 w-16 object-contain" />
-              </div>
-            </div>
-
-            {/* Type name */}
-            <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {typeName} Complete!
-            </p>
-
-            {/* XP counter */}
-            <span
-              className="text-4xl font-black"
-              style={{
-                background: "linear-gradient(135deg, hsl(145, 63%, 42%), hsl(43, 80%, 65%))",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundSize: "200% 100%",
-                animation: "xpShimmerCardio 2s linear infinite",
-              }}
-            >
-              +{displayXP} XP
-            </span>
-
-            <p className="text-xs text-muted-foreground">Cardio session completed 🎉</p>
+        <div className="flex flex-col items-center py-8 px-4 space-y-4">
+          <div className="h-16 w-16 rounded-2xl bg-green-500/20 border-2 border-green-500/40 flex items-center justify-center">
+            {getCardioIcon(title)}
           </div>
-        ) : (
-          /* ── Default State ── */
-          <>
-            <div className="flex flex-col items-center py-8 px-4 space-y-4">
-              <div className="h-16 w-16 rounded-2xl bg-green-500/20 border-2 border-green-500/40 flex items-center justify-center">
-                {getCardioIcon(title)}
-              </div>
 
-              <div className="text-center space-y-1.5">
-                <h2 className="text-xl font-bold text-foreground">{typeName}</h2>
-                <p className="text-sm text-muted-foreground">Scheduled</p>
-                <p className="text-sm text-muted-foreground">{detailLine}</p>
-              </div>
-            </div>
+          <div className="text-center space-y-1.5">
+            <h2 className="text-xl font-bold text-foreground">{typeName}</h2>
+            <p className="text-sm text-muted-foreground">Scheduled</p>
+            <p className="text-sm text-muted-foreground">{detailLine}</p>
+          </div>
+        </div>
 
-            <DrawerFooter className="flex-row gap-3" data-vaul-no-drag>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={(e) => { e.stopPropagation(); onClose(); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-                onClick={(e) => { e.stopPropagation(); handleComplete(); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                disabled={completing}
-              >
-                <Check className="h-4 w-4 mr-1" /> Mark as Complete
-              </Button>
-            </DrawerFooter>
-          </>
-        )}
+        <DrawerFooter className="flex-row gap-3" data-vaul-no-drag>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+            onClick={(e) => { e.stopPropagation(); handleComplete(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            disabled={completing}
+          >
+            <Check className="h-4 w-4 mr-1" /> Mark as Complete
+          </Button>
+        </DrawerFooter>
       </DrawerContent>
     </Drawer>
   );
