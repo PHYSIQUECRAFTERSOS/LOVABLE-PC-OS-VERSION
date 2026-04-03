@@ -82,7 +82,7 @@ const BodyStats = () => {
       MEASUREMENT_FIELDS.forEach(({ key }) => {
         const val = measurements[key];
         if (val && !isNaN(parseFloat(val))) {
-          record[key] = parseFloat(val);
+          record[key] = parseMeasurementInput(parseFloat(val));
         }
       });
 
