@@ -432,7 +432,7 @@ const Onboarding = () => {
   };
 
   const handleGoToDashboard = useCallback(() => {
-    navigate("/dashboard", { replace: true });
+    navigate("/dashboard", { replace: true, state: { onboardingComplete: true } });
   }, [navigate]);
 
   // Post-onboarding overlay screens

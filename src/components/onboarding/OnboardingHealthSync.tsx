@@ -21,7 +21,20 @@ const OnboardingHealthSync = ({ data, updateField }: Props) => {
         typeof DeviceMotionEvent !== "undefined" &&
         typeof (DeviceMotionEvent as any).requestPermission === "function"
       ) {
-        const permission = await (DeviceMotionEvent as any).requestPermission();
+        // Race the permission request against a 5-second timeout
+        const permissionPromise = (DeviceMotionEvent as any).requestPermission() as Promise<string>;
+        const timeoutPromise = new Promise<string>((_, reject) =>
+          setTimeout(() => reject(new Error("Permission request timed out")), 5000)
+        );
+        let permission: string;
+        try {
+          permission = await Promise.race([permissionPromise, timeoutPromise]);
+        } catch {
+          // Timeout or other failure — treat as denied
+          setPermissionState("denied");
+          updateField("health_sync_status", "skipped");
+          return;
+        }
         if (permission === "granted") {
           setPermissionState("granted");
           updateField("health_sync_status", "connected");

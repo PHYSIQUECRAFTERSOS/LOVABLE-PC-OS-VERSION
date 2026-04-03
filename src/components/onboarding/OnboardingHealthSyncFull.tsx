@@ -41,7 +41,10 @@ const OnboardingHealthSyncFull = ({ onComplete }: Props) => {
       }
     } catch (err: any) {
       console.error("[OnboardingHealthSync] Connect failed:", err);
-      toast.error(err.message || "Connection failed. You can try again in Settings.");
+      toast.error("Connection failed. You can connect in Settings later.");
+      // Never leave the user stuck — proceed to success screen
+      onComplete();
+      return;
     } finally {
       setConnecting(false);
     }
