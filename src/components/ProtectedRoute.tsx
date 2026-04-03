@@ -46,6 +46,13 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       return;
     }
 
+    // If we just came from onboarding success, skip the DB round-trip
+    if ((location.state as any)?.onboardingComplete) {
+      setNeedsOnboarding(false);
+      setOnboardingChecked(true);
+      return;
+    }
+
     let cancelled = false;
 
     supabase

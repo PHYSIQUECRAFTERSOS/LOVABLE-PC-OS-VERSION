@@ -77,7 +77,7 @@ const OnboardingWaiver = ({ data, updateField, validationErrors }: Props) => {
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-  }, []);
+  }, [hasScrolledToBottom]);
 
   const getPos = (e: React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
