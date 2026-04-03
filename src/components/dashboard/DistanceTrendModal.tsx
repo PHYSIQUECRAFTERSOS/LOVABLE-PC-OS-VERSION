@@ -139,7 +139,7 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
             </div>
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
-              <p className="text-lg font-bold text-foreground tabular-nums">{totalDist} km</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{totalDist} {distanceLabel}</p>
             </div>
           </div>
 
