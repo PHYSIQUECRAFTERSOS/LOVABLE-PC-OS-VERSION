@@ -15,6 +15,7 @@ import AvatarUpload from "@/components/profile/AvatarUpload";
 import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
 import NotificationSettings from "@/components/settings/NotificationSettings";
 import ChangePasswordSection from "@/components/settings/ChangePasswordSection";
+import UnitPreferences from "@/components/settings/UnitPreferences";
 import SignatureRecordsTable from "@/components/signing/SignatureRecordsTable";
 import SubscriptionCard from "@/components/subscription/SubscriptionCard";
 
