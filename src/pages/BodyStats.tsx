@@ -153,7 +153,7 @@ const BodyStats = () => {
               className="text-right text-lg font-bold h-12 flex-1 bg-secondary/30 border-border"
               autoFocus
             />
-            <span className="text-sm text-muted-foreground font-medium w-8">lbs</span>
+            <span className="text-sm text-muted-foreground font-medium w-8">{weightLabel}</span>
           </div>
           {weightError && (
             <p className="text-xs text-destructive">{weightError}</p>
