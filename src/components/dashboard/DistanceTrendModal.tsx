@@ -36,6 +36,7 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
   const [rangeIdx, setRangeIdx] = useState(1);
   const [data, setData] = useState<DistanceDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const { convertDistance, distanceLabel } = useUnitPreferences();
 
   useEffect(() => {
     if (!open || !clientId) return;
