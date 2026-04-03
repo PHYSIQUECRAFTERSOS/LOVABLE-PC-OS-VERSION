@@ -175,6 +175,7 @@ const WorkoutSummary = ({
   rankData,
   onDone,
 }: WorkoutSummaryProps) => {
+  const { convertWeight, weightLabel } = useUnitPreferences();
   const message = useMemo(() => {
     if (isFirstSession) return "First session logged! Every rep from here is progress. Welcome to your journey. 🚀";
     if (prs.length >= 2) return `You crushed ${prs.length} PRs today! Incredible session. 🔥🏆`;
