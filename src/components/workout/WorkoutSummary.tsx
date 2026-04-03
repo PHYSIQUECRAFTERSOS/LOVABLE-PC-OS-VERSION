@@ -83,7 +83,7 @@ const StatCard = ({
 );
 
 /* ──────────────── PR Row ──────────────── */
-const PRRow = ({ pr, index }: { pr: PRDetail; index: number }) => (
+const PRRow = ({ pr, index, convertWeight, weightLabel }: { pr: PRDetail; index: number; convertWeight: (v: number) => number; weightLabel: string }) => (
   <div
     className="flex items-center justify-between text-sm animate-stagger-fade-up relative overflow-hidden rounded-md px-2 py-1"
     style={{ animationDelay: `${2200 + index * 200}ms` }}
@@ -91,7 +91,7 @@ const PRRow = ({ pr, index }: { pr: PRDetail; index: number }) => (
     <div className="absolute inset-0 animate-shimmer-sweep rounded-md" style={{ animationDelay: `${2400 + index * 200}ms` }} />
     <span className="font-medium relative z-[1]">{pr.exerciseName}</span>
     <span className="text-primary font-bold tabular-nums relative z-[1]">
-      → {pr.weight} lb × {pr.reps}
+      → {convertWeight(pr.weight)} {weightLabel} × {pr.reps}
     </span>
   </div>
 );
