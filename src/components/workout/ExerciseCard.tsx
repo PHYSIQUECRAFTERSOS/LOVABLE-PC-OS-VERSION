@@ -394,7 +394,7 @@ const ExerciseCard = ({
         {logs.map((log, setIdx) => {
           const prev = previousSets.find(p => p.set_number === log.setNumber);
           const prevLabel = prev && (prev.weight !== null && prev.weight !== undefined)
-            ? `${prev.weight === 0 ? "BW" : prev.weight}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
+            ? `${prev.weight === 0 ? "BW" : convertWeight(prev.weight)}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
             : "—";
 
           const setRow = (
