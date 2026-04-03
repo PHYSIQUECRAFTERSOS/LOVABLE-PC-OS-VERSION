@@ -309,6 +309,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   };
 
   const handleCardioCompleted = () => {
+    setCardioPopup(null);
     invalidateCache(cacheKey);
     refetch();
   };
