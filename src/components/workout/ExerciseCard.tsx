@@ -271,6 +271,7 @@ const ExerciseCard = ({
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const { convertWeight, parseWeightInput, weightLabel } = useUnitPreferences();
 
   // Long-press support
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
