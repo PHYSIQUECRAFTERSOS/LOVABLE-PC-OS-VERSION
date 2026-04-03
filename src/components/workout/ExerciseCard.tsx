@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/popover";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
 import { cn } from "@/lib/utils";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 interface SetLog {
   setNumber: number;
