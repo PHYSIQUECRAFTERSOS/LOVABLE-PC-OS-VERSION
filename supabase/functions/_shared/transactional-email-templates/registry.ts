@@ -10,7 +10,9 @@ export interface TemplateEntry {
 }
 
 import { template as tagActionNotification } from './tag-action-notification.tsx'
+import { template as passwordChangedConfirmation } from './password-changed-confirmation.tsx'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'tag-action-notification': tagActionNotification,
+  'password-changed-confirmation': passwordChangedConfirmation,
 }

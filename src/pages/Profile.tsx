@@ -14,6 +14,7 @@ import HealthIntegrations from "@/components/settings/HealthIntegrations";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
 import NotificationSettings from "@/components/settings/NotificationSettings";
+import ChangePasswordSection from "@/components/settings/ChangePasswordSection";
 import SignatureRecordsTable from "@/components/signing/SignatureRecordsTable";
 import SubscriptionCard from "@/components/subscription/SubscriptionCard";
 
@@ -114,6 +115,7 @@ const Profile = () => {
             </Card>
             <HealthIntegrations />
             <NotificationSettings />
+            <ChangePasswordSection />
             <Card>
               <CardHeader>
                 <CardTitle>Legal</CardTitle>
