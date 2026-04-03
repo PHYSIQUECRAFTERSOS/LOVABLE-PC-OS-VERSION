@@ -25,6 +25,7 @@ const BodyStats = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { weightLabel, measurementLabel, parseWeightInput, parseMeasurementInput } = useUnitPreferences();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get("eventId");
 
