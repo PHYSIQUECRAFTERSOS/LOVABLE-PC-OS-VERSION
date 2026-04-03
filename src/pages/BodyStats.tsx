@@ -75,7 +75,7 @@ const BodyStats = () => {
       const record: Record<string, any> = {
         client_id: user.id,
         log_date: logDate,
-        body_weight_lbs: parseFloat(bodyWeight),
+        body_weight_lbs: parseWeightInput(parseFloat(bodyWeight)),
       };
 
       // Add measurement values if any
