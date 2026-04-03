@@ -131,11 +131,11 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Avg Daily</p>
-              <p className="text-lg font-bold text-foreground tabular-nums">{avgDist} km</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{avgDist} {distanceLabel}</p>
             </div>
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Day</p>
-              <p className="text-lg font-bold text-foreground tabular-nums">{bestDay} km</p>
+              <p className="text-lg font-bold text-foreground tabular-nums">{bestDay} {distanceLabel}</p>
             </div>
             <div className="text-center">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
