@@ -386,7 +386,7 @@ const ExerciseCard = ({
         <div className="grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 px-1 items-center">
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Set</span>
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Previous</span>
-          <span className="text-[10px] font-medium text-muted-foreground uppercase">lbs</span>
+          <span className="text-[10px] font-medium text-muted-foreground uppercase">{weightLabel}</span>
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Reps</span>
           <span className="w-14" />
         </div>
