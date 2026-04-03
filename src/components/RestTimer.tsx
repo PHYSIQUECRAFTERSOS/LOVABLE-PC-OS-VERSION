@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, RotateCcw, SkipForward, Plus, Minus } from "lucide-react";
-import { restTimerAudio } from "@/services/RestTimerAudioService";
 import { createTimerWorker } from "@/services/timerWorker";
 
 interface RestTimerProps {
@@ -13,35 +12,12 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
   const [seconds, setSeconds] = useState(initialSeconds);
   const [isActive, setIsActive] = useState(true);
   const [totalSeconds, setTotalSeconds] = useState(initialSeconds);
-  const countdownFiredRef = useRef(false);
-  const countdownPendingRef = useRef(false);
   const workerRef = useRef<Worker | null>(null);
-  const endTimeRef = useRef(Date.now() + initialSeconds * 1000);
 
-  const triggerCountdown = useCallback(async () => {
-    if (countdownFiredRef.current || countdownPendingRef.current) return false;
-
-    countdownPendingRef.current = true;
-    try {
-      const didPlay = await restTimerAudio.playCountdown();
-      if (didPlay) {
-        countdownFiredRef.current = true;
-      }
-      return didPlay;
-    } finally {
-      countdownPendingRef.current = false;
-    }
-  }, []);
-
-  // Start/restart worker when active state or totalSeconds change
   useEffect(() => {
     if (!isActive || seconds <= 0) return;
 
-    countdownFiredRef.current = false;
-    countdownPendingRef.current = false;
     const endTime = Date.now() + seconds * 1000;
-    endTimeRef.current = endTime;
-
     const worker = createTimerWorker();
     workerRef.current = worker;
 
@@ -49,32 +25,25 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
       const msg = e.data;
       if (msg.type === "tick") {
         setSeconds(msg.remaining);
-        if (msg.remainingMs <= 3000 && msg.remainingMs > 0 && !countdownFiredRef.current) {
-          void triggerCountdown();
-        }
       }
       if (msg.type === "done") {
         setSeconds(0);
         setIsActive(false);
-        restTimerAudio.stopKeepAlive();
-        if (!countdownFiredRef.current) {
-          void triggerCountdown();
+        // Haptic feedback
+        if ("vibrate" in navigator) {
+          navigator.vibrate([200, 100, 200]);
         }
       }
     };
 
     worker.postMessage({ type: "start", endTime });
 
-    // Start keepalive to prevent iOS from suspending AudioContext
-    restTimerAudio.startKeepAlive();
-
     return () => {
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
-      restTimerAudio.stopKeepAlive();
     };
-  }, [isActive, totalSeconds, triggerCountdown]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isActive, totalSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
@@ -113,7 +82,6 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
           <div className="flex gap-1.5">
             <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => {
               if (isActive) {
-                // Pause: stop worker
                 if (workerRef.current) {
                   workerRef.current.postMessage({ type: "stop" });
                   workerRef.current.terminate();
@@ -125,15 +93,12 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
               {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </Button>
             <Button variant="outline" size="sm" className="h-9" onClick={() => {
-              countdownFiredRef.current = false;
-               countdownPendingRef.current = false;
               setSeconds(totalSeconds);
               setIsActive(true);
             }}>
               <RotateCcw className="h-4 w-4" />
             </Button>
             <Button variant="outline" size="sm" className="h-9" onClick={() => {
-               countdownPendingRef.current = false;
               if (workerRef.current) {
                 workerRef.current.postMessage({ type: "stop" });
                 workerRef.current.terminate();
@@ -141,8 +106,6 @@ const RestTimer = ({ initialSeconds, onComplete }: RestTimerProps) => {
               }
               setSeconds(0);
               setIsActive(false);
-              restTimerAudio.stopCountdown();
-              restTimerAudio.stopKeepAlive();
               onComplete?.();
             }}>
               <SkipForward className="h-4 w-4" />

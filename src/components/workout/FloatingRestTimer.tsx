@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { SkipForward } from "lucide-react";
-import { restTimerAudio } from "@/services/RestTimerAudioService";
+import { SkipForward, Check } from "lucide-react";
 import { createTimerWorker } from "@/services/timerWorker";
 
 interface FloatingRestTimerProps {
@@ -24,19 +23,24 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
     const worker = createTimerWorker();
     workerRef.current = worker;
 
+    const handleDone = () => {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      setTimeRemaining(0);
+      // Haptic feedback
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+      setShowComplete(true);
+    };
+
     worker.onmessage = (e) => {
       const msg = e.data;
-
       if (msg.type === "tick") {
         setTimeRemaining(msg.remaining);
       }
-
-      if (msg.type === "done" && !completedRef.current) {
-        completedRef.current = true;
-        setTimeRemaining(0);
-        // Play alarm exactly at zero
-        void restTimerAudio.playCompletionAlarm();
-        setShowComplete(true);
+      if (msg.type === "done") {
+        handleDone();
       }
     };
 
@@ -44,14 +48,10 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        restTimerAudio.unlock();
         const remainingMs = Math.max(0, endTime - Date.now());
-        if (remainingMs <= 0 && !completedRef.current) {
-          completedRef.current = true;
-          setTimeRemaining(0);
+        if (remainingMs <= 0) {
           worker.postMessage({ type: "stop" });
-          void restTimerAudio.playCompletionAlarm();
-          setShowComplete(true);
+          handleDone();
         }
       }
     };
@@ -78,7 +78,6 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
       workerRef.current.terminate();
       workerRef.current = null;
     }
-    restTimerAudio.stopAlarm();
     onComplete();
   }, [onComplete]);
 
@@ -95,7 +94,11 @@ const FloatingRestTimer = ({ seconds: initialSeconds, onComplete }: FloatingRest
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Rest Timer</span>
             <span className={`text-lg font-bold tabular-nums ${showComplete ? "text-primary" : "text-foreground"}`}>
-              {showComplete ? "Rest complete! ✓" : `${mins}:${secs.toString().padStart(2, "0")}`}
+              {showComplete ? (
+                <span className="flex items-center gap-1.5">
+                  <Check className="h-5 w-5" /> Next set ready!
+                </span>
+              ) : `${mins}:${secs.toString().padStart(2, "0")}`}
             </span>
           </div>
           <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">

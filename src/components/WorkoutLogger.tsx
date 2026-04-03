@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { restTimerAudio } from "@/services/RestTimerAudioService";
+
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -184,8 +184,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
-    // Pre-init audio on session start so alarm is ready
-    restTimerAudio.unlock();
+    // Session init
     const initSession = async () => {
       if (resumeSessionId) {
         // Resuming: restore startTime from DB
@@ -544,7 +543,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     persistSet(ex.id, completedLog);
 
     if (ex.restSeconds > 0) {
-      restTimerAudio.unlock(); // Prime iOS audio on user gesture
+      
       setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
     }
   };
