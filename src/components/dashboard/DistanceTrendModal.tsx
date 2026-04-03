@@ -80,13 +80,16 @@ const DistanceTrendModal = ({ open, onClose, clientId, clientName }: DistanceTre
   }, [open, clientId, rangeIdx]);
 
   const validDays = data.filter((d) => d.distance !== null && d.distance > 0);
-  const avgDist = validDays.length > 0
-    ? (validDays.reduce((s, d) => s + (d.distance || 0), 0) / validDays.length).toFixed(1)
-    : "0";
-  const bestDay = validDays.length > 0
-    ? Math.max(...validDays.map((d) => d.distance || 0)).toFixed(1)
-    : "0";
-  const totalDist = validDays.reduce((s, d) => s + (d.distance || 0), 0).toFixed(1);
+  const avgDistRaw = validDays.length > 0
+    ? validDays.reduce((s, d) => s + (d.distance || 0), 0) / validDays.length
+    : 0;
+  const bestDayRaw = validDays.length > 0
+    ? Math.max(...validDays.map((d) => d.distance || 0))
+    : 0;
+  const totalDistRaw = validDays.reduce((s, d) => s + (d.distance || 0), 0);
+  const avgDist = convertDistance(avgDistRaw).toFixed(1);
+  const bestDay = convertDistance(bestDayRaw).toFixed(1);
+  const totalDist = convertDistance(totalDistRaw).toFixed(1);
 
   const chartData = data.map((d) => ({
     ...d,
