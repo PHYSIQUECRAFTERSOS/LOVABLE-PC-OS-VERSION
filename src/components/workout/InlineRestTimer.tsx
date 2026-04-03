@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { SkipForward } from "lucide-react";
-import { restTimerAudio } from "@/services/RestTimerAudioService";
+import { SkipForward, Check } from "lucide-react";
 import { createTimerWorker } from "@/services/timerWorker";
 
 interface InlineRestTimerProps {
@@ -24,19 +23,24 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     const worker = createTimerWorker();
     workerRef.current = worker;
 
+    const handleDone = () => {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      setTimeRemaining(0);
+      // Haptic feedback
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+      setTimeout(() => onCompleteRef.current(), 800);
+    };
+
     worker.onmessage = (e) => {
       const msg = e.data;
-
       if (msg.type === "tick") {
         setTimeRemaining(msg.remaining);
       }
-
-      if (msg.type === "done" && !completedRef.current) {
-        completedRef.current = true;
-        setTimeRemaining(0);
-        // Play alarm exactly at zero
-        void restTimerAudio.playCompletionAlarm();
-        setTimeout(() => onCompleteRef.current(), 800);
+      if (msg.type === "done") {
+        handleDone();
       }
     };
 
@@ -45,14 +49,10 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     // Visibility change handler — recalculate on return
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        restTimerAudio.unlock();
         const remainingMs = Math.max(0, endTime - Date.now());
-        if (remainingMs <= 0 && !completedRef.current) {
-          completedRef.current = true;
-          setTimeRemaining(0);
+        if (remainingMs <= 0) {
           worker.postMessage({ type: "stop" });
-          void restTimerAudio.playCompletionAlarm();
-          setTimeout(() => onCompleteRef.current(), 800);
+          handleDone();
         }
       }
     };
@@ -72,7 +72,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       workerRef.current.terminate();
       workerRef.current = null;
     }
-    restTimerAudio.stopAlarm();
     onSkip();
   }, [onSkip]);
 
@@ -82,8 +81,8 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
   const isComplete = timeRemaining <= 0;
 
   return (
-    <div className={`relative w-full h-11 rounded-lg border-l-4 border-l-primary flex items-center px-3 transition-colors ${
-      isComplete ? "bg-foreground/10" : "bg-primary/15"
+    <div className={`relative w-full h-11 rounded-lg border-l-4 flex items-center px-3 transition-colors ${
+      isComplete ? "border-l-primary bg-primary/20 animate-pulse" : "border-l-primary bg-primary/15"
     }`}>
       {/* Top progress line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary/20 rounded-t-lg overflow-hidden">
@@ -95,9 +94,13 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
       {/* Timer display */}
       <div className="flex items-center gap-2 flex-1">
-        <span className="text-sm">⏱</span>
-        <span className="text-sm font-bold tabular-nums text-foreground">
-          {isComplete ? "Ready!" : `${mins}:${secs.toString().padStart(2, "0")}`}
+        {isComplete ? (
+          <Check className="h-4 w-4 text-primary" />
+        ) : (
+          <span className="text-sm">⏱</span>
+        )}
+        <span className={`text-sm font-bold tabular-nums ${isComplete ? "text-primary" : "text-foreground"}`}>
+          {isComplete ? "Next set ready! 💪" : `${mins}:${secs.toString().padStart(2, "0")}`}
         </span>
       </div>
 
