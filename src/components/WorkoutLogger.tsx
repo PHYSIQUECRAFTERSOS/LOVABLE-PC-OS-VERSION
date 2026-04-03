@@ -853,9 +853,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         isFirstSession={isFirstSession}
         rankData={summaryRankData}
         onDone={() => {
+          // Final cleanup of any stale Radix overlay locks
+          document.body.style.pointerEvents = '';
           clearRetryQueue();
           onComplete?.();
-          navigate("/");
+          navigate("/dashboard");
         }}
       />
     );
