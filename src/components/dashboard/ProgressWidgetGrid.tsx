@@ -51,6 +51,7 @@ const ProgressWidgetGrid = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { todayMetrics, weekMetrics, isNative, connection } = useHealthSync();
+  const { convertDistance, distanceLabel } = useUnitPreferences();
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [todayCals, setTodayCals] = useState<number>(0);
