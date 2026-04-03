@@ -34,6 +34,7 @@ const HEALTH_FIELDS = [
 const MeasurementsForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { measurementLabel, parseMeasurementInput } = useUnitPreferences();
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
