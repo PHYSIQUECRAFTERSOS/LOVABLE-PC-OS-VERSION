@@ -417,14 +417,14 @@ const ExerciseCard = ({
                 <Input
                   type="text"
                   inputMode="numeric"
-                  value={log.weight !== undefined && log.weight !== null ? String(log.weight) : ""}
+                  value={log.weight !== undefined && log.weight !== null ? String(convertWeight(log.weight)) : ""}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === "" || val === "0") {
                       onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
                     } else {
                       const num = parseFloat(val);
-                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
+                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
                     }
                   }}
                   placeholder={isBW ? "BW" : "0"}
