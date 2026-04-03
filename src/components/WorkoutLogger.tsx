@@ -813,6 +813,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         });
       }
 
+      // Clean up any stale Radix dialog body locks before switching to summary view.
+      // The finish-confirmation AlertDialog may not have completed its unmount
+      // animation when we swap the rendered tree, leaving pointer-events: none on body.
+      document.body.style.pointerEvents = '';
+
       setShowSummary(true);
     } catch (error: any) {
       console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });
