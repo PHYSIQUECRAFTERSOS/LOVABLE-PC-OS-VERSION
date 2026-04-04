@@ -1,90 +1,47 @@
 
 
-## Import Scott Szeto's Trainerize Data into Master Libraries
+## Meal Reorder + Save-to-Library + Saved Meals Tab in Meal Plan Builder
 
-This plan uses a script to directly insert data into your database — no manual entry needed. It will create the training program, meal plan template, and supplement plan in your Master Libraries as shared items.
+### What Gets Built
 
-### What Gets Created
+**1. Meal Reorder Arrows (Up/Down)**
+Add up-arrow and down-arrow buttons to each meal header bar in the Meal Plan Builder. Clicking swaps the meal with its neighbor in the array. First meal hides up arrow, last meal hides down arrow.
 
-**1. Training Program: "Phase 6: Drop Sets" (Shared)**
+**2. "Save Meal to Library" via 3-dot Menu**
+Add a `MoreVertical` (⋮) icon to each meal header bar. Clicking opens a dropdown with "Save Meal to Library". This saves the meal's name and all its foods (with per-100g data, gram amounts, serving info) into `saved_meals` + `saved_meal_items` tables, owned by the coach. A prompt dialog asks for the meal name (pre-filled with current meal name).
 
-A program with 1 phase containing 4 workouts, plus a "Day 2: Lower (adjusted)" variant:
+**3. "Saved Meals" Tab in FoodSearchPanel**
+Add a new filter tab after "Generic" called "Saved Meals". When active, it fetches the coach's `saved_meals` with their `saved_meal_items`. Displays meal names with macro totals. Selecting a saved meal auto-populates ALL its ingredients into the current meal slot in the builder (not as a single food — as individual food items).
 
-- **Day 1: Upper & Core** — Stomach Vacuum, Upper Body Mobility, Lying Dumbbell Row (3x10-12), Incline Machine Chest Press (3x8-10), Dumbbell Chest Fly (3x10-12 drop set), Rope Lat Pullovers (3x12-15 drop set), Superset: Dumbbell Hammer Curls + Cuffed Single Arm Cross Body Tricep Extension (3x10-12/8-10), Superset: Pike + Cable Rope Crunch (3x10-12/12-15), Pectoralis Chest Stretch, Upper Trapezius Stretch
-- **Day 2: Lower** — Stomach Vacuum, Lower Body Mobility, Ankle Mobility (2x8), Heel Elevated Smith Machine Back Squats (3x10-12), Leg Press Glute Focus (3x8-10), Bulgarian Split Squat (3x10-12), Dumbbell Straight Leg Deadlift (3x10-12), Leg Extensions (3x12-15 drop set), Seated Calf Raise (2x12-15)
-- **Day 2: Lower (adjusted)** — Stomach Vacuum, Lower Body Mobility, Ankle Mobility (2x8), Heels Elevated Dumbbell Front Squat (3x10-12), Dumbbell Split Squats (3x10-12), Dumbbell Romanian Deadlift (3x12-15), Leg Extensions (3x12-15), Wall Leaning Calf Raise (3x15-20)
-- **Day 3: Full Body & Core** — Stomach Vacuum, Full Body Mobility, Ankle Mobility (1x8), Flat Smith Machine Bench (2x10-12), Crossbody Single Arm Seated Row (2x8-10), Leg Press Quad Focus (2x8-10), Cable Fly Low To High (2x10-12), Heel Elevated Goblet Squats (2x10-15), Reverse Grip Lat Pulldown (2x12-15), Lying Leg Curls (2x10-12), Superset: Dumbbell Incline Curl + Barbell Skull Crusher (2x10-12/12-15), Superset: Decline Bench Oblique Crunch + Toe Touches (2x8/side + 10-12)
+### Technical Details
 
-All workouts get tempo 2:0:1:0 (core 1:0:1:0) and the drop set instructions in their notes.
+**File 1: `src/components/nutrition/MealPlanBuilder.tsx`**
+- Add `moveMeal(dayId, mealId, direction: "up" | "down")` — swaps meal positions in the array
+- Add `saveMealToLibrary(dayId, mealId)` — prompts for name, inserts into `saved_meals` + `saved_meal_items`
+- Add state: `saveMealDialogOpen`, `saveMealName`, `savingMealTarget`
+- In meal header bar: add `ChevronUp`/`ChevronDown` buttons + `MoreVertical` dropdown with "Save Meal to Library"
+- Modify `FoodSearchPanel` usage: pass a new `onSelectSavedMeal` callback that bulk-adds all foods from a saved meal
 
-**2. Exercises to Create** (ones not already in your library)
+**File 2: `src/components/nutrition/FoodSearchPanel.tsx`**
+- Add `"saved"` to `FilterTab` union type
+- Add `{ key: "saved", label: "Saved Meals" }` to FILTERS array
+- Add state: `savedMeals` array, loaded on mount from `saved_meals` + `saved_meal_items` where `client_id = user.id`
+- Add new prop: `onSelectSavedMeal?: (foods: FoodResult[]) => void`
+- When "Saved Meals" tab is active and a meal is clicked, call `onSelectSavedMeal` with all the meal's items converted to `FoodResult[]`
+- Show meal name, food count, and total macros per saved meal row
+- Add delete button on saved meals for cleanup
 
-- Stomach Vacuum Tutorial
-- Pectoralis Chest Stretch
-- Upper Trapezius Stretch
-- Dumbbell Straight Leg Deadlift
-- Wall Leaning Calf Raise
-- Heels Elevated Dumbbell Front Squat
-- Decline Bench Oblique Crunch
+**Database: No new tables needed** — `saved_meals` and `saved_meal_items` already exist with all necessary columns including per-100g values.
 
-Exercises that already exist will be reused by ID.
+### Improvements Included
+- **Bulk ingredient insert**: Selecting a saved meal adds ALL ingredients at once (not one-by-one), saving significant time
+- **Quantity preservation**: Saved meals store the exact gram amounts, so you get the same starting point and just adjust quantities per client
+- **Delete saved meals**: Clean up old/unused meals from the library
+- **Meal count badge**: "Saved Meals" tab shows count of available meals
 
-**3. Meal Plan Template: "Scott Szeto - Phase 6" (Shared)**
-
-Two day types:
-
-- **Training Days** — Calories: 2346, P: 165g, C: 300g, F: 54g
-  - Meal 1 (Pre-Workout): 3 Eggs, 100g 90/10 Ground Beef, 20g Spinach, 100g Strawberries, 2 slice Sourdough Bread
-  - Meal 2 (Post-Workout): 130g Salmon, 100g Cucumbers, 240g Sweet Potatoes, 5g EVOO, 100g Cucumbers/Bok Choy
-  - Meal 3: 150g Chicken Breast, 320g Rice, 100g Pineapple, 75g Cucumbers, 10g Honey, 10g EVOO
-  - Meal 4 (Cream of Goodness): 80g Rice Krispy Cereal, 200g Almond Milk, 20g Honey, 70g Cucumber/Bok Choy, 200g Sweet Potatoes, 150g FF Greek Yogurt, 100g Blueberries, 1 Banana, 30g Protein Powder, 8g PB, 20g Dark Chocolate, 16g PB
-
-- **Rest Days** — Calories: 2174, P: 166g, C: 247g, F: 57g
-  - Meal 1: 3 Eggs, 100g 90/10 Ground Beef, 20g Spinach, 100g Strawberries, 2 slice Sourdough Bread
-  - Meal 2: 130g Salmon, 100g Cucumbers, 240g Sweet Potatoes, 5g EVOO, 100g Cucumbers/Bok Choy
-  - Meal 3: 120g Chicken Breast, 250g Rice, 70g Kimchi, 5g EVOO, 150g FF Greek Yogurt, 10g PB, 100g Mango, 25g Rice Krispy Cereal, 10g Honey
-  - Meal 4: Cream of Goodness (same as training day)
-
-**4. Supplements to Add to Catalog** (missing ones)
-
-- Caffeine (200mg)
-- Betaine HCL (500-750mg)
-- Boron (3mg)
-- Zinc + Copper (25mg/1mg)
-- Ashwagandha KSM-66 (600mg)
-- Methylfolate L-5-MTHF (1000mcg)
-- Methylcobalamin (2000mcg)
-
-**5. Supplement Plan: "Scott Szeto Stack" (Shared)**
-
-Using existing + new catalog items with correct timings:
-- Multivitamin (Triumph) — 3 pills, with Meal 1
-- Vitamin D3 + K2 — 4000 IU, with Meal 1
-- Fish Oils — 3000mg, with Meal 1
-- Boron — 3mg, with Meal 1
-- Methylfolate — 1000mcg, with Meal 1
-- Methylcobalamin — 2000mcg, with Meal 1
-- Iodine — 1 drop, fasted
-- Psyllium Husk — 1 tsp, fasted
-- Probiotics (25B) — fasted
-- Caffeine/Pre-Workout — pre-workout
-- Creatine Monohydrate — 5g, post-workout
-- Protein Powder — as needed
-- Glutamine — 5g, post-workout (optional)
-- Betaine HCL — 500mg, with Meal 2 & 3
-- Zinc + Copper — 25mg/1mg, with Meal 2
-- Ashwagandha KSM-66 — 600mg, before bed
-- Magnesium Bisglycinate — 700mg total (1 pill post-workout + 2 pills before bed)
-
-### Technical Approach
-
-A single script will:
-1. Create missing exercises in the `exercises` table
-2. Create 4 workouts in `workouts` + `workout_exercises` + `workout_sets`
-3. Create the program in `programs` + `program_phases` + `program_workouts` with `is_master = true`
-4. Create missing supplements in `master_supplements`
-5. Create the supplement plan in `supplement_plans` + `supplement_plan_items` with `is_master = true`
-6. Create the meal plan template in `meal_plans` (is_template = true) + `meal_plan_days` + `meal_plan_items`
-
-All items will be owned by your coach ID and marked as shared (`is_master = true`).
+### What Stays the Same
+- All existing filter tabs (All, Favorites, Recent, Custom, Branded, Generic)
+- Food search behavior and scoring
+- Meal plan save/load logic
+- Template and client assignment flows
 
