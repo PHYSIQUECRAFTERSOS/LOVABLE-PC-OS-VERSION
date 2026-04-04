@@ -1,73 +1,66 @@
 
 
-## Auto-Save System for Training Builders
+## Plan: Remove Week Sub-Grouping, Add Duration Editor, Fix Shared Menu
 
-### Problem
-When coaches build programs or edit workouts, navigating away (tapping Messages, switching tabs, etc.) loses all unsaved work. The `WorkoutBuilderModal` (desktop) already has robust autosave — but `ProgramBuilder`, `ProgramDetailView` phase settings, and `MobileWorkoutEditor` do not.
+### Problem Summary
+1. **ProgramBuilder** (Master Libraries → New) uses a "Week 1, Week 2..." sub-grouping inside each phase. You don't rotate workouts weekly — same workouts run 6-8 weeks. The week sub-grouping is unnecessary clutter.
+2. **Duration (weeks) is not editable** in ProgramBuilder — it's auto-calculated from the number of week sub-cards. Need an explicit editable duration input instead.
+3. **ProgramDetailView** (Master Libraries → existing program detail) already has a flat workout list with editable duration — this is the correct model.
+4. **TrainingTab** (Client profile → Training) also uses weeks in some paths — needs the same flat structure.
+5. **3-dot menu on program sidebar** uses `opacity-0 group-hover:opacity-100` which hides it completely on touch devices. The menu with "Share with Team" / "Make Private" exists in code but is invisible without hover. Bug is CSS-only.
+6. **Auto-save** for duration changes needs to work in ProgramDetailView (already has phase autosave) and ProgramBuilder (already has autosave for edit mode).
 
-### Current State
+### Changes
 
-| Component | Autosave? | Draft persistence? |
-|---|---|---|
-| WorkoutBuilderModal (desktop) | Yes — 1200ms debounce to DB | Yes — sessionStorage |
-| ProgramBuilder (create new) | No | No |
-| ProgramDetailView (edit existing) | Partial — individual ops save immediately, but phase settings don't | No |
-| MobileWorkoutEditor | No | No |
+**File 1: `src/components/training/ProgramBuilder.tsx`** — Remove week sub-grouping, add duration input
 
-### What Gets Built
+This is the biggest change. The ProgramBuilder currently nests workouts inside `weeks[]` arrays within each phase. We need to flatten this to match `ProgramDetailView`'s approach:
 
-**1. ProgramBuilder — sessionStorage draft + autosave for edits**
+- Change `ProgramPhase` interface: remove `weeks: ProgramWeek[]`, add flat `workouts: WeekWorkout[]` array
+- Remove `ProgramWeek` interface and all week operations (`addWeekToPhase`, `removeWeekFromPhase`, `duplicateWeekInPhase`)
+- Add an editable "Duration (weeks)" number input in the phase settings grid (next to Phase Name, Training Style, etc.)
+- Update `addPhase` to create phases with `workouts: []` and `durationWeeks: 4` (editable)
+- Update `saveProgram` to save `phase.durationWeeks` directly (not calculated from week count), and insert workouts linked directly to `phase_id` in `program_workouts` (not via `week_id`)
+- Update autosave snapshot builder and draft restore
+- Update the UI: remove the nested Week collapsibles, show workouts flat under each phase with "Build Workout" and "Import" buttons directly
+- Keep the "Build Workout" modal and "Import from templates" flows — just remove the week wrapper
 
-This is the biggest pain point (Aaron's complaint). Two modes:
+**File 2: `src/pages/MasterLibraries.tsx`** — Fix 3-dot menu visibility
 
-- **Creating new program**: Save a sessionStorage draft on every change (debounced 500ms). When coach returns to the builder, restore the draft. Show a "Resume draft?" prompt if a draft exists. Also flush draft on `visibilitychange` / `pagehide`.
-- **Editing existing program** (`editProgramId` set): Add DB autosave (debounced 2000ms) using the same pattern as `WorkoutBuilderModal` — snapshot comparison, skip if unchanged, queue if in-flight. Show "Saving..." / "Saved" indicator in header.
+The dropdown trigger div uses `opacity-0 group-hover:opacity-100` which doesn't work on touch/mobile. Fix:
+- Change to `opacity-60 hover:opacity-100` so it's always visible (dimmed when not hovered)
+- This makes "Share with Team" / "Make Private" accessible on all devices
 
-**2. MobileWorkoutEditor — autosave to DB**
+**File 3: `src/components/clients/workspace/TrainingTab.tsx`** — Verify flat workout structure
 
-Since the mobile editor always edits an existing workout (`workoutId` is required), add DB autosave with the same 1200ms debounce pattern from `WorkoutBuilderModal`:
-- Build snapshot of current state
-- Compare to last persisted snapshot
-- If different, persist to DB (update workout name/instructions, delete+reinsert exercises)
-- Show autosave status indicator ("Saving..." / "Saved ✓")
-- On close/nav-away, flush any pending changes
-- Listen to `visibilitychange` for iOS app-switch saves
+The TrainingTab already loads workouts via `directWorkouts` on phases (line 32). It also has a `weeks` fallback for legacy data. No structural changes needed — it already renders flat. Just verify the "New" workout button inside a phase creates workouts linked to `phase_id` directly (not via weeks). This is already the case.
 
-**3. ProgramDetailView — autosave phase settings**
+### What Won't Change
+- `ProgramDetailView.tsx` — already has the correct flat structure with editable duration and autosave
+- `WorkoutBuilderModal.tsx` — no changes needed
+- Database schema — no migrations needed. `program_workouts` already supports `phase_id` directly (without `week_id`). `program_weeks` table stays for legacy data but new programs won't create week rows.
 
-Phase metadata (name, training style, intensity system, progression rule, description) currently requires a manual save. Add:
-- Debounced (1500ms) auto-persist of phase settings when changed via `updatePhase()`
-- Each phase with an `id` gets its settings written to DB automatically
-- Show per-phase "Saved ✓" indicator briefly
+### Technical Details
 
-### Files to Modify
-
-- `src/components/training/ProgramBuilder.tsx` — Add sessionStorage draft system + DB autosave for edit mode
-- `src/components/training/MobileWorkoutEditor.tsx` — Add DB autosave (mirror WorkoutBuilderModal pattern)
-- `src/components/training/ProgramDetailView.tsx` — Add debounced phase settings auto-persist
-
-### Files NOT Modified
-- `WorkoutBuilderModal.tsx` — already has robust autosave
-- `ClientWorkoutEditorModal.tsx` — desktop only, already saves on close
-
-### Technical Approach
-
-All three components follow the same proven pattern from `WorkoutBuilderModal`:
+The key structural change in ProgramBuilder:
 
 ```text
-State change → debounce timer (1200-2000ms) → snapshot comparison
-  → if changed: persist to DB + update lastPersistedSnapshot
-  → if in-flight: queue next save
-  → on visibilitychange="hidden": flush immediately
-  → on unmount: flush to sessionStorage (new programs) or DB (existing)
+BEFORE (current):
+Phase → Week 1 → [Workout A, Workout B]
+      → Week 2 → [Workout A, Workout B]
+      → Week 3 → [Workout A, Workout B]
+
+AFTER (target — matches ProgramDetailView):
+Phase → [Workout A, Workout B]
+         Duration: 6 weeks (editable input)
 ```
 
-The autosave indicator uses a shared pattern: `"idle" | "saving" | "saved" | "error"` with "saved" auto-clearing after 1.8s.
+The save logic changes from:
+- Insert `program_weeks` rows, then `program_workouts` with `week_id`
 
-### Improvements to Consider
+To:
+- Insert `program_workouts` with `phase_id` directly (no week rows)
+- Store `duration_weeks` on `program_phases` from the input value
 
-1. **Conflict detection**: If two coaches edit the same program simultaneously, the last save wins. A future improvement could add `updated_at` comparison before saving.
-2. **Undo support**: With autosave, accidental deletions are harder to recover. Could add a brief "Undo" toast after destructive actions (remove exercise, remove phase).
-3. **Draft expiry**: sessionStorage drafts for new programs should include a timestamp and expire after 24 hours to avoid stale resurrections.
-4. **Network-aware saving**: Skip autosave attempts when offline (check `navigator.onLine`) and queue for when connection returns.
+This matches how `ProgramDetailView.saveProgramWithPhases()` already works (lines 1048-1117).
 
