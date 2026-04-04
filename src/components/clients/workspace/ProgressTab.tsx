@@ -28,7 +28,7 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("all");
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
   const [measurementsEnabled, setMeasurementsEnabled] = useState(false);
 
   useEffect(() => {
