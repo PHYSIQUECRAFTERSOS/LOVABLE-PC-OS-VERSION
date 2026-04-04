@@ -720,6 +720,38 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Draft Resume Prompt */}
+      {showDraftResume && (
+        <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/30 rounded-lg">
+          <span className="text-sm text-foreground">You have an unsaved draft. Resume where you left off?</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={discardDraft}>Discard</Button>
+            <Button size="sm" className="h-7 text-xs" onClick={resumeDraft}>Resume Draft</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Autosave status for edit mode */}
+      {editProgramId && autoSaveStatus !== "idle" && (
+        <div className="flex items-center justify-end gap-1.5">
+          {autoSaveStatus === "saving" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin" /> Saving...
+            </span>
+          )}
+          {autoSaveStatus === "saved" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-in fade-in duration-300">
+              <Check className="h-3 w-3 text-green-500" /> Saved
+            </span>
+          )}
+          {autoSaveStatus === "error" && (
+            <span className="text-xs text-destructive flex items-center gap-1.5">
+              <AlertCircle className="h-3 w-3" /> Save failed
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Program Details */}
       <Card>
         <CardHeader><CardTitle className="text-lg">Program Details</CardTitle></CardHeader>
