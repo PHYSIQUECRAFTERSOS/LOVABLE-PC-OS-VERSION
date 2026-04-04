@@ -157,11 +157,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
     setLoadingDetails(programId);
 
-    const { data: phases } = await supabase
+    try {
+    const { data: phases, error: phaseErr } = await supabase
       .from("program_phases")
       .select("id, name, phase_order")
       .eq("program_id", programId)
       .order("phase_order");
+    if (phaseErr) { console.error("[ClientProgramView] phases error:", phaseErr); setPhaseDetails(prev => ({ ...prev, [programId]: [] })); setLoadingDetails(null); return; }
 
     const buildDetails = async (rawPhases: any[], allPwRows: any[]) => {
       const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
@@ -288,6 +290,11 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     const detail = await buildDetails(phases, allPwRows);
     setPhaseDetails(prev => ({ ...prev, [programId]: detail }));
     setLoadingDetails(null);
+    } catch (err) {
+      console.error("[ClientProgramView] toggleProgram error:", err);
+      setPhaseDetails(prev => ({ ...prev, [programId]: [] }));
+      setLoadingDetails(null);
+    }
   };
 
   if (loading) {

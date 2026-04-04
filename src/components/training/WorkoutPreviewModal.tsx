@@ -76,6 +76,7 @@ const WorkoutPreviewModal = ({
     setLoading(true);
     setShowMenu(false);
     const load = async () => {
+      try {
       const [weRes, wRes] = await Promise.all([
         supabase
           .from("workout_exercises")
@@ -114,6 +115,11 @@ const WorkoutPreviewModal = ({
 
       setExercises(mapped);
       setLoading(false);
+      } catch (err) {
+        console.error("[WorkoutPreviewModal] load error:", err);
+        setExercises([]);
+        setLoading(false);
+      }
     };
     load();
   }, [open, workoutId]);
