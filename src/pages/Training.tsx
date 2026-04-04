@@ -56,8 +56,9 @@ const Training = () => {
         .in("status", ["active", "subscribed"])
         .abortSignal(signal);
 
+      console.log("[Training] client assignments:", assignments?.length ?? 0);
+
       if (assignments && assignments.length > 0) {
-        const programIds = assignments.map(a => a.program_id);
         // Get phases for these programs
         const { data: phases } = await supabase
           .from("program_phases")
