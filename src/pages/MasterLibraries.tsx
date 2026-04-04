@@ -424,7 +424,7 @@ const MasterLibraries = () => {
           <DropdownMenuTrigger asChild>
             <div
               role="button"
-              className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
+              className="h-6 w-6 flex items-center justify-center rounded opacity-60 hover:opacity-100 hover:bg-muted transition-all"
               onClick={(e) => e.stopPropagation()}
             >
               <MoreHorizontal className="h-3.5 w-3.5" />

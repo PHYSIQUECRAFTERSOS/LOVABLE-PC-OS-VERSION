@@ -65,14 +65,6 @@ interface WeekWorkout {
   sortOrder: number;
 }
 
-interface ProgramWeek {
-  id?: string;
-  weekNumber: number;
-  name: string;
-  workouts: WeekWorkout[];
-  collapsed: boolean;
-}
-
 interface ProgramPhase {
   id?: string;
   name: string;
@@ -82,7 +74,7 @@ interface ProgramPhase {
   trainingStyle: string;
   intensitySystem: string;
   progressionRule: string;
-  weeks: ProgramWeek[];
+  workouts: WeekWorkout[];
   collapsed: boolean;
 }
 
@@ -110,16 +102,15 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       trainingStyle: "hypertrophy",
       intensitySystem: "straight_sets",
       progressionRule: "add_weight",
-      weeks: [{ weekNumber: 1, name: "Week 1", workouts: [], collapsed: false }],
+      workouts: [],
       collapsed: false,
     },
   ]);
   const [availableWorkouts, setAvailableWorkouts] = useState<any[]>([]);
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
-  const [_showAddChoice, _setShowAddChoice] = useState(false); // unused, kept for compat
+  const [_showAddChoice, _setShowAddChoice] = useState(false);
   const [showWorkoutBuilder, setShowWorkoutBuilder] = useState(false);
   const [targetPhaseIdx, setTargetPhaseIdx] = useState(0);
-  const [targetWeekIdx, setTargetWeekIdx] = useState(0);
 
   // ── Autosave state ──
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -175,43 +166,60 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         const loadedPhases: ProgramPhase[] = [];
 
         for (const phase of phaseRows) {
+          // Load workouts directly linked to phase
+          const { data: directPWs } = await supabase
+            .from("program_workouts")
+            .select("id, workout_id, day_of_week, day_label, sort_order, workouts(name)")
+            .eq("phase_id", phase.id)
+            .order("sort_order");
+
+          // Also check legacy week-based workouts
           const { data: weekRows } = await supabase
             .from("program_weeks")
-            .select("id, week_number, name")
+            .select("id")
             .eq("program_id", editProgramId)
-            .eq("phase_id", phase.id)
-            .order("week_number");
+            .eq("phase_id", phase.id);
 
-          const weeks: ProgramWeek[] = [];
-          if (weekRows) {
+          let legacyWorkouts: WeekWorkout[] = [];
+          if (weekRows && weekRows.length > 0) {
             const weekIds = weekRows.map(w => w.id);
-            const { data: pwRows } = weekIds.length > 0
-              ? await supabase
-                  .from("program_workouts")
-                  .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(name)")
-                  .in("week_id", weekIds)
-                  .order("sort_order")
-              : { data: [] };
-
-            for (const w of weekRows) {
-              weeks.push({
-                id: w.id,
-                weekNumber: w.week_number,
-                name: w.name || `Week ${w.week_number}`,
-                collapsed: true,
-                workouts: (pwRows || [])
-                  .filter((pw: any) => pw.week_id === w.id)
-                  .map((pw: any) => ({
-                    id: pw.id,
-                    workoutId: pw.workout_id,
-                    workoutName: (pw.workouts as any)?.name || "Workout",
-                    dayOfWeek: pw.day_of_week ?? 0,
-                    dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-                    sortOrder: pw.sort_order ?? 0,
-                  })),
-              });
-            }
+            const { data: weekPWs } = await supabase
+              .from("program_workouts")
+              .select("id, workout_id, day_of_week, day_label, sort_order, workouts(name)")
+              .in("week_id", weekIds)
+              .order("sort_order");
+            legacyWorkouts = (weekPWs || []).map((pw: any) => ({
+              id: pw.id,
+              workoutId: pw.workout_id,
+              workoutName: (pw.workouts as any)?.name || "Workout",
+              dayOfWeek: pw.day_of_week ?? 0,
+              dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+              sortOrder: pw.sort_order ?? 0,
+            }));
           }
+
+          const phaseWorkouts: WeekWorkout[] = (directPWs || [])
+            .filter((pw: any) => pw.workout_id) // filter out any with null workout_id
+            .map((pw: any) => ({
+              id: pw.id,
+              workoutId: pw.workout_id,
+              workoutName: (pw.workouts as any)?.name || "Workout",
+              dayOfWeek: pw.day_of_week ?? 0,
+              dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+              sortOrder: pw.sort_order ?? 0,
+            }));
+
+          // Merge: use direct workouts if any, otherwise fall back to legacy
+          const allWorkouts = phaseWorkouts.length > 0 ? phaseWorkouts : legacyWorkouts;
+
+          // Deduplicate by workout_id
+          const seen = new Set<string>();
+          const deduped = allWorkouts.filter(w => {
+            const key = w.workoutId;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
 
           loadedPhases.push({
             id: phase.id,
@@ -222,7 +230,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
             trainingStyle: phase.training_style || "hypertrophy",
             intensitySystem: phase.intensity_system || "straight_sets",
             progressionRule: phase.progression_rule || "add_weight",
-            weeks: weeks.length > 0 ? weeks : [{ weekNumber: 1, name: "Week 1", workouts: [], collapsed: false }],
+            workouts: deduped,
             collapsed: false,
           });
         }
@@ -244,32 +252,33 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
             .in("week_id", weekIds)
             .order("sort_order");
 
-          const legacyWeeks: ProgramWeek[] = weekRows.map(w => ({
-            id: w.id,
-            weekNumber: w.week_number,
-            name: w.name || `Week ${w.week_number}`,
-            collapsed: true,
-            workouts: (pwRows || [])
-              .filter((pw: any) => pw.week_id === w.id)
-              .map((pw: any) => ({
-                id: pw.id,
-                workoutId: pw.workout_id,
-                workoutName: (pw.workouts as any)?.name || "Workout",
-                dayOfWeek: pw.day_of_week ?? 0,
-                dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-                sortOrder: pw.sort_order ?? 0,
-              })),
+          // Flatten all week workouts into a single phase
+          const allWorkouts: WeekWorkout[] = (pwRows || []).map((pw: any) => ({
+            id: pw.id,
+            workoutId: pw.workout_id,
+            workoutName: (pw.workouts as any)?.name || "Workout",
+            dayOfWeek: pw.day_of_week ?? 0,
+            dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+            sortOrder: pw.sort_order ?? 0,
           }));
+
+          // Deduplicate
+          const seen = new Set<string>();
+          const deduped = allWorkouts.filter(w => {
+            if (seen.has(w.workoutId)) return false;
+            seen.add(w.workoutId);
+            return true;
+          });
 
           setPhases([{
             name: "Phase 1",
             description: "",
             phaseOrder: 1,
-            durationWeeks: legacyWeeks.length,
+            durationWeeks: weekRows.length,
             trainingStyle: "hypertrophy",
             intensitySystem: "straight_sets",
             progressionRule: "add_weight",
-            weeks: legacyWeeks,
+            workouts: deduped,
             collapsed: false,
           }]);
         }
@@ -281,7 +290,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
 
   // ── Build snapshot for draft/autosave comparison ──
   const buildSnapshot = useCallback(() => JSON.stringify({
-    name, description, goalType, tags, phases: phases.map(p => ({ ...p, collapsed: false, weeks: p.weeks.map(w => ({ ...w, collapsed: false })) })),
+    name, description, goalType, tags, phases: phases.map(p => ({ ...p, collapsed: false })),
   }), [name, description, goalType, tags, phases]);
 
   // ── Draft restore for NEW programs ──
@@ -292,7 +301,6 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       if (raw) {
         const draft = JSON.parse(raw);
         const ts = draft._ts || 0;
-        // Expire drafts older than 24 hours
         if (Date.now() - ts > 86400000) {
           sessionStorage.removeItem(draftKey);
           return;
@@ -325,9 +333,9 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
 
   // ── sessionStorage draft persistence for NEW programs (debounced 500ms) ──
   useEffect(() => {
-    if (editProgramId) return; // Only for new programs
+    if (editProgramId) return;
     const timer = setTimeout(() => {
-      const hasContent = name.trim() || description.trim() || phases.some(p => p.weeks.some(w => w.workouts.length > 0));
+      const hasContent = name.trim() || description.trim() || phases.some(p => p.workouts.length > 0);
       if (hasContent) {
         try {
           const snapshot = buildSnapshot();
@@ -366,7 +374,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
 
     try {
       const parsedTags = tags.split(",").map(t => t.trim()).filter(Boolean);
-      const totalWeeks = phases.reduce((s, p) => s + p.weeks.length, 0);
+      const totalWeeks = phases.reduce((s, p) => s + p.durationWeeks, 0);
 
       const { error } = await supabase.from("programs").update({
         name: name.trim(),
@@ -381,8 +389,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       await supabase.from("program_phases").delete().eq("program_id", editProgramId);
       await supabase.from("program_weeks").delete().eq("program_id", editProgramId);
 
-      // Re-insert phases, weeks, workouts
-      let globalWeekNumber = 0;
+      // Re-insert phases with workouts linked directly to phase_id
       for (const phase of phases) {
         const { data: phaseRow, error: phaseErr } = await supabase
           .from("program_phases")
@@ -391,7 +398,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
             name: phase.name,
             description: phase.description || null,
             phase_order: phase.phaseOrder,
-            duration_weeks: phase.weeks.length,
+            duration_weeks: phase.durationWeeks,
             training_style: phase.trainingStyle,
             intensity_system: phase.intensitySystem,
             progression_rule: phase.progressionRule,
@@ -399,30 +406,17 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
           .select().single();
         if (phaseErr) throw phaseErr;
 
-        for (const week of phase.weeks) {
-          globalWeekNumber++;
-          const { data: weekRow, error: wErr } = await supabase
-            .from("program_weeks")
-            .insert({
-              program_id: editProgramId,
+        if (phase.workouts.length > 0) {
+          await supabase.from("program_workouts").insert(
+            phase.workouts.map((w, i) => ({
               phase_id: phaseRow.id,
-              week_number: globalWeekNumber,
-              name: week.name,
-            })
-            .select().single();
-          if (wErr) throw wErr;
-
-          if (week.workouts.length > 0) {
-            await supabase.from("program_workouts").insert(
-              week.workouts.map((w, i) => ({
-                week_id: weekRow.id,
-                workout_id: w.workoutId,
-                day_of_week: w.dayOfWeek,
-                day_label: w.dayLabel,
-                sort_order: i,
-              }))
-            );
-          }
+              workout_id: w.workoutId,
+              day_of_week: w.dayOfWeek,
+              day_label: w.dayLabel,
+              sort_order: i,
+              week_id: null as any,
+            }))
+          );
         }
       }
 
@@ -458,8 +452,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
         void triggerAutoSave();
       } else {
-        // Flush new program draft to sessionStorage immediately
-        const hasContent = name.trim() || description.trim() || phases.some(p => p.weeks.some(w => w.workouts.length > 0));
+        const hasContent = name.trim() || description.trim() || phases.some(p => p.workouts.length > 0);
         if (hasContent) {
           try {
             const snapshot = JSON.parse(buildSnapshot());
@@ -477,11 +470,6 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     };
   }, [editProgramId, triggerAutoSave, name, description, phases, buildSnapshot, draftKey]);
 
-  // Clear draft on successful manual save
-  const originalSaveProgram = useCallback(async () => {
-    // This is handled in saveProgram below
-  }, []);
-
   // Phase operations
   const addPhase = () => {
     const order = phases.length + 1;
@@ -493,7 +481,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       trainingStyle: "hypertrophy",
       intensitySystem: "straight_sets",
       progressionRule: "add_weight",
-      weeks: [{ weekNumber: 1, name: "Week 1", workouts: [], collapsed: false }],
+      workouts: [],
       collapsed: false,
     }]);
   };
@@ -510,7 +498,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       id: undefined,
       name: `${source.name} (Copy)`,
       phaseOrder: phases.length + 1,
-      weeks: source.weeks.map(w => ({ ...w, id: undefined, workouts: w.workouts.map(wo => ({ ...wo, id: undefined })) })),
+      workouts: source.workouts.map(w => ({ ...w, id: undefined })),
       collapsed: false,
     }]);
   };
@@ -529,51 +517,16 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     setPhases(newPhases);
   };
 
-  // Week operations within a phase
-  const addWeekToPhase = (phaseIdx: number) => {
-    const newPhases = [...phases];
-    const nextNum = newPhases[phaseIdx].weeks.length + 1;
-    newPhases[phaseIdx].weeks.push({ weekNumber: nextNum, name: `Week ${nextNum}`, workouts: [], collapsed: false });
-    newPhases[phaseIdx].durationWeeks = newPhases[phaseIdx].weeks.length;
-    setPhases(newPhases);
-  };
-
-  const removeWeekFromPhase = (phaseIdx: number, weekIdx: number) => {
-    const newPhases = [...phases];
-    if (newPhases[phaseIdx].weeks.length <= 1) return;
-    newPhases[phaseIdx].weeks = newPhases[phaseIdx].weeks
-      .filter((_, i) => i !== weekIdx)
-      .map((w, i) => ({ ...w, weekNumber: i + 1, name: w.name.startsWith("Week ") ? `Week ${i + 1}` : w.name }));
-    newPhases[phaseIdx].durationWeeks = newPhases[phaseIdx].weeks.length;
-    setPhases(newPhases);
-  };
-
-  const duplicateWeekInPhase = (phaseIdx: number, weekIdx: number) => {
-    const newPhases = [...phases];
-    const source = newPhases[phaseIdx].weeks[weekIdx];
-    const nextNum = newPhases[phaseIdx].weeks.length + 1;
-    newPhases[phaseIdx].weeks.push({
-      weekNumber: nextNum,
-      name: `Week ${nextNum}`,
-      workouts: source.workouts.map(w => ({ ...w, id: undefined })),
-      collapsed: false,
-    });
-    newPhases[phaseIdx].durationWeeks = newPhases[phaseIdx].weeks.length;
-    setPhases(newPhases);
-  };
-
-  // Workout operations
-  const openWorkoutPicker = (phaseIdx: number, weekIdx: number) => {
+  // Workout operations — flat under phase
+  const openWorkoutPicker = (phaseIdx: number) => {
     setTargetPhaseIdx(phaseIdx);
-    setTargetWeekIdx(weekIdx);
     setShowWorkoutBuilder(true);
   };
 
   const handleWorkoutBuilderSave = (workoutId: string, workoutName: string) => {
     const newPhases = [...phases];
-    const week = newPhases[targetPhaseIdx].weeks[targetWeekIdx];
-    const existingCount = week.workouts.length;
-    week.workouts.push({
+    const existingCount = newPhases[targetPhaseIdx].workouts.length;
+    newPhases[targetPhaseIdx].workouts.push({
       workoutId,
       workoutName,
       dayOfWeek: Math.min(existingCount, 6),
@@ -584,11 +537,10 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     setShowWorkoutBuilder(false);
   };
 
-  const addWorkoutToWeek = (workout: any) => {
+  const addWorkoutToPhase = (workout: any) => {
     const newPhases = [...phases];
-    const week = newPhases[targetPhaseIdx].weeks[targetWeekIdx];
-    const existingCount = week.workouts.length;
-    week.workouts.push({
+    const existingCount = newPhases[targetPhaseIdx].workouts.length;
+    newPhases[targetPhaseIdx].workouts.push({
       workoutId: workout.id,
       workoutName: workout.name,
       dayOfWeek: Math.min(existingCount, 6),
@@ -599,16 +551,16 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     setShowWorkoutPicker(false);
   };
 
-  const removeWorkoutFromWeek = (phaseIdx: number, weekIdx: number, workoutIdx: number) => {
+  const removeWorkoutFromPhase = (phaseIdx: number, workoutIdx: number) => {
     const newPhases = [...phases];
-    newPhases[phaseIdx].weeks[weekIdx].workouts.splice(workoutIdx, 1);
+    newPhases[phaseIdx].workouts.splice(workoutIdx, 1);
     setPhases(newPhases);
   };
 
-  const updateWorkoutDay = (phaseIdx: number, weekIdx: number, workoutIdx: number, dayOfWeek: number) => {
+  const updateWorkoutDay = (phaseIdx: number, workoutIdx: number, dayOfWeek: number) => {
     const newPhases = [...phases];
-    newPhases[phaseIdx].weeks[weekIdx].workouts[workoutIdx].dayOfWeek = dayOfWeek;
-    newPhases[phaseIdx].weeks[weekIdx].workouts[workoutIdx].dayLabel = DAY_LABELS[dayOfWeek];
+    newPhases[phaseIdx].workouts[workoutIdx].dayOfWeek = dayOfWeek;
+    newPhases[phaseIdx].workouts[workoutIdx].dayLabel = DAY_LABELS[dayOfWeek];
     setPhases(newPhases);
   };
 
@@ -621,7 +573,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     setLoading(true);
     try {
       const parsedTags = tags.split(",").map(t => t.trim()).filter(Boolean);
-      const totalWeeks = phases.reduce((s, p) => s + p.weeks.length, 0);
+      const totalWeeks = phases.reduce((s, p) => s + p.durationWeeks, 0);
       let programId = editProgramId;
 
       if (editProgramId) {
@@ -634,9 +586,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         } as any).eq("id", editProgramId);
         if (error) throw error;
 
-        // Delete old phases (cascades to weeks via phase_id)
         await supabase.from("program_phases").delete().eq("program_id", editProgramId);
-        // Delete any orphan weeks without phase_id
         await supabase.from("program_weeks").delete().eq("program_id", editProgramId);
       } else {
         const { data, error } = await supabase.from("programs").insert({
@@ -652,8 +602,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
         programId = data.id;
       }
 
-      // Insert phases, weeks, workouts
-      let globalWeekNumber = 0;
+      // Insert phases with workouts linked directly to phase_id (no weeks)
       for (const phase of phases) {
         const { data: phaseRow, error: phaseErr } = await supabase
           .from("program_phases")
@@ -662,7 +611,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
             name: phase.name,
             description: phase.description || null,
             phase_order: phase.phaseOrder,
-            duration_weeks: phase.weeks.length,
+            duration_weeks: phase.durationWeeks,
             training_style: phase.trainingStyle,
             intensity_system: phase.intensitySystem,
             progression_rule: phase.progressionRule,
@@ -670,36 +619,22 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
           .select().single();
         if (phaseErr) throw phaseErr;
 
-        for (const week of phase.weeks) {
-          globalWeekNumber++;
-          const { data: weekRow, error: wErr } = await supabase
-            .from("program_weeks")
-            .insert({
-              program_id: programId!,
+        if (phase.workouts.length > 0) {
+          const { error: pwErr } = await supabase.from("program_workouts").insert(
+            phase.workouts.map((w, i) => ({
               phase_id: phaseRow.id,
-              week_number: globalWeekNumber,
-              name: week.name,
-            })
-            .select().single();
-          if (wErr) throw wErr;
-
-          if (week.workouts.length > 0) {
-            const { error: pwErr } = await supabase.from("program_workouts").insert(
-              week.workouts.map((w, i) => ({
-                week_id: weekRow.id,
-                workout_id: w.workoutId,
-                day_of_week: w.dayOfWeek,
-                day_label: w.dayLabel,
-                sort_order: i,
-              }))
-            );
-            if (pwErr) throw pwErr;
-          }
+              workout_id: w.workoutId,
+              day_of_week: w.dayOfWeek,
+              day_label: w.dayLabel,
+              sort_order: i,
+              week_id: null as any,
+            }))
+          );
+          if (pwErr) throw pwErr;
         }
       }
 
       toast({ title: editProgramId ? "Program updated" : "Program created" });
-      // Clear draft on successful save
       sessionStorage.removeItem(draftKey);
       lastPersistedSnapshotRef.current = buildSnapshot();
       onSave?.();
@@ -804,7 +739,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                     <h4 className="font-semibold text-sm">{phase.name}</h4>
                     <Badge variant="secondary" className="text-[10px]">{phase.trainingStyle}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {phase.weeks.length} week{phase.weeks.length !== 1 ? "s" : ""}
+                      {phase.durationWeeks} week{phase.durationWeeks !== 1 ? "s" : ""} · {phase.workouts.length} workout{phase.workouts.length !== 1 ? "s" : ""}
                     </span>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -852,6 +787,17 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                       </Select>
                     </div>
                     <div className="space-y-1.5">
+                      <Label className="text-xs">Duration (weeks)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={52}
+                        value={phase.durationWeeks}
+                        onChange={(e) => updatePhase(phaseIdx, { durationWeeks: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
                       <Label className="text-xs">Intensity System</Label>
                       <Select value={phase.intensitySystem} onValueChange={(v) => updatePhase(phaseIdx, { intensitySystem: v })}>
                         <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -860,7 +806,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="md:col-span-2 space-y-1.5">
+                    <div className="space-y-1.5">
                       <Label className="text-xs">Description</Label>
                       <Input
                         value={phase.description}
@@ -880,82 +826,42 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
                     </div>
                   </div>
 
-                  {/* Weeks inside phase */}
-                  <div className="space-y-3">
-                    {phase.weeks.map((week, weekIdx) => (
-                      <Card key={weekIdx} className="overflow-hidden bg-card/50">
-                        <Collapsible open={!week.collapsed} onOpenChange={(open) => {
-                          const newPhases = [...phases];
-                          newPhases[phaseIdx].weeks[weekIdx].collapsed = !open;
-                          setPhases(newPhases);
-                        }}>
-                          <CollapsibleTrigger asChild>
-                            <div className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-muted/20 transition-colors">
-                              <div className="flex items-center gap-2">
-                                {week.collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                                <span className="text-sm font-medium">{week.name}</span>
-                                <span className="text-[11px] text-muted-foreground">
-                                  {week.workouts.length} workout{week.workouts.length !== 1 ? "s" : ""}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => duplicateWeekInPhase(phaseIdx, weekIdx)}>
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                                {phase.weeks.length > 1 && (
-                                  <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeWeekFromPhase(phaseIdx, weekIdx)}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </CollapsibleTrigger>
-
-                          <CollapsibleContent>
-                            <div className="px-3 pb-3 space-y-2">
-                              {week.workouts.length === 0 ? (
-                                <p className="text-[11px] text-muted-foreground text-center py-3">
-                                  No workouts assigned.
-                                </p>
-                              ) : (
-                                week.workouts.map((pw, pwIdx) => (
-                                  <div key={pwIdx} className="flex items-center gap-2 p-2 border rounded-md bg-background">
-                                    <Dumbbell className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                    <span className="text-xs font-medium flex-1 truncate">{pw.workoutName}</span>
-                                    <Select
-                                      value={String(pw.dayOfWeek)}
-                                      onValueChange={(v) => updateWorkoutDay(phaseIdx, weekIdx, pwIdx, parseInt(v))}
-                                    >
-                                      <SelectTrigger className="w-28 h-7 text-[11px]"><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                        {DAY_LABELS.map((day, i) => (
-                                          <SelectItem key={i} value={String(i)}>{day}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive flex-shrink-0" onClick={() => removeWorkoutFromWeek(phaseIdx, weekIdx, pwIdx)}>
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))
-                              )}
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => openWorkoutPicker(phaseIdx, weekIdx)}>
-                                  <Plus className="h-3 w-3 mr-1" /> Build Workout
-                                </Button>
-                                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setTargetPhaseIdx(phaseIdx); setTargetWeekIdx(weekIdx); setShowWorkoutPicker(true); }}>
-                                  <FileText className="h-3 w-3 mr-1" /> Import
-                                </Button>
-                              </div>
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      </Card>
-                    ))}
-
-                    <Button size="sm" variant="ghost" className="w-full text-xs" onClick={() => addWeekToPhase(phaseIdx)}>
-                      <Plus className="h-3 w-3 mr-1" /> Add Week to {phase.name}
-                    </Button>
+                  {/* Workouts flat list */}
+                  <div className="space-y-2">
+                    {phase.workouts.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground text-center py-3">
+                        No workouts assigned.
+                      </p>
+                    ) : (
+                      phase.workouts.map((pw, pwIdx) => (
+                        <div key={pwIdx} className="flex items-center gap-2 p-2 border rounded-md bg-background">
+                          <Dumbbell className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span className="text-xs font-medium flex-1 truncate">{pw.workoutName}</span>
+                          <Select
+                            value={String(pw.dayOfWeek)}
+                            onValueChange={(v) => updateWorkoutDay(phaseIdx, pwIdx, parseInt(v))}
+                          >
+                            <SelectTrigger className="w-28 h-7 text-[11px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {DAY_LABELS.map((day, i) => (
+                                <SelectItem key={i} value={String(i)}>{day}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive flex-shrink-0" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={() => openWorkoutPicker(phaseIdx)}>
+                        <Plus className="h-3 w-3 mr-1" /> Build Workout
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setTargetPhaseIdx(phaseIdx); setShowWorkoutPicker(true); }}>
+                        <FileText className="h-3 w-3 mr-1" /> Import
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </CollapsibleContent>
@@ -968,8 +874,8 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       <div className="flex items-center justify-between px-4 py-3 bg-muted/30 rounded-lg border">
         <div className="flex gap-4 text-xs text-muted-foreground">
           <span>{phases.length} phase{phases.length !== 1 ? "s" : ""}</span>
-          <span>{phases.reduce((s, p) => s + p.weeks.length, 0)} total weeks</span>
-          <span>{phases.reduce((s, p) => s + p.weeks.reduce((ws, w) => ws + w.workouts.length, 0), 0)} workouts</span>
+          <span>{phases.reduce((s, p) => s + p.durationWeeks, 0)} total weeks</span>
+          <span>{phases.reduce((s, p) => s + p.workouts.length, 0)} workouts</span>
         </div>
       </div>
 
@@ -992,7 +898,7 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
               availableWorkouts.map((w) => (
                 <button
                   key={w.id}
-                  onClick={() => addWorkoutToWeek(w)}
+                  onClick={() => addWorkoutToPhase(w)}
                   className="w-full text-left p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <p className="font-medium text-sm">{w.name}</p>
