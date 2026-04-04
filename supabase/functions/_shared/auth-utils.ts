@@ -1,5 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 type AuthenticatedUserResult =
   | { user: any }
   | { error: string; status: number };
@@ -14,30 +12,37 @@ export async function requireAuthenticatedUser(
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error("[auth-utils] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl) {
+    console.error("[auth-utils] Missing SUPABASE_URL");
     return { error: "Server configuration error", status: 500 };
   }
 
-  const token = authHeader.replace("Bearer ", "");
+  try {
+    // Call the Supabase Auth API directly to validate the JWT
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: authHeader,
+        apikey: Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "",
+      },
+    });
 
-  // Use service role client with auth.getUser(jwt) to validate the token
-  // without relying on session storage
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("[auth-utils] Auth API returned", res.status, body);
+      return { error: "Unauthorized", status: 401 };
+    }
 
-  const {
-    data: { user },
-    error,
-  } = await serviceClient.auth.getUser(token);
+    const user = await res.json();
 
-  if (error || !user) {
-    console.error("[auth-utils] Failed to validate auth token", error);
+    if (!user || !user.id) {
+      console.error("[auth-utils] No user in auth response");
+      return { error: "Unauthorized", status: 401 };
+    }
+
+    return { user };
+  } catch (err) {
+    console.error("[auth-utils] Auth validation error:", err);
     return { error: "Unauthorized", status: 401 };
   }
-
-  return { user };
 }
