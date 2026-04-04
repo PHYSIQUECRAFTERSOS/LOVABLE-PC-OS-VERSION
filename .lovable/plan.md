@@ -1,35 +1,79 @@
 
+## AI-Powered Client Import System
 
-## Fix Onboarding Save Errors, Document Signing Page, and Signed Agreements Display
+### Overview
+Build a multi-step AI import flow that reads PDF files (workout programs, meal plans, supplement stacks) using the Anthropic Claude API and maps their content into existing database structures. Two entry points: Master Libraries (shared templates) and Client Profile (direct assignment).
 
-### Problem Summary
+### Step 1: Add ANTHROPIC_API_KEY Secret
+Request the Anthropic API key from you and store it as a backend secret for use in the edge function.
 
-Three interconnected issues affecting new client onboarding:
+### Step 2: Create `ai_import_jobs` Database Table
+New table to track import job state (queued → processing → review → importing → done → failed). Stores extracted JSON, match results, and error messages. RLS policies restrict coaches to their own jobs, admins can see all.
 
-1. **"Failed to save your progress" toast** appears after almost every onboarding step, even though data IS saving successfully on the backend. Root cause: the payload sends empty strings (`""`) for timestamp columns like `waiver_signed_at` and `baseline_assessment_date` on early steps, which can cause PostgREST rejection. Additionally, the Preview environment's fetch proxy can interfere with responses, causing false error states.
+**Columns:** id, created_by, client_id (nullable), status, document_type, file_names, extracted_json, match_results, final_data, error_message, created_at, updated_at.
 
-2. **Document signing page (Setup.tsx) is stuck** — after creating a password, the ToS page renders but buttons are cut off below the viewport. Root cause: the outer container uses `flex min-h-screen items-center justify-center` with no `overflow-y-auto`, so when DocumentSigningFlow + the PC header exceed viewport height, the footer (checkbox + Continue button) is hidden and unreachable.
+### Step 3: Build `ai-import-processor` Edge Function
+`supabase/functions/ai-import-processor/index.ts`
 
-3. **Signed agreements not showing in coach's client profile** — two causes: (a) the DocumentSigningFlow never completed because of issue #2, so no `client_signatures` records were created; (b) the onboarding waiver (step 13) saves to `onboarding_profiles`, NOT to `client_signatures`, so even when completed it won't appear in the Signed Agreements section.
+- Receives job_id, base64 PDF files, file names, and import type
+- Calls Anthropic API directly via `fetch()` (no SDK) using `claude-sonnet-4-20250514` with PDF document blocks
+- System prompt enforces strict extraction — zero inference, only data present in the document
+- Returns structured JSON with workout days, meal plans, and supplement stacks
+- Runs fuzzy matching against existing `exercises` and `food_items` tables using similarity scores
+- Stores results in `ai_import_jobs` and updates status at each step
+- Confidence badges: green (≥0.85), yellow (0.60–0.84), red (<0.60)
 
-### Changes
+### Step 4: Build Frontend Components
 
-**File 1: `src/pages/Onboarding.tsx`**
-- Sanitize the payload in `saveProgress()` before sending to DB: convert empty strings to `null` for timestamp columns (`waiver_signed_at`, `baseline_assessment_date`, `completed_at`)
-- Remove the error toast for non-critical step saves — if the save fails silently (data persists via retry or the error is transient), don't alarm the user. Only show error toast on final completion step failure.
-- For intermediate steps, use fire-and-forget saves (like step 3 already does) — the user can proceed and data will be retried on the next step save anyway since the full payload is sent each time.
-- Keep the error toast only for `handleComplete()` where it truly matters.
+**`src/components/import/AIImportButton.tsx`**
+Gold button with props: `entryPoint ('library' | 'client')`, `clientId?`, `importType ('workout' | 'meal' | 'supplement' | 'any')`. Opens the import modal.
 
-**File 2: `src/pages/Setup.tsx`**
-- Add `overflow-y-auto` to the outer container div so the entire page scrolls when content exceeds viewport height
-- This ensures the DocumentViewer footer (checkbox + Continue button) is always reachable on all screen sizes
+**`src/components/import/AIImportModal.tsx`**
+Multi-step modal (no form tags, all onClick/onChange):
+1. **Upload** — drag-and-drop PDF zone, file type auto-detect dropdown
+2. **Processing** — progress indicator with pulsing status (8s+ threshold), polls job status
+3. **Review** — structured preview of all extracted data with match confidence badges
+4. **Saving** — per-item progress with checkmarks
+5. **Done** — green confirmation banner
 
-**File 3: `src/components/clients/workspace/OnboardingTab.tsx`**
-- In the "Signed Agreements" section, also check `onboarding_profiles` for `waiver_signed = true` and display it as a signed agreement record (showing signed name from the waiver, date from `waiver_signed_at`)
-- This ensures the onboarding waiver shows even if `client_signatures` has no records (which happens when the DocumentSigningFlow was bypassed)
-- Keep the existing `client_signatures` query so both ToS signatures AND onboarding waiver are displayed
+**`src/components/import/ExerciseMatchReview.tsx`**
+Shows each exercise: PDF name → matched catalog exercise + confidence badge. Yellow/red items get inline search dropdown to manually select correct exercise or confirm "Create New".
 
-**File 4: `src/components/signing/DocumentViewer.tsx`**
-- Reduce the scroll area from `h-[50vh]` to `h-[40vh]` to give more breathing room for the footer on smaller screens
-- This complements the Setup.tsx scroll fix to prevent content overflow issues
+**`src/components/import/FoodMatchReview.tsx`**
+Shows foods grouped by meal card. Each food: PDF name + quantity → matched food or orange "Custom Food" badge with pre-filled nutrition values.
 
+**`src/components/import/SupplementReview.tsx`**
+Simple table: name, dose, timing, reason. No matching needed — creates new entries if not found.
+
+### Step 5: Integration Points (minimal injection into existing files)
+
+- **`MasterLibraries.tsx`**: Add AIImportButton in Programs tab, Meals tab, and Supplements tab top-right button groups
+- **`ClientDetail.tsx`**: Add AIImportButton in the profile action bar with `importType='any'` and `clientId`
+
+### Step 6: Save Logic
+On coach confirmation, write records to existing tables:
+- **Workouts**: Create program → phases → program_workouts → workout_exercises using matched exercise IDs
+- **Meal Plans**: Create meal_plans → meal_plan_days → meal_plan_items linking to matched or newly-created food_items
+- **Supplements**: Create/reuse master_supplements → supplement_plan → supplement_plan_items
+
+### Key Rules Enforced
+- Never create duplicate exercises — match against catalog first, coach confirms
+- Each meal is a closed list — only foods literally in the PDF for that meal
+- Calorie/macro values used exactly as written in PDF, no recalculation
+- Custom foods created with full nutrition data before being referenced
+- Unmatched items flagged for coach resolution before saving
+- All new tables have RLS policies
+- No existing components rebuilt — only button injection
+
+### Files Created
+- `supabase/functions/ai-import-processor/index.ts`
+- `src/components/import/AIImportButton.tsx`
+- `src/components/import/AIImportModal.tsx`
+- `src/components/import/ExerciseMatchReview.tsx`
+- `src/components/import/FoodMatchReview.tsx`
+- `src/components/import/SupplementReview.tsx`
+
+### Files Modified (button injection only)
+- `src/pages/MasterLibraries.tsx`
+- `src/pages/ClientDetail.tsx`
+- `supabase/config.toml` (add function config)
