@@ -870,11 +870,43 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         workoutName={previewWorkoutName}
         actionLabel="Edit Workout"
         actionIcon={<Pencil className="h-4 w-4 mr-2" />}
+        isCoach={role === "coach" || role === "admin"}
+        onEdit={(wId) => {
+          if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
+          if (isMobile) {
+            setMobileEditorWorkoutId(wId);
+            setMobileEditorWorkoutName(previewWorkoutName);
+            setMobileEditorOpen(true);
+          } else {
+            setEditorWorkoutId(wId);
+            setEditorWorkoutName(previewWorkoutName);
+            setEditorOpen(true);
+          }
+        }}
+        onDuplicate={(wId) => {
+          const pw = allWorkouts.find(w => w.workout_id === wId);
+          const phase = phases.find(p => p.directWorkouts.some(dw => dw.workout_id === wId));
+          if (pw && phase) { setPreviewOpen(false); duplicateWorkout(pw, phase.id); }
+        }}
+        onDelete={(wId) => {
+          const pw = allWorkouts.find(w => w.workout_id === wId);
+          if (pw) { setPreviewOpen(false); setDeleteTarget({ ids: [pw.id], names: [pw.workout_name] }); }
+        }}
+        onRename={async (wId, newName) => {
+          await supabase.from("workouts").update({ name: newName }).eq("id", wId);
+          toast({ title: "Workout renamed" });
+          setPreviewWorkoutName(newName);
+          loadClientProgram();
+        }}
         onStartWorkout={() => {
           if (previewWorkoutId) {
             setPreviewOpen(false);
             if (assignment?.is_linked_to_master) {
               setShowDetach(true);
+            } else if (isMobile) {
+              setMobileEditorWorkoutId(previewWorkoutId);
+              setMobileEditorWorkoutName(previewWorkoutName);
+              setMobileEditorOpen(true);
             } else {
               setEditorWorkoutId(previewWorkoutId);
               setEditorWorkoutName(previewWorkoutName);
@@ -884,13 +916,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }}
       />
 
-      {/* Full-screen Workout Editor Modal */}
+      {/* Full-screen Workout Editor Modal (desktop) */}
       <ClientWorkoutEditorModal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         onSaved={() => loadClientProgram()}
         workoutId={editorWorkoutId}
         workoutName={editorWorkoutName}
+        clientId={clientId}
+      />
+
+      {/* Mobile Workout Editor (mobile only) */}
+      <MobileWorkoutEditor
+        open={mobileEditorOpen}
+        onClose={() => setMobileEditorOpen(false)}
+        onSaved={() => loadClientProgram()}
+        workoutId={mobileEditorWorkoutId}
+        workoutName={mobileEditorWorkoutName}
         clientId={clientId}
       />
 
