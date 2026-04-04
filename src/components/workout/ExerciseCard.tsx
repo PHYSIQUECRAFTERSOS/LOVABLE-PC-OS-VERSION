@@ -273,6 +273,9 @@ const ExerciseCard = ({
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, parseWeightInput, weightLabel } = useUnitPreferences();
 
+  // Local string state for weight inputs to preserve trailing decimals (e.g. "105.")
+  const [weightStrings, setWeightStrings] = useState<Record<number, string>>({});
+
   // Long-press support
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
