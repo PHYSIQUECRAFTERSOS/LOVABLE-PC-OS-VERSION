@@ -37,6 +37,7 @@ const Training = () => {
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
+      console.log("[Training] queryFn start, role:", role, "userId:", user.id.slice(0, 8));
       if (isCoachOrAdmin) {
         const { data, error } = await supabase
           .from("workouts")
@@ -44,6 +45,7 @@ const Training = () => {
           .eq("coach_id", user.id)
           .abortSignal(signal);
         if (error) throw error;
+        console.log("[Training] coach workouts:", data?.length ?? 0);
         return data || [];
       }
       // Client: only show workouts from assigned programs (no duplicates)
