@@ -22,6 +22,8 @@ export async function requireAuthenticatedUser(
     return { error: "Server configuration error", status: 500 };
   }
 
+  const token = authHeader.replace("Bearer ", "");
+
   const authClient = createClient(supabaseUrl, publishableKey, {
     global: {
       headers: {
@@ -33,7 +35,7 @@ export async function requireAuthenticatedUser(
   const {
     data: { user },
     error,
-  } = await authClient.auth.getUser();
+  } = await authClient.auth.getUser(token);
 
   if (error || !user) {
     console.error("[auth-utils] Failed to validate auth token", error);
