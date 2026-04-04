@@ -802,8 +802,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const togglingRef = useRef(new Set<string>());
+
   const handleToggleFavorite = async (foodId: string, foodItem?: FoodItem) => {
     if (!user) return;
+    // Guard against rapid duplicate clicks
+    if (togglingRef.current.has(foodId)) return;
+    togglingRef.current.add(foodId);
+
     try {
       let localId = foodId;
 
@@ -822,19 +828,41 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         }
       }
 
+      // Optimistic UI update
+      const wasFavorited = favorites.has(localId);
+      setFavorites(prev => {
+        const next = new Set(prev);
+        if (wasFavorited) next.delete(localId);
+        else next.add(localId);
+        return next;
+      });
+
       const { data: newState } = await supabase.rpc("toggle_food_favorite" as any, {
         p_user_id: user.id,
         p_food_id: localId,
       });
+
+      // Reconcile with server state
       setFavorites(prev => {
         const next = new Set(prev);
         if (newState) next.add(localId);
         else next.delete(localId);
         return next;
       });
-      // Refresh favorites list
+
+      // Background sync favorites list
       fetchFavoriteFoods();
-    } catch { /* ignore */ }
+    } catch {
+      // Revert optimistic update on error
+      setFavorites(prev => {
+        const next = new Set(prev);
+        if (next.has(foodId)) next.delete(foodId);
+        else next.add(foodId);
+        return next;
+      });
+    } finally {
+      togglingRef.current.delete(foodId);
+    }
   };
 
   const openFoodDetail = (item: FoodItem) => {
