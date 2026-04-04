@@ -142,7 +142,10 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
               Progress Photos
               <Badge variant="secondary" className="text-[10px]">{photos.length}</Badge>
             </CardTitle>
-          </div>
+            <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => setPhotosModalOpen(true)}>
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              Compare
+            </Button>
         </CardHeader>
         <CardContent>
           {/* Filters */}
