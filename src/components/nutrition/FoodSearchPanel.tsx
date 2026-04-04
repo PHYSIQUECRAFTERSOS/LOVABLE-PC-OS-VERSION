@@ -447,7 +447,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
 
   const getDisplayList = (): FoodResult[] => {
     if (query.length < 2) {
-      if (activeFilter === "favorites") return deduplicateAndFilter(recentFoods.filter(f => favorites.has(f.id)));
+      if (activeFilter === "favorites") return deduplicateAndFilter(favoriteFoodsList);
       if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
       if (activeFilter === "custom") return customFoods;
       const favFoods = recentFoods.filter(f => favorites.has(f.id));
