@@ -60,9 +60,10 @@ export interface FoodResult {
 interface FoodSearchPanelProps {
   onSelect: (food: FoodResult) => void;
   onClose: () => void;
+  onSelectSavedMeal?: (foods: FoodResult[]) => void;
 }
 
-type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic";
+type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic" | "saved";
 type SortBy = "relevance" | "calories" | "protein" | "alpha";
 
 const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
