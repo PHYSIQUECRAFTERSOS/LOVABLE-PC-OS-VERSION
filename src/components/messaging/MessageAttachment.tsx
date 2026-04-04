@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { FileText, Download, Play } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { FileText, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import PhotoLightbox from "@/components/ui/photo-lightbox";
 
 interface MessageAttachmentProps {
   url: string;
@@ -23,11 +23,12 @@ const MessageAttachment = ({ url, type, name, isOwn }: MessageAttachmentProps) =
           onClick={() => setLightbox(true)}
           loading="lazy"
         />
-        <Dialog open={lightbox} onOpenChange={setLightbox}>
-          <DialogContent className="max-w-[90vw] max-h-[90vh] p-1 bg-black/90 border-none">
-            <img src={url} alt={name || "Photo"} className="w-full h-full object-contain rounded" />
-          </DialogContent>
-        </Dialog>
+        <PhotoLightbox
+          src={url}
+          alt={name || "Photo"}
+          open={lightbox}
+          onClose={() => setLightbox(false)}
+        />
       </>
     );
   }

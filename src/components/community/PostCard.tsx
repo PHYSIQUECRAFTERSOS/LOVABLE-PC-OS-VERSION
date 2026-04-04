@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PhotoLightbox from "@/components/ui/photo-lightbox";
 import { Heart, MessageCircle, Bookmark, Pin, MoreHorizontal, Trash2, Lock, Flag, Star, Sparkles } from "lucide-react";
 import UserAvatar from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,21 @@ import CommunityPostContent from "./CommunityPostContent";
 interface PostCardProps {
   post: CommunityPost;
 }
+
+const CommunityImageWithLightbox = ({ src }: { src: string }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-md overflow-hidden border border-border">
+      <img
+        src={src}
+        alt="Post media"
+        className="w-full max-h-96 object-cover cursor-pointer"
+        onClick={() => setOpen(true)}
+      />
+      <PhotoLightbox src={src} alt="Post media" open={open} onClose={() => setOpen(false)} />
+    </div>
+  );
+};
 
 const PostCard = ({ post }: PostCardProps) => {
   const { user, role } = useAuth();
@@ -138,9 +154,7 @@ const PostCard = ({ post }: PostCardProps) => {
 
       {/* Media */}
       {post.media_url && post.media_type === "image" && (
-        <div className="rounded-md overflow-hidden border border-border">
-          <img src={post.media_url} alt="Post media" className="w-full max-h-96 object-cover" />
-        </div>
+        <CommunityImageWithLightbox src={post.media_url} />
       )}
       {post.media_url && post.media_type === "video" && (
         <div className="rounded-md overflow-hidden border border-border">
