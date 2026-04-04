@@ -32,37 +32,49 @@ function getRoleCacheKey(userId: string) {
 
 function getCachedRoles(userId: string): AppRole[] {
   try {
-    const cached = sessionStorage.getItem(getRoleCacheKey(userId));
+    // Try localStorage first (persists across cold launches)
+    const cached = localStorage.getItem(getRoleCacheKey(userId));
     if (cached) return JSON.parse(cached);
+    // Fallback to sessionStorage for backward compat
+    const sessionCached = sessionStorage.getItem(getRoleCacheKey(userId));
+    if (sessionCached) {
+      // Migrate to localStorage
+      localStorage.setItem(getRoleCacheKey(userId), sessionCached);
+      sessionStorage.removeItem(getRoleCacheKey(userId));
+      return JSON.parse(sessionCached);
+    }
   } catch {}
   return [];
 }
 
 function setCachedRoles(userId: string, roles: AppRole[]) {
   try {
-    sessionStorage.setItem(getRoleCacheKey(userId), JSON.stringify(roles));
+    localStorage.setItem(getRoleCacheKey(userId), JSON.stringify(roles));
+    // Clean up old sessionStorage entry
+    sessionStorage.removeItem(getRoleCacheKey(userId));
   } catch {}
 }
 
 function clearCachedRoles(userId?: string) {
   try {
     if (userId) {
+      localStorage.removeItem(getRoleCacheKey(userId));
       sessionStorage.removeItem(getRoleCacheKey(userId));
       return;
     }
-
-    Object.keys(sessionStorage)
-      .filter((key) => key.startsWith(`${ROLE_CACHE_PREFIX}:`))
-      .forEach((key) => sessionStorage.removeItem(key));
+    // Clear all
+    for (const storage of [localStorage, sessionStorage]) {
+      Object.keys(storage)
+        .filter((key) => key.startsWith(`${ROLE_CACHE_PREFIX}:`))
+        .forEach((key) => storage.removeItem(key));
+    }
   } catch {}
 }
 
 function areRolesEqual(current: AppRole[], next: AppRole[]) {
   if (current.length !== next.length) return false;
-
   const left = [...current].sort();
   const right = [...next].sort();
-
   return left.every((role, index) => role === right[index]);
 }
 
@@ -91,8 +103,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select("role")
         .eq("user_id", userId);
 
+      // Increase timeout to 8s to avoid false negatives on slow networks
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error("role_fetch_timeout")), 3000);
+        setTimeout(() => reject(new Error("role_fetch_timeout")), 8000);
       });
 
       const { data } = (await Promise.race([rolePromise, timeoutPromise])) as {
@@ -109,6 +122,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const tryAutoAcceptInvite = useCallback(async (currentSession: Session) => {
     if (autoAcceptAttempted.current) return;
     autoAcceptAttempted.current = true;
+
+    // Only run auto-accept if user came from an invite link
+    const url = new URL(window.location.href);
+    const hasInviteToken = url.searchParams.has("invite") || url.pathname.includes("/accept-invite");
+    if (!hasInviteToken) {
+      return;
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke("validate-invite-token", {
@@ -183,7 +203,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ) {
         return prev;
       }
-
       return incomingSession;
     });
     setUser((prev) => (prev?.id === currentUserId ? prev : incomingSession.user));
@@ -193,21 +212,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       syncTimezone(currentUserId);
     }
 
+    // Use cached roles immediately so UI doesn't stall
     const cachedRoles = getCachedRoles(currentUserId);
     const currentRoles = rolesRef.current;
     const effectiveRoles = cachedRoles.length > 0 ? cachedRoles : currentRoles;
 
     if (effectiveRoles.length > 0) {
       setRolesIfChanged(effectiveRoles);
+      // Don't set roleLoading=true if we have cached roles — user can proceed immediately
       setRoleLoading(false);
     } else {
       setRoleLoading(true);
     }
 
+    // Background fetch of fresh roles
     if (!isSameUser || currentRoles.length === 0) {
       let fetchedRoles = await fetchRoles(currentUserId);
 
-      if (fetchedRoles.length === 0) {
+      // Only try auto-accept for brand new users with no roles AND invite context
+      if (fetchedRoles.length === 0 && effectiveRoles.length === 0) {
         await tryAutoAcceptInvite(incomingSession);
         fetchedRoles = await fetchRoles(currentUserId);
       }
@@ -220,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (cachedRoles.length === 0) {
         setRolesIfChanged([]);
       }
+      // If fetchedRoles is empty but cachedRoles exist, keep using cached roles
 
       console.log("[auth] session resolved:", {
         userId: currentUserId.slice(0, 8),
@@ -324,4 +348,3 @@ export function useAuth() {
   }
   return context;
 }
-
