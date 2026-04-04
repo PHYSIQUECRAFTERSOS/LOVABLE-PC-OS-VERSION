@@ -111,7 +111,7 @@ const DocumentViewer = ({ title, body, onAcknowledge }: Props) => {
       <div
         ref={scrollRef}
         onScroll={handleScrollWithProgress}
-        className="h-[50vh] overflow-y-auto px-5 py-4 overscroll-contain"
+        className="h-[40vh] overflow-y-auto px-5 py-4 overscroll-contain"
       >
         {renderContent()}
         <div className="h-4" />

@@ -43,6 +43,8 @@ interface OnboardingData {
   final_notes: string;
   health_sync_status: string;
   waiver_signed: boolean;
+  waiver_signed_at: string | null;
+  waiver_signature: string | null;
 }
 
 interface SignatureRecord {
@@ -214,7 +216,7 @@ const OnboardingTab = ({ clientId }: Props) => {
           <CardTitle className="text-base">Signed Agreements</CardTitle>
         </CardHeader>
         <CardContent>
-          {signatures.length === 0 ? (
+          {signatures.length === 0 && !profile?.waiver_signed ? (
             <div className="rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
               <p className="text-sm text-primary flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
@@ -223,6 +225,29 @@ const OnboardingTab = ({ clientId }: Props) => {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Onboarding waiver from onboarding_profiles */}
+              {profile?.waiver_signed && (
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        Onboarding Waiver / Disclaimer
+                      </p>
+                      <p className="text-xs text-muted-foreground">Signed during onboarding</p>
+                    </div>
+                    <Badge variant="secondary" className="text-[10px]">Onboarding</Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    {profile.waiver_signature && (
+                      <p>Signed name: <span className="text-foreground">{profile.waiver_signature}</span></p>
+                    )}
+                    {profile.waiver_signed_at && (
+                      <p>Date signed: <span className="text-foreground">{format(new Date(profile.waiver_signed_at), "MMMM d, yyyy 'at' h:mm a")}</span></p>
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* Document signatures from client_signatures */}
               {signatures.map((sig) => (
                 <div key={sig.id} className="rounded-lg border border-border p-4 space-y-2">
                   <div className="flex items-start justify-between">
