@@ -84,13 +84,15 @@ const Training = () => {
           if (data && data.length > 0) return data;
         }
       }
-      // Fallback: direct client_id workouts
+      // Fallback: direct client_id workouts (always runs if program path returned nothing)
+      console.log("[Training] falling back to direct client_id workouts");
       const { data, error: fErr } = await supabase
         .from("workouts")
         .select("id, name, description, phase, is_template, instructions")
         .eq("client_id", user.id)
         .abortSignal(signal);
       if (fErr) throw fErr;
+      console.log("[Training] fallback workouts:", data?.length ?? 0);
       return data || [];
     },
   });

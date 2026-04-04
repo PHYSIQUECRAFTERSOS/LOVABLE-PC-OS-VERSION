@@ -16,12 +16,12 @@ interface TodayWorkoutData {
 }
 
 const TodayWorkout = () => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: workout, loading } = useDataFetch<TodayWorkoutData | null>({
     queryKey: `today-workout-${user?.id}-${today}`,
-    enabled: !!user,
+    enabled: !!user && !!session,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
     fallback: null,
