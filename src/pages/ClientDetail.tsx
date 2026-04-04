@@ -143,6 +143,7 @@ const ClientDetail = () => {
                 <Tag className="h-3.5 w-3.5" />
                 Tags
               </Button>
+              <AIImportButton entryPoint="client" clientId={clientId} importType="any" />
               <Button
                 variant="outline"
                 size="sm"
