@@ -420,35 +420,18 @@ const MealPlanTemplateLibrary = () => {
                         : "border-transparent hover:bg-muted/50"
                     )}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          {template.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />}
-                          <p className="text-sm font-medium truncate">{template.name}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {template.category && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0">{template.category}</Badge>
-                          )}
-                          {template.target_calories && (
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{template.target_calories} cal</Badge>
-                          )}
-                          {template.target_protein && (
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{template.target_protein}P</Badge>
-                          )}
-                        </div>
-                      </div>
+                    <div className="flex items-start gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <div
                             role="button"
-                            className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted transition-all"
+                            className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <MoreHorizontal className="h-3.5 w-3.5" />
+                            <MoreHorizontal className="h-4 w-4" />
                           </div>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                        <DropdownMenuContent align="start">
                           <DropdownMenuItem onClick={() => { setEditingTemplateId(template.id); setShowBuilder(true); }}>
                             <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
                           </DropdownMenuItem>
@@ -477,6 +460,23 @@ const MealPlanTemplateLibrary = () => {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {template.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />}
+                          <p className="text-sm font-medium truncate">{template.name}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {template.category && (
+                            <Badge variant="outline" className="text-[9px] px-1 py-0">{template.category}</Badge>
+                          )}
+                          {template.target_calories && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{template.target_calories} cal</Badge>
+                          )}
+                          {template.target_protein && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0">{template.target_protein}P</Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </button>
                 ))
