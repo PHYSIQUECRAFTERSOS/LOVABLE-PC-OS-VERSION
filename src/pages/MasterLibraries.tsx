@@ -38,6 +38,7 @@ import PCRecipeLibrary from "@/components/nutrition/PCRecipeLibrary";
 import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import SupplementLibrary from "@/components/libraries/SupplementLibrary";
 import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
+import AIImportButton from "@/components/import/AIImportButton";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
