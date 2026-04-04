@@ -63,6 +63,7 @@ const WorkoutPreviewModal = ({
 }: WorkoutPreviewModalProps) => {
   const [exercises, setExercises] = useState<ExerciseDetail[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
@@ -75,6 +76,7 @@ const WorkoutPreviewModal = ({
   useEffect(() => {
     if (!open || !workoutId) return;
     setLoading(true);
+    setLoadError(null);
     setShowMenu(false);
     const load = async () => {
       try {
@@ -110,9 +112,10 @@ const WorkoutPreviewModal = ({
 
       setExercises(mapped);
       setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error("[WorkoutPreviewModal] load error:", err);
         setExercises([]);
+        setLoadError(err?.message?.includes("timeout") || err?.code === "57014" ? "timeout" : "error");
         setLoading(false);
       }
     };
@@ -227,6 +230,15 @@ const WorkoutPreviewModal = ({
               {loading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : loadError ? (
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-destructive font-medium">
+                    {loadError === "timeout" ? "Workout took too long to load" : "Failed to load workout"}
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => { setLoadError(null); setLoading(true); }}>
+                    Retry
+                  </Button>
                 </div>
               ) : exercises.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
