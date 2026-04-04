@@ -15,6 +15,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
   const [latest, setLatest] = useState<{ weight: number; logged_at: string } | null>(null);
   const [previous, setPrevious] = useState<{ weight: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const { convertWeight, weightLabel } = useUnitPreferences();
   const targetId = clientId || user?.id;
 
   const [refreshKey, setRefreshKey] = useState(0);
