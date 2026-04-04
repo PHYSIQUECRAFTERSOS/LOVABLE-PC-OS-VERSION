@@ -13,6 +13,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   Trash2,
   ClipboardList,
@@ -24,6 +37,10 @@ import {
   Users,
   Scale,
   Loader2,
+  MoreVertical,
+  BookmarkPlus,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -133,6 +150,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
   const [macroTargets, setMacroTargets] = useState({ calories: 2000, protein: 150, carbs: 200, fat: 60 });
+
+  // Save meal to library state
+  const [saveMealDialogOpen, setSaveMealDialogOpen] = useState(false);
+  const [saveMealName, setSaveMealName] = useState("");
+  const [savingMealTarget, setSavingMealTarget] = useState<{ dayId: string; mealId: string } | null>(null);
+  const [savingMealLoading, setSavingMealLoading] = useState(false);
 
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
@@ -472,6 +495,134 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         return { ...d, meals: [...d.meals, clone] };
       })
     );
+  };
+
+  const moveMeal = (dayId: string, mealId: string, direction: "up" | "down") => {
+    setDays((prev) =>
+      prev.map((d) => {
+        if (d.id !== dayId) return d;
+        const idx = d.meals.findIndex((m) => m.id === mealId);
+        if (idx < 0) return d;
+        const newIdx = direction === "up" ? idx - 1 : idx + 1;
+        if (newIdx < 0 || newIdx >= d.meals.length) return d;
+        const newMeals = [...d.meals];
+        [newMeals[idx], newMeals[newIdx]] = [newMeals[newIdx], newMeals[idx]];
+        return { ...d, meals: newMeals };
+      })
+    );
+  };
+
+  const openSaveMealDialog = (dayId: string, mealId: string) => {
+    const day = days.find((d) => d.id === dayId);
+    const meal = day?.meals.find((m) => m.id === mealId);
+    if (!meal) return;
+    setSaveMealName(meal.name);
+    setSavingMealTarget({ dayId, mealId });
+    setSaveMealDialogOpen(true);
+  };
+
+  const handleSaveMealToLibrary = async () => {
+    if (!user || !savingMealTarget || !saveMealName.trim()) return;
+    const day = days.find((d) => d.id === savingMealTarget.dayId);
+    const meal = day?.meals.find((m) => m.id === savingMealTarget.mealId);
+    if (!meal || meal.foods.length === 0) {
+      toast({ title: "No foods to save", variant: "destructive" });
+      return;
+    }
+
+    setSavingMealLoading(true);
+    try {
+      const totalMacros = getMealTotals(meal);
+      const { data: savedMeal, error: smErr } = await supabase
+        .from("saved_meals")
+        .insert({
+          client_id: user.id,
+          name: saveMealName.trim(),
+          meal_type: "custom",
+          calories: Math.round(totalMacros.calories),
+          protein: Math.round(totalMacros.protein),
+          carbs: Math.round(totalMacros.carbs),
+          fat: Math.round(totalMacros.fat),
+          fiber: Math.round(totalMacros.fiber),
+          sugar: Math.round(totalMacros.sugar),
+          servings: 1,
+        })
+        .select("id")
+        .single();
+      if (smErr || !savedMeal) throw smErr;
+
+      const items = meal.foods.map((food) => ({
+        saved_meal_id: savedMeal.id,
+        food_item_id: food.food_item_id || null,
+        food_name: food.food_name,
+        quantity: food.gram_amount,
+        serving_unit: food.serving_unit || "g",
+        calories: Math.round((food.cal_per_100 * food.gram_amount) / 100),
+        protein: Math.round((food.protein_per_100 * food.gram_amount) / 100),
+        carbs: Math.round((food.carbs_per_100 * food.gram_amount) / 100),
+        fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
+        serving_size_g: food.serving_size_g || food.gram_amount,
+        calories_per_100g: food.cal_per_100,
+        protein_per_100g: food.protein_per_100,
+        carbs_per_100g: food.carbs_per_100,
+        fat_per_100g: food.fat_per_100,
+      }));
+
+      const { error: itemErr } = await supabase.from("saved_meal_items").insert(items);
+      if (itemErr) throw itemErr;
+
+      toast({ title: "Meal saved to library!" });
+      setSaveMealDialogOpen(false);
+      setSavingMealTarget(null);
+    } catch (err: any) {
+      toast({ title: "Error saving meal", description: err?.message, variant: "destructive" });
+    } finally {
+      setSavingMealLoading(false);
+    }
+  };
+
+  const addSavedMealFoods = (dayId: string, mealId: string, foods: FoodResult[]) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? {
+              ...d,
+              meals: d.meals.map((m) =>
+                m.id === mealId
+                  ? {
+                      ...m,
+                      foods: [
+                        ...m.foods,
+                        ...foods.map((food) => {
+                          const rawSS = (food as any).serving_size ?? 100;
+                          const ss = Math.max(typeof rawSS === 'string' ? parseFloat(rawSS) || 100 : rawSS || 100, 1);
+                          const fr = food as any;
+                          const hasPer100 = fr.calories_per_100 != null && fr.calories_per_100 > 0;
+                          return {
+                            id: uid(),
+                            food_item_id: food.id,
+                            food_name: food.name,
+                            brand: food.brand,
+                            gram_amount: (fr as any).gram_amount || ss,
+                            cal_per_100: hasPer100 ? fr.calories_per_100 : ((food.calories || 0) / ss) * 100,
+                            protein_per_100: hasPer100 ? fr.protein_per_100 : ((food.protein || 0) / ss) * 100,
+                            carbs_per_100: hasPer100 ? fr.carbs_per_100 : ((food.carbs || 0) / ss) * 100,
+                            fat_per_100: hasPer100 ? fr.fat_per_100 : ((food.fat || 0) / ss) * 100,
+                            fiber_per_100: 0,
+                            sugar_per_100: 0,
+                            serving_unit: food.serving_unit || "g",
+                            serving_size_g: ss,
+                          };
+                        }),
+                      ],
+                    }
+                  : m
+              ),
+            }
+          : d
+      )
+    );
+    setSearchingMealId(null);
   };
 
   const addDay = () => {
@@ -859,23 +1010,57 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   return (
                     <div key={meal.id} className="rounded-lg border border-border bg-card/50 overflow-hidden">
                       <div className="flex items-center justify-between px-3 py-2 bg-secondary/30">
-                        <Input
-                          value={meal.name}
-                          onChange={(e) => renameMeal(day.id, meal.id, e.target.value)}
-                          className="h-6 w-36 text-xs font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
-                        />
+                        <div className="flex items-center gap-1">
+                          {/* Move Up/Down arrows */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveMeal(day.id, meal.id, "up")}
+                            disabled={day.meals.indexOf(meal) === 0}
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveMeal(day.id, meal.id, "down")}
+                            disabled={day.meals.indexOf(meal) === day.meals.length - 1}
+                          >
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                          <Input
+                            value={meal.name}
+                            onChange={(e) => renameMeal(day.id, meal.id, e.target.value)}
+                            className="h-6 w-36 text-xs font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
+                          />
+                        </div>
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-muted-foreground mr-2">
                             {Math.round(mealTotals.calories)}cal · {Math.round(mealTotals.protein)}P · {Math.round(mealTotals.carbs)}C · {Math.round(mealTotals.fat)}F
                           </span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => duplicateMeal(day.id, meal.id)}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                          {day.meals.length > 1 && (
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeMeal(day.id, meal.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
+                          {/* 3-dot menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6">
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openSaveMealDialog(day.id, meal.id)}>
+                                <BookmarkPlus className="h-3.5 w-3.5 mr-2" /> Save Meal to Library
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => duplicateMeal(day.id, meal.id)}>
+                                <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate Meal
+                              </DropdownMenuItem>
+                              {day.meals.length > 1 && (
+                                <DropdownMenuItem className="text-destructive" onClick={() => removeMeal(day.id, meal.id)}>
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Remove Meal
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
 
@@ -928,6 +1113,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           <FoodSearchPanel
                             onSelect={(food) => addFoodToMeal(day.id, meal.id, food as any)}
                             onClose={() => setSearchingMealId(null)}
+                            onSelectSavedMeal={(foods) => addSavedMealFoods(day.id, meal.id, foods)}
                           />
                         ) : (
                           <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setSearchingMealId(`${day.id}::${meal.id}`)}>
@@ -974,6 +1160,31 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       <CopyFromClientModal open={copyModalOpen} onOpenChange={setCopyModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AssignTemplateModal open={templateModalOpen} onOpenChange={setTemplateModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AdjustMacrosModal open={adjustMacrosOpen} onOpenChange={setAdjustMacrosOpen} days={days} onApply={(newDays) => setDays(newDays)} />
+
+      {/* Save Meal to Library Dialog */}
+      <Dialog open={saveMealDialogOpen} onOpenChange={setSaveMealDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save Meal to Library</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Meal Name</Label>
+            <Input
+              value={saveMealName}
+              onChange={(e) => setSaveMealName(e.target.value)}
+              placeholder="e.g. High Protein Breakfast"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveMealDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveMealToLibrary} disabled={savingMealLoading || !saveMealName.trim()}>
+              {savingMealLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <BookmarkPlus className="h-4 w-4 mr-1" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
