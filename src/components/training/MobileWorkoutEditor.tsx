@@ -346,7 +346,11 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border safe-top">
           <button onClick={handleCancel} className="text-sm text-muted-foreground">Cancel</button>
-          <span className="text-sm font-semibold text-foreground truncate max-w-[50%]">{workoutName || "Edit Workout"}</span>
+          <div className="flex items-center gap-1.5 truncate max-w-[50%]">
+            <span className="text-sm font-semibold text-foreground truncate">{workoutName || "Edit Workout"}</span>
+            {autoSaveStatus === "saving" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
+            {autoSaveStatus === "saved" && <Check className="h-3 w-3 text-green-500 shrink-0" />}
+          </div>
           <button onClick={handleSave} disabled={saving} className="text-sm font-semibold text-primary disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
           </button>
