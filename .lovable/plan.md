@@ -1,65 +1,49 @@
 
 
-## Trainerize-Style Mobile Workout Editor for Coach
+## Add Safe-Area Background to Workout Logger Overlay
 
-**Context**: Currently, the coach's workout editing on mobile uses `ClientWorkoutEditorModal` — a desktop-oriented two-panel dialog (left workout structure + right exercise library). On mobile, this is cramped and unusable. The Trainerize screenshots show a much better mobile UX: fullscreen editor with a bottom toolbar (Superset, Delete, Insert) and a separate fullscreen "Add Exercises" sheet.
+**Problem**: On iOS devices with a notch/Dynamic Island, there's a visible gap between the top of the screen and the workout timer bar. The area behind the notch shows the default background or the AppLayout header peeking through, which looks unfinished.
 
-This change is **mobile-only** (coach role, `< 768px`). Desktop keeps the existing two-panel `ClientWorkoutEditorModal`.
+**Solution**: When the workout logger is active on mobile, render it inside a fullscreen overlay (`fixed inset-0 z-[55]`) that extends edge-to-edge, with the safe-area zone painted the same color as the timer bar (`bg-background/95` with backdrop blur). This eliminates any visible gap above the notch.
 
-### What Gets Built
+### Changes
 
-**1. New Component: `MobileWorkoutEditor.tsx`**
-A fullscreen mobile editor (replaces the dialog on mobile) with:
-- **Header**: "Cancel" (left), workout name (center), "Save" (right) — matching Trainerize exactly (IMG_9584)
-- **Instructions bar**: Collapsed single-line preview with edit icon, tapping opens a textarea sheet
-- **Exercise list**: Each exercise card shows thumbnail, name, sets/reps/rest badges. Superset groups are visually linked with a left border. Drag handles for reorder via long-press.
-- **Bottom toolbar** (sticky): 4 buttons — **Superset** | **Delete** | **Insert** (opens exercise catalog)
-  - Superset: enters selection mode, select 2+, tap Superset again to group
-  - Delete: enters selection mode, select exercises, confirm delete
-  - Insert: opens fullscreen exercise picker sheet
+**File: `src/pages/Training.tsx`** (lines 151-158)
 
-**2. New Component: `MobileExercisePickerSheet.tsx`**
-Fullscreen slide-up sheet (matching IMG_9585):
-- Header: "Cancel" (left), "Add Exercises" (center), filter icon + "Add" (right)
-- Search bar at top
-- Exercise list with thumbnails, names, muscle/equipment tags, and checkbox on right
-- Multi-select: check exercises, tap "Add" to insert all at once
-- "+ Add custom exercise" link at bottom
-- Muscle group filter via the filter icon
+Wrap the mobile workout logger in a fullscreen overlay that covers the header:
 
-**3. Workout Preview Modal — Add 3-dot menu (mobile only)**
-When coach taps a workout in `TrainingTab` on mobile, the `WorkoutPreviewModal` already shows. Add:
-- **3-dot menu** (top-right, `MoreVertical` icon) with a bottom sheet containing:
-  - Edit workout → opens `MobileWorkoutEditor`
-  - Rename → inline rename dialog
-  - Duplicate → clones workout + exercises
-  - Delete → confirmation dialog then deletes
-- Keep "Start Workout" button at bottom
+```tsx
+if (showLogger && selectedWorkout) {
+  return (
+    <AppLayout>
+      {/* Mobile: fullscreen overlay covers header, sits above z-50 nav */}
+      <div className="fixed inset-0 z-[55] bg-background overflow-y-auto safe-top pb-24 px-4 md:hidden">
+        <WorkoutLogger ... />
+      </div>
+      {/* Desktop: render normally inside main */}
+      <div className="animate-fade-in hidden md:block">
+        <WorkoutLogger ... />
+      </div>
+    </AppLayout>
+  );
+}
+```
 
-**4. Integration in `TrainingTab.tsx`**
-- Detect mobile via `useIsMobile()`
-- When coach taps "Edit" on mobile → open `MobileWorkoutEditor` instead of `ClientWorkoutEditorModal`
-- When coach taps workout card on mobile → preview modal now has the 3-dot menu
-- Desktop behavior unchanged
+Key details:
+- `fixed inset-0 z-[55]` — covers the header (z-50) completely
+- `safe-top` — uses `padding-top: env(safe-area-inset-top)` so the timer bar sits just below the Dynamic Island, with opaque `bg-background` filling the notch zone seamlessly
+- `pb-24` — leaves room for the bottom nav bar which remains visible
+- `md:hidden` / `hidden md:block` — desktop rendering stays exactly the same inside `<main>`
+- `overflow-y-auto` — exercise list remains scrollable
 
-### Files to Create
-- `src/components/training/MobileWorkoutEditor.tsx` — fullscreen editor
-- `src/components/training/MobileExercisePickerSheet.tsx` — exercise catalog picker
+**File: `src/components/WorkoutLogger.tsx`** (line 886)
 
-### Files to Modify
-- `src/components/training/WorkoutPreviewModal.tsx` — add 3-dot menu with Edit/Rename/Duplicate/Delete (mobile only, coach only)
-- `src/components/clients/workspace/TrainingTab.tsx` — route to mobile editor on mobile, pass new callbacks to preview modal
-- No changes to `ClientWorkoutEditorModal.tsx` (desktop stays the same)
+Adjust the sticky header's negative top margin so it works correctly inside the overlay (the overlay already handles safe-area padding, so the header just needs `top-0`):
 
-### Key Design Decisions
-- Bottom toolbar uses the gold accent (`#D4A017`) for the active action
-- Dark mode styling throughout (`bg-[#0a0a0a]`, `bg-[#1a1a1a]`)
-- Exercise cards show: thumbnail (64x48), name, badges for sets/reps/rest
-- Superset grouping uses left gold border like Trainerize
-- Save persists to same Supabase tables (`workouts`, `workout_exercises`, `workout_sets`) using same logic as `ClientWorkoutEditorModal.handleSave()`
-- Delete workout from 3-dot menu uses `AlertDialog` confirmation before deleting
+The existing `-mt-6` pulls the header flush — inside the overlay container this still works since we keep `px-4` on the parent. No structural changes needed to WorkoutLogger itself.
 
-### Not Included (per your instructions)
-- Circuit button (skipped)
-- Rest timer button (skipped — each exercise has rest already)
+### What This Fixes
+- The notch/Dynamic Island zone is painted solid `bg-background` (#0a0a0a) — no gap, no bleed-through of the hamburger/settings icons
+- Bottom nav (Home, Calendar, Nutrition, Messages) stays fully visible and functional
+- Desktop layout is completely unchanged
 
