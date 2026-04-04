@@ -134,7 +134,7 @@ const PostCard = ({ post }: PostCardProps) => {
       </div>
 
       {/* Content */}
-      <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+      <CommunityPostContent content={post.content} />
 
       {/* Media */}
       {post.media_url && post.media_type === "image" && (
