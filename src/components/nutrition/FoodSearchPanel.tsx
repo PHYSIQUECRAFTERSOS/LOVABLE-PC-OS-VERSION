@@ -654,6 +654,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
           ))
         )}
       </div>
+      )}
 
       {showCustomFood && (
         <CustomFoodCreator
