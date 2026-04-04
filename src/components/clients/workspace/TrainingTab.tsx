@@ -75,6 +75,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderPhaseId, setBuilderPhaseId] = useState<string | null>(null);
 
+  // Mobile workout editor
+  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
+  const [mobileEditorWorkoutId, setMobileEditorWorkoutId] = useState("");
+  const [mobileEditorWorkoutName, setMobileEditorWorkoutName] = useState("");
+
   // Import dialog
   const [importOpen, setImportOpen] = useState(false);
   const [importPhaseId, setImportPhaseId] = useState<string | null>(null);
