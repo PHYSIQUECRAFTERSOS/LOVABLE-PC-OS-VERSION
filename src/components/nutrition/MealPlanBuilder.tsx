@@ -1010,23 +1010,57 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   return (
                     <div key={meal.id} className="rounded-lg border border-border bg-card/50 overflow-hidden">
                       <div className="flex items-center justify-between px-3 py-2 bg-secondary/30">
-                        <Input
-                          value={meal.name}
-                          onChange={(e) => renameMeal(day.id, meal.id, e.target.value)}
-                          className="h-6 w-36 text-xs font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
-                        />
+                        <div className="flex items-center gap-1">
+                          {/* Move Up/Down arrows */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveMeal(day.id, meal.id, "up")}
+                            disabled={day.meals.indexOf(meal) === 0}
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => moveMeal(day.id, meal.id, "down")}
+                            disabled={day.meals.indexOf(meal) === day.meals.length - 1}
+                          >
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                          <Input
+                            value={meal.name}
+                            onChange={(e) => renameMeal(day.id, meal.id, e.target.value)}
+                            className="h-6 w-36 text-xs font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
+                          />
+                        </div>
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-muted-foreground mr-2">
                             {Math.round(mealTotals.calories)}cal · {Math.round(mealTotals.protein)}P · {Math.round(mealTotals.carbs)}C · {Math.round(mealTotals.fat)}F
                           </span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => duplicateMeal(day.id, meal.id)}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                          {day.meals.length > 1 && (
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeMeal(day.id, meal.id)}>
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
+                          {/* 3-dot menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6">
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openSaveMealDialog(day.id, meal.id)}>
+                                <BookmarkPlus className="h-3.5 w-3.5 mr-2" /> Save Meal to Library
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => duplicateMeal(day.id, meal.id)}>
+                                <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate Meal
+                              </DropdownMenuItem>
+                              {day.meals.length > 1 && (
+                                <DropdownMenuItem className="text-destructive" onClick={() => removeMeal(day.id, meal.id)}>
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Remove Meal
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
 
