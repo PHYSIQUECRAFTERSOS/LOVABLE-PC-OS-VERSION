@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.handle-email-suppression]
 verify_jwt = false
+
+[functions.ai-import-processor]
+verify_jwt = false
