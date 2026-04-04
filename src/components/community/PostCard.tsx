@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PhotoLightbox from "@/components/ui/photo-lightbox";
 import { Heart, MessageCircle, Bookmark, Pin, MoreHorizontal, Trash2, Lock, Flag, Star, Sparkles } from "lucide-react";
 import UserAvatar from "@/components/profile/UserAvatar";
 import { Button } from "@/components/ui/button";
