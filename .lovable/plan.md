@@ -1,34 +1,33 @@
 
 
-## Fix Barcode Lookup Cascade: FatSecret → OFF → USDA
+## Move 3-Dot Action Menus to Left Side in Master Libraries
 
 ### Problem
-The `barcode-lookup` edge function skips FatSecret entirely, going straight to OpenFoodFacts. Many products (especially US branded items) exist in FatSecret but not OFF, causing scan failures.
+In Master Libraries, the 3-dot action menus (⋯) for Programs, Supplement Plans, and Meal Plan Templates are positioned on the far right of each sidebar item. When the detail panel opens on the right, it overlaps or clips these buttons, making them inaccessible. Users cannot duplicate, share, assign, or delete items.
+
+### Solution
+Move the `DropdownMenu` trigger from the right side to the left side of each sidebar item in all three components. The layout changes from `[text ... ⋯]` to `[⋯ text ...]`.
 
 ### Changes
 
-**File: `supabase/functions/barcode-lookup/index.ts`** — Rewrite cascade order
+**File 1: `src/pages/MasterLibraries.tsx`** — `renderProgramItem` function (~line 391-465)
+- Swap the flex order: move `DropdownMenu` before the text `div`
+- Change `DropdownMenuContent` alignment from `align="end"` to `align="start"`
+- Keep the menu always visible (remove opacity-60, use opacity-100 or just standard visibility)
 
-The existing FatSecret OAuth + API pattern from `fatsecret-proxy/index.ts` will be inlined into `barcode-lookup`. The response shape stays identical so `barcodeService.ts` needs zero changes.
+**File 2: `src/components/libraries/SupplementLibrary.tsx`** — `renderPlanSidebarItem` function (~line 401-456)
+- Same swap: move `DropdownMenu` before text, align="start"
+- Keep always visible
 
-New cascade:
-1. **Local cache** (unchanged) — check `foods` table by barcode
-2. **FatSecret** — OAuth 2.0 client credentials → `food.find_id_for_barcode.v2` with normalized EAN-13 barcode → `food.get.v4` for full nutrition → map to per-100g → upsert into `foods` → return
-3. **Open Food Facts** — change URL from `api/v0` to `api/v2` and ensure `world.openfoodfacts.org` (already correct) → upsert into `foods` → return
-4. **USDA** — unchanged final fallback, add upsert into `foods` before return
-5. **Not found** — unchanged
+**File 3: `src/components/nutrition/MealPlanTemplateLibrary.tsx`** — template list item (~line 412-470)
+- Same swap: move `DropdownMenu` before text, align="start"  
+- Keep always visible
 
-Key implementation details:
-- Copy the `getAccessToken()` and `fatSecretAPI()` helpers from `fatsecret-proxy` into `barcode-lookup`
-- Copy `normalizeBarcode()` and `mapFatSecretFood()` from `fatsecret-proxy`
-- After FatSecret returns mapped data, upsert into `foods` table with `onConflict: "barcode"`, then return the standard response shape (`found`, `name`, `brand`, `per_100g`, `per_serving`, `source`, `serving_size`, `serving_quantity`)
-- USDA fallback also gets the same upsert treatment (currently it doesn't cache)
-- All external IDs stay out of the response — only the barcode itself is returned as identifier
+### What stays the same
+- All dropdown menu items (Assign, Duplicate, Share, Delete, etc.) — unchanged
+- Catalog card layout in SupplementLibrary — unchanged (cards use a different layout)
+- No functional or data changes — purely layout repositioning
 
-**No other files change.** `barcodeService.ts`, `BarcodeScanner.tsx`, `CreateMealSheet.tsx`, and all other consumers already call `barcode-lookup` and parse the same response shape.
-
-### Technical Detail
-- FatSecret uses OAuth 2.0 client credentials (not OAuth 1.0 — the v2/v3/v4 REST API uses Bearer tokens). The existing `fatsecret-proxy` already does this correctly.
-- `food.find_id_for_barcode.v2` returns `{ food_id: { value: "12345" } }`. If normalized EAN-13 fails, retry with original barcode.
-- `food.get.v4` returns full servings data which gets mapped to per-100g via the same `mapFatSecretFood` logic already proven in the proxy.
-
+### Improvements included
+- Increase touch target to `h-7 w-7` minimum for better mobile tappability
+- Remove the `opacity-60` fade that hides the button — always show at full opacity so users know it's interactive
