@@ -24,6 +24,9 @@ const Training = () => {
   const [selectedWorkout, setSelectedWorkout] = useState<any>(null);
   const [showLogger, setShowLogger] = useState(false);
 
+  // Treat admin the same as coach for training page
+  const isCoachOrAdmin = role === "coach" || role === "admin";
+
   const cacheKey = `workouts-${user?.id}-${role}`;
 
   const { data: workouts = [], loading, error, timedOut, refetch } = useDataFetch<any[]>({
@@ -34,7 +37,7 @@ const Training = () => {
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
-      if (role === "coach") {
+      if (isCoachOrAdmin) {
         const { data, error } = await supabase
           .from("workouts")
           .select("id, name, description, phase, is_template, instructions")
@@ -134,7 +137,7 @@ const Training = () => {
     }
   };
 
-  if (showBuilder && role === "coach") {
+  if (showBuilder && isCoachOrAdmin) {
     return (
       <AppLayout>
         <div className="animate-fade-in space-y-6">
@@ -168,7 +171,7 @@ const Training = () => {
       <div className="animate-fade-in space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl font-bold text-foreground">Training</h1>
-          {role === "coach" && (
+          {isCoachOrAdmin && (
             <Button onClick={() => setShowBuilder(true)}><Plus className="h-4 w-4 mr-2" /> Create Workout</Button>
           )}
         </div>
@@ -176,7 +179,7 @@ const Training = () => {
         <Tabs defaultValue={role === "client" ? "program" : "workouts"}>
           <TabsList>
             {role === "client" && <TabsTrigger value="program" className="gap-1.5"><FolderOpen className="h-3.5 w-3.5" /> Program</TabsTrigger>}
-            {role === "coach" && <TabsTrigger value="workouts">Workouts</TabsTrigger>}
+            {isCoachOrAdmin && <TabsTrigger value="workouts">Workouts</TabsTrigger>}
             <TabsTrigger value="history" className="gap-1.5"><History className="h-3.5 w-3.5" /> History</TabsTrigger>
           </TabsList>
 
@@ -190,7 +193,7 @@ const Training = () => {
             ) : loading && !workouts.length ? (
               <GridSkeleton cards={4} />
             ) : workouts.length === 0 ? (
-              <Card><CardContent className="pt-6"><p className="text-center text-muted-foreground">{role === "coach" ? "Create your first workout template" : "No workouts assigned yet"}</p></CardContent></Card>
+              <Card><CardContent className="pt-6"><p className="text-center text-muted-foreground">{isCoachOrAdmin ? "Create your first workout template" : "No workouts assigned yet"}</p></CardContent></Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {workouts.map((workout) => (
@@ -209,7 +212,7 @@ const Training = () => {
                       {role === "client" && (
                         <Button className="w-full" onClick={() => loadWorkoutExercises(workout.id)}><Play className="h-4 w-4 mr-2" /> Start Workout</Button>
                       )}
-                      {role === "coach" && (
+                      {isCoachOrAdmin && (
                         <div className="flex gap-2">
                           <Button variant="outline" className="flex-1">Edit</Button>
                           <Button variant="ghost" size="icon" onClick={async () => {

@@ -19,21 +19,25 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [stalledLoading, setStalledLoading] = useState(false);
 
-  const isAuthLoading = loading || (!!user && roleLoading);
+  // Auth is truly loading only when we have no session yet
+  const isAuthLoading = loading;
+  // Role is still resolving — but we have a user already
+  const isRoleLoading = !!user && roleLoading && !role;
 
   useEffect(() => {
-    if (!isAuthLoading) {
+    if (!isAuthLoading && !isRoleLoading) {
       setStalledLoading(false);
       return;
     }
 
+    // Give 12s before showing stall screen (up from 8s)
     const timer = setTimeout(() => {
       setStalledLoading(true);
-      console.error("[ProtectedRoute] Auth hydration stalled beyond 8s");
-    }, 8000);
+      console.error("[ProtectedRoute] Auth hydration stalled beyond 12s");
+    }, 12000);
 
     return () => clearTimeout(timer);
-  }, [isAuthLoading]);
+  }, [isAuthLoading, isRoleLoading]);
 
   useEffect(() => {
     if (!userId || !role) return;
@@ -74,6 +78,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     };
   }, [userId, role, location.pathname]);
 
+  // Still loading session (no user yet)
   if (isAuthLoading && !stalledLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -82,7 +87,8 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     );
   }
 
-  if (isAuthLoading && stalledLoading) {
+  // Stalled — show recovery UI
+  if ((isAuthLoading || isRoleLoading) && stalledLoading) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4 px-6 text-center">
         <AlertTriangle className="h-10 w-10 text-destructive" />
@@ -109,6 +115,15 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Role is still loading but hasn't stalled yet — show spinner
+  if (isRoleLoading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!role) {
@@ -161,4 +176,3 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 };
 
 export default ProtectedRoute;
-
