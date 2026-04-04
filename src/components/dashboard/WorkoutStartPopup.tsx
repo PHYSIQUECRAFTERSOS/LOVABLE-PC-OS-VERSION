@@ -47,10 +47,12 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
   const [loading, setLoading] = useState(true);
   const [lastPerformed, setLastPerformed] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !workoutId || !user) return;
     setLoading(true);
+    setLoadError(null);
 
     const load = async () => {
       try {
@@ -86,9 +88,10 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
         setLastPerformed(null);
       }
       setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error("[WorkoutStartPopup] load error:", err);
         setExercises([]);
+        setLoadError(err?.message?.includes("timeout") || err?.code === "57014" ? "timeout" : "error");
         setLoading(false);
       }
     };
@@ -131,6 +134,15 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : loadError ? (
+              <div className="text-center py-8 space-y-2">
+                <p className="text-sm text-destructive font-medium">
+                  {loadError === "timeout" ? "Workout took too long to load" : "Failed to load workout"}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => { setLoadError(null); setLoading(true); /* re-trigger effect */ }}>
+                  Retry
+                </Button>
               </div>
             ) : exercises.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No exercises found</p>

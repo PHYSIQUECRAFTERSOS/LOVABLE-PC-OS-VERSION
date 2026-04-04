@@ -61,19 +61,20 @@ const Training = () => {
 
       if (assignments && assignments.length > 0) {
         const programIds = assignments.map(a => a.program_id);
-        // Get phases for these programs
-        const { data: phases } = await supabase
-          .from("program_phases")
-          .select("id")
-          .in("program_id", programIds);
+        // Get phases AND weeks for these programs
+        const [{ data: phases }, { data: weeks }] = await Promise.all([
+          supabase.from("program_phases").select("id").in("program_id", programIds),
+          supabase.from("program_weeks").select("id").in("program_id", programIds),
+        ]);
         const phaseIds = (phases || []).map(p => p.id);
+        const weekIds = (weeks || []).map(w => w.id);
 
-        // Get workout IDs from program_workouts
-        const { data: pws } = await supabase
-          .from("program_workouts")
-          .select("workout_id")
-          .in("phase_id", phaseIds);
-        const workoutIds = [...new Set((pws || []).map(pw => pw.workout_id))];
+        // Get workout IDs from program_workouts via phase_id OR week_id
+        const pwQueries = [];
+        if (phaseIds.length > 0) pwQueries.push(supabase.from("program_workouts").select("workout_id").in("phase_id", phaseIds));
+        if (weekIds.length > 0) pwQueries.push(supabase.from("program_workouts").select("workout_id").in("week_id", weekIds));
+        const pwResults = await Promise.all(pwQueries);
+        const workoutIds = [...new Set(pwResults.flatMap(r => (r.data || []).map((pw: any) => pw.workout_id)))];
 
         if (workoutIds.length > 0) {
           const { data, error: wErr } = await supabase
