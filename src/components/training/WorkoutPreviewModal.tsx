@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Play, Dumbbell } from "lucide-react";
+import { Loader2, Play, Dumbbell, MoreVertical, Pencil, Copy, Trash2, Type } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ExerciseDetail {
   id: string;
@@ -35,6 +38,12 @@ interface WorkoutPreviewModalProps {
   actionLabel?: string;
   /** Override the bottom button icon (default: Play) */
   actionIcon?: React.ReactNode;
+  /** Coach mobile 3-dot menu callbacks */
+  isCoach?: boolean;
+  onEdit?: (workoutId: string) => void;
+  onDuplicate?: (workoutId: string) => void;
+  onDelete?: (workoutId: string) => void;
+  onRename?: (workoutId: string, newName: string) => void;
 }
 
 const WorkoutPreviewModal = ({
@@ -45,14 +54,27 @@ const WorkoutPreviewModal = ({
   onStartWorkout,
   actionLabel = "Start Workout",
   actionIcon,
+  isCoach = false,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onRename,
 }: WorkoutPreviewModalProps) => {
   const [exercises, setExercises] = useState<ExerciseDetail[]>([]);
   const [loading, setLoading] = useState(false);
   const [instructions, setInstructions] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+
+  // 3-dot menu state
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     if (!open || !workoutId) return;
     setLoading(true);
+    setShowMenu(false);
     const load = async () => {
       const [weRes, wRes] = await Promise.all([
         supabase
@@ -96,143 +118,273 @@ const WorkoutPreviewModal = ({
     load();
   }, [open, workoutId]);
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleRenameClick = () => {
+    setShowMenu(false);
+    setRenameValue(workoutName);
+    setShowRenameDialog(true);
+  };
+
+  const handleRenameConfirm = () => {
+    if (workoutId && renameValue.trim() && onRename) {
+      onRename(workoutId, renameValue.trim());
+    }
+    setShowRenameDialog(false);
+  };
+
+  const showCoachMenu = isCoach && isMobile;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-2 border-b border-border">
-          <DialogTitle className="text-lg">{workoutName}</DialogTitle>
-          {exercises.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {exercises.length} exercise{exercises.length !== 1 ? "s" : ""}
-            </p>
-          )}
-        </DialogHeader>
-
-        <ScrollArea className="flex-1 max-h-[60vh]">
-          <div className="p-4 space-y-3">
-            {/* Workout instructions */}
-            {instructions && (
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 mb-4">
-                <p className="text-xs font-medium text-primary mb-1">Workout Instructions</p>
-                <p className="text-xs text-muted-foreground whitespace-pre-line">{instructions}</p>
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!o && (showDeleteConfirm || showRenameDialog)) return;
+          onOpenChange(o);
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[90vh] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-lg">{workoutName}</DialogTitle>
+                {exercises.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {exercises.length} exercise{exercises.length !== 1 ? "s" : ""}
+                  </p>
+                )}
               </div>
-            )}
+              {showCoachMenu && (
+                <div className="relative ml-2">
+                  <button
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                  </button>
 
-            {loading ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : exercises.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No exercises in this workout yet.
-              </p>
-            ) : (
-              exercises.map((ex, idx) => {
-                const isGrouped = ex.grouping_type && ex.grouping_id;
-                const isFirstInGroup =
-                  isGrouped &&
-                  (idx === 0 || exercises[idx - 1]?.grouping_id !== ex.grouping_id);
-
-                return (
-                  <div key={ex.id}>
-                    {isFirstInGroup && (
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] mb-1.5 border-primary/30 text-primary"
-                      >
-                        {ex.grouping_type === "superset"
-                          ? "Superset"
-                          : ex.grouping_type === "circuit"
-                          ? "Circuit"
-                          : ex.grouping_type}
-                      </Badge>
-                    )}
-                    <div
-                      className={`flex gap-3 rounded-lg border border-border bg-card/50 p-3 ${
-                        isGrouped ? "ml-2 border-l-2 border-l-primary/30" : ""
-                      }`}
-                    >
-                      {/* Thumbnail or fallback */}
-                      <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                        {ex.youtube_thumbnail ? (
-                          <img
-                            src={ex.youtube_thumbnail}
-                            alt={ex.name}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
-                        )}
+                  {showMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-[hsl(var(--card))] shadow-lg z-20 overflow-hidden">
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50 transition-colors"
+                          onClick={() => {
+                            setShowMenu(false);
+                            if (workoutId && onEdit) { onOpenChange(false); onEdit(workoutId); }
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                          Edit Workout
+                        </button>
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50 transition-colors"
+                          onClick={handleRenameClick}
+                        >
+                          <Type className="h-4 w-4 text-muted-foreground" />
+                          Rename
+                        </button>
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50 transition-colors"
+                          onClick={() => {
+                            setShowMenu(false);
+                            if (workoutId && onDuplicate) onDuplicate(workoutId);
+                          }}
+                        >
+                          <Copy className="h-4 w-4 text-muted-foreground" />
+                          Duplicate
+                        </button>
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm text-destructive hover:bg-muted/50 transition-colors"
+                          onClick={handleDeleteClick}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button>
                       </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </DialogHeader>
 
-                      {/* Details */}
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {ex.name}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          <span className="text-[11px] text-muted-foreground">
-                            {ex.sets} sets
-                            {ex.reps ? ` × ${ex.reps}` : ""}
-                          </span>
-                          {ex.tempo && (
-                            <span className="text-[11px] text-muted-foreground">
-                              • {ex.tempo}
-                            </span>
-                          )}
-                          {ex.rest_seconds != null && ex.rest_seconds > 0 && (
-                            <span className="text-[11px] text-muted-foreground">
-                              • {ex.rest_seconds}s rest
-                            </span>
-                          )}
-                          {ex.rpe_target != null && (
-                            <span className="text-[11px] text-muted-foreground">
-                              • RPE {ex.rpe_target}
-                            </span>
-                          )}
-                          {ex.rir != null && (
-                            <span className="text-[11px] text-muted-foreground">
-                              • {ex.rir} RIR
-                            </span>
+          <ScrollArea className="flex-1 max-h-[60vh]">
+            <div className="p-4 space-y-3">
+              {instructions && (
+                <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 mb-4">
+                  <p className="text-xs font-medium text-primary mb-1">Workout Instructions</p>
+                  <p className="text-xs text-muted-foreground whitespace-pre-line">{instructions}</p>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : exercises.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No exercises in this workout yet.
+                </p>
+              ) : (
+                exercises.map((ex, idx) => {
+                  const isGrouped = ex.grouping_type && ex.grouping_id;
+                  const isFirstInGroup =
+                    isGrouped &&
+                    (idx === 0 || exercises[idx - 1]?.grouping_id !== ex.grouping_id);
+
+                  return (
+                    <div key={ex.id}>
+                      {isFirstInGroup && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] mb-1.5 border-primary/30 text-primary"
+                        >
+                          {ex.grouping_type === "superset"
+                            ? "Superset"
+                            : ex.grouping_type === "circuit"
+                            ? "Circuit"
+                            : ex.grouping_type}
+                        </Badge>
+                      )}
+                      <div
+                        className={`flex gap-3 rounded-lg border border-border bg-card/50 p-3 ${
+                          isGrouped ? "ml-2 border-l-2 border-l-primary/30" : ""
+                        }`}
+                      >
+                        <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+                          {ex.youtube_thumbnail ? (
+                            <img
+                              src={ex.youtube_thumbnail}
+                              alt={ex.name}
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
                           )}
                         </div>
-                        {ex.primary_muscle && (
-                          <Badge variant="secondary" className="text-[9px] h-4">
-                            {ex.primary_muscle}
-                          </Badge>
-                        )}
-                        {ex.notes && (
-                          <p className="text-[11px] text-muted-foreground/80 italic line-clamp-2 mt-0.5">
-                            {ex.notes}
+
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {ex.name}
                           </p>
-                        )}
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="text-[11px] text-muted-foreground">
+                              {ex.sets} sets
+                              {ex.reps ? ` × ${ex.reps}` : ""}
+                            </span>
+                            {ex.tempo && (
+                              <span className="text-[11px] text-muted-foreground">
+                                • {ex.tempo}
+                              </span>
+                            )}
+                            {ex.rest_seconds != null && ex.rest_seconds > 0 && (
+                              <span className="text-[11px] text-muted-foreground">
+                                • {ex.rest_seconds}s rest
+                              </span>
+                            )}
+                            {ex.rpe_target != null && (
+                              <span className="text-[11px] text-muted-foreground">
+                                • RPE {ex.rpe_target}
+                              </span>
+                            )}
+                            {ex.rir != null && (
+                              <span className="text-[11px] text-muted-foreground">
+                                • {ex.rir} RIR
+                              </span>
+                            )}
+                          </div>
+                          {ex.primary_muscle && (
+                            <Badge variant="secondary" className="text-[9px] h-4">
+                              {ex.primary_muscle}
+                            </Badge>
+                          )}
+                          {ex.notes && (
+                            <p className="text-[11px] text-muted-foreground/80 italic line-clamp-2 mt-0.5">
+                              {ex.notes}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </ScrollArea>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
 
-        {/* Start button */}
-        <div className="p-4 pt-2 border-t border-border">
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={() => {
-              if (workoutId) {
-                onOpenChange(false);
-                onStartWorkout(workoutId);
-              }
-            }}
-          >
-            {actionIcon || <Play className="h-4 w-4 mr-2" />} {actionLabel}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+          {/* Action button */}
+          <div className="p-4 pt-2 border-t border-border">
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => {
+                if (workoutId) {
+                  onOpenChange(false);
+                  onStartWorkout(workoutId);
+                }
+              }}
+            >
+              {actionIcon || <Play className="h-4 w-4 mr-2" />} {actionLabel}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block font-medium">{workoutName}</span>
+              <span className="block mt-2">This cannot be undone. The workout and all its exercises will be permanently removed.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (workoutId && onDelete) {
+                  onDelete(workoutId);
+                  onOpenChange(false);
+                }
+                setShowDeleteConfirm(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rename dialog */}
+      <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename Workout</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            placeholder="Workout name"
+            autoFocus
+            onKeyDown={(e) => e.key === "Enter" && handleRenameConfirm()}
+          />
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowRenameDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>Rename</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
