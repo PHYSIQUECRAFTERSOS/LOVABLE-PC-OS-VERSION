@@ -370,9 +370,9 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }:
       if (existing) {
         planId = (existing as any).id;
       } else {
-        const { data: newPlan } = await supabase
+        const { data: newPlan } = await (supabase as any)
           .from("supplement_plans")
-          .insert({ client_id: clientId, coach_id: user.id, status: "active" } as any)
+          .insert({ client_id: clientId, coach_id: user.id, status: "active" })
           .select()
           .single();
         planId = (newPlan as any)?.id;
