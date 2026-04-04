@@ -121,6 +121,18 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
   const [targetPhaseIdx, setTargetPhaseIdx] = useState(0);
   const [targetWeekIdx, setTargetWeekIdx] = useState(0);
 
+  // ── Autosave state ──
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autoSaveStatusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveInFlightRef = useRef(false);
+  const queuedAutoSaveRef = useRef(false);
+  const lastPersistedSnapshotRef = useRef("");
+  const hydratedRef = useRef(false);
+  const draftKey = `program_draft_${editProgramId || "new"}_${user?.id || "anon"}`;
+  const [showDraftResume, setShowDraftResume] = useState(false);
+  const pendingDraftRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!user) return;
     const loadWorkouts = async () => {
