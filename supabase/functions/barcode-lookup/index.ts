@@ -237,7 +237,7 @@ serve(async (req) => {
 
       // Try EAN-13 first
       const barcodeData = await fatSecretAPI("food.find_id_for_barcode.v2", { barcode: ean }, token);
-      console.log("[barcode-lookup] FatSecret barcode response:", JSON.stringify(barcodeData));
+      if (barcodeData?.error) console.log("[barcode-lookup] FatSecret: no match for", ean);
       foodId = barcodeData?.food_id?.value ?? null;
 
       // Retry with original if EAN normalization changed it
