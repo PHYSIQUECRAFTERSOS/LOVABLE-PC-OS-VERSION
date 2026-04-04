@@ -423,8 +423,6 @@ const ExerciseCard = ({
                     if (val === "" || val === "0") {
                       onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
                     } else if (/^\d*\.?\d*$/.test(val)) {
-                      // Allow intermediate decimal states like "135."
-                      if (val.endsWith(".")) return; // let user keep typing
                       const num = parseFloat(val);
                       if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
                     }
