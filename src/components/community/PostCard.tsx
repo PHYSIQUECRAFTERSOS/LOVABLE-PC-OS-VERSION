@@ -24,6 +24,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import CommentThread from "./CommentThread";
+import CommunityPostContent from "./CommunityPostContent";
 
 interface PostCardProps {
   post: CommunityPost;
@@ -133,7 +134,7 @@ const PostCard = ({ post }: PostCardProps) => {
       </div>
 
       {/* Content */}
-      <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+      <CommunityPostContent content={post.content} />
 
       {/* Media */}
       {post.media_url && post.media_type === "image" && (
