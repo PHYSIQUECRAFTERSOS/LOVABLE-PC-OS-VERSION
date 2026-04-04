@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { Scale, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { format } from "date-fns";
 
