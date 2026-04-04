@@ -71,10 +71,12 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
   const { user } = useAuth();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
+  const togglingRef = useRef(new Set<string>());
 
   const { results: searchResults, isLoading: loading, query, setQuery: doSearchSetQuery } = useFoodSearch();
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favoriteFoodsList, setFavoriteFoodsList] = useState<FoodResult[]>([]);
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
   const [customFoods, setCustomFoods] = useState<FoodResult[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
@@ -99,7 +101,22 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
       .from("coach_favorite_foods")
       .select("food_item_id")
       .eq("coach_id", user.id);
-    if (data) setFavorites(new Set(data.map((d) => d.food_item_id)));
+    if (data) {
+      const ids = data.map((d) => d.food_item_id);
+      setFavorites(new Set(ids));
+      // Also load full food data for favorites tab
+      if (ids.length > 0) {
+        const { data: foods } = await supabase
+          .from("food_items")
+          .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
+          .in("id", ids);
+        if (foods) {
+          setFavoriteFoodsList(foods.map((f: any) => ({ ...f, source: "local" as const })));
+        }
+      } else {
+        setFavoriteFoodsList([]);
+      }
+    }
   };
 
   const loadRecents = async () => {
@@ -217,15 +234,70 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     }
   };
 
-  const toggleFavorite = async (foodId: string) => {
+  const importFoodIfNeeded = async (food: FoodResult): Promise<string | null> => {
+    if (food.source === "local") return food.id;
+    try {
+      const foodItem = {
+        name: food.name,
+        brand: food.brand || null,
+        serving_size: food.serving_size || 100,
+        serving_unit: food.serving_unit || "g",
+        calories: Math.round(food.calories || 0),
+        protein: Math.round(food.protein || 0),
+        carbs: Math.round(food.carbs || 0),
+        fat: Math.round(food.fat || 0),
+        fiber: Math.round(food.fiber || 0),
+        sugar: Math.round(food.sugar || 0),
+        sodium: 0,
+        category: food.category || null,
+        data_source: food.data_source || "open_food_facts",
+        created_by: user!.id,
+        is_verified: false,
+      };
+      const { data: inserted, error } = await supabase
+        .from("food_items")
+        .insert(foodItem)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return inserted.id;
+    } catch (err: any) {
+      console.error("Import food error:", err);
+      return null;
+    }
+  };
+
+  const toggleFavorite = async (food: FoodResult) => {
     if (!user) return;
-    const isFav = favorites.has(foodId);
-    if (isFav) {
-      await supabase.from("coach_favorite_foods").delete().eq("coach_id", user.id).eq("food_item_id", foodId);
-      setFavorites((prev) => { const next = new Set(prev); next.delete(foodId); return next; });
-    } else {
-      await supabase.from("coach_favorite_foods").insert({ coach_id: user.id, food_item_id: foodId });
-      setFavorites((prev) => new Set(prev).add(foodId));
+    const key = food.id;
+    if (togglingRef.current.has(key)) return;
+    togglingRef.current.add(key);
+
+    try {
+      // For non-local foods, check if already favorited by current id
+      const isFav = favorites.has(food.id);
+
+      if (isFav) {
+        // Unfavorite
+        await supabase.from("coach_favorite_foods").delete().eq("coach_id", user.id).eq("food_item_id", food.id);
+        setFavorites((prev) => { const next = new Set(prev); next.delete(food.id); return next; });
+        setFavoriteFoodsList((prev) => prev.filter(f => f.id !== food.id));
+      } else {
+        // Import if needed, then favorite
+        const localId = await importFoodIfNeeded(food);
+        if (!localId) {
+          toast({ title: "Couldn't save this food to favorites", variant: "destructive" });
+          return;
+        }
+        await supabase.from("coach_favorite_foods").insert({ coach_id: user.id, food_item_id: localId });
+        setFavorites((prev) => new Set(prev).add(localId));
+        // Add to favorites list
+        setFavoriteFoodsList((prev) => [...prev, { ...food, id: localId, source: "local" as const }]);
+      }
+    } catch (err: any) {
+      console.error("Toggle favorite error:", err);
+    } finally {
+      togglingRef.current.delete(key);
     }
   };
 
@@ -375,7 +447,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
 
   const getDisplayList = (): FoodResult[] => {
     if (query.length < 2) {
-      if (activeFilter === "favorites") return deduplicateAndFilter(recentFoods.filter(f => favorites.has(f.id)));
+      if (activeFilter === "favorites") return deduplicateAndFilter(favoriteFoodsList);
       if (activeFilter === "recent") return deduplicateAndFilter(recentFoods);
       if (activeFilter === "custom") return customFoods;
       const favFoods = recentFoods.filter(f => favorites.has(f.id));
@@ -386,7 +458,14 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     let combined = [...localResults];
 
     if (activeFilter === "favorites") {
-      combined = combined.filter(f => favorites.has(f.id));
+      // Show search results that are favorited + any favorites matching query
+      const q = query.toLowerCase();
+      const matchingFavs = favoriteFoodsList.filter(f =>
+        f.name.toLowerCase().includes(q) || (f.brand ?? "").toLowerCase().includes(q)
+      );
+      const searchFavs = combined.filter(f => favorites.has(f.id));
+      const seenIds = new Set(searchFavs.map(f => f.id));
+      combined = [...searchFavs, ...matchingFavs.filter(f => !seenIds.has(f.id))];
     } else if (activeFilter === "custom") {
       // Client-side filter on already-loaded customFoods array
       const q = query.toLowerCase();
@@ -634,21 +713,16 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (food.source === "local") toggleFavorite(food.id);
+                    toggleFavorite(food);
                   }}
-                  className={cn(
-                    "h-5 w-5 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                    food.source === "local" && "hover:bg-primary/10"
-                  )}
+                  className="h-5 w-5 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10"
                 >
-                  {food.source === "local" && (
-                    <Star
-                      className={cn(
-                        "h-3 w-3",
-                        favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
-                      )}
-                    />
-                  )}
+                  <Star
+                    className={cn(
+                      "h-3 w-3",
+                      favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+                    )}
+                  />
                 </button>
               </div>
             </div>
