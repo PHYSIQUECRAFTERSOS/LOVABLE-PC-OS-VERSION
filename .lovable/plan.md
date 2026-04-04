@@ -1,49 +1,73 @@
 
 
-## Add Safe-Area Background to Workout Logger Overlay
+## Auto-Save System for Training Builders
 
-**Problem**: On iOS devices with a notch/Dynamic Island, there's a visible gap between the top of the screen and the workout timer bar. The area behind the notch shows the default background or the AppLayout header peeking through, which looks unfinished.
+### Problem
+When coaches build programs or edit workouts, navigating away (tapping Messages, switching tabs, etc.) loses all unsaved work. The `WorkoutBuilderModal` (desktop) already has robust autosave — but `ProgramBuilder`, `ProgramDetailView` phase settings, and `MobileWorkoutEditor` do not.
 
-**Solution**: When the workout logger is active on mobile, render it inside a fullscreen overlay (`fixed inset-0 z-[55]`) that extends edge-to-edge, with the safe-area zone painted the same color as the timer bar (`bg-background/95` with backdrop blur). This eliminates any visible gap above the notch.
+### Current State
 
-### Changes
+| Component | Autosave? | Draft persistence? |
+|---|---|---|
+| WorkoutBuilderModal (desktop) | Yes — 1200ms debounce to DB | Yes — sessionStorage |
+| ProgramBuilder (create new) | No | No |
+| ProgramDetailView (edit existing) | Partial — individual ops save immediately, but phase settings don't | No |
+| MobileWorkoutEditor | No | No |
 
-**File: `src/pages/Training.tsx`** (lines 151-158)
+### What Gets Built
 
-Wrap the mobile workout logger in a fullscreen overlay that covers the header:
+**1. ProgramBuilder — sessionStorage draft + autosave for edits**
 
-```tsx
-if (showLogger && selectedWorkout) {
-  return (
-    <AppLayout>
-      {/* Mobile: fullscreen overlay covers header, sits above z-50 nav */}
-      <div className="fixed inset-0 z-[55] bg-background overflow-y-auto safe-top pb-24 px-4 md:hidden">
-        <WorkoutLogger ... />
-      </div>
-      {/* Desktop: render normally inside main */}
-      <div className="animate-fade-in hidden md:block">
-        <WorkoutLogger ... />
-      </div>
-    </AppLayout>
-  );
-}
+This is the biggest pain point (Aaron's complaint). Two modes:
+
+- **Creating new program**: Save a sessionStorage draft on every change (debounced 500ms). When coach returns to the builder, restore the draft. Show a "Resume draft?" prompt if a draft exists. Also flush draft on `visibilitychange` / `pagehide`.
+- **Editing existing program** (`editProgramId` set): Add DB autosave (debounced 2000ms) using the same pattern as `WorkoutBuilderModal` — snapshot comparison, skip if unchanged, queue if in-flight. Show "Saving..." / "Saved" indicator in header.
+
+**2. MobileWorkoutEditor — autosave to DB**
+
+Since the mobile editor always edits an existing workout (`workoutId` is required), add DB autosave with the same 1200ms debounce pattern from `WorkoutBuilderModal`:
+- Build snapshot of current state
+- Compare to last persisted snapshot
+- If different, persist to DB (update workout name/instructions, delete+reinsert exercises)
+- Show autosave status indicator ("Saving..." / "Saved ✓")
+- On close/nav-away, flush any pending changes
+- Listen to `visibilitychange` for iOS app-switch saves
+
+**3. ProgramDetailView — autosave phase settings**
+
+Phase metadata (name, training style, intensity system, progression rule, description) currently requires a manual save. Add:
+- Debounced (1500ms) auto-persist of phase settings when changed via `updatePhase()`
+- Each phase with an `id` gets its settings written to DB automatically
+- Show per-phase "Saved ✓" indicator briefly
+
+### Files to Modify
+
+- `src/components/training/ProgramBuilder.tsx` — Add sessionStorage draft system + DB autosave for edit mode
+- `src/components/training/MobileWorkoutEditor.tsx` — Add DB autosave (mirror WorkoutBuilderModal pattern)
+- `src/components/training/ProgramDetailView.tsx` — Add debounced phase settings auto-persist
+
+### Files NOT Modified
+- `WorkoutBuilderModal.tsx` — already has robust autosave
+- `ClientWorkoutEditorModal.tsx` — desktop only, already saves on close
+
+### Technical Approach
+
+All three components follow the same proven pattern from `WorkoutBuilderModal`:
+
+```text
+State change → debounce timer (1200-2000ms) → snapshot comparison
+  → if changed: persist to DB + update lastPersistedSnapshot
+  → if in-flight: queue next save
+  → on visibilitychange="hidden": flush immediately
+  → on unmount: flush to sessionStorage (new programs) or DB (existing)
 ```
 
-Key details:
-- `fixed inset-0 z-[55]` — covers the header (z-50) completely
-- `safe-top` — uses `padding-top: env(safe-area-inset-top)` so the timer bar sits just below the Dynamic Island, with opaque `bg-background` filling the notch zone seamlessly
-- `pb-24` — leaves room for the bottom nav bar which remains visible
-- `md:hidden` / `hidden md:block` — desktop rendering stays exactly the same inside `<main>`
-- `overflow-y-auto` — exercise list remains scrollable
+The autosave indicator uses a shared pattern: `"idle" | "saving" | "saved" | "error"` with "saved" auto-clearing after 1.8s.
 
-**File: `src/components/WorkoutLogger.tsx`** (line 886)
+### Improvements to Consider
 
-Adjust the sticky header's negative top margin so it works correctly inside the overlay (the overlay already handles safe-area padding, so the header just needs `top-0`):
-
-The existing `-mt-6` pulls the header flush — inside the overlay container this still works since we keep `px-4` on the parent. No structural changes needed to WorkoutLogger itself.
-
-### What This Fixes
-- The notch/Dynamic Island zone is painted solid `bg-background` (#0a0a0a) — no gap, no bleed-through of the hamburger/settings icons
-- Bottom nav (Home, Calendar, Nutrition, Messages) stays fully visible and functional
-- Desktop layout is completely unchanged
+1. **Conflict detection**: If two coaches edit the same program simultaneously, the last save wins. A future improvement could add `updated_at` comparison before saving.
+2. **Undo support**: With autosave, accidental deletions are harder to recover. Could add a brief "Undo" toast after destructive actions (remove exercise, remove phase).
+3. **Draft expiry**: sessionStorage drafts for new programs should include a timestamp and expire after 24 hours to avoid stale resurrections.
+4. **Network-aware saving**: Skip autosave attempts when offline (check `navigator.onLine`) and queue for when connection returns.
 
