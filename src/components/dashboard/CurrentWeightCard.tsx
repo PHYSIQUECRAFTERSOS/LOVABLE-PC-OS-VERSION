@@ -45,7 +45,9 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
     return () => window.removeEventListener("weight-logged", handler);
   }, []);
 
-  const diff = latest && previous ? Number((latest.weight - previous.weight).toFixed(1)) : null;
+  const displayWeight = latest ? convertWeight(latest.weight) : null;
+  const displayPrev = previous ? convertWeight(previous.weight) : null;
+  const diff = displayWeight !== null && displayPrev !== null ? Number((displayWeight - displayPrev).toFixed(1)) : null;
 
   return (
     <button
