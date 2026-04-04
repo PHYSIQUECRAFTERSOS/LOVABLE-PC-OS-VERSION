@@ -160,6 +160,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   };
 
   const toggleProgram = async (programId: string) => {
+    if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
     if (expandedProgram === programId) {
       setExpandedProgram(null);
       return;
