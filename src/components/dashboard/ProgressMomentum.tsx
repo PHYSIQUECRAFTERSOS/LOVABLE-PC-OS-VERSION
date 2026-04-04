@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus, Scale, Dumbbell, Footprints } from "lucide-react";
 import { format, subDays } from "date-fns";
