@@ -14,28 +14,25 @@ export async function requireAuthenticatedUser(
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const publishableKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")
-    ?? Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-  if (!supabaseUrl || !publishableKey) {
-    console.error("[auth-utils] Missing auth environment variables");
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("[auth-utils] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
     return { error: "Server configuration error", status: 500 };
   }
 
   const token = authHeader.replace("Bearer ", "");
 
-  const authClient = createClient(supabaseUrl, publishableKey, {
-    global: {
-      headers: {
-        Authorization: authHeader,
-      },
-    },
+  // Use service role client with auth.getUser(jwt) to validate the token
+  // without relying on session storage
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const {
     data: { user },
     error,
-  } = await authClient.auth.getUser(token);
+  } = await serviceClient.auth.getUser(token);
 
   if (error || !user) {
     console.error("[auth-utils] Failed to validate auth token", error);
