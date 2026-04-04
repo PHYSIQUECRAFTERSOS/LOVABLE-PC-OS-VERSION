@@ -706,18 +706,14 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (food.source === "local") toggleFavorite(food.id);
+                    toggleFavorite(food);
                   }}
-                  className={cn(
-                    "h-5 w-5 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
-                    food.source === "local" && "hover:bg-primary/10"
-                  )}
+                  className="h-5 w-5 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary/10"
                 >
-                  {food.source === "local" && (
-                    <Star
-                      className={cn(
-                        "h-3 w-3",
-                        favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+                  <Star
+                    className={cn(
+                      "h-3 w-3",
+                      favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
                       )}
                     />
                   )}
