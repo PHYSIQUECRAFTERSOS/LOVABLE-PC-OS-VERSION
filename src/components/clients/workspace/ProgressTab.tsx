@@ -220,52 +220,11 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
         </Card>
       )}
 
-      {/* Lightbox */}
-      {lightboxIndex !== null && filteredPhotos[lightboxIndex] && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 right-4 text-white hover:bg-white/10 z-10"
-            onClick={() => setLightboxIndex(null)}
-          >
-            <X className="h-6 w-6" />
-          </Button>
-          {lightboxIndex > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/10"
-              onClick={() => setLightboxIndex(lightboxIndex - 1)}
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-          )}
-          {lightboxIndex < filteredPhotos.length - 1 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/10"
-              onClick={() => setLightboxIndex(lightboxIndex + 1)}
-            >
-              <ChevronRight className="h-6 w-6" />
-            </Button>
-          )}
-          <div className="max-w-3xl max-h-[85vh] px-4">
-            <img
-              src={filteredPhotos[lightboxIndex].url}
-              alt="Progress"
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-            <p className="text-center text-sm text-white/70 mt-2">
-              {format(new Date(filteredPhotos[lightboxIndex].created_at), "MMMM d, yyyy")}
-              {filteredPhotos[lightboxIndex].photo_type && filteredPhotos[lightboxIndex].photo_type !== "other" && (
-                <span className="ml-2 capitalize">· {filteredPhotos[lightboxIndex].photo_type}</span>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
+      <ProgressPhotosModal
+        open={photosModalOpen}
+        onClose={() => setPhotosModalOpen(false)}
+        clientId={clientId}
+      />
     </div>
   );
 };
