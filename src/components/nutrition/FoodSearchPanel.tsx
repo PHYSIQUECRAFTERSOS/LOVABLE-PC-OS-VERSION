@@ -66,7 +66,7 @@ interface FoodSearchPanelProps {
 type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic" | "saved";
 type SortBy = "relevance" | "calories" | "protein" | "alpha";
 
-const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
+const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPanelProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +76,7 @@ const FoodSearchPanel = ({ onSelect, onClose }: FoodSearchPanelProps) => {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
   const [customFoods, setCustomFoods] = useState<FoodResult[]>([]);
+  const [savedMeals, setSavedMeals] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const [sortBy, setSortBy] = useState<SortBy>("relevance");
   const [showCustomFood, setShowCustomFood] = useState(false);
