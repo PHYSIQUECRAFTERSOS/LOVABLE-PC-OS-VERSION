@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { Scale, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { format } from "date-fns";
 
@@ -14,6 +15,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
   const [latest, setLatest] = useState<{ weight: number; logged_at: string } | null>(null);
   const [previous, setPrevious] = useState<{ weight: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const { convertWeight, weightLabel } = useUnitPreferences();
   const targetId = clientId || user?.id;
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -43,7 +45,9 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
     return () => window.removeEventListener("weight-logged", handler);
   }, []);
 
-  const diff = latest && previous ? Number((latest.weight - previous.weight).toFixed(1)) : null;
+  const displayWeight = latest ? convertWeight(latest.weight) : null;
+  const displayPrev = previous ? convertWeight(previous.weight) : null;
+  const diff = displayWeight !== null && displayPrev !== null ? Number((displayWeight - displayPrev).toFixed(1)) : null;
 
   return (
     <button
@@ -59,7 +63,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
       ) : latest ? (
         <>
           <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-            {latest.weight} lbs
+            {displayWeight} {weightLabel}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">
@@ -68,7 +72,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
             {diff !== null && diff !== 0 ? (
               <span className={`text-[10px] font-medium flex items-center gap-0.5 whitespace-nowrap ${diff > 0 ? "text-red-400" : "text-green-400"}`}>
                 {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {diff > 0 ? "+" : ""}{diff} lbs
+                {diff > 0 ? "+" : ""}{diff} {weightLabel}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
