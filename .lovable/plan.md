@@ -1,66 +1,82 @@
 
 
-## Plan: Remove Week Sub-Grouping, Add Duration Editor, Fix Shared Menu
+## Supplement Library: Shared/Personal, Duplicate, Delete, Inline Edit
 
-### Problem Summary
-1. **ProgramBuilder** (Master Libraries → New) uses a "Week 1, Week 2..." sub-grouping inside each phase. You don't rotate workouts weekly — same workouts run 6-8 weeks. The week sub-grouping is unnecessary clutter.
-2. **Duration (weeks) is not editable** in ProgramBuilder — it's auto-calculated from the number of week sub-cards. Need an explicit editable duration input instead.
-3. **ProgramDetailView** (Master Libraries → existing program detail) already has a flat workout list with editable duration — this is the correct model.
-4. **TrainingTab** (Client profile → Training) also uses weeks in some paths — needs the same flat structure.
-5. **3-dot menu on program sidebar** uses `opacity-0 group-hover:opacity-100` which hides it completely on touch devices. The menu with "Share with Team" / "Make Private" exists in code but is invisible without hover. Bug is CSS-only.
-6. **Auto-save** for duration changes needs to work in ProgramDetailView (already has phase autosave) and ProgramBuilder (already has autosave for edit mode).
+### Problem
+The supplement section in Master Libraries is currently single-coach only — no Shared/Personal sections, no duplicate, no delete on plans from the sidebar, and no inline editing of plan items. You want feature parity with the Programs tab.
 
-### Changes
+### Database Changes
 
-**File 1: `src/components/training/ProgramBuilder.tsx`** — Remove week sub-grouping, add duration input
+**Migration: Add `is_master` column to `supplement_plans` and `master_supplements`**
 
-This is the biggest change. The ProgramBuilder currently nests workouts inside `weeks[]` arrays within each phase. We need to flatten this to match `ProgramDetailView`'s approach:
-
-- Change `ProgramPhase` interface: remove `weeks: ProgramWeek[]`, add flat `workouts: WeekWorkout[]` array
-- Remove `ProgramWeek` interface and all week operations (`addWeekToPhase`, `removeWeekFromPhase`, `duplicateWeekInPhase`)
-- Add an editable "Duration (weeks)" number input in the phase settings grid (next to Phase Name, Training Style, etc.)
-- Update `addPhase` to create phases with `workouts: []` and `durationWeeks: 4` (editable)
-- Update `saveProgram` to save `phase.durationWeeks` directly (not calculated from week count), and insert workouts linked directly to `phase_id` in `program_workouts` (not via `week_id`)
-- Update autosave snapshot builder and draft restore
-- Update the UI: remove the nested Week collapsibles, show workouts flat under each phase with "Build Workout" and "Import" buttons directly
-- Keep the "Build Workout" modal and "Import from templates" flows — just remove the week wrapper
-
-**File 2: `src/pages/MasterLibraries.tsx`** — Fix 3-dot menu visibility
-
-The dropdown trigger div uses `opacity-0 group-hover:opacity-100` which doesn't work on touch/mobile. Fix:
-- Change to `opacity-60 hover:opacity-100` so it's always visible (dimmed when not hovered)
-- This makes "Share with Team" / "Make Private" accessible on all devices
-
-**File 3: `src/components/clients/workspace/TrainingTab.tsx`** — Verify flat workout structure
-
-The TrainingTab already loads workouts via `directWorkouts` on phases (line 32). It also has a `weeks` fallback for legacy data. No structural changes needed — it already renders flat. Just verify the "New" workout button inside a phase creates workouts linked to `phase_id` directly (not via weeks). This is already the case.
-
-### What Won't Change
-- `ProgramDetailView.tsx` — already has the correct flat structure with editable duration and autosave
-- `WorkoutBuilderModal.tsx` — no changes needed
-- Database schema — no migrations needed. `program_workouts` already supports `phase_id` directly (without `week_id`). `program_weeks` table stays for legacy data but new programs won't create week rows.
-
-### Technical Details
-
-The key structural change in ProgramBuilder:
-
-```text
-BEFORE (current):
-Phase → Week 1 → [Workout A, Workout B]
-      → Week 2 → [Workout A, Workout B]
-      → Week 3 → [Workout A, Workout B]
-
-AFTER (target — matches ProgramDetailView):
-Phase → [Workout A, Workout B]
-         Duration: 6 weeks (editable input)
+```sql
+ALTER TABLE supplement_plans ADD COLUMN IF NOT EXISTS is_master boolean NOT NULL DEFAULT false;
+ALTER TABLE master_supplements ADD COLUMN IF NOT EXISTS is_master boolean NOT NULL DEFAULT false;
 ```
 
-The save logic changes from:
-- Insert `program_weeks` rows, then `program_workouts` with `week_id`
+**Migration: Add RLS policies for cross-coach visibility on shared supplements/plans**
 
-To:
-- Insert `program_workouts` with `phase_id` directly (no week rows)
-- Store `duration_weeks` on `program_phases` from the input value
+```sql
+-- Coaches can SELECT shared supplement plans (is_master = true)
+CREATE POLICY "Coaches can view shared supplement plans"
+ON supplement_plans FOR SELECT TO authenticated
+USING (
+  is_master = true
+  AND (has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin'))
+);
 
-This matches how `ProgramDetailView.saveProgramWithPhases()` already works (lines 1048-1117).
+-- Coaches can SELECT shared master supplements
+CREATE POLICY "Coaches can view shared master supplements"
+ON master_supplements FOR SELECT TO authenticated
+USING (
+  is_master = true
+  AND (has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin'))
+);
+
+-- Coaches can view items of shared plans
+CREATE POLICY "Coaches can view shared plan items"
+ON supplement_plan_items FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM supplement_plans sp
+    WHERE sp.id = supplement_plan_items.plan_id
+    AND sp.is_master = true
+    AND (has_role(auth.uid(), 'coach') OR has_role(auth.uid(), 'admin'))
+  )
+);
+```
+
+### Code Changes
+
+**File: `src/components/libraries/SupplementLibrary.tsx`**
+
+This is the main file getting reworked. Changes:
+
+1. **Shared/Personal sections for Plans sidebar** — Mirror the Programs tab pattern with collapsible "Shared" and "Personal" sections using `is_master` flag. Fetch own plans + shared plans from other coaches (same two-query merge pattern as programs).
+
+2. **Shared/Personal for Catalog** — Same pattern: fetch own supplements + shared supplements. Show in two collapsible sections.
+
+3. **3-dot menu on plan sidebar items** — Replace the current `opacity-0 group-hover:opacity-100` with `opacity-60 hover:opacity-100` (touch fix). Add menu items:
+   - "Assign to Client" (existing)
+   - "Share with Team" / "Make Private" (toggle `is_master`)
+   - "Duplicate" (clone plan + all items)
+   - "Delete" (existing, gated to creator/admin)
+
+4. **3-dot menu on catalog items** — Add "Share with Team" / "Make Private" toggle.
+
+5. **Duplicate plan** — Clone `supplement_plans` row with "(Copy)" suffix + clone all `supplement_plan_items` rows with new `plan_id`.
+
+6. **Inline editing of plan items** — When a plan is selected and items are displayed, each item row becomes editable: click to edit dosage, timing, and coach note fields inline (same pattern as `ClientSupplementPlan` edit mode). Save on blur/change with debounce.
+
+7. **Permission gating** — `canEdit(plan)` = `plan.coach_id === userId || isAdmin`. Only creator/admin can edit, delete, or toggle sharing. All coaches can view and assign shared plans.
+
+8. **Creator names** — Fetch profile names for other coaches' shared plans/supplements, display "by CoachName" label.
+
+### Summary of New Capabilities
+- Plans sidebar: Shared / Personal collapsible sections with count badges
+- Catalog view: Shared / Personal collapsible sections
+- 3-dot menu on plans: Share with Team, Duplicate, Delete (always visible on touch)
+- 3-dot menu on catalog: Share with Team
+- Inline edit plan items (dosage, timing, note)
+- Permission model mirrors Programs tab exactly
 
