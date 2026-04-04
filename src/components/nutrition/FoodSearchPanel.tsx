@@ -523,6 +523,45 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
       )}
 
       {/* Results */}
+      {activeFilter === "saved" ? (
+        <div className="max-h-52 overflow-y-auto space-y-0.5 rounded border border-border p-1">
+          {savedMeals.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-[11px] text-muted-foreground">No saved meals yet. Save meals from the meal builder using the ⋮ menu.</p>
+            </div>
+          ) : (
+            savedMeals.map((meal: any) => (
+              <div
+                key={meal.id}
+                className="w-full text-left rounded px-2 py-2 text-xs hover:bg-secondary transition-colors flex items-center gap-2 group"
+              >
+                <button
+                  onClick={() => handleSelectSavedMeal(meal)}
+                  className="flex items-center gap-2 flex-1 min-w-0"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <BookmarkPlus className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium text-foreground truncate block">{meal.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{meal.items?.length || 0} items</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                    {Math.round(meal.calories)}cal · {Math.round(meal.protein)}P · {Math.round(meal.carbs)}C · {Math.round(meal.fat)}F
+                  </span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteSavedMeal(meal.id); }}
+                  className="h-6 w-6 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 shrink-0"
+                  title="Delete"
+                >
+                  <Trash2 className="h-3 w-3 text-destructive" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
       <div className="max-h-52 overflow-y-auto space-y-0.5 rounded border border-border p-1">
         {displayList.length === 0 && !loading ? (
           <div className="text-center py-6">
