@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -22,6 +23,7 @@ import {
 import {
   Plus, Search, Pill, Trash2, MoreHorizontal, Users, Link2,
   FolderOpen, GripVertical, ExternalLink, Tag, Loader2, Edit,
+  Copy, Share2, Lock, ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -52,6 +54,8 @@ interface MasterSupplement {
   discount_label: string | null;
   notes: string | null;
   is_active: boolean;
+  coach_id: string;
+  is_master: boolean;
 }
 
 interface SupplementPlan {
@@ -59,6 +63,8 @@ interface SupplementPlan {
   name: string;
   description: string | null;
   created_at: string;
+  coach_id: string;
+  is_master: boolean;
 }
 
 interface PlanItem {
@@ -75,13 +81,17 @@ interface PlanItem {
 }
 
 const SupplementLibrary = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isAdmin = role === "admin";
   const { toast } = useToast();
   const [view, setView] = useState<"catalog" | "plans">("plans");
   const [supplements, setSupplements] = useState<MasterSupplement[]>([]);
   const [plans, setPlans] = useState<SupplementPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
+  const [sharedExpanded, setSharedExpanded] = useState(true);
+  const [personalExpanded, setPersonalExpanded] = useState(true);
 
   // Supplement form
   const [showSuppForm, setShowSuppForm] = useState(false);
@@ -122,15 +132,48 @@ const SupplementLibrary = () => {
   const [selectedClientId, setSelectedClientId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
+  // Inline edit state
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editDosage, setEditDosage] = useState("");
+  const [editDosageUnit, setEditDosageUnit] = useState("");
+  const [editTiming, setEditTiming] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const canEdit = useCallback((item: { coach_id: string }) => {
+    return item.coach_id === user?.id || isAdmin;
+  }, [user?.id, isAdmin]);
+
   const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const [{ data: supps }, { data: planData }] = await Promise.all([
+
+    // Fetch own + shared (RLS handles cross-coach visibility for is_master=true)
+    const [{ data: ownSupps }, { data: sharedSupps }, { data: ownPlans }, { data: sharedPlans }] = await Promise.all([
       supabase.from("master_supplements").select("*").eq("coach_id", user.id).eq("is_active", true).order("name"),
+      supabase.from("master_supplements").select("*").eq("is_master", true).eq("is_active", true).neq("coach_id", user.id).order("name"),
       supabase.from("supplement_plans").select("*").eq("coach_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("supplement_plans").select("*").eq("is_master", true).neq("coach_id", user.id).order("created_at", { ascending: false }),
     ]);
-    setSupplements((supps as any[] || []) as MasterSupplement[]);
-    setPlans((planData as any[] || []) as SupplementPlan[]);
+
+    const allSupps = [...(ownSupps || []), ...(sharedSupps || [])] as MasterSupplement[];
+    const allPlans = [...(ownPlans || []), ...(sharedPlans || [])] as SupplementPlan[];
+    setSupplements(allSupps);
+    setPlans(allPlans);
+
+    // Fetch creator names for shared items
+    const otherCoachIds = new Set([
+      ...(sharedSupps || []).map((s: any) => s.coach_id),
+      ...(sharedPlans || []).map((p: any) => p.coach_id),
+    ].filter(id => id !== user.id));
+
+    if (otherCoachIds.size > 0) {
+      const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", Array.from(otherCoachIds));
+      const names: Record<string, string> = {};
+      (profiles || []).forEach((p: any) => { names[p.user_id] = p.full_name || "Coach"; });
+      setCreatorNames(names);
+    }
+
     setLoading(false);
   }, [user]);
 
@@ -205,6 +248,13 @@ const SupplementLibrary = () => {
     setShowSuppForm(true);
   };
 
+  const toggleSuppShared = async (s: MasterSupplement) => {
+    const { error } = await supabase.from("master_supplements").update({ is_master: !s.is_master } as any).eq("id", s.id);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    toast({ title: s.is_master ? "Made private" : "Shared with team" });
+    loadData();
+  };
+
   // CRUD plans
   const createPlan = async () => {
     if (!user || !planName.trim()) return;
@@ -221,6 +271,44 @@ const SupplementLibrary = () => {
     await supabase.from("supplement_plans").delete().eq("id", id);
     toast({ title: "Plan deleted" });
     if (selectedPlanId === id) setSelectedPlanId(null);
+    loadData();
+  };
+
+  const duplicatePlan = async (plan: SupplementPlan) => {
+    if (!user) return;
+    // Clone the plan
+    const { data: newPlan, error: planErr } = await supabase.from("supplement_plans").insert({
+      coach_id: user.id,
+      name: `${plan.name} (Copy)`,
+      description: plan.description,
+    }).select().single();
+    if (planErr || !newPlan) { toast({ title: "Error duplicating", description: planErr?.message, variant: "destructive" }); return; }
+
+    // Clone items
+    const { data: items } = await supabase.from("supplement_plan_items").select("*").eq("plan_id", plan.id).order("sort_order");
+    if (items && items.length > 0) {
+      const clonedItems = items.map((item: any) => ({
+        plan_id: newPlan.id,
+        master_supplement_id: item.master_supplement_id,
+        dosage: item.dosage,
+        dosage_unit: item.dosage_unit,
+        timing_slot: item.timing_slot,
+        sort_order: item.sort_order,
+        coach_note: item.coach_note,
+        link_url_override: item.link_url_override,
+        discount_code_override: item.discount_code_override,
+      }));
+      await supabase.from("supplement_plan_items").insert(clonedItems);
+    }
+
+    toast({ title: "Plan duplicated" });
+    loadData();
+  };
+
+  const togglePlanShared = async (plan: SupplementPlan) => {
+    const { error } = await supabase.from("supplement_plans").update({ is_master: !plan.is_master } as any).eq("id", plan.id);
+    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
+    toast({ title: plan.is_master ? "Made private" : "Shared with team" });
     loadData();
   };
 
@@ -246,11 +334,34 @@ const SupplementLibrary = () => {
     if (selectedPlanId) loadPlanItems(selectedPlanId);
   };
 
+  // Inline edit helpers
+  const startEditItem = (item: PlanItem) => {
+    setEditingItemId(item.id);
+    setEditDosage(item.dosage || "");
+    setEditDosageUnit(item.dosage_unit || "");
+    setEditTiming(item.timing_slot);
+    setEditNote(item.coach_note || "");
+  };
+
+  const saveEditItem = async () => {
+    if (!editingItemId || !selectedPlanId) return;
+    const { error } = await supabase.from("supplement_plan_items").update({
+      dosage: editDosage.trim() || null,
+      dosage_unit: editDosageUnit.trim() || null,
+      timing_slot: editTiming,
+      coach_note: editNote.trim() || null,
+    }).eq("id", editingItemId);
+    if (error) { toast({ title: "Error saving", description: error.message, variant: "destructive" }); return; }
+    setEditingItemId(null);
+    loadPlanItems(selectedPlanId);
+  };
+
+  const cancelEdit = () => setEditingItemId(null);
+
   // Assign plan
   const assignPlan = async () => {
     if (!assignPlanId || !selectedClientId || !user) return;
     setAssigning(true);
-    // Deactivate existing assignment
     await supabase.from("client_supplement_assignments").update({ is_active: false }).eq("client_id", selectedClientId).eq("is_active", true);
     const { error } = await supabase.from("client_supplement_assignments").insert({
       client_id: selectedClientId, plan_id: assignPlanId, assigned_by: user.id,
@@ -270,6 +381,15 @@ const SupplementLibrary = () => {
   );
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
+  const canEditSelectedPlan = selectedPlan ? canEdit(selectedPlan) : false;
+
+  // Separate plans into shared/personal
+  const sharedPlans = plans.filter(p => p.is_master);
+  const personalPlans = plans.filter(p => !p.is_master && p.coach_id === user?.id);
+
+  // Separate catalog into shared/personal
+  const sharedSupps = filteredSupps.filter(s => s.is_master);
+  const personalSupps = filteredSupps.filter(s => !s.is_master && s.coach_id === user?.id);
 
   // Group items by timing slot
   const groupedItems = TIMING_SLOTS.reduce((acc, slot) => {
@@ -277,6 +397,127 @@ const SupplementLibrary = () => {
     if (items.length > 0) acc.push({ slot: slot.value, label: slot.label, items });
     return acc;
   }, [] as { slot: string; label: string; items: PlanItem[] }[]);
+
+  const renderPlanSidebarItem = (plan: SupplementPlan) => {
+    const isOwner = canEdit(plan);
+    const creatorLabel = plan.coach_id !== user?.id ? creatorNames[plan.coach_id] : null;
+    return (
+      <button
+        key={plan.id}
+        onClick={() => setSelectedPlanId(plan.id)}
+        className={cn(
+          "w-full text-left p-3 rounded-lg border transition-colors group",
+          selectedPlanId === plan.id
+            ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+            : "border-transparent hover:bg-muted/50"
+        )}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{plan.name}</p>
+            {plan.description && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{plan.description}</p>}
+            {creatorLabel && <p className="text-[10px] text-muted-foreground/70 mt-0.5">by {creatorLabel}</p>}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div
+                role="button"
+                className="h-6 w-6 flex items-center justify-center rounded opacity-60 hover:opacity-100 hover:bg-muted transition-all"
+                onClick={e => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setAssignPlanId(plan.id); setShowAssign(true); }}>
+                <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => duplicatePlan(plan)}>
+                <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
+              </DropdownMenuItem>
+              {isOwner && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => togglePlanShared(plan)}>
+                    {plan.is_master
+                      ? <><Lock className="h-3.5 w-3.5 mr-2" /> Make Private</>
+                      : <><Share2 className="h-3.5 w-3.5 mr-2" /> Share with Team</>
+                    }
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive" onClick={() => deletePlan(plan.id)}>
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </button>
+    );
+  };
+
+  const renderCatalogCard = (s: MasterSupplement) => {
+    const isOwner = canEdit(s);
+    const creatorLabel = s.coach_id !== user?.id ? creatorNames[s.coach_id] : null;
+    return (
+      <Card key={s.id} className="overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
+              {s.brand && <p className="text-xs text-muted-foreground">{s.brand}</p>}
+              {creatorLabel && <p className="text-[10px] text-muted-foreground/70">by {creatorLabel}</p>}
+              {s.default_dosage && (
+                <p className="text-xs text-primary mt-1">{s.default_dosage} {s.default_dosage_unit}</p>
+              )}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {s.discount_code && (
+                  <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary gap-0.5">
+                    <Tag className="h-2 w-2" /> {s.discount_code}
+                  </Badge>
+                )}
+                {s.link_url && (
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5">
+                    <ExternalLink className="h-2 w-2" /> Link
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isOwner && (
+                  <DropdownMenuItem onClick={() => editSupplement(s)}>
+                    <Edit className="h-3.5 w-3.5 mr-2" /> Edit
+                  </DropdownMenuItem>
+                )}
+                {isOwner && (
+                  <DropdownMenuItem onClick={() => toggleSuppShared(s)}>
+                    {s.is_master
+                      ? <><Lock className="h-3.5 w-3.5 mr-2" /> Make Private</>
+                      : <><Share2 className="h-3.5 w-3.5 mr-2" /> Share with Team</>
+                    }
+                  </DropdownMenuItem>
+                )}
+                {isOwner && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => deleteSupplement(s.id)}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Remove
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="h-[calc(100vh-12rem)]">
@@ -315,50 +556,41 @@ const SupplementLibrary = () => {
               <p className="text-sm text-muted-foreground">No supplements in catalog yet.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredSupps.map(s => (
-                <Card key={s.id} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
-                        {s.brand && <p className="text-xs text-muted-foreground">{s.brand}</p>}
-                        {s.default_dosage && (
-                          <p className="text-xs text-primary mt-1">{s.default_dosage} {s.default_dosage_unit}</p>
-                        )}
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {s.discount_code && (
-                            <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary gap-0.5">
-                              <Tag className="h-2 w-2" /> {s.discount_code}
-                            </Badge>
-                          )}
-                          {s.link_url && (
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5">
-                              <ExternalLink className="h-2 w-2" /> Link
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => editSupplement(s)}>
-                            <Edit className="h-3.5 w-3.5 mr-2" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive" onClick={() => deleteSupplement(s.id)}>
-                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Remove
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+            <div className="space-y-4">
+              {/* Shared Catalog */}
+              {sharedSupps.length > 0 && (
+                <Collapsible open={sharedExpanded} onOpenChange={setSharedExpanded}>
+                  <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1 group">
+                    <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", sharedExpanded && "rotate-90")} />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Shared</span>
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">{sharedSupps.length}</Badge>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                      {sharedSupps.map(renderCatalogCard)}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+              {/* Personal Catalog */}
+              <Collapsible open={personalExpanded} onOpenChange={setPersonalExpanded}>
+                <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1 group">
+                  <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", personalExpanded && "rotate-90")} />
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Personal</span>
+                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">{personalSupps.length}</Badge>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {personalSupps.length === 0 ? (
+                    <div className="flex flex-col items-center py-8 text-center">
+                      <p className="text-xs text-muted-foreground">No personal supplements yet.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                      {personalSupps.map(renderCatalogCard)}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             </div>
           )}
         </div>
@@ -385,45 +617,36 @@ const SupplementLibrary = () => {
                     <p className="text-sm text-muted-foreground">No plans yet.</p>
                   </div>
                 ) : (
-                  plans.map(plan => (
-                    <button
-                      key={plan.id}
-                      onClick={() => setSelectedPlanId(plan.id)}
-                      className={cn(
-                        "w-full text-left p-3 rounded-lg border transition-colors group",
-                        selectedPlanId === plan.id
-                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                          : "border-transparent hover:bg-muted/50"
-                      )}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{plan.name}</p>
-                          {plan.description && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{plan.description}</p>}
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <div
-                              role="button"
-                              className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </div>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => { setAssignPlanId(plan.id); setShowAssign(true); }}>
-                              <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={() => deletePlan(plan.id)}>
-                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </button>
-                  ))
+                  <>
+                    {/* Shared Plans */}
+                    {sharedPlans.length > 0 && (
+                      <Collapsible open={sharedExpanded} onOpenChange={setSharedExpanded}>
+                        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 px-1">
+                          <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", sharedExpanded && "rotate-90")} />
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Shared</span>
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">{sharedPlans.length}</Badge>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="space-y-1">
+                          {sharedPlans.map(renderPlanSidebarItem)}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                    {/* Personal Plans */}
+                    <Collapsible open={personalExpanded} onOpenChange={setPersonalExpanded}>
+                      <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-1.5 px-1">
+                        <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", personalExpanded && "rotate-90")} />
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Personal</span>
+                        <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">{personalPlans.length}</Badge>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-1">
+                        {personalPlans.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-4">No personal plans yet.</p>
+                        ) : (
+                          personalPlans.map(renderPlanSidebarItem)
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </>
                 )}
               </div>
             </ScrollArea>
@@ -437,14 +660,19 @@ const SupplementLibrary = () => {
                   <div>
                     <h2 className="text-lg font-bold text-foreground">{selectedPlan.name}</h2>
                     {selectedPlan.description && <p className="text-sm text-muted-foreground">{selectedPlan.description}</p>}
+                    {selectedPlan.coach_id !== user?.id && creatorNames[selectedPlan.coach_id] && (
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">by {creatorNames[selectedPlan.coach_id]}</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => { setAssignPlanId(selectedPlan.id); setShowAssign(true); }}>
                       <Users className="h-3.5 w-3.5 mr-1" /> Assign
                     </Button>
-                    <Button size="sm" onClick={() => { setItemTiming("fasted"); setShowAddItem(true); }}>
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
-                    </Button>
+                    {canEditSelectedPlan && (
+                      <Button size="sm" onClick={() => { setItemTiming("fasted"); setShowAddItem(true); }}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -454,7 +682,7 @@ const SupplementLibrary = () => {
                   <div className="flex flex-col items-center py-16 text-center">
                     <Pill className="h-10 w-10 text-muted-foreground/30 mb-3" />
                     <p className="text-sm text-muted-foreground">No supplements in this plan yet.</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">Click "Add Item" to get started.</p>
+                    {canEditSelectedPlan && <p className="text-xs text-muted-foreground/70 mt-1">Click "Add Item" to get started.</p>}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -464,8 +692,49 @@ const SupplementLibrary = () => {
                         <div className="space-y-2">
                           {group.items.map(item => {
                             const supp = suppMap.get(item.master_supplement_id);
+                            const isEditing = editingItemId === item.id;
+
+                            if (isEditing && canEditSelectedPlan) {
+                              return (
+                                <div key={item.id} className="p-3 rounded-lg border border-primary/30 bg-card space-y-3">
+                                  <p className="text-sm font-medium text-foreground">{supp?.name || "Unknown"} {supp?.brand ? `(${supp.brand})` : ""}</p>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                      <Label className="text-[10px]">Dosage</Label>
+                                      <Input value={editDosage} onChange={e => setEditDosage(e.target.value)} className="h-7 text-xs" />
+                                    </div>
+                                    <div>
+                                      <Label className="text-[10px]">Unit</Label>
+                                      <Input value={editDosageUnit} onChange={e => setEditDosageUnit(e.target.value)} className="h-7 text-xs" />
+                                    </div>
+                                    <div>
+                                      <Label className="text-[10px]">Timing</Label>
+                                      <Select value={editTiming} onValueChange={setEditTiming}>
+                                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {TIMING_SLOTS.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <Label className="text-[10px]">Coach Note</Label>
+                                    <Input value={editNote} onChange={e => setEditNote(e.target.value)} className="h-7 text-xs" placeholder="e.g. Mix with ACV" />
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <Button size="sm" variant="ghost" className="text-xs h-7" onClick={cancelEdit}>Cancel</Button>
+                                    <Button size="sm" className="text-xs h-7" onClick={saveEditItem}>Save</Button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
                             return (
-                              <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card group">
+                              <div
+                                key={item.id}
+                                className={cn("flex items-center gap-3 p-3 rounded-lg border border-border bg-card group", canEditSelectedPlan && "cursor-pointer hover:border-primary/20")}
+                                onClick={() => canEditSelectedPlan && startEditItem(item)}
+                              >
                                 <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
@@ -497,14 +766,16 @@ const SupplementLibrary = () => {
                                     )}
                                   </div>
                                 </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 text-destructive"
-                                  onClick={() => removeItem(item.id)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                {canEditSelectedPlan && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 opacity-60 hover:opacity-100 text-destructive"
+                                    onClick={e => { e.stopPropagation(); removeItem(item.id); }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
                               </div>
                             );
                           })}
