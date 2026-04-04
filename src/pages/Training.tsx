@@ -13,6 +13,7 @@ import WorkoutHistory from "@/components/training/WorkoutHistory";
 import ClientProgramView from "@/components/training/ClientProgramView";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 import { useAuth } from "@/hooks/useAuth";
 
@@ -110,37 +111,68 @@ const Training = () => {
     }
   }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string, calendarEventId?: string) => {
-    const { data } = await supabase
-      .from("workout_exercises")
-      .select(`id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, exercises (id, name, youtube_url, video_url, equipment)`)
-      .eq("workout_id", workoutId)
-      .order("exercise_order");
+    try {
+      const data = await fetchWorkoutExerciseDetails(workoutId);
+      const exerciseLogs = data.map((we) => {
+        const equipment = we.exercise?.equipment || null;
+        const isBodyweight = !!equipment && ["bodyweight", "none", "body weight"].includes(equipment.toLowerCase());
 
-    if (data) {
-      const exerciseLogs = data.map((we: any) => ({
-        id: we.exercises.id, name: we.exercises.name, sets: we.sets, reps: we.reps,
-        tempo: we.tempo, restSeconds: we.rest_seconds, rir: we.rir, notes: we.notes,
-        videoUrl: we.video_override || we.exercises.youtube_url || we.exercises.video_url || null,
-        equipment: we.exercises.equipment || null,
-        progression: {
-          progressionType: we.progression_type || "double", weightIncrement: we.weight_increment || 5,
-          incrementType: we.increment_type || "fixed", rpeThreshold: we.rpe_threshold || 8,
-          progressionMode: we.progression_mode || "moderate",
-        },
-        logs: Array.from({ length: we.sets }, (_, idx) => {
-          const isBW = we.exercises.equipment && ["bodyweight", "none", "body weight"].includes(we.exercises.equipment.toLowerCase());
-          return {
-            setNumber: idx + 1, weight: isBW ? 0 : undefined, reps: undefined, tempo: undefined, rir: undefined, notes: undefined,
-          };
-        }),
-      }));
+        return {
+          id: we.exercise?.id || we.exercise_id,
+          name: we.exercise?.name || "Exercise",
+          sets: we.sets,
+          reps: we.reps,
+          tempo: we.tempo,
+          restSeconds: we.rest_seconds,
+          rir: we.rir,
+          notes: we.notes,
+          videoUrl: we.video_override || we.exercise?.youtube_url || we.exercise?.video_url || null,
+          equipment,
+          progression: {
+            progressionType: we.progression_type || "double",
+            weightIncrement: we.weight_increment || 5,
+            incrementType: we.increment_type || "fixed",
+            rpeThreshold: we.rpe_threshold || 8,
+            progressionMode: we.progression_mode || "moderate",
+          },
+          logs: Array.from({ length: we.sets }, (_, idx) => ({
+            setNumber: idx + 1,
+            weight: isBodyweight ? 0 : undefined,
+            reps: undefined,
+            tempo: undefined,
+            rir: undefined,
+            notes: undefined,
+          })),
+        };
+      });
+
       let workout = workouts.find(w => w.id === workoutId);
       if (!workout) {
-        const { data: w } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).maybeSingle();
+        const { data: w, error: workoutError } = await supabase
+          .from("workouts")
+          .select("name, instructions")
+          .eq("id", workoutId)
+          .maybeSingle();
+        if (workoutError) throw workoutError;
         workout = w;
       }
-      setSelectedWorkout({ id: workoutId, name: workout?.name || "Workout", instructions: workout?.instructions || null, exercises: exerciseLogs, resumeSessionId: resumeSessionId || null, calendarEventId: calendarEventId || null });
+
+      setSelectedWorkout({
+        id: workoutId,
+        name: workout?.name || "Workout",
+        instructions: workout?.instructions || null,
+        exercises: exerciseLogs,
+        resumeSessionId: resumeSessionId || null,
+        calendarEventId: calendarEventId || null,
+      });
       setShowLogger(true);
+    } catch (err: any) {
+      console.error("[Training] loadWorkoutExercises error:", err);
+      toast({
+        title: "Couldn't load workout",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

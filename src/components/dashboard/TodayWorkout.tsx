@@ -5,6 +5,7 @@ import { Dumbbell } from "lucide-react";
 import { format } from "date-fns";
 import { useDataFetch } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 interface TodayWorkoutData {
   id: string;
@@ -69,23 +70,18 @@ const TodayWorkout = () => {
               .from("workouts")
               .select("id, name, phase")
               .eq("id", calEvent.linked_workout_id)
-              .single(),
-            supabase
-              .from("workout_exercises")
-              .select("sets, reps, exercises:exercise_id(name)")
-              .eq("workout_id", calEvent.linked_workout_id)
-              .order("exercise_order", { ascending: true })
-              .abortSignal(signal),
+              .maybeSingle(),
+            fetchWorkoutExerciseDetails(calEvent.linked_workout_id, signal),
           ]);
 
           if (workoutRes.data) {
             workoutName = workoutRes.data.name || calEvent.title;
             phase = workoutRes.data.phase;
           }
-          exercises = (exRes.data || []).map((e: any) => ({
-            name: e.exercises?.name || "",
+          exercises = exRes.map((e) => ({
+            name: e.exercise?.name || "",
             sets: e.sets,
-            reps: e.reps,
+            reps: e.reps || undefined,
           }));
         }
 

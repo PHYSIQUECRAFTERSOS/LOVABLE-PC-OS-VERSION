@@ -6,6 +6,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerC
 import { Loader2, X, HelpCircle, Play } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 const MUSCLE_INITIALS: Record<string, string> = {
   chest: "C", shoulders: "S", back: "B", legs: "L", arms: "A", core: "Co",
@@ -53,12 +54,8 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
 
     const load = async () => {
       try {
-      const [exRes, sessionRes] = await Promise.all([  
-        supabase
-          .from("workout_exercises")
-          .select("sets, reps, rest_seconds, rir, exercises:exercise_id(id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail)")
-          .eq("workout_id", workoutId)
-          .order("exercise_order", { ascending: true }),
+      const [exerciseDetails, sessionRes] = await Promise.all([  
+        fetchWorkoutExerciseDetails(workoutId),
         supabase
           .from("workout_sessions")
           .select("completed_at")
@@ -70,16 +67,16 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
           .maybeSingle(),
       ]);
 
-      const mapped: ExercisePreview[] = (exRes.data || []).map((we: any) => ({
-        id: we.exercises?.id || "",
-        name: we.exercises?.name || "Unknown",
-        muscle_group: we.exercises?.primary_muscle || null,
+      const mapped: ExercisePreview[] = exerciseDetails.map((we) => ({
+        id: we.exercise?.id || we.exercise_id,
+        name: we.exercise?.name || "Unknown",
+        muscle_group: we.exercise?.primary_muscle || null,
         sets: we.sets,
         reps: we.reps,
         rest_seconds: we.rest_seconds,
         rir: we.rir,
-        video_url: we.exercises?.youtube_url || we.exercises?.video_url || null,
-        thumbnail_url: we.exercises?.youtube_thumbnail || null,
+        video_url: we.exercise?.youtube_url || we.exercise?.video_url || null,
+        thumbnail_url: we.exercise?.youtube_thumbnail || null,
       }));
       setExercises(mapped);
 

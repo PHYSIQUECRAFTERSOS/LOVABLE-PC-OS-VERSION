@@ -6,6 +6,7 @@ import { Loader2, Play, ChevronDown, ChevronUp, Calendar, Dumbbell } from "lucid
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import WorkoutPreviewModal from "./WorkoutPreviewModal";
+import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -127,36 +128,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
   // Fetch first exercise thumbnail for each workout
   const fetchWorkoutThumbnails = async (workoutIds: string[]) => {
-    if (workoutIds.length === 0) return new Map<string, { thumbnail: string | null; count: number }>();
-
-    const { data } = await supabase
-      .from("workout_exercises")
-      .select("workout_id, exercise_order, exercises(youtube_thumbnail)")
-      .in("workout_id", workoutIds)
-      .order("exercise_order");
-
-    const result = new Map<string, { thumbnail: string | null; count: number }>();
-    const countMap = new Map<string, number>();
-
-    (data || []).forEach((row: any) => {
-      const wId = row.workout_id;
-      countMap.set(wId, (countMap.get(wId) || 0) + 1);
-      // Only take first exercise's thumbnail
-      if (!result.has(wId)) {
-        result.set(wId, {
-          thumbnail: row.exercises?.youtube_thumbnail || null,
-          count: 0,
-        });
-      }
-    });
-
-    // Set counts
-    countMap.forEach((count, wId) => {
-      const entry = result.get(wId);
-      if (entry) entry.count = count;
-    });
-
-    return result;
+    return fetchWorkoutThumbnailSummary(workoutIds);
   };
 
   const toggleProgram = async (programId: string) => {
