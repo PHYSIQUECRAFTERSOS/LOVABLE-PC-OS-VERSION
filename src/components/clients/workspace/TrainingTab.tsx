@@ -186,9 +186,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const openWorkoutEditor = (pw: ProgramWorkout) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    setEditorWorkoutId(pw.workout_id);
-    setEditorWorkoutName(pw.workout_name);
-    setEditorOpen(true);
+    if (isMobile) {
+      setMobileEditorWorkoutId(pw.workout_id);
+      setMobileEditorWorkoutName(pw.workout_name);
+      setMobileEditorOpen(true);
+    } else {
+      setEditorWorkoutId(pw.workout_id);
+      setEditorWorkoutName(pw.workout_name);
+      setEditorOpen(true);
+    }
   };
 
   const openWorkoutPreview = (pw: ProgramWorkout) => {
