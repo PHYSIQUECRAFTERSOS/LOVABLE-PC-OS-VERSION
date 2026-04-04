@@ -1,46 +1,65 @@
 
-Goal: remove the unreliable rest-timer sound completely and replace it with cues that are much more dependable on iPhone/Android PWAs.
 
-What I found
-- The active workout flow uses sound in `src/components/workout/InlineRestTimer.tsx` and `src/components/workout/FloatingRestTimer.tsx`.
-- `src/components/WorkoutLogger.tsx` still primes audio when a workout starts and again before opening a rest timer.
-- There is also a legacy `src/components/RestTimer.tsx` path that still calls `playCountdown`, `stopCountdown`, and keep-alive methods.
-- The sound service is centralized in `src/services/RestTimerAudioService.ts`, with tests tied to that behavior.
+## Trainerize-Style Mobile Workout Editor for Coach
 
-Implementation plan
-1. Remove rest-timer sound from the live workout flow
-- Delete `restTimerAudio` calls from `InlineRestTimer`, `FloatingRestTimer`, and `WorkoutLogger`.
-- Remove the legacy countdown/keepalive sound path from `RestTimer` so there is no hidden audio behavior left.
-- Keep the timer worker and completion timing exactly as-is.
+**Context**: Currently, the coach's workout editing on mobile uses `ClientWorkoutEditorModal` — a desktop-oriented two-panel dialog (left workout structure + right exercise library). On mobile, this is cramped and unusable. The Trainerize screenshots show a much better mobile UX: fullscreen editor with a bottom toolbar (Superset, Delete, Insert) and a separate fullscreen "Add Exercises" sheet.
 
-2. Replace sound with cues that are reliable
-- Add haptic vibration on completion using the existing browser-safe pattern already used elsewhere in the app (`navigator.vibrate(...)` when supported).
-- Strengthen the visual completion state:
-  - clearer “Rest complete” / “Ready for next set” message
-  - stronger color change/border glow
-  - checkmark/pulse state when the timer hits zero
-- Preserve skip behavior and auto-complete flow.
+This change is **mobile-only** (coach role, `< 768px`). Desktop keeps the existing two-panel `ClientWorkoutEditorModal`.
 
-3. Recommended alternatives that will work better than sound
-- Best default: haptic vibration + stronger visual “Rest complete” state
-- Optional upgrade: brief full-width banner/toast saying “Rest complete — next set ready”
-- Optional upgrade: highlight the next log button / next set row when the timer ends
-- Optional upgrade: small screen flash or gold pulse on the timer card
-These are much more reliable than audio in mobile webviews.
+### What Gets Built
 
-4. Clean up regressions
-- Update tests that currently expect audio playback so they instead verify completion behavior and non-audio cues.
-- Remove any now-unused imports and dead audio references from the workout flow.
-- Leave the native audio plugin files alone unless you want a deeper cleanup pass; removing the live usage is the safer production fix.
+**1. New Component: `MobileWorkoutEditor.tsx`**
+A fullscreen mobile editor (replaces the dialog on mobile) with:
+- **Header**: "Cancel" (left), workout name (center), "Save" (right) — matching Trainerize exactly (IMG_9584)
+- **Instructions bar**: Collapsed single-line preview with edit icon, tapping opens a textarea sheet
+- **Exercise list**: Each exercise card shows thumbnail, name, sets/reps/rest badges. Superset groups are visually linked with a left border. Drag handles for reorder via long-press.
+- **Bottom toolbar** (sticky): 4 buttons — **Superset** | **Delete** | **Insert** (opens exercise catalog)
+  - Superset: enters selection mode, select 2+, tap Superset again to group
+  - Delete: enters selection mode, select exercises, confirm delete
+  - Insert: opens fullscreen exercise picker sheet
 
-Validation plan
-- Test workout logging flow end-to-end on the client workout screen
-- Confirm: log set → rest timer starts → timer ends → no sound plays → visual completion appears clearly
-- Confirm skip still dismisses correctly
-- Confirm background/return during a rest timer still ends cleanly
-- Confirm there are no remaining workout-flow calls to `restTimerAudio`
+**2. New Component: `MobileExercisePickerSheet.tsx`**
+Fullscreen slide-up sheet (matching IMG_9585):
+- Header: "Cancel" (left), "Add Exercises" (center), filter icon + "Add" (right)
+- Search bar at top
+- Exercise list with thumbnails, names, muscle/equipment tags, and checkbox on right
+- Multi-select: check exercises, tap "Add" to insert all at once
+- "+ Add custom exercise" link at bottom
+- Muscle group filter via the filter icon
 
-Recommended outcome
-- Ship the timer with no sound
-- Use haptic + visual completion as the default cue set
-- If you want, after this fix I can do a second pass to make the “rest complete” cue feel more premium, closer to Strong/Trainerize
+**3. Workout Preview Modal — Add 3-dot menu (mobile only)**
+When coach taps a workout in `TrainingTab` on mobile, the `WorkoutPreviewModal` already shows. Add:
+- **3-dot menu** (top-right, `MoreVertical` icon) with a bottom sheet containing:
+  - Edit workout → opens `MobileWorkoutEditor`
+  - Rename → inline rename dialog
+  - Duplicate → clones workout + exercises
+  - Delete → confirmation dialog then deletes
+- Keep "Start Workout" button at bottom
+
+**4. Integration in `TrainingTab.tsx`**
+- Detect mobile via `useIsMobile()`
+- When coach taps "Edit" on mobile → open `MobileWorkoutEditor` instead of `ClientWorkoutEditorModal`
+- When coach taps workout card on mobile → preview modal now has the 3-dot menu
+- Desktop behavior unchanged
+
+### Files to Create
+- `src/components/training/MobileWorkoutEditor.tsx` — fullscreen editor
+- `src/components/training/MobileExercisePickerSheet.tsx` — exercise catalog picker
+
+### Files to Modify
+- `src/components/training/WorkoutPreviewModal.tsx` — add 3-dot menu with Edit/Rename/Duplicate/Delete (mobile only, coach only)
+- `src/components/clients/workspace/TrainingTab.tsx` — route to mobile editor on mobile, pass new callbacks to preview modal
+- No changes to `ClientWorkoutEditorModal.tsx` (desktop stays the same)
+
+### Key Design Decisions
+- Bottom toolbar uses the gold accent (`#D4A017`) for the active action
+- Dark mode styling throughout (`bg-[#0a0a0a]`, `bg-[#1a1a1a]`)
+- Exercise cards show: thumbnail (64x48), name, badges for sets/reps/rest
+- Superset grouping uses left gold border like Trainerize
+- Save persists to same Supabase tables (`workouts`, `workout_exercises`, `workout_sets`) using same logic as `ClientWorkoutEditorModal.handleSave()`
+- Delete workout from 3-dot menu uses `AlertDialog` confirmation before deleting
+
+### Not Included (per your instructions)
+- Circuit button (skipped)
+- Rest timer button (skipped — each exercise has rest already)
+
