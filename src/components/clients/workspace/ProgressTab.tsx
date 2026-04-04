@@ -146,6 +146,7 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
               <ArrowLeftRight className="h-3.5 w-3.5" />
               Compare
             </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {/* Filters */}
