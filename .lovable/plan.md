@@ -1,31 +1,42 @@
 
-## Client Bug Fixes — Three Issues
 
-### Bug 1: Can't input decimal points in weight (Workout Logger)
-**Root cause**: `inputMode="numeric"` on the weight input field in `ExerciseCard.tsx` (line 419). On iOS, `numeric` shows only digits 0-9 without a decimal point key.
-**Fix**: Change `inputMode="numeric"` to `inputMode="decimal"` on the weight input. Also update the onChange handler to allow intermediate decimal states (e.g. "135." while typing "135.5").
+## Fix Food Favoriting — Both Client and Coach Sides
 
-**File**: `src/components/workout/ExerciseCard.tsx` (line 419)
+### Problems Found
 
-### Bug 2: Can't unfavorite a food + Star adds duplicate lines
-**Root cause**: Two problems in `handleToggleFavorite` in `AddFoodScreen.tsx`:
-1. No guard against rapid clicks — user taps star multiple times before the first request resolves, causing concurrent API calls and UI state corruption
-2. After toggling, `fetchFavoriteFoods()` re-fetches the full list which can race with the optimistic state update
+**Coach side (`FoodSearchPanel.tsx`):**
+1. **Star button only renders for `source === "local"` foods** (lines 637-651). External foods (USDA, FatSecret, OFF) never show the star — users literally cannot click it.
+2. **Favorites tab only filters from recents** (line 378) — if you favorite a food you haven't recently used, it won't appear in the Favorites tab. Need to load actual favorite foods from `coach_favorite_foods`.
+3. **No import-before-favorite logic** — when a non-local food is starred, it must be imported into `food_items` first (so `coach_favorite_foods.food_item_id` has a valid FK). Currently this is missing.
+4. **No rapid-click guard** — unlike the client side, there's no protection against double-tapping the star.
 
-**Fix**:
-- Add a `togglingRef` Set to track in-flight food IDs and skip duplicate clicks
-- Apply optimistic UI update immediately (remove from favorites list if unfavoriting) so the user sees instant feedback
-- Keep the `fetchFavoriteFoods()` call as a background sync but guard it against races
+**Client side (`AddFoodScreen.tsx`):**
+5. The existing logic looks correct in structure but has a subtle issue: if `importOFFFood` returns a food but the ID assignment to `localId` happens after a race, the `toggle_food_favorite` RPC may receive the wrong ID. The current guard fixes most cases, but I'll verify the flow is clean.
 
-**File**: `src/components/nutrition/AddFoodScreen.tsx` (lines 805-837)
+### Plan
 
-### Summary of Changes
+#### Step 1: Fix `FoodSearchPanel.tsx` (Coach Meal Plan Builder)
+- **Load favorite foods separately**: Add a `favoriteFoodsList` state. In `loadFavorites`, after fetching IDs from `coach_favorite_foods`, also fetch the full food data from `food_items` so the Favorites tab can display them even if they aren't in recents.
+- **Show star for ALL foods**: Remove the `food.source === "local"` guard on lines 637-651. Always render the star button.
+- **Import before favorite**: When star is clicked on a non-local food, import it into `food_items` first (same pattern as `handleSelect` already does for OFF foods), then insert into `coach_favorite_foods`.
+- **Add rapid-click guard**: Add a `togglingRef` Set like the client side has.
+- **Fix Favorites tab display**: Use `favoriteFoodsList` instead of filtering recents.
+
+#### Step 2: Verify `AddFoodScreen.tsx` (Client Side)
+- Confirm the existing import-then-favorite flow handles all source types (USDA, FatSecret, OFF).
+- The current code already handles this correctly with the `importOFFFood` call.
+
+### Files Modified
 | File | Change |
 |------|--------|
-| `ExerciseCard.tsx` | `inputMode="numeric"` → `inputMode="decimal"` on weight input, allow decimal intermediate states |
-| `AddFoodScreen.tsx` | Add toggling guard ref, prevent rapid duplicate clicks, optimistic unfavorite removal |
+| `src/components/nutrition/FoodSearchPanel.tsx` | Load favorite foods, show star for all foods, import-before-favorite, rapid-click guard |
+
+### No Database Changes Required
+Both `coach_favorite_foods` (coach) and `user_food_history` (client) tables already exist with the correct schema.
 
 ### Testing
-After implementation, navigate to:
-1. Training → start a workout → verify weight field shows decimal keyboard on mobile
-2. Nutrition → search a food → favorite it → tap star again → verify it unfavorites cleanly without adding duplicate lines
+After implementation:
+1. Coach side: Search a food → star it → check Favorites tab → unstar it → confirm removal
+2. Coach side: Star an external (USDA/branded) food → confirm it appears in Favorites
+3. Client side: Verify existing favorite flow still works (no regressions from logging changes)
+
