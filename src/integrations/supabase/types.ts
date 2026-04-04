@@ -3793,6 +3793,7 @@ export type Database = {
           discount_label: string | null
           id: string
           is_active: boolean
+          is_master: boolean
           link_url: string | null
           name: string
           notes: string | null
@@ -3809,6 +3810,7 @@ export type Database = {
           discount_label?: string | null
           id?: string
           is_active?: boolean
+          is_master?: boolean
           link_url?: string | null
           name: string
           notes?: string | null
@@ -3825,6 +3827,7 @@ export type Database = {
           discount_label?: string | null
           id?: string
           is_active?: boolean
+          is_master?: boolean
           link_url?: string | null
           name?: string
           notes?: string | null
@@ -6106,6 +6109,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_master: boolean
           is_template: boolean
           name: string
           updated_at: string
@@ -6115,6 +6119,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_master?: boolean
           is_template?: boolean
           name: string
           updated_at?: string
@@ -6124,6 +6129,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_master?: boolean
           is_template?: boolean
           name?: string
           updated_at?: string
