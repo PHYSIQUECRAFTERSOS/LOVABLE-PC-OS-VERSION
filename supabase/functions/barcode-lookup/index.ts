@@ -276,8 +276,14 @@ serve(async (req) => {
     try {
       console.log("[barcode-lookup] Trying OpenFoodFacts for:", barcode);
       const offRes = await fetch(
-        `https://world.openfoodfacts.org/api/v2/product/${barcode}`,
-        { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } },
+        `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`,
+        {
+          signal: AbortSignal.timeout(8000),
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "PhysiqueCrafters/1.0 (kevinwu@physiquecrafters.com)",
+          },
+        },
       );
 
       if (offRes.ok) {
