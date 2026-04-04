@@ -49,7 +49,7 @@ interface PhaseDetail {
 }
 
 const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const userId = user?.id;
   const [assignments, setAssignments] = useState<ProgramAssignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,14 +62,18 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const [previewWorkoutName, setPreviewWorkoutName] = useState("");
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !session) return;
     const load = async () => {
-      const { data: cpa } = await supabase
+      try {
+      const { data: cpa, error: cpaErr } = await supabase
         .from("client_program_assignments")
         .select("id, program_id, start_date, status")
         .eq("client_id", userId)
         .in("status", ["active", "subscribed"])
         .order("created_at", { ascending: false });
+
+      if (cpaErr) console.error("[ClientProgramView] assignments query error:", cpaErr);
+      console.log("[ClientProgramView] assignments:", cpa?.length ?? 0);
 
       if (!cpa || cpa.length === 0) {
         const { data: directPrograms } = await supabase
@@ -79,6 +83,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           .eq("is_template", false)
           .order("created_at", { ascending: false });
 
+        console.log("[ClientProgramView] directPrograms fallback:", directPrograms?.length ?? 0);
         if (directPrograms && directPrograms.length > 0) {
           setAssignments(directPrograms.map(p => ({
             id: p.id, program_id: p.id, start_date: "", status: "active",
@@ -90,10 +95,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       }
 
       const programIds = [...new Set(cpa.map(a => a.program_id))];
-      const { data: programs } = await supabase
+      const { data: programs, error: progErr } = await supabase
         .from("programs")
         .select("id, name, description, goal_type")
         .in("id", programIds);
+
+      if (progErr) console.error("[ClientProgramView] programs query error:", progErr);
+      console.log("[ClientProgramView] programs fetched:", programs?.length ?? 0, "for IDs:", programIds);
 
       const programMap = new Map((programs || []).map(p => [p.id, p]));
       const merged: ProgramAssignment[] = cpa
@@ -109,9 +117,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
       setAssignments(deduped);
       setLoading(false);
+      } catch (err) {
+        console.error("[ClientProgramView] load error:", err);
+        setLoading(false);
+      }
     };
     load();
-  }, [userId]);
+  }, [userId, session]);
 
   // Fetch first exercise thumbnail for each workout
   const fetchWorkoutThumbnails = async (workoutIds: string[]) => {
@@ -148,6 +160,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   };
 
   const toggleProgram = async (programId: string) => {
+    if (!session) { console.warn("[ClientProgramView] toggleProgram blocked — no session"); return; }
     if (expandedProgram === programId) {
       setExpandedProgram(null);
       return;

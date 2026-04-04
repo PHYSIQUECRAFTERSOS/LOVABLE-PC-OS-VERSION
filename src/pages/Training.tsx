@@ -17,7 +17,7 @@ import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { useAuth } from "@/hooks/useAuth";
 
 const Training = () => {
-  const { role, user } = useAuth();
+  const { role, user, session } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
@@ -31,12 +31,13 @@ const Training = () => {
 
   const { data: workouts = [], loading, error, timedOut, refetch } = useDataFetch<any[]>({
     queryKey: cacheKey,
-    enabled: !!user,
+    enabled: !!user && !!session,
     staleTime: 3 * 60 * 1000,
     timeout: 5000,
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
+      console.log("[Training] queryFn start, role:", role, "userId:", user.id.slice(0, 8));
       if (isCoachOrAdmin) {
         const { data, error } = await supabase
           .from("workouts")
@@ -44,6 +45,7 @@ const Training = () => {
           .eq("coach_id", user.id)
           .abortSignal(signal);
         if (error) throw error;
+        console.log("[Training] coach workouts:", data?.length ?? 0);
         return data || [];
       }
       // Client: only show workouts from assigned programs (no duplicates)
@@ -53,6 +55,8 @@ const Training = () => {
         .eq("client_id", user.id)
         .in("status", ["active", "subscribed"])
         .abortSignal(signal);
+
+      console.log("[Training] client assignments:", assignments?.length ?? 0);
 
       if (assignments && assignments.length > 0) {
         const programIds = assignments.map(a => a.program_id);
@@ -77,16 +81,19 @@ const Training = () => {
             .in("id", workoutIds)
             .abortSignal(signal);
           if (wErr) throw wErr;
-          return data || [];
+          console.log("[Training] client program workouts:", data?.length ?? 0);
+          if (data && data.length > 0) return data;
         }
       }
-      // Fallback: direct client_id workouts
+      // Fallback: direct client_id workouts (always runs if program path returned nothing)
+      console.log("[Training] falling back to direct client_id workouts");
       const { data, error: fErr } = await supabase
         .from("workouts")
         .select("id, name, description, phase, is_template, instructions")
         .eq("client_id", user.id)
         .abortSignal(signal);
       if (fErr) throw fErr;
+      console.log("[Training] fallback workouts:", data?.length ?? 0);
       return data || [];
     },
   });
