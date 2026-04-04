@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
   Download, Loader2
 } from "lucide-react";
 import ClientWorkoutEditorModal from "@/components/training/ClientWorkoutEditorModal";
+import MobileWorkoutEditor from "@/components/training/MobileWorkoutEditor";
 import WorkoutPreviewModal from "@/components/training/WorkoutPreviewModal";
 import WorkoutBuilderModal from "@/components/training/WorkoutBuilderModal";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
