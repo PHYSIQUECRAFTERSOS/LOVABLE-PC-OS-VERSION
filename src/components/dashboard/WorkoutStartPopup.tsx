@@ -52,7 +52,8 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
     setLoading(true);
 
     const load = async () => {
-      const [exRes, sessionRes] = await Promise.all([
+      try {
+      const [exRes, sessionRes] = await Promise.all([  
         supabase
           .from("workout_exercises")
           .select("sets, reps, rest_seconds, rir, exercises:exercise_id(id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail)")
@@ -88,6 +89,11 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
         setLastPerformed(null);
       }
       setLoading(false);
+      } catch (err) {
+        console.error("[WorkoutStartPopup] load error:", err);
+        setExercises([]);
+        setLoading(false);
+      }
     };
     load();
   }, [open, workoutId, user]);
