@@ -458,7 +458,14 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     let combined = [...localResults];
 
     if (activeFilter === "favorites") {
-      combined = combined.filter(f => favorites.has(f.id));
+      // Show search results that are favorited + any favorites matching query
+      const q = query.toLowerCase();
+      const matchingFavs = favoriteFoodsList.filter(f =>
+        f.name.toLowerCase().includes(q) || (f.brand ?? "").toLowerCase().includes(q)
+      );
+      const searchFavs = combined.filter(f => favorites.has(f.id));
+      const seenIds = new Set(searchFavs.map(f => f.id));
+      combined = [...searchFavs, ...matchingFavs.filter(f => !seenIds.has(f.id))];
     } else if (activeFilter === "custom") {
       // Client-side filter on already-loaded customFoods array
       const q = query.toLowerCase();
