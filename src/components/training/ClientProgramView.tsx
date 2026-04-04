@@ -72,6 +72,9 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
         .in("status", ["active", "subscribed"])
         .order("created_at", { ascending: false });
 
+      if (cpaErr) console.error("[ClientProgramView] assignments query error:", cpaErr);
+      console.log("[ClientProgramView] assignments:", cpa?.length ?? 0);
+
       if (!cpa || cpa.length === 0) {
         const { data: directPrograms } = await supabase
           .from("programs")
@@ -80,6 +83,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
           .eq("is_template", false)
           .order("created_at", { ascending: false });
 
+        console.log("[ClientProgramView] directPrograms fallback:", directPrograms?.length ?? 0);
         if (directPrograms && directPrograms.length > 0) {
           setAssignments(directPrograms.map(p => ({
             id: p.id, program_id: p.id, start_date: "", status: "active",
@@ -91,10 +95,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       }
 
       const programIds = [...new Set(cpa.map(a => a.program_id))];
-      const { data: programs } = await supabase
+      const { data: programs, error: progErr } = await supabase
         .from("programs")
         .select("id, name, description, goal_type")
         .in("id", programIds);
+
+      if (progErr) console.error("[ClientProgramView] programs query error:", progErr);
+      console.log("[ClientProgramView] programs fetched:", programs?.length ?? 0, "for IDs:", programIds);
 
       const programMap = new Map((programs || []).map(p => [p.id, p]));
       const merged: ProgramAssignment[] = cpa
@@ -110,9 +117,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
       setAssignments(deduped);
       setLoading(false);
+      } catch (err) {
+        console.error("[ClientProgramView] load error:", err);
+        setLoading(false);
+      }
     };
     load();
-  }, [userId]);
+  }, [userId, session]);
 
   // Fetch first exercise thumbnail for each workout
   const fetchWorkoutThumbnails = async (workoutIds: string[]) => {
