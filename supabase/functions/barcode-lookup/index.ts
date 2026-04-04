@@ -55,8 +55,7 @@ async function fatSecretAPI(method: string, params: Record<string, string>, toke
 
 function normalizeBarcode(barcode: string): string {
   const clean = barcode.replace(/\D/g, "");
-  if (clean.length === 12) return "0" + clean;
-  return clean;
+  return clean.padStart(13, "0");
 }
 
 function mapFatSecretFood(food: any): any | null {
