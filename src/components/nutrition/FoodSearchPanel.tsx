@@ -234,15 +234,70 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     }
   };
 
-  const toggleFavorite = async (foodId: string) => {
+  const importFoodIfNeeded = async (food: FoodResult): Promise<string | null> => {
+    if (food.source === "local") return food.id;
+    try {
+      const foodItem = {
+        name: food.name,
+        brand: food.brand || null,
+        serving_size: food.serving_size || 100,
+        serving_unit: food.serving_unit || "g",
+        calories: Math.round(food.calories || 0),
+        protein: Math.round(food.protein || 0),
+        carbs: Math.round(food.carbs || 0),
+        fat: Math.round(food.fat || 0),
+        fiber: Math.round(food.fiber || 0),
+        sugar: Math.round(food.sugar || 0),
+        sodium: 0,
+        category: food.category || null,
+        data_source: food.data_source || "open_food_facts",
+        created_by: user!.id,
+        is_verified: false,
+      };
+      const { data: inserted, error } = await supabase
+        .from("food_items")
+        .insert(foodItem)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return inserted.id;
+    } catch (err: any) {
+      console.error("Import food error:", err);
+      return null;
+    }
+  };
+
+  const toggleFavorite = async (food: FoodResult) => {
     if (!user) return;
-    const isFav = favorites.has(foodId);
-    if (isFav) {
-      await supabase.from("coach_favorite_foods").delete().eq("coach_id", user.id).eq("food_item_id", foodId);
-      setFavorites((prev) => { const next = new Set(prev); next.delete(foodId); return next; });
-    } else {
-      await supabase.from("coach_favorite_foods").insert({ coach_id: user.id, food_item_id: foodId });
-      setFavorites((prev) => new Set(prev).add(foodId));
+    const key = food.id;
+    if (togglingRef.current.has(key)) return;
+    togglingRef.current.add(key);
+
+    try {
+      // For non-local foods, check if already favorited by current id
+      const isFav = favorites.has(food.id);
+
+      if (isFav) {
+        // Unfavorite
+        await supabase.from("coach_favorite_foods").delete().eq("coach_id", user.id).eq("food_item_id", food.id);
+        setFavorites((prev) => { const next = new Set(prev); next.delete(food.id); return next; });
+        setFavoriteFoodsList((prev) => prev.filter(f => f.id !== food.id));
+      } else {
+        // Import if needed, then favorite
+        const localId = await importFoodIfNeeded(food);
+        if (!localId) {
+          toast({ title: "Couldn't save this food to favorites", variant: "destructive" });
+          return;
+        }
+        await supabase.from("coach_favorite_foods").insert({ coach_id: user.id, food_item_id: localId });
+        setFavorites((prev) => new Set(prev).add(localId));
+        // Add to favorites list
+        setFavoriteFoodsList((prev) => [...prev, { ...food, id: localId, source: "local" as const }]);
+      }
+    } catch (err: any) {
+      console.error("Toggle favorite error:", err);
+    } finally {
+      togglingRef.current.delete(key);
     }
   };
 
