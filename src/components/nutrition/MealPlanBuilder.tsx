@@ -151,6 +151,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
   const [macroTargets, setMacroTargets] = useState({ calories: 2000, protein: 150, carbs: 200, fat: 60 });
 
+  // Save meal to library state
+  const [saveMealDialogOpen, setSaveMealDialogOpen] = useState(false);
+  const [saveMealName, setSaveMealName] = useState("");
+  const [savingMealTarget, setSavingMealTarget] = useState<{ dayId: string; mealId: string } | null>(null);
+  const [savingMealLoading, setSavingMealLoading] = useState(false);
+
   const handleImportDays = (importedDays: DayType[]) => {
     setDays((prev) => [...prev, ...importedDays]);
     if (importedDays.length > 0) setExpandedDay(importedDays[0].id);
