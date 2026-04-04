@@ -49,9 +49,10 @@ const TRAINING_STYLE_LABELS: Record<string, string> = {
 };
 
 const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const userId = user?.id;
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [assignment, setAssignment] = useState<any>(null);
   const [program, setProgram] = useState<any>(null);
