@@ -63,7 +63,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
       ) : latest ? (
         <>
           <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
-            {latest.weight} lbs
+            {displayWeight} {weightLabel}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">
@@ -72,7 +72,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
             {diff !== null && diff !== 0 ? (
               <span className={`text-[10px] font-medium flex items-center gap-0.5 whitespace-nowrap ${diff > 0 ? "text-red-400" : "text-green-400"}`}>
                 {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                {diff > 0 ? "+" : ""}{diff} lbs
+                {diff > 0 ? "+" : ""}{diff} {weightLabel}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">

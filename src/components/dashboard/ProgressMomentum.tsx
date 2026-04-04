@@ -84,14 +84,17 @@ const ProgressMomentum = () => {
     weightChange: null, currentWeight: null, workoutCompletion: 0, stepAvg: 0,
   };
 
+  const displayWeightChange = weightChange !== null ? convertWeight(Math.abs(weightChange)) * (weightChange < 0 ? -1 : 1) : null;
+  const displayCurrentWeight = currentWeight !== null ? convertWeight(currentWeight) : null;
+
   const metrics = [
     {
       icon: <Scale className="h-4 w-4" />,
       label: "Weight (30d)",
-      value: weightChange !== null
-        ? `${weightChange > 0 ? "+" : ""}${weightChange} lbs`
+      value: displayWeightChange !== null
+        ? `${displayWeightChange > 0 ? "+" : ""}${Number(displayWeightChange.toFixed(1))} ${weightLabel}`
         : "No data",
-      sub: currentWeight ? `${currentWeight} lbs` : undefined,
+      sub: displayCurrentWeight ? `${displayCurrentWeight} ${weightLabel}` : undefined,
       trend: weightChange !== null ? (weightChange < 0 ? "down" : weightChange > 0 ? "up" : "flat") : null,
     },
     {
