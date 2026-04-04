@@ -65,6 +65,14 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
   // Editing exercise inline
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
+  // ── Autosave state ──
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autoSaveStatusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveInFlightRef = useRef(false);
+  const queuedAutoSaveRef = useRef(false);
+  const lastPersistedSnapshotRef = useRef("");
+
   useEffect(() => {
     if (!workoutId || !open) return;
     const load = async () => {
