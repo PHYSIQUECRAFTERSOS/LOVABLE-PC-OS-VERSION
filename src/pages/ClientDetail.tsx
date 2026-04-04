@@ -25,6 +25,7 @@ import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
 import ClientSupplementPlan from "@/components/nutrition/ClientSupplementPlan";
 import PlanTab from "@/components/clients/workspace/PlanTab";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
+import AIImportButton from "@/components/import/AIImportButton";
 
 interface ClientProfile {
   user_id: string;
@@ -142,6 +143,7 @@ const ClientDetail = () => {
                 <Tag className="h-3.5 w-3.5" />
                 Tags
               </Button>
+              <AIImportButton entryPoint="client" clientId={clientId} importType="any" />
               <Button
                 variant="outline"
                 size="sm"

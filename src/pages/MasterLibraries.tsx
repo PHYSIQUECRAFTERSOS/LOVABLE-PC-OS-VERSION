@@ -38,6 +38,7 @@ import PCRecipeLibrary from "@/components/nutrition/PCRecipeLibrary";
 import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import SupplementLibrary from "@/components/libraries/SupplementLibrary";
 import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
+import AIImportButton from "@/components/import/AIImportButton";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -490,9 +491,12 @@ const MasterLibraries = () => {
                   <div className="p-4 border-b space-y-3">
                     <div className="flex items-center justify-between">
                       <h2 className="font-semibold text-sm text-foreground">Programs</h2>
-                      <Button size="sm" onClick={() => setShowBuilder(true)}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> New
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <AIImportButton entryPoint="library" importType="workout" />
+                        <Button size="sm" onClick={() => setShowBuilder(true)}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> New
+                        </Button>
+                      </div>
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

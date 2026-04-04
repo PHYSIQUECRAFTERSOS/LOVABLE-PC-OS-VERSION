@@ -89,6 +89,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_import_jobs: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string
+          document_type: string
+          error_message: string | null
+          extracted_json: Json | null
+          file_names: string[] | null
+          final_data: Json | null
+          id: string
+          match_results: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by: string
+          document_type: string
+          error_message?: string | null
+          extracted_json?: Json | null
+          file_names?: string[] | null
+          final_data?: Json | null
+          id?: string
+          match_results?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string
+          document_type?: string
+          error_message?: string | null
+          extracted_json?: Json | null
+          file_names?: string[] | null
+          final_data?: Json | null
+          id?: string
+          match_results?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       auto_message_logs: {
         Row: {
           client_id: string
