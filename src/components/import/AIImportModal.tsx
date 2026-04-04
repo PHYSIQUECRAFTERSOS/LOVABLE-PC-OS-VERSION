@@ -359,7 +359,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }:
     // Create or find supplement plan
     let planId: string | null = null;
     if (clientId) {
-      const { data: existing } = await supabase
+      const { data: existing } = await (supabase as any)
         .from("supplement_plans")
         .select("id")
         .eq("client_id", clientId)
