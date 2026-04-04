@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -273,6 +273,9 @@ const ExerciseCard = ({
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, parseWeightInput, weightLabel } = useUnitPreferences();
 
+  // Local string state for weight inputs to preserve trailing decimals (e.g. "105.")
+  const [weightStrings, setWeightStrings] = useState<Record<number, string>>({});
+
   // Long-press support
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -414,23 +417,37 @@ const ExerciseCard = ({
               <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
               <div className="relative">
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={log.weight !== undefined && log.weight !== null ? String(convertWeight(log.weight)) : ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "" || val === "0") {
-                      onUpdateLog(setIdx, "weight", val === "" ? undefined : 0);
-                    } else if (/^\d*\.?\d*$/.test(val)) {
-                      const num = parseFloat(val);
-                      if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
-                    }
-                  }}
-                  placeholder={isBW ? "BW" : "0"}
-                  className="text-sm h-8"
-                  disabled={log.completed}
-                />
+                 <Input
+                   type="text"
+                   inputMode="decimal"
+                   value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : (log.weight !== undefined && log.weight !== null ? String(convertWeight(log.weight)) : "")}
+                   onChange={(e) => {
+                     const val = e.target.value;
+                     if (val === "") {
+                       setWeightStrings(prev => ({ ...prev, [setIdx]: "" }));
+                       onUpdateLog(setIdx, "weight", undefined);
+                     } else if (/^\d*\.?\d*$/.test(val)) {
+                       setWeightStrings(prev => ({ ...prev, [setIdx]: val }));
+                       // Only commit the numeric value when it's a complete number (not ending with ".")
+                       if (!val.endsWith(".")) {
+                         const num = parseFloat(val);
+                         if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
+                       }
+                     }
+                   }}
+                   onBlur={() => {
+                     // On blur, commit any trailing-decimal value and clear local string state
+                     const str = weightStrings[setIdx];
+                     if (str !== undefined && str !== "") {
+                       const num = parseFloat(str);
+                       if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
+                     }
+                     setWeightStrings(prev => { const n = { ...prev }; delete n[setIdx]; return n; });
+                   }}
+                   placeholder={isBW ? "BW" : "0"}
+                   className="text-sm h-8"
+                   disabled={log.completed}
+                 />
                 {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
                   <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
                 )}
