@@ -1,47 +1,35 @@
 
 
-## Meal Reorder + Save-to-Library + Saved Meals Tab in Meal Plan Builder
+## Fix Onboarding Save Errors, Document Signing Page, and Signed Agreements Display
 
-### What Gets Built
+### Problem Summary
 
-**1. Meal Reorder Arrows (Up/Down)**
-Add up-arrow and down-arrow buttons to each meal header bar in the Meal Plan Builder. Clicking swaps the meal with its neighbor in the array. First meal hides up arrow, last meal hides down arrow.
+Three interconnected issues affecting new client onboarding:
 
-**2. "Save Meal to Library" via 3-dot Menu**
-Add a `MoreVertical` (⋮) icon to each meal header bar. Clicking opens a dropdown with "Save Meal to Library". This saves the meal's name and all its foods (with per-100g data, gram amounts, serving info) into `saved_meals` + `saved_meal_items` tables, owned by the coach. A prompt dialog asks for the meal name (pre-filled with current meal name).
+1. **"Failed to save your progress" toast** appears after almost every onboarding step, even though data IS saving successfully on the backend. Root cause: the payload sends empty strings (`""`) for timestamp columns like `waiver_signed_at` and `baseline_assessment_date` on early steps, which can cause PostgREST rejection. Additionally, the Preview environment's fetch proxy can interfere with responses, causing false error states.
 
-**3. "Saved Meals" Tab in FoodSearchPanel**
-Add a new filter tab after "Generic" called "Saved Meals". When active, it fetches the coach's `saved_meals` with their `saved_meal_items`. Displays meal names with macro totals. Selecting a saved meal auto-populates ALL its ingredients into the current meal slot in the builder (not as a single food — as individual food items).
+2. **Document signing page (Setup.tsx) is stuck** — after creating a password, the ToS page renders but buttons are cut off below the viewport. Root cause: the outer container uses `flex min-h-screen items-center justify-center` with no `overflow-y-auto`, so when DocumentSigningFlow + the PC header exceed viewport height, the footer (checkbox + Continue button) is hidden and unreachable.
 
-### Technical Details
+3. **Signed agreements not showing in coach's client profile** — two causes: (a) the DocumentSigningFlow never completed because of issue #2, so no `client_signatures` records were created; (b) the onboarding waiver (step 13) saves to `onboarding_profiles`, NOT to `client_signatures`, so even when completed it won't appear in the Signed Agreements section.
 
-**File 1: `src/components/nutrition/MealPlanBuilder.tsx`**
-- Add `moveMeal(dayId, mealId, direction: "up" | "down")` — swaps meal positions in the array
-- Add `saveMealToLibrary(dayId, mealId)` — prompts for name, inserts into `saved_meals` + `saved_meal_items`
-- Add state: `saveMealDialogOpen`, `saveMealName`, `savingMealTarget`
-- In meal header bar: add `ChevronUp`/`ChevronDown` buttons + `MoreVertical` dropdown with "Save Meal to Library"
-- Modify `FoodSearchPanel` usage: pass a new `onSelectSavedMeal` callback that bulk-adds all foods from a saved meal
+### Changes
 
-**File 2: `src/components/nutrition/FoodSearchPanel.tsx`**
-- Add `"saved"` to `FilterTab` union type
-- Add `{ key: "saved", label: "Saved Meals" }` to FILTERS array
-- Add state: `savedMeals` array, loaded on mount from `saved_meals` + `saved_meal_items` where `client_id = user.id`
-- Add new prop: `onSelectSavedMeal?: (foods: FoodResult[]) => void`
-- When "Saved Meals" tab is active and a meal is clicked, call `onSelectSavedMeal` with all the meal's items converted to `FoodResult[]`
-- Show meal name, food count, and total macros per saved meal row
-- Add delete button on saved meals for cleanup
+**File 1: `src/pages/Onboarding.tsx`**
+- Sanitize the payload in `saveProgress()` before sending to DB: convert empty strings to `null` for timestamp columns (`waiver_signed_at`, `baseline_assessment_date`, `completed_at`)
+- Remove the error toast for non-critical step saves — if the save fails silently (data persists via retry or the error is transient), don't alarm the user. Only show error toast on final completion step failure.
+- For intermediate steps, use fire-and-forget saves (like step 3 already does) — the user can proceed and data will be retried on the next step save anyway since the full payload is sent each time.
+- Keep the error toast only for `handleComplete()` where it truly matters.
 
-**Database: No new tables needed** — `saved_meals` and `saved_meal_items` already exist with all necessary columns including per-100g values.
+**File 2: `src/pages/Setup.tsx`**
+- Add `overflow-y-auto` to the outer container div so the entire page scrolls when content exceeds viewport height
+- This ensures the DocumentViewer footer (checkbox + Continue button) is always reachable on all screen sizes
 
-### Improvements Included
-- **Bulk ingredient insert**: Selecting a saved meal adds ALL ingredients at once (not one-by-one), saving significant time
-- **Quantity preservation**: Saved meals store the exact gram amounts, so you get the same starting point and just adjust quantities per client
-- **Delete saved meals**: Clean up old/unused meals from the library
-- **Meal count badge**: "Saved Meals" tab shows count of available meals
+**File 3: `src/components/clients/workspace/OnboardingTab.tsx`**
+- In the "Signed Agreements" section, also check `onboarding_profiles` for `waiver_signed = true` and display it as a signed agreement record (showing signed name from the waiver, date from `waiver_signed_at`)
+- This ensures the onboarding waiver shows even if `client_signatures` has no records (which happens when the DocumentSigningFlow was bypassed)
+- Keep the existing `client_signatures` query so both ToS signatures AND onboarding waiver are displayed
 
-### What Stays the Same
-- All existing filter tabs (All, Favorites, Recent, Custom, Branded, Generic)
-- Food search behavior and scoring
-- Meal plan save/load logic
-- Template and client assignment flows
+**File 4: `src/components/signing/DocumentViewer.tsx`**
+- Reduce the scroll area from `h-[50vh]` to `h-[40vh]` to give more breathing room for the footer on smaller screens
+- This complements the Setup.tsx scroll fix to prevent content overflow issues
 
