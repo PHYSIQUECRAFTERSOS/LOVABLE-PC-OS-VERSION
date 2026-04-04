@@ -279,6 +279,209 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
     loadProgram();
   }, [editProgramId, user]);
 
+  // ── Build snapshot for draft/autosave comparison ──
+  const buildSnapshot = useCallback(() => JSON.stringify({
+    name, description, goalType, tags, phases: phases.map(p => ({ ...p, collapsed: false, weeks: p.weeks.map(w => ({ ...w, collapsed: false })) })),
+  }), [name, description, goalType, tags, phases]);
+
+  // ── Draft restore for NEW programs ──
+  useEffect(() => {
+    if (editProgramId || !user) return;
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        const ts = draft._ts || 0;
+        // Expire drafts older than 24 hours
+        if (Date.now() - ts > 86400000) {
+          sessionStorage.removeItem(draftKey);
+          return;
+        }
+        pendingDraftRef.current = raw;
+        setShowDraftResume(true);
+      }
+    } catch { /* ignore parse errors */ }
+  }, [editProgramId, user, draftKey]);
+
+  const resumeDraft = () => {
+    if (!pendingDraftRef.current) return;
+    try {
+      const draft = JSON.parse(pendingDraftRef.current);
+      setName(draft.name || "");
+      setDescription(draft.description || "");
+      setGoalType(draft.goalType || "hypertrophy");
+      setTags(draft.tags || "");
+      if (Array.isArray(draft.phases) && draft.phases.length > 0) setPhases(draft.phases);
+    } catch { /* ignore */ }
+    setShowDraftResume(false);
+    pendingDraftRef.current = null;
+  };
+
+  const discardDraft = () => {
+    sessionStorage.removeItem(draftKey);
+    setShowDraftResume(false);
+    pendingDraftRef.current = null;
+  };
+
+  // ── sessionStorage draft persistence for NEW programs (debounced 500ms) ──
+  useEffect(() => {
+    if (editProgramId) return; // Only for new programs
+    const timer = setTimeout(() => {
+      const hasContent = name.trim() || description.trim() || phases.some(p => p.weeks.some(w => w.workouts.length > 0));
+      if (hasContent) {
+        try {
+          const snapshot = buildSnapshot();
+          const withTimestamp = JSON.parse(snapshot);
+          withTimestamp._ts = Date.now();
+          sessionStorage.setItem(draftKey, JSON.stringify(withTimestamp));
+        } catch { /* ignore quota errors */ }
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [name, description, goalType, tags, phases, editProgramId, draftKey, buildSnapshot]);
+
+  // ── DB autosave for EDIT mode (debounced 2000ms) ──
+  const setTransientAutoSaveState = useCallback((state: "idle" | "saving" | "saved" | "error") => {
+    if (autoSaveStatusTimeout.current) clearTimeout(autoSaveStatusTimeout.current);
+    setAutoSaveStatus(state);
+    if (state === "saved") {
+      autoSaveStatusTimeout.current = setTimeout(() => setAutoSaveStatus("idle"), 1800);
+    }
+  }, []);
+
+  const triggerAutoSave = useCallback(async () => {
+    if (!editProgramId || !user || loading || loadingData) return;
+    if (!name.trim()) return;
+
+    const snapshot = buildSnapshot();
+    if (snapshot === lastPersistedSnapshotRef.current) return;
+
+    if (autoSaveInFlightRef.current) {
+      queuedAutoSaveRef.current = true;
+      return;
+    }
+
+    autoSaveInFlightRef.current = true;
+    setTransientAutoSaveState("saving");
+
+    try {
+      const parsedTags = tags.split(",").map(t => t.trim()).filter(Boolean);
+      const totalWeeks = phases.reduce((s, p) => s + p.weeks.length, 0);
+
+      const { error } = await supabase.from("programs").update({
+        name: name.trim(),
+        description: description || null,
+        goal_type: goalType,
+        tags: parsedTags,
+        duration_weeks: totalWeeks,
+      } as any).eq("id", editProgramId);
+      if (error) throw error;
+
+      // Delete old phases (cascades)
+      await supabase.from("program_phases").delete().eq("program_id", editProgramId);
+      await supabase.from("program_weeks").delete().eq("program_id", editProgramId);
+
+      // Re-insert phases, weeks, workouts
+      let globalWeekNumber = 0;
+      for (const phase of phases) {
+        const { data: phaseRow, error: phaseErr } = await supabase
+          .from("program_phases")
+          .insert({
+            program_id: editProgramId,
+            name: phase.name,
+            description: phase.description || null,
+            phase_order: phase.phaseOrder,
+            duration_weeks: phase.weeks.length,
+            training_style: phase.trainingStyle,
+            intensity_system: phase.intensitySystem,
+            progression_rule: phase.progressionRule,
+          })
+          .select().single();
+        if (phaseErr) throw phaseErr;
+
+        for (const week of phase.weeks) {
+          globalWeekNumber++;
+          const { data: weekRow, error: wErr } = await supabase
+            .from("program_weeks")
+            .insert({
+              program_id: editProgramId,
+              phase_id: phaseRow.id,
+              week_number: globalWeekNumber,
+              name: week.name,
+            })
+            .select().single();
+          if (wErr) throw wErr;
+
+          if (week.workouts.length > 0) {
+            await supabase.from("program_workouts").insert(
+              week.workouts.map((w, i) => ({
+                week_id: weekRow.id,
+                workout_id: w.workoutId,
+                day_of_week: w.dayOfWeek,
+                day_label: w.dayLabel,
+                sort_order: i,
+              }))
+            );
+          }
+        }
+      }
+
+      lastPersistedSnapshotRef.current = snapshot;
+      setTransientAutoSaveState("saved");
+    } catch (err) {
+      console.error("[ProgramBuilder] Autosave failed:", err);
+      setTransientAutoSaveState("error");
+    } finally {
+      autoSaveInFlightRef.current = false;
+      if (queuedAutoSaveRef.current) {
+        queuedAutoSaveRef.current = false;
+        if (buildSnapshot() !== lastPersistedSnapshotRef.current) {
+          void triggerAutoSave();
+        }
+      }
+    }
+  }, [editProgramId, user, loading, loadingData, name, description, goalType, tags, phases, buildSnapshot, setTransientAutoSaveState]);
+
+  // Debounced autosave trigger for edit mode
+  useEffect(() => {
+    if (!editProgramId || loadingData) return;
+    if (!hydratedRef.current) { hydratedRef.current = true; lastPersistedSnapshotRef.current = buildSnapshot(); return; }
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { void triggerAutoSave(); }, 2000);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [name, description, goalType, tags, phases, editProgramId, loadingData, triggerAutoSave, buildSnapshot]);
+
+  // Flush on visibilitychange / pagehide
+  useEffect(() => {
+    const flush = () => {
+      if (editProgramId) {
+        if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
+        void triggerAutoSave();
+      } else {
+        // Flush new program draft to sessionStorage immediately
+        const hasContent = name.trim() || description.trim() || phases.some(p => p.weeks.some(w => w.workouts.length > 0));
+        if (hasContent) {
+          try {
+            const snapshot = JSON.parse(buildSnapshot());
+            snapshot._ts = Date.now();
+            sessionStorage.setItem(draftKey, JSON.stringify(snapshot));
+          } catch { /* ignore */ }
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [editProgramId, triggerAutoSave, name, description, phases, buildSnapshot, draftKey]);
+
+  // Clear draft on successful manual save
+  const originalSaveProgram = useCallback(async () => {
+    // This is handled in saveProgram below
+  }, []);
+
   // Phase operations
   const addPhase = () => {
     const order = phases.length + 1;
