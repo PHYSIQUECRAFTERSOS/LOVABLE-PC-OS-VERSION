@@ -7456,6 +7456,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_client_assigned_to_program: {
+        Args: { _program_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
