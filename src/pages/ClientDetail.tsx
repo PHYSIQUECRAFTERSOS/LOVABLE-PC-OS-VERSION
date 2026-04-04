@@ -25,6 +25,7 @@ import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
 import ClientSupplementPlan from "@/components/nutrition/ClientSupplementPlan";
 import PlanTab from "@/components/clients/workspace/PlanTab";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
+import AIImportButton from "@/components/import/AIImportButton";
 
 interface ClientProfile {
   user_id: string;
