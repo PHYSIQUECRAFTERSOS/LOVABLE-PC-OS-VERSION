@@ -31,7 +31,21 @@ interface PostCardProps {
   post: CommunityPost;
 }
 
-const PostCard = ({ post }: PostCardProps) => {
+const CommunityImageWithLightbox = ({ src }: { src: string }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-md overflow-hidden border border-border">
+      <img
+        src={src}
+        alt="Post media"
+        className="w-full max-h-96 object-cover cursor-pointer"
+        onClick={() => setOpen(true)}
+      />
+      <PhotoLightbox src={src} alt="Post media" open={open} onClose={() => setOpen(false)} />
+    </div>
+  );
+};
+
   const { user, role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
   const isOwner = user?.id === post.author_id;
