@@ -234,6 +234,14 @@ const Onboarding = () => {
       };
       delete payload.waiver_signature;
 
+      // Sanitize timestamp columns: convert empty strings to null to avoid PostgREST errors
+      const timestampFields = ["waiver_signed_at", "baseline_assessment_date", "completed_at"];
+      for (const field of timestampFields) {
+        if (payload[field] === "" || payload[field] === undefined) {
+          payload[field] = null;
+        }
+      }
+
       const { data: existing } = await supabase
         .from("onboarding_profiles")
         .select("id")
@@ -249,7 +257,10 @@ const Onboarding = () => {
 
       if (error) {
         console.error("[Onboarding] saveProgress failed:", error);
-        toast.error("Failed to save your progress. Please try again.");
+        // Only show error toast on final completion — intermediate saves retry automatically
+        if (completed) {
+          toast.error("Failed to save your progress. Please try again.");
+        }
         return false;
       }
 
@@ -271,7 +282,9 @@ const Onboarding = () => {
       return true;
     } catch (err) {
       console.error("[Onboarding] saveProgress exception:", err);
-      toast.error("Connection error. Please check your internet and try again.");
+      if (completed) {
+        toast.error("Connection error. Please check your internet and try again.");
+      }
       return false;
     } finally {
       setSaving(false);

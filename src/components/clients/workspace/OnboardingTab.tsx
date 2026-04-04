@@ -43,6 +43,8 @@ interface OnboardingData {
   final_notes: string;
   health_sync_status: string;
   waiver_signed: boolean;
+  waiver_signed_at: string | null;
+  waiver_signature: string | null;
 }
 
 interface SignatureRecord {
