@@ -139,9 +139,7 @@ const PostCard = ({ post }: PostCardProps) => {
 
       {/* Media */}
       {post.media_url && post.media_type === "image" && (
-        <div className="rounded-md overflow-hidden border border-border">
-          <img src={post.media_url} alt="Post media" className="w-full max-h-96 object-cover" />
-        </div>
+        <CommunityImageWithLightbox src={post.media_url} />
       )}
       {post.media_url && post.media_type === "video" && (
         <div className="rounded-md overflow-hidden border border-border">
