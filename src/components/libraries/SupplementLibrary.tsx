@@ -412,23 +412,18 @@ const SupplementLibrary = () => {
             : "border-transparent hover:bg-muted/50"
         )}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{plan.name}</p>
-            {plan.description && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{plan.description}</p>}
-            {creatorLabel && <p className="text-[10px] text-muted-foreground/70 mt-0.5">by {creatorLabel}</p>}
-          </div>
+        <div className="flex items-start gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <div
                 role="button"
-                className="h-6 w-6 flex items-center justify-center rounded opacity-60 hover:opacity-100 hover:bg-muted transition-all"
+                className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
                 onClick={e => e.stopPropagation()}
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreHorizontal className="h-4 w-4" />
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="start">
               <DropdownMenuItem onClick={() => { setAssignPlanId(plan.id); setShowAssign(true); }}>
                 <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
               </DropdownMenuItem>
@@ -451,6 +446,11 @@ const SupplementLibrary = () => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{plan.name}</p>
+            {plan.description && <p className="text-[10px] text-muted-foreground truncate mt-0.5">{plan.description}</p>}
+            {creatorLabel && <p className="text-[10px] text-muted-foreground/70 mt-0.5">by {creatorLabel}</p>}
+          </div>
         </div>
       </button>
     );

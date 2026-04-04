@@ -398,39 +398,18 @@ const MasterLibraries = () => {
           : "border-transparent hover:bg-muted/50"
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{program.name}</p>
-          {program.coach_id !== userId && creatorNames[program.coach_id] && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">by {creatorNames[program.coach_id]}</p>
-          )}
-          <div className="flex flex-wrap gap-1 mt-1">
-            {phaseCounts[program.id] > 0 && (
-              <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
-                <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
-              </Badge>
-            )}
-            {program.duration_weeks && (
-              <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
-            )}
-            {linkedCounts[program.id] > 0 && (
-              <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
-                <Users className="h-2 w-2" /> {linkedCounts[program.id]}
-              </Badge>
-            )}
-          </div>
-        </div>
+      <div className="flex items-start gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div
               role="button"
-              className="h-6 w-6 flex items-center justify-center rounded opacity-60 hover:opacity-100 hover:bg-muted transition-all"
+              className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreHorizontal className="h-3.5 w-3.5" />
+              <MoreHorizontal className="h-4 w-4" />
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="start">
             <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
               <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
             </DropdownMenuItem>
@@ -461,6 +440,27 @@ const MasterLibraries = () => {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{program.name}</p>
+          {program.coach_id !== userId && creatorNames[program.coach_id] && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">by {creatorNames[program.coach_id]}</p>
+          )}
+          <div className="flex flex-wrap gap-1 mt-1">
+            {phaseCounts[program.id] > 0 && (
+              <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
+                <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
+              </Badge>
+            )}
+            {program.duration_weeks && (
+              <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
+            )}
+            {linkedCounts[program.id] > 0 && (
+              <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
+                <Users className="h-2 w-2" /> {linkedCounts[program.id]}
+              </Badge>
+            )}
+          </div>
+        </div>
       </div>
     </button>
   );
