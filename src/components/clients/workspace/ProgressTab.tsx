@@ -170,10 +170,10 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {filteredPhotos.map((photo, idx) => (
+              {filteredPhotos.map((photo) => (
                 <button
                   key={photo.id}
-                  onClick={() => setLightboxIndex(idx)}
+                  onClick={() => setPhotosModalOpen(true)}
                   className="relative rounded-lg overflow-hidden border border-border aspect-square group"
                 >
                   <img
