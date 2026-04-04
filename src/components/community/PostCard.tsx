@@ -24,6 +24,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import CommentThread from "./CommentThread";
+import CommunityPostContent from "./CommunityPostContent";
 
 interface PostCardProps {
   post: CommunityPost;
