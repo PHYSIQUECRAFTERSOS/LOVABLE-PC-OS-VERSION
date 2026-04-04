@@ -714,9 +714,8 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
                     className={cn(
                       "h-3 w-3",
                       favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
-                      )}
-                    />
-                  )}
+                    )}
+                  />
                 </button>
               </div>
             </div>
