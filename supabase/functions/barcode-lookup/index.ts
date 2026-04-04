@@ -282,7 +282,7 @@ serve(async (req) => {
 
       if (offRes.ok) {
         const offData = await offRes.json();
-        if (offData.status === "success" && offData.product?.product_name) {
+        if ((offData.status === 1 || offData.status === "success") && offData.product?.product_name) {
           const p = offData.product;
           const n = p.nutriments ?? {};
           const name = p.product_name_en || p.product_name;
