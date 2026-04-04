@@ -1,52 +1,48 @@
 
 
-## Root Cause Analysis
+## Root Cause: Missing Database Index Causes RLS Timeout
 
-After exhaustive investigation of the database, RLS policies, and frontend code, I've identified the actual issue:
+The **504 upstream request timeout** errors are caused by a missing index on `workout_exercises.workout_id`. Here's what happens:
 
-**The code and RLS policies are structurally correct.** The `is_client_assigned_to_program` helper works, all SELECT policies are in place, and the data exists. The problem is **not** in the RLS layer.
+1. Client queries `workout_exercises` for a specific workout
+2. Postgres must evaluate 3 RLS policies on `workout_exercises`, each doing a subquery JOIN through `workouts → program_workouts → program_phases → client_program_assignments`
+3. **Without an index on `workout_exercises.workout_id`**, Postgres does a sequential scan of all 957 rows, evaluating these nested subqueries for every single row
+4. This exceeds the Supabase request timeout (30s), returning a 504
 
-**The real problem is a race condition in `ClientProgramView.tsx` line 93-96.** When loading assignments, the component:
-1. Fetches `client_program_assignments` (works — returns assignment rows)
-2. Then fetches `programs` by ID using `.in("id", programIds)` 
-3. If this second query returns empty (due to a transient RLS evaluation delay or Supabase SDK caching issue), the `programMap` is empty, `merged` filters everything out, and the client sees **"No programs assigned yet"**
+The `exercises` table is fine (has a permissive `true` SELECT policy). The `workouts` table has indexes on `coach_id` and `client_id`. But `workout_exercises` — the most-queried table in the training flow — is missing the critical index.
 
-Additionally, the `WorkoutPreviewModal` and `WorkoutStartPopup` both query `workout_exercises` with a joined `exercises` select. If the join returns null (e.g., `exercises:exercise_id(name)` returns null because the FK reference resolves to null), the mapped exercises show as empty — "No exercises found."
-
-**Why it broke recently**: The changes to `useAuth.tsx` altered the timing of when `user` becomes available. Previously, by the time the Training page rendered, the Supabase client had a fully authenticated session with a fresh JWT. Now, with cached roles resolving faster, the component mounts and fires queries **before** the Supabase client has fully refreshed its access token. This causes the RLS evaluation to fail silently (returning empty arrays instead of errors).
+### Why reverting code won't help
+Even if you revert to yesterday's code, the queries will still timeout because the RLS policies + missing index existed before any code changes. If it worked before, it was marginal — the table may have grown past the threshold, or Supabase query planner cache changed.
 
 ## Plan
 
-### Step 1: Add defensive logging to `ClientProgramView`
-Add `console.log` statements at critical points to capture exactly what Supabase returns for each query (assignments, programs, phases, workouts). This will confirm the diagnosis on the user's device.
+### Step 1: Add missing database indexes (migration)
+Create indexes on `workout_exercises` to eliminate the full table scan during RLS evaluation:
 
-### Step 2: Fix the session-readiness race in `ClientProgramView`
-Instead of relying on `user` being truthy, also check that `session` is available from `useAuth()`. The component should wait for a valid session before firing Supabase queries. This ensures the JWT is hydrated when RLS policies are evaluated.
+```sql
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_workout_id 
+  ON public.workout_exercises (workout_id);
 
-**Files changed**: `src/components/training/ClientProgramView.tsx`
-- Import `session` from `useAuth()`
-- Guard the initial `useEffect` load with `!!session` in addition to `!!userId`
-- Add the same guard to `toggleProgram`
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_exercise_id 
+  ON public.workout_exercises (exercise_id);
 
-### Step 3: Apply the same fix to `WorkoutPreviewModal` and `WorkoutStartPopup`
-These components also fire Supabase queries that depend on RLS but don't wait for a valid session.
+CREATE INDEX IF NOT EXISTS idx_program_workouts_week_id 
+  ON public.program_workouts (week_id);
+```
 
-**Files changed**: 
-- `src/components/training/WorkoutPreviewModal.tsx` — no auth dependency currently; add session check
-- `src/components/dashboard/WorkoutStartPopup.tsx` — already has `useAuth()` but doesn't check `session`
-- `src/components/dashboard/TodayWorkout.tsx` — same pattern
+This is the **primary fix**. With the `workout_id` index, RLS evaluation goes from scanning 957 rows to a direct index lookup — sub-millisecond instead of 30+ seconds.
 
-### Step 4: Fix `Training.tsx` client query path
-The `useDataFetch` queryFn for clients queries `program_phases` and `program_workouts` but doesn't handle the case where RLS returns empty results gracefully. Add logging and ensure the fallback path (`workouts.client_id = user.id`) actually runs when the program path returns no data.
+### Step 2: Simplify redundant RLS policies on `workout_exercises`
+There are currently **3 SELECT policies** on `workout_exercises`, two of which overlap significantly. The "Assigned clients can view workout exercises via linked program" policy does a 4-table deep nested EXISTS that is extremely expensive. We should consolidate to 2 clean policies:
 
-**Files changed**: `src/pages/Training.tsx`
+- **Policy 1** (owner access): coach_id or client_id match on parent workout
+- **Policy 2** (program assignment access): uses `is_client_assigned_to_program()` security definer function (already exists and is fast)
 
-### Step 5: Add console diagnostics for production debugging
-Add targeted `console.log` statements (prefixed with `[Training]`, `[ClientProgramView]`, `[WorkoutPreview]`) so the next time this happens, we can see exactly which query returned empty and why.
+### Step 3: Verify the fix works
+After applying indexes and simplified policies, the same queries that were timing out should return in under 100ms.
 
-### Summary of changes
-- 4 files modified (no database changes needed — RLS is correct)
-- Core fix: ensure Supabase queries only fire after session JWT is hydrated
-- Defensive: add error logging at every query boundary
-- No breaking changes, no new dependencies
+### Summary
+- **1 migration** — add 3 indexes + simplify 1 RLS policy
+- **0 code changes needed** — the existing frontend code is correct
+- Root cause was purely database performance, not frontend logic
 
