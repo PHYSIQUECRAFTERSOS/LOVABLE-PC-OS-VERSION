@@ -163,7 +163,7 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
   };
 
   // Add exercises from picker
-  const handleAddExercises = (exList: { id: string; name: string; thumbnail: string | null; primary_muscle: string | null; equipment: string | null }[]) => {
+  const handleAddExercises = (exList: { id: string; name: string; youtube_thumbnail: string | null; primary_muscle: string | null; equipment: string | null }[]) => {
     setExercises(prev => {
       const newExs = [...prev];
       exList.forEach(ex => {
