@@ -456,6 +456,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     { key: "custom", label: "Custom Foods" },
     { key: "branded", label: "Branded" },
     { key: "generic", label: "Generic" },
+    ...(onSelectSavedMeal ? [{ key: "saved" as FilterTab, label: `Saved Meals${savedMeals.length ? ` (${savedMeals.length})` : ""}` }] : []),
   ];
 
   return (
