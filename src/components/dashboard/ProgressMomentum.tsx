@@ -17,6 +17,7 @@ interface MomentumData {
 
 const ProgressMomentum = () => {
   const { user } = useAuth();
+  const { convertWeight, weightLabel } = useUnitPreferences();
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 29), "yyyy-MM-dd");
   const sevenDaysAgo = format(subDays(new Date(), 6), "yyyy-MM-dd");
