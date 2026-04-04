@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { BarChart3, Camera, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChart3, Camera, ArrowLeftRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import { useToast } from "@/hooks/use-toast";
 
 interface Photo {
@@ -27,7 +28,7 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("all");
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [photosModalOpen, setPhotosModalOpen] = useState(false);
   const [measurementsEnabled, setMeasurementsEnabled] = useState(false);
 
   useEffect(() => {
@@ -141,6 +142,10 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
               Progress Photos
               <Badge variant="secondary" className="text-[10px]">{photos.length}</Badge>
             </CardTitle>
+            <Button variant="outline" size="sm" className="text-xs gap-1.5" onClick={() => setPhotosModalOpen(true)}>
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              Compare
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -166,10 +171,10 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {filteredPhotos.map((photo, idx) => (
+              {filteredPhotos.map((photo) => (
                 <button
                   key={photo.id}
-                  onClick={() => setLightboxIndex(idx)}
+                  onClick={() => setPhotosModalOpen(true)}
                   className="relative rounded-lg overflow-hidden border border-border aspect-square group"
                 >
                   <img
@@ -215,52 +220,11 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
         </Card>
       )}
 
-      {/* Lightbox */}
-      {lightboxIndex !== null && filteredPhotos[lightboxIndex] && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-4 right-4 text-white hover:bg-white/10 z-10"
-            onClick={() => setLightboxIndex(null)}
-          >
-            <X className="h-6 w-6" />
-          </Button>
-          {lightboxIndex > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/10"
-              onClick={() => setLightboxIndex(lightboxIndex - 1)}
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-          )}
-          {lightboxIndex < filteredPhotos.length - 1 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/10"
-              onClick={() => setLightboxIndex(lightboxIndex + 1)}
-            >
-              <ChevronRight className="h-6 w-6" />
-            </Button>
-          )}
-          <div className="max-w-3xl max-h-[85vh] px-4">
-            <img
-              src={filteredPhotos[lightboxIndex].url}
-              alt="Progress"
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-            <p className="text-center text-sm text-white/70 mt-2">
-              {format(new Date(filteredPhotos[lightboxIndex].created_at), "MMMM d, yyyy")}
-              {filteredPhotos[lightboxIndex].photo_type && filteredPhotos[lightboxIndex].photo_type !== "other" && (
-                <span className="ml-2 capitalize">· {filteredPhotos[lightboxIndex].photo_type}</span>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
+      <ProgressPhotosModal
+        open={photosModalOpen}
+        onClose={() => setPhotosModalOpen(false)}
+        clientId={clientId}
+      />
     </div>
   );
 };
