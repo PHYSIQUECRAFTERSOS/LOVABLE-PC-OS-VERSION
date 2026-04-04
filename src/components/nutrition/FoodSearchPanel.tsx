@@ -161,6 +161,61 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     if (data) setCustomFoods(data.map((f: any) => ({ ...f, source: "local" as const })));
   };
 
+  const loadSavedMeals = async () => {
+    if (!user) return;
+    const { data: meals } = await supabase
+      .from("saved_meals")
+      .select("id, name, calories, protein, carbs, fat, fiber, sugar")
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false });
+    if (!meals || meals.length === 0) { setSavedMeals([]); return; }
+
+    const mealIds = meals.map((m: any) => m.id);
+    const { data: items } = await supabase
+      .from("saved_meal_items")
+      .select("*")
+      .in("saved_meal_id", mealIds);
+
+    setSavedMeals(meals.map((m: any) => ({
+      ...m,
+      items: (items || []).filter((i: any) => i.saved_meal_id === m.id),
+    })));
+  };
+
+  const handleSelectSavedMeal = (meal: any) => {
+    if (!onSelectSavedMeal) return;
+    const foods: FoodResult[] = meal.items.map((item: any) => ({
+      id: item.food_item_id || crypto.randomUUID(),
+      name: item.food_name,
+      brand: null,
+      calories: item.calories || 0,
+      protein: item.protein || 0,
+      carbs: item.carbs || 0,
+      fat: item.fat || 0,
+      fiber: 0,
+      sugar: 0,
+      serving_size: item.serving_size_g || item.quantity || 100,
+      serving_unit: item.serving_unit || "g",
+      source: "local" as const,
+      calories_per_100: item.calories_per_100g || null,
+      protein_per_100: item.protein_per_100g || null,
+      carbs_per_100: item.carbs_per_100g || null,
+      fat_per_100: item.fat_per_100g || null,
+      gram_amount: item.quantity,
+    }));
+    onSelectSavedMeal(foods);
+  };
+
+  const deleteSavedMeal = async (mealId: string) => {
+    const { error } = await supabase.from("saved_meals").delete().eq("id", mealId);
+    if (error) {
+      toast({ title: "Error deleting", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Saved meal deleted" });
+      loadSavedMeals();
+    }
+  };
+
   const toggleFavorite = async (foodId: string) => {
     if (!user) return;
     const isFav = favorites.has(foodId);
