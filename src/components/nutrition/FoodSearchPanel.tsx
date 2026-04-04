@@ -71,10 +71,12 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
   const { user } = useAuth();
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
+  const togglingRef = useRef(new Set<string>());
 
   const { results: searchResults, isLoading: loading, query, setQuery: doSearchSetQuery } = useFoodSearch();
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favoriteFoodsList, setFavoriteFoodsList] = useState<FoodResult[]>([]);
   const [recentFoods, setRecentFoods] = useState<FoodResult[]>([]);
   const [customFoods, setCustomFoods] = useState<FoodResult[]>([]);
   const [savedMeals, setSavedMeals] = useState<any[]>([]);
@@ -99,7 +101,22 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
       .from("coach_favorite_foods")
       .select("food_item_id")
       .eq("coach_id", user.id);
-    if (data) setFavorites(new Set(data.map((d) => d.food_item_id)));
+    if (data) {
+      const ids = data.map((d) => d.food_item_id);
+      setFavorites(new Set(ids));
+      // Also load full food data for favorites tab
+      if (ids.length > 0) {
+        const { data: foods } = await supabase
+          .from("food_items")
+          .select("id, name, brand, calories, protein, carbs, fat, fiber, sugar, serving_size, serving_unit, is_verified, data_source, category")
+          .in("id", ids);
+        if (foods) {
+          setFavoriteFoodsList(foods.map((f: any) => ({ ...f, source: "local" as const })));
+        }
+      } else {
+        setFavoriteFoodsList([]);
+      }
+    }
   };
 
   const loadRecents = async () => {
