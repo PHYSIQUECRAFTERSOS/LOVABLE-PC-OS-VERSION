@@ -564,6 +564,88 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setPhases(newPhases);
   };
 
+  // ── Debounced auto-persist of phase settings (1500ms) ──
+  const phaseAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPersistedPhaseSnapshotRef = useRef<Record<string, string>>({});
+
+  const buildPhaseSettingsSnapshot = useCallback((phase: ProgramPhase) => JSON.stringify({
+    name: phase.name, description: phase.description, durationWeeks: phase.durationWeeks,
+    trainingStyle: phase.trainingStyle, intensitySystem: phase.intensitySystem,
+    customIntensity: phase.customIntensity, progressionRule: phase.progressionRule,
+  }), []);
+
+  // Initialize snapshots after load
+  useEffect(() => {
+    if (!loading && phases.length > 0) {
+      const snaps: Record<string, string> = {};
+      phases.forEach(p => { if (p.id) snaps[p.id] = buildPhaseSettingsSnapshot(p); });
+      lastPersistedPhaseSnapshotRef.current = snaps;
+    }
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (loading || saving) return;
+    if (phaseAutoSaveTimerRef.current) clearTimeout(phaseAutoSaveTimerRef.current);
+    phaseAutoSaveTimerRef.current = setTimeout(async () => {
+      for (const phase of phases) {
+        if (!phase.id) continue;
+        const snapshot = buildPhaseSettingsSnapshot(phase);
+        if (snapshot === lastPersistedPhaseSnapshotRef.current[phase.id]) continue;
+
+        showSaveStatus("saving");
+        try {
+          const { error } = await supabase.from("program_phases").update({
+            name: phase.name,
+            description: phase.description || null,
+            duration_weeks: phase.durationWeeks,
+            training_style: phase.trainingStyle,
+            intensity_system: phase.intensitySystem,
+            custom_intensity: phase.customIntensity || null,
+            progression_rule: phase.progressionRule,
+          }).eq("id", phase.id);
+          if (error) throw error;
+          lastPersistedPhaseSnapshotRef.current[phase.id] = snapshot;
+
+          // Also update program total duration
+          const totalDuration = phases.reduce((s, p) => s + p.durationWeeks, 0);
+          await supabase.from("programs").update({ duration_weeks: totalDuration } as any).eq("id", programId);
+
+          showSaveStatus("saved");
+        } catch (err) {
+          console.error("[ProgramDetailView] Phase autosave failed:", err);
+          showSaveStatus("failed");
+        }
+      }
+    }, 1500);
+    return () => { if (phaseAutoSaveTimerRef.current) clearTimeout(phaseAutoSaveTimerRef.current); };
+  }, [phases, loading, saving, buildPhaseSettingsSnapshot, programId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush phase settings on visibilitychange
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === "hidden" && phaseAutoSaveTimerRef.current) {
+        clearTimeout(phaseAutoSaveTimerRef.current);
+        phaseAutoSaveTimerRef.current = null;
+        // Fire synchronously-queued saves
+        for (const phase of phases) {
+          if (!phase.id) continue;
+          const snapshot = buildPhaseSettingsSnapshot(phase);
+          if (snapshot === lastPersistedPhaseSnapshotRef.current[phase.id]) continue;
+          supabase.from("program_phases").update({
+            name: phase.name, description: phase.description || null,
+            duration_weeks: phase.durationWeeks, training_style: phase.trainingStyle,
+            intensity_system: phase.intensitySystem, custom_intensity: phase.customIntensity || null,
+            progression_rule: phase.progressionRule,
+          }).eq("id", phase.id).then(() => {
+            lastPersistedPhaseSnapshotRef.current[phase.id!] = snapshot;
+          });
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => document.removeEventListener("visibilitychange", flush);
+  }, [phases, buildPhaseSettingsSnapshot]);
+
   const startRenamePhase = (idx: number) => { setRenamingPhase(idx); setRenameValue(phases[idx].name); };
   const confirmRenamePhase = () => {
     if (renamingPhase !== null && renameValue.trim()) updatePhase(renamingPhase, { name: renameValue.trim() });

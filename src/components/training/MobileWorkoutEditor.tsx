@@ -65,6 +65,14 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
   // Editing exercise inline
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
+  // ── Autosave state ──
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autoSaveStatusTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveInFlightRef = useRef(false);
+  const queuedAutoSaveRef = useRef(false);
+  const lastPersistedSnapshotRef = useRef("");
+
   useEffect(() => {
     if (!workoutId || !open) return;
     const load = async () => {
@@ -109,6 +117,114 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
     const current = JSON.stringify({ name: workoutName, instructions, exercises: exercises.map(e => ({ ...e, selected: false })) });
     setHasChanges(current !== initialStateRef.current);
   }, [workoutName, instructions, exercises, loading]);
+
+  // ── Autosave helpers ──
+  const buildSnapshot = useCallback(() => JSON.stringify({
+    name: workoutName, instructions, exercises: exercises.map(e => ({ ...e, selected: false })),
+  }), [workoutName, instructions, exercises]);
+
+  const setTransientAutoSaveState = useCallback((state: "idle" | "saving" | "saved" | "error") => {
+    if (autoSaveStatusTimeout.current) clearTimeout(autoSaveStatusTimeout.current);
+    setAutoSaveStatus(state);
+    if (state === "saved") {
+      autoSaveStatusTimeout.current = setTimeout(() => setAutoSaveStatus("idle"), 1800);
+    }
+  }, []);
+
+  const persistWorkoutChanges = useCallback(async () => {
+    if (!workoutName.trim()) return false;
+    await supabase.from("workouts").update({ name: workoutName.trim(), instructions: instructions || null }).eq("id", workoutId);
+    await supabase.from("workout_exercises").delete().eq("workout_id", workoutId);
+
+    if (exercises.length > 0) {
+      const { data: insertedExercises } = await supabase.from("workout_exercises").insert(
+        exercises.map((ex, i) => ({
+          workout_id: workoutId, exercise_id: ex.exerciseId, exercise_order: i + 1,
+          sets: ex.sets, reps: ex.reps || null, tempo: ex.tempo || null,
+          rest_seconds: ex.restSeconds || null, rir: ex.rir ? parseInt(ex.rir) : null,
+          rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
+          notes: ex.notes || null, grouping_type: ex.groupingType || null, grouping_id: ex.groupingId || null,
+        }))
+      ).select("id");
+
+      if (insertedExercises) {
+        const setRows: any[] = [];
+        insertedExercises.forEach((we, idx) => {
+          const ex = exercises[idx];
+          for (let s = 1; s <= ex.sets; s++) {
+            setRows.push({
+              workout_exercise_id: we.id, set_number: s, rep_target: ex.reps || null,
+              rpe_target: ex.rpe ? parseFloat(ex.rpe) : null, set_type: "working",
+            });
+          }
+        });
+        if (setRows.length > 0) await supabase.from("workout_sets").insert(setRows);
+      }
+    }
+    return true;
+  }, [workoutId, workoutName, instructions, exercises]);
+
+  const triggerAutoSave = useCallback(async () => {
+    if (!open || loading || saving) return;
+    if (!workoutName.trim()) return;
+
+    const snapshot = buildSnapshot();
+    if (snapshot === lastPersistedSnapshotRef.current) return;
+
+    if (autoSaveInFlightRef.current) {
+      queuedAutoSaveRef.current = true;
+      return;
+    }
+
+    autoSaveInFlightRef.current = true;
+    setTransientAutoSaveState("saving");
+
+    try {
+      await persistWorkoutChanges();
+      lastPersistedSnapshotRef.current = buildSnapshot();
+      setTransientAutoSaveState("saved");
+    } catch (err) {
+      console.error("[MobileWorkoutEditor] Autosave failed:", err);
+      setTransientAutoSaveState("error");
+    } finally {
+      autoSaveInFlightRef.current = false;
+      if (queuedAutoSaveRef.current) {
+        queuedAutoSaveRef.current = false;
+        if (buildSnapshot() !== lastPersistedSnapshotRef.current) {
+          void triggerAutoSave();
+        }
+      }
+    }
+  }, [open, loading, saving, workoutName, buildSnapshot, persistWorkoutChanges, setTransientAutoSaveState]);
+
+  // Debounced autosave trigger (1200ms)
+  useEffect(() => {
+    if (!open || loading) return;
+    if (!initialStateRef.current) return; // Not loaded yet
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { void triggerAutoSave(); }, 1200);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [workoutName, instructions, exercises, open, loading, triggerAutoSave]);
+
+  // Set initial persisted snapshot after load
+  useEffect(() => {
+    if (initialStateRef.current && !loading) {
+      lastPersistedSnapshotRef.current = buildSnapshot();
+    }
+  }, [initialStateRef.current, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush on visibilitychange
+  useEffect(() => {
+    if (!open) return;
+    const flush = () => {
+      if (document.visibilityState === "hidden") {
+        if (autoSaveTimerRef.current) { clearTimeout(autoSaveTimerRef.current); autoSaveTimerRef.current = null; }
+        void triggerAutoSave();
+      }
+    };
+    document.addEventListener("visibilitychange", flush);
+    return () => document.removeEventListener("visibilitychange", flush);
+  }, [open, triggerAutoSave]);
 
   const handleCancel = () => {
     if (hasChanges) setShowDiscardDialog(true);
@@ -230,7 +346,11 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border safe-top">
           <button onClick={handleCancel} className="text-sm text-muted-foreground">Cancel</button>
-          <span className="text-sm font-semibold text-foreground truncate max-w-[50%]">{workoutName || "Edit Workout"}</span>
+          <div className="flex items-center gap-1.5 truncate max-w-[50%]">
+            <span className="text-sm font-semibold text-foreground truncate">{workoutName || "Edit Workout"}</span>
+            {autoSaveStatus === "saving" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
+            {autoSaveStatus === "saved" && <Check className="h-3 w-3 text-green-500 shrink-0" />}
+          </div>
           <button onClick={handleSave} disabled={saving} className="text-sm font-semibold text-primary disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
           </button>
