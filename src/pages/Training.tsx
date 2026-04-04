@@ -17,7 +17,7 @@ import { GridSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { useAuth } from "@/hooks/useAuth";
 
 const Training = () => {
-  const { role, user } = useAuth();
+  const { role, user, session } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
@@ -31,7 +31,7 @@ const Training = () => {
 
   const { data: workouts = [], loading, error, timedOut, refetch } = useDataFetch<any[]>({
     queryKey: cacheKey,
-    enabled: !!user,
+    enabled: !!user && !!session,
     staleTime: 3 * 60 * 1000,
     timeout: 5000,
     fallback: [],
