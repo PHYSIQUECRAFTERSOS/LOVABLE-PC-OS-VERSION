@@ -168,7 +168,7 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
       const newExs = [...prev];
       exList.forEach(ex => {
         newExs.push({
-          exerciseId: ex.id, exerciseName: ex.name, thumbnail: ex.thumbnail,
+          exerciseId: ex.id, exerciseName: ex.name, thumbnail: ex.youtube_thumbnail,
           exerciseOrder: newExs.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 120,
           rir: "", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
         });
