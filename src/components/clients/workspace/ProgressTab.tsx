@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { BarChart3, Camera, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { BarChart3, Camera, ArrowLeftRight } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import { useToast } from "@/hooks/use-toast";
 
 interface Photo {
