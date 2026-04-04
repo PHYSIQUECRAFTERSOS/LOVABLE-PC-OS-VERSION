@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Play, Dumbbell, MoreVertical, Pencil, Copy, Trash2, Type } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 interface ExerciseDetail {
   id: string;
@@ -77,14 +78,8 @@ const WorkoutPreviewModal = ({
     setShowMenu(false);
     const load = async () => {
       try {
-      const [weRes, wRes] = await Promise.all([
-        supabase
-          .from("workout_exercises")
-          .select(
-            "id, sets, reps, rest_seconds, tempo, rir, rpe_target, notes, grouping_type, grouping_id, exercise_order, exercises(id, name, youtube_thumbnail, youtube_url, video_url, equipment, primary_muscle)"
-          )
-          .eq("workout_id", workoutId)
-          .order("exercise_order"),
+      const [exerciseDetails, wRes] = await Promise.all([
+        fetchWorkoutExerciseDetails(workoutId),
         supabase
           .from("workouts")
           .select("instructions")
@@ -94,9 +89,9 @@ const WorkoutPreviewModal = ({
 
       setInstructions(wRes.data?.instructions || null);
 
-      const mapped: ExerciseDetail[] = (weRes.data || []).map((we: any) => ({
+      const mapped: ExerciseDetail[] = exerciseDetails.map((we) => ({
         id: we.id,
-        name: we.exercises?.name || "Exercise",
+        name: we.exercise?.name || "Exercise",
         sets: we.sets,
         reps: we.reps,
         rest_seconds: we.rest_seconds,
@@ -104,11 +99,11 @@ const WorkoutPreviewModal = ({
         rir: we.rir,
         rpe_target: we.rpe_target,
         notes: we.notes,
-        youtube_thumbnail: we.exercises?.youtube_thumbnail || null,
-        youtube_url: we.exercises?.youtube_url || null,
-        video_url: we.exercises?.video_url || null,
-        equipment: we.exercises?.equipment || null,
-        primary_muscle: we.exercises?.primary_muscle || null,
+        youtube_thumbnail: we.exercise?.youtube_thumbnail || null,
+        youtube_url: we.exercise?.youtube_url || null,
+        video_url: we.exercise?.video_url || null,
+        equipment: we.exercise?.equipment || null,
+        primary_muscle: we.exercise?.primary_muscle || null,
         grouping_type: we.grouping_type,
         grouping_id: we.grouping_id,
       }));
