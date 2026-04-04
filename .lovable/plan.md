@@ -1,33 +1,35 @@
 
 
-## Move 3-Dot Action Menus to Left Side in Master Libraries
+## Add Compare Mode to Coach-Side Progress Photos
 
 ### Problem
-In Master Libraries, the 3-dot action menus (⋯) for Programs, Supplement Plans, and Meal Plan Templates are positioned on the far right of each sidebar item. When the detail panel opens on the right, it overlaps or clips these buttons, making them inaccessible. Users cannot duplicate, share, assign, or delete items.
+The client-side `ProgressPhotosModal` already has a full compare flow (tap Compare → select BEFORE → select AFTER → side-by-side view with days apart). The coach-side `ProgressTab.tsx` only has a basic lightbox with no compare capability.
 
 ### Solution
-Move the `DropdownMenu` trigger from the right side to the left side of each sidebar item in all three components. The layout changes from `[text ... ⋯]` to `[⋯ text ...]`.
+Replace the custom lightbox in `ProgressTab.tsx` with the existing `ProgressPhotosModal` component, which already supports everything needed: grid view, angle filters, single-photo viewer, and the full compare flow. This avoids duplicating code.
 
 ### Changes
 
-**File 1: `src/pages/MasterLibraries.tsx`** — `renderProgramItem` function (~line 391-465)
-- Swap the flex order: move `DropdownMenu` before the text `div`
-- Change `DropdownMenuContent` alignment from `align="end"` to `align="start"`
-- Keep the menu always visible (remove opacity-60, use opacity-100 or just standard visibility)
+**File: `src/components/clients/workspace/ProgressTab.tsx`**
 
-**File 2: `src/components/libraries/SupplementLibrary.tsx`** — `renderPlanSidebarItem` function (~line 401-456)
-- Same swap: move `DropdownMenu` before text, align="start"
-- Keep always visible
+1. Import `ProgressPhotosModal` from `@/components/dashboard/ProgressPhotosModal`
+2. Add state: `const [photosModalOpen, setPhotosModalOpen] = useState(false)`
+3. Add a "View All" / "Compare" button next to the Progress Photos card title that opens the modal
+4. Remove the entire custom lightbox block (the `lightboxIndex !== null` section at lines ~225-267) since the modal handles single-photo viewing and comparison
+5. Keep the inline 3-column grid as a preview — tapping any photo opens the `ProgressPhotosModal` instead of the old lightbox
+6. Render `<ProgressPhotosModal open={photosModalOpen} onClose={() => setPhotosModalOpen(false)} clientId={clientId} />` at the bottom of the component
 
-**File 3: `src/components/nutrition/MealPlanTemplateLibrary.tsx`** — template list item (~line 412-470)
-- Same swap: move `DropdownMenu` before text, align="start"  
-- Keep always visible
+The `ProgressPhotosModal` already:
+- Fetches photos by `clientId` with signed URLs
+- Has angle filter chips (All/Front/Side/Back/Other)
+- Has the Compare FAB → tap BEFORE → tap AFTER → side-by-side with "X days apart"
+- Has single-photo full-screen viewer with prev/next navigation
+- Accepts an optional `clientName` prop for the header
 
 ### What stays the same
-- All dropdown menu items (Assign, Duplicate, Share, Delete, etc.) — unchanged
-- Catalog card layout in SupplementLibrary — unchanged (cards use a different layout)
-- No functional or data changes — purely layout repositioning
+- Stats cards (photo count, measurements count)
+- Measurements toggle switch
+- Recent Measurements list
+- The inline 3-column photo preview grid (kept as a quick glance)
+- All data fetching for measurements
 
-### Improvements included
-- Increase touch target to `h-7 w-7` minimum for better mobile tappability
-- Remove the `opacity-60` fade that hides the button — always show at full opacity so users know it's interactive
