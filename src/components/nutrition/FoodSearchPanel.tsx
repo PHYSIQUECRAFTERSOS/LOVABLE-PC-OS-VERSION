@@ -88,6 +88,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     loadFavorites();
     loadRecents();
     loadCustomFoods();
+    loadSavedMeals();
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [user]);
 
