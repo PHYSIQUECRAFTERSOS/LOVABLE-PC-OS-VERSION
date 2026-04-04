@@ -46,6 +46,7 @@ const CommunityImageWithLightbox = ({ src }: { src: string }) => {
   );
 };
 
+const PostCard = ({ post }: PostCardProps) => {
   const { user, role } = useAuth();
   const isCoach = role === "coach" || role === "admin";
   const isOwner = user?.id === post.author_id;
