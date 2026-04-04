@@ -49,7 +49,7 @@ interface PhaseDetail {
 }
 
 const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const userId = user?.id;
   const [assignments, setAssignments] = useState<ProgramAssignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,9 +62,10 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   const [previewWorkoutName, setPreviewWorkoutName] = useState("");
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !session) return;
     const load = async () => {
-      const { data: cpa } = await supabase
+      try {
+      const { data: cpa, error: cpaErr } = await supabase
         .from("client_program_assignments")
         .select("id, program_id, start_date, status")
         .eq("client_id", userId)
