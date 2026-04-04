@@ -1160,6 +1160,31 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       <CopyFromClientModal open={copyModalOpen} onOpenChange={setCopyModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AssignTemplateModal open={templateModalOpen} onOpenChange={setTemplateModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AdjustMacrosModal open={adjustMacrosOpen} onOpenChange={setAdjustMacrosOpen} days={days} onApply={(newDays) => setDays(newDays)} />
+
+      {/* Save Meal to Library Dialog */}
+      <Dialog open={saveMealDialogOpen} onOpenChange={setSaveMealDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save Meal to Library</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Meal Name</Label>
+            <Input
+              value={saveMealName}
+              onChange={(e) => setSaveMealName(e.target.value)}
+              placeholder="e.g. High Protein Breakfast"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveMealDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveMealToLibrary} disabled={savingMealLoading || !saveMealName.trim()}>
+              {savingMealLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <BookmarkPlus className="h-4 w-4 mr-1" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
