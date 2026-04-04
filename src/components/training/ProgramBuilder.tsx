@@ -699,6 +699,9 @@ const ProgramBuilder = ({ onSave, editProgramId }: ProgramBuilderProps) => {
       }
 
       toast({ title: editProgramId ? "Program updated" : "Program created" });
+      // Clear draft on successful save
+      sessionStorage.removeItem(draftKey);
+      lastPersistedSnapshotRef.current = buildSnapshot();
       onSave?.();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
