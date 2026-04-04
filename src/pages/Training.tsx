@@ -80,7 +80,8 @@ const Training = () => {
             .in("id", workoutIds)
             .abortSignal(signal);
           if (wErr) throw wErr;
-          return data || [];
+          console.log("[Training] client program workouts:", data?.length ?? 0);
+          if (data && data.length > 0) return data;
         }
       }
       // Fallback: direct client_id workouts
