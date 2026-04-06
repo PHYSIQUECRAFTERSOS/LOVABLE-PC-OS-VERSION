@@ -548,6 +548,40 @@ async function matchFoods(db: any, extracted: any) {
   return { foods: foodMatches };
 }
 
+async function matchSupplements(db: any, extracted: any) {
+  const supplements = extracted.supplements || [];
+  if (supplements.length === 0) return { supplements: {} };
+
+  const { data: catalog } = await db
+    .from("master_supplements")
+    .select("id, name, brand, default_dosage, default_dosage_unit")
+    .eq("is_active", true)
+    .limit(500);
+
+  const suppMatches: Record<string, any> = {};
+  for (const supp of supplements) {
+    if (!supp.name) continue;
+    const normalizedPdf = supp.name.toLowerCase().trim();
+    let bestMatch: any = null;
+    let bestScore = 0;
+    for (const cat of catalog || []) {
+      const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cat;
+      }
+    }
+    suppMatches[supp.name] = {
+      pdf_name: supp.name,
+      matched_id: bestScore >= 0.5 ? bestMatch?.id : null,
+      matched_name: bestScore >= 0.5 ? bestMatch?.name : null,
+      confidence: bestScore,
+      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.5 ? "yellow" : "red",
+    };
+  }
+  return { supplements: suppMatches };
+}
+
 function computeSimilarity(a: string, b: string): number {
   return levenshteinSimilarity(a, b) * 0.5 + tokenOverlap(a, b) * 0.5;
 }
