@@ -48,6 +48,38 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function cleanWorkoutText(raw: string): string {
+  const lines = raw.split("\n");
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length < 3) { deduped.push(line); continue; }
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    deduped.push(line);
+  }
+
+  const joined = deduped.join("\n");
+  const boilerplatePatterns = [
+    /TEMPO IS[\s\S]*?which is \[1:0:1:0\]/g,
+    /The First number that appears[\s\S]*?beginning your eccentric[\s\S]*?2s\./g,
+    /For the main exercise of the session[\s\S]*?bring a tripod\)/g,
+    /I incorporate this if[\s\S]*?no programmed stretching/g,
+    /IF YOU HIT TOP END[\s\S]*?READJUST FOR NEXT SET/g,
+  ];
+
+  let cleaned = joined;
+  for (const pattern of boilerplatePatterns) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+
+  console.log("Original text length:", raw.length, "Cleaned text length:", cleaned.trim().length);
+  return cleaned.trim();
+}
+
 function getServiceClient() {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
