@@ -660,7 +660,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
                 }
               />
             )}
-            {docType === "supplement" && <SupplementReview extracted={extracted} />}
+            {docType === "supplement" && (
+              <SupplementReview
+                extracted={extracted}
+                matchResults={matchResults}
+                onUpdateExtracted={(updated) => setExtracted(updated)}
+              />
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => { setStep("upload"); setError(null); }}>

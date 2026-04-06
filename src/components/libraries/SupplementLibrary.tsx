@@ -602,9 +602,18 @@ const SupplementLibrary = () => {
             <div className="p-4 border-b space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-sm text-foreground">Plans</h2>
-                <Button size="sm" onClick={() => setShowPlanForm(true)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> New
-                </Button>
+                <div className="flex gap-1.5">
+                  <AIImportButton
+                    entryPoint="library"
+                    importType="supplement"
+                    variant="outline"
+                    size="sm"
+                    onImportComplete={() => loadData()}
+                  />
+                  <Button size="sm" onClick={() => setShowPlanForm(true)}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> New
+                  </Button>
+                </div>
               </div>
             </div>
             <ScrollArea className="flex-1">
