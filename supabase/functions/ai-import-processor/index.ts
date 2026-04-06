@@ -9,35 +9,61 @@ const corsHeaders = {
 };
 
 function safeParseJSON(raw: string) {
-  const cleaned = raw
+  let cleaned = raw
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```\s*$/i, "")
     .trim();
-  // Try to fix truncated JSON by closing open structures
+
+  // Find JSON boundaries
+  const jsonStart = cleaned.indexOf("{");
+  if (jsonStart > 0) cleaned = cleaned.substring(jsonStart);
+
   try {
     return JSON.parse(cleaned);
   } catch {
-    // Attempt to repair truncated JSON
+    console.log("Initial parse failed, attempting truncation repair...");
     let repaired = cleaned;
-    // Count open/close braces and brackets
-    const openBraces = (repaired.match(/{/g) || []).length;
-    const closeBraces = (repaired.match(/}/g) || []).length;
-    const openBrackets = (repaired.match(/\[/g) || []).length;
-    const closeBrackets = (repaired.match(/\]/g) || []).length;
+
+    // Walk backward to find the last complete key-value pair
+    // Remove any trailing incomplete value (string, number, object, etc.)
+    // Strategy: find last complete }, then trim everything after it that's incomplete
     
-    // Remove trailing comma if present
+    // Remove trailing partial strings/numbers/keys
     repaired = repaired.replace(/,\s*$/, "");
-    // Remove incomplete key-value pair at end
-    repaired = repaired.replace(/,\s*"[^"]*":\s*$/, "");
-    repaired = repaired.replace(/,\s*"[^"]*":\s*"[^"]*$/, "");
-    repaired = repaired.replace(/,\s*\{[^}]*$/, "");
+    repaired = repaired.replace(/,?\s*"[^"]*":\s*"[^"]*$/s, ""); // incomplete string value
+    repaired = repaired.replace(/,?\s*"[^"]*":\s*[\d.]*$/s, "");  // incomplete number value
+    repaired = repaired.replace(/,?\s*"[^"]*":\s*$/s, "");         // key with no value
+    repaired = repaired.replace(/,?\s*"[^"]*$/s, "");              // incomplete key
+    repaired = repaired.replace(/,\s*$/, "");                       // trailing comma again
+
+    // Now close any open structures
+    const stack: string[] = [];
+    let inString = false;
+    let escape = false;
+    for (let i = 0; i < repaired.length; i++) {
+      const ch = repaired[i];
+      if (escape) { escape = false; continue; }
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "{") stack.push("}");
+      else if (ch === "[") stack.push("]");
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
     
-    // Close missing brackets and braces
-    for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += "]";
-    for (let i = 0; i < openBraces - closeBraces; i++) repaired += "}";
+    // Close in reverse order
+    while (stack.length > 0) repaired += stack.pop();
+
+    console.log("Repaired JSON length:", repaired.length, "added closers:", stack.length);
     
-    return JSON.parse(repaired);
+    try {
+      return JSON.parse(repaired);
+    } catch (e2) {
+      // Last resort: fix trailing commas before closers
+      repaired = repaired.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
+      return JSON.parse(repaired);
+    }
   }
 }
 
@@ -221,8 +247,8 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        max_tokens: 8192,
+        model: "google/gemini-2.5-flash",
+        max_tokens: 16384,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContentParts },
