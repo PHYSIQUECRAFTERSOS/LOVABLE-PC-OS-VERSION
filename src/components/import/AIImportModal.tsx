@@ -235,26 +235,31 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     if (!user || !extracted) return;
     setSaveProgress(20);
 
-    // Create program
+    // Support both "days" and "workout_days" from AI extraction
+    const days = extracted.days || extracted.workout_days || [];
+
+    // Create program - set is_master: true for library imports so it appears in Shared
+    const isLibraryImport = !clientId;
     const { data: prog, error: progErr } = await supabase
       .from("programs")
       .insert({
         coach_id: user.id,
         name: extracted.program_name || "Imported Program",
-        is_template: !clientId,
-        is_master: false,
+        is_template: isLibraryImport,
+        is_master: isLibraryImport,
         client_id: clientId || null,
       } as any)
       .select()
       .single();
     if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
+    console.log("Program saved with ID:", (prog as any).id, "Full record:", prog);
 
     // Create a single phase
     const { data: phase, error: phaseErr } = await supabase
       .from("program_phases")
       .insert({
         program_id: (prog as any).id,
-        name: "Phase 1",
+        name: extracted.program_phase || "Phase 1",
         phase_order: 1,
         duration_weeks: 4,
       })
@@ -264,7 +269,6 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
     setSaveProgress(40);
 
-    const days = extracted.days || [];
     for (let di = 0; di < days.length; di++) {
       const day = days[di];
       setSaveProgress(40 + Math.round((di / days.length) * 50));
@@ -276,7 +280,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           coach_id: user.id,
           client_id: clientId || null,
           name: day.day_name || `Day ${di + 1}`,
-          is_template: !clientId,
+          is_template: isLibraryImport,
         } as any)
         .select()
         .single();
