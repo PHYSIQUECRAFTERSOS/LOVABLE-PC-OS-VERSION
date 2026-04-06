@@ -14,7 +14,31 @@ function safeParseJSON(raw: string) {
     .replace(/^```\s*/i, "")
     .replace(/```\s*$/i, "")
     .trim();
-  return JSON.parse(cleaned);
+  // Try to fix truncated JSON by closing open structures
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Attempt to repair truncated JSON
+    let repaired = cleaned;
+    // Count open/close braces and brackets
+    const openBraces = (repaired.match(/{/g) || []).length;
+    const closeBraces = (repaired.match(/}/g) || []).length;
+    const openBrackets = (repaired.match(/\[/g) || []).length;
+    const closeBrackets = (repaired.match(/\]/g) || []).length;
+    
+    // Remove trailing comma if present
+    repaired = repaired.replace(/,\s*$/, "");
+    // Remove incomplete key-value pair at end
+    repaired = repaired.replace(/,\s*"[^"]*":\s*$/, "");
+    repaired = repaired.replace(/,\s*"[^"]*":\s*"[^"]*$/, "");
+    repaired = repaired.replace(/,\s*\{[^}]*$/, "");
+    
+    // Close missing brackets and braces
+    for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += "]";
+    for (let i = 0; i < openBraces - closeBraces; i++) repaired += "}";
+    
+    return JSON.parse(repaired);
+  }
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -22,6 +46,38 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function cleanWorkoutText(raw: string): string {
+  const lines = raw.split("\n");
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length < 3) { deduped.push(line); continue; }
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    deduped.push(line);
+  }
+
+  const joined = deduped.join("\n");
+  const boilerplatePatterns = [
+    /TEMPO IS[\s\S]*?which is \[1:0:1:0\]/g,
+    /The First number that appears[\s\S]*?beginning your eccentric[\s\S]*?2s\./g,
+    /For the main exercise of the session[\s\S]*?bring a tripod\)/g,
+    /I incorporate this if[\s\S]*?no programmed stretching/g,
+    /IF YOU HIT TOP END[\s\S]*?READJUST FOR NEXT SET/g,
+  ];
+
+  let cleaned = joined;
+  for (const pattern of boilerplatePatterns) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+
+  console.log("Original text length:", raw.length, "Cleaned text length:", cleaned.trim().length);
+  return cleaned.trim();
 }
 
 function getServiceClient() {
@@ -112,7 +168,8 @@ serve(async (req) => {
 
       // Handle .txt files (pre-extracted text from PDFs) as plain text
       if (fileName.toLowerCase().endsWith(".txt")) {
-        const extractedText = new TextDecoder().decode(arrayBuffer);
+        const rawText = new TextDecoder().decode(arrayBuffer);
+        const extractedText = cleanWorkoutText(rawText);
         console.log("Extracted text length:", extractedText.length, "characters");
         userContentParts.push({
           type: "text",
@@ -136,9 +193,22 @@ serve(async (req) => {
       }
     }
 
+    const extractionSuffix = document_type === "workout"
+      ? `Extract ONLY the workout data from the above document.
+
+IGNORE: warmup instructions, tempo explanations, stretching notes, execution notes, any repeated instructional text.
+
+EXTRACT ONLY:
+1. Program name and phase
+2. Each workout day name (e.g. "Day 1: Chest and Back")
+3. For each day, the list of exercises with: name, sets, reps, rest time
+
+Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start with { and end with }.`
+      : `Extract all ${document_type} data from the uploaded document(s). Follow the system instructions exactly.`;
+
     userContentParts.push({
       type: "text",
-      text: `Extract all ${document_type} data from the uploaded document(s). Follow the system instructions exactly.`,
+      text: extractionSuffix,
     });
 
     const systemPrompt = buildSystemPrompt(document_type);
@@ -198,7 +268,9 @@ serve(async (req) => {
 
     const aiData = await aiRes.json();
     const content = aiData.choices?.[0]?.message?.content || "";
-    console.log("Raw AI response (first 500 chars):", content?.substring(0, 500));
+    console.log("AI response received, length:", content?.length, "chars");
+    console.log("First 200 chars:", content?.substring(0, 200));
+    console.log("Last 200 chars:", content?.substring(content.length - 200));
 
     let extracted: any;
     try {
