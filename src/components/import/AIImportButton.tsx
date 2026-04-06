@@ -9,6 +9,7 @@ interface AIImportButtonProps {
   importType: "workout" | "meal" | "supplement" | "any";
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
+  onImportComplete?: () => void;
 }
 
 const AIImportButton = ({
@@ -17,6 +18,7 @@ const AIImportButton = ({
   importType,
   variant = "outline",
   size = "sm",
+  onImportComplete,
 }: AIImportButtonProps) => {
   const [open, setOpen] = useState(false);
 
@@ -37,6 +39,7 @@ const AIImportButton = ({
         entryPoint={entryPoint}
         clientId={clientId}
         importType={importType}
+        onImportComplete={onImportComplete}
       />
     </>
   );

@@ -631,7 +631,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
                 All data has been saved successfully.
               </p>
             </div>
-            <Button onClick={() => onOpenChange(false)}>Done</Button>
+            <Button onClick={() => { onImportComplete?.(); onOpenChange(false); }}>Done</Button>
           </div>
         )}
       </DialogContent>
