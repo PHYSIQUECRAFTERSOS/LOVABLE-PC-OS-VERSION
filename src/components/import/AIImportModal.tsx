@@ -38,9 +38,10 @@ interface AIImportModalProps {
   entryPoint: "library" | "client";
   clientId?: string;
   importType: "workout" | "meal" | "supplement" | "any";
+  onImportComplete?: () => void;
 }
 
-const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }: AIImportModalProps) => {
+const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, onImportComplete }: AIImportModalProps) => {
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<File[]>([]);
