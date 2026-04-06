@@ -107,22 +107,33 @@ serve(async (req) => {
       }
 
       const arrayBuffer = await fileData.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-      let binary = "";
-      for (let j = 0; j < uint8.length; j += 8192) {
-        binary += String.fromCharCode(...uint8.slice(j, j + 8192));
-      }
-      const base64 = btoa(binary);
-
       const fileName = parts[parts.length - 1];
-      const mediaType = detectMediaType(fileName);
+      console.log("Successfully downloaded file:", fileName, "size:", arrayBuffer.byteLength, "bytes");
 
-      // Send as data URI via image_url (gateway handles PDFs natively)
-      userContentParts.push({
-        type: "image_url",
-        image_url: { url: `data:${mediaType};base64,${base64}` },
-      });
-      userContentParts.push({ type: "text", text: `[File: ${fileName}]` });
+      // Handle .txt files (pre-extracted text from PDFs) as plain text
+      if (fileName.toLowerCase().endsWith(".txt")) {
+        const extractedText = new TextDecoder().decode(arrayBuffer);
+        console.log("Extracted text length:", extractedText.length, "characters");
+        userContentParts.push({
+          type: "text",
+          text: `[Document: ${fileName}]\n\n${extractedText}`,
+        });
+      } else {
+        // Image files: send as base64 data URI
+        const uint8 = new Uint8Array(arrayBuffer);
+        let binary = "";
+        for (let j = 0; j < uint8.length; j += 8192) {
+          binary += String.fromCharCode(...uint8.slice(j, j + 8192));
+        }
+        const base64 = btoa(binary);
+        const mediaType = detectMediaType(fileName);
+
+        userContentParts.push({
+          type: "image_url",
+          image_url: { url: `data:${mediaType};base64,${base64}` },
+        });
+        userContentParts.push({ type: "text", text: `[File: ${fileName}]` });
+      }
     }
 
     userContentParts.push({
@@ -175,13 +186,14 @@ serve(async (req) => {
       let userError = `AI processing failed (${aiRes.status})`;
       if (aiRes.status === 429) userError = "AI rate limit reached — please wait a moment and try again.";
       if (aiRes.status === 402) userError = "AI credits exhausted — please add funds in Settings > Workspace > Usage.";
+      if (aiRes.status === 502) userError = "AI service temporarily unavailable - please try again in 30 seconds";
 
       await db
         .from("ai_import_jobs")
         .update({ status: "failed", error_message: userError })
         .eq("id", job_id);
       await cleanupStorage(db, downloadedPaths);
-      return jsonResponse({ error: userError }, aiRes.status === 429 ? 429 : aiRes.status === 402 ? 402 : 500);
+      return jsonResponse({ error: userError }, aiRes.status === 429 ? 429 : aiRes.status === 402 ? 402 : aiRes.status === 502 ? 502 : 500);
     }
 
     const aiData = await aiRes.json();

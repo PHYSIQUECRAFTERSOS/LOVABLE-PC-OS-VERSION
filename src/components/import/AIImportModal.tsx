@@ -12,6 +12,23 @@ import { toast } from "sonner";
 import ExerciseMatchReview from "./ExerciseMatchReview";
 import FoodMatchReview from "./FoodMatchReview";
 import SupplementReview from "./SupplementReview";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+async function extractTextFromPDF(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const textParts: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item: any) => item.str).join(" ");
+    textParts.push(`--- Page ${i} ---\n${pageText}`);
+  }
+  return textParts.join("\n");
+}
 
 type Step = "upload" | "processing" | "review" | "saving" | "done";
 
@@ -104,12 +121,25 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }:
       setJobId(newJobId);
 
       // Step 2: Upload files to storage (two-phase approach)
+      // For PDFs: extract text client-side first, upload as .txt (avoids 27MB+ base64 to AI)
+      // For images: upload as-is (small enough for AI gateway)
       const filePaths: string[] = [];
       for (const file of files) {
-        const storagePath = `${user.id}/${newJobId}/${file.name}`;
-        const { error: uploadErr } = await supabase.storage
+        let uploadBlob: Blob = file;
+        let uploadName = file.name;
+
+        if (file.type === "application/pdf") {
+          toast.info("Extracting text from PDF...");
+          const extractedText = await extractTextFromPDF(file);
+          console.log("Extracted text length:", extractedText.length, "characters");
+          uploadBlob = new Blob([extractedText], { type: "text/plain" });
+          uploadName = file.name.replace(/\.pdf$/i, ".txt");
+        }
+
+        const storagePath = `${user.id}/${newJobId}/${uploadName}`;
+        const { data: uploadData, error: uploadErr } = await supabase.storage
           .from("ai-import-uploads")
-          .upload(storagePath, file);
+          .upload(storagePath, uploadBlob, { upsert: true });
 
         if (uploadErr) {
           console.error("Storage upload error:", uploadErr);
@@ -119,7 +149,8 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }:
             .eq("id", newJobId);
           throw new Error("File upload failed - check your connection and try again.");
         }
-        filePaths.push(`ai-import-uploads/${storagePath}`);
+        console.log("Uploaded to path:", uploadData.path);
+        filePaths.push(`ai-import-uploads/${uploadData.path}`);
       }
 
       // Step 3: Call edge function with storage paths only (no base64)
