@@ -327,6 +327,8 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
       matchResults = await matchExercises(db, extracted);
     } else if (document_type === "meal") {
       matchResults = await matchFoods(db, extracted);
+    } else if (document_type === "supplement") {
+      matchResults = await matchSupplements(db, extracted);
     }
 
     await db
@@ -441,16 +443,32 @@ Extract meal plan data. Return JSON in this format:
 
 Extract supplement stack data. Return JSON in this format:
 {
+  "plan_name": "string (e.g. 'Client Name Stack' or 'Supplement Protocol')",
   "supplements": [
     {
-      "name": "string",
-      "dose": "string (e.g. '5g', '1000 IU')",
-      "timing": "string (e.g. 'morning', 'pre-workout')",
-      "reason": "string or null",
-      "notes": "string or null"
+      "name": "string (supplement name only, e.g. 'Creatine Monohydrate', 'Vitamin D3')",
+      "dosage": "string (numeric amount only, e.g. '5', '3000', '500')",
+      "dosage_unit": "string (unit only, e.g. 'g', 'mg', 'IU', 'mcg', 'pills', 'tsp', 'TBSP', 'capsule')",
+      "timing_slot": "string (MUST be one of: 'fasted', 'meal_1', 'meal_2', 'pre_workout', 'post_workout', 'before_bed', 'with_meal', 'any_time')",
+      "coach_note": "string or null (dosing instructions, when to take, special notes)",
+      "reason": "string or null (why this supplement is recommended)"
     }
   ]
-}`;
+}
+
+TIMING SLOT MAPPING RULES:
+- "morning", "fasted", "empty stomach", "before any meal", "with ACV" → "fasted"
+- "with meal 1", "with first meal", "with breakfast" → "meal_1"
+- "with meal 2", "with second meal", "with lunch" → "meal_2"
+- "pre-workout", "before workout", "before training" → "pre_workout"
+- "post-workout", "after workout", "after training" → "post_workout"
+- "before bed", "before sleep", "at night", "bedtime" → "before_bed"
+- "with highest carb meal", "with largest meal" → "with_meal"
+- "any time", "as needed", "throughout the day" → "any_time"
+
+If a supplement has MULTIPLE timings (e.g. "1 pill post-workout + 2 pills before bed"), create SEPARATE entries for each timing with appropriate dosage split.
+
+IMPORTANT: Extract dosage as a clean number and unit separately. For example "5g/day" → dosage: "5", dosage_unit: "g". For "3 pills" → dosage: "3", dosage_unit: "pills".`;
 }
 
 async function matchExercises(db: any, extracted: any) {
@@ -528,6 +546,40 @@ async function matchFoods(db: any, extracted: any) {
     };
   }
   return { foods: foodMatches };
+}
+
+async function matchSupplements(db: any, extracted: any) {
+  const supplements = extracted.supplements || [];
+  if (supplements.length === 0) return { supplements: {} };
+
+  const { data: catalog } = await db
+    .from("master_supplements")
+    .select("id, name, brand, default_dosage, default_dosage_unit")
+    .eq("is_active", true)
+    .limit(500);
+
+  const suppMatches: Record<string, any> = {};
+  for (const supp of supplements) {
+    if (!supp.name) continue;
+    const normalizedPdf = supp.name.toLowerCase().trim();
+    let bestMatch: any = null;
+    let bestScore = 0;
+    for (const cat of catalog || []) {
+      const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cat;
+      }
+    }
+    suppMatches[supp.name] = {
+      pdf_name: supp.name,
+      matched_id: bestScore >= 0.5 ? bestMatch?.id : null,
+      matched_name: bestScore >= 0.5 ? bestMatch?.name : null,
+      confidence: bestScore,
+      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.5 ? "yellow" : "red",
+    };
+  }
+  return { supplements: suppMatches };
 }
 
 function computeSimilarity(a: string, b: string): number {
