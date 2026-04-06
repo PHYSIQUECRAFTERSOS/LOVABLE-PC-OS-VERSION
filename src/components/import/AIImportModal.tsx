@@ -252,7 +252,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       .select()
       .single();
     if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
-    console.log("Program saved with ID:", (prog as any).id, "Full record:", prog);
+    console.log("Created program:", (prog as any).id, "Full record:", prog);
 
     // Create a single phase
     const { data: phase, error: phaseErr } = await supabase
@@ -266,8 +266,11 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       .select()
       .single();
     if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
+    console.log("Created phase:", (phase as any).id);
 
     setSaveProgress(40);
+
+    let totalExercisesSaved = 0;
 
     for (let di = 0; di < days.length; di++) {
       const day = days[di];
@@ -284,7 +287,11 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         } as any)
         .select()
         .single();
-      if (wErr || !workout) continue;
+      if (wErr || !workout) {
+        console.error("Failed to create workout for day:", day.day_name, wErr);
+        continue;
+      }
+      console.log("Created workout:", (workout as any).id, "for day:", day.day_name);
 
       // Link to phase
       await supabase.from("program_workouts").insert({
@@ -295,37 +302,45 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       });
 
       // Add exercises
-      const exercises = day.exercises || [];
-      for (let ei = 0; ei < exercises.length; ei++) {
-        const ex = exercises[ei];
+      const dayExercises = day.exercises || [];
+      console.log("Inserting exercises for workout:", (workout as any).id, "count:", dayExercises.length);
+
+      for (let ei = 0; ei < dayExercises.length; ei++) {
+        const ex = dayExercises[ei];
         const match = matchResults?.exercises?.[ex.name];
         let exerciseId = match?.matched_id;
 
         // If no match, create new exercise
         if (!exerciseId) {
-          const { data: newEx } = await supabase
+          const { data: newEx, error: newExErr } = await supabase
             .from("exercises")
             .insert({ name: ex.name, coach_id: user.id } as any)
             .select()
             .single();
+          if (newExErr) {
+            console.error("Failed to create exercise:", ex.name, newExErr);
+            continue;
+          }
           exerciseId = (newEx as any)?.id;
         }
 
         if (exerciseId) {
-          await supabase.from("workout_exercises").insert({
+          const { data: insertData, error: insertError } = await supabase.from("workout_exercises").insert({
             workout_id: (workout as any).id,
             exercise_id: exerciseId,
             exercise_order: ei + 1,
             sets: ex.sets || 3,
             reps: ex.reps || "10",
-            rest_seconds: ex.rest_seconds,
-            tempo: ex.tempo,
-            rir: ex.rir,
-            rpe_target: ex.rpe,
-            notes: ex.notes,
+            rest_seconds: ex.rest_seconds || null,
+            tempo: ex.tempo || null,
+            rir: ex.rir ? parseInt(ex.rir, 10) : null,
+            rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
+            notes: ex.notes || null,
             grouping_type: ex.grouping_type || null,
             grouping_id: ex.grouping_id || null,
-          });
+          }).select();
+          console.log("Exercise insert result:", insertData, insertError);
+          if (!insertError) totalExercisesSaved++;
         }
       }
     }
