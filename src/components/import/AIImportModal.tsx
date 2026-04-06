@@ -367,13 +367,15 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     if (!user || !extracted) return;
     setSaveProgress(20);
 
+    const isLibraryImport = !clientId;
     const { data: plan, error: planErr } = await supabase
       .from("meal_plans")
       .insert({
         coach_id: user.id,
         client_id: clientId || null,
         name: extracted.plan_name || "Imported Meal Plan",
-        is_template: !clientId,
+        is_template: isLibraryImport,
+        flexibility_mode: false,
       } as any)
       .select()
       .single();
@@ -384,35 +386,67 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       const day = days[di];
       setSaveProgress(20 + Math.round((di / days.length) * 70));
 
+      // Convert day_label to a slug-style day_type (e.g. "Training Day" -> "training_day")
+      const dayLabel = day.day_label || `Day ${di + 1}`;
+      const dayType = dayLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
       const { data: mpDay } = await supabase
         .from("meal_plan_days")
         .insert({
           meal_plan_id: (plan as any).id,
-          day_number: di + 1,
-          day_label: day.day_label || `Day ${di + 1}`,
+          day_type: dayType,
+          day_order: di + 1,
         })
         .select()
         .single();
       if (!mpDay) continue;
 
+      let mealOrder = 0;
       for (const meal of day.meals || []) {
+        mealOrder++;
+        const mealName = meal.meal_name || `Meal ${mealOrder}`;
+        const mealType = `meal_${mealOrder}`;
+        let itemOrder = 0;
+
         for (const food of meal.foods || []) {
-          const match = matchResults?.foods?.[food.name];
+          itemOrder++;
+          // Parse gram amount from quantity string (e.g. "140g" -> 140)
+          let gramAmount = 0;
+          if (food.quantity) {
+            const gMatch = String(food.quantity).match(/([\d.]+)\s*g/i);
+            if (gMatch) {
+              gramAmount = parseFloat(gMatch[1]);
+            } else {
+              // Try to parse as a plain number
+              const num = parseFloat(String(food.quantity));
+              gramAmount = isNaN(num) ? 100 : num;
+            }
+          }
+
           await supabase.from("meal_plan_items").insert({
-            meal_plan_day_id: (mpDay as any).id,
-            meal_slot: meal.meal_name || "Meal",
-            food_name: food.name,
-            food_id: match?.matched_id || null,
-            quantity: food.quantity || "1 serving",
-            calories: food.calories,
-            protein: food.protein,
-            carbs: food.carbs,
-            fat: food.fat,
-          } as any);
+            meal_plan_id: (plan as any).id,
+            day_id: (mpDay as any).id,
+            food_item_id: matchResults?.foods?.[food.name]?.matched_id || null,
+            custom_name: food.name,
+            meal_name: mealName,
+            meal_type: mealType,
+            gram_amount: gramAmount || 100,
+            calories: food.calories || 0,
+            protein: food.protein || 0,
+            carbs: food.carbs || 0,
+            fat: food.fat || 0,
+            meal_order: mealOrder,
+            item_order: itemOrder,
+          });
         }
       }
     }
     setSaveProgress(95);
+
+    const dayCount = days.length;
+    const foodCount = days.reduce((sum: number, d: any) =>
+      sum + (d.meals || []).reduce((ms: number, m: any) => ms + (m.foods || []).length, 0), 0);
+    toast.success(`Import complete! Saved ${dayCount} day types with ${foodCount} food items.`);
   };
 
   const saveSupplements = async () => {

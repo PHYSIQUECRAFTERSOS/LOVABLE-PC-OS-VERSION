@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import MealPlanBuilder from "./MealPlanBuilder";
+import AIImportButton from "@/components/import/AIImportButton";
 
 const CATEGORIES = ["Fat Loss", "Maintenance", "Lean Bulk", "High Protein", "Low Carb", "Contest Prep", "Refeed"];
 
@@ -379,9 +380,17 @@ const MealPlanTemplateLibrary = () => {
           <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-sm text-foreground">Meal Plan Templates</h2>
-              <Button size="sm" onClick={() => { setEditingTemplateId(undefined); setShowBuilder(true); }}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> New
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <AIImportButton
+                  entryPoint="library"
+                  importType="meal"
+                  size="sm"
+                  onImportComplete={loadTemplates}
+                />
+                <Button size="sm" onClick={() => { setEditingTemplateId(undefined); setShowBuilder(true); }}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> New
+                </Button>
+              </div>
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
