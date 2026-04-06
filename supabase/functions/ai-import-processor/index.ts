@@ -8,6 +8,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function safeParseJSON(raw: string) {
+  const cleaned = raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+  return JSON.parse(cleaned);
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -68,9 +77,13 @@ serve(async (req) => {
       return jsonResponse({ error: "Missing LOVABLE_API_KEY" }, 500);
     }
 
-    // Download files from storage and build message content parts
     const userContentParts: any[] = [];
     const downloadedPaths: string[] = [];
+
+    userContentParts.push({
+      type: "text",
+      text: "You must respond with ONLY a raw JSON object. No markdown. No code fences. No backticks. No explanation. Your entire response must start with the character { and end with the character }. Any other format will cause a critical system error.",
+    });
 
     for (let i = 0; i < file_paths.length; i++) {
       const storagePath = file_paths[i];
@@ -172,24 +185,30 @@ serve(async (req) => {
     }
 
     const aiData = await aiRes.json();
-    const textContent = aiData.choices?.[0]?.message?.content || "";
+    const content = aiData.choices?.[0]?.message?.content || "";
+    console.log("Raw AI response (first 500 chars):", content?.substring(0, 500));
 
-    // Parse JSON from response
     let extracted: any;
     try {
-      const jsonMatch = textContent.match(/```json\s*([\s\S]*?)```/);
-      extracted = JSON.parse(jsonMatch ? jsonMatch[1].trim() : textContent.trim());
-    } catch {
+      extracted = safeParseJSON(content);
+    } catch (parseError) {
+      console.error("JSON parse failed. Raw response:", content?.substring(0, 500));
       await db
         .from("ai_import_jobs")
         .update({
           status: "failed",
-          error_message: "Failed to parse AI response as JSON",
-          extracted_json: { raw: textContent },
+          error_message: "AI returned invalid JSON - please try again",
+          extracted_json: { raw: content },
         })
         .eq("id", job_id);
       await cleanupStorage(db, downloadedPaths);
-      return jsonResponse({ error: "Failed to parse extraction" }, 500);
+      return new Response(
+        JSON.stringify({ error: "AI returned invalid JSON - please try again" }),
+        {
+          status: 422,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Fuzzy match against catalog
