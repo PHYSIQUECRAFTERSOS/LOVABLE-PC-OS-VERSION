@@ -8,25 +8,30 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function getServiceClient() {
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  return createClient(url, key);
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     // Auth check
     const authResult = await requireAuthenticatedUser(req);
     if ("error" in authResult) {
-      return new Response(JSON.stringify({ error: authResult.error }), {
-        status: authResult.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: authResult.error }, authResult.status);
     }
     const userId = authResult.user.id;
 
@@ -38,19 +43,13 @@ serve(async (req) => {
       .eq("user_id", userId);
     const userRoles = (roles || []).map((r: any) => r.role);
     if (!userRoles.includes("coach") && !userRoles.includes("admin")) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Forbidden" }, 403);
     }
 
-    const { job_id, files, file_names, document_type } = await req.json();
+    const { job_id, file_paths, document_type } = await req.json();
 
-    if (!job_id || !files || !Array.isArray(files) || files.length === 0 || !document_type) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!job_id || !file_paths || !Array.isArray(file_paths) || file_paths.length === 0 || !document_type) {
+      return jsonResponse({ error: "Missing required fields: job_id, file_paths, document_type" }, 400);
     }
 
     // Update job to processing
@@ -59,26 +58,53 @@ serve(async (req) => {
       .update({ status: "processing", updated_at: new Date().toISOString() })
       .eq("id", job_id);
 
-    // Build Anthropic messages
+    // Check Anthropic key
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
       await db
         .from("ai_import_jobs")
         .update({ status: "failed", error_message: "ANTHROPIC_API_KEY not configured" })
         .eq("id", job_id);
-      return new Response(JSON.stringify({ error: "API key not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing ANTHROPIC_API_KEY" }, 500);
     }
 
-    const systemPrompt = buildSystemPrompt(document_type);
+    // Download files from storage
     const contentBlocks: any[] = [];
+    const downloadedPaths: string[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const base64 = files[i];
-      const name = file_names?.[i] || `file_${i}`;
-      const mediaType = detectMediaType(name);
+    for (let i = 0; i < file_paths.length; i++) {
+      const storagePath = file_paths[i];
+      downloadedPaths.push(storagePath);
+
+      // Extract bucket and path: "ai-import-uploads/userId/filename.pdf"
+      const parts = storagePath.split("/");
+      const bucket = parts[0];
+      const filePath = parts.slice(1).join("/");
+
+      const { data: fileData, error: dlErr } = await db.storage
+        .from(bucket)
+        .download(filePath);
+
+      if (dlErr || !fileData) {
+        console.error("Storage download error:", dlErr);
+        await db
+          .from("ai_import_jobs")
+          .update({ status: "failed", error_message: `Failed to download file: ${dlErr?.message || "unknown"}` })
+          .eq("id", job_id);
+        return jsonResponse({ error: "Failed to download file from storage" }, 500);
+      }
+
+      const arrayBuffer = await fileData.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuffer);
+      // Convert to base64
+      let binary = "";
+      for (let j = 0; j < uint8.length; j += 8192) {
+        binary += String.fromCharCode(...uint8.slice(j, j + 8192));
+      }
+      const base64 = btoa(binary);
+
+      const fileName = parts[parts.length - 1];
+      const mediaType = detectMediaType(fileName);
 
       if (mediaType === "application/pdf") {
         contentBlocks.push({
@@ -91,7 +117,7 @@ serve(async (req) => {
           source: { type: "base64", media_type: mediaType, data: base64 },
         });
       }
-      contentBlocks.push({ type: "text", text: `[File: ${name}]` });
+      contentBlocks.push({ type: "text", text: `[File: ${fileName}]` });
     }
 
     contentBlocks.push({
@@ -99,8 +125,10 @@ serve(async (req) => {
       text: `Extract all ${document_type} data from the uploaded document(s). Follow the system instructions exactly.`,
     });
 
-    // Call Anthropic
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+    const systemPrompt = buildSystemPrompt(document_type);
+
+    // Call Anthropic with timeout
+    const anthropicPromise = fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -115,6 +143,25 @@ serve(async (req) => {
       }),
     });
 
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("TIMEOUT")), 120000)
+    );
+
+    let anthropicRes: Response;
+    try {
+      anthropicRes = await Promise.race([anthropicPromise, timeoutPromise]);
+    } catch (err: any) {
+      if (err.message === "TIMEOUT") {
+        await db
+          .from("ai_import_jobs")
+          .update({ status: "failed", error_message: "Claude API timeout - try a smaller document" })
+          .eq("id", job_id);
+        await cleanupStorage(db, downloadedPaths);
+        return jsonResponse({ error: "Claude API timeout - try a smaller document" }, 408);
+      }
+      throw err;
+    }
+
     if (!anthropicRes.ok) {
       const errText = await anthropicRes.text();
       console.error("Anthropic error:", anthropicRes.status, errText);
@@ -122,10 +169,8 @@ serve(async (req) => {
         .from("ai_import_jobs")
         .update({ status: "failed", error_message: `AI error: ${anthropicRes.status}` })
         .eq("id", job_id);
-      return new Response(JSON.stringify({ error: "AI processing failed" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      await cleanupStorage(db, downloadedPaths);
+      return jsonResponse({ error: `AI processing failed (${anthropicRes.status})` }, 500);
     }
 
     const anthropicData = await anthropicRes.json();
@@ -148,10 +193,8 @@ serve(async (req) => {
           extracted_json: { raw: textContent },
         })
         .eq("id", job_id);
-      return new Response(JSON.stringify({ error: "Failed to parse extraction" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      await cleanupStorage(db, downloadedPaths);
+      return jsonResponse({ error: "Failed to parse extraction" }, 500);
     }
 
     // Fuzzy match against catalog
@@ -161,7 +204,6 @@ serve(async (req) => {
     } else if (document_type === "meal") {
       matchResults = await matchFoods(db, extracted);
     }
-    // supplements don't need matching
 
     await db
       .from("ai_import_jobs")
@@ -173,17 +215,28 @@ serve(async (req) => {
       })
       .eq("id", job_id);
 
-    return new Response(JSON.stringify({ success: true, status: "review" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Cleanup storage
+    await cleanupStorage(db, downloadedPaths);
+
+    return jsonResponse({ success: true, status: "review" });
   } catch (err: any) {
     console.error("ai-import-processor error:", err);
-    return new Response(JSON.stringify({ error: err.message || "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: err.message || "Unknown error" }, 500);
   }
 });
+
+async function cleanupStorage(db: any, paths: string[]) {
+  for (const p of paths) {
+    try {
+      const parts = p.split("/");
+      const bucket = parts[0];
+      const filePath = parts.slice(1).join("/");
+      await db.storage.from(bucket).remove([filePath]);
+    } catch (e) {
+      console.error("Cleanup failed for", p, e);
+    }
+  }
+}
 
 function detectMediaType(filename: string): string {
   const ext = filename.toLowerCase().split(".").pop();
@@ -198,7 +251,9 @@ function detectMediaType(filename: string): string {
 }
 
 function buildSystemPrompt(docType: string): string {
-  const base = `You are a strict data extraction assistant. Extract ONLY data that is literally present in the document. Do NOT infer, guess, or add any data not in the document. Return valid JSON only.`;
+  const base = `You are a strict data extraction assistant. Extract ONLY data that is literally present in the document. Do NOT infer, guess, or add any data not in the document. Return valid JSON only.
+
+IMPORTANT: This document may have repeated instruction sections on every page (warmup protocol, tempo explanation, etc.). Ignore all repeated boilerplate. Extract only the unique data sections. Skip any section that is a duplicate of content already extracted.`;
 
   if (docType === "workout") {
     return `${base}
@@ -281,22 +336,18 @@ async function matchExercises(db: any, extracted: any) {
       if (ex.name) allExerciseNames.push(ex.name);
     }
   }
-
   if (allExerciseNames.length === 0) return { exercises: {} };
 
-  // Fetch catalog exercises
   const { data: catalog } = await db
     .from("exercises")
     .select("id, name, muscle_group, equipment")
     .limit(1000);
 
   const exerciseMatches: Record<string, any> = {};
-
   for (const pdfName of allExerciseNames) {
     const normalizedPdf = pdfName.toLowerCase().trim();
     let bestMatch: any = null;
     let bestScore = 0;
-
     for (const cat of catalog || []) {
       const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
       if (score > bestScore) {
@@ -304,17 +355,14 @@ async function matchExercises(db: any, extracted: any) {
         bestMatch = cat;
       }
     }
-
     exerciseMatches[pdfName] = {
       pdf_name: pdfName,
       matched_id: bestMatch?.id || null,
       matched_name: bestMatch?.name || null,
       confidence: bestScore,
-      confidence_level:
-        bestScore >= 0.85 ? "green" : bestScore >= 0.6 ? "yellow" : "red",
+      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.6 ? "yellow" : "red",
     };
   }
-
   return { exercises: exerciseMatches };
 }
 
@@ -327,7 +375,6 @@ async function matchFoods(db: any, extracted: any) {
       }
     }
   }
-
   if (allFoodNames.length === 0) return { foods: {} };
 
   const { data: catalog } = await db
@@ -336,12 +383,10 @@ async function matchFoods(db: any, extracted: any) {
     .limit(1000);
 
   const foodMatches: Record<string, any> = {};
-
   for (const pdfName of allFoodNames) {
     const normalizedPdf = pdfName.toLowerCase().trim();
     let bestMatch: any = null;
     let bestScore = 0;
-
     for (const cat of catalog || []) {
       const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
       if (score > bestScore) {
@@ -349,46 +394,38 @@ async function matchFoods(db: any, extracted: any) {
         bestMatch = cat;
       }
     }
-
     foodMatches[pdfName] = {
       pdf_name: pdfName,
       matched_id: bestMatch?.id || null,
       matched_name: bestMatch?.name || null,
       matched_brand: bestMatch?.brand || null,
       confidence: bestScore,
-      confidence_level:
-        bestScore >= 0.85 ? "green" : bestScore >= 0.6 ? "yellow" : "red",
+      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.6 ? "yellow" : "red",
     };
   }
-
   return { foods: foodMatches };
 }
 
 function computeSimilarity(a: string, b: string): number {
-  const lev = levenshteinSimilarity(a, b);
-  const tok = tokenOverlap(a, b);
-  return lev * 0.5 + tok * 0.5;
+  return levenshteinSimilarity(a, b) * 0.5 + tokenOverlap(a, b) * 0.5;
 }
 
 function levenshteinSimilarity(a: string, b: string): number {
   const maxLen = Math.max(a.length, b.length);
   if (maxLen === 0) return 1;
-  const dist = levenshteinDistance(a, b);
-  return 1 - dist / maxLen;
+  return 1 - levenshteinDistance(a, b) / maxLen;
 }
 
 function levenshteinDistance(a: string, b: string): number {
-  const m = a.length;
-  const n = b.length;
+  const m = a.length, n = b.length;
   const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
   for (let i = 0; i <= m; i++) dp[i][0] = i;
   for (let j = 0; j <= n; j++) dp[0][j] = j;
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
     }
   }
   return dp[m][n];
@@ -399,9 +436,7 @@ function tokenOverlap(a: string, b: string): number {
   const tokensB = new Set(b.split(/\s+/).filter(Boolean));
   if (tokensA.size === 0 && tokensB.size === 0) return 1;
   let overlap = 0;
-  for (const t of tokensA) {
-    if (tokensB.has(t)) overlap++;
-  }
+  for (const t of tokensA) if (tokensB.has(t)) overlap++;
   const union = new Set([...tokensA, ...tokensB]).size;
   return union === 0 ? 0 : overlap / union;
 }
