@@ -58,25 +58,24 @@ serve(async (req) => {
       .update({ status: "processing", updated_at: new Date().toISOString() })
       .eq("id", job_id);
 
-    // Check Anthropic key
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    // Check Lovable AI key
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       await db
         .from("ai_import_jobs")
-        .update({ status: "failed", error_message: "ANTHROPIC_API_KEY not configured" })
+        .update({ status: "failed", error_message: "LOVABLE_API_KEY not configured" })
         .eq("id", job_id);
-      return jsonResponse({ error: "Missing ANTHROPIC_API_KEY" }, 500);
+      return jsonResponse({ error: "Missing LOVABLE_API_KEY" }, 500);
     }
 
-    // Download files from storage
-    const contentBlocks: any[] = [];
+    // Download files from storage and build message content parts
+    const userContentParts: any[] = [];
     const downloadedPaths: string[] = [];
 
     for (let i = 0; i < file_paths.length; i++) {
       const storagePath = file_paths[i];
       downloadedPaths.push(storagePath);
 
-      // Extract bucket and path: "ai-import-uploads/userId/filename.pdf"
       const parts = storagePath.split("/");
       const bucket = parts[0];
       const filePath = parts.slice(1).join("/");
@@ -96,7 +95,6 @@ serve(async (req) => {
 
       const arrayBuffer = await fileData.arrayBuffer();
       const uint8 = new Uint8Array(arrayBuffer);
-      // Convert to base64
       let binary = "";
       for (let j = 0; j < uint8.length; j += 8192) {
         binary += String.fromCharCode(...uint8.slice(j, j + 8192));
@@ -106,40 +104,35 @@ serve(async (req) => {
       const fileName = parts[parts.length - 1];
       const mediaType = detectMediaType(fileName);
 
-      if (mediaType === "application/pdf") {
-        contentBlocks.push({
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: base64 },
-        });
-      } else {
-        contentBlocks.push({
-          type: "image",
-          source: { type: "base64", media_type: mediaType, data: base64 },
-        });
-      }
-      contentBlocks.push({ type: "text", text: `[File: ${fileName}]` });
+      // Send as data URI via image_url (gateway handles PDFs natively)
+      userContentParts.push({
+        type: "image_url",
+        image_url: { url: `data:${mediaType};base64,${base64}` },
+      });
+      userContentParts.push({ type: "text", text: `[File: ${fileName}]` });
     }
 
-    contentBlocks.push({
+    userContentParts.push({
       type: "text",
       text: `Extract all ${document_type} data from the uploaded document(s). Follow the system instructions exactly.`,
     });
 
     const systemPrompt = buildSystemPrompt(document_type);
 
-    // Call Anthropic with timeout
-    const anthropicPromise = fetch("https://api.anthropic.com/v1/messages", {
+    // Call Lovable AI Gateway with timeout
+    const aiPromise = fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "google/gemini-2.5-pro",
         max_tokens: 8192,
-        system: systemPrompt,
-        messages: [{ role: "user", content: contentBlocks }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContentParts },
+        ],
       }),
     });
 
@@ -147,37 +140,39 @@ serve(async (req) => {
       setTimeout(() => reject(new Error("TIMEOUT")), 120000)
     );
 
-    let anthropicRes: Response;
+    let aiRes: Response;
     try {
-      anthropicRes = await Promise.race([anthropicPromise, timeoutPromise]);
+      aiRes = await Promise.race([aiPromise, timeoutPromise]);
     } catch (err: any) {
       if (err.message === "TIMEOUT") {
         await db
           .from("ai_import_jobs")
-          .update({ status: "failed", error_message: "Claude API timeout - try a smaller document" })
+          .update({ status: "failed", error_message: "AI timeout - try a smaller document" })
           .eq("id", job_id);
         await cleanupStorage(db, downloadedPaths);
-        return jsonResponse({ error: "Claude API timeout - try a smaller document" }, 408);
+        return jsonResponse({ error: "AI timeout - try a smaller document" }, 408);
       }
       throw err;
     }
 
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      console.error("Anthropic error:", anthropicRes.status, errText);
+    if (!aiRes.ok) {
+      const errText = await aiRes.text();
+      console.error("AI Gateway error:", aiRes.status, errText);
+
+      let userError = `AI processing failed (${aiRes.status})`;
+      if (aiRes.status === 429) userError = "AI rate limit reached — please wait a moment and try again.";
+      if (aiRes.status === 402) userError = "AI credits exhausted — please add funds in Settings > Workspace > Usage.";
+
       await db
         .from("ai_import_jobs")
-        .update({ status: "failed", error_message: `AI error: ${anthropicRes.status}` })
+        .update({ status: "failed", error_message: userError })
         .eq("id", job_id);
       await cleanupStorage(db, downloadedPaths);
-      return jsonResponse({ error: `AI processing failed (${anthropicRes.status})` }, 500);
+      return jsonResponse({ error: userError }, aiRes.status === 429 ? 429 : aiRes.status === 402 ? 402 : 500);
     }
 
-    const anthropicData = await anthropicRes.json();
-    const textContent = anthropicData.content
-      ?.filter((b: any) => b.type === "text")
-      .map((b: any) => b.text)
-      .join("");
+    const aiData = await aiRes.json();
+    const textContent = aiData.choices?.[0]?.message?.content || "";
 
     // Parse JSON from response
     let extracted: any;
