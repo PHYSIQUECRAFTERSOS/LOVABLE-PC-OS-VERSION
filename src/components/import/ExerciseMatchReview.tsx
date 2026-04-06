@@ -46,15 +46,16 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
 
     const { data, error } = await supabase
       .from("exercises")
-      .select("id, name, muscle_group, equipment, video_url")
-      .ilike("name", `%${query}%`)
+      .select("id, name, primary_muscle, equipment, youtube_thumbnail, youtube_url, tags")
+      .ilike("name", `%${query.trim()}%`)
+      .order("name", { ascending: true })
       .limit(20);
 
     if (error) {
       console.error("Exercise search error:", error);
       return;
     }
-
+    console.log("Search results for", query, ":", data?.length, "results");
     setSearchResults(data || []);
   };
 
@@ -162,8 +163,8 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                           >
                             <Check className="h-3 w-3 text-muted-foreground" />
                             {cat.name}
-                            {cat.muscle_group && (
-                              <span className="text-[10px] text-muted-foreground">({cat.muscle_group})</span>
+                            {cat.primary_muscle && (
+                              <span className="text-[10px] text-muted-foreground">({cat.primary_muscle})</span>
                             )}
                           </button>
                         ))}
