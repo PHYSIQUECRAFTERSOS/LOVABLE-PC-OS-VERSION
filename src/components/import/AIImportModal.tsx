@@ -356,7 +356,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         status: "active",
       });
     }
-
+    console.log(`Import complete: ${days.length} workout days, ${totalExercisesSaved} exercises saved`);
     setSaveProgress(95);
   };
 
