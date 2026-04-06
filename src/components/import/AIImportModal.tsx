@@ -73,11 +73,20 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }:
 
   const startProcessing = async () => {
     if (!user || files.length === 0) return;
+
+    // Check file size limit (50MB total)
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > 50 * 1024 * 1024) {
+      setError("File too large. Please use a PDF under 50MB.");
+      toast.error("File too large. Please use a PDF under 50MB.");
+      return;
+    }
+
     setStep("processing");
     setError(null);
 
     try {
-      // Create job record
+      // Step 1: Create job record to get job ID
       const { data: job, error: jobErr } = await supabase
         .from("ai_import_jobs")
         .insert({
@@ -94,35 +103,37 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType }:
       const newJobId = (job as any).id;
       setJobId(newJobId);
 
-      // Convert files to base64
-      const base64Files = await Promise.all(
-        files.map(
-          (f) =>
-            new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const result = reader.result as string;
-                resolve(result.split(",")[1]); // strip data: prefix
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(f);
-            })
-        )
-      );
+      // Step 2: Upload files to storage (two-phase approach)
+      const filePaths: string[] = [];
+      for (const file of files) {
+        const storagePath = `${user.id}/${newJobId}/${file.name}`;
+        const { error: uploadErr } = await supabase.storage
+          .from("ai-import-uploads")
+          .upload(storagePath, file);
 
-      // Call edge function
+        if (uploadErr) {
+          console.error("Storage upload error:", uploadErr);
+          await supabase
+            .from("ai_import_jobs")
+            .update({ status: "failed", error_message: "File upload failed" } as any)
+            .eq("id", newJobId);
+          throw new Error("File upload failed - check your connection and try again.");
+        }
+        filePaths.push(`ai-import-uploads/${storagePath}`);
+      }
+
+      // Step 3: Call edge function with storage paths only (no base64)
       const { error: fnErr } = await supabase.functions.invoke("ai-import-processor", {
         body: {
           job_id: newJobId,
-          files: base64Files,
-          file_names: files.map((f) => f.name),
+          file_paths: filePaths,
           document_type: docType,
         },
       });
 
       if (fnErr) throw new Error(fnErr.message || "Processing failed");
 
-      // Poll for completion
+      // Step 4: Poll for completion
       pollRef.current = setInterval(async () => {
         const { data: jobData } = await supabase
           .from("ai_import_jobs")
