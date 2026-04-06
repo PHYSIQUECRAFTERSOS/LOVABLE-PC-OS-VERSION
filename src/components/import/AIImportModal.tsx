@@ -451,71 +451,85 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
   const saveSupplements = async () => {
     if (!user || !extracted) return;
-    setSaveProgress(30);
+    setSaveProgress(20);
 
     const supplements = extracted.supplements || [];
+    const planName = extracted.plan_name || "Imported Supplement Stack";
+    const isLibraryImport = !clientId;
 
-    // Create or find supplement plan
-    let planId: string | null = null;
-    if (clientId) {
-      const { data: existing } = await (supabase as any)
-        .from("supplement_plans")
-        .select("id")
-        .eq("client_id", clientId)
-        .eq("coach_id", user.id)
-        .eq("status", "active")
-        .maybeSingle();
+    // Step 1: Create the supplement plan
+    const { data: plan, error: planErr } = await supabase
+      .from("supplement_plans")
+      .insert({
+        coach_id: user.id,
+        name: planName,
+        description: `AI-imported from uploaded document. ${supplements.length} supplements.`,
+        is_template: true,
+        is_master: isLibraryImport,
+      } as any)
+      .select()
+      .single();
+    if (planErr || !plan) throw new Error(planErr?.message || "Failed to create supplement plan");
 
-      if (existing) {
-        planId = (existing as any).id;
-      } else {
-        const { data: newPlan } = await (supabase as any)
-          .from("supplement_plans")
-          .insert({ client_id: clientId, coach_id: user.id, status: "active" })
-          .select()
-          .single();
-        planId = (newPlan as any)?.id;
-      }
-    }
+    setSaveProgress(30);
 
+    let createdCount = 0;
+    let matchedCount = 0;
+
+    // Step 2: For each supplement, find or create in catalog, then add to plan
     for (let i = 0; i < supplements.length; i++) {
       const supp = supplements[i];
       setSaveProgress(30 + Math.round((i / supplements.length) * 60));
 
-      // Check if master supplement exists
-      const { data: existing } = await supabase
-        .from("master_supplements")
-        .select("id")
-        .ilike("name", supp.name)
-        .maybeSingle();
+      let suppId: string | null = null;
 
-      let suppId = (existing as any)?.id;
+      // Check if we have a match from the edge function
+      const match = matchResults?.supplements?.[supp.name];
+      if (match?.matched_id && match.confidence >= 0.5) {
+        suppId = match.matched_id;
+        matchedCount++;
+      }
+
+      // If no match, create new master supplement
       if (!suppId) {
-        const { data: newSupp } = await supabase
+        const { data: newSupp, error: newSuppErr } = await supabase
           .from("master_supplements")
           .insert({
             name: supp.name,
             coach_id: user.id,
-            default_dose: supp.dose,
-            default_timing: supp.timing,
-            notes: supp.reason,
-          } as any)
+            default_dosage: supp.dosage || null,
+            default_dosage_unit: supp.dosage_unit || null,
+            notes: supp.reason || null,
+            is_active: true,
+            is_master: isLibraryImport,
+          })
           .select()
           .single();
-        suppId = (newSupp as any)?.id;
+        if (newSuppErr || !newSupp) {
+          console.error("Failed to create supplement:", supp.name, newSuppErr);
+          continue;
+        }
+        suppId = (newSupp as any).id;
+        createdCount++;
       }
 
-      if (planId && suppId) {
-        await supabase.from("supplement_plan_items").insert({
-          plan_id: planId,
-          supplement_id: suppId,
-          dose: supp.dose,
-          timing: supp.timing,
-          notes: supp.notes,
-        } as any);
+      // Add item to the plan
+      if (suppId) {
+        const { error: itemErr } = await supabase.from("supplement_plan_items").insert({
+          plan_id: (plan as any).id,
+          master_supplement_id: suppId,
+          dosage: supp.dosage || null,
+          dosage_unit: supp.dosage_unit || null,
+          timing_slot: supp.timing_slot || "any_time",
+          sort_order: i + 1,
+          coach_note: supp.coach_note || null,
+        });
+        if (itemErr) console.error("Failed to add plan item:", supp.name, itemErr);
       }
     }
+
     setSaveProgress(95);
+    toast.success(`Import complete! Created "${planName}" with ${supplements.length} supplements (${matchedCount} matched, ${createdCount} new catalog entries).`);
   };
 
   return (
