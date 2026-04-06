@@ -1,107 +1,57 @@
 
-Issue diagnosis
 
-The reason “fix and retest” keeps getting stuck is that the app is not stuck in the UI first — it is stalling in the database permission layer.
+## AI Import Fix: Anthropic 413 Request Too Large
 
-What is actually happening:
-1. Dashboard workout preview and Training workout preview both call `fetchWorkoutExerciseDetails()`.
-2. That hits `workout_exercises`.
-3. The browser log already shows the real failure: `57014 canceling statement due to statement timeout`.
-4. Live database policy inspection shows the expensive legacy `workout_exercises` SELECT policy is still active.
-5. Your last migration tried to drop it, but the live policy name includes a trailing space, so the drop did not actually remove it.
-6. Because multiple SELECT policies are active, Postgres still evaluates the bad one, so every retest repeats the timeout.
-7. Separately, the Training page client workout list still has a phase-only fetch path in `src/pages/Training.tsx`, so week-based program workouts can still disappear even after RLS is fixed.
+### Root Cause
+The edge function logs confirm: `Anthropic error: 413 {"error":{"type":"request_too_large","message":"Request exceeds the maximum size"}}`. The 27MB PDF becomes ~36MB as base64, exceeding Anthropic's API request size limit. The two-phase storage upload works fine — the problem is purely that the base64 payload sent to Anthropic is too large.
 
-Why it keeps “spinning then failing”
-```text
-UI click
-  -> fetchWorkoutExerciseDetails()
-    -> SELECT workout_exercises
-      -> RLS evaluates old nested policy
-        -> slow EXISTS / join chain
-          -> statement timeout
-            -> component catches error
-              -> "No exercises found" or retry state
+### The Fix: Switch to Lovable AI Gateway
+
+Replace the direct Anthropic API call with the **Lovable AI Gateway** using `google/gemini-2.5-pro`. This model handles large documents natively (up to 2M tokens context), the `LOVABLE_API_KEY` is already configured, and it eliminates the 413 size limit entirely. No new API keys needed.
+
+### Changes (1 file only)
+
+**`supabase/functions/ai-import-processor/index.ts`** — Replace the Anthropic fetch block with a Lovable AI Gateway call:
+
+1. Remove the `ANTHROPIC_API_KEY` check — use `LOVABLE_API_KEY` instead (already available as env var)
+2. Convert the Claude content blocks format to the OpenAI-compatible format that the gateway uses:
+   - PDF base64 → inline image/document content parts in the `messages` array
+   - Since Gemini handles PDFs natively via the gateway, send the base64 data as an image_url with data URI
+3. Call `https://ai.gateway.lovable.dev/v1/chat/completions` with model `google/gemini-2.5-pro`
+4. Parse the response from the OpenAI-compatible format (`choices[0].message.content`) instead of Anthropic format
+5. Keep all existing logic: storage download, base64 conversion, timeout handling, fuzzy matching, cleanup — unchanged
+6. Keep the system prompt and extraction prompts exactly as they are
+7. Surface 429/402 rate limit errors clearly to the frontend
+
+### What stays the same
+- Storage upload flow in `AIImportModal.tsx` — already working
+- Job creation, polling, review step — already working  
+- Fuzzy matching engine — already working
+- All save logic (workout, meal, supplement) — already working
+- No frontend file changes needed
+- No other features touched
+
+### Technical Detail
+The gateway uses OpenAI-compatible format:
+```typescript
+const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "google/gemini-2.5-pro",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: [
+        { type: "image_url", image_url: { url: `data:application/pdf;base64,${base64}` } },
+        { type: "text", text: "Extract all workout data..." }
+      ]}
+    ],
+    max_tokens: 8192,
+  }),
+});
+// Response: response.choices[0].message.content
 ```
 
-What I would fix
-
-1. Normalize the live RLS policies from the actual database state
-- Create one cleanup migration based on `pg_policies`, not guesses from old migration files.
-- Drop the exact legacy `workout_exercises` policy name, including the trailing-space variant.
-- Also review `workouts` SELECT policies: there are overlapping policies there too, including an old phase-only assignment policy.
-- Recreate only the minimum safe policies:
-  - direct owner/coach/admin access
-  - assigned-program client access via `is_client_assigned_to_program(...)`
-
-2. Keep the helper-function approach
-- Continue using the existing `SECURITY DEFINER` helper `is_client_assigned_to_program`.
-- Avoid any policy that walks the same chain inline when the helper can answer it.
-- This prevents repeated deep policy evaluation and makes the rules understandable.
-
-3. Fix the Training page query gap
-- Update `src/pages/Training.tsx` so the client workout list supports both:
-  - `program_workouts.phase_id`
-  - `program_workouts.week_id`
-- Right now the main training page can still miss workouts if the program is week-based, even if preview permissions are fixed.
-
-4. Improve failure handling in preview components
-Files:
-- `src/components/dashboard/WorkoutStartPopup.tsx`
-- `src/components/training/WorkoutPreviewModal.tsx`
-- `src/pages/Training.tsx`
-
-Changes:
-- Treat timeout as an error state, not as “no exercises”.
-- Show a real message like “Workout failed to load” instead of empty content.
-- Preserve diagnostics in console logs so retest is meaningful.
-
-5. Retest the exact broken flows end-to-end
-I would verify all of these after the migration + code fix:
-- Dashboard → click scheduled workout → modal loads exercise list
-- Dashboard → Start Workout opens logger with exercises
-- Training → Program tab → expand program → preview workout → exercise list shows
-- Training → Program tab → Start workout works
-- Training → Workouts tab/fallback list shows assigned workouts for clients
-- Test a week-based program and a phase-based program
-- Test client, coach, and admin visibility separately
-
-Files involved
-- `supabase/migrations/...` new cleanup migration
-- `src/pages/Training.tsx`
-- `src/components/dashboard/WorkoutStartPopup.tsx`
-- `src/components/training/WorkoutPreviewModal.tsx`
-- possibly `src/lib/workoutExerciseQueries.ts` only if better timeout/error surfacing is needed
-
-Technical details
-
-Critical finding from live state:
-- `workout_exercises` still has these active SELECT policies:
-  - legacy assigned-client policy
-  - owner policy
-  - program-client policy
-- The legacy one was supposed to be removed, but it still exists in the database.
-- The browser error confirms this is not theoretical; it is timing out at runtime.
-
-Most likely root cause of the failed migration
-```text
-Expected drop:
-DROP POLICY "Assigned clients can view workout exercises via linked program"
-
-Actual live policy:
-"Assigned clients can view workout exercises via linked program "
-                                                             ^
-                                                     trailing space
-```
-
-Why previous fixes did not fully resolve it
-- The migration added indexes, which was correct.
-- But the slow legacy policy still remained active, so the timeout persisted.
-- The frontend then masked timeout as empty data.
-- The Training page also still has a week/phase retrieval mismatch.
-
-Expected outcome after proper fix
-- No statement timeout on workout preview queries
-- Dashboard and Training both show exercises immediately
-- Training tab consistently shows assigned workouts, including week-based programs
-- “Fix and retest” stops looping because the underlying live policy state is finally corrected
