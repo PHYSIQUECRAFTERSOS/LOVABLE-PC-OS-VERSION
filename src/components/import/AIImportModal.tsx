@@ -205,8 +205,10 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         .update({ status: "importing", final_data: { extracted, matchResults } } as any)
         .eq("id", jobId);
 
+      let successMsg = "Import complete!";
       if (docType === "workout") {
-        await saveWorkoutProgram();
+        const result = await saveWorkoutProgram();
+        successMsg = `Import complete! Saved ${result.dayCount} workout days with ${result.exerciseCount} total exercises.`;
       } else if (docType === "meal") {
         await saveMealPlan();
       } else if (docType === "supplement") {
@@ -219,7 +221,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         .eq("id", jobId);
 
       setStep("done");
-      toast.success("Import complete!");
+      toast.success(successMsg);
     } catch (err: any) {
       setError(err.message);
       await supabase
@@ -231,8 +233,8 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     }
   };
 
-  const saveWorkoutProgram = async () => {
-    if (!user || !extracted) return;
+  const saveWorkoutProgram = async (): Promise<{ dayCount: number; exerciseCount: number }> => {
+    if (!user || !extracted) return { dayCount: 0, exerciseCount: 0 };
     setSaveProgress(20);
 
     // Support both "days" and "workout_days" from AI extraction
@@ -358,6 +360,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     }
     console.log(`Import complete: ${days.length} workout days, ${totalExercisesSaved} exercises saved`);
     setSaveProgress(95);
+    return { dayCount: days.length, exerciseCount: totalExercisesSaved };
   };
 
   const saveMealPlan = async () => {
