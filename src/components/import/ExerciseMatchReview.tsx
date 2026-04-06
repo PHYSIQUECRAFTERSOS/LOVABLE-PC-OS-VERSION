@@ -36,25 +36,34 @@ const ConfidenceBadge = ({ level }: { level: string }) => {
 const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: ExerciseMatchReviewProps) => {
   const [searchOpen, setSearchOpen] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [catalog, setCatalog] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  const searchExercises = async (query: string) => {
+    if (!query || query.trim().length < 1) {
+      setSearchResults([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("exercises")
+      .select("id, name, muscle_group, equipment, video_url")
+      .ilike("name", `%${query}%`)
+      .limit(20);
+
+    if (error) {
+      console.error("Exercise search error:", error);
+      return;
+    }
+
+    setSearchResults(data || []);
+  };
 
   useEffect(() => {
-    const loadCatalog = async () => {
-      const { data } = await supabase
-        .from("exercises")
-        .select("id, name, muscle_group, equipment")
-        .order("name")
-        .limit(500);
-      setCatalog(data || []);
-    };
-    loadCatalog();
-  }, []);
-
-  const filteredCatalog = catalog.filter(
-    (ex) =>
-      !searchQuery ||
-      ex.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    const timer = setTimeout(() => {
+      searchExercises(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const selectExercise = (pdfName: string, exercise: any | null) => {
     const updated = { ...matchResults.exercises };
@@ -78,12 +87,16 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
     onUpdateMatches(updated);
     setSearchOpen(null);
     setSearchQuery("");
+    setSearchResults([]);
   };
+
+  // Support both "days" and "workout_days" from AI extraction
+  const days = extracted.days || extracted.workout_days || [];
 
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-foreground">Exercise Matching</h3>
-      {(extracted.days || []).map((day: any, dayIdx: number) => (
+      {days.map((day: any, dayIdx: number) => (
         <div key={dayIdx} className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground">{day.day_name || `Day ${dayIdx + 1}`}</h4>
           <div className="space-y-1.5">
@@ -110,7 +123,11 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                         variant="ghost"
                         size="sm"
                         className="shrink-0 h-7 text-[10px]"
-                        onClick={() => setSearchOpen(isSearching ? null : ex.name)}
+                        onClick={() => {
+                          setSearchOpen(isSearching ? null : ex.name);
+                          setSearchQuery("");
+                          setSearchResults([]);
+                        }}
                       >
                         {isSearching ? "Close" : "Fix"}
                         <ChevronDown className="h-3 w-3 ml-1" />
@@ -127,6 +144,7 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="pl-7 h-7 text-xs"
+                          autoFocus
                         />
                       </div>
                       <div className="max-h-32 overflow-y-auto space-y-0.5">
@@ -134,9 +152,9 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                           className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted/50 flex items-center gap-1.5 text-primary"
                           onClick={() => selectExercise(ex.name, null)}
                         >
-                          <Plus className="h-3 w-3" /> Create New: "{ex.name}"
+                          <Plus className="h-3 w-3" /> Create New: &quot;{ex.name}&quot;
                         </button>
-                        {filteredCatalog.slice(0, 20).map((cat) => (
+                        {searchResults.map((cat) => (
                           <button
                             key={cat.id}
                             className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted/50 flex items-center gap-1.5"
@@ -149,6 +167,9 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                             )}
                           </button>
                         ))}
+                        {searchQuery && searchResults.length === 0 && (
+                          <p className="text-[10px] text-muted-foreground px-2 py-2">No exercises found. Try a different search term.</p>
+                        )}
                       </div>
                     </div>
                   )}

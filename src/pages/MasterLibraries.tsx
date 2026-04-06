@@ -492,7 +492,7 @@ const MasterLibraries = () => {
                     <div className="flex items-center justify-between">
                       <h2 className="font-semibold text-sm text-foreground">Programs</h2>
                       <div className="flex items-center gap-1.5">
-                        <AIImportButton entryPoint="library" importType="workout" />
+                        <AIImportButton entryPoint="library" importType="workout" onImportComplete={loadPrograms} />
                         <Button size="sm" onClick={() => setShowBuilder(true)}>
                           <Plus className="h-3.5 w-3.5 mr-1" /> New
                         </Button>
