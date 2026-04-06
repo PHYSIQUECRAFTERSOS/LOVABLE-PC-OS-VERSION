@@ -711,6 +711,21 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
     setSaving(true);
 
+    // Wait for any in-flight autosave to finish before running manual save
+    // to prevent concurrent DELETE/INSERT on the same workout's exercises
+    if (autoSaveInFlightRef.current) {
+      console.log("[WorkoutBuilder] Waiting for in-flight autosave to finish...");
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (!autoSaveInFlightRef.current) { resolve(); return; }
+          setTimeout(check, 50);
+        };
+        check();
+      });
+    }
+    // Prevent autosave from firing while manual save is in progress
+    autoSaveInFlightRef.current = true;
+
     try {
       let workoutId = editWorkoutId;
 
@@ -776,6 +791,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
       try { sessionStorage.removeItem(draftKey); } catch {}
       savedSuccessfullyRef.current = true;
+      lastPersistedSnapshotRef.current = buildDraftSnapshot();
       setTransientAutoSaveState("saved");
       await onSave(workoutId!, trimmedName);
       toast({ title: editWorkoutId ? "Workout updated" : "Workout created" });
@@ -783,6 +799,8 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       console.error("[WorkoutBuilder] Save failed:", err);
       toast({ title: "Failed to save workout — please try again.", description: err.message, variant: "destructive" });
     } finally {
+      autoSaveInFlightRef.current = false;
+      queuedAutoSaveRef.current = false;
       setSaving(false);
     }
   };
