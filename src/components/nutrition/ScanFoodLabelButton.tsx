@@ -47,8 +47,11 @@ interface ScanFoodLabelButtonProps {
   mealLabel: string;
   logDate?: string;
   onLogged: () => void;
-  variant?: "icon" | "full" | "grid";
+  variant?: "icon" | "full" | "grid" | "headless";
   className?: string;
+  /** External open control – when provided, the picker opens/closes via parent */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface ScanResult {
