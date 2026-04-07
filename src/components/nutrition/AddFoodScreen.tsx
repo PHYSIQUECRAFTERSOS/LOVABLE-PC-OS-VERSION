@@ -145,12 +145,13 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [servings, setServings] = useState<Record<string, string>>({});
   const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
-  const [quickAddOpen] = useState(false); // kept for hook ordering
-  const [quickName] = useState("");
-  const [quickCal] = useState("");
-  const [quickProtein] = useState("");
-  const [quickCarbs] = useState("");
-  const [quickFat] = useState("");
+  // Quick Add removed — state hooks preserved for ordering
+  const [_quickAddOpen] = useState(false);
+  const [_quickName] = useState("");
+  const [_quickCal] = useState("");
+  const [_quickProtein] = useState("");
+  const [_quickCarbs] = useState("");
+  const [_quickFat] = useState("");
 
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [mealScanOpen, setMealScanOpen] = useState(false);
