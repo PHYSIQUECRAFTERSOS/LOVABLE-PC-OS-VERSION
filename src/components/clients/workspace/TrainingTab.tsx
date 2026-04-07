@@ -260,9 +260,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   };
 
   // ── Clone workout helper (uses shared sequential logic) ──
+  const cloneWorkoutToClientTracked = async (sourceWorkoutId: string) => {
+    if (!user) return { workout: null, result: { workoutId: sourceWorkoutId, workoutName: "Unknown", exercisesExpected: 0, exercisesCopied: 0, errors: ["Not authenticated"] } as import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult };
+    return cloneWorkoutWithExercises(sourceWorkoutId, user.id, clientId, false);
+  };
+
   const cloneWorkoutToClient = async (sourceWorkoutId: string): Promise<any | null> => {
-    if (!user) return null;
-    const { workout } = await cloneWorkoutWithExercises(sourceWorkoutId, user.id, clientId, false);
+    const { workout } = await cloneWorkoutToClientTracked(sourceWorkoutId);
     return workout;
   };
 
