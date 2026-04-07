@@ -1,76 +1,55 @@
 
 
-## AI Import Fix: Storage Path Mismatch + PDF Text Extraction
+# Fix Scan Food Label -- End-to-End
 
-### Problems
-1. **Storage path mismatch**: Frontend uploads to `{userId}/{jobId}/{filename}` but sends `ai-import-uploads/{userId}/{jobId}/{filename}` to the Edge Function. The function then splits on `/`, treats `ai-import-uploads` as the bucket name (correct) but the resulting path includes the user ID prefix. However, the RLS policy on the bucket uses `storage.foldername(name))[1]` which expects the first folder to be `auth.uid()`. The Edge Function downloads using the service role (bypasses RLS), so the real issue is just path consistency. Looking at the code: frontend constructs `ai-import-uploads/${storagePath}` where storagePath = `${user.id}/${newJobId}/${file.name}`. The function splits this, gets bucket=`ai-import-uploads`, filePath=`${user.id}/${newJobId}/${file.name}`. This should work — unless the upload itself is failing due to the allowed_mime_types constraint (only PDFs and images, no text/plain).
+## Diagnosis
 
-2. **502 from AI Gateway**: 27MB PDF base64-encoded is ~36MB, too large for the gateway. Solution: extract text client-side with `pdfjs-dist`, upload as `.txt` instead.
+**Root cause of "nothing happens"**: iOS Safari blocks programmatic `input.click()` when it is not in the direct user gesture chain. In `ScanFoodLabelButton.tsx` lines 393 and 400, the code first closes the Drawer (`setShowPicker(false)`) which triggers a React re-render and Drawer dismissal animation, then uses a 100ms `setTimeout` to call `cameraInputRef.current?.click()`. By the time the timeout fires, iOS has invalidated the user gesture context, so the file picker silently fails to open.
 
-3. **Bucket mime type restriction**: The bucket only allows `application/pdf` and image types. We need to add `text/plain` so extracted text files can be uploaded.
+Compare with `MealScanCapture.tsx` line 66 which uses `setTimeout(() => fileRef.current?.click(), 0)` from a direct button click inside a Dialog (no Drawer dismissal in between) -- that works because the gesture chain is still alive.
 
-### Changes
+**Architecture is sound**: The edge function (`scan-food-label`) uses Lovable AI Gateway (Gemini Pro/Flash vision), is deployed, and correctly returns structured JSON. The client-side component has proper form pre-fill, duplicate detection, suspicious value warnings, and nutrition logging. The only break is the file picker never opening on mobile.
 
-#### 1. Database migration — Update bucket allowed_mime_types
-Add `text/plain` to the `ai-import-uploads` bucket's allowed mime types.
+## Plan
 
-```sql
-UPDATE storage.buckets 
-SET allowed_mime_types = ARRAY['application/pdf','image/png','image/jpeg','image/gif','image/webp','text/plain']
-WHERE id = 'ai-import-uploads';
-```
+### Step 1: Fix the file picker gesture chain (ScanFoodLabelButton.tsx)
 
-#### 2. Install `pdfjs-dist` dependency
-```
-npm install pdfjs-dist
-```
+The Drawer "Take Photo" and "Upload from Library" buttons must trigger the file input click BEFORE closing the Drawer, not after. Change lines 393 and 400:
 
-#### 3. `src/components/import/AIImportModal.tsx` — 3 changes
-
-**A. Add PDF text extraction import and helper** (top of file):
+**Current (broken)**:
 ```typescript
-import * as pdfjsLib from "pdfjs-dist";
-pdfjsLib.GlobalWorkerOptions.workerSrc = 
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-async function extractTextFromPDF(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  const textParts: string[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map((item: any) => item.str).join(" ");
-    textParts.push(`--- Page ${i} ---\n${pageText}`);
-  }
-  return textParts.join("\n");
-}
+onClick={() => { setShowPicker(false); setTimeout(() => cameraInputRef.current?.click(), 100); }}
 ```
 
-**B. In `startProcessing`, convert PDF to text before uploading** (lines 107-123):
-- For each PDF file, call `extractTextFromPDF(file)` to get plain text
-- Create a `Blob` with `text/plain` type
-- Upload the text blob (not the raw PDF) to storage
-- For image files, upload as-is (they're small enough)
-- Use `uploadData.path` from the Supabase response (not the locally constructed path) when building `filePaths`
+**Fixed**:
+```typescript
+onClick={() => { cameraInputRef.current?.click(); setShowPicker(false); }}
+```
 
-**C. Fix path format sent to Edge Function**:
-- Pass `"ai-import-uploads/" + uploadData.path` to match what the Edge Function expects (bucket prefix + path)
+Same pattern for the library upload button -- click `fileInputRef` first, then close the Drawer. Remove the `setTimeout` wrapper entirely. This preserves the user gesture context so iOS Safari allows the file picker to open.
 
-#### 4. `supabase/functions/ai-import-processor/index.ts` — 2 changes
+### Step 2: Verify edge function is deployed and responding
 
-**A. Handle `.txt` files as plain text** (lines 88-126):
-- After downloading the file, check if filename ends with `.txt`
-- If `.txt`: decode as UTF-8 text, send as plain text content to the AI (no base64, no image_url block)
-- If image: keep existing base64/image_url path (images are small enough)
-- Add logging: `console.log("Downloaded file, size:", byteLength, "bytes")`
+Use `supabase--curl_edge_functions` to send a test request to `scan-food-label` with a small base64 image payload to confirm the function is live and returning data. Check `supabase--edge_function_logs` for any recent errors.
 
-**B. Handle 502 errors explicitly** (line 171-184):
-- If `aiRes.status === 502`, set a clear error message: "AI service temporarily unavailable - please try again in 30 seconds"
+### Step 3: Add image compression before upload (robustness)
 
-### What stays the same
-- All fuzzy matching logic
-- All save logic (workout, meal, supplement)
-- Review step UI
-- No other features touched
+The current code sends raw camera photos (potentially 5-10MB) as base64 to the edge function. Add `browser-image-compression` (already in the project, used by MealScanCapture) to compress images to 800px max dimension and 0.5MB before base64 conversion. This prevents timeouts on large images and matches the pattern used by MealScanCapture.
+
+### Step 4: Verify all integration points are wired
+
+Confirm that:
+- The "All" tab Quick Action grid button (`setScanLabelOpen(true)`) correctly opens the headless ScanFoodLabelButton's Drawer
+- The "Custom Foods" tab inline ScanFoodLabelButton (variant="full") also works
+- Both paths flow through the same `handleImageSelected` callback
+- After successful scan + save, `onLogged()` is called to refresh the nutrition tracker
+
+### Files Modified
+- `src/components/nutrition/ScanFoodLabelButton.tsx` -- fix gesture chain, add image compression
+
+### Files NOT Modified
+- Edge function (`supabase/functions/scan-food-label/index.ts`) -- already correct
+- `AddFoodScreen.tsx` -- wiring is already correct
+- `CreateFoodScreen.tsx` -- not involved in scan flow
+- No database tables, RLS policies, or other components
 
