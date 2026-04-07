@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import imageCompression from "browser-image-compression";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -131,17 +132,24 @@ const ScanFoodLabelButton = ({
     setScanning(true);
 
     try {
+      // Compress image before converting to base64 (prevent timeouts on large camera photos)
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 800,
+        useWebWorker: true,
+        fileType: "image/jpeg",
+      });
+
       // Convert to base64
       const reader = new FileReader();
       const base64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => {
           const result = reader.result as string;
-          // Strip the data:image/...;base64, prefix
           const base64Data = result.split(",")[1];
           resolve(base64Data);
         };
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(compressed);
       });
 
       const mimeType = file.type || "image/jpeg";
@@ -390,14 +398,14 @@ const ScanFoodLabelButton = ({
           </DrawerHeader>
           <div className="px-4 space-y-3">
             <Button
-              onClick={() => { setShowPicker(false); setTimeout(() => cameraInputRef.current?.click(), 100); }}
+              onClick={() => { cameraInputRef.current?.click(); setShowPicker(false); }}
               className="w-full h-12 text-base"
             >
               <Camera className="h-5 w-5 mr-3" /> Take Photo
             </Button>
             <Button
               variant="secondary"
-              onClick={() => { setShowPicker(false); setTimeout(() => fileInputRef.current?.click(), 100); }}
+              onClick={() => { fileInputRef.current?.click(); setShowPicker(false); }}
               className="w-full h-12 text-base"
             >
               <ImagePlus className="h-5 w-5 mr-3" /> Upload from Library
