@@ -6,6 +6,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   RefreshCw,
   Clock,
   CheckCircle2,
@@ -14,6 +24,8 @@ import {
   Loader2,
   Copy,
   Check,
+  Ban,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -39,7 +51,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   pending: { label: "Pending", variant: "secondary", icon: Clock },
   accepted: { label: "Active", variant: "default", icon: CheckCircle2 },
   expired: { label: "Expired", variant: "destructive", icon: AlertTriangle },
-  invalidated: { label: "Invalidated", variant: "outline", icon: XCircle },
+  invalidated: { label: "Cancelled", variant: "outline", icon: XCircle },
 };
 
 const InviteList = ({ refreshKey }: InviteListProps) => {
@@ -49,6 +61,9 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
   const [loading, setLoading] = useState(true);
   const [resending, setResending] = useState<string | null>(null);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Invite | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const setCopiedState = (inviteId: string) => {
     setCopiedInviteId(inviteId);
@@ -64,25 +79,13 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
 
   const handleCopySetupLink = async (invite: Invite) => {
     const setupUrl = buildSetupUrl(invite.invite_token);
-
     if (!setupUrl) {
-      toast({
-        title: "Setup Link Unavailable",
-        description: "Resend the invite to generate a fresh setup link.",
-        variant: "destructive",
-      });
+      toast({ title: "Setup Link Unavailable", description: "Resend the invite to generate a fresh setup link.", variant: "destructive" });
       return;
     }
-
-    await navigator.clipboard.writeText(setupUrl).catch(() => {
-      throw new Error("Failed to copy setup link");
-    });
-
+    await navigator.clipboard.writeText(setupUrl).catch(() => { throw new Error("Failed to copy setup link"); });
     setCopiedState(invite.id);
-    toast({
-      title: "Setup Link Copied",
-      description: `Share the setup link directly with ${invite.first_name}.`,
-    });
+    toast({ title: "Setup Link Copied", description: `Share the setup link directly with ${invite.first_name}.` });
   };
 
   const fetchInvites = async () => {
@@ -109,23 +112,55 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
     fetchInvites();
   }, [user, refreshKey]);
 
-  const handleResend = async (invite: Invite) => {
-    if (resending) return; // Prevent multiple simultaneous resends
-    setResending(invite.id);
-    console.log("[InviteList] Resend clicked for:", invite.id, invite.email);
+  const handleCancel = async (invite: Invite) => {
+    setCancelling(invite.id);
+    try {
+      const { error } = await supabase
+        .from("client_invites")
+        .update({ invite_status: "invalidated", updated_at: new Date().toISOString() })
+        .eq("id", invite.id);
 
+      if (error) throw error;
+
+      toast({ title: "Invite Cancelled", description: `The invite for ${invite.first_name} ${invite.last_name} has been voided.` });
+      fetchInvites();
+    } catch (err: any) {
+      toast({ title: "Cancel Failed", description: err.message || "Could not cancel invite.", variant: "destructive" });
+    } finally {
+      setCancelling(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("client_invites")
+        .delete()
+        .eq("id", deleteTarget.id);
+
+      if (error) throw error;
+
+      toast({ title: "Invite Deleted", description: `Invite for ${deleteTarget.first_name} ${deleteTarget.last_name} has been permanently removed.` });
+      setDeleteTarget(null);
+      fetchInvites();
+    } catch (err: any) {
+      toast({ title: "Delete Failed", description: err.message || "Could not delete invite.", variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleResend = async (invite: Invite) => {
+    if (resending) return;
+    setResending(invite.id);
     try {
       const { data, error } = await supabase.functions.invoke("resend-client-invite", {
         body: { invite_id: invite.id },
       });
-
-      console.log("[InviteList] Resend response:", data, "Error:", error);
-
       if (error) throw new Error(error.message || "Failed to resend invite");
-
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to resend invite");
-      }
+      if (!data?.success) throw new Error(data?.error || "Failed to resend invite");
 
       if (data.setup_url) {
         await navigator.clipboard.writeText(data.setup_url).catch(() => {});
@@ -133,25 +168,13 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
       }
 
       if (data.email_sent) {
-        toast({
-          title: "Invite Resent",
-          description: `New invite email sent to ${invite.email}. The setup link was copied too.`,
-        });
+        toast({ title: "Invite Resent", description: `New invite email sent to ${invite.email}. The setup link was copied too.` });
       } else if (data.setup_url) {
-        toast({
-          title: "Invite Updated — Link Copied",
-          description: `New invite link generated and copied to clipboard. Share it with ${invite.first_name} manually.`,
-        });
+        toast({ title: "Invite Updated — Link Copied", description: `New invite link generated and copied to clipboard. Share it with ${invite.first_name} manually.` });
       }
-
       fetchInvites();
     } catch (err: any) {
-      console.error("[InviteList] Resend error:", err);
-      toast({
-        title: "Resend Failed",
-        description: err.message || "Failed to resend invite. Check logs for details.",
-        variant: "destructive",
-      });
+      toast({ title: "Resend Failed", description: err.message || "Failed to resend invite.", variant: "destructive" });
     } finally {
       setResending(null);
     }
@@ -174,85 +197,117 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
   }
 
   return (
-    <div className="space-y-3">
-      {invites.map((invite) => {
-        const config = statusConfig[invite.invite_status] || statusConfig.pending;
-        const StatusIcon = config.icon;
-        const isExpired = invite.invite_status === "expired";
-        const isPending = invite.invite_status === "pending";
-        const isInvalidated = invite.invite_status === "invalidated";
-        const canResend = isExpired || isPending || isInvalidated;
-        const canCopySetupLink = isPending && Boolean(invite.invite_token);
-        const isCopied = copiedInviteId === invite.id;
+    <>
+      <div className="space-y-3">
+        {invites.map((invite) => {
+          const config = statusConfig[invite.invite_status] || statusConfig.pending;
+          const StatusIcon = config.icon;
+          const isExpired = invite.invite_status === "expired";
+          const isPending = invite.invite_status === "pending";
+          const isInvalidated = invite.invite_status === "invalidated";
+          const isAccepted = invite.invite_status === "accepted";
+          const canResend = isExpired || isPending || isInvalidated;
+          const canCancel = isPending;
+          const canDelete = isInvalidated || isExpired;
+          const canCopySetupLink = isPending && Boolean(invite.invite_token);
+          const isCopied = copiedInviteId === invite.id;
 
-        return (
-          <Card key={invite.id} className="hover:border-primary/20 transition-colors">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-foreground text-sm truncate">
-                      {invite.first_name} {invite.last_name}
-                    </p>
-                    <Badge variant={config.variant} className="text-[10px] gap-1">
-                      <StatusIcon className="h-3 w-3" />
-                      {config.label}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">{invite.email}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Invited {formatDistanceToNow(new Date(invite.created_at), { addSuffix: true })}
-                    {isPending && (
-                      <> · Expires {formatDistanceToNow(new Date(invite.expires_at), { addSuffix: true })}</>
-                    )}
-                  </p>
-                  {invite.tags && invite.tags.length > 0 && (
-                    <div className="flex gap-1 mt-1.5 flex-wrap">
-                      {invite.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0">
-                          {tag}
-                        </Badge>
-                      ))}
+          return (
+            <Card key={invite.id} className="hover:border-primary/20 transition-colors">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground text-sm truncate">
+                        {invite.first_name} {invite.last_name}
+                      </p>
+                      <Badge variant={config.variant} className="text-[10px] gap-1">
+                        <StatusIcon className="h-3 w-3" />
+                        {config.label}
+                      </Badge>
                     </div>
-                  )}
-                </div>
-
-                <div className="ml-3 flex shrink-0 items-center gap-2">
-                  {canCopySetupLink && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleCopySetupLink(invite)}
-                      className="gap-1.5"
-                    >
-                      {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                      {isCopied ? "Copied" : "Copy Setup Link"}
-                    </Button>
-                  )}
-
-                  {canResend && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleResend(invite)}
-                      disabled={resending === invite.id}
-                      className="gap-1.5"
-                    >
-                      {resending === invite.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-3 w-3" />
+                    <p className="text-xs text-muted-foreground truncate">{invite.email}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Invited {formatDistanceToNow(new Date(invite.created_at), { addSuffix: true })}
+                      {isPending && (
+                        <> · Expires {formatDistanceToNow(new Date(invite.expires_at), { addSuffix: true })}</>
                       )}
-                      Resend
-                    </Button>
-                  )}
+                    </p>
+                    {invite.tags && invite.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1.5 flex-wrap">
+                        {invite.tags.map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="ml-3 flex shrink-0 items-center gap-1.5 flex-wrap justify-end">
+                    {canCopySetupLink && (
+                      <Button size="sm" variant="outline" onClick={() => handleCopySetupLink(invite)} className="gap-1.5 text-xs">
+                        {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {isCopied ? "Copied" : "Copy Link"}
+                      </Button>
+                    )}
+
+                    {canCancel && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCancel(invite)}
+                        disabled={cancelling === invite.id}
+                        className="gap-1.5 text-xs text-destructive hover:text-destructive"
+                      >
+                        {cancelling === invite.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+                        Cancel
+                      </Button>
+                    )}
+
+                    {canResend && (
+                      <Button size="sm" variant="outline" onClick={() => handleResend(invite)} disabled={resending === invite.id} className="gap-1.5 text-xs">
+                        {resending === invite.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        Resend
+                      </Button>
+                    )}
+
+                    {canDelete && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteTarget(invite)}
+                        className="gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Invite</AlertDialogTitle>
+            <AlertDialogDescription>
+              Permanently remove the invite for <strong>{deleteTarget?.first_name} {deleteTarget?.last_name}</strong> ({deleteTarget?.email})? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Keep</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 

@@ -30,10 +30,11 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    const coachId = claimsData.claims.sub as string;
+    const callerId = claimsData.claims.sub as string;
 
     // Parse body
-    const { action, clientId } = await req.json();
+    const body = await req.json();
+    const { action, clientId } = body;
     if (!action || !clientId) {
       return new Response(JSON.stringify({ error: "Missing action or clientId" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -41,27 +42,112 @@ Deno.serve(async (req) => {
     // Admin client for auth operations
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify coach owns this client
-    const { data: assignment, error: assignErr } = await adminClient
+    // Check caller role
+    const { data: callerRoles } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId);
+    const isAdmin = callerRoles?.some((r: any) => r.role === "admin");
+    const isCoach = callerRoles?.some((r: any) => r.role === "coach" || r.role === "admin");
+
+    if (!isCoach) {
+      return new Response(JSON.stringify({ error: "Unauthorized: coach or admin role required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Verify coach owns this client (or admin)
+    const assignmentQuery = adminClient
       .from("coach_clients")
-      .select("id, status")
-      .eq("coach_id", coachId)
-      .eq("client_id", clientId)
-      .maybeSingle();
+      .select("id, status, coach_id")
+      .eq("client_id", clientId);
+
+    if (!isAdmin) {
+      assignmentQuery.eq("coach_id", callerId);
+    }
+
+    const { data: assignment, error: assignErr } = await assignmentQuery.maybeSingle();
 
     if (assignErr || !assignment) {
       return new Response(JSON.stringify({ error: "Client not found or not assigned to you" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── TRANSFER ──
+    if (action === "transfer") {
+      const { targetCoachId } = body;
+      if (!targetCoachId) {
+        return new Response(JSON.stringify({ error: "Missing targetCoachId" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // Verify target is actually a coach
+      const { data: targetRoles } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", targetCoachId);
+      const targetIsCoach = targetRoles?.some((r: any) => r.role === "coach" || r.role === "admin");
+      if (!targetIsCoach) {
+        return new Response(JSON.stringify({ error: "Target user is not a coach" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const previousCoachId = assignment.coach_id;
+
+      // Update the coach_clients assignment
+      const { error: transferErr } = await adminClient
+        .from("coach_clients")
+        .update({
+          coach_id: targetCoachId,
+          transferred_from: previousCoachId,
+          transferred_at: new Date().toISOString(),
+        })
+        .eq("id", assignment.id);
+      if (transferErr) throw transferErr;
+
+      // Transfer message threads
+      await adminClient
+        .from("message_threads")
+        .update({ coach_id: targetCoachId })
+        .eq("client_id", clientId)
+        .eq("coach_id", previousCoachId);
+
+      // Transfer client notes
+      await adminClient
+        .from("client_notes")
+        .update({ coach_id: targetCoachId })
+        .eq("client_id", clientId)
+        .eq("coach_id", previousCoachId);
+
+      // Transfer cardio assignments
+      await adminClient
+        .from("cardio_assignments")
+        .update({ coach_id: targetCoachId })
+        .eq("client_id", clientId)
+        .eq("coach_id", previousCoachId);
+
+      // Transfer checkin assignments
+      await adminClient
+        .from("checkin_assignments")
+        .update({ coach_id: targetCoachId })
+        .eq("client_id", clientId)
+        .eq("coach_id", previousCoachId);
+
+      // Transfer client goals
+      // (client_goals doesn't have coach_id, so no transfer needed)
+
+      // Transfer calendar events created by the coach for this client
+      await adminClient
+        .from("calendar_events")
+        .update({ user_id: targetCoachId })
+        .eq("target_client_id", clientId)
+        .eq("user_id", previousCoachId);
+
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     if (action === "deactivate") {
-      // Update status
       const { error: updateErr } = await adminClient
         .from("coach_clients")
         .update({ status: "deactivated" })
         .eq("id", assignment.id);
       if (updateErr) throw updateErr;
 
-      // Ban user from logging in (100 year ban = soft deactivation)
       const { error: banErr } = await adminClient.auth.admin.updateUserById(clientId, {
         ban_duration: "876000h",
       });
@@ -73,14 +159,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === "reactivate") {
-      // Update status back to active
       const { error: updateErr } = await adminClient
         .from("coach_clients")
         .update({ status: "active" })
         .eq("id", assignment.id);
       if (updateErr) throw updateErr;
 
-      // Remove ban
       const { error: unbanErr } = await adminClient.auth.admin.updateUserById(clientId, {
         ban_duration: "none",
       });
@@ -92,7 +176,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
-      // Delete all client data from key tables
       const tablesToClean = [
         "nutrition_logs",
         "nutrition_targets",
@@ -124,7 +207,6 @@ Deno.serve(async (req) => {
         "personal_records",
       ];
 
-      // Delete from tables that use client_id
       for (const table of tablesToClean) {
         try {
           await adminClient.from(table).delete().eq("client_id", clientId);
@@ -133,14 +215,12 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Delete from client_program_tracker
       try {
         await adminClient.from("client_program_tracker").delete().eq("client_id", clientId);
       } catch (e) {
         console.error("Error cleaning client_program_tracker:", e);
       }
 
-      // Delete from tables that use user_id
       const userIdTables = [
         "profiles",
         "user_roles",
@@ -156,7 +236,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Delete message threads and messages
       const { data: threads } = await adminClient
         .from("message_threads")
         .select("id")
@@ -167,10 +246,8 @@ Deno.serve(async (req) => {
         await adminClient.from("message_threads").delete().eq("client_id", clientId);
       }
 
-      // Delete coach_clients record
       await adminClient.from("coach_clients").delete().eq("client_id", clientId);
 
-      // Delete auth user
       const { error: deleteAuthErr } = await adminClient.auth.admin.deleteUser(clientId);
       if (deleteAuthErr) {
         console.error("Delete auth user error:", deleteAuthErr);

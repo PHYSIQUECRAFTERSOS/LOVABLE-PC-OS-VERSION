@@ -57,7 +57,9 @@ import {
   User,
   ChevronDown,
   ClipboardList,
+  ArrowRightLeft,
 } from "lucide-react";
+import TransferClientDialog from "./TransferClientDialog";
 import { format, subDays, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -87,6 +89,7 @@ interface ClientPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   onClientDeactivated?: () => void;
   onClientDeleted?: () => void;
+  onClientTransferred?: () => void;
 }
 
 interface PreviewData {
@@ -162,6 +165,7 @@ const ClientPreviewDialog = ({
   onOpenChange,
   onClientDeactivated,
   onClientDeleted,
+  onClientTransferred,
 }: ClientPreviewDialogProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -172,6 +176,7 @@ const ClientPreviewDialog = ({
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   useEffect(() => {
     if (!clientId || !open) return;
@@ -393,6 +398,10 @@ const ClientPreviewDialog = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setTransferOpen(true)} className="text-primary">
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  Transfer Client
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setDeactivateOpen(true)} className="text-orange-400">
                   <UserX className="h-4 w-4 mr-2" />
                   Deactivate Client
@@ -546,6 +555,20 @@ const ClientPreviewDialog = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {clientId && user && (
+        <TransferClientDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          clientId={clientId}
+          clientName={clientName}
+          currentCoachId={user.id}
+          onTransferred={() => {
+            onOpenChange(false);
+            onClientTransferred?.();
+          }}
+        />
+      )}
     </>
   );
 };
