@@ -323,6 +323,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [copyClientsLoading, setCopyClientsLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
 
+  // Copy Day to Client dialog
+  const [showCopyDayDialog, setShowCopyDayDialog] = useState(false);
+  const [copyDayWorkout, setCopyDayWorkout] = useState<ProgramWorkout | null>(null);
+  const [copyDayExercises, setCopyDayExercises] = useState<any[]>([]);
+  const [copyDayExercisesLoading, setCopyDayExercisesLoading] = useState(false);
+  const [copyDaySelectedClient, setCopyDaySelectedClient] = useState("");
+  const [copyDayClientProgram, setCopyDayClientProgram] = useState<{ id: string; name: string; phaseId: string } | null>(null);
+  const [copyDayConflict, setCopyDayConflict] = useState<{ existingId: string; existingName: string } | null>(null);
+  const [copyDayConflictChoice, setCopyDayConflictChoice] = useState<"replace" | "add_new">("replace");
+  const [copyDayStep, setCopyDayStep] = useState<"select_client" | "preview" | "conflict" | "copying">("select_client");
+  const [copyDayCopying, setCopyDayCopying] = useState(false);
+
   // Scroll to phase after save + reload
   useEffect(() => {
     if (scrollToPhaseRef.current !== null && !loading && phases.length > 0) {
