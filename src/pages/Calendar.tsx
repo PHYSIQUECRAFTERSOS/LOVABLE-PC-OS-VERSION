@@ -424,6 +424,8 @@ const Calendar = () => {
         onCompleted={reloadEvents}
       />
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
+      {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
+      {workoutLauncher.WorkoutOverlay}
     </AppLayout>
   );
 };
