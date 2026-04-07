@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.ai-import-processor]
 verify_jwt = false
+
+[functions.scan-food-label]
+verify_jwt = false
