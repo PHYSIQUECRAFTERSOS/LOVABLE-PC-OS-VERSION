@@ -372,9 +372,9 @@ const ScanFoodLabelButton = ({
       {fileInputs}
       {triggerButton}
 
-      {/* Image source picker */}
+      {/* Image source picker - z-[65] to sit above the food search overlay (z-[60]) */}
       <Drawer open={showPicker} onOpenChange={setShowPicker}>
-        <DrawerContent className="pb-8">
+        <DrawerContent className="pb-8 z-[65]">
           <DrawerHeader>
             <DrawerTitle>Scan Nutrition Label</DrawerTitle>
           </DrawerHeader>

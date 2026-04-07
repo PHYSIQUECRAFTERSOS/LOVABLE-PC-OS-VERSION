@@ -1231,7 +1231,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {/* Quick Actions (All tab only) */}
         {search.length < 2 && activeTab === "all" && (
-          <div className="grid grid-cols-5 gap-2 py-3">
+          <div className="grid grid-cols-4 gap-2 py-3">
             <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
             <ScanFoodLabelButton
               mealType={mealType}
@@ -1241,7 +1241,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
               variant="grid"
             />
             <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
-            <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
             <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
           </div>
         )}
@@ -1562,7 +1561,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                 <p className="text-2xl mb-2">🔍</p>
                 <p className="text-sm text-foreground font-medium">No results found</p>
                 <p className="text-xs text-muted-foreground mt-1">Try a shorter or simpler search term.</p>
-                <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={() => setQuickAddOpen(true)}>
+                <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={() => setShowCreateFood(true)}>
                   <Plus className="h-3 w-3 mr-1" /> Add Custom Food
                 </Button>
               </div>
