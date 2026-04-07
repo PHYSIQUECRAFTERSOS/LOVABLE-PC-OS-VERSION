@@ -302,9 +302,9 @@ const Calendar = () => {
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
-  const handleStartWorkout = (workoutId: string) => {
-    // Direct launch via the workout launcher — no Training tab redirect
-    workoutLauncher.launch(workoutId);
+  const handleStartWorkout = (workoutId: string, calendarEventId?: string) => {
+    setWorkoutPopup(null); // Close preview popup
+    workoutLauncher.launch(workoutId, calendarEventId);
   };
 
   const handleEventMoved = async (eventId: string, newDate: string) => {
