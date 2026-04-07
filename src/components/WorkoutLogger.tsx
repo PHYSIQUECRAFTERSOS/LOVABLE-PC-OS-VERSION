@@ -835,6 +835,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
     clearRetryQueue();
     setShowCancelDialog(false);
+    // Notify useActiveSession that the session ended so the banner doesn't appear
+    window.dispatchEvent(new CustomEvent("workout-session-ended"));
     onComplete?.();
   };
 
