@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import CardioPopup from "@/components/dashboard/CardioPopup";
 import PhotosPopup from "@/components/dashboard/PhotosPopup";
+import { useWorkoutLauncher } from "@/hooks/useWorkoutLauncher";
 
 export interface ActionItem {
   id: string;
@@ -74,6 +75,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
+  const workoutLauncher = useWorkoutLauncher();
 
   // Popup state
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
@@ -304,8 +306,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     if (route) navigate(route);
   };
 
+  // Launch workout directly as a fullscreen overlay — no Training tab navigation.
   const handleStartWorkout = (workoutId: string, calendarEventId?: string) => {
-    navigate("/training", { state: { startWorkoutId: workoutId, calendarEventId } });
+    workoutLauncher.launch(workoutId, calendarEventId);
   };
 
   const handleCardioCompleted = () => {
