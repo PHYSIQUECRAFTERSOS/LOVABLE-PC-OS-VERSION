@@ -1208,13 +1208,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {search.length < 2 && activeTab === "all" && (
           <div className="grid grid-cols-4 gap-2 py-3">
             <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
-            <ScanFoodLabelButton
-              mealType={mealType}
-              mealLabel={mealLabel}
-              logDate={effectiveDate}
-              onLogged={() => { onLogged(); fetchCustomFoods(); }}
-              variant="grid"
-            />
+            <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} iconExtra={<Sparkles className="h-2.5 w-2.5 text-primary absolute -top-1 -right-1.5" />} />
             <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
             <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
           </div>
