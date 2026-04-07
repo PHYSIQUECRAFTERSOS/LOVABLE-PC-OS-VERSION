@@ -837,24 +837,11 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
   const importWorkout = async (sourceWorkout: any) => {
     if (!user) return;
-    const { data: origW } = await supabase.from("workouts")
-      .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkout.id).single();
-    if (!origW) return;
-
-    const { data: newW } = await supabase.from("workouts").insert({
-      coach_id: user.id, name: origW.name, description: origW.description, instructions: origW.instructions,
-      phase: origW.phase, is_template: true, workout_type: (origW as any).workout_type || "regular",
-      source_workout_id: sourceWorkout.id,
-    } as any).select().single();
+    const { workout: newW } = await cloneWorkoutWithExercises(sourceWorkout.id, user.id, undefined, true);
     if (!newW) return;
 
-    // Clone exercises
-    const { data: exes } = await supabase.from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
-      .eq("workout_id", sourceWorkout.id);
-    if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
-    }
+    const { data: origW } = await supabase.from("workouts")
+      .select("name").eq("id", sourceWorkout.id).single();
 
     const newPhases = [...phases];
     const phase = newPhases[importTargetPhase];
