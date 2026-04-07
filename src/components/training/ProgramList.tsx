@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unlink, RefreshCw, History, ArrowUpDown, Share2, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import ProgramBuilder from "./ProgramBuilder";
@@ -158,9 +159,10 @@ const ProgramList = () => {
     } as any).select().single();
     if (error) throw error;
 
-    // 2. Clone phases → workouts → exercises (phase-direct, no weeks needed)
+    // 2. Clone phases → workouts → exercises (sequential with verification)
     const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", masterProgramId).order("phase_order");
     let firstPhaseId: string | null = null;
+    const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
     for (const phase of (phaseRows || [])) {
       const { data: newPhase } = await supabase.from("program_phases").insert({
@@ -173,31 +175,24 @@ const ProgramList = () => {
 
       // Get workouts linked to this phase
       const { data: pws } = await supabase.from("program_workouts")
-        .select("workout_id, day_of_week, day_label, sort_order")
+        .select("workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
         .eq("phase_id", phase.id);
 
       for (const w of (pws || [])) {
-        const { data: origW } = await supabase.from("workouts")
-          .select("name, description, instructions, phase, workout_type").eq("id", w.workout_id).single();
-        if (!origW) continue;
-
-        const { data: clientW } = await supabase.from("workouts").insert({
-          coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
-          instructions: origW.instructions, phase: origW.phase, is_template: false,
-          workout_type: (origW as any).workout_type || "regular",
-        } as any).select().single();
-        if (!clientW) continue;
-
-        const { data: exes } = await supabase.from("workout_exercises")
-          .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
-          .eq("workout_id", w.workout_id);
-        if (exes && exes.length > 0) {
-          await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
+        const { workout: clientW, result } = await cloneWorkoutWithExercises(
+          w.workout_id, user.id, clientId, false
+        );
+        allCloneResults.push(result);
+        if (!clientW) {
+          console.error(`[Import] Failed to clone workout for phase "${phase.name}":`, result.errors);
+          continue;
         }
 
         await supabase.from("program_workouts").insert({
           phase_id: newPhase!.id, workout_id: clientW.id,
           day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
+          exclude_from_numbering: (w as any).exclude_from_numbering || false,
+          custom_tag: (w as any).custom_tag || null,
         });
       }
     }
@@ -213,6 +208,13 @@ const ProgramList = () => {
       forked_from_program_id: masterProgramId, is_linked_to_master: isLinked,
       master_version_number: source.version_number, last_synced_at: new Date().toISOString(),
     });
+
+    // 5. Show summary
+    const summary = buildImportSummary(allCloneResults);
+    const msg = formatImportSummary(summary);
+    if (msg.isWarning) {
+      toast({ title: msg.title, description: msg.description, variant: "destructive" });
+    }
 
     return newProg;
   };
