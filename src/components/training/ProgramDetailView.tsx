@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
 import {
@@ -126,9 +127,10 @@ interface SortableWorkoutCardProps {
   openWorkoutBuilder: (phaseIdx: number, workout?: ProgramWorkout) => void;
   removeWorkoutFromPhase: (phaseIdx: number, workoutIdx: number) => void;
   onToggleCustomTag: (phaseIdx: number, pwIdx: number, exclude: boolean, tag: string | null) => void;
+  onCopyDayToClient?: (pw: ProgramWorkout) => void;
 }
 
-const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, displayPosition, meta, openWorkoutBuilder, removeWorkoutFromPhase, onToggleCustomTag }: SortableWorkoutCardProps) => {
+const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, displayPosition, meta, openWorkoutBuilder, removeWorkoutFromPhase, onToggleCustomTag, onCopyDayToClient }: SortableWorkoutCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pw.id || pw.workoutId + pwIdx });
   const [tagInput, setTagInput] = useState(pw.customTag || "");
   const [showTagInput, setShowTagInput] = useState(pw.excludeFromNumbering || false);
@@ -229,6 +231,9 @@ const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, displayPosition, meta, openW
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
+            {onCopyDayToClient && (
+              <DropdownMenuItem onClick={() => onCopyDayToClient(pw)}><Users className="h-3 w-3 mr-2" /> Copy to Client</DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
           </DropdownMenuContent>
@@ -317,6 +322,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [copying, setCopying] = useState(false);
   const [copyClientsLoading, setCopyClientsLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+
+  // Copy Day to Client dialog
+  const [showCopyDayDialog, setShowCopyDayDialog] = useState(false);
+  const [copyDayWorkout, setCopyDayWorkout] = useState<ProgramWorkout | null>(null);
+  const [copyDayExercises, setCopyDayExercises] = useState<any[]>([]);
+  const [copyDayExercisesLoading, setCopyDayExercisesLoading] = useState(false);
+  const [copyDaySelectedClient, setCopyDaySelectedClient] = useState("");
+  const [copyDayClientProgram, setCopyDayClientProgram] = useState<{ id: string; name: string; phaseId: string } | null>(null);
+  const [copyDayConflict, setCopyDayConflict] = useState<{ existingId: string; existingName: string } | null>(null);
+  const [copyDayConflictChoice, setCopyDayConflictChoice] = useState<"replace" | "add_new">("replace");
+  const [copyDayStep, setCopyDayStep] = useState<"select_client" | "preview" | "conflict" | "copying">("select_client");
+  const [copyDayCopying, setCopyDayCopying] = useState(false);
 
   // Scroll to phase after save + reload
   useEffect(() => {
@@ -832,24 +849,11 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
   const importWorkout = async (sourceWorkout: any) => {
     if (!user) return;
-    const { data: origW } = await supabase.from("workouts")
-      .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkout.id).single();
-    if (!origW) return;
-
-    const { data: newW } = await supabase.from("workouts").insert({
-      coach_id: user.id, name: origW.name, description: origW.description, instructions: origW.instructions,
-      phase: origW.phase, is_template: true, workout_type: (origW as any).workout_type || "regular",
-      source_workout_id: sourceWorkout.id,
-    } as any).select().single();
+    const { workout: newW } = await cloneWorkoutWithExercises(sourceWorkout.id, user.id, undefined, true);
     if (!newW) return;
 
-    // Clone exercises
-    const { data: exes } = await supabase.from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
-      .eq("workout_id", sourceWorkout.id);
-    if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
-    }
+    const { data: origW } = await supabase.from("workouts")
+      .select("name").eq("id", sourceWorkout.id).single();
 
     const newPhases = [...phases];
     const phase = newPhases[importTargetPhase];
@@ -962,42 +966,14 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         .single();
       if (phaseErr) throw phaseErr;
 
-      // 4. Clone workouts + exercises
+      // 4. Clone workouts + exercises (sequential)
+      const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
       for (const pw of phase.workouts) {
-        // Clone the workout
-        const { data: origW } = await supabase
-          .from("workouts")
-          .select("name, description, instructions, phase, workout_type")
-          .eq("id", pw.workoutId)
-          .single();
-        if (!origW) continue;
-
-        const { data: clonedW, error: cloneErr } = await supabase
-          .from("workouts")
-          .insert({
-            coach_id: userId,
-            name: origW.name,
-            description: origW.description,
-            instructions: origW.instructions,
-            phase: origW.phase,
-            is_template: false,
-            workout_type: (origW as any).workout_type || "regular",
-            source_workout_id: pw.workoutId,
-          } as any)
-          .select("id")
-          .single();
-        if (cloneErr) throw cloneErr;
-
-        // Clone exercises
-        const { data: exes } = await supabase
-          .from("workout_exercises")
-          .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
-          .eq("workout_id", pw.workoutId);
-        if (exes && exes.length > 0) {
-          await supabase.from("workout_exercises").insert(
-            exes.map((ex: any) => ({ ...ex, workout_id: clonedW.id }))
-          );
-        }
+        const { workout: clonedW, result } = await cloneWorkoutWithExercises(
+          pw.workoutId, userId, selectedCopyClient, false
+        );
+        allCloneResults.push(result);
+        if (!clonedW) continue;
 
         // Link to phase
         await supabase.from("program_workouts").insert({
@@ -1027,13 +1003,162 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         });
       if (assignErr) throw assignErr;
 
-      toast({ title: "Phase copied to client", description: `${phase.name} has been assigned successfully.` });
+      const summary = buildImportSummary(allCloneResults);
+      const msg = formatImportSummary(summary);
+      toast({ title: msg.isWarning ? msg.title : "Phase copied to client", description: msg.isWarning ? msg.description : `${phase.name} assigned with ${summary.totalExercises} exercises.`, variant: msg.isWarning ? "destructive" : undefined });
       setShowCopyToClientDialog(false);
     } catch (err: any) {
       console.error("[CopyToClient] Error:", err);
       toast({ title: "Failed to copy phase", description: err.message, variant: "destructive" });
     } finally {
       setCopying(false);
+    }
+  };
+
+  // ── Copy Day to Client ──
+  const openCopyDayToClient = async (pw: ProgramWorkout) => {
+    setCopyDayWorkout(pw);
+    setCopyDaySelectedClient("");
+    setCopyDayClientProgram(null);
+    setCopyDayConflict(null);
+    setCopyDayConflictChoice("replace");
+    setCopyDayStep("select_client");
+    setCopyDayExercises([]);
+    setShowCopyDayDialog(true);
+    loadCopyClients();
+
+    // Load exercises for preview
+    setCopyDayExercisesLoading(true);
+    const { data: exes } = await supabase
+      .from("workout_exercises")
+      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, exercises(name)")
+      .eq("workout_id", pw.workoutId)
+      .order("exercise_order");
+    setCopyDayExercises(exes || []);
+    setCopyDayExercisesLoading(false);
+  };
+
+  const handleCopyDaySelectClient = async (clientId: string) => {
+    setCopyDaySelectedClient(clientId);
+    // Find the client's active program
+    const { data: assignments } = await supabase
+      .from("client_program_assignments")
+      .select("program_id, current_phase_id, programs(name)")
+      .eq("client_id", clientId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    
+    const assignment = assignments?.[0];
+    if (assignment) {
+      setCopyDayClientProgram({
+        id: assignment.program_id,
+        name: (assignment as any).programs?.name || "Current Program",
+        phaseId: assignment.current_phase_id || "",
+      });
+    } else {
+      setCopyDayClientProgram(null);
+    }
+  };
+
+  const handleCopyDayProceedToPreview = async () => {
+    setCopyDayStep("preview");
+  };
+
+  const handleCopyDayConfirm = async () => {
+    if (!copyDayClientProgram || !copyDayWorkout) return;
+
+    // Check for conflicts — does this phase already have a day with same sort_order or name?
+    const { data: existingPws } = await supabase
+      .from("program_workouts")
+      .select("id, workout_id, sort_order, day_label, workouts(name)")
+      .eq("phase_id", copyDayClientProgram.phaseId);
+
+    const conflict = (existingPws || []).find((epw: any) =>
+      epw.sort_order === copyDayWorkout.sortOrder ||
+      (epw.workouts as any)?.name === copyDayWorkout.workoutName
+    );
+
+    if (conflict) {
+      setCopyDayConflict({
+        existingId: conflict.id,
+        existingName: `${conflict.day_label || "Day"}: ${(conflict.workouts as any)?.name || "Workout"}`,
+      });
+      setCopyDayStep("conflict");
+      return;
+    }
+
+    // No conflict — proceed with add
+    await executeCopyDay("add_new");
+  };
+
+  const executeCopyDay = async (mode: "replace" | "add_new") => {
+    if (!userId || !copyDayWorkout || !copyDayClientProgram) return;
+    setCopyDayCopying(true);
+    setCopyDayStep("copying");
+    try {
+      const { workout: clonedW, result } = await cloneWorkoutWithExercises(
+        copyDayWorkout.workoutId, userId, copyDaySelectedClient, false
+      );
+      if (!clonedW) throw new Error(result.errors.join(", ") || "Failed to clone workout");
+
+      if (mode === "replace" && copyDayConflict) {
+        // Delete existing program_workout and its workout
+        const { data: existingPw } = await supabase
+          .from("program_workouts")
+          .select("workout_id")
+          .eq("id", copyDayConflict.existingId)
+          .single();
+        await supabase.from("program_workouts").delete().eq("id", copyDayConflict.existingId);
+        if (existingPw) {
+          await supabase.from("workout_exercises").delete().eq("workout_id", existingPw.workout_id);
+          await supabase.from("workouts").delete().eq("id", existingPw.workout_id);
+        }
+      }
+
+      // Determine sort_order
+      let sortOrder = copyDayWorkout.sortOrder;
+      if (mode === "add_new") {
+        const { data: existingPws } = await supabase
+          .from("program_workouts")
+          .select("sort_order")
+          .eq("phase_id", copyDayClientProgram.phaseId)
+          .order("sort_order", { ascending: false })
+          .limit(1);
+        sortOrder = ((existingPws?.[0]?.sort_order ?? -1) + 1);
+      }
+
+      await supabase.from("program_workouts").insert({
+        phase_id: copyDayClientProgram.phaseId,
+        workout_id: clonedW.id,
+        day_of_week: copyDayWorkout.dayOfWeek,
+        day_label: copyDayWorkout.dayLabel,
+        sort_order: sortOrder,
+        exclude_from_numbering: copyDayWorkout.excludeFromNumbering || false,
+        custom_tag: copyDayWorkout.customTag || null,
+      });
+
+      const clientName = copyClients.find(c => c.id === copyDaySelectedClient)?.name || "client";
+      if (result.exercisesCopied === result.exercisesExpected) {
+        toast({
+          title: `Day copied to ${clientName}`,
+          description: `${copyDayWorkout.workoutName} with ${result.exercisesCopied} exercises.`,
+        });
+      } else {
+        toast({
+          title: `Day copied with warnings`,
+          description: `${result.exercisesCopied}/${result.exercisesExpected} exercises copied. Check ${clientName}'s program.`,
+          variant: "destructive",
+        });
+      }
+
+      setShowCopyDayDialog(false);
+    } catch (err: any) {
+      console.error("[CopyDayToClient] Error:", err);
+      toast({ title: "Failed to copy day", description: err.message, variant: "destructive" });
+      setCopyDayStep("preview");
+    } finally {
+      setCopyDayCopying(false);
     }
   };
 
@@ -1319,6 +1444,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                                   openWorkoutBuilder={openWorkoutBuilder}
                                   removeWorkoutFromPhase={removeWorkoutFromPhase}
                                   onToggleCustomTag={handleToggleCustomTag}
+                                  onCopyDayToClient={openCopyDayToClient}
                                 />
                               );
                             });
@@ -1465,6 +1591,115 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
           coachId={user.id}
         />
       )}
+
+      {/* Copy Day to Client Dialog */}
+      <Dialog open={showCopyDayDialog} onOpenChange={setShowCopyDayDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy Day to Client</DialogTitle>
+            <DialogDescription>
+              Copy "{copyDayWorkout?.workoutName}" to a client's program.
+            </DialogDescription>
+          </DialogHeader>
+
+          {copyDayStep === "select_client" && (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Select Client</Label>
+                {copyClientsLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <SearchableClientSelect
+                    clients={copyClients}
+                    value={copyDaySelectedClient}
+                    onValueChange={(v) => { setCopyDaySelectedClient(v); handleCopyDaySelectClient(v); }}
+                    placeholder="Search clients..."
+                  />
+                )}
+              </div>
+              {copyDayClientProgram && (
+                <div className="p-2 rounded border bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Current program:</p>
+                  <p className="text-sm font-medium">{copyDayClientProgram.name}</p>
+                </div>
+              )}
+              {copyDaySelectedClient && !copyDayClientProgram && (
+                <p className="text-xs text-destructive">This client has no active program. Assign one first.</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCopyDayDialog(false)}>Cancel</Button>
+                <Button onClick={handleCopyDayProceedToPreview} disabled={!copyDaySelectedClient || !copyDayClientProgram}>
+                  Next
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {copyDayStep === "preview" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Badge variant="secondary" className="text-xs">{copyDayExercises.length} exercise{copyDayExercises.length !== 1 ? "s" : ""}</Badge>
+              </div>
+              <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
+                {copyDayExercisesLoading ? (
+                  <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+                ) : copyDayExercises.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No exercises in this day.</p>
+                ) : (
+                  copyDayExercises.map((ex: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-2 border rounded text-sm">
+                      <span className="font-medium truncate flex-1">{(ex.exercises as any)?.name || `Exercise ${i + 1}`}</span>
+                      <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                        {ex.sets}×{ex.reps} {ex.rest_seconds ? `· ${ex.rest_seconds}s rest` : ""}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCopyDayStep("select_client")}>Back</Button>
+                <Button onClick={handleCopyDayConfirm} disabled={copyDayExercisesLoading}>
+                  <Users className="h-3.5 w-3.5 mr-1" /> Confirm Copy
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {copyDayStep === "conflict" && copyDayConflict && (
+            <div className="space-y-4">
+              <p className="text-sm">A day already exists at this position:</p>
+              <p className="text-sm font-medium border rounded p-2 bg-muted/30">{copyDayConflict.existingName}</p>
+              <RadioGroup value={copyDayConflictChoice} onValueChange={(v) => setCopyDayConflictChoice(v as any)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="replace" id="cd_replace" />
+                  <Label htmlFor="cd_replace" className="text-sm font-normal cursor-pointer">
+                    Replace existing day
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="add_new" id="cd_add" />
+                  <Label htmlFor="cd_add" className="text-sm font-normal cursor-pointer">
+                    Add as new day at the end
+                  </Label>
+                </div>
+              </RadioGroup>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCopyDayStep("preview")}>Back</Button>
+                <Button onClick={() => executeCopyDay(copyDayConflictChoice)}>
+                  {copyDayConflictChoice === "replace" ? "Replace & Copy" : "Add as New"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {copyDayStep === "copying" && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
+              <p className="text-sm text-muted-foreground">Copying workout and exercises...</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

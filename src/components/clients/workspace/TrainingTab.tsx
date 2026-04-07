@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent } from "@/components/ui/card";
@@ -258,25 +259,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setShowAssign(true);
   };
 
-  // ── Clone workout helper ──
+  // ── Clone workout helper (uses shared sequential logic) ──
+  const cloneWorkoutToClientTracked = async (sourceWorkoutId: string) => {
+    if (!user) return { workout: null, result: { workoutId: sourceWorkoutId, workoutName: "Unknown", exercisesExpected: 0, exercisesCopied: 0, errors: ["Not authenticated"] } as import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult };
+    return cloneWorkoutWithExercises(sourceWorkoutId, user.id, clientId, false);
+  };
+
   const cloneWorkoutToClient = async (sourceWorkoutId: string): Promise<any | null> => {
-    if (!user) return null;
-    const { data: origW } = await supabase.from("workouts")
-      .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkoutId).single();
-    if (!origW) return null;
-    const { data: clientW } = await supabase.from("workouts").insert({
-      coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
-      instructions: origW.instructions, phase: origW.phase, is_template: false,
-      workout_type: (origW as any).workout_type || "regular",
-    } as any).select().single();
-    if (!clientW) return null;
-    const { data: exes } = await supabase.from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
-      .eq("workout_id", sourceWorkoutId);
-    if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
-    }
-    return clientW;
+    const { workout } = await cloneWorkoutToClientTracked(sourceWorkoutId);
+    return workout;
   };
 
   const handleAssignProgram = async () => {
@@ -297,6 +288,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       const { data: masterPhases } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
       let firstPhaseId: string | null = null;
+      const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
       for (const phase of (masterPhases || [])) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
@@ -312,7 +304,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
         if (phaseDirectPWs && phaseDirectPWs.length > 0) {
           for (const pw of phaseDirectPWs) {
-            const clientW = await cloneWorkoutToClient(pw.workout_id);
+            const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
+            allCloneResults.push(result);
             if (!clientW) continue;
             await supabase.from("program_workouts").insert({
               phase_id: newPhase!.id, workout_id: clientW.id,
@@ -330,7 +323,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               .select().single();
             const { data: masterPW } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
             for (const pw of (masterPW || [])) {
-              const clientW = await cloneWorkoutToClient(pw.workout_id);
+              const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
+              allCloneResults.push(result);
               if (!clientW) continue;
               await supabase.from("program_workouts").insert({
                 week_id: newWeek!.id, workout_id: clientW.id,
@@ -354,7 +348,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         last_synced_at: new Date().toISOString(),
       });
 
-      toast({ title: isLinked ? "Client subscribed" : "Program imported" });
+      const summary = buildImportSummary(allCloneResults);
+      const msg = formatImportSummary(summary);
+      toast({ title: isLinked ? "Client subscribed" : msg.title, description: isLinked ? "Future updates will sync." : msg.description, variant: msg.isWarning ? "destructive" : undefined });
       setShowAssign(false); setSelectedMaster("");
       loadClientProgram();
     } catch (err: any) {
