@@ -991,7 +991,9 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         });
       if (assignErr) throw assignErr;
 
-      toast({ title: "Phase copied to client", description: `${phase.name} has been assigned successfully.` });
+      const summary = buildImportSummary(allCloneResults);
+      const msg = formatImportSummary(summary);
+      toast({ title: msg.isWarning ? msg.title : "Phase copied to client", description: msg.isWarning ? msg.description : `${phase.name} assigned with ${summary.totalExercises} exercises.`, variant: msg.isWarning ? "destructive" : undefined });
       setShowCopyToClientDialog(false);
     } catch (err: any) {
       console.error("[CopyToClient] Error:", err);
