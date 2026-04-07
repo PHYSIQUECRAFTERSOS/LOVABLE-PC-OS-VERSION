@@ -1231,8 +1231,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {/* Quick Actions (All tab only) */}
         {search.length < 2 && activeTab === "all" && (
-          <div className="grid grid-cols-4 gap-2.5 py-3">
+          <div className="grid grid-cols-5 gap-2 py-3">
             <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
+            <ScanFoodLabelButton
+              mealType={mealType}
+              mealLabel={mealLabel}
+              logDate={effectiveDate}
+              onLogged={() => { onLogged(); fetchCustomFoods(); }}
+              variant="grid"
+            />
             <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
             <QuickActionCard icon={Zap} label="Quick Add" onClick={() => setQuickAddOpen(true)} />
             <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
@@ -1366,13 +1373,23 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {/* ═══ CUSTOM FOODS TAB ═══ */}
         {showCustom && (
           <div className="space-y-3 py-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowCreateFood(true)}
-              className="w-full h-11 border-primary text-primary hover:bg-primary/10"
-            >
-              <Plus className="h-4 w-4 mr-2" /> Create Custom Food
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowCreateFood(true)}
+                className="flex-1 h-11 border-primary text-primary hover:bg-primary/10"
+              >
+                <Plus className="h-4 w-4 mr-2" /> Create Custom Food
+              </Button>
+              <ScanFoodLabelButton
+                mealType={mealType}
+                mealLabel={mealLabel}
+                logDate={effectiveDate}
+                onLogged={() => { onLogged(); fetchCustomFoods(); }}
+                variant="full"
+                className="flex-1"
+              />
+            </div>
 
             {customFoods.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">No custom foods yet</p>
