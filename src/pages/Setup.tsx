@@ -167,11 +167,11 @@ const ClientSetup = () => {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 overflow-y-auto py-6 pb-[env(safe-area-inset-bottom)]">
       <div className="w-full max-w-md animate-fade-in">
-        <div className="mb-10 text-center">
+        <div className="mb-6 text-center">
           <h1 className="font-display text-3xl font-bold tracking-tight text-foreground">
             PHYSIQUE <span className="text-gradient-gold">CRAFTERS</span>
           </h1>
-          <p className="mt-2 text-sm tracking-[0.2em] uppercase text-muted-foreground">
+          <p className="mt-1 text-sm tracking-[0.2em] uppercase text-muted-foreground">
             The Triple O Method
           </p>
         </div>
