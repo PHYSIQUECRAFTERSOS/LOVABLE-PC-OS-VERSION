@@ -145,12 +145,12 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
   const [servings, setServings] = useState<Record<string, string>>({});
   const [servingUnits, setServingUnits] = useState<Record<string, ServingUnit>>({});
 
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [quickName, setQuickName] = useState("");
-  const [quickCal, setQuickCal] = useState("");
-  const [quickProtein, setQuickProtein] = useState("");
-  const [quickCarbs, setQuickCarbs] = useState("");
-  const [quickFat, setQuickFat] = useState("");
+  const [quickAddOpen] = useState(false); // kept for hook ordering
+  const [quickName] = useState("");
+  const [quickCal] = useState("");
+  const [quickProtein] = useState("");
+  const [quickCarbs] = useState("");
+  const [quickFat] = useState("");
 
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [mealScanOpen, setMealScanOpen] = useState(false);
