@@ -954,42 +954,14 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
         .single();
       if (phaseErr) throw phaseErr;
 
-      // 4. Clone workouts + exercises
+      // 4. Clone workouts + exercises (sequential)
+      const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
       for (const pw of phase.workouts) {
-        // Clone the workout
-        const { data: origW } = await supabase
-          .from("workouts")
-          .select("name, description, instructions, phase, workout_type")
-          .eq("id", pw.workoutId)
-          .single();
-        if (!origW) continue;
-
-        const { data: clonedW, error: cloneErr } = await supabase
-          .from("workouts")
-          .insert({
-            coach_id: userId,
-            name: origW.name,
-            description: origW.description,
-            instructions: origW.instructions,
-            phase: origW.phase,
-            is_template: false,
-            workout_type: (origW as any).workout_type || "regular",
-            source_workout_id: pw.workoutId,
-          } as any)
-          .select("id")
-          .single();
-        if (cloneErr) throw cloneErr;
-
-        // Clone exercises
-        const { data: exes } = await supabase
-          .from("workout_exercises")
-          .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
-          .eq("workout_id", pw.workoutId);
-        if (exes && exes.length > 0) {
-          await supabase.from("workout_exercises").insert(
-            exes.map((ex: any) => ({ ...ex, workout_id: clonedW.id }))
-          );
-        }
+        const { workout: clonedW, result } = await cloneWorkoutWithExercises(
+          pw.workoutId, userId, selectedCopyClient, false
+        );
+        allCloneResults.push(result);
+        if (!clonedW) continue;
 
         // Link to phase
         await supabase.from("program_workouts").insert({
