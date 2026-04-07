@@ -165,6 +165,7 @@ const ClientPreviewDialog = ({
   onOpenChange,
   onClientDeactivated,
   onClientDeleted,
+  onClientTransferred,
 }: ClientPreviewDialogProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -175,6 +176,7 @@ const ClientPreviewDialog = ({
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   useEffect(() => {
     if (!clientId || !open) return;
