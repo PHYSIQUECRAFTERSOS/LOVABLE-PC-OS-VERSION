@@ -346,6 +346,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
               <button
                 key={action.id}
                 onClick={() => handleActionClick(action)}
+                disabled={workoutLauncher.loading && action.type === "workout"}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors w-full text-left border-l-[3px]",
                   TYPE_COLORS[action.type] || "border-l-muted",
@@ -354,7 +355,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
                     : "hover:bg-secondary/50"
                 )}
               >
-                {action.completed ? (
+                {workoutLauncher.loading && action.type === "workout" && !action.completed ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                ) : action.completed ? (
                   <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
@@ -420,6 +423,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           onCompleted={handlePhotosCompleted}
         />
       )}
+
+      {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
+      {workoutLauncher.WorkoutOverlay}
     </>
   );
 };
