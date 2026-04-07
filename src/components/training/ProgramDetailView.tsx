@@ -1015,7 +1015,153 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     }
   };
 
-  const showSaveStatus = (status: "saving" | "saved" | "failed") => {
+  // ── Copy Day to Client ──
+  const openCopyDayToClient = async (pw: ProgramWorkout) => {
+    setCopyDayWorkout(pw);
+    setCopyDaySelectedClient("");
+    setCopyDayClientProgram(null);
+    setCopyDayConflict(null);
+    setCopyDayConflictChoice("replace");
+    setCopyDayStep("select_client");
+    setCopyDayExercises([]);
+    setShowCopyDayDialog(true);
+    loadCopyClients();
+
+    // Load exercises for preview
+    setCopyDayExercisesLoading(true);
+    const { data: exes } = await supabase
+      .from("workout_exercises")
+      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, exercises(name)")
+      .eq("workout_id", pw.workoutId)
+      .order("exercise_order");
+    setCopyDayExercises(exes || []);
+    setCopyDayExercisesLoading(false);
+  };
+
+  const handleCopyDaySelectClient = async (clientId: string) => {
+    setCopyDaySelectedClient(clientId);
+    // Find the client's active program
+    const { data: assignments } = await supabase
+      .from("client_program_assignments")
+      .select("program_id, current_phase_id, programs(name)")
+      .eq("client_id", clientId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    
+    const assignment = assignments?.[0];
+    if (assignment) {
+      setCopyDayClientProgram({
+        id: assignment.program_id,
+        name: (assignment as any).programs?.name || "Current Program",
+        phaseId: assignment.current_phase_id || "",
+      });
+    } else {
+      setCopyDayClientProgram(null);
+    }
+  };
+
+  const handleCopyDayProceedToPreview = async () => {
+    setCopyDayStep("preview");
+  };
+
+  const handleCopyDayConfirm = async () => {
+    if (!copyDayClientProgram || !copyDayWorkout) return;
+
+    // Check for conflicts — does this phase already have a day with same sort_order or name?
+    const { data: existingPws } = await supabase
+      .from("program_workouts")
+      .select("id, workout_id, sort_order, day_label, workouts(name)")
+      .eq("phase_id", copyDayClientProgram.phaseId);
+
+    const conflict = (existingPws || []).find((epw: any) =>
+      epw.sort_order === copyDayWorkout.sortOrder ||
+      (epw.workouts as any)?.name === copyDayWorkout.workoutName
+    );
+
+    if (conflict) {
+      setCopyDayConflict({
+        existingId: conflict.id,
+        existingName: `${conflict.day_label || "Day"}: ${(conflict.workouts as any)?.name || "Workout"}`,
+      });
+      setCopyDayStep("conflict");
+      return;
+    }
+
+    // No conflict — proceed with add
+    await executeCopyDay("add_new");
+  };
+
+  const executeCopyDay = async (mode: "replace" | "add_new") => {
+    if (!userId || !copyDayWorkout || !copyDayClientProgram) return;
+    setCopyDayCopying(true);
+    setCopyDayStep("copying");
+    try {
+      const { workout: clonedW, result } = await cloneWorkoutWithExercises(
+        copyDayWorkout.workoutId, userId, copyDaySelectedClient, false
+      );
+      if (!clonedW) throw new Error(result.errors.join(", ") || "Failed to clone workout");
+
+      if (mode === "replace" && copyDayConflict) {
+        // Delete existing program_workout and its workout
+        const { data: existingPw } = await supabase
+          .from("program_workouts")
+          .select("workout_id")
+          .eq("id", copyDayConflict.existingId)
+          .single();
+        await supabase.from("program_workouts").delete().eq("id", copyDayConflict.existingId);
+        if (existingPw) {
+          await supabase.from("workout_exercises").delete().eq("workout_id", existingPw.workout_id);
+          await supabase.from("workouts").delete().eq("id", existingPw.workout_id);
+        }
+      }
+
+      // Determine sort_order
+      let sortOrder = copyDayWorkout.sortOrder;
+      if (mode === "add_new") {
+        const { data: existingPws } = await supabase
+          .from("program_workouts")
+          .select("sort_order")
+          .eq("phase_id", copyDayClientProgram.phaseId)
+          .order("sort_order", { ascending: false })
+          .limit(1);
+        sortOrder = ((existingPws?.[0]?.sort_order ?? -1) + 1);
+      }
+
+      await supabase.from("program_workouts").insert({
+        phase_id: copyDayClientProgram.phaseId,
+        workout_id: clonedW.id,
+        day_of_week: copyDayWorkout.dayOfWeek,
+        day_label: copyDayWorkout.dayLabel,
+        sort_order: sortOrder,
+        exclude_from_numbering: copyDayWorkout.excludeFromNumbering || false,
+        custom_tag: copyDayWorkout.customTag || null,
+      });
+
+      const clientName = copyClients.find(c => c.id === copyDaySelectedClient)?.name || "client";
+      if (result.exercisesCopied === result.exercisesExpected) {
+        toast({
+          title: `Day copied to ${clientName}`,
+          description: `${copyDayWorkout.workoutName} with ${result.exercisesCopied} exercises.`,
+        });
+      } else {
+        toast({
+          title: `Day copied with warnings`,
+          description: `${result.exercisesCopied}/${result.exercisesExpected} exercises copied. Check ${clientName}'s program.`,
+          variant: "destructive",
+        });
+      }
+
+      setShowCopyDayDialog(false);
+    } catch (err: any) {
+      console.error("[CopyDayToClient] Error:", err);
+      toast({ title: "Failed to copy day", description: err.message, variant: "destructive" });
+      setCopyDayStep("preview");
+    } finally {
+      setCopyDayCopying(false);
+    }
+  };
+
     if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
     setSaveStatus(status);
     if (status === "saved") {
