@@ -85,6 +85,16 @@ export const useActiveSession = () => {
 
   useEffect(() => { checkForSession(); }, [checkForSession]);
 
+  // Re-check when a workout session ends (cancelled, completed, etc.)
+  useEffect(() => {
+    const handler = () => {
+      setActiveSession(null);
+      checkForSession();
+    };
+    window.addEventListener("workout-session-ended", handler);
+    return () => window.removeEventListener("workout-session-ended", handler);
+  }, [checkForSession]);
+
   // Auto-abandon stale sessions (older than 2h) silently
   useEffect(() => {
     if (!userId) return;

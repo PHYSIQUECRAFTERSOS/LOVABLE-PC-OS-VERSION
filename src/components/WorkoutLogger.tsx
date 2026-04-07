@@ -817,6 +817,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // animation when we swap the rendered tree, leaving pointer-events: none on body.
       document.body.style.pointerEvents = '';
 
+      // Notify useActiveSession that the session ended so the banner clears
+      window.dispatchEvent(new CustomEvent("workout-session-ended"));
       setShowSummary(true);
     } catch (error: any) {
       console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });
@@ -835,6 +837,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
     clearRetryQueue();
     setShowCancelDialog(false);
+    // Notify useActiveSession that the session ended so the banner doesn't appear
+    window.dispatchEvent(new CustomEvent("workout-session-ended"));
     onComplete?.();
   };
 

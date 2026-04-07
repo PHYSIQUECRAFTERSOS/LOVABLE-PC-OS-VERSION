@@ -15,6 +15,7 @@ import EventDetailModal from "@/components/calendar/EventDetailModal";
 import ScheduleEventForm from "@/components/calendar/ScheduleEventForm";
 import ComplianceStreak from "@/components/calendar/ComplianceStreak";
 import CardioPopup from "@/components/dashboard/CardioPopup";
+import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { withDisplayPositions } from "@/utils/displayPosition";
@@ -33,6 +34,8 @@ const Calendar = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // Cardio bottom sheet state — reuses the same CardioPopup from the dashboard
   const [cardioPopupEvent, setCardioPopupEvent] = useState<CalendarEvent | null>(null);
+  // Workout preview popup state — reuses WorkoutStartPopup from the dashboard
+  const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId?: string } | null>(null);
 
   const isCoach = role === "coach" || role === "admin";
 
@@ -287,9 +290,9 @@ const Calendar = () => {
       setCardioPopupEvent(event);
       return;
     }
-    // Workout events launch the workout logger directly — no Training tab navigation
+    // Workout events open the preview sheet first — same as the Home dashboard
     if (event.event_type === "workout" && event.linked_workout_id && !event.is_completed) {
-      workoutLauncher.launch(event.linked_workout_id, event.id);
+      setWorkoutPopup({ workoutId: event.linked_workout_id, workoutName: event.title, calendarEventId: event.id });
       return;
     }
     setSelectedEvent(event);
@@ -299,9 +302,9 @@ const Calendar = () => {
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
-  const handleStartWorkout = (workoutId: string) => {
-    // Direct launch via the workout launcher — no Training tab redirect
-    workoutLauncher.launch(workoutId);
+  const handleStartWorkout = (workoutId: string, calendarEventId?: string) => {
+    setWorkoutPopup(null); // Close preview popup
+    workoutLauncher.launch(workoutId, calendarEventId);
   };
 
   const handleEventMoved = async (eventId: string, newDate: string) => {
@@ -423,6 +426,17 @@ const Calendar = () => {
         description={cardioPopupEvent?.description}
         onCompleted={reloadEvents}
       />
+      {/* Workout preview popup — same component used by the Home dashboard */}
+      {workoutPopup && (
+        <WorkoutStartPopup
+          open={true}
+          onClose={() => setWorkoutPopup(null)}
+          workoutId={workoutPopup.workoutId}
+          workoutName={workoutPopup.workoutName}
+          calendarEventId={workoutPopup.calendarEventId}
+          onStartWorkout={handleStartWorkout}
+        />
+      )}
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
       {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
       {workoutLauncher.WorkoutOverlay}
