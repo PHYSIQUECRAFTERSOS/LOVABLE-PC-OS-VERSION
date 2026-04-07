@@ -13,6 +13,7 @@ import CalendarDayList from "@/components/calendar/CalendarDayList";
 import EventDetailModal from "@/components/calendar/EventDetailModal";
 import ScheduleEventForm from "@/components/calendar/ScheduleEventForm";
 import ComplianceStreak from "@/components/calendar/ComplianceStreak";
+import CardioPopup from "@/components/dashboard/CardioPopup";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { withDisplayPositions } from "@/utils/displayPosition";
@@ -28,6 +29,8 @@ const Calendar = () => {
   const [showEventDetail, setShowEventDetail] = useState(false);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Cardio bottom sheet state — reuses the same CardioPopup from the dashboard
+  const [cardioPopupEvent, setCardioPopupEvent] = useState<CalendarEvent | null>(null);
 
   const isCoach = role === "coach" || role === "admin";
 
@@ -276,7 +279,15 @@ const Calendar = () => {
   const handlePrev = () => setCurrentDate((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
   const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
 
-  const handleEventClick = (event: CalendarEvent) => { setSelectedEvent(event); setShowEventDetail(true); };
+  const handleEventClick = (event: CalendarEvent) => {
+    // Cardio events open the same bottom sheet used by the dashboard — not the generic modal
+    if (event.event_type === "cardio") {
+      setCardioPopupEvent(event);
+      return;
+    }
+    setSelectedEvent(event);
+    setShowEventDetail(true);
+  };
   const handleDayClick = (date: Date) => { if (isCoach) { setSelectedDate(date); setShowScheduleForm(true); } };
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
@@ -395,6 +406,15 @@ const Calendar = () => {
       </div>
 
       <EventDetailModal event={selectedEvent} open={showEventDetail} onClose={() => setShowEventDetail(false)} onComplete={handleComplete} onDelete={handleDelete} isCoach={isCoach} onStartWorkout={handleStartWorkout} clientId={user?.id} />
+      {/* Cardio bottom sheet — identical component used by the Home dashboard */}
+      <CardioPopup
+        open={!!cardioPopupEvent}
+        onClose={() => setCardioPopupEvent(null)}
+        eventId={cardioPopupEvent?.id || ""}
+        title={cardioPopupEvent?.title || ""}
+        description={cardioPopupEvent?.description}
+        onCompleted={reloadEvents}
+      />
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
     </AppLayout>
   );
