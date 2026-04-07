@@ -380,7 +380,7 @@ const ScanFoodLabelButton = ({
   return (
     <>
       {fileInputs}
-      {triggerButton}
+      {variant !== "headless" && triggerButton}
 
       {/* Image source picker - z-[65] to sit above the food search overlay (z-[60]) */}
       <Drawer open={showPicker} onOpenChange={setShowPicker}>

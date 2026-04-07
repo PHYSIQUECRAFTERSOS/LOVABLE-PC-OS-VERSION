@@ -1610,6 +1610,15 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     {/* Render dialogs OUTSIDE the z-60 overlay so they stack correctly */}
     <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} defaultMealType={mealType} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
     <MealScanCapture open={mealScanOpen} onClose={() => setMealScanOpen(false)} mealType={mealType} logDate={effectiveDate} onLogged={onLogged} />
+    <ScanFoodLabelButton
+      mealType={mealType}
+      mealLabel={mealLabel}
+      logDate={effectiveDate}
+      onLogged={() => { onLogged(); fetchCustomFoods(); }}
+      variant="headless"
+      open={scanLabelOpen}
+      onOpenChange={setScanLabelOpen}
+    />
     <CreateFoodScreen
       open={showCreateFood}
       onOpenChange={(v) => { if (!v) { setShowCreateFood(false); setEditingCustomFood(null); } }}
