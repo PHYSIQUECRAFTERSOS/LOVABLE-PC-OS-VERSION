@@ -22,6 +22,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
 import {
@@ -126,9 +127,10 @@ interface SortableWorkoutCardProps {
   openWorkoutBuilder: (phaseIdx: number, workout?: ProgramWorkout) => void;
   removeWorkoutFromPhase: (phaseIdx: number, workoutIdx: number) => void;
   onToggleCustomTag: (phaseIdx: number, pwIdx: number, exclude: boolean, tag: string | null) => void;
+  onCopyDayToClient?: (pw: ProgramWorkout) => void;
 }
 
-const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, displayPosition, meta, openWorkoutBuilder, removeWorkoutFromPhase, onToggleCustomTag }: SortableWorkoutCardProps) => {
+const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, displayPosition, meta, openWorkoutBuilder, removeWorkoutFromPhase, onToggleCustomTag, onCopyDayToClient }: SortableWorkoutCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pw.id || pw.workoutId + pwIdx });
   const [tagInput, setTagInput] = useState(pw.customTag || "");
   const [showTagInput, setShowTagInput] = useState(pw.excludeFromNumbering || false);
@@ -229,6 +231,9 @@ const SortableWorkoutCard = ({ pw, pwIdx, phaseIdx, displayPosition, meta, openW
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => openWorkoutBuilder(phaseIdx, pw)}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
+            {onCopyDayToClient && (
+              <DropdownMenuItem onClick={() => onCopyDayToClient(pw)}><Users className="h-3 w-3 mr-2" /> Copy to Client</DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}><Trash2 className="h-3 w-3 mr-2" /> Remove</DropdownMenuItem>
           </DropdownMenuContent>
