@@ -1591,6 +1591,115 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
           coachId={user.id}
         />
       )}
+
+      {/* Copy Day to Client Dialog */}
+      <Dialog open={showCopyDayDialog} onOpenChange={setShowCopyDayDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy Day to Client</DialogTitle>
+            <DialogDescription>
+              Copy "{copyDayWorkout?.workoutName}" to a client's program.
+            </DialogDescription>
+          </DialogHeader>
+
+          {copyDayStep === "select_client" && (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Select Client</Label>
+                {copyClientsLoading ? (
+                  <Skeleton className="h-9 w-full" />
+                ) : (
+                  <SearchableClientSelect
+                    clients={copyClients}
+                    value={copyDaySelectedClient}
+                    onValueChange={(v) => { setCopyDaySelectedClient(v); handleCopyDaySelectClient(v); }}
+                    placeholder="Search clients..."
+                  />
+                )}
+              </div>
+              {copyDayClientProgram && (
+                <div className="p-2 rounded border bg-muted/30">
+                  <p className="text-xs text-muted-foreground">Current program:</p>
+                  <p className="text-sm font-medium">{copyDayClientProgram.name}</p>
+                </div>
+              )}
+              {copyDaySelectedClient && !copyDayClientProgram && (
+                <p className="text-xs text-destructive">This client has no active program. Assign one first.</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCopyDayDialog(false)}>Cancel</Button>
+                <Button onClick={handleCopyDayProceedToPreview} disabled={!copyDaySelectedClient || !copyDayClientProgram}>
+                  Next
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {copyDayStep === "preview" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Badge variant="secondary" className="text-xs">{copyDayExercises.length} exercise{copyDayExercises.length !== 1 ? "s" : ""}</Badge>
+              </div>
+              <div className="space-y-1.5 max-h-[40vh] overflow-y-auto">
+                {copyDayExercisesLoading ? (
+                  <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+                ) : copyDayExercises.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No exercises in this day.</p>
+                ) : (
+                  copyDayExercises.map((ex: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-2 border rounded text-sm">
+                      <span className="font-medium truncate flex-1">{(ex.exercises as any)?.name || `Exercise ${i + 1}`}</span>
+                      <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                        {ex.sets}×{ex.reps} {ex.rest_seconds ? `· ${ex.rest_seconds}s rest` : ""}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCopyDayStep("select_client")}>Back</Button>
+                <Button onClick={handleCopyDayConfirm} disabled={copyDayExercisesLoading}>
+                  <Users className="h-3.5 w-3.5 mr-1" /> Confirm Copy
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {copyDayStep === "conflict" && copyDayConflict && (
+            <div className="space-y-4">
+              <p className="text-sm">A day already exists at this position:</p>
+              <p className="text-sm font-medium border rounded p-2 bg-muted/30">{copyDayConflict.existingName}</p>
+              <RadioGroup value={copyDayConflictChoice} onValueChange={(v) => setCopyDayConflictChoice(v as any)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="replace" id="cd_replace" />
+                  <Label htmlFor="cd_replace" className="text-sm font-normal cursor-pointer">
+                    Replace existing day
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="add_new" id="cd_add" />
+                  <Label htmlFor="cd_add" className="text-sm font-normal cursor-pointer">
+                    Add as new day at the end
+                  </Label>
+                </div>
+              </RadioGroup>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCopyDayStep("preview")}>Back</Button>
+                <Button onClick={() => executeCopyDay(copyDayConflictChoice)}>
+                  {copyDayConflictChoice === "replace" ? "Replace & Copy" : "Add as New"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {copyDayStep === "copying" && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
+              <p className="text-sm text-muted-foreground">Copying workout and exercises...</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
