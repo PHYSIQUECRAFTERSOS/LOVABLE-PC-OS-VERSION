@@ -288,6 +288,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       const { data: masterPhases } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
       let firstPhaseId: string | null = null;
+      const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
       for (const phase of (masterPhases || [])) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
@@ -303,7 +304,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
         if (phaseDirectPWs && phaseDirectPWs.length > 0) {
           for (const pw of phaseDirectPWs) {
-            const clientW = await cloneWorkoutToClient(pw.workout_id);
+            const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
+            allCloneResults.push(result);
             if (!clientW) continue;
             await supabase.from("program_workouts").insert({
               phase_id: newPhase!.id, workout_id: clientW.id,
@@ -321,7 +323,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               .select().single();
             const { data: masterPW } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
             for (const pw of (masterPW || [])) {
-              const clientW = await cloneWorkoutToClient(pw.workout_id);
+              const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
+              allCloneResults.push(result);
               if (!clientW) continue;
               await supabase.from("program_workouts").insert({
                 week_id: newWeek!.id, workout_id: clientW.id,
@@ -345,7 +348,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         last_synced_at: new Date().toISOString(),
       });
 
-      toast({ title: isLinked ? "Client subscribed" : "Program imported" });
+      const summary = buildImportSummary(allCloneResults);
+      const msg = formatImportSummary(summary);
+      toast({ title: isLinked ? "Client subscribed" : msg.title, description: isLinked ? "Future updates will sync." : msg.description, variant: msg.isWarning ? "destructive" : undefined });
       setShowAssign(false); setSelectedMaster("");
       loadClientProgram();
     } catch (err: any) {
