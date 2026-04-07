@@ -47,8 +47,11 @@ interface ScanFoodLabelButtonProps {
   mealLabel: string;
   logDate?: string;
   onLogged: () => void;
-  variant?: "icon" | "full" | "grid";
+  variant?: "icon" | "full" | "grid" | "headless";
   className?: string;
+  /** External open control – when provided, the picker opens/closes via parent */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 interface ScanResult {
@@ -72,13 +75,20 @@ const ScanFoodLabelButton = ({
   onLogged,
   variant = "full",
   className,
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange,
 }: ScanFoodLabelButtonProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const [showPicker, setShowPicker] = useState(false);
+  const [internalShowPicker, setInternalShowPicker] = useState(false);
+  // Use external control if provided, otherwise internal
+  const showPicker = externalOpen !== undefined ? externalOpen : internalShowPicker;
+  const setShowPicker = externalOnOpenChange || setInternalShowPicker;
+
+  
   const [scanning, setScanning] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -370,11 +380,11 @@ const ScanFoodLabelButton = ({
   return (
     <>
       {fileInputs}
-      {triggerButton}
+      {variant !== "headless" && triggerButton}
 
-      {/* Image source picker */}
+      {/* Image source picker - z-[65] to sit above the food search overlay (z-[60]) */}
       <Drawer open={showPicker} onOpenChange={setShowPicker}>
-        <DrawerContent className="pb-8">
+        <DrawerContent className="pb-8 z-[65]">
           <DrawerHeader>
             <DrawerTitle>Scan Nutrition Label</DrawerTitle>
           </DrawerHeader>
