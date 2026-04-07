@@ -57,7 +57,9 @@ import {
   User,
   ChevronDown,
   ClipboardList,
+  ArrowRightLeft,
 } from "lucide-react";
+import TransferClientDialog from "./TransferClientDialog";
 import { format, subDays, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
