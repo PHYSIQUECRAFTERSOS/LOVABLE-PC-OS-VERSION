@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import ProgramDetailView from "@/components/training/ProgramDetailView";
 import ProgramBuilder from "@/components/training/ProgramBuilder";
@@ -301,6 +302,7 @@ const MasterLibraries = () => {
 
       const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", assignProgramId).order("phase_order");
       let firstPhaseId: string | null = null;
+      const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
       for (const phase of (phaseRows || [])) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
@@ -312,31 +314,24 @@ const MasterLibraries = () => {
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
         const { data: pws } = await supabase.from("program_workouts")
-          .select("workout_id, day_of_week, day_label, sort_order")
+          .select("workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
           .eq("phase_id", phase.id);
 
         for (const w of (pws || [])) {
-          const { data: origW } = await supabase.from("workouts")
-            .select("name, description, instructions, phase, workout_type").eq("id", w.workout_id).single();
-          if (!origW) continue;
-
-          const { data: clientW } = await supabase.from("workouts").insert({
-            coach_id: user.id, client_id: selectedClientId, name: origW.name, description: origW.description,
-            instructions: origW.instructions, phase: origW.phase, is_template: false,
-            workout_type: (origW as any).workout_type || "regular",
-          } as any).select().single();
-          if (!clientW) continue;
-
-          const { data: exes } = await supabase.from("workout_exercises")
-            .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id")
-            .eq("workout_id", w.workout_id);
-          if (exes && exes.length > 0) {
-            await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
+          const { workout: clientW, result } = await cloneWorkoutWithExercises(
+            w.workout_id, user.id, selectedClientId, false
+          );
+          allCloneResults.push(result);
+          if (!clientW) {
+            console.error(`[Import] Failed to clone workout for phase "${phase.name}":`, result.errors);
+            continue;
           }
 
           await supabase.from("program_workouts").insert({
             phase_id: newPhase!.id, workout_id: clientW.id, week_id: null as any,
             day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
+            exclude_from_numbering: (w as any).exclude_from_numbering || false,
+            custom_tag: (w as any).custom_tag || null,
           });
         }
       }
@@ -351,9 +346,13 @@ const MasterLibraries = () => {
         master_version_number: source.version_number, last_synced_at: new Date().toISOString(),
       });
 
+      // Show post-import summary
+      const summary = buildImportSummary(allCloneResults);
+      const msg = formatImportSummary(summary);
       toast({
-        title: isLinked ? "Client subscribed" : "Program imported",
-        description: isLinked ? "Future updates will sync." : "Client has an independent copy.",
+        title: isLinked ? "Client subscribed" : msg.title,
+        description: isLinked ? "Future updates will sync." : msg.description,
+        variant: msg.isWarning ? "destructive" : undefined,
       });
       setShowAssignDialog(false);
       setSelectedClientId("");
