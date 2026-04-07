@@ -1162,6 +1162,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     }
   };
 
+  const showSaveStatus = (status: "saving" | "saved" | "failed") => {
     if (saveStatusTimeout.current) clearTimeout(saveStatusTimeout.current);
     setSaveStatus(status);
     if (status === "saved") {
