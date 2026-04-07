@@ -33,6 +33,8 @@ const Calendar = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // Cardio bottom sheet state — reuses the same CardioPopup from the dashboard
   const [cardioPopupEvent, setCardioPopupEvent] = useState<CalendarEvent | null>(null);
+  // Workout preview popup state — reuses WorkoutStartPopup from the dashboard
+  const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId?: string } | null>(null);
 
   const isCoach = role === "coach" || role === "admin";
 
@@ -287,9 +289,9 @@ const Calendar = () => {
       setCardioPopupEvent(event);
       return;
     }
-    // Workout events launch the workout logger directly — no Training tab navigation
+    // Workout events open the preview sheet first — same as the Home dashboard
     if (event.event_type === "workout" && event.linked_workout_id && !event.is_completed) {
-      workoutLauncher.launch(event.linked_workout_id, event.id);
+      setWorkoutPopup({ workoutId: event.linked_workout_id, workoutName: event.title, calendarEventId: event.id });
       return;
     }
     setSelectedEvent(event);
