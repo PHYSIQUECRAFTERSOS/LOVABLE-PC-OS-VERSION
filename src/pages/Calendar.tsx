@@ -426,6 +426,17 @@ const Calendar = () => {
         description={cardioPopupEvent?.description}
         onCompleted={reloadEvents}
       />
+      {/* Workout preview popup — same component used by the Home dashboard */}
+      {workoutPopup && (
+        <WorkoutStartPopup
+          open={true}
+          onClose={() => setWorkoutPopup(null)}
+          workoutId={workoutPopup.workoutId}
+          workoutName={workoutPopup.workoutName}
+          calendarEventId={workoutPopup.calendarEventId}
+          onStartWorkout={handleStartWorkout}
+        />
+      )}
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
       {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
       {workoutLauncher.WorkoutOverlay}
