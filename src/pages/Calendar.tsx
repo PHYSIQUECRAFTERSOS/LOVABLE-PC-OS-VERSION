@@ -15,6 +15,7 @@ import EventDetailModal from "@/components/calendar/EventDetailModal";
 import ScheduleEventForm from "@/components/calendar/ScheduleEventForm";
 import ComplianceStreak from "@/components/calendar/ComplianceStreak";
 import CardioPopup from "@/components/dashboard/CardioPopup";
+import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { withDisplayPositions } from "@/utils/displayPosition";
