@@ -93,9 +93,9 @@ const DocumentViewer = ({ title, body, onAcknowledge }: Props) => {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[calc(100dvh-12rem)] sm:max-h-[70vh]">
       {/* Scroll progress bar */}
-      <div className="h-1 bg-muted">
+      <div className="h-1 bg-muted shrink-0">
         <div
           className="h-full bg-primary transition-all duration-150"
           style={{ width: `${scrollProgress}%` }}
@@ -103,22 +103,22 @@ const DocumentViewer = ({ title, body, onAcknowledge }: Props) => {
       </div>
 
       {/* Header */}
-      <div className="px-5 py-4 border-b border-border">
+      <div className="px-5 py-3 border-b border-border shrink-0">
         <h2 className="font-display text-lg font-bold text-primary tracking-wide">{title}</h2>
       </div>
 
-      {/* Scrollable content */}
+      {/* Scrollable content — fills remaining space */}
       <div
         ref={scrollRef}
         onScroll={handleScrollWithProgress}
-        className="h-[40vh] overflow-y-auto px-5 py-4 overscroll-contain"
+        className="flex-1 min-h-0 overflow-y-auto px-5 py-4 overscroll-contain"
       >
         {renderContent()}
         <div className="h-4" />
       </div>
 
-      {/* Footer */}
-      <div className="px-5 py-4 border-t border-border space-y-3">
+      {/* Footer — always visible */}
+      <div className="px-5 py-3 border-t border-border space-y-2 shrink-0">
         {!hasScrolledToBottom && (
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <ChevronDown className="h-3.5 w-3.5 animate-bounce" />
