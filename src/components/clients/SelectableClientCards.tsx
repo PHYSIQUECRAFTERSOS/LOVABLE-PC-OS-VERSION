@@ -666,6 +666,11 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           onClientStatusChanged?.();
           setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
         }}
+        onClientTransferred={() => {
+          setPreviewClient(null);
+          onClientStatusChanged?.();
+          setClients((prev) => prev.filter((c) => c.id !== previewClient?.id));
+        }}
       />
     </div>
   );
