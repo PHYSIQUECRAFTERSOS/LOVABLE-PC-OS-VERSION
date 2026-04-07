@@ -15,7 +15,7 @@ import {
   Search,
   ScanBarcode,
   Camera,
-  Zap,
+  
   UtensilsCrossed,
   Plus,
   ChevronDown,
