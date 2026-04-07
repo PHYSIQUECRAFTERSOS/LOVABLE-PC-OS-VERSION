@@ -1444,6 +1444,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                                   openWorkoutBuilder={openWorkoutBuilder}
                                   removeWorkoutFromPhase={removeWorkoutFromPhase}
                                   onToggleCustomTag={handleToggleCustomTag}
+                                  onCopyDayToClient={openCopyDayToClient}
                                 />
                               );
                             });
