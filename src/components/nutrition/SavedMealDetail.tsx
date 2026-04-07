@@ -350,10 +350,18 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
     }
 
     const entries = items.map(item => {
-      const servings = item.quantity || 1;
+      // Quantity is copied directly in grams from the client My Meal item.
+      // Do not apply serving size conversion here — macros are already computed
+      // for the stored quantity. We set servings=1 and use quantity_display/quantity_unit
+      // so the tracker displays the correct gram value without multiplying by food_items.serving_size.
+      const gramQty = item.quantity || 1;
+      const isGramUnit = (item.active_unit || item.serving_unit || "g") === "g";
+      const microMultiplier = item.food_item_id && isGramUnit && item.serving_size_g
+        ? gramQty / (item.serving_size_g || gramQty)
+        : (gramQty || 1);
       const itemMicros = item.food_item_id && microsMap[item.food_item_id]
         ? Object.fromEntries(
-            Object.entries(microsMap[item.food_item_id]).map(([k, v]) => [k, Math.round(v * servings * 100) / 100])
+            Object.entries(microsMap[item.food_item_id]).map(([k, v]) => [k, Math.round(v * microMultiplier * 100) / 100])
           )
         : {};
       return {
@@ -361,7 +369,9 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
         food_item_id: item.food_item_id || null,
         custom_name: item.food_item_id ? null : item.food_name,
         meal_type: mealType,
-        servings,
+        servings: 1,
+        quantity_display: isGramUnit ? gramQty : null,
+        quantity_unit: isGramUnit ? "g" : "serving",
         calories: Math.round(item.calories || 0),
         protein: Math.round(item.protein || 0),
         carbs: Math.round(item.carbs || 0),

@@ -621,19 +621,28 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
     if (items && (items as any[]).length > 0) {
       // Log each item individually
-      const entries = (items as any[]).map(item => ({
-        client_id: user.id,
-        food_item_id: item.food_item_id || null,
-        custom_name: item.food_item_id ? null : item.food_name,
-        meal_type: mealType,
-        servings: item.quantity || 1,
-        calories: Math.round(item.calories || 0),
-        protein: Math.round(item.protein || 0),
-        carbs: Math.round(item.carbs || 0),
-        fat: Math.round(item.fat || 0),
-        logged_at: effectiveDate,
-        tz_corrected: true,
-      }));
+      // Quantity is copied directly in grams from the client My Meal item.
+      // Do not apply serving size conversion here — macros are already computed
+      // for the stored quantity.
+      const entries = (items as any[]).map(item => {
+        const gramQty = item.quantity || 1;
+        const isGramUnit = (item.serving_unit || "g") === "g";
+        return {
+          client_id: user.id,
+          food_item_id: item.food_item_id || null,
+          custom_name: item.food_item_id ? null : item.food_name,
+          meal_type: mealType,
+          servings: 1,
+          quantity_display: isGramUnit ? gramQty : null,
+          quantity_unit: isGramUnit ? "g" : "serving",
+          calories: Math.round(item.calories || 0),
+          protein: Math.round(item.protein || 0),
+          carbs: Math.round(item.carbs || 0),
+          fat: Math.round(item.fat || 0),
+          logged_at: effectiveDate,
+          tz_corrected: true,
+        };
+      });
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
         toast({ title: "Couldn't log meal." });
