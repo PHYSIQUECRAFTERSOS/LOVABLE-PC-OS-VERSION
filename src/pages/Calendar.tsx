@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { addWeeks, subWeeks, addMonths, subMonths, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays, isSameDay } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { useWorkoutLauncher } from "@/hooks/useWorkoutLauncher";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ const Calendar = () => {
   const { user, role } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const workoutLauncher = useWorkoutLauncher();
   const [view, setView] = useState<"week" | "month">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -285,6 +287,11 @@ const Calendar = () => {
       setCardioPopupEvent(event);
       return;
     }
+    // Workout events launch the workout logger directly — no Training tab navigation
+    if (event.event_type === "workout" && event.linked_workout_id && !event.is_completed) {
+      workoutLauncher.launch(event.linked_workout_id, event.id);
+      return;
+    }
     setSelectedEvent(event);
     setShowEventDetail(true);
   };
@@ -293,7 +300,8 @@ const Calendar = () => {
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
 
   const handleStartWorkout = (workoutId: string) => {
-    navigate("/training", { state: { startWorkoutId: workoutId } });
+    // Direct launch via the workout launcher — no Training tab redirect
+    workoutLauncher.launch(workoutId);
   };
 
   const handleEventMoved = async (eventId: string, newDate: string) => {
@@ -416,6 +424,8 @@ const Calendar = () => {
         onCompleted={reloadEvents}
       />
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
+      {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
+      {workoutLauncher.WorkoutOverlay}
     </AppLayout>
   );
 };

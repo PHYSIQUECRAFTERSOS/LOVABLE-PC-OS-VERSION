@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import CardioPopup from "@/components/dashboard/CardioPopup";
 import PhotosPopup from "@/components/dashboard/PhotosPopup";
+import { useWorkoutLauncher } from "@/hooks/useWorkoutLauncher";
 
 export interface ActionItem {
   id: string;
@@ -74,6 +75,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
+  const workoutLauncher = useWorkoutLauncher();
 
   // Popup state
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
@@ -304,8 +306,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
     if (route) navigate(route);
   };
 
+  // Launch workout directly as a fullscreen overlay — no Training tab navigation.
   const handleStartWorkout = (workoutId: string, calendarEventId?: string) => {
-    navigate("/training", { state: { startWorkoutId: workoutId, calendarEventId } });
+    workoutLauncher.launch(workoutId, calendarEventId);
   };
 
   const handleCardioCompleted = () => {
@@ -343,6 +346,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
               <button
                 key={action.id}
                 onClick={() => handleActionClick(action)}
+                disabled={workoutLauncher.loading && action.type === "workout"}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors w-full text-left border-l-[3px]",
                   TYPE_COLORS[action.type] || "border-l-muted",
@@ -351,7 +355,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
                     : "hover:bg-secondary/50"
                 )}
               >
-                {action.completed ? (
+                {workoutLauncher.loading && action.type === "workout" && !action.completed ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                ) : action.completed ? (
                   <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
@@ -417,6 +423,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
           onCompleted={handlePhotosCompleted}
         />
       )}
+
+      {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
+      {workoutLauncher.WorkoutOverlay}
     </>
   );
 };
