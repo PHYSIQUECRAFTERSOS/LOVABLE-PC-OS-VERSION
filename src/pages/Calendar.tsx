@@ -406,6 +406,15 @@ const Calendar = () => {
       </div>
 
       <EventDetailModal event={selectedEvent} open={showEventDetail} onClose={() => setShowEventDetail(false)} onComplete={handleComplete} onDelete={handleDelete} isCoach={isCoach} onStartWorkout={handleStartWorkout} clientId={user?.id} />
+      {/* Cardio bottom sheet — identical component used by the Home dashboard */}
+      <CardioPopup
+        open={!!cardioPopupEvent}
+        onClose={() => setCardioPopupEvent(null)}
+        eventId={cardioPopupEvent?.id || ""}
+        title={cardioPopupEvent?.title || ""}
+        description={cardioPopupEvent?.description}
+        onCompleted={reloadEvents}
+      />
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
     </AppLayout>
   );
