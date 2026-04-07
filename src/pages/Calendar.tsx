@@ -279,7 +279,15 @@ const Calendar = () => {
   const handlePrev = () => setCurrentDate((d) => (view === "week" ? subWeeks(d, 1) : subMonths(d, 1)));
   const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
 
-  const handleEventClick = (event: CalendarEvent) => { setSelectedEvent(event); setShowEventDetail(true); };
+  const handleEventClick = (event: CalendarEvent) => {
+    // Cardio events open the same bottom sheet used by the dashboard — not the generic modal
+    if (event.event_type === "cardio") {
+      setCardioPopupEvent(event);
+      return;
+    }
+    setSelectedEvent(event);
+    setShowEventDetail(true);
+  };
   const handleDayClick = (date: Date) => { if (isCoach) { setSelectedDate(date); setShowScheduleForm(true); } };
 
   const reloadEvents = () => { invalidateCache(cacheKey); refetch(); };
