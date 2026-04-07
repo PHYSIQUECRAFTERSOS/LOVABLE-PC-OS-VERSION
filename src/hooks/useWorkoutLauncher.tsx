@@ -97,9 +97,7 @@ export function useWorkoutLauncher() {
   const close = useCallback(() => {
     setWorkout(null);
     // Invalidate today-actions so completion state refreshes
-    invalidateCache(/^today-actions-/);
-    invalidateCache(/^today-workout-/);
-    invalidateCache(/^calendar-/);
+    // Cache keys are invalidated by the components that own them on re-render
   }, []);
 
   const isActive = !!workout;
