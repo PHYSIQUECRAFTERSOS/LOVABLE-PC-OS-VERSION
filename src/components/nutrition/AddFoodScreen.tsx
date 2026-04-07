@@ -155,6 +155,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const [barcodeOpen, setBarcodeOpen] = useState(false);
   const [mealScanOpen, setMealScanOpen] = useState(false);
+  const [scanLabelOpen, setScanLabelOpen] = useState(false);
   const [detailFood, setDetailFood] = useState<FoodItem | null>(null);
 
   // My Meals sub-screens
@@ -1208,7 +1209,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {search.length < 2 && activeTab === "all" && (
           <div className="grid grid-cols-4 gap-2 py-3">
             <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
-            <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} iconExtra={<Sparkles className="h-2.5 w-2.5 text-primary absolute -top-1 -right-1.5" />} />
+            <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} />
             <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
             <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
           </div>
