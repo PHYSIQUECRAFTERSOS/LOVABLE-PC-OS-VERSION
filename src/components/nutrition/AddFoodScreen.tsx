@@ -1245,25 +1245,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {/* Quick Add Panel */}
-        {quickAddOpen && (
-          <div className="mb-4 rounded-xl border border-border bg-card p-4 space-y-3 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">Quick Add</span>
-              <button onClick={() => setQuickAddOpen(false)} className="text-xs text-muted-foreground">Cancel</button>
-            </div>
-            <Input placeholder="Food name" value={quickName} onChange={(e) => setQuickName(e.target.value)} className="h-9 text-sm bg-secondary border-0 rounded-lg" />
-            <div className="grid grid-cols-4 gap-2">
-              <Input placeholder="Cal" type="number" value={quickCal} onChange={(e) => setQuickCal(e.target.value)} className="h-9 text-sm bg-secondary border-0 rounded-lg text-center" />
-              <Input placeholder="P" type="number" value={quickProtein} onChange={(e) => setQuickProtein(e.target.value)} className="h-9 text-sm bg-secondary border-0 rounded-lg text-center" />
-              <Input placeholder="C" type="number" value={quickCarbs} onChange={(e) => setQuickCarbs(e.target.value)} className="h-9 text-sm bg-secondary border-0 rounded-lg text-center" />
-              <Input placeholder="F" type="number" value={quickFat} onChange={(e) => setQuickFat(e.target.value)} className="h-9 text-sm bg-secondary border-0 rounded-lg text-center" />
-            </div>
-            <Button onClick={handleQuickAdd} disabled={!quickName} className="w-full h-9 text-sm rounded-lg">
-              Log
-            </Button>
-          </div>
-        )}
 
         {/* ═══ MY MEALS TAB ═══ */}
         {showMeals && (
@@ -1475,7 +1456,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           </div>
         )}
 
-        {showHistory && !quickAddOpen && (
+        {showHistory && (
           <div className="py-2">
             <FrequentMealsSection
               mealName={mealType}
@@ -1499,7 +1480,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         )}
 
         {/* History Section */}
-        {showHistory && !quickAddOpen && (
+        {showHistory && (
           <div className="py-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</span>
