@@ -398,6 +398,10 @@ const ClientPreviewDialog = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setTransferOpen(true)} className="text-primary">
+                  <ArrowRightLeft className="h-4 w-4 mr-2" />
+                  Transfer Client
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setDeactivateOpen(true)} className="text-orange-400">
                   <UserX className="h-4 w-4 mr-2" />
                   Deactivate Client
@@ -551,6 +555,20 @@ const ClientPreviewDialog = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {clientId && user && (
+        <TransferClientDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          clientId={clientId}
+          clientName={clientName}
+          currentCoachId={user.id}
+          onTransferred={() => {
+            onOpenChange(false);
+            onClientTransferred?.();
+          }}
+        />
+      )}
     </>
   );
 };
