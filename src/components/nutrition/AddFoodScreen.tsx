@@ -676,32 +676,6 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     }
   };
 
-  const handleQuickAdd = async () => {
-    if (!user || !quickName) return;
-    const { error } = await supabase.from("nutrition_logs").insert({
-      client_id: user.id,
-      custom_name: quickName,
-      meal_type: mealType,
-      servings: 1,
-      calories: parseInt(quickCal) || 0,
-      protein: parseInt(quickProtein) || 0,
-      carbs: parseInt(quickCarbs) || 0,
-      fat: parseInt(quickFat) || 0,
-      logged_at: effectiveDate,
-      tz_corrected: true,
-    });
-
-    if (error) {
-      toast({ title: "Couldn't save this food. Please try again." });
-    } else {
-      const t = toast({ title: "Logged!" });
-      setTimeout(() => t.dismiss(), 1000);
-      setQuickAddOpen(false);
-      setQuickName(""); setQuickCal(""); setQuickProtein(""); setQuickCarbs(""); setQuickFat("");
-      onLogged();
-    }
-  };
-
   const logCustomFood = async (food: any, quantity?: number) => {
     if (!user) return;
     const ss = parseFloat(food.serving_size) || 100;
