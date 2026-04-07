@@ -89,6 +89,7 @@ interface ClientPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   onClientDeactivated?: () => void;
   onClientDeleted?: () => void;
+  onClientTransferred?: () => void;
 }
 
 interface PreviewData {
