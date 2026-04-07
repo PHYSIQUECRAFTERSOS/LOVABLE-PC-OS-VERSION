@@ -2112,6 +2112,8 @@ export type Database = {
           id: string
           program_type: string | null
           status: string
+          transferred_at: string | null
+          transferred_from: string | null
         }
         Insert: {
           assigned_at?: string
@@ -2120,6 +2122,8 @@ export type Database = {
           id?: string
           program_type?: string | null
           status?: string
+          transferred_at?: string | null
+          transferred_from?: string | null
         }
         Update: {
           assigned_at?: string
@@ -2128,6 +2132,8 @@ export type Database = {
           id?: string
           program_type?: string | null
           status?: string
+          transferred_at?: string | null
+          transferred_from?: string | null
         }
         Relationships: []
       }
