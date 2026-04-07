@@ -259,25 +259,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setShowAssign(true);
   };
 
-  // ── Clone workout helper ──
+  // ── Clone workout helper (uses shared sequential logic) ──
   const cloneWorkoutToClient = async (sourceWorkoutId: string): Promise<any | null> => {
     if (!user) return null;
-    const { data: origW } = await supabase.from("workouts")
-      .select("name, description, instructions, phase, workout_type").eq("id", sourceWorkoutId).single();
-    if (!origW) return null;
-    const { data: clientW } = await supabase.from("workouts").insert({
-      coach_id: user.id, client_id: clientId, name: origW.name, description: origW.description,
-      instructions: origW.instructions, phase: origW.phase, is_template: false,
-      workout_type: (origW as any).workout_type || "regular",
-    } as any).select().single();
-    if (!clientW) return null;
-    const { data: exes } = await supabase.from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
-      .eq("workout_id", sourceWorkoutId);
-    if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
-    }
-    return clientW;
+    const { workout } = await cloneWorkoutWithExercises(sourceWorkoutId, user.id, clientId, false);
+    return workout;
   };
 
   const handleAssignProgram = async () => {
