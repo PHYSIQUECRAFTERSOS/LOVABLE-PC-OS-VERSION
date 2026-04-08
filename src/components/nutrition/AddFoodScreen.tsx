@@ -1323,11 +1323,11 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         {/* ═══ CUSTOM FOODS TAB ═══ */}
         {showCustom && (
           <div className="space-y-3 py-2">
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2.5">
               <Button
                 variant="outline"
                 onClick={() => setShowCreateFood(true)}
-                className="flex-1 h-11 border-primary text-primary hover:bg-primary/10"
+                className="w-full h-11 border-primary text-primary hover:bg-primary/10"
               >
                 <Plus className="h-4 w-4 mr-2" /> Create Custom Food
               </Button>
@@ -1337,7 +1337,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                 logDate={effectiveDate}
                 onLogged={() => { onLogged(); fetchCustomFoods(); }}
                 variant="full"
-                className="flex-1"
+                className="w-full"
               />
             </div>
 
