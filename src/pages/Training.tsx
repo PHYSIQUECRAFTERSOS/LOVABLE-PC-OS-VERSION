@@ -75,8 +75,8 @@ const Training = () => {
         const pwQueries = [];
         if (phaseIds.length > 0) pwQueries.push(supabase.from("program_workouts").select("workout_id").in("phase_id", phaseIds));
         if (weekIds.length > 0) pwQueries.push(supabase.from("program_workouts").select("workout_id").in("week_id", weekIds));
-        const pwResults = await Promise.all(pwQueries);
-        const workoutIds = [...new Set(pwResults.flatMap(r => (r.data || []).map((pw: any) => pw.workout_id)))];
+        const pwResults = await Promise.allSettled(pwQueries);
+        const workoutIds = [...new Set(pwResults.flatMap(r => r.status === "fulfilled" ? (r.value.data || []).map((pw: any) => pw.workout_id) : []))];
 
         if (workoutIds.length > 0) {
           const { data, error: wErr } = await supabase
