@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
+import { useClientProgram } from "@/hooks/useClientProgram";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,136 +55,25 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const userId = user?.id;
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [loading, setLoading] = useState(true);
-  const [assignment, setAssignment] = useState<any>(null);
-  const [program, setProgram] = useState<any>(null);
+
+  // Shared hook — single source of truth for client program data
+  const {
+    assignment, program, phases: hookPhases, weeks: hookWeeks,
+    loading, reload: loadClientProgram,
+  } = useClientProgram(clientId);
+
   const [phases, setPhases] = useState<Phase[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
 
-  // Workout editor modal
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorWorkoutId, setEditorWorkoutId] = useState("");
-  const [editorWorkoutName, setEditorWorkoutName] = useState("");
-
-  // Workout preview modal
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
-  const [previewWorkoutName, setPreviewWorkoutName] = useState("");
-
-  // Workout builder modal (New workout)
-  const [builderOpen, setBuilderOpen] = useState(false);
-  const [builderPhaseId, setBuilderPhaseId] = useState<string | null>(null);
-
-  // Mobile workout editor
-  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
-  const [mobileEditorWorkoutId, setMobileEditorWorkoutId] = useState("");
-  const [mobileEditorWorkoutName, setMobileEditorWorkoutName] = useState("");
-
-  // Import dialog
-  const [importOpen, setImportOpen] = useState(false);
-  const [importPhaseId, setImportPhaseId] = useState<string | null>(null);
-  const [importSource, setImportSource] = useState<"master" | "client">("master");
-  const [importWorkouts, setImportWorkouts] = useState<any[]>([]);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importSelectedClient, setImportSelectedClient] = useState("");
-  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
-  const [importSelectedWorkout, setImportSelectedWorkout] = useState("");
-  const [importing, setImporting] = useState(false);
-
-  // Workout selection for bulk actions
-  const [selectedWorkouts, setSelectedWorkouts] = useState<Set<string>>(new Set());
-  const [selectionMode, setSelectionMode] = useState(false);
-
-  // Phase editing
-  const [editingPhase, setEditingPhase] = useState<string | null>(null);
-  const [phaseNameEdit, setPhaseNameEdit] = useState("");
-  const [editingProgramName, setEditingProgramName] = useState(false);
-  const [programNameEdit, setProgramNameEdit] = useState("");
-
-  // Assign dialog
-  const [showAssign, setShowAssign] = useState(false);
-  const [assignMode, setAssignMode] = useState<"subscribe" | "import">("subscribe");
-  const [masterPrograms, setMasterPrograms] = useState<any[]>([]);
-  const [selectedMaster, setSelectedMaster] = useState("");
-  const [assigning, setAssigning] = useState(false);
-
-  // Detach confirm
-  const [showDetach, setShowDetach] = useState(false);
-
-  // Delete confirm
-  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; names: string[] } | null>(null);
-
-  useEffect(() => { loadClientProgram(); }, [clientId, userId]);
-
-  const loadClientProgram = async () => {
-    if (!clientId || !userId) return;
-    setLoading(true);
-
-    const { data: assignData } = await supabase
-      .from("client_program_assignments").select("*")
-      .eq("client_id", clientId).eq("status", "active")
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-
-    if (!assignData) {
-      setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
-      setLoading(false); return;
-    }
-
-    const { data: prog } = await supabase.from("programs")
-      .select("id, name, description, goal_type, version_number, is_master")
-      .eq("id", assignData.program_id).maybeSingle();
-
-    if (!prog) {
-      setAssignment(null); setProgram(null); setPhases([]); setWeeks([]);
-      setLoading(false); return;
-    }
-
-    setAssignment(assignData);
-    setProgram(prog);
-
-    const { data: phaseData } = await supabase.from("program_phases").select("*").eq("program_id", prog.id).order("phase_order");
-    const phaseIds = (phaseData || []).map(p => p.id);
-    let phaseDirectMap: Record<string, ProgramWorkout[]> = {};
-    if (phaseIds.length > 0) {
-      const { data: directPWs } = await supabase.from("program_workouts")
-        .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name)")
-        .in("phase_id", phaseIds).order("sort_order");
-      for (const pw of (directPWs || [])) {
-        const pid = (pw as any).phase_id;
-        if (!phaseDirectMap[pid]) phaseDirectMap[pid] = [];
-        phaseDirectMap[pid].push({
-          id: pw.id, workout_id: pw.workout_id,
-          workout_name: (pw.workouts as any)?.name || "Workout",
-          day_of_week: pw.day_of_week ?? 0, day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-          sort_order: pw.sort_order, exclude_from_numbering: (pw as any).exclude_from_numbering || false,
-          custom_tag: (pw as any).custom_tag || null,
-        });
-      }
-    }
-    setPhases((phaseData || []).map(p => ({ ...p, directWorkouts: phaseDirectMap[p.id] || [] })) as Phase[]);
-
-    const { data: weekData } = await supabase.from("program_weeks").select("id, week_number, name, phase_id").eq("program_id", prog.id).order("week_number");
-    if (weekData && weekData.length > 0) {
-      const weekIds = weekData.map(w => w.id);
-      const { data: pwData } = await supabase.from("program_workouts")
-        .select("id, week_id, workout_id, day_of_week, day_label, sort_order, workouts(id, name)")
-        .in("week_id", weekIds).order("sort_order");
-      setWeeks(weekData.map(w => ({
-        ...w,
-        workouts: (pwData || []).filter((pw: any) => pw.week_id === w.id).map((pw: any) => ({
-          id: pw.id, workout_id: pw.workout_id,
-          workout_name: (pw.workouts as any)?.name || "Workout",
-          day_of_week: pw.day_of_week ?? 0, day_label: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-        })),
-      })));
-    } else { setWeeks([]); }
-
-    if (assignData.current_phase_id) setExpandedPhase(assignData.current_phase_id);
-    else if (phaseData && phaseData.length > 0) setExpandedPhase(phaseData[0].id);
-    setLoading(false);
-  };
+  // Sync hook data into local state (needed for editor mutations)
+  useEffect(() => {
+    setPhases(hookPhases as Phase[]);
+    setWeeks(hookWeeks as Week[]);
+    if (assignment?.current_phase_id) setExpandedPhase(assignment.current_phase_id);
+    else if (hookPhases.length > 0) setExpandedPhase(hookPhases[0].id);
+  }, [hookPhases, hookWeeks, assignment]);
 
   const openWorkoutEditor = (pw: ProgramWorkout) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
