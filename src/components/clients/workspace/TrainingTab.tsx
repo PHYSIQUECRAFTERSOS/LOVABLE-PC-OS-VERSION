@@ -67,6 +67,59 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
 
+  // Workout editor modal
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorWorkoutId, setEditorWorkoutId] = useState("");
+  const [editorWorkoutName, setEditorWorkoutName] = useState("");
+
+  // Workout preview modal
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
+  const [previewWorkoutName, setPreviewWorkoutName] = useState("");
+
+  // Workout builder modal (New workout)
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderPhaseId, setBuilderPhaseId] = useState<string | null>(null);
+
+  // Mobile workout editor
+  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
+  const [mobileEditorWorkoutId, setMobileEditorWorkoutId] = useState("");
+  const [mobileEditorWorkoutName, setMobileEditorWorkoutName] = useState("");
+
+  // Import dialog
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPhaseId, setImportPhaseId] = useState<string | null>(null);
+  const [importSource, setImportSource] = useState<"master" | "client">("master");
+  const [importWorkouts, setImportWorkouts] = useState<any[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSelectedClient, setImportSelectedClient] = useState("");
+  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
+  const [importSelectedWorkout, setImportSelectedWorkout] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  // Workout selection for bulk actions
+  const [selectedWorkouts, setSelectedWorkouts] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  // Phase editing
+  const [editingPhase, setEditingPhase] = useState<string | null>(null);
+  const [phaseNameEdit, setPhaseNameEdit] = useState("");
+  const [editingProgramName, setEditingProgramName] = useState(false);
+  const [programNameEdit, setProgramNameEdit] = useState("");
+
+  // Assign dialog
+  const [showAssign, setShowAssign] = useState(false);
+  const [assignMode, setAssignMode] = useState<"subscribe" | "import">("subscribe");
+  const [masterPrograms, setMasterPrograms] = useState<any[]>([]);
+  const [selectedMaster, setSelectedMaster] = useState("");
+  const [assigning, setAssigning] = useState(false);
+
+  // Detach confirm
+  const [showDetach, setShowDetach] = useState(false);
+
+  // Delete confirm
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; names: string[] } | null>(null);
+
   // Sync hook data into local state (needed for editor mutations)
   useEffect(() => {
     setPhases(hookPhases as Phase[]);
