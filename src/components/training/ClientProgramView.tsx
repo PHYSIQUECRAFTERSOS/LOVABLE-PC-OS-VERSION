@@ -152,13 +152,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
     const buildDetails = async (rawPhases: any[], allPwRows: any[]) => {
       const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];
-      const [workoutsRes, thumbs] = await Promise.all([
+      const [workoutsResult, thumbsResult] = await Promise.allSettled([
         workoutIds.length > 0
           ? supabase.from("workouts").select("id, name").in("id", workoutIds)
           : Promise.resolve({ data: [] }),
         fetchWorkoutThumbnails(workoutIds),
       ]);
-      const wMap = new Map((workoutsRes.data || []).map((w: any) => [w.id, w.name]));
+      const workoutsRes = workoutsResult.status === "fulfilled" ? workoutsResult.value : { data: [] };
+      const thumbs = thumbsResult.status === "fulfilled" ? thumbsResult.value : new Map();
+      const wMap = new Map(((workoutsRes as any).data || []).map((w: any) => [w.id, w.name]));
 
       return rawPhases.map(phase => ({
         ...phase,

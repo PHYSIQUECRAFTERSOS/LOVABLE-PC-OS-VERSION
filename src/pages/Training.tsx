@@ -62,10 +62,12 @@ const Training = () => {
       if (assignments && assignments.length > 0) {
         const programIds = assignments.map(a => a.program_id);
         // Get phases AND weeks for these programs
-        const [{ data: phases }, { data: weeks }] = await Promise.all([
+        const [phasesResult, weeksResult] = await Promise.allSettled([
           supabase.from("program_phases").select("id").in("program_id", programIds),
           supabase.from("program_weeks").select("id").in("program_id", programIds),
         ]);
+        const phases = phasesResult.status === "fulfilled" ? phasesResult.value.data : [];
+        const weeks = weeksResult.status === "fulfilled" ? weeksResult.value.data : [];
         const phaseIds = (phases || []).map(p => p.id);
         const weekIds = (weeks || []).map(w => w.id);
 
