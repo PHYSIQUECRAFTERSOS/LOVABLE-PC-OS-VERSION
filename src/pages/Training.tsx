@@ -104,15 +104,41 @@ const Training = () => {
 
   const reloadWorkouts = () => { invalidateCache(cacheKey); refetch(); };
 
-  // Auto-start workout from navigation state (e.g., from calendar or resume banner)
+  // Auto-detect active in-progress session on mount and auto-resume
+  const activeSessionCheckedRef = useRef(false);
   useEffect(() => {
+    if (!user || !session || showLogger || activeSessionCheckedRef.current) return;
+    activeSessionCheckedRef.current = true;
+
     const state = location.state as { startWorkoutId?: string; resumeSessionId?: string; calendarEventId?: string } | null;
-    if (state?.startWorkoutId && !showLogger) {
+
+    // If navigated here with explicit state (from banner, calendar, etc.), use that
+    if (state?.startWorkoutId) {
       loadWorkoutExercises(state.startWorkoutId, state.resumeSessionId, state.calendarEventId);
-      // Clear state to prevent re-triggering
       window.history.replaceState({}, document.title);
+      return;
     }
-  }, [location.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Otherwise, check for any active in-progress session and auto-resume
+    const checkActiveSession = async () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const { data: activeSession } = await supabase
+        .from("workout_sessions")
+        .select("id, workout_id, started_at")
+        .eq("client_id", user.id)
+        .eq("status", "in_progress")
+        .gte("last_heartbeat", twoHoursAgo)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSession) {
+        console.log("[Training] Auto-resuming active session:", activeSession.id.slice(0, 8));
+        loadWorkoutExercises(activeSession.workout_id, activeSession.id);
+      }
+    };
+    checkActiveSession();
+  }, [user, session, showLogger, location.state]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadWorkoutExercises = async (workoutId: string, resumeSessionId?: string, calendarEventId?: string) => {
     try {
       const data = await fetchWorkoutExerciseDetails(workoutId);

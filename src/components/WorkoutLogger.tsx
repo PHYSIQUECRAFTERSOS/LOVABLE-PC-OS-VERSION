@@ -232,23 +232,77 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         }
         setSessionId(resumeSessionId);
       } else {
-        // Create new in_progress session
-        const { getLocalDateString } = await import("@/utils/localDate");
-        const { data, error } = await supabase
+        // Before creating a new session, check for an existing in_progress session
+        // for the same workout — prevents duplicate sessions and data loss
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        const { data: existingSession } = await supabase
           .from("workout_sessions")
-          .insert({
-            client_id: user.id,
-            workout_id: workoutId,
-            status: "in_progress",
-            started_at: new Date().toISOString(),
-            last_heartbeat: new Date().toISOString(),
-            session_date: getLocalDateString(),
-            tz_corrected: true,
-          } as any)
-          .select("id")
-          .single();
-        if (!error && data) {
-          setSessionId(data.id);
+          .select("id, started_at")
+          .eq("client_id", user.id)
+          .eq("workout_id", workoutId)
+          .eq("status", "in_progress")
+          .gte("last_heartbeat", twoHoursAgo)
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingSession) {
+          // Reuse existing session — restore its data
+          console.log("[WorkoutLogger] Reusing existing in_progress session:", existingSession.id.slice(0, 8));
+          setStartTime(new Date(existingSession.started_at).getTime());
+          const { data: logs } = await supabase
+            .from("exercise_logs")
+            .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo")
+            .eq("session_id", existingSession.id)
+            .order("set_number");
+          if (logs && logs.length > 0) {
+            let restoredCount = 0;
+            setExercises(prev => {
+              const updated = [...prev];
+              logs.forEach(log => {
+                const exIdx = updated.findIndex(e => e.id === log.exercise_id);
+                if (exIdx === -1) return;
+                const setIdx = updated[exIdx].logs.findIndex(l => l.setNumber === log.set_number);
+                if (setIdx === -1) return;
+                updated[exIdx].logs[setIdx] = {
+                  ...updated[exIdx].logs[setIdx],
+                  weight: log.weight ?? undefined,
+                  reps: log.reps ?? undefined,
+                  rir: log.rir ?? undefined,
+                  rpe: (log as any).rpe ?? undefined,
+                  tempo: log.tempo ?? undefined,
+                  notes: log.notes ?? undefined,
+                  completed: true,
+                };
+                restoredCount++;
+              });
+              return updated;
+            });
+            if (restoredCount > 0) {
+              setRecoveredSetCount(restoredCount);
+              setShowRecoveryBanner(true);
+            }
+          }
+          setSessionId(existingSession.id);
+        } else {
+          // No existing session — create a new one
+          const { getLocalDateString } = await import("@/utils/localDate");
+          const { data, error } = await supabase
+            .from("workout_sessions")
+            .insert({
+              client_id: user.id,
+              workout_id: workoutId,
+              status: "in_progress",
+              started_at: new Date().toISOString(),
+              last_heartbeat: new Date().toISOString(),
+              session_date: getLocalDateString(),
+              tz_corrected: true,
+            } as any)
+            .select("id")
+            .single();
+          if (!error && data) {
+            setSessionId(data.id);
+          }
         }
       }
     };
