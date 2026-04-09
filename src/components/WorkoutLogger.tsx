@@ -694,14 +694,24 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       name: exercise.name,
       videoUrl: exercise.youtube_url || exercise.video_url || null,
       equipment: exercise.equipment || null,
+      // Inherit sets/reps/rest/rir from original; reset logged data to blank
       logs: newEx[switchingExIdx].logs.map(l => ({
-        ...l,
-        weight: 0,
+        setNumber: l.setNumber,
+        weight: undefined,
+        reps: undefined,
+        tempo: undefined,
+        rir: undefined,
+        rpe: undefined,
+        notes: undefined,
         completed: false,
         isPR: false,
       })),
     };
     setExercises(newEx);
+
+    // Close dialog BEFORE clearing switchingExIdx to prevent
+    // the callback from flipping to handleAddExercise mid-render
+    setShowAddExercise(false);
     setSwitchingExIdx(null);
     toast({ title: `Switched to ${exercise.name}` });
   };
