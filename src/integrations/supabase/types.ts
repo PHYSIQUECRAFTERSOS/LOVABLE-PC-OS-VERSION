@@ -427,6 +427,41 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_event_notes: {
+        Row: {
+          coach_id: string
+          created_at: string
+          event_id: string
+          id: string
+          note_text: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          event_id: string
+          id?: string
+          note_text: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          note_text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_notes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_events: {
         Row: {
           color: string | null
