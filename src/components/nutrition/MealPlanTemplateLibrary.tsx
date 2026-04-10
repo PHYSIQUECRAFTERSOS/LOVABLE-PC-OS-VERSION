@@ -216,7 +216,7 @@ const MealPlanTemplateLibrary = () => {
     setLoading(true);
     const { data } = await supabase
       .from("meal_plans")
-      .select("id, name, category, is_favorite, target_calories, target_protein, target_carbs, target_fat, created_at")
+      .select("id, name, category, is_favorite, target_calories, target_protein, target_carbs, target_fat, created_at, day_type, day_type_label")
       .eq("coach_id", user.id)
       .eq("is_template", true)
       .order("is_favorite", { ascending: false })
