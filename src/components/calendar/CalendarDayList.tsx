@@ -278,6 +278,10 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
       clearLongPress();
       if (dragEventRef.current) {
         endDrag();
+        // Keep didDrag.current = true so the subsequent onClick is suppressed.
+        // It will be reset on the next handleTouchStart.
+        dragStartPos.current = null;
+        return;
       }
       didDrag.current = false;
       dragStartPos.current = null;
