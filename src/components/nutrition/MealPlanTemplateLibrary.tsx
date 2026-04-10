@@ -96,6 +96,45 @@ const MealPlanTemplateLibrary = () => {
   const [copying, setCopying] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [classifyOpenId, setClassifyOpenId] = useState<string | null>(null);
+
+  const getDayTypeBadgeStyle = (dayType: string | null) => {
+    switch (dayType) {
+      case "training":
+      case "training_day":
+        return { background: "#D4A017", color: "#0a0a0a" };
+      case "rest":
+      case "rest_day":
+        return { background: "#2a2a2a", color: "#FFFFFF", border: "1px solid #555555" };
+      case "all_days":
+        return { background: "#FFFFFF", color: "#0a0a0a" };
+      default:
+        return { background: "#3a3a3a", color: "#888888" };
+    }
+  };
+
+  const getDayTypeBadgeLabel = (dayType: string | null) => {
+    switch (dayType) {
+      case "training":
+      case "training_day":
+        return "Training Day";
+      case "rest":
+      case "rest_day":
+        return "Rest Day";
+      case "all_days":
+        return "All Days";
+      default:
+        return "Untagged";
+    }
+  };
+
+  const classifyTemplate = async (templateId: string, newDayType: string) => {
+    const label = newDayType === "training" ? "Training Day" : newDayType === "rest" ? "Rest Day" : "All Days";
+    await (supabase as any).from("meal_plans").update({ day_type: newDayType, day_type_label: label }).eq("id", templateId);
+    setTemplates(prev => prev.map(t => t.id === templateId ? { ...t, day_type: newDayType, day_type_label: label } : t));
+    setClassifyOpenId(null);
+    toast({ title: `Template classified as ${label}` });
+  };
 
   const openCopyToClient = async (template: Template) => {
     setCopyTemplate(template);
