@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CalendarEvent } from "./CalendarGrid";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
+import NutritionGoalComparison, { getComplianceDot } from "./NutritionGoalComparison";
 
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
