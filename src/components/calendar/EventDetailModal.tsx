@@ -98,6 +98,7 @@ const EventDetailModal = ({
   event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout, clientId,
 }: EventDetailModalProps) => {
   const navigate = useNavigate();
+  const { user, role } = useAuth();
   const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
   const [loadingExercises, setLoadingExercises] = useState(false);
   const [sessionData, setSessionData] = useState<SessionSummary | null>(null);
