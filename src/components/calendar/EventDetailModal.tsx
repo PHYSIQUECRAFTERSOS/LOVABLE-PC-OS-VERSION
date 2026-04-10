@@ -232,6 +232,24 @@ const EventDetailModal = ({
     loadSession();
   }, [open, event, clientId]);
 
+  const isNutritionEvent = event?.event_type === "nutrition";
+  const nutritionDate = useMemo(
+    () => (event ? new Date(event.event_date + "T12:00:00") : new Date()),
+    [event?.event_date]
+  );
+
+  const dayTotals = useMemo(() => {
+    if (!isNutritionEvent || nutritionFoods.length === 0) return null;
+    const t = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    nutritionFoods.forEach((f: any) => {
+      t.calories += f.calories || 0;
+      t.protein += f.protein || 0;
+      t.carbs += f.carbs || 0;
+      t.fat += f.fat || 0;
+    });
+    return t;
+  }, [isNutritionEvent, nutritionFoods]);
+
   if (!event) return null;
 
   const resolveEventType = (ev: CalendarEvent): string => {
@@ -268,7 +286,6 @@ const EventDetailModal = ({
 
   const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
-  // Build exercise display: merge prescribed exercises with session logs
   const exerciseDisplay = hasSession
     ? sessionData!.logs.map(log => ({
         name: log.exercise_name,
@@ -283,21 +300,7 @@ const EventDetailModal = ({
         loggedSets: [] as SessionLog["sets"],
       }));
 
-  const isNutritionEvent = event.event_type === "nutrition";
-  const nutritionDate = useMemo(() => new Date(event.event_date + "T12:00:00"), [event.event_date]);
-
-  // Compute day totals for nutrition events
-  const dayTotals = useMemo(() => {
-    if (!isNutritionEvent || nutritionFoods.length === 0) return null;
-    const t = { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    nutritionFoods.forEach((f: any) => {
-      t.calories += f.calories || 0;
-      t.protein += f.protein || 0;
-      t.carbs += f.carbs || 0;
-      t.fat += f.fat || 0;
-    });
-    return t;
-  }, [isNutritionEvent, nutritionFoods]);
+  const resolvedClientId = clientId || event.target_client_id || event.user_id;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
