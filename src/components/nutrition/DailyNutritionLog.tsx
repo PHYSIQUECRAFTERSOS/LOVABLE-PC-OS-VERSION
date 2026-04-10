@@ -172,9 +172,13 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const fetchTargets = useCallback(async () => {
     if (!user) return;
 
+    // Resolve day type from calendar
+    const resolvedDayType = await resolveDayType(user.id, selectedDate);
+    setDayType(resolvedDayType);
+
     const { data, error } = await supabase
       .from("nutrition_targets")
-      .select("*")
+      .select("*, rest_calories, rest_protein, rest_carbs, rest_fat")
       .eq("client_id", user.id)
       .lte("effective_date", dateStr)
       .order("effective_date", { ascending: false })
@@ -187,18 +191,17 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     }
 
     if (data && data.length > 0) {
+      const row = data[0];
+      const resolved = resolveTargetsForDayType(row as any, resolvedDayType);
       setTargets({
-        calories: data[0].calories,
-        protein: data[0].protein,
-        carbs: data[0].carbs,
-        fat: data[0].fat,
-        is_refeed: data[0].is_refeed,
+        ...resolved,
+        is_refeed: row.is_refeed,
       });
       return;
     }
 
     setTargets(DEFAULT_TARGETS);
-  }, [user, dateStr]);
+  }, [user, dateStr, selectedDate]);
 
   useEffect(() => {
     void fetchLogs();
