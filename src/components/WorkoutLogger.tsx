@@ -771,9 +771,17 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     if (isCompletingRef.current) return;
     isCompletingRef.current = true;
     setLoading(true);
-    try {
-      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
+    const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+
+    // 1. Freeze summary data and show summary screen IMMEDIATELY
+    setFrozenDuration(durationSeconds);
+    setShowSummary(true);
+    document.body.style.pointerEvents = '';
+    setLoading(false);
+
+    // 2. Do all DB writes in the background — do NOT block the summary screen
+    try {
       // Build final set list — upsert to avoid duplicate-key errors
       const logsToUpsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
@@ -795,7 +803,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         const { error: logsError } = await supabase
           .from("exercise_logs")
           .upsert(logsToUpsert as any[], { onConflict: "session_id,exercise_id,set_number" });
-        if (logsError) throw logsError;
+        if (logsError) console.error("[WorkoutLogger] Logs upsert error:", logsError);
       }
 
       // Delete logs for exercises that were removed during session
@@ -827,12 +835,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
         } as any)
         .eq("id", sessionId);
-      if (sessionError) throw sessionError;
+      if (sessionError) console.error("[WorkoutLogger] Session update error:", sessionError);
 
       for (const alert of prAlerts) {
         const ex = exercises.find(e => e.name === alert.exerciseName);
         if (ex) {
-          // PR weight is already normalized to lbs by checkPR
           await supabase.rpc("update_personal_record", {
             _client_id: user.id, _exercise_id: ex.id, _weight: alert.weight, _reps: alert.reps,
           });
@@ -847,8 +854,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .update({ is_completed: true, completed_at: completionTimestamp })
           .eq("id", calendarEventId);
       } else if (workoutId) {
-        // Look for the most recent uncompleted calendar event for this workout
-        // (not restricted to today — handles past-day / missed workouts)
         const { data: calEvents } = await supabase
           .from("calendar_events")
           .select("id")
@@ -887,12 +892,19 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       }
 
       // Award Ranked XP
-      let xpResult: any = null;
       try {
         const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
-        xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+        const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
         const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
         if (xpResult) {
+          setSummaryRankData({
+            xpEarned: xpResult.xpAwarded,
+            tier: xpResult.tier,
+            division: xpResult.division,
+            divisionXP: xpResult.divisionXP,
+            xpNeeded: xpResult.xpNeeded,
+            totalXP: xpResult.newTotal,
+          });
           const { data: freshProfile } = await (supabase as any)
             .from("ranked_profiles")
             .select("*")
@@ -905,30 +917,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       } catch (e) {
         console.error("[WorkoutLogger] Ranked XP error:", e);
       }
-
-      setFrozenDuration(durationSeconds);
-
-      if (xpResult) {
-        setSummaryRankData({
-          xpEarned: xpResult.xpAwarded,
-          tier: xpResult.tier,
-          division: xpResult.division,
-          divisionXP: xpResult.divisionXP,
-          xpNeeded: xpResult.xpNeeded,
-          totalXP: xpResult.newTotal,
-        });
-      }
-
-      document.body.style.pointerEvents = '';
-      window.dispatchEvent(new CustomEvent("workout-session-ended"));
-      setShowSummary(true);
     } catch (error: any) {
-      console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });
-      toast({ title: "Error saving workout", description: error.message, variant: "destructive" });
-      // Release lock so user can retry
-      isCompletingRef.current = false;
-    } finally {
-      setLoading(false);
+      console.error("[WorkoutLogger] Background finish error:", error);
+      toast({ title: "Error saving workout data", description: error.message, variant: "destructive" });
     }
   };
 
