@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import EditFoodModal from "./EditFoodModal";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
+import { resolveDayType, resolveTargetsForDayType, type DayType } from "@/utils/resolveDayType";
 
 interface NutritionLog {
   id: string;
@@ -99,6 +100,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [savingMeal, setSavingMeal] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [dayType, setDayType] = useState<DayType>("training_day");
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
