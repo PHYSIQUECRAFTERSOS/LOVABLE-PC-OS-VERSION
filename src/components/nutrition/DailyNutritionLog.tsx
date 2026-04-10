@@ -116,8 +116,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     copyMealToTracker,
   } = useMealPlanTracker(selectedDate);
 
-  // Pick the plan matching today's day type, with fallback
-  const dayTypeKey = dayType === "training_day" ? "training" : "rest";
+  // Pick the plan matching the active pill, with fallback
+  const dayTypeKey = activePlanDayType || (dayType === "training_day" ? "training" : "rest");
   const resolvedPlanData = useMemo(() => {
     const match = getPlanByDayType(dayTypeKey);
     if (match.plan) return match;
@@ -140,6 +140,24 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const mealPlanDays = resolvedPlanData.days;
   const mealPlanItems = resolvedPlanData.items;
   const activeDayId = mealPlanDays?.[0]?.id || null;
+
+  // Determine available plan pills (only show pills if 2+ plans exist)
+  const availablePlanPills = useMemo(() => {
+    return allMealPlans
+      .filter(p => ["training", "rest"].includes(p.day_type))
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }, [allMealPlans]);
+
+  const showPillNav = availablePlanPills.length >= 2;
+
+  // Set default active pill based on resolveDayType
+  useEffect(() => {
+    if (availablePlanPills.length >= 2 && !activePlanDayType) {
+      const defaultKey = dayType === "training_day" ? "training" : "rest";
+      const hasDefault = availablePlanPills.find(p => p.day_type === defaultKey);
+      setActivePlanDayType(hasDefault ? defaultKey : availablePlanPills[0]?.day_type || "training");
+    }
+  }, [availablePlanPills, dayType, activePlanDayType]);
 
   const fetchLogs = useCallback(async () => {
     if (!user) return;
