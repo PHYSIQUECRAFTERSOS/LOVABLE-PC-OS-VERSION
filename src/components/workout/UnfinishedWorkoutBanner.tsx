@@ -1,10 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Zap, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/use-toast";
+import { Zap } from "lucide-react";
 import type { ActiveSession } from "@/hooks/useActiveSession";
 
 interface Props {
@@ -16,9 +13,6 @@ interface Props {
 const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [finishing, setFinishing] = useState(false);
 
   // Don't show if already on Training page with active logger
   const isOnTraining = location.pathname === "/training";
