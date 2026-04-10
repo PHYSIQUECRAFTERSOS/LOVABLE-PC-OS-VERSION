@@ -45,7 +45,6 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
   const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
-  const [foodNames, setFoodNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({
