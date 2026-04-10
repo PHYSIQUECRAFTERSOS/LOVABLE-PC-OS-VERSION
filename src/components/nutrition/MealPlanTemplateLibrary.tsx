@@ -19,6 +19,9 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -43,6 +46,8 @@ interface Template {
   target_carbs: number | null;
   target_fat: number | null;
   created_at: string;
+  day_type: string | null;
+  day_type_label: string | null;
 }
 
 interface DayPreview {
@@ -91,6 +96,45 @@ const MealPlanTemplateLibrary = () => {
   const [copying, setCopying] = useState(false);
   const [loadingClients, setLoadingClients] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [classifyOpenId, setClassifyOpenId] = useState<string | null>(null);
+
+  const getDayTypeBadgeStyle = (dayType: string | null) => {
+    switch (dayType) {
+      case "training":
+      case "training_day":
+        return { background: "#D4A017", color: "#0a0a0a" };
+      case "rest":
+      case "rest_day":
+        return { background: "#2a2a2a", color: "#FFFFFF", border: "1px solid #555555" };
+      case "all_days":
+        return { background: "#FFFFFF", color: "#0a0a0a" };
+      default:
+        return { background: "#3a3a3a", color: "#888888" };
+    }
+  };
+
+  const getDayTypeBadgeLabel = (dayType: string | null) => {
+    switch (dayType) {
+      case "training":
+      case "training_day":
+        return "Training Day";
+      case "rest":
+      case "rest_day":
+        return "Rest Day";
+      case "all_days":
+        return "All Days";
+      default:
+        return "Untagged";
+    }
+  };
+
+  const classifyTemplate = async (templateId: string, newDayType: string) => {
+    const label = newDayType === "training" ? "Training Day" : newDayType === "rest" ? "Rest Day" : "All Days";
+    await (supabase as any).from("meal_plans").update({ day_type: newDayType, day_type_label: label }).eq("id", templateId);
+    setTemplates(prev => prev.map(t => t.id === templateId ? { ...t, day_type: newDayType, day_type_label: label } : t));
+    setClassifyOpenId(null);
+    toast({ title: `Template classified as ${label}` });
+  };
 
   const openCopyToClient = async (template: Template) => {
     setCopyTemplate(template);
@@ -214,7 +258,7 @@ const MealPlanTemplateLibrary = () => {
     setLoading(true);
     const { data } = await supabase
       .from("meal_plans")
-      .select("id, name, category, is_favorite, target_calories, target_protein, target_carbs, target_fat, created_at")
+      .select("id, name, category, is_favorite, target_calories, target_protein, target_carbs, target_fat, created_at, day_type, day_type_label")
       .eq("coach_id", user.id)
       .eq("is_template", true)
       .order("is_favorite", { ascending: false })
@@ -474,6 +518,18 @@ const MealPlanTemplateLibrary = () => {
                           {template.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />}
                           <p className="text-sm font-medium truncate">{template.name}</p>
                         </div>
+                        {/* Day Type Badge */}
+                        <div className="mt-1">
+                          <span
+                            className="inline-block text-[11px] font-semibold px-2.5 py-0.5"
+                            style={{
+                              borderRadius: "99px",
+                              ...getDayTypeBadgeStyle(template.day_type),
+                            }}
+                          >
+                            {getDayTypeBadgeLabel(template.day_type)}
+                          </span>
+                        </div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {template.category && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{template.category}</Badge>
@@ -486,6 +542,49 @@ const MealPlanTemplateLibrary = () => {
                           )}
                         </div>
                       </div>
+                      {/* Classify button for untagged templates */}
+                      {(!template.day_type || template.day_type === "all_days" || template.day_type === "training") && (
+                        <Popover open={classifyOpenId === template.id} onOpenChange={(open) => setClassifyOpenId(open ? template.id : null)}>
+                          <PopoverTrigger asChild>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setClassifyOpenId(template.id); }}
+                              className="shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity"
+                              style={{
+                                background: "#1a1a1a",
+                                color: "#D4A017",
+                                border: "1px solid #D4A017",
+                                fontSize: "11px",
+                                padding: "3px 10px",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Classify
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            className="w-40 p-1"
+                            style={{ background: "#1a1a1a", border: "1px solid #333333", borderRadius: "8px" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {[
+                              { value: "training", label: "Training Day" },
+                              { value: "rest", label: "Rest Day" },
+                              { value: "all_days", label: "All Days" },
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => classifyTemplate(template.id, opt.value)}
+                                className="w-full text-left px-3 py-2 text-sm text-foreground hover:text-primary transition-colors rounded"
+                                style={{ height: "36px" }}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </PopoverContent>
+                        </Popover>
+                      )}
                     </div>
                   </button>
                 ))

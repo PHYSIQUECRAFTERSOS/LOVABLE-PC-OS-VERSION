@@ -101,6 +101,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
   const [dayType, setDayType] = useState<DayType>("training_day");
+  const [activePlanDayType, setActivePlanDayType] = useState<string | null>(null);
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
@@ -115,8 +116,8 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     copyMealToTracker,
   } = useMealPlanTracker(selectedDate);
 
-  // Pick the plan matching today's day type, with fallback
-  const dayTypeKey = dayType === "training_day" ? "training" : "rest";
+  // Pick the plan matching the active pill, with fallback
+  const dayTypeKey = activePlanDayType || (dayType === "training_day" ? "training" : "rest");
   const resolvedPlanData = useMemo(() => {
     const match = getPlanByDayType(dayTypeKey);
     if (match.plan) return match;
@@ -139,6 +140,24 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const mealPlanDays = resolvedPlanData.days;
   const mealPlanItems = resolvedPlanData.items;
   const activeDayId = mealPlanDays?.[0]?.id || null;
+
+  // Determine available plan pills (only show pills if 2+ plans exist)
+  const availablePlanPills = useMemo(() => {
+    return allMealPlans
+      .filter(p => ["training", "rest"].includes(p.day_type))
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }, [allMealPlans]);
+
+  const showPillNav = availablePlanPills.length >= 2;
+
+  // Set default active pill based on resolveDayType
+  useEffect(() => {
+    if (availablePlanPills.length >= 2 && !activePlanDayType) {
+      const defaultKey = dayType === "training_day" ? "training" : "rest";
+      const hasDefault = availablePlanPills.find(p => p.day_type === defaultKey);
+      setActivePlanDayType(hasDefault ? defaultKey : availablePlanPills[0]?.day_type || "training");
+    }
+  }, [availablePlanPills, dayType, activePlanDayType]);
 
   const fetchLogs = useCallback(async () => {
     if (!user) return;
@@ -367,7 +386,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
     const success = await copyMealToTracker(planItems, mealKey);
     if (success) {
-      const label = dayType === "training_day" ? "Training Day" : "Rest Day";
+      const label = activePlanDayType === "rest" ? "Rest Day" : "Training Day";
       toast({ title: `${label} plan loaded · ${planItems.length} items` });
       await fetchLogs();
       refreshSuggestions();
@@ -586,6 +605,36 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
           </span>
         </div>
       </div>
+
+      {/* Plan Pill Navigation (only if 2+ plans) */}
+      {showPillNav && !isCoach && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {availablePlanPills.map(plan => {
+            const isActive = activePlanDayType === plan.day_type;
+            const pillLabel = plan.day_type === "training" ? "Training Day" : "Rest Day";
+            return (
+              <button
+                key={plan.id}
+                onClick={() => setActivePlanDayType(plan.day_type)}
+                className="whitespace-nowrap transition-all shrink-0"
+                style={{
+                  borderRadius: "99px",
+                  padding: "8px 20px",
+                  fontSize: "13px",
+                  fontWeight: isActive ? 700 : 400,
+                  background: isActive ? "#D4A017" : "#1e1e1e",
+                  color: isActive ? "#0a0a0a" : "#FFFFFF",
+                  border: isActive ? "none" : "1px solid #333333",
+                  cursor: "pointer",
+                  minWidth: "fit-content",
+                }}
+              >
+                {pillLabel}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Meal Sections */}
       <div className="space-y-4">
