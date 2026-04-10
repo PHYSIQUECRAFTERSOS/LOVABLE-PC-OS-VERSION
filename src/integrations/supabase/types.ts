@@ -2949,6 +2949,7 @@ export type Database = {
           tempo: string | null
           updated_at: string
           weight: number | null
+          weight_unit: string
         }
         Insert: {
           created_at?: string
@@ -2964,6 +2965,7 @@ export type Database = {
           tempo?: string | null
           updated_at?: string
           weight?: number | null
+          weight_unit?: string
         }
         Update: {
           created_at?: string
@@ -2979,6 +2981,7 @@ export type Database = {
           tempo?: string | null
           updated_at?: string
           weight?: number | null
+          weight_unit?: string
         }
         Relationships: [
           {
