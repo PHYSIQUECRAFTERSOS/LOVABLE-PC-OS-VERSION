@@ -386,7 +386,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
     const success = await copyMealToTracker(planItems, mealKey);
     if (success) {
-      const label = dayType === "training_day" ? "Training Day" : "Rest Day";
+      const label = activePlanDayType === "rest" ? "Rest Day" : "Training Day";
       toast({ title: `${label} plan loaded · ${planItems.length} items` });
       await fetchLogs();
       refreshSuggestions();
