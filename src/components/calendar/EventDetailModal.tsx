@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -45,6 +46,7 @@ interface SessionLog {
     reps: number | null;
     rpe: number | null;
     rir: number | null;
+    weight_unit: string;
   }[];
 }
 
@@ -185,7 +187,7 @@ const EventDetailModal = ({
 
         const { data: logs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, rpe, exercises(name)")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, weight_unit, exercises(name)")
           .eq("session_id", session.id)
           .order("set_number");
 
@@ -205,6 +207,7 @@ const EventDetailModal = ({
             reps: log.reps,
             rpe: log.rpe ?? null,
             rir: log.rir,
+            weight_unit: log.weight_unit || 'lbs',
           });
         });
 
@@ -451,9 +454,24 @@ const EventDetailModal = ({
                       {ex.loggedSets.map((s) => (
                         <div key={s.set_number} className="flex items-center gap-4">
                           <span className="text-xs font-medium text-muted-foreground w-10">Set {s.set_number}</span>
-                          <span className="text-sm font-medium tabular-nums text-foreground">
-                            {s.reps ?? "—"} × {s.weight === 0 ? "BW" : s.weight != null ? `${s.weight} lbs` : "—"}
-                          </span>
+                          {(() => {
+                            if (isCoach) {
+                              const wd = formatWeightForCoach(s.weight, s.weight_unit || 'lbs');
+                              return (
+                                <span className="text-sm font-medium tabular-nums text-foreground">
+                                  {s.reps ?? "—"} × {wd.primary}
+                                  {wd.secondary && (
+                                    <span className="block text-[10px] text-muted-foreground ml-0">{wd.secondary}</span>
+                                  )}
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-sm font-medium tabular-nums text-foreground">
+                                {s.reps ?? "—"} × {formatWeightForClient(s.weight, s.weight_unit || 'lbs')}
+                              </span>
+                            );
+                          })()}
                           {s.rpe != null && (
                             <span className="text-xs text-muted-foreground ml-auto">RPE {s.rpe}</span>
                           )}
