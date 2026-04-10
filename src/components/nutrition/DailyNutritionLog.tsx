@@ -606,6 +606,36 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         </div>
       </div>
 
+      {/* Plan Pill Navigation (only if 2+ plans) */}
+      {showPillNav && !isCoach && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {availablePlanPills.map(plan => {
+            const isActive = activePlanDayType === plan.day_type;
+            const pillLabel = plan.day_type === "training" ? "Training Day" : "Rest Day";
+            return (
+              <button
+                key={plan.id}
+                onClick={() => setActivePlanDayType(plan.day_type)}
+                className="whitespace-nowrap transition-all shrink-0"
+                style={{
+                  borderRadius: "99px",
+                  padding: "8px 20px",
+                  fontSize: "13px",
+                  fontWeight: isActive ? 700 : 400,
+                  background: isActive ? "#D4A017" : "#1e1e1e",
+                  color: isActive ? "#0a0a0a" : "#FFFFFF",
+                  border: isActive ? "none" : "1px solid #333333",
+                  cursor: "pointer",
+                  minWidth: "fit-content",
+                }}
+              >
+                {pillLabel}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Meal Sections */}
       <div className="space-y-4">
         {MEAL_SECTIONS.map(({ key, label }) => {
