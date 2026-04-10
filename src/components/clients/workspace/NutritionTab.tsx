@@ -202,11 +202,11 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
                         return (
                           <div key={item.id} className="py-2 px-1">
                             <p className="text-sm font-medium text-foreground">{foodName}</p>
-                            {item.quantity_display != null && item.quantity_display > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                {item.quantity_display}{item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'}
-                              </p>
-                            )}
+                            {(() => {
+                              const si = item.food_item_id ? foodServingInfo[item.food_item_id] : null;
+                              const label = formatServingDisplay(si, item.quantity_display, item.quantity_unit, item.servings);
+                              return label ? <p className="text-xs text-muted-foreground">{label}</p> : null;
+                            })()}
                             <p className="text-xs text-primary mt-0.5">
                               {Math.round(item.calories)} cal · {Math.round(item.protein)}g P · {Math.round(item.carbs)}g C · {Math.round(item.fat)}g F
                             </p>
