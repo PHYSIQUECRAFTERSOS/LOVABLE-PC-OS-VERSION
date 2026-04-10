@@ -396,7 +396,7 @@ async function normalEvaluation(db: any, clientId: string, evalDate: string, pro
 
     const { data: target } = await db
       .from("nutrition_targets")
-      .select("calories, protein, carbs, fat")
+      .select("calories, protein, carbs, fat, rest_calories, rest_protein, rest_carbs, rest_fat")
       .eq("client_id", clientId)
       .lte("effective_date", evalDate)
       .order("effective_date", { ascending: false })
@@ -405,19 +405,34 @@ async function normalEvaluation(db: any, clientId: string, evalDate: string, pro
       .maybeSingle();
 
     if (target) {
-      const calDiff = Math.abs(totals.calories - target.calories);
+      // Day-type-aware target resolution: check if evalDate has a workout
+      const { data: workoutEvents } = await db
+        .from("calendar_events")
+        .select("id")
+        .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`)
+        .eq("event_type", "workout")
+        .eq("event_date", evalDate)
+        .limit(1);
+
+      const isRestDay = !workoutEvents || workoutEvents.length === 0;
+      const effectiveCals = isRestDay && target.rest_calories != null ? target.rest_calories : target.calories;
+      const effectiveProtein = isRestDay && target.rest_protein != null ? target.rest_protein : target.protein;
+      const effectiveCarbs = isRestDay && target.rest_carbs != null ? target.rest_carbs : target.carbs;
+      const effectiveFat = isRestDay && target.rest_fat != null ? target.rest_fat : target.fat;
+
+      const calDiff = Math.abs(totals.calories - effectiveCals);
       if (calDiff <= 100) {
         txBatch.push({ txType: "calories_on_target", base: XP.calories_on_target, desc: `Calories on target (±${calDiff}): ${evalDate}` });
       } else if (calDiff >= 300) {
         txBatch.push({ txType: "calories_off_300", base: XP.calories_off_300, desc: `Calories off by ${calDiff}: ${evalDate}` });
       }
-      if (Math.abs(totals.protein - target.protein) <= 5) {
+      if (Math.abs(totals.protein - effectiveProtein) <= 5) {
         txBatch.push({ txType: "protein_on_target", base: XP.protein_on_target, desc: `Protein on target: ${evalDate}` });
       }
-      if (Math.abs(totals.carbs - target.carbs) <= 5) {
+      if (Math.abs(totals.carbs - effectiveCarbs) <= 5) {
         txBatch.push({ txType: "carbs_on_target", base: XP.carbs_on_target, desc: `Carbs on target: ${evalDate}` });
       }
-      if (Math.abs(totals.fat - target.fat) <= 5) {
+      if (Math.abs(totals.fat - effectiveFat) <= 5) {
         txBatch.push({ txType: "fats_on_target", base: XP.fats_on_target, desc: `Fats on target: ${evalDate}` });
       }
     }

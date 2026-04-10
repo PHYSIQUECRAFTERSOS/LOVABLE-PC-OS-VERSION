@@ -4763,6 +4763,10 @@ export type Database = {
           is_refeed: boolean
           notes: string | null
           protein: number
+          rest_calories: number | null
+          rest_carbs: number | null
+          rest_fat: number | null
+          rest_protein: number | null
           updated_at: string
         }
         Insert: {
@@ -4778,6 +4782,10 @@ export type Database = {
           is_refeed?: boolean
           notes?: string | null
           protein?: number
+          rest_calories?: number | null
+          rest_carbs?: number | null
+          rest_fat?: number | null
+          rest_protein?: number | null
           updated_at?: string
         }
         Update: {
@@ -4793,6 +4801,10 @@ export type Database = {
           is_refeed?: boolean
           notes?: string | null
           protein?: number
+          rest_calories?: number | null
+          rest_carbs?: number | null
+          rest_fat?: number | null
+          rest_protein?: number | null
           updated_at?: string
         }
         Relationships: []

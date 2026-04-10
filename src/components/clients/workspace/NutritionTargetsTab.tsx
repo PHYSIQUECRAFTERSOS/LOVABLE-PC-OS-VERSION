@@ -15,6 +15,10 @@ interface Targets {
   carbs: number;
   fat: number;
   daily_step_goal?: number;
+  rest_calories?: number | null;
+  rest_protein?: number | null;
+  rest_carbs?: number | null;
+  rest_fat?: number | null;
 }
 
 const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
@@ -30,7 +34,7 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
     setLoading(true);
     const today = format(new Date(), "yyyy-MM-dd");
     const [targetsRes, logsRes] = await Promise.all([
-      supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal")
+      supabase.from("nutrition_targets").select("calories, protein, carbs, fat, daily_step_goal, rest_calories, rest_protein, rest_carbs, rest_fat")
         .eq("client_id", clientId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("nutrition_logs").select("calories, protein, carbs, fat")
         .eq("client_id", clientId).gte("logged_at", `${today}T00:00:00`).lte("logged_at", `${today}T23:59:59`),
