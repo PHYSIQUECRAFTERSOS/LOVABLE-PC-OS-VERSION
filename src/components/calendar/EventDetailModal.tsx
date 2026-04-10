@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { CalendarEvent } from "./CalendarGrid";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
