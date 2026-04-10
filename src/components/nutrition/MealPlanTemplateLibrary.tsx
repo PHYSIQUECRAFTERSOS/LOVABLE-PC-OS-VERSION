@@ -43,6 +43,8 @@ interface Template {
   target_carbs: number | null;
   target_fat: number | null;
   created_at: string;
+  day_type: string | null;
+  day_type_label: string | null;
 }
 
 interface DayPreview {

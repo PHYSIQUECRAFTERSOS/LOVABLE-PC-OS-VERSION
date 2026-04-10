@@ -1,13 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,19 +15,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
@@ -42,6 +26,7 @@ import {
 } from "lucide-react";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
 import CoachGroceryList from "./CoachGroceryList";
+import { useNavigate } from "react-router-dom";
 
 interface PlanCard {
   id: string;
@@ -56,24 +41,22 @@ interface PlanCard {
   source_template_id: string | null;
 }
 
-const DAY_TYPE_OPTIONS = [
-  { value: "training", label: "Training Day" },
-  { value: "rest", label: "Rest Day" },
-  { value: "refeed", label: "Refeed Day" },
-  { value: "custom", label: "Custom" },
+const PILL_SLOTS = [
+  { day_type: "training", label: "Training Day", emptyLabel: "+ Assign Training Day Plan" },
+  { day_type: "rest", label: "Rest Day", emptyLabel: "+ Assign Rest Day Plan" },
 ];
 
 const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [planCards, setPlanCards] = useState<PlanCard[]>([]);
+  const [activeDayType, setActiveDayType] = useState<string | null>(null);
   const [editingPlanDayType, setEditingPlanDayType] = useState<string | null>(null);
-  const [addPlanOpen, setAddPlanOpen] = useState(false);
-  const [newDayType, setNewDayType] = useState("rest");
-  const [newDayTypeLabel, setNewDayTypeLabel] = useState("Rest Day");
   const [builderKey, setBuilderKey] = useState(0);
   const [detachConfirmId, setDetachConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -88,7 +71,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
       .eq("is_template", false)
       .order("sort_order");
 
-    // Load macro totals for each plan
     const plans = plansRes.data || [];
     const cards: PlanCard[] = [];
 
@@ -98,7 +80,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         .select("calories, protein, carbs, fat, day_id")
         .eq("meal_plan_id", plan.id);
 
-      // Get unique day IDs to calculate per-day average
       const allItems = items || [];
       const totals = allItems.reduce(
         (acc, i) => ({
@@ -128,22 +109,24 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
 
     setPlanCards(cards);
+    // Set default active pill to training if exists, otherwise first available
+    if (!activeDayType || !cards.find(c => c.day_type === activeDayType)) {
+      const training = cards.find(c => c.day_type === "training");
+      setActiveDayType(training ? "training" : cards[0]?.day_type || "training");
+    }
     setLoading(false);
   };
 
-  const handleAddPlanType = async () => {
-    // Check if day_type already exists
-    const existing = planCards.find((p) => p.day_type === newDayType);
-    if (existing) {
-      toast({
-        title: `A ${existing.day_type_label} plan already exists`,
-        description: "Edit the existing plan or delete it first.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setAddPlanOpen(false);
-    setEditingPlanDayType(newDayType);
+  const handleEmptySlotClick = (dayType: string) => {
+    // Navigate to Master Libraries with pre-filled copy modal
+    navigate("/libraries", {
+      state: {
+        openCopyModal: true,
+        preselectedClientId: clientId,
+        preselectedDayType: dayType === "training" ? "training_day" : "rest_day",
+        activeTab: "meals",
+      },
+    });
   };
 
   const handleDeletePlan = async (planId: string) => {
@@ -171,7 +154,6 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     }
   };
 
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -181,13 +163,10 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     );
   }
 
-  // If editing a specific day type plan
+  // If editing a specific day type plan — show the builder
   if (editingPlanDayType) {
     const existingCard = planCards.find((p) => p.day_type === editingPlanDayType);
-    const label =
-      existingCard?.day_type_label ||
-      DAY_TYPE_OPTIONS.find((o) => o.value === editingPlanDayType)?.label ||
-      newDayTypeLabel;
+    const label = existingCard?.day_type_label || (editingPlanDayType === "rest" ? "Rest Day" : "Training Day");
 
     return (
       <div className="space-y-4">
@@ -219,137 +198,166 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
     );
   }
 
+  const activeCard = planCards.find(c => c.day_type === activeDayType);
+
   return (
     <div className="space-y-4">
-      {/* Plan Cards */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">Assigned Meal Plans</h3>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAddPlanOpen(true)}>
-            <Plus className="h-3.5 w-3.5" /> Add Plan Type
-          </Button>
-        </div>
+      {/* Pill Navigation Row */}
+      <div className="flex items-center gap-2">
+        {PILL_SLOTS.map((slot) => {
+          const card = planCards.find(c => c.day_type === slot.day_type);
+          const isActive = activeDayType === slot.day_type;
 
-        {planCards.length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <UtensilsCrossed className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground mb-3">No meal plans assigned yet.</p>
-              <Button size="sm" onClick={() => setAddPlanOpen(true)} className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" /> Create First Plan
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {planCards.map((card) => (
-              <Card key={card.id} className="border-border hover:border-primary/30 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                        <Badge variant="secondary" className="text-[10px]">
-                          {card.day_type_label}
-                        </Badge>
-                        {card.source_template_id ? (
-                          <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary">
-                            <Link className="h-2.5 w-2.5" /> Linked
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="text-sm font-semibold text-foreground truncate">{card.name}</p>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      {card.source_template_id && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-muted-foreground hover:text-primary"
-                          title="Detach from master template"
-                          onClick={() => setDetachConfirmId(card.id)}
-                        >
-                          <Unlink className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        onClick={() => setEditingPlanDayType(card.day_type)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => handleDeletePlan(card.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">{card.totalCalories} cal</span>
-                    <span className="text-red-400">{card.totalProtein}P</span>
-                    <span className="text-blue-400">{card.totalCarbs}C</span>
-                    <span className="text-yellow-400">{card.totalFat}F</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+          if (card) {
+            return (
+              <button
+                key={slot.day_type}
+                onClick={() => setActiveDayType(slot.day_type)}
+                className="transition-all"
+                style={{
+                  borderRadius: "99px",
+                  padding: "6px 16px",
+                  fontSize: "13px",
+                  fontWeight: isActive ? 600 : 400,
+                  background: isActive ? "#D4A017" : "#2a2a2a",
+                  color: isActive ? "#0a0a0a" : "#FFFFFF",
+                  border: isActive ? "none" : "1px solid #444444",
+                  cursor: "pointer",
+                }}
+              >
+                {slot.label}
+              </button>
+            );
+          }
+
+          // Empty slot — dashed pill
+          return (
+            <button
+              key={slot.day_type}
+              onClick={() => handleEmptySlotClick(slot.day_type)}
+              className="transition-all"
+              style={{
+                borderRadius: "99px",
+                padding: "6px 16px",
+                fontSize: "13px",
+                fontWeight: 400,
+                background: "transparent",
+                color: "#888888",
+                border: "1px dashed #555555",
+                cursor: "pointer",
+              }}
+            >
+              {slot.emptyLabel}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Active Plan Content */}
+      {activeCard ? (
+        <Card className="border-border">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px]"
+                    style={
+                      activeCard.day_type === "training"
+                        ? { background: "#D4A017", color: "#0a0a0a" }
+                        : { background: "#2a2a2a", color: "#FFFFFF", border: "1px solid #555555" }
+                    }
+                  >
+                    {activeCard.day_type_label}
+                  </Badge>
+                  {activeCard.source_template_id && (
+                    <Badge variant="outline" className="text-[10px] gap-1 border-primary/40 text-primary">
+                      <Link className="h-2.5 w-2.5" /> Linked
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-foreground truncate">{activeCard.name}</p>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                {activeCard.source_template_id && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:text-primary"
+                    title="Detach from master template"
+                    onClick={() => setDetachConfirmId(activeCard.id)}
+                  >
+                    <Unlink className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => setEditingPlanDayType(activeCard.day_type)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-destructive"
+                  onClick={() => setDeleteConfirmId(activeCard.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{activeCard.totalCalories} cal</span>
+              <span className="text-red-400">{activeCard.totalProtein}P</span>
+              <span className="text-blue-400">{activeCard.totalCarbs}C</span>
+              <span className="text-yellow-400">{activeCard.totalFat}F</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <UtensilsCrossed className="h-8 w-8 mx-auto text-muted-foreground/40 mb-2" />
+            <p className="text-sm text-muted-foreground mb-3">No meal plans assigned yet.</p>
+            <Button size="sm" onClick={() => handleEmptySlotClick("training")} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" /> Assign Training Day Plan
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Full Grocery List */}
       <CoachGroceryList clientId={clientId} />
 
-      {/* Add Plan Type Dialog */}
-      <Dialog open={addPlanOpen} onOpenChange={setAddPlanOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add Plan Type</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Day Type</Label>
-              <Select
-                value={newDayType}
-                onValueChange={(val) => {
-                  setNewDayType(val);
-                  const opt = DAY_TYPE_OPTIONS.find((o) => o.value === val);
-                  setNewDayTypeLabel(opt?.label || "");
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAY_TYPE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {newDayType === "custom" && (
-              <div>
-                <Label>Custom Label</Label>
-                <Input
-                  value={newDayTypeLabel}
-                  onChange={(e) => setNewDayTypeLabel(e.target.value)}
-                  placeholder="e.g. High Carb Day"
-                />
-              </div>
-            )}
-            <Button onClick={handleAddPlanType} className="w-full">
-              Create Plan
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Meal Plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this meal plan and all its items. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteConfirmId) {
+                  handleDeletePlan(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Detach Confirmation */}
       <AlertDialog open={!!detachConfirmId} onOpenChange={(open) => !open && setDetachConfirmId(null)}>
         <AlertDialogContent>
