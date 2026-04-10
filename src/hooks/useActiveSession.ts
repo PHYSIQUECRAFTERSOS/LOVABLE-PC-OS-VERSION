@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -20,6 +20,10 @@ export const useActiveSession = () => {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [online, setOnline] = useState(navigator.onLine);
+
+  // Track session IDs that have been completed in this browser session
+  // so we never show the banner for them even if a stale DB query returns them
+  const completedSessionIds = useRef<Set<string>>(new Set());
 
   // Track online status
   useEffect(() => {
@@ -60,21 +64,25 @@ export const useActiveSession = () => {
           .limit(1)
           .maybeSingle();
 
-        if (fallback) {
+        if (fallback && !completedSessionIds.current.has(fallback.id)) {
           setActiveSession({
             id: fallback.id,
             workout_id: fallback.workout_id,
             workout_name: (fallback as any).workouts?.name || "Your Workout",
             started_at: fallback.started_at,
           });
+        } else {
+          setActiveSession(null);
         }
-      } else if (data) {
+      } else if (data && !completedSessionIds.current.has(data.id)) {
         setActiveSession({
           id: data.id,
           workout_id: data.workout_id,
           workout_name: (data as any).workouts?.name || "Your Workout",
           started_at: data.started_at || data.last_heartbeat,
         });
+      } else {
+        setActiveSession(null);
       }
     } catch (e) {
       console.error("[useActiveSession] check error:", e);
@@ -86,13 +94,26 @@ export const useActiveSession = () => {
   useEffect(() => { checkForSession(); }, [checkForSession]);
 
   // When a workout session ends, immediately clear the banner.
-  // Do NOT re-check — the session is definitively over.
   useEffect(() => {
     const handler = () => {
       setActiveSession(null);
     };
     window.addEventListener("workout-session-ended", handler);
     return () => window.removeEventListener("workout-session-ended", handler);
+  }, []);
+
+  // When a session is explicitly completed, record its ID so we never show it again
+  // even if a stale DB query returns it as in_progress
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.sessionId) {
+        completedSessionIds.current.add(detail.sessionId);
+      }
+      setActiveSession(null);
+    };
+    window.addEventListener("workout-session-completed", handler);
+    return () => window.removeEventListener("workout-session-completed", handler);
   }, []);
 
   // Auto-abandon stale sessions (older than 2h) silently
