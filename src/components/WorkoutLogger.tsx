@@ -834,26 +834,28 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       }
 
       // Mark calendar event as completed
+      const completionTimestamp = new Date().toISOString();
       if (calendarEventId) {
         await supabase
           .from("calendar_events")
-          .update({ is_completed: true, completed_at: new Date().toISOString() })
+          .update({ is_completed: true, completed_at: completionTimestamp })
           .eq("id", calendarEventId);
       } else if (workoutId) {
-        const todayLocal = new Date().toLocaleDateString("en-CA");
+        // Look for the most recent uncompleted calendar event for this workout
+        // (not restricted to today — handles past-day / missed workouts)
         const { data: calEvents } = await supabase
           .from("calendar_events")
           .select("id")
           .eq("linked_workout_id", workoutId)
-          .eq("event_date", todayLocal)
           .eq("event_type", "workout")
           .eq("is_completed", false)
           .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+          .order("event_date", { ascending: false })
           .limit(1);
         if (calEvents?.length) {
           await supabase
             .from("calendar_events")
-            .update({ is_completed: true, completed_at: new Date().toISOString() })
+            .update({ is_completed: true, completed_at: completionTimestamp })
             .eq("id", calEvents[0].id);
         }
       }
@@ -951,8 +953,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         onDone={() => {
           document.body.style.pointerEvents = '';
           clearRetryQueue();
-          onComplete?.();
+          // Dispatch event BEFORE navigate so AppLayout's useActiveSession
+          // clears the banner before the dashboard re-mounts
+          window.dispatchEvent(new CustomEvent("workout-session-ended"));
           navigate("/dashboard");
+          // Call onComplete after navigate to avoid parent unmounting us first
+          onComplete?.();
         }}
       />
     );
