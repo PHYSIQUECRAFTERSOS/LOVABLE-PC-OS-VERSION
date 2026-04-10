@@ -420,16 +420,18 @@ const ScanFoodLabelButton = ({
 
       {/* Loading overlay */}
       {scanning && (
-        <div className="fixed inset-0 z-[70] bg-background/95 flex flex-col items-center justify-center gap-4">
-          <Loader2 className="h-10 w-10 text-primary animate-spin" />
-          <p className="text-base font-medium text-foreground">Reading nutrition label…</p>
-          <button
-            onClick={() => setScanning(false)}
-            className="text-sm text-muted-foreground hover:text-foreground underline mt-2"
-          >
-            Cancel and retake
-          </button>
-        </div>
+        <OverlayPortal>
+          <div className="fixed inset-0 z-[70] bg-background/95 flex flex-col items-center justify-center gap-4">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            <p className="text-base font-medium text-foreground">Reading nutrition label…</p>
+            <button
+              onClick={() => setScanning(false)}
+              className="text-sm text-muted-foreground hover:text-foreground underline mt-2"
+            >
+              Cancel and retake
+            </button>
+          </div>
+        </OverlayPortal>
       )}
 
       {/* Pre-filled form dialog */}
