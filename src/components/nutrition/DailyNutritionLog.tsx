@@ -107,14 +107,37 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
   // Meal plan tracker for "Copy From Meal Plan"
   const {
-    plan: mealPlan,
-    days: mealPlanDays,
-    items: mealPlanItems,
+    plans: allMealPlans,
+    allDays: allMealPlanDays,
+    allItems: allMealPlanItems,
+    getPlanByDayType,
     getItemsForMealSection,
     copyMealToTracker,
   } = useMealPlanTracker(selectedDate);
 
-  // Pick the first day from plan (could be enhanced to match day type)
+  // Pick the plan matching today's day type, with fallback
+  const dayTypeKey = dayType === "training_day" ? "training" : "rest";
+  const resolvedPlanData = useMemo(() => {
+    const match = getPlanByDayType(dayTypeKey);
+    if (match.plan) return match;
+    // Fallback: try "all_days" or first available plan
+    const allDays = getPlanByDayType("all_days");
+    if (allDays.plan) return allDays;
+    // Last resort: first plan
+    if (allMealPlans.length > 0) {
+      const firstPlan = allMealPlans[0];
+      return {
+        plan: firstPlan,
+        days: allMealPlanDays.filter(d => (d as any).meal_plan_id === firstPlan.id),
+        items: allMealPlanItems.filter(i => (i as any).meal_plan_id === firstPlan.id),
+      };
+    }
+    return { plan: null, days: [], items: [] };
+  }, [dayTypeKey, getPlanByDayType, allMealPlans, allMealPlanDays, allMealPlanItems]);
+
+  const mealPlan = resolvedPlanData.plan;
+  const mealPlanDays = resolvedPlanData.days;
+  const mealPlanItems = resolvedPlanData.items;
   const activeDayId = mealPlanDays?.[0]?.id || null;
 
   const fetchLogs = useCallback(async () => {
@@ -335,7 +358,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     }
     setCopyingMeal(mealKey);
 
-    const planItems = getItemsForMealSection(activeDayId, mealKey);
+    const planItems = getItemsForMealSection(activeDayId, mealKey, mealPlanItems as any);
     if (planItems.length === 0) {
       toast({ title: `No items in your meal plan for this section` });
       setCopyingMeal(null);
@@ -344,12 +367,11 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
     const success = await copyMealToTracker(planItems, mealKey);
     if (success) {
-      toast({ title: `${planItems.length} items copied from meal plan` });
+      const label = dayType === "training_day" ? "Training Day" : "Rest Day";
+      toast({ title: `${label} plan loaded · ${planItems.length} items` });
       await fetchLogs();
       refreshSuggestions();
     } else {
-      // copyMealToTracker already shows its own error toast
-      // Force refresh to sync UI with DB state
       await fetchLogs();
     }
     setCopyingMeal(null);
@@ -358,7 +380,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   // Check if a meal section has plan items
   const hasPlanItems = (mealKey: string) => {
     if (!activeDayId || !mealPlanItems) return false;
-    return getItemsForMealSection(activeDayId, mealKey).length > 0;
+    return getItemsForMealSection(activeDayId, mealKey, mealPlanItems as any).length > 0;
   };
 
   const toggleSelectId = (id: string) => {
