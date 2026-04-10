@@ -13,6 +13,9 @@ import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDispl
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
 import NutritionGoalComparison, { getComplianceDot } from "./NutritionGoalComparison";
+import BodyStatsEventPanel from "./BodyStatsEventPanel";
+import PhotosEventPanel from "./PhotosEventPanel";
+import CoachEventNote from "./CoachEventNote";
 
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
