@@ -44,6 +44,7 @@ import { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatServingDisplay } from "@/utils/formatServingDisplay";
 
 /* ─── MiniSparkline ─── */
 const MiniSparkline = forwardRef<SVGSVGElement, { data: { value: number }[]; color?: string }>(
@@ -660,11 +661,11 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
       const entries = logs || [];
       const foodIds = entries.filter((r) => r.food_item_id).map((r) => r.food_item_id!);
-      let foodMap: Record<string, { name: string; brand: string | null }> = {};
+      let foodMap: Record<string, { name: string; brand: string | null; serving_size: number; serving_unit: string; serving_label: string | null }> = {};
 
       if (foodIds.length > 0) {
-        const { data: foods } = await supabase.from("food_items").select("id, name, brand").in("id", foodIds);
-        (foods || []).forEach((f) => { foodMap[f.id] = { name: f.name, brand: f.brand }; });
+        const { data: foods } = await supabase.from("food_items").select("id, name, brand, serving_size, serving_unit, serving_label").in("id", foodIds);
+        (foods || []).forEach((f) => { foodMap[f.id] = { name: f.name, brand: f.brand, serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label }; });
       }
 
       setFoodLog(
@@ -680,6 +681,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           servings: Number(r.servings || 1),
           quantity_display: r.quantity_display ? Number(r.quantity_display) : null,
           quantity_unit: r.quantity_unit || null,
+          serving_info: r.food_item_id ? foodMap[r.food_item_id] : null,
         }))
       );
       setFoodLogLoading(false);
@@ -1046,7 +1048,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                             <p className="text-sm font-medium text-foreground">{item.food_name}</p>
                             {item.brand && <p className="text-[11px] text-muted-foreground">{item.brand}</p>}
                             <p className="text-[11px] text-muted-foreground">
-                              {item.quantity_display ? `${item.quantity_display} × ${item.quantity_unit || "serving"}` : `${item.servings} serving(s)`}
+                              {formatServingDisplay(item.serving_info, item.quantity_display, item.quantity_unit, item.servings)}
                             </p>
                             <p className="text-xs text-primary mt-0.5">
                               {Math.round(item.calories)} cal · {Math.round(item.protein)}g P · {Math.round(item.carbs)}g C · {Math.round(item.fat)}g F
