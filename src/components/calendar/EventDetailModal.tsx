@@ -656,11 +656,33 @@ const EventDetailModal = ({
             </div>
           )}
 
+          {/* Body Stats data panel */}
+          {(effectiveType === "body_stats") && resolvedClientId && (
+            <BodyStatsEventPanel clientId={resolvedClientId} eventDate={event.event_date} />
+          )}
+
+          {/* Photos data panel */}
+          {(effectiveType === "photos") && resolvedClientId && (
+            <PhotosEventPanel clientId={resolvedClientId} eventDate={event.event_date} />
+          )}
+
+          {/* Completed timestamp */}
+          {event.is_completed && event.completed_at && (
+            <p className="text-xs text-muted-foreground">
+              Marked complete {format(new Date(event.completed_at), "MMM d, yyyy 'at' h:mm a")}
+            </p>
+          )}
+
           {event.notes && (
             <div className="bg-secondary/50 rounded-lg p-3">
               <p className="text-xs text-muted-foreground mb-1">Notes</p>
               <p className="text-sm">{event.notes}</p>
             </div>
+          )}
+
+          {/* Coach-only note */}
+          {isCoach && user?.id && (effectiveType === "body_stats" || effectiveType === "photos") && !event.id.startsWith("nut-") && (
+            <CoachEventNote eventId={event.id} coachId={user.id} />
           )}
 
           {/* Action buttons */}
