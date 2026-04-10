@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
 
 interface SessionRow {
   id: string;
@@ -31,6 +32,7 @@ interface ExerciseLogRow {
   reps: number | null;
   rir: number | null;
   tempo: string | null;
+  weight_unit: string;
 }
 
 interface PRRow {
@@ -100,7 +102,7 @@ const WorkoutHistory = () => {
       const sessionIds = sessionsData.map(s => s.id);
       const { data: logs } = await supabase
         .from("exercise_logs")
-        .select("session_id, exercise_id, set_number, weight, reps, rir, tempo")
+        .select("session_id, exercise_id, set_number, weight, reps, rir, tempo, weight_unit")
         .in("session_id", sessionIds)
         .order("set_number");
 
@@ -429,9 +431,25 @@ const WorkoutHistory = () => {
                                 className="flex items-center gap-4 text-xs px-3 py-1.5 rounded bg-secondary/30"
                               >
                                 <span className="text-muted-foreground w-10">Set {set.set_number}</span>
-                                <span className="font-medium text-foreground">
-                                  {set.weight === 0 ? "BW" : `${set.weight || 0} lbs`}
-                                </span>
+                                {(() => {
+                                  const isCoachView = role === 'coach' || role === 'admin';
+                                  if (isCoachView) {
+                                    const wd = formatWeightForCoach(set.weight, set.weight_unit || 'lbs');
+                                    return (
+                                      <span className="font-medium text-foreground">
+                                        {wd.primary}
+                                        {wd.secondary && (
+                                          <span className="block text-[10px] text-muted-foreground">{wd.secondary}</span>
+                                        )}
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <span className="font-medium text-foreground">
+                                      {formatWeightForClient(set.weight, set.weight_unit || 'lbs')}
+                                    </span>
+                                  );
+                                })()}
                                 <span className="text-muted-foreground">×</span>
                                 <span className="font-medium text-foreground">{set.reps || 0} reps</span>
                                 {set.rir != null && (
