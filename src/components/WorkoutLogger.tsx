@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useXPAward } from "@/hooks/useXPAward";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { XP_VALUES } from "@/utils/rankedXP";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -126,11 +127,30 @@ function clearRetryQueue() {
   sessionStorage.removeItem(RETRY_KEY);
 }
 
+// --- Unit conversion helpers ---
+const KG_TO_LBS = 2.20462;
+const LBS_TO_KG = 0.453592;
+
+/** Convert a weight value from any stored unit to lbs for internal comparisons */
+function weightToLbs(value: number, unit: string): number {
+  if (unit === 'kg') return Number((value * KG_TO_LBS).toFixed(1));
+  return value;
+}
+
+/** Convert a weight from its stored unit to the client's display unit */
+function normalizeToClientUnit(value: number, storedUnit: string, clientUnit: string): number {
+  if (storedUnit === clientUnit) return value;
+  if (storedUnit === 'lbs' && clientUnit === 'kg') return Number((value * LBS_TO_KG).toFixed(1));
+  if (storedUnit === 'kg' && clientUnit === 'lbs') return Number((value * KG_TO_LBS).toFixed(1));
+  return value;
+}
+
 const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises: initialExercises, onComplete, resumeSessionId, calendarEventId }: WorkoutLoggerProps) => {
   const { user } = useAuth();
   const { triggerXP } = useXPAward();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { weightUnit: clientWeightUnit, weightLabel } = useUnitPreferences();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState(initialExercises);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
@@ -139,6 +159,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [elapsed, setElapsed] = useState("0:00");
   const [previousPerformance, setPreviousPerformance] = useState<Record<string, any[]>>({});
   // All-time best weight×reps per exercise from completed sessions (for accurate PR detection)
+  // These are ALWAYS stored in lbs for consistent comparison
   const [allTimeBests, setAllTimeBests] = useState<Record<string, { weight: number; reps: number }[]>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
@@ -181,6 +202,37 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     return () => clearInterval(interval);
   }, [startTime]);
 
+  // Helper to restore exercise logs from DB into exercise state
+  const restoreLogsIntoState = (logs: any[], clientUnit: string) => {
+    let restoredCount = 0;
+    setExercises(prev => {
+      const updated = [...prev];
+      logs.forEach(log => {
+        const exIdx = updated.findIndex(e => e.id === log.exercise_id);
+        if (exIdx === -1) return;
+        const setIdx = updated[exIdx].logs.findIndex(l => l.setNumber === log.set_number);
+        if (setIdx === -1) return;
+        const storedUnit = (log as any).weight_unit || 'lbs';
+        const displayWeight = log.weight != null
+          ? normalizeToClientUnit(log.weight, storedUnit, clientUnit)
+          : undefined;
+        updated[exIdx].logs[setIdx] = {
+          ...updated[exIdx].logs[setIdx],
+          weight: displayWeight,
+          reps: log.reps ?? undefined,
+          rir: log.rir ?? undefined,
+          rpe: (log as any).rpe ?? undefined,
+          tempo: log.tempo ?? undefined,
+          notes: log.notes ?? undefined,
+          completed: true,
+        };
+        restoredCount++;
+      });
+      return updated;
+    });
+    return restoredCount;
+  };
+
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
@@ -199,41 +251,19 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         // Restore previously logged sets
         const { data: logs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo, weight_unit")
           .eq("session_id", resumeSessionId)
           .order("set_number");
         if (logs && logs.length > 0) {
-          let restoredCount = 0;
-          setExercises(prev => {
-            const updated = [...prev];
-            logs.forEach(log => {
-              const exIdx = updated.findIndex(e => e.id === log.exercise_id);
-              if (exIdx === -1) return;
-              const setIdx = updated[exIdx].logs.findIndex(l => l.setNumber === log.set_number);
-              if (setIdx === -1) return;
-              updated[exIdx].logs[setIdx] = {
-                ...updated[exIdx].logs[setIdx],
-                weight: log.weight ?? undefined,
-                reps: log.reps ?? undefined,
-                rir: log.rir ?? undefined,
-                rpe: (log as any).rpe ?? undefined,
-                tempo: log.tempo ?? undefined,
-                notes: log.notes ?? undefined,
-                completed: true,
-              };
-              restoredCount++;
-            });
-            return updated;
-          });
-          if (restoredCount > 0) {
-            setRecoveredSetCount(restoredCount);
+          const count = restoreLogsIntoState(logs, clientWeightUnit);
+          if (count > 0) {
+            setRecoveredSetCount(count);
             setShowRecoveryBanner(true);
           }
         }
         setSessionId(resumeSessionId);
       } else {
         // Before creating a new session, check for an existing in_progress session
-        // for the same workout — prevents duplicate sessions and data loss
         const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
         const { data: existingSession } = await supabase
           .from("workout_sessions")
@@ -247,39 +277,17 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .maybeSingle();
 
         if (existingSession) {
-          // Reuse existing session — restore its data
           console.log("[WorkoutLogger] Reusing existing in_progress session:", existingSession.id.slice(0, 8));
           setStartTime(new Date(existingSession.started_at).getTime());
           const { data: logs } = await supabase
             .from("exercise_logs")
-            .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo")
+            .select("exercise_id, set_number, weight, reps, rir, rpe, notes, tempo, weight_unit")
             .eq("session_id", existingSession.id)
             .order("set_number");
           if (logs && logs.length > 0) {
-            let restoredCount = 0;
-            setExercises(prev => {
-              const updated = [...prev];
-              logs.forEach(log => {
-                const exIdx = updated.findIndex(e => e.id === log.exercise_id);
-                if (exIdx === -1) return;
-                const setIdx = updated[exIdx].logs.findIndex(l => l.setNumber === log.set_number);
-                if (setIdx === -1) return;
-                updated[exIdx].logs[setIdx] = {
-                  ...updated[exIdx].logs[setIdx],
-                  weight: log.weight ?? undefined,
-                  reps: log.reps ?? undefined,
-                  rir: log.rir ?? undefined,
-                  rpe: (log as any).rpe ?? undefined,
-                  tempo: log.tempo ?? undefined,
-                  notes: log.notes ?? undefined,
-                  completed: true,
-                };
-                restoredCount++;
-              });
-              return updated;
-            });
-            if (restoredCount > 0) {
-              setRecoveredSetCount(restoredCount);
+            const count = restoreLogsIntoState(logs, clientWeightUnit);
+            if (count > 0) {
+              setRecoveredSetCount(count);
               setShowRecoveryBanner(true);
             }
           }
@@ -358,8 +366,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             tempo: item.tempo || null,
             rir: item.rir ?? null,
             notes: item.notes || null,
+            weight_unit: item.weight_unit || clientWeightUnit,
             logged_at: new Date().toISOString(),
-          }, { onConflict: "session_id,exercise_id,set_number" });
+          } as any, { onConflict: "session_id,exercise_id,set_number" });
         if (error) failed.push(item);
       } catch {
         failed.push(item);
@@ -394,16 +403,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       if (exerciseIds.length > 0) {
         const { data: allLogs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, session_id, workout_sessions!inner(created_at, status)")
+          .select("exercise_id, set_number, weight, reps, rir, session_id, weight_unit, workout_sessions!inner(created_at, status)")
           .in("exercise_id", exerciseIds)
           .eq("workout_sessions.client_id", user.id)
           .eq("workout_sessions.status", "completed")
           .order("set_number", { ascending: true });
 
         if (allLogs && allLogs.length > 0) {
-          // Build all-time bests per exercise (every logged set across all sessions)
+          // Build all-time bests per exercise — ALWAYS in lbs for PR comparison
           const bestsMap: Record<string, { weight: number; reps: number }[]> = {};
-          // Group by exercise_id, then find most recent session per exercise
           const byExercise: Record<string, Record<string, { created_at: string; logs: any[] }>> = {};
           allLogs.forEach((l: any) => {
             const eid = l.exercise_id;
@@ -412,19 +420,20 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             if (!byExercise[eid]) byExercise[eid] = {};
             if (!byExercise[eid][sid]) byExercise[eid][sid] = { created_at: sessionCreated, logs: [] };
             byExercise[eid][sid].logs.push(l);
-            // Track all sets with valid weight+reps for PR comparison
+            // Normalize to lbs for all-time best comparison
+            const logUnit = l.weight_unit || 'lbs';
             const w = l.weight ?? 0;
+            const wLbs = weightToLbs(w, logUnit);
             const r = l.reps ?? 0;
-            if (w > 0 && r > 0) {
+            if (wLbs > 0 && r > 0) {
               if (!bestsMap[eid]) bestsMap[eid] = [];
-              bestsMap[eid].push({ weight: w, reps: r });
+              bestsMap[eid].push({ weight: wLbs, reps: r });
             }
           });
           setAllTimeBests(bestsMap);
 
           const grouped: Record<string, any[]> = {};
           Object.entries(byExercise).forEach(([eid, sessions]) => {
-            // Find the most recent session for this exercise
             const latestSession = Object.values(sessions).sort(
               (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             )[0];
@@ -445,8 +454,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const completedSets = exercises.reduce((acc, ex) => acc + ex.logs.filter(l => l.completed).length, 0);
   const progressPercent = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
 
+  // Volume always calculated in lbs for consistency
   const totalVolume = exercises.reduce((acc, ex) => {
-    return acc + ex.logs.filter(l => l.completed).reduce((s, l) => s + ((l.weight || 0) * (l.reps || 0)), 0);
+    return acc + ex.logs.filter(l => l.completed).reduce((s, l) => {
+      const wLbs = weightToLbs(l.weight || 0, clientWeightUnit);
+      return s + (wLbs * (l.reps || 0));
+    }, 0);
   }, 0);
 
   const updateLog = (exIdx: number, setIdx: number, field: string, value: unknown) => {
@@ -467,51 +480,53 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     saveTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2000);
   };
 
-  const checkPR = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number): boolean => {
-    if (!weight || weight <= 0 || !reps || reps <= 0) return false;
+  const checkPR = useCallback((exerciseId: string, exerciseName: string, weightRaw: number, reps: number): boolean => {
+    // Normalize weight to lbs for PR comparison (personal_records and allTimeBests are in lbs)
+    const weightLbs = weightToLbs(weightRaw, clientWeightUnit);
+    if (!weightLbs || weightLbs <= 0 || !reps || reps <= 0) return false;
 
     // Check against personal_records table (must STRICTLY beat, not match)
     const existingPR = personalRecords.find(pr => pr.exercise_id === exerciseId);
     if (existingPR) {
-      const beatsPR = (weight > existingPR.weight) || (weight === existingPR.weight && reps > existingPR.reps);
+      const beatsPR = (weightLbs > existingPR.weight) || (weightLbs === existingPR.weight && reps > existingPR.reps);
       if (!beatsPR) return false;
     }
 
-    // Check against ALL historical sets (every completed session ever)
+    // Check against ALL historical sets (every completed session ever) — already in lbs
     const historicalSets = allTimeBests[exerciseId] || [];
     for (const prev of historicalSets) {
-      // Not a PR if any historical set matches or beats current performance
-      if (prev.weight > weight || (prev.weight === weight && prev.reps >= reps)) {
+      if (prev.weight > weightLbs || (prev.weight === weightLbs && prev.reps >= reps)) {
         return false;
       }
     }
 
-    // Check against current session's already-completed sets (prevents duplicates within same workout)
+    // Check against current session's already-completed sets
     const currentExercise = exercises.find(e => e.id === exerciseId);
     if (currentExercise) {
       for (const log of currentExercise.logs) {
         if (log.completed && log.weight && log.reps) {
-          if (log.weight > weight || (log.weight === weight && log.reps >= reps)) {
+          const logLbs = weightToLbs(log.weight, clientWeightUnit);
+          if (logLbs > weightLbs || (logLbs === weightLbs && log.reps >= reps)) {
             return false;
           }
         }
       }
     }
 
-    // Also check against PRs already detected this session (to avoid duplicate toasts)
+    // Also check against PRs already detected this session
     const existingAlert = prAlerts.find(a => a.exerciseName === exerciseName);
-    if (existingAlert && (weight < existingAlert.weight || (weight === existingAlert.weight && reps <= existingAlert.reps))) {
+    if (existingAlert && (existingAlert.weight > weightLbs || (existingAlert.weight === weightLbs && reps <= existingAlert.reps))) {
       return false;
     }
 
-    const type: "weight" | "rep" = !existingPR || weight > (existingPR?.weight || 0) ? "weight" : "rep";
+    const type: "weight" | "rep" = !existingPR || weightLbs > (existingPR?.weight || 0) ? "weight" : "rep";
     setPrAlerts(prev => [
       ...prev.filter(a => a.exerciseName !== exerciseName),
-      { exerciseName, weight, reps, type },
+      { exerciseName, weight: weightLbs, reps, type },
     ]);
-    toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weight} lbs × ${reps} reps` });
+    toast({ title: "🏆 NEW PR!", description: `${exerciseName}: ${weightRaw} ${weightLabel} × ${reps} reps` });
     return true;
-  }, [personalRecords, allTimeBests, prAlerts, exercises, toast]);
+  }, [personalRecords, allTimeBests, prAlerts, exercises, toast, clientWeightUnit, weightLabel]);
 
   // Persist a single set to Supabase immediately
   const persistSet = async (exerciseId: string, log: ExerciseLogForm["logs"][0]) => {
@@ -530,6 +545,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           rir: log.rir ?? (log.rpe ? Math.round(10 - log.rpe) : null),
           rpe: log.rpe ?? null,
           notes: log.notes || null,
+          weight_unit: clientWeightUnit,
           logged_at: new Date().toISOString(),
         } as any, { onConflict: "session_id,exercise_id,set_number" });
 
@@ -545,6 +561,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           tempo: log.tempo,
           rir: log.rir,
           notes: log.notes,
+          weight_unit: clientWeightUnit,
         });
         return;
       }
@@ -565,40 +582,64 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         set_number: log.setNumber,
         weight: log.weight,
         reps: log.reps,
+        weight_unit: clientWeightUnit,
       });
     }
   };
 
+  // FIX: Use functional updater to avoid stale closure reading old exercises state.
+  // This prevents the truncation bug where a fast-typed weight (e.g. "76") only captures
+  // the first digit ("7") because completeSet reads state before the last keystroke's
+  // setExercises has been committed by React 18 batching.
   const completeSet = (exIdx: number, setIdx: number) => {
-    const ex = exercises[exIdx];
-    const log = ex.logs[setIdx];
-    // Allow weight of 0 or undefined (bodyweight/mobility); only require reps > 0
-    const weight = log.weight ?? 0;
-    if (weight < 0 || !log.reps) return;
+    let exerciseId = '';
+    let completedLogForPersist: ExerciseLogForm["logs"][0] | null = null;
+    let restSecs = 0;
 
-    const isPR = checkPR(ex.id, ex.name, weight, log.reps);
+    setExercises(prev => {
+      const ex = prev[exIdx];
+      if (!ex) return prev;
+      const log = ex.logs[setIdx];
+      if (!log) return prev;
 
-    const newEx = [...exercises];
-    const completedLog = { ...newEx[exIdx].logs[setIdx], weight, completed: true, isPR };
-    newEx[exIdx].logs[setIdx] = completedLog;
+      const weight = log.weight ?? 0;
+      if (weight < 0 || !log.reps) return prev;
 
-    // Auto-fill next incomplete set
-    const nextIdx = newEx[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
-    if (nextIdx !== -1) {
-      if (newEx[exIdx].logs[nextIdx].weight === undefined || newEx[exIdx].logs[nextIdx].weight === null) {
-        newEx[exIdx].logs[nextIdx].weight = weight;
+      exerciseId = ex.id;
+      restSecs = ex.restSeconds;
+
+      const isPR = checkPR(ex.id, ex.name, weight, log.reps);
+
+      // Deep-clone only the exercise being modified
+      const newExercises = prev.map((e, i) => {
+        if (i !== exIdx) return e;
+        return { ...e, logs: e.logs.map(l => ({ ...l })) };
+      });
+
+      const completedLog = { ...newExercises[exIdx].logs[setIdx], weight, completed: true, isPR };
+      newExercises[exIdx].logs[setIdx] = completedLog;
+      completedLogForPersist = completedLog;
+
+      // Auto-fill next incomplete set
+      const nextIdx = newExercises[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
+      if (nextIdx !== -1) {
+        if (newExercises[exIdx].logs[nextIdx].weight === undefined || newExercises[exIdx].logs[nextIdx].weight === null) {
+          newExercises[exIdx].logs[nextIdx].weight = weight;
+        }
+        if (!newExercises[exIdx].logs[nextIdx].reps) {
+          newExercises[exIdx].logs[nextIdx].reps = log.reps;
+        }
       }
-      if (!newEx[exIdx].logs[nextIdx].reps) newEx[exIdx].logs[nextIdx].reps = log.reps;
+
+      return newExercises;
+    });
+
+    // These variables were set synchronously by the functional updater above
+    if (completedLogForPersist && exerciseId) {
+      persistSet(exerciseId, completedLogForPersist);
     }
-
-    setExercises(newEx);
-
-    // Immediately persist this set to DB
-    persistSet(ex.id, completedLog);
-
-    if (ex.restSeconds > 0) {
-      
-      setRestTimer({ exIdx, setIdx, seconds: ex.restSeconds, startedAt: Date.now() });
+    if (restSecs > 0) {
+      setRestTimer({ exIdx, setIdx, seconds: restSecs, startedAt: Date.now() });
     }
   };
 
@@ -616,11 +657,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const deleteSet = async (exIdx: number, setIdx: number) => {
     const ex = exercises[exIdx];
-    if (ex.logs.length <= 1) return; // Don't allow deleting the last set
+    if (ex.logs.length <= 1) return;
 
     const log = ex.logs[setIdx];
 
-    // If the set was already persisted, delete from DB
     if (log.completed && sessionId) {
       await supabase
         .from("exercise_logs")
@@ -632,7 +672,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
     const newEx = [...exercises];
     newEx[exIdx].logs.splice(setIdx, 1);
-    // Re-number remaining sets
     newEx[exIdx].logs.forEach((l, i) => { l.setNumber = i + 1; });
     setExercises(newEx);
 
@@ -709,8 +748,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     };
     setExercises(newEx);
 
-    // Close dialog BEFORE clearing switchingExIdx to prevent
-    // the callback from flipping to handleAddExercise mid-render
+    // Close dialog BEFORE clearing switchingExIdx
     setShowAddExercise(false);
     setSwitchingExIdx(null);
     toast({ title: `Switched to ${exercise.name}` });
@@ -742,6 +780,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           rir: log.rir ?? (log.rpe ? Math.round(10 - (log.rpe || 0)) : null),
           rpe: log.rpe ?? null,
           notes: log.notes || null,
+          weight_unit: clientWeightUnit,
           logged_at: new Date().toISOString(),
         }))
       );
@@ -749,7 +788,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       if (logsToUpsert.length > 0) {
         const { error: logsError } = await supabase
           .from("exercise_logs")
-          .upsert(logsToUpsert, { onConflict: "session_id,exercise_id,set_number" });
+          .upsert(logsToUpsert as any[], { onConflict: "session_id,exercise_id,set_number" });
         if (logsError) throw logsError;
       }
 
@@ -787,6 +826,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       for (const alert of prAlerts) {
         const ex = exercises.find(e => e.name === alert.exerciseName);
         if (ex) {
+          // PR weight is already normalized to lbs by checkPR
           await supabase.rpc("update_personal_record", {
             _client_id: user.id, _exercise_id: ex.id, _weight: alert.weight, _reps: alert.reps,
           });
@@ -800,7 +840,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           .update({ is_completed: true, completed_at: new Date().toISOString() })
           .eq("id", calendarEventId);
       } else if (workoutId) {
-        // Fallback: find today's calendar event linked to this workout
         const todayLocal = new Date().toLocaleDateString("en-CA");
         const { data: calEvents } = await supabase
           .from("calendar_events")
@@ -819,11 +858,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         }
       }
 
-      // Invalidate dashboard + calendar caches so completion shows immediately
+      // Invalidate dashboard + calendar caches
       const todayStr = format(new Date(), "yyyy-MM-dd");
       invalidateCache(`today-actions-${user.id}-${todayStr}`);
 
-      // Clear retry queue
       clearRetryQueue();
 
       // Auto-score challenge points
@@ -840,12 +878,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         console.error("[WorkoutLogger] Challenge auto-score error:", e);
       }
 
-      // Award Ranked XP for workout completion & capture result for summary
+      // Award Ranked XP
       let xpResult: any = null;
       try {
         const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
         xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
-        // Check for badge unlocks
         const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
         if (xpResult) {
           const { data: freshProfile } = await (supabase as any)
@@ -861,10 +898,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         console.error("[WorkoutLogger] Ranked XP error:", e);
       }
 
-      // Freeze the duration at completion time
       setFrozenDuration(durationSeconds);
 
-      // Set rank data for summary
       if (xpResult) {
         setSummaryRankData({
           xpEarned: xpResult.xpAwarded,
@@ -876,12 +911,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         });
       }
 
-      // Clean up any stale Radix dialog body locks before switching to summary view.
-      // The finish-confirmation AlertDialog may not have completed its unmount
-      // animation when we swap the rendered tree, leaving pointer-events: none on body.
       document.body.style.pointerEvents = '';
-
-      // Notify useActiveSession that the session ended so the banner clears
       window.dispatchEvent(new CustomEvent("workout-session-ended"));
       setShowSummary(true);
     } catch (error: any) {
@@ -901,7 +931,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
     clearRetryQueue();
     setShowCancelDialog(false);
-    // Notify useActiveSession that the session ended so the banner doesn't appear
     window.dispatchEvent(new CustomEvent("workout-session-ended"));
     onComplete?.();
   };
@@ -920,7 +949,6 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         isFirstSession={isFirstSession}
         rankData={summaryRankData}
         onDone={() => {
-          // Final cleanup of any stale Radix overlay locks
           document.body.style.pointerEvents = '';
           clearRetryQueue();
           onComplete?.();
@@ -996,7 +1024,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         <div className="flex flex-wrap gap-2">
           {prAlerts.map((pr, i) => (
             <Badge key={i} variant="default" className="gap-1">
-              <Trophy className="h-3 w-3" /> {pr.exerciseName}: {pr.weight}×{pr.reps}
+              <Trophy className="h-3 w-3" /> {pr.exerciseName}: {pr.weight} lbs ×{pr.reps}
             </Badge>
           ))}
         </div>
@@ -1022,6 +1050,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             weight: personalRecords.find(pr => pr.exercise_id === exercise.id)!.weight,
             reps: personalRecords.find(pr => pr.exercise_id === exercise.id)!.reps,
           } : null}
+          clientWeightUnit={clientWeightUnit}
           activeTimerAfterSetIndex={restTimer?.exIdx === exIdx ? restTimer.setIdx : null}
           timerSeconds={restTimer?.seconds ?? 0}
           onTimerComplete={() => setRestTimer(null)}
@@ -1035,7 +1064,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         />
       ))}
 
-      {/* Inline Action Buttons — visible at scroll bottom */}
+      {/* Inline Action Buttons */}
       <div className="mt-6 space-y-3 pb-4">
         <Button
           variant="outline"
