@@ -119,7 +119,7 @@ const EventDetailModal = ({
           if (!uid) return;
           const { data } = await supabase
             .from("nutrition_logs")
-            .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, food_items(name, brand)")
+            .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, servings, food_items(name, brand, serving_size, serving_unit, serving_label)")
             .eq("client_id", uid)
             .eq("logged_at", dateStr)
             .order("meal_type")
