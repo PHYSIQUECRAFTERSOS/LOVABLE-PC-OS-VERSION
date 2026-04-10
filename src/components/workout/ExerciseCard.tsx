@@ -32,6 +32,7 @@ interface PreviousSet {
   weight: number | null;
   reps: number | null;
   rir: number | null;
+  weight_unit?: string;
 }
 
 interface ExerciseCardProps {
@@ -48,6 +49,7 @@ interface ExerciseCardProps {
   logs: SetLog[];
   previousSets: PreviousSet[];
   allTimePR: { weight: number; reps: number } | null;
+  clientWeightUnit?: string;
   activeTimerAfterSetIndex: number | null;
   timerSeconds: number;
   onTimerComplete: () => void;
@@ -101,42 +103,33 @@ const RPESelector = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent
-        side="top"
-        align="center"
-        className="w-64 p-3"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">RPE</p>
-            {currentRPE != null && (
-              <button
-                onClick={() => { onSelect(undefined); setOpen(false); }}
-                className="text-[10px] text-muted-foreground hover:text-foreground"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {RPE_VALUES.map((val) => (
-              <button
-                key={val}
-                onClick={() => { onSelect(val); setOpen(false); }}
-                className={cn(
-                  "h-9 rounded-md text-sm font-medium transition-colors border",
-                  currentRPE === val
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-secondary/60 text-foreground border-border hover:bg-secondary"
-                )}
-              >
-                {val}
-              </button>
-            ))}
-          </div>
-          {currentRPE != null && RPE_LABELS[currentRPE] && (
-            <p className="text-[11px] text-center text-muted-foreground">{RPE_LABELS[currentRPE]}</p>
+      <PopoverContent className="w-56 p-2" side="top" align="end">
+        <div className="space-y-0.5">
+          <p className="text-xs font-semibold text-muted-foreground px-2 pb-1">Rate Perceived Exertion</p>
+          {RPE_VALUES.map(rpe => (
+            <button
+              key={rpe}
+              onClick={() => { onSelect(rpe); setOpen(false); }}
+              className={cn(
+                "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors",
+                currentRPE === rpe
+                  ? "bg-primary/20 text-primary font-semibold"
+                  : "hover:bg-secondary text-foreground"
+              )}
+            >
+              <span className="font-medium">RPE {rpe}</span>
+              {RPE_LABELS[rpe] && (
+                <span className="text-[10px] text-muted-foreground">{RPE_LABELS[rpe]}</span>
+              )}
+            </button>
+          ))}
+          {currentRPE != null && (
+            <button
+              onClick={() => { onSelect(undefined); setOpen(false); }}
+              className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5 mt-1 border-t border-border"
+            >
+              Clear RPE
+            </button>
           )}
         </div>
       </PopoverContent>
@@ -144,9 +137,7 @@ const RPESelector = ({
   );
 };
 
-// --- Swipe-to-delete wrapper for individual set rows ---
-const SWIPE_THRESHOLD = 80;
-
+// --- Swipeable Set Row (delete on swipe) ---
 const SwipeableSetRow = ({
   children,
   onDelete,
@@ -156,86 +147,62 @@ const SwipeableSetRow = ({
   onDelete: () => void;
   disabled?: boolean;
 }) => {
-  const [offset, setOffset] = useState(0);
-  const [swiping, setSwiping] = useState(false);
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const locked = useRef(false);
+  const startXRef = useRef(0);
+  const currentXRef = useRef(0);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [swiped, setSwiped] = useState(false);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+  const handleTouchStart = (e: React.TouchEvent) => {
     if (disabled) return;
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    locked.current = false;
-    setSwiping(true);
-  }, [disabled]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!swiping || disabled) return;
-    const dx = e.touches[0].clientX - startX.current;
-    const dy = e.touches[0].clientY - startY.current;
-
-    if (!locked.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-      locked.current = true;
-      if (Math.abs(dy) > Math.abs(dx)) {
-        setSwiping(false);
-        setOffset(0);
-        return;
-      }
-    }
-
-    if (dx < 0) {
-      setOffset(Math.max(dx, -100));
-    }
-  }, [swiping, disabled]);
-
-  const handleTouchEnd = useCallback(() => {
-    setSwiping(false);
-    if (offset < -SWIPE_THRESHOLD) {
-      setOffset(-100);
-    } else {
-      setOffset(0);
-    }
-  }, [offset]);
-
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOffset(0);
-    onDelete();
+    startXRef.current = e.touches[0].clientX;
+    currentXRef.current = 0;
   };
 
-  const handleClick = () => {
-    if (offset < -10) setOffset(0);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (disabled) return;
+    const diff = e.touches[0].clientX - startXRef.current;
+    currentXRef.current = diff;
+    if (diff < -20 && rowRef.current) {
+      rowRef.current.style.transform = `translateX(${Math.max(diff, -80)}px)`;
+    }
   };
 
-  if (disabled) return <>{children}</>;
+  const handleTouchEnd = () => {
+    if (disabled) return;
+    if (currentXRef.current < -60) {
+      setSwiped(true);
+    } else if (rowRef.current) {
+      rowRef.current.style.transform = "translateX(0)";
+    }
+  };
 
-  return (
-    <div className="relative overflow-hidden rounded-lg">
-      {/* Delete button behind */}
-      <div
-        className="absolute inset-y-0 right-0 flex items-center justify-center bg-destructive text-destructive-foreground cursor-pointer rounded-r-lg"
-        style={{ width: 100 }}
-        onClick={handleDeleteClick}
-      >
-        <div className="flex items-center gap-1.5 font-medium text-sm">
-          <Trash2 className="h-4 w-4" />
-          Delete
+  if (swiped) {
+    return (
+      <div className="flex items-center justify-between bg-destructive/10 border border-destructive/30 rounded-lg p-2">
+        <span className="text-xs text-destructive font-medium">Delete this set?</span>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setSwiped(false); if (rowRef.current) rowRef.current.style.transform = "translateX(0)"; }}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={onDelete}>
+            <Trash2 className="h-3 w-3 mr-1" /> Delete
+          </Button>
         </div>
       </div>
+    );
+  }
 
-      {/* Foreground */}
+  return (
+    <div className="relative overflow-hidden">
+      <div className="absolute right-0 top-0 bottom-0 w-20 flex items-center justify-center bg-destructive/20 rounded-r-lg">
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </div>
       <div
-        className="relative"
-        style={{
-          transform: `translateX(${offset}px)`,
-          transition: swiping ? "none" : "transform 0.25s ease-out",
-        }}
+        ref={rowRef}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={handleClick}
+        className="relative z-10 bg-background transition-transform"
       >
         {children}
       </div>
@@ -243,8 +210,10 @@ const SwipeableSetRow = ({
   );
 };
 
+// --- Main ExerciseCard ---
 const ExerciseCard = ({
   name,
+  exerciseId,
   sets,
   reps,
   tempo,
@@ -256,6 +225,7 @@ const ExerciseCard = ({
   logs,
   previousSets,
   allTimePR,
+  clientWeightUnit,
   activeTimerAfterSetIndex,
   timerSeconds,
   onTimerComplete,
@@ -271,7 +241,7 @@ const ExerciseCard = ({
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const { convertWeight, parseWeightInput, weightLabel } = useUnitPreferences();
+  const { convertWeight, weightLabel } = useUnitPreferences();
 
   // Local string state for weight inputs to preserve trailing decimals (e.g. "105.")
   const [weightStrings, setWeightStrings] = useState<Record<number, string>>({});
@@ -298,6 +268,17 @@ const ExerciseCard = ({
 
   // Only allow deleting if there's more than 1 set
   const canDeleteSet = logs.length > 1;
+
+  /** Convert a previous-performance weight to the client's display unit.
+   *  Old data has no weight_unit (stored in lbs) → use convertWeight (lbs→client unit).
+   *  New data has weight_unit matching client → show raw. */
+  const displayPrevWeight = (w: number, unit?: string) => {
+    if (!unit || unit === 'lbs') return convertWeight(w);
+    if (unit === (clientWeightUnit || weightLabel)) return w;
+    // Edge case: stored in kg but client uses lbs
+    if (unit === 'kg') return Number((w * 2.20462).toFixed(1));
+    return w;
+  };
 
   return (
     <Card
@@ -344,6 +325,7 @@ const ExerciseCard = ({
           {restSeconds > 0 && <span className="text-xs bg-secondary px-2 py-0.5 rounded">Rest: {restSeconds}s</span>}
         </div>
 
+        {/* All-time PR is stored in lbs in personal_records — convert to client unit for display */}
         {allTimePR && (
           <p className="text-xs text-primary mt-1 flex items-center gap-1">
             <Trophy className="h-3 w-3" /> All-Time PR: {convertWeight(allTimePR.weight)} {weightLabel} × {allTimePR.reps} reps
@@ -397,7 +379,7 @@ const ExerciseCard = ({
         {logs.map((log, setIdx) => {
           const prev = previousSets.find(p => p.set_number === log.setNumber);
           const prevLabel = prev && (prev.weight !== null && prev.weight !== undefined)
-            ? `${prev.weight === 0 ? "BW" : convertWeight(prev.weight)}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
+            ? `${prev.weight === 0 ? "BW" : displayPrevWeight(prev.weight, prev.weight_unit)}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
             : "—";
 
           const setRow = (
@@ -417,10 +399,11 @@ const ExerciseCard = ({
               <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
               <div className="relative">
+                 {/* Weight input — stores RAW value in client's preferred unit (no conversion) */}
                  <Input
                    type="text"
                    inputMode="decimal"
-                   value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : (log.weight !== undefined && log.weight !== null ? String(convertWeight(log.weight)) : "")}
+                   value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : (log.weight !== undefined && log.weight !== null ? String(log.weight) : "")}
                    onChange={(e) => {
                      const val = e.target.value;
                      if (val === "") {
@@ -428,10 +411,10 @@ const ExerciseCard = ({
                        onUpdateLog(setIdx, "weight", undefined);
                      } else if (/^\d*\.?\d*$/.test(val)) {
                        setWeightStrings(prev => ({ ...prev, [setIdx]: val }));
-                       // Only commit the numeric value when it's a complete number (not ending with ".")
+                       // Commit the raw numeric value (no unit conversion)
                        if (!val.endsWith(".")) {
                          const num = parseFloat(val);
-                         if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
+                         if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
                        }
                      }
                    }}
@@ -440,7 +423,7 @@ const ExerciseCard = ({
                      const str = weightStrings[setIdx];
                      if (str !== undefined && str !== "") {
                        const num = parseFloat(str);
-                       if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", parseWeightInput(num));
+                       if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
                      }
                      setWeightStrings(prev => { const n = { ...prev }; delete n[setIdx]; return n; });
                    }}
