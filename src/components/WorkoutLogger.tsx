@@ -952,12 +952,16 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         onDone={() => {
           document.body.style.pointerEvents = '';
           clearRetryQueue();
-          // Dispatch event BEFORE navigate so AppLayout's useActiveSession
-          // clears the banner before the dashboard re-mounts
+          // Mark this session as completed locally so the banner never re-appears,
+          // even if the DB query returns stale data
+          if (sessionId) {
+            window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
+          }
+          // Dispatch ended event to clear the banner state immediately
           window.dispatchEvent(new CustomEvent("workout-session-ended"));
-          navigate("/dashboard");
-          // Call onComplete after navigate to avoid parent unmounting us first
+          // Call onComplete first to close the overlay, then navigate
           onComplete?.();
+          navigate("/dashboard");
         }}
       />
     );
