@@ -39,40 +39,11 @@ const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
     onDismiss();
   };
 
-  const handleFinish = async () => {
-    if (!user) return;
-    setFinishing(true);
-    try {
-      const durationSeconds = Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000);
-
-      // Fetch existing logged sets for volume calc
-      const { data: logs } = await supabase
-        .from("exercise_logs")
-        .select("weight, reps")
-        .eq("session_id", session.id);
-
-      const totalVolume = (logs || []).reduce((acc, l) => acc + ((l.weight || 0) * (l.reps || 0)), 0);
-      const setsCompleted = (logs || []).length;
-
-      await supabase
-        .from("workout_sessions")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          duration_seconds: durationSeconds,
-          total_volume: totalVolume,
-          sets_completed: setsCompleted,
-        })
-        .eq("id", session.id);
-
-      toast({ title: "Workout Complete!", description: `${session.workout_name} — ${setsCompleted} sets logged` });
-      onDismiss();
-    } catch (err: any) {
-      console.error("[Banner] Finish error:", err);
-      toast({ title: "Error finishing workout", description: err.message, variant: "destructive" });
-    } finally {
-      setFinishing(false);
-    }
+  const handleFinish = () => {
+    // Navigate to training with resume state — the workout logger will handle
+    // showing the finish flow and summary screen properly
+    navigate("/training", { state: { resumeSessionId: session.id, startWorkoutId: session.workout_id } });
+    onDismiss();
   };
 
   return (
