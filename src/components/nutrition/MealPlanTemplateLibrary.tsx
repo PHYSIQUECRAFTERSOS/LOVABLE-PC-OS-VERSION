@@ -518,6 +518,18 @@ const MealPlanTemplateLibrary = () => {
                           {template.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />}
                           <p className="text-sm font-medium truncate">{template.name}</p>
                         </div>
+                        {/* Day Type Badge */}
+                        <div className="mt-1">
+                          <span
+                            className="inline-block text-[11px] font-semibold px-2.5 py-0.5"
+                            style={{
+                              borderRadius: "99px",
+                              ...getDayTypeBadgeStyle(template.day_type),
+                            }}
+                          >
+                            {getDayTypeBadgeLabel(template.day_type)}
+                          </span>
+                        </div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {template.category && (
                             <Badge variant="outline" className="text-[9px] px-1 py-0">{template.category}</Badge>
