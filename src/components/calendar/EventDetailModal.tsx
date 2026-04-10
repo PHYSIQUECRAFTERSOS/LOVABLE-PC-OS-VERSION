@@ -283,9 +283,28 @@ const EventDetailModal = ({
         loggedSets: [] as SessionLog["sets"],
       }));
 
+  const isNutritionEvent = event.event_type === "nutrition";
+  const nutritionDate = useMemo(() => new Date(event.event_date + "T12:00:00"), [event.event_date]);
+
+  // Compute day totals for nutrition events
+  const dayTotals = useMemo(() => {
+    if (!isNutritionEvent || nutritionFoods.length === 0) return null;
+    const t = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    nutritionFoods.forEach((f: any) => {
+      t.calories += f.calories || 0;
+      t.protein += f.protein || 0;
+      t.carbs += f.carbs || 0;
+      t.fat += f.fat || 0;
+    });
+    return t;
+  }, [isNutritionEvent, nutritionFoods]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <DialogContent className={cn(
+        "max-h-[90vh] overflow-y-auto p-0 gap-0",
+        isNutritionEvent ? "sm:max-w-3xl" : "sm:max-w-lg"
+      )}>
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background border-b border-border px-5 pt-5 pb-4">
           <div className="flex items-center justify-between mb-3">
