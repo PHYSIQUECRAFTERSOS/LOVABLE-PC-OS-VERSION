@@ -542,6 +542,49 @@ const MealPlanTemplateLibrary = () => {
                           )}
                         </div>
                       </div>
+                      {/* Classify button for untagged templates */}
+                      {(!template.day_type || template.day_type === "all_days" || template.day_type === "training") && (
+                        <Popover open={classifyOpenId === template.id} onOpenChange={(open) => setClassifyOpenId(open ? template.id : null)}>
+                          <PopoverTrigger asChild>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setClassifyOpenId(template.id); }}
+                              className="shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity"
+                              style={{
+                                background: "#1a1a1a",
+                                color: "#D4A017",
+                                border: "1px solid #D4A017",
+                                fontSize: "11px",
+                                padding: "3px 10px",
+                                borderRadius: "6px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Classify
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            className="w-40 p-1"
+                            style={{ background: "#1a1a1a", border: "1px solid #333333", borderRadius: "8px" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {[
+                              { value: "training", label: "Training Day" },
+                              { value: "rest", label: "Rest Day" },
+                              { value: "all_days", label: "All Days" },
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => classifyTemplate(template.id, opt.value)}
+                                className="w-full text-left px-3 py-2 text-sm text-foreground hover:text-primary transition-colors rounded"
+                                style={{ height: "36px" }}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </PopoverContent>
+                        </Popover>
+                      )}
                     </div>
                   </button>
                 ))
