@@ -71,9 +71,8 @@ const UnfinishedWorkoutBanner = ({ session, online, onDismiss }: Props) => {
           variant="secondary"
           className="flex-1 bg-background text-foreground hover:bg-background/90 font-semibold border-0"
           onClick={handleFinish}
-          disabled={!online || finishing}
+          disabled={!online}
         >
-          {finishing && <Loader2 className="animate-spin mr-1 h-3.5 w-3.5" />}
           Finish Workout
         </Button>
       </div>
