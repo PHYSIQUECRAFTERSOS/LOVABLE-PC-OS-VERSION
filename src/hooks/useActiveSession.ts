@@ -85,15 +85,15 @@ export const useActiveSession = () => {
 
   useEffect(() => { checkForSession(); }, [checkForSession]);
 
-  // Re-check when a workout session ends (cancelled, completed, etc.)
+  // When a workout session ends, immediately clear the banner.
+  // Do NOT re-check — the session is definitively over.
   useEffect(() => {
     const handler = () => {
       setActiveSession(null);
-      checkForSession();
     };
     window.addEventListener("workout-session-ended", handler);
     return () => window.removeEventListener("workout-session-ended", handler);
-  }, [checkForSession]);
+  }, []);
 
   // Auto-abandon stale sessions (older than 2h) silently
   useEffect(() => {
