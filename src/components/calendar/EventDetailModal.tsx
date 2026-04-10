@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CalendarEvent } from "./CalendarGrid";
@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
+import NutritionGoalComparison, { getComplianceDot } from "./NutritionGoalComparison";
 
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
@@ -231,6 +232,24 @@ const EventDetailModal = ({
     loadSession();
   }, [open, event, clientId]);
 
+  const isNutritionEvent = event?.event_type === "nutrition";
+  const nutritionDate = useMemo(
+    () => (event ? new Date(event.event_date + "T12:00:00") : new Date()),
+    [event?.event_date]
+  );
+
+  const dayTotals = useMemo(() => {
+    if (!isNutritionEvent || nutritionFoods.length === 0) return null;
+    const t = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    nutritionFoods.forEach((f: any) => {
+      t.calories += f.calories || 0;
+      t.protein += f.protein || 0;
+      t.carbs += f.carbs || 0;
+      t.fat += f.fat || 0;
+    });
+    return t;
+  }, [isNutritionEvent, nutritionFoods]);
+
   if (!event) return null;
 
   const resolveEventType = (ev: CalendarEvent): string => {
@@ -267,7 +286,6 @@ const EventDetailModal = ({
 
   const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
-  // Build exercise display: merge prescribed exercises with session logs
   const exerciseDisplay = hasSession
     ? sessionData!.logs.map(log => ({
         name: log.exercise_name,
@@ -282,9 +300,14 @@ const EventDetailModal = ({
         loggedSets: [] as SessionLog["sets"],
       }));
 
+  const resolvedClientId = clientId || event.target_client_id || event.user_id;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <DialogContent className={cn(
+        "max-h-[90vh] overflow-y-auto p-0 gap-0",
+        isNutritionEvent ? "sm:max-w-3xl" : "sm:max-w-lg"
+      )}>
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background border-b border-border px-5 pt-5 pb-4">
           <div className="flex items-center justify-between mb-3">
@@ -497,117 +520,136 @@ const EventDetailModal = ({
             <p className="text-sm text-muted-foreground text-center py-4">No exercise data available</p>
           )}
 
-          {/* Nutrition food list */}
-          {event.event_type === "nutrition" && loadingNutrition && (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => (
-                <Skeleton key={i} className="h-14 w-full rounded-lg" />
-              ))}
-            </div>
-          )}
-
-          {event.event_type === "nutrition" && !loadingNutrition && nutritionFoods.length > 0 && (() => {
-            // Group by meal_type
-            const mealGroups: Record<string, any[]> = {};
-            let dayTotals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
-            nutritionFoods.forEach((f: any) => {
-              const slot = f.meal_type || "Other";
-              if (!mealGroups[slot]) mealGroups[slot] = [];
-              mealGroups[slot].push(f);
-              dayTotals.calories += f.calories || 0;
-              dayTotals.protein += f.protein || 0;
-              dayTotals.carbs += f.carbs || 0;
-              dayTotals.fat += f.fat || 0;
-            });
-
-            const MEAL_ORDER = ["breakfast", "pre-workout", "lunch", "post-workout", "dinner", "snack"];
-            const MEAL_LABELS: Record<string, string> = {
-              breakfast: "Breakfast", "pre-workout": "Pre-Workout", lunch: "Lunch",
-              "post-workout": "Post-Workout", dinner: "Dinner", snack: "Snacks",
-            };
-            const sortedMeals = Object.entries(mealGroups).sort(([a], [b]) => {
-              const ai = MEAL_ORDER.indexOf(a);
-              const bi = MEAL_ORDER.indexOf(b);
-              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-            });
-
-            return (
-              <div className="space-y-4">
-                {/* Day totals banner */}
-                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    {[
-                      { label: "Calories", value: Math.round(dayTotals.calories), unit: "" },
-                      { label: "Protein", value: Math.round(dayTotals.protein), unit: "g" },
-                      { label: "Carbs", value: Math.round(dayTotals.carbs), unit: "g" },
-                      { label: "Fat", value: Math.round(dayTotals.fat), unit: "g" },
-                    ].map(m => (
-                      <div key={m.label}>
-                        <p className="text-[10px] text-primary/70 uppercase tracking-wider font-medium">{m.label}</p>
-                        <p className="text-base font-bold text-primary tabular-nums">{m.value}{m.unit}</p>
-                      </div>
+          {/* Nutrition: split layout — food list left, goal comparison right */}
+          {event.event_type === "nutrition" && (
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
+              {/* Left: food list */}
+              <div className="space-y-4 min-w-0">
+                {loadingNutrition && (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                      <Skeleton key={i} className="h-14 w-full rounded-lg" />
                     ))}
                   </div>
-                </div>
+                )}
 
-                {sortedMeals.map(([mealType, foods]) => {
-                  const mealCals = foods.reduce((s: number, f: any) => s + (f.calories || 0), 0);
-                  const mealP = foods.reduce((s: number, f: any) => s + (f.protein || 0), 0);
-                  const mealC = foods.reduce((s: number, f: any) => s + (f.carbs || 0), 0);
-                  const mealF = foods.reduce((s: number, f: any) => s + (f.fat || 0), 0);
+                {!loadingNutrition && nutritionFoods.length > 0 && (() => {
+                  const mealGroups: Record<string, any[]> = {};
+                  nutritionFoods.forEach((f: any) => {
+                    const slot = f.meal_type || "Other";
+                    if (!mealGroups[slot]) mealGroups[slot] = [];
+                    mealGroups[slot].push(f);
+                  });
+
+                  const MEAL_ORDER = ["breakfast", "pre-workout", "lunch", "post-workout", "dinner", "snack"];
+                  const MEAL_LABELS: Record<string, string> = {
+                    breakfast: "Breakfast", "pre-workout": "Pre-Workout", lunch: "Lunch",
+                    "post-workout": "Post-Workout", dinner: "Dinner", snack: "Snacks",
+                  };
+                  const sortedMeals = Object.entries(mealGroups).sort(([a], [b]) => {
+                    const ai = MEAL_ORDER.indexOf(a);
+                    const bi = MEAL_ORDER.indexOf(b);
+                    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+                  });
+
                   return (
-                    <div key={mealType} className="rounded-lg border border-border overflow-hidden">
-                      {/* Meal section header with gold accent */}
-                      <div className="flex items-center justify-between px-3 py-2.5 border-l-[3px] border-l-primary bg-primary/5">
-                        <h4 className="text-sm font-bold text-primary uppercase tracking-wide">
-                          {MEAL_LABELS[mealType] || mealType}
-                        </h4>
-                        <span className="text-xs font-semibold text-primary tabular-nums">
-                          {Math.round(mealCals)} cal
-                        </span>
-                      </div>
-                      {/* Meal section macro sub-header */}
-                      <div className="px-3 py-1.5 bg-secondary/30 border-b border-border">
-                        <p className="text-[11px] text-primary/60 font-medium tabular-nums">
-                          P {Math.round(mealP)}g · C {Math.round(mealC)}g · F {Math.round(mealF)}g
-                        </p>
-                      </div>
-                      {/* Food items */}
-                      <div className="divide-y divide-border/40">
-                        {foods.map((food: any) => {
-                          const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
-                          const brand = (food.food_items as any)?.brand || null;
-                          const fi = (food.food_items as any);
-                          const si = fi ? { serving_size: fi.serving_size, serving_unit: fi.serving_unit, serving_label: fi.serving_label } : null;
-                          const qty = formatServingDisplay(si, food.quantity_display, food.quantity_unit, food.servings || 1);
-                          return (
-                            <div key={food.id} className="px-3 py-2.5">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-foreground truncate">{name}</p>
-                                  {(brand || qty) && (
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                      {brand}{brand && qty ? " · " : ""}{qty}
-                                    </p>
-                                  )}
+                    <>
+                      {/* Day totals banner with compliance dots */}
+                      {dayTotals && (
+                        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                          <div className="grid grid-cols-4 gap-2 text-center">
+                            {[
+                              { label: "Calories", value: dayTotals.calories, unit: "", key: "calories" },
+                              { label: "Protein", value: dayTotals.protein, unit: "g", key: "protein" },
+                              { label: "Carbs", value: dayTotals.carbs, unit: "g", key: "carbs" },
+                              { label: "Fat", value: dayTotals.fat, unit: "g", key: "fat" },
+                            ].map(m => {
+                              // Show compliance dot if we have targets
+                              const dot = dayTotals ? (() => {
+                                // We'll need the targets from the NutritionGoalComparison — for now show inline
+                                return null;
+                              })() : null;
+                              return (
+                                <div key={m.label}>
+                                  <p className="text-[10px] text-primary/70 uppercase tracking-wider font-medium">{m.label}</p>
+                                  <p className="text-base font-bold text-primary tabular-nums">{Math.round(m.value)}{m.unit}</p>
                                 </div>
-                                <span className="text-xs font-semibold text-foreground tabular-nums shrink-0 ml-2">
-                                  {Math.round(food.calories)} cal
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
-                                P {Math.round(food.protein)}g · C {Math.round(food.carbs)}g · F {Math.round(food.fat)}g
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {sortedMeals.map(([mealType, foods]) => {
+                        const mealCals = foods.reduce((s: number, f: any) => s + (f.calories || 0), 0);
+                        const mealP = foods.reduce((s: number, f: any) => s + (f.protein || 0), 0);
+                        const mealC = foods.reduce((s: number, f: any) => s + (f.carbs || 0), 0);
+                        const mealF = foods.reduce((s: number, f: any) => s + (f.fat || 0), 0);
+                        return (
+                          <div key={mealType} className="rounded-lg border border-border overflow-hidden">
+                            <div className="flex items-center justify-between px-3 py-2.5 border-l-[3px] border-l-primary bg-primary/5">
+                              <h4 className="text-sm font-bold text-primary uppercase tracking-wide">
+                                {MEAL_LABELS[mealType] || mealType}
+                              </h4>
+                              <span className="text-xs font-semibold text-primary tabular-nums">
+                                {Math.round(mealCals)} cal
+                              </span>
+                            </div>
+                            <div className="px-3 py-1.5 bg-secondary/30 border-b border-border">
+                              <p className="text-[11px] text-primary/60 font-medium tabular-nums">
+                                P {Math.round(mealP)}g · C {Math.round(mealC)}g · F {Math.round(mealF)}g
                               </p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                            <div className="divide-y divide-border/40">
+                              {foods.map((food: any) => {
+                                const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
+                                const brand = (food.food_items as any)?.brand || null;
+                                const fi = (food.food_items as any);
+                                const si = fi ? { serving_size: fi.serving_size, serving_unit: fi.serving_unit, serving_label: fi.serving_label } : null;
+                                const qty = formatServingDisplay(si, food.quantity_display, food.quantity_unit, food.servings || 1);
+                                return (
+                                  <div key={food.id} className="px-3 py-2.5">
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-foreground truncate">{name}</p>
+                                        {(brand || qty) && (
+                                          <p className="text-xs text-muted-foreground mt-0.5">
+                                            {brand}{brand && qty ? " · " : ""}{qty}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <span className="text-xs font-semibold text-foreground tabular-nums shrink-0 ml-2">
+                                        {Math.round(food.calories)} cal
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
+                                      P {Math.round(food.protein)}g · C {Math.round(food.carbs)}g · F {Math.round(food.fat)}g
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
                   );
-                })}
+                })()}
               </div>
-            );
-          })()}
+
+              {/* Right: Goal comparison panel */}
+              {resolvedClientId && (
+                <div className="border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
+                  <NutritionGoalComparison
+                    clientId={resolvedClientId}
+                    date={nutritionDate}
+                    logged={dayTotals}
+                    isCoach={isCoach}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {event.notes && (
             <div className="bg-secondary/50 rounded-lg p-3">
