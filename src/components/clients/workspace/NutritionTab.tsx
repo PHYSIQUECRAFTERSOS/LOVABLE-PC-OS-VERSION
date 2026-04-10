@@ -44,6 +44,8 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
   const [targets, setTargets] = useState<Targets | null>(null);
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
+  const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
+  const [foodNames, setFoodNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({
@@ -82,13 +84,19 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
       if (foodIds.length > 0) {
         const { data: foods } = await supabase
           .from("food_items")
-          .select("id, name")
+          .select("id, name, serving_size, serving_unit, serving_label")
           .in("id", foodIds);
         const names: Record<string, string> = {};
-        (foods || []).forEach((f: any) => { names[f.id] = f.name; });
+        const sInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = {};
+        (foods || []).forEach((f: any) => {
+          names[f.id] = f.name;
+          sInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
+        });
         setFoodNames(names);
+        setFoodServingInfo(sInfo);
       } else {
         setFoodNames({});
+        setFoodServingInfo({});
       }
 
       setLoading(false);
