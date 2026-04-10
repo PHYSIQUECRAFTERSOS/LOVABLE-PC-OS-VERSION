@@ -25,6 +25,7 @@ import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker
 import { useToast } from "@/hooks/use-toast";
 import EditFoodModal from "./EditFoodModal";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
+import { formatServingDisplay } from "@/utils/formatServingDisplay";
 
 interface NutritionLog {
   id: string;
@@ -638,46 +639,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                             <div className="text-sm font-medium text-foreground truncate">{foodName}</div>
                             <div className="text-xs text-muted-foreground">
                               {(() => {
-                                // Build serving display string
                                 const si = item.food_item_id ? foodServingInfo[item.food_item_id] : null;
-                                const qd = item.quantity_display;
-                                const qu = item.quantity_unit;
-
-                                if (qu === "serving" && si?.serving_label) {
-                                  // Show natural label: "1 croissant", "2 eggs"
-                                  const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
-                                  return `${count} ${si.serving_label} · `;
-                                }
-                                if (qu === "serving" && si) {
-                                  // No natural serving label
-                                  const count = qd != null && qd > 0 ? Math.round(qd * 10) / 10 : Math.round(item.servings * 10) / 10;
-                                  // For gram/ml-based foods (meat, fish, etc.), always show total weight
-                                  if (si.serving_unit === "g" || si.serving_unit === "ml" || si.serving_unit === "grams") {
-                                    const totalWeight = Math.round(count * si.serving_size);
-                                    const unit = si.serving_unit === "ml" ? "ml" : "g";
-                                    return `${totalWeight}${unit} · `;
-                                  }
-                                  // Non-metric servings (piece, slice, etc.) — show count
-                                  if (count === Math.round(count) && count <= 12) {
-                                    return `${count} serving${count !== 1 ? 's' : ''} · `;
-                                  }
-                                  const totalWeight = Math.round(count * si.serving_size);
-                                  return `${totalWeight}g · `;
-                                }
-                                if (qd != null && qd > 0) {
-                                  const displayQty = Math.round(qd * 10) / 10;
-                                  if (qu === "g") return `${displayQty}g · `;
-                                  if (qu === "oz") return `${displayQty} oz · `;
-                                  if (qu) return `${displayQty} ${qu} · `;
-                                  return `${displayQty}g · `;
-                                }
-                                // No quantity_display: show serving size from food_items
-                                if (si) {
-                                  const servingCount = Math.round(item.servings * 10) / 10;
-                                  if (si.serving_label) return `${servingCount} ${si.serving_label} · `;
-                                  return `${Math.round(servingCount * si.serving_size)}${si.serving_unit} · `;
-                                }
-                                return '';
+                                const label = formatServingDisplay(si, item.quantity_display, item.quantity_unit, item.servings);
+                                return label ? `${label} · ` : '';
                               })()}
                               {Math.round(item.calories)} cal · {Math.round(item.protein)}P · {Math.round(item.carbs)}C · {Math.round(item.fat)}F
                             </div>

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { UtensilsCrossed, ChevronDown, ChevronUp } from "lucide-react";
 import { format, addDays, subDays } from "date-fns";
 import DateNavigator from "@/components/dashboard/DateNavigator";
+import { formatServingDisplay } from "@/utils/formatServingDisplay";
 import MacroRing from "@/components/nutrition/MacroRing";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
