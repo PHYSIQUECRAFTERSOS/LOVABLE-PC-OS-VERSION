@@ -553,6 +553,16 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
           <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(200 70% 55%)" />
           <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(45 80% 55%)" />
         </div>
+        {/* Day Type Badge */}
+        <div className="flex justify-center mt-3">
+          <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
+            dayType === "training_day"
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary border border-border text-foreground"
+          }`}>
+            {dayType === "training_day" ? "Training Day" : "Rest Day"}
+          </span>
+        </div>
       </div>
 
       {/* Meal Sections */}
