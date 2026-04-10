@@ -130,6 +130,7 @@ interface FoodLogEntry {
   servings: number;
   quantity_display: number | null;
   quantity_unit: string | null;
+  serving_info: { serving_size: number; serving_unit: string; serving_label: string | null } | null;
 }
 
 interface ComplianceDay {
