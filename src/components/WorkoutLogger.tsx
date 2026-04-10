@@ -190,6 +190,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
   const [recoveredSetCount, setRecoveredSetCount] = useState(0);
 
+  // Completion lock — prevents duplicate finish calls (useRef to avoid re-render loops)
+  const isCompletingRef = useRef(false);
+
   // Elapsed timer — updates every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -764,6 +767,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const finishWorkout = async (hadUnlogged: boolean = false) => {
     if (!user || !sessionId) return;
+    // Prevent duplicate completion calls (rapid taps, double-fires)
+    if (isCompletingRef.current) return;
+    isCompletingRef.current = true;
     setLoading(true);
     try {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
@@ -919,6 +925,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     } catch (error: any) {
       console.error("[WorkoutLogger] Finish error:", error, { workoutId, userId: user.id });
       toast({ title: "Error saving workout", description: error.message, variant: "destructive" });
+      // Release lock so user can retry
+      isCompletingRef.current = false;
     } finally {
       setLoading(false);
     }

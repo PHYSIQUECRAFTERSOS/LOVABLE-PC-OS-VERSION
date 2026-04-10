@@ -87,6 +87,7 @@ function isDraggable(event: CalendarEvent): boolean {
 const LONG_PRESS_MS = 400;
 const AUTO_SCROLL_ZONE = 60; // px from edge
 const AUTO_SCROLL_SPEED = 6; // px per frame
+const MIN_DRAG_DISTANCE = 30; // px — must drag at least this far from start to accept a different drop target
 
 const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayListProps) => {
   const todayRef = useRef<HTMLDivElement>(null);
@@ -206,7 +207,26 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
 
     const ev = dragEventRef.current;
     const target = dropTargetRef.current;
-    if (ev && target && target !== ev.event_date && onEventMoved) {
+
+    // Only move if finger actually traveled a meaningful distance from the drag start point.
+    // This prevents accidental moves when the user just long-pressed without truly dragging.
+    let draggedFarEnough = false;
+    if (ev && target && target !== ev.event_date && onEventMoved && dragStartPos.current) {
+      // We need current finger position — stored in dragPos state
+      // If no drag position recorded (finger barely moved), skip
+      const lastPos = dragStartPos.current;
+      // Check the last known drag position from setDragPos
+      const el = dragCardRef.current;
+      if (el) {
+        const style = el.style;
+        const currentY = parseFloat(style.top || "0") + 30; // compensate offset
+        const dy = Math.abs(currentY - lastPos.y);
+        const dx = 0; // we only care about vertical distance for day changes
+        draggedFarEnough = dy >= MIN_DRAG_DISTANCE;
+      }
+    }
+
+    if (ev && target && target !== ev.event_date && onEventMoved && draggedFarEnough) {
       onEventMoved(ev.id, target);
     }
 
@@ -215,7 +235,8 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
     setDragEvent(null);
     setDragPos(null);
     setDropTargetDate(null);
-    didDrag.current = false;
+    // Do NOT reset didDrag here — keep it true so the subsequent onClick is suppressed.
+    // It will be reset on the next touchstart/mousedown.
     dragStartPos.current = null;
     document.body.style.userSelect = "";
   }, [onEventMoved, clearLongPress, stopAutoScroll]);
@@ -257,6 +278,10 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
       clearLongPress();
       if (dragEventRef.current) {
         endDrag();
+        // Keep didDrag.current = true so the subsequent onClick is suppressed.
+        // It will be reset on the next handleTouchStart.
+        dragStartPos.current = null;
+        return;
       }
       didDrag.current = false;
       dragStartPos.current = null;
