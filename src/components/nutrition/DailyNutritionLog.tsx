@@ -101,6 +101,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingSelected, setDeletingSelected] = useState(false);
   const [dayType, setDayType] = useState<DayType>("training_day");
+  const [activePlanDayType, setActivePlanDayType] = useState<string | null>(null);
 
   const dateStr = toLocalDateString(selectedDate);
   const { suggestions, quickAdd, refresh: refreshSuggestions } = useQuickAddMeals(user?.id, selectedDate);
