@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { UtensilsCrossed, ChevronDown, ChevronUp } from "lucide-react";
 import { format, addDays, subDays } from "date-fns";
 import DateNavigator from "@/components/dashboard/DateNavigator";
+import { formatServingDisplay } from "@/utils/formatServingDisplay";
 import MacroRing from "@/components/nutrition/MacroRing";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -43,6 +44,7 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
   const [targets, setTargets] = useState<Targets | null>(null);
   const [logs, setLogs] = useState<NutritionLog[]>([]);
   const [foodNames, setFoodNames] = useState<Record<string, string>>({});
+  const [foodServingInfo, setFoodServingInfo] = useState<Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({
@@ -81,13 +83,19 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
       if (foodIds.length > 0) {
         const { data: foods } = await supabase
           .from("food_items")
-          .select("id, name")
+          .select("id, name, serving_size, serving_unit, serving_label")
           .in("id", foodIds);
         const names: Record<string, string> = {};
-        (foods || []).forEach((f: any) => { names[f.id] = f.name; });
+        const sInfo: Record<string, { serving_size: number; serving_unit: string; serving_label: string | null }> = {};
+        (foods || []).forEach((f: any) => {
+          names[f.id] = f.name;
+          sInfo[f.id] = { serving_size: f.serving_size, serving_unit: f.serving_unit, serving_label: f.serving_label };
+        });
         setFoodNames(names);
+        setFoodServingInfo(sInfo);
       } else {
         setFoodNames({});
+        setFoodServingInfo({});
       }
 
       setLoading(false);
@@ -194,11 +202,11 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
                         return (
                           <div key={item.id} className="py-2 px-1">
                             <p className="text-sm font-medium text-foreground">{foodName}</p>
-                            {item.quantity_display != null && item.quantity_display > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                {item.quantity_display}{item.quantity_unit === 'oz' ? ' oz' : item.quantity_unit === 'serving' ? ' serving' : 'g'}
-                              </p>
-                            )}
+                            {(() => {
+                              const si = item.food_item_id ? foodServingInfo[item.food_item_id] : null;
+                              const label = formatServingDisplay(si, item.quantity_display, item.quantity_unit, item.servings);
+                              return label ? <p className="text-xs text-muted-foreground">{label}</p> : null;
+                            })()}
                             <p className="text-xs text-primary mt-0.5">
                               {Math.round(item.calories)} cal · {Math.round(item.protein)}g P · {Math.round(item.carbs)}g C · {Math.round(item.fat)}g F
                             </p>

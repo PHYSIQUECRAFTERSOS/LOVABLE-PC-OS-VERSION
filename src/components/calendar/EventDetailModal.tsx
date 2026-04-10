@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatServingDisplay } from "@/utils/formatServingDisplay";
 
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
@@ -119,7 +120,7 @@ const EventDetailModal = ({
           if (!uid) return;
           const { data } = await supabase
             .from("nutrition_logs")
-            .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, food_items(name, brand)")
+            .select("id, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit, servings, food_items(name, brand, serving_size, serving_unit, serving_label)")
             .eq("client_id", uid)
             .eq("logged_at", dateStr)
             .order("meal_type")
@@ -576,7 +577,9 @@ const EventDetailModal = ({
                         {foods.map((food: any) => {
                           const name = food.custom_name || (food.food_items as any)?.name || "Unknown food";
                           const brand = (food.food_items as any)?.brand || null;
-                          const qty = food.quantity_display ? `${food.quantity_display}${food.quantity_unit ? ` ${food.quantity_unit}` : ""}` : null;
+                          const fi = (food.food_items as any);
+                          const si = fi ? { serving_size: fi.serving_size, serving_unit: fi.serving_unit, serving_label: fi.serving_label } : null;
+                          const qty = formatServingDisplay(si, food.quantity_display, food.quantity_unit, food.servings || 1);
                           return (
                             <div key={food.id} className="px-3 py-2.5">
                               <div className="flex items-start justify-between">
