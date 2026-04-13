@@ -6,7 +6,11 @@ import { CalendarEvent } from "./CalendarGrid";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer, UtensilsCrossed } from "lucide-react";
+import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer, UtensilsCrossed, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import WorkoutProgressSheet from "./WorkoutProgressSheet";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
@@ -106,6 +110,7 @@ const EventDetailModal = ({
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null);
   const [nutritionFoods, setNutritionFoods] = useState<any[]>([]);
   const [loadingNutrition, setLoadingNutrition] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
 
   useEffect(() => {
     if (!open || !event) {
@@ -308,6 +313,7 @@ const EventDetailModal = ({
   const resolvedClientId = clientId || event.target_client_id || event.user_id;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={cn(
         "max-h-[90vh] overflow-y-auto p-0 gap-0",
@@ -319,9 +325,34 @@ const EventDetailModal = ({
             <span className="text-sm font-medium text-muted-foreground">
               {format(new Date(event.event_date), "d MMM yyyy")}
             </span>
-            <button onClick={onClose} className="p-1 rounded-lg hover:bg-secondary transition-colors">
-              <X className="h-5 w-5 text-muted-foreground" />
-            </button>
+            <div className="flex items-center gap-1">
+              {/* Three-dot menu for completed workouts */}
+              {isWorkout && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="p-1 rounded-lg hover:bg-secondary transition-colors">
+                      <MoreVertical className="h-5 w-5 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[180px]">
+                    <DropdownMenuItem onClick={() => setShowProgress(true)} className="gap-2 cursor-pointer">
+                      {/* Inline bar chart + arrow SVG icon */}
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                        <rect x="1" y="10" width="3" height="5" rx="0.5" fill="hsl(var(--primary))" opacity="0.5" />
+                        <rect x="5.5" y="7" width="3" height="8" rx="0.5" fill="hsl(var(--primary))" opacity="0.7" />
+                        <rect x="10" y="4" width="3" height="11" rx="0.5" fill="hsl(var(--primary))" />
+                        <path d="M3 8L7 4.5L11 2L13.5 1" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M11.5 1H13.5V3" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span className="text-sm">Workout Progress</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <button onClick={onClose} className="p-1 rounded-lg hover:bg-secondary transition-colors">
+                <X className="h-5 w-5 text-muted-foreground" />
+              </button>
+            </div>
           </div>
 
           {/* Title row with status */}
@@ -711,6 +742,18 @@ const EventDetailModal = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Workout Progress Sheet */}
+    {isWorkout && event.linked_workout_id && resolvedClientId && (
+      <WorkoutProgressSheet
+        open={showProgress}
+        onClose={() => setShowProgress(false)}
+        workoutId={event.linked_workout_id}
+        workoutName={event.title}
+        clientId={resolvedClientId}
+      />
+    )}
+    </>
   );
 };
 
