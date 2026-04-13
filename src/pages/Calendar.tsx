@@ -164,7 +164,31 @@ const Calendar = () => {
             .abortSignal(signal)
         : Promise.resolve({ data: null });
 
-      const [calRes, sessRes, cardioRes, nutRes] = await Promise.all([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch]);
+      const weightFetch = !isCoach
+        ? supabase
+            .from("weight_logs")
+            .select("weight, logged_at")
+            .eq("client_id", user.id)
+            .gte("logged_at", startStr)
+            .lte("logged_at", endStr)
+            .order("logged_at", { ascending: true })
+            .abortSignal(signal)
+        : Promise.resolve({ data: null });
+
+      const [calResult, sessResult, cardioResult, nutResult, weightResult] = await Promise.allSettled([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch, weightFetch]);
+
+      const calRes = calResult.status === "fulfilled" ? calResult.value : { data: null, error: { message: "Failed" } };
+      const sessRes = sessResult.status === "fulfilled" ? sessResult.value : { data: null };
+      const cardioRes = cardioResult.status === "fulfilled" ? cardioResult.value : { data: null };
+      const nutRes = nutResult.status === "fulfilled" ? nutResult.value : { data: null };
+      const weightRes = weightResult.status === "fulfilled" ? weightResult.value : { data: null };
+
+      // Build weight map keyed by en-CA date string
+      const wMap = new Map<string, number>();
+      if (weightRes.data) {
+        for (const w of weightRes.data) wMap.set(w.logged_at, Number(w.weight));
+      }
+      const sortedWeightDates = Array.from(wMap.keys()).sort();
 
       if (calRes.error) throw calRes.error;
 
