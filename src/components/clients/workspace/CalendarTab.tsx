@@ -423,9 +423,11 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const completedCounts: Record<string, number> = {
     workout: monthSessions.filter(s => s.completed_at).length,
     cardio: monthEvents.filter(e => e.event_type === "cardio").length,
-    custom: monthEvents.filter(e => e.event_type === "custom").length,
-    rest: monthEvents.filter(e => e.event_type === "rest").length,
+    custom: monthEvents.filter(e => resolveEventType(e) === "body_stats" && e.event_type === "custom").length,
+    rest: monthEvents.filter(e => resolveEventType(e) === "photos" && e.event_type === "rest").length,
     checkin: monthEvents.filter(e => e.event_type === "checkin").length,
+    body_stats: monthEvents.filter(e => e.event_type === "body_stats").length,
+    photos: monthEvents.filter(e => e.event_type === "photos").length,
   };
 
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
