@@ -755,21 +755,58 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                   {format(day, "d")}
                 </div>
                 <div className="space-y-0.5">
-                  {dayItems.slice(0, 3).map((item: any, i: number) => (
+                  {dayItems.slice(0, 3).map((item: any, i: number) => {
+                    const effectiveType = resolveEventType(item);
+                    const isBodyStats = effectiveType === "body_stats";
+                    const dotColor = EVENT_DOT[effectiveType] || EVENT_DOT[item.event_type] || "bg-primary";
+
+                    // Build display label for body stats
+                    let displayLabel = item.title;
+                    let trendArrow: React.ReactNode = null;
+                    if (isBodyStats) {
+                      const wEntry = weightMap.get(item.event_date);
+                      if (wEntry) {
+                        displayLabel = `${Math.round(wEntry.weight * 10) / 10} lbs`;
+                        // Find previous weight entry
+                        const sortedDates = Array.from(weightMap.keys()).sort();
+                        const idx = sortedDates.indexOf(item.event_date);
+                        if (idx > 0) {
+                          const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
+                          if (wEntry.weight < prevWeight) {
+                            trendArrow = <TrendingDown className="h-2.5 w-2.5 text-green-400 shrink-0" />;
+                          } else if (wEntry.weight > prevWeight) {
+                            trendArrow = <TrendingUp className="h-2.5 w-2.5 text-red-400 shrink-0" />;
+                          }
+                        }
+                      } else {
+                        displayLabel = "Body Stats";
+                      }
+                    }
+
+                    return (
                     <button key={item.id + i} draggable={!item.isSession}
                       onDragStart={e => handleDragStart(e, item)}
-                      onClick={(e) => { e.stopPropagation(); handleEventClick(item); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isBodyStats) {
+                          setWeightHistoryOpen(true);
+                        } else {
+                          handleEventClick(item);
+                        }
+                      }}
                       className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                       {item.is_completed ? (
-                        <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
+                        <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
                           <Check className="h-1.5 w-1.5 text-white" />
                         </div>
                       ) : (
-                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
+                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotColor} opacity-40`} />
                       )}
-                      <span className="text-[9px] truncate leading-tight">{item.title}</span>
+                      <span className="text-[9px] truncate leading-tight">{displayLabel}</span>
+                      {trendArrow}
                     </button>
-                  ))}
+                    );
+                  })}
                   {dayItems.length > 3 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
