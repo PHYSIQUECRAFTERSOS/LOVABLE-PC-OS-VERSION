@@ -20,6 +20,7 @@ import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 
 const Calendar = () => {
   const { user, role } = useAuth();
