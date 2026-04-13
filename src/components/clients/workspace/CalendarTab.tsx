@@ -120,6 +120,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const [dragEvent, setDragEvent] = useState<CalEvent | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [weightMap, setWeightMap] = useState<Map<string, { weight: number; body_fat?: number | null }>>(new Map());
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [showEventDetail, setShowEventDetail] = useState(false);
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
 
