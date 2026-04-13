@@ -313,6 +313,7 @@ const EventDetailModal = ({
   const resolvedClientId = clientId || event.target_client_id || event.user_id;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className={cn(
         "max-h-[90vh] overflow-y-auto p-0 gap-0",
