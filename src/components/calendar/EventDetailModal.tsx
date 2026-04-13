@@ -741,6 +741,18 @@ const EventDetailModal = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Workout Progress Sheet */}
+    {isWorkout && event.linked_workout_id && resolvedClientId && (
+      <WorkoutProgressSheet
+        open={showProgress}
+        onClose={() => setShowProgress(false)}
+        workoutId={event.linked_workout_id}
+        workoutName={event.title}
+        clientId={resolvedClientId}
+      />
+    )}
+    </>
   );
 };
 
