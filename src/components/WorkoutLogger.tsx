@@ -774,15 +774,12 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
     const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
-    // 1. Freeze summary data and show summary screen IMMEDIATELY
-    setFrozenDuration(durationSeconds);
-    setShowSummary(true);
-    document.body.style.pointerEvents = '';
-    setLoading(false);
+    // Immediately signal to the active-session hook that this session is finishing,
+    // so the banner will NOT appear even if we navigate before DB writes commit.
+    window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
 
-    // 2. Do all DB writes in the background — do NOT block the summary screen
     try {
-      // Build final set list — upsert to avoid duplicate-key errors
+      // STEP 1: Save all exercise logs to DB (critical — must complete before teardown)
       const logsToUpsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
           session_id: sessionId,
@@ -803,7 +800,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         const { error: logsError } = await supabase
           .from("exercise_logs")
           .upsert(logsToUpsert as any[], { onConflict: "session_id,exercise_id,set_number" });
-        if (logsError) console.error("[WorkoutLogger] Logs upsert error:", logsError);
+        if (logsError) {
+          console.error("[WorkoutLogger] Logs upsert error:", logsError);
+          throw logsError;
+        }
       }
 
       // Delete logs for exercises that were removed during session
@@ -821,7 +821,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         await supabase.from("exercise_logs").delete().in("id", orphanedLogIds);
       }
 
-      // Update session to completed
+      // STEP 2: Update session status to "completed" — MUST succeed before showing summary
       const { error: sessionError } = await supabase
         .from("workout_sessions")
         .update({
@@ -835,91 +835,115 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
         } as any)
         .eq("id", sessionId);
-      if (sessionError) console.error("[WorkoutLogger] Session update error:", sessionError);
-
-      for (const alert of prAlerts) {
-        const ex = exercises.find(e => e.name === alert.exerciseName);
-        if (ex) {
-          await supabase.rpc("update_personal_record", {
-            _client_id: user.id, _exercise_id: ex.id, _weight: alert.weight, _reps: alert.reps,
-          });
-        }
+      if (sessionError) {
+        console.error("[WorkoutLogger] Session update error:", sessionError);
+        throw sessionError;
       }
 
-      // Mark calendar event as completed
-      const completionTimestamp = new Date().toISOString();
-      if (calendarEventId) {
-        await supabase
-          .from("calendar_events")
-          .update({ is_completed: true, completed_at: completionTimestamp })
-          .eq("id", calendarEventId);
-      } else if (workoutId) {
-        const { data: calEvents } = await supabase
-          .from("calendar_events")
-          .select("id")
-          .eq("linked_workout_id", workoutId)
-          .eq("event_type", "workout")
-          .eq("is_completed", false)
-          .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
-          .order("event_date", { ascending: false })
-          .limit(1);
-        if (calEvents?.length) {
-          await supabase
-            .from("calendar_events")
-            .update({ is_completed: true, completed_at: completionTimestamp })
-            .eq("id", calEvents[0].id);
-        }
-      }
+      // STEP 3: Critical writes done — NOW show summary (safe to navigate away)
+      setFrozenDuration(durationSeconds);
+      setShowSummary(true);
+      document.body.style.pointerEvents = '';
+      setLoading(false);
 
-      // Invalidate dashboard + calendar caches
-      const todayStr = format(new Date(), "yyyy-MM-dd");
-      invalidateCache(`today-actions-${user.id}-${todayStr}`);
+      // Dispatch ended event now that DB is committed
+      window.dispatchEvent(new CustomEvent("workout-session-ended"));
 
-      clearRetryQueue();
-
-      // Auto-score challenge points
-      try {
-        const { autoScoreChallengePoints } = await import("@/utils/challengeAutoScore");
-        const actions: { type: string; count: number }[] = [
-          { type: "workout_completed", count: 1 },
-        ];
-        if (prAlerts.length > 0) {
-          actions.push({ type: "personal_best", count: prAlerts.length });
-        }
-        await autoScoreChallengePoints(user.id, actions);
-      } catch (e) {
-        console.error("[WorkoutLogger] Challenge auto-score error:", e);
-      }
-
-      // Award Ranked XP
-      try {
-        const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
-        const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
-        const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
-        if (xpResult) {
-          setSummaryRankData({
-            xpEarned: xpResult.xpAwarded,
-            tier: xpResult.tier,
-            division: xpResult.division,
-            divisionXP: xpResult.divisionXP,
-            xpNeeded: xpResult.xpNeeded,
-            totalXP: xpResult.newTotal,
-          });
-          const { data: freshProfile } = await (supabase as any)
-            .from("ranked_profiles")
-            .select("*")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          if (freshProfile) {
-            checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+      // STEP 4: Non-critical background work (PRs, calendar, XP) — fire-and-forget
+      const backgroundWork = async () => {
+        try {
+          for (const alert of prAlerts) {
+            const ex = exercises.find(e => e.name === alert.exerciseName);
+            if (ex) {
+              await supabase.rpc("update_personal_record", {
+                _client_id: user.id, _exercise_id: ex.id, _weight: alert.weight, _reps: alert.reps,
+              });
+            }
           }
+
+          // Mark calendar event as completed
+          const completionTimestamp = new Date().toISOString();
+          if (calendarEventId) {
+            await supabase
+              .from("calendar_events")
+              .update({ is_completed: true, completed_at: completionTimestamp })
+              .eq("id", calendarEventId);
+          } else if (workoutId) {
+            const { data: calEvents } = await supabase
+              .from("calendar_events")
+              .select("id")
+              .eq("linked_workout_id", workoutId)
+              .eq("event_type", "workout")
+              .eq("is_completed", false)
+              .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+              .order("event_date", { ascending: false })
+              .limit(1);
+            if (calEvents?.length) {
+              await supabase
+                .from("calendar_events")
+                .update({ is_completed: true, completed_at: completionTimestamp })
+                .eq("id", calEvents[0].id);
+            }
+          }
+
+          // Invalidate dashboard + calendar caches
+          const todayStr = format(new Date(), "yyyy-MM-dd");
+          invalidateCache(`today-actions-${user.id}-${todayStr}`);
+
+          clearRetryQueue();
+
+          // Auto-score challenge points
+          try {
+            const { autoScoreChallengePoints } = await import("@/utils/challengeAutoScore");
+            const actions: { type: string; count: number }[] = [
+              { type: "workout_completed", count: 1 },
+            ];
+            if (prAlerts.length > 0) {
+              actions.push({ type: "personal_best", count: prAlerts.length });
+            }
+            await autoScoreChallengePoints(user.id, actions);
+          } catch (e) {
+            console.error("[WorkoutLogger] Challenge auto-score error:", e);
+          }
+
+          // Award Ranked XP
+          try {
+            const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
+            const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+            const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
+            if (xpResult) {
+              setSummaryRankData({
+                xpEarned: xpResult.xpAwarded,
+                tier: xpResult.tier,
+                division: xpResult.division,
+                divisionXP: xpResult.divisionXP,
+                xpNeeded: xpResult.xpNeeded,
+                totalXP: xpResult.newTotal,
+              });
+              const { data: freshProfile } = await (supabase as any)
+                .from("ranked_profiles")
+                .select("*")
+                .eq("user_id", user.id)
+                .maybeSingle();
+              if (freshProfile) {
+                checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+              }
+            }
+          } catch (e) {
+            console.error("[WorkoutLogger] Ranked XP error:", e);
+          }
+        } catch (bgError) {
+          console.error("[WorkoutLogger] Background work error:", bgError);
         }
-      } catch (e) {
-        console.error("[WorkoutLogger] Ranked XP error:", e);
-      }
+      };
+      backgroundWork(); // fire-and-forget for non-critical work
+
     } catch (error: any) {
-      console.error("[WorkoutLogger] Background finish error:", error);
-      toast({ title: "Error saving workout data", description: error.message, variant: "destructive" });
+      console.error("[WorkoutLogger] Finish error:", error);
+      // Critical save failed — do NOT show summary, let user retry
+      isCompletingRef.current = false;
+      setLoading(false);
+      toast({ title: "Error saving workout", description: "Please try again. Your data is safe.", variant: "destructive" });
     }
   };
 
