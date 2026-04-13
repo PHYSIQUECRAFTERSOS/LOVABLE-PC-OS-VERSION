@@ -1027,11 +1027,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           <Button
             size="sm"
             onClick={handleFinishTap}
-            disabled={loading}
+            disabled={loading || isCompletingRef.current}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-full px-4 shrink-0"
           >
             {loading && <Loader2 className="animate-spin mr-1 h-3.5 w-3.5" />}
-            Finish
+            {loading ? "Saving..." : "Finish"}
           </Button>
         </div>
 
