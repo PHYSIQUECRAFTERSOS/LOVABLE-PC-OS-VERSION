@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,8 @@ import {
 import {
   CalendarDays, Dumbbell, Heart, Camera, FileText, Bell,
   ChevronLeft, ChevronRight, Check, Plus, ClipboardList,
-  Activity, MessageSquare, Repeat, Trash2, UtensilsCrossed
+  Activity, MessageSquare, Repeat, Trash2, UtensilsCrossed,
+  TrendingUp, TrendingDown, Scale
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -46,11 +48,13 @@ const EVENT_DOT: Record<string, string> = {
   workout: "bg-blue-500", cardio: "bg-green-500", checkin: "bg-purple-500",
   reminder: "bg-yellow-500", custom: "bg-teal-500", rest: "bg-pink-500",
   auto_message: "bg-orange-500", nutrition: "bg-red-500",
+  body_stats: "bg-purple-500", photos: "bg-orange-500", steps: "bg-blue-500",
 };
 
 const COMPLETED_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", custom: "Body Stats",
   rest: "Photos", checkin: "Check-in", nutrition: "Nutrition",
+  body_stats: "Body Stats", photos: "Photos",
 };
 
 const WEEK_DAYS_FULL = [
