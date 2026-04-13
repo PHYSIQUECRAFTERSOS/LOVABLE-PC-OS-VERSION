@@ -1009,30 +1009,55 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             {expandedDay && getEventsForDay(expandedDay).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No events</p>
             ) : (
-              expandedDay && getEventsForDay(expandedDay).map((item: any) => (
+              expandedDay && getEventsForDay(expandedDay).map((item: any) => {
+                const effectiveType = resolveEventType(item);
+                const isBodyStats = effectiveType === "body_stats";
+                const dotColor = EVENT_DOT[effectiveType] || EVENT_DOT[item.event_type] || "bg-primary";
+                let expandedLabel = item.title;
+                let expandedArrow: React.ReactNode = null;
+                if (isBodyStats) {
+                  const wEntry = weightMap.get(item.event_date);
+                  if (wEntry) {
+                    expandedLabel = `Body Stats — ${Math.round(wEntry.weight * 10) / 10} lbs`;
+                    const sortedDates = Array.from(weightMap.keys()).sort();
+                    const idx = sortedDates.indexOf(item.event_date);
+                    if (idx > 0) {
+                      const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
+                      if (wEntry.weight < prevWeight) expandedArrow = <TrendingDown className="h-3.5 w-3.5 text-green-400 shrink-0" />;
+                      else if (wEntry.weight > prevWeight) expandedArrow = <TrendingUp className="h-3.5 w-3.5 text-red-400 shrink-0" />;
+                    }
+                  }
+                }
+                return (
                 <button
                   key={item.id}
                   onClick={() => {
                     setExpandedDay(null);
-                    handleEventClick(item);
+                    if (isBodyStats) {
+                      setWeightHistoryOpen(true);
+                    } else {
+                      handleEventClick(item);
+                    }
                   }}
                   className="w-full text-left text-sm px-3 py-2.5 rounded-lg border border-border flex items-center gap-2 transition-colors hover:bg-secondary/50"
                 >
                   {item.is_completed ? (
-                    <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
+                    <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
                       <Check className="h-2 w-2 text-white" />
                     </div>
                   ) : (
-                    <div className={`h-3 w-3 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
+                    <div className={`h-3 w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
                   )}
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium truncate block">{item.title}</span>
+                    <span className="font-medium truncate block">{expandedLabel}</span>
                     {item.event_time && (
                       <span className="text-xs text-muted-foreground">{item.event_time.slice(0, 5)}</span>
                     )}
                   </div>
+                  {expandedArrow}
                 </button>
-              ))
+                );
+              })
             )}
           </div>
         </DialogContent>
