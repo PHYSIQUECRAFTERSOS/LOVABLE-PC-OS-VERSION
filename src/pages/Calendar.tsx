@@ -37,6 +37,7 @@ const Calendar = () => {
   const [cardioPopupEvent, setCardioPopupEvent] = useState<CalendarEvent | null>(null);
   // Workout preview popup state — reuses WorkoutStartPopup from the dashboard
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId?: string } | null>(null);
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
 
   const isCoach = role === "coach" || role === "admin";
 
