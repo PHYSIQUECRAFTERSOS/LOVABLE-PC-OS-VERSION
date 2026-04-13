@@ -240,7 +240,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       }
     }
 
-    const [eventsRes, sessionsRes, nutRes] = await Promise.all([
+    const [eventsResult, sessionsResult, nutResult, weightResult] = await Promise.allSettled([
       supabase.from("calendar_events")
         .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
         .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
@@ -252,7 +252,26 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
         .eq("client_id", clientId)
         .gte("logged_at", start).lte("logged_at", end),
+      supabase.from("weight_logs")
+        .select("weight, logged_at")
+        .eq("client_id", clientId)
+        .gte("logged_at", start).lte("logged_at", end)
+        .order("logged_at", { ascending: true }),
     ]);
+
+    const eventsRes = eventsResult.status === "fulfilled" ? eventsResult.value : { data: null };
+    const sessionsRes = sessionsResult.status === "fulfilled" ? sessionsResult.value : { data: null };
+    const nutRes = nutResult.status === "fulfilled" ? nutResult.value : { data: null };
+    const weightRes = weightResult.status === "fulfilled" ? weightResult.value : { data: null };
+
+    // Build weight map keyed by en-CA date string
+    const newWeightMap = new Map<string, { weight: number; body_fat?: number | null }>();
+    if (weightRes.data) {
+      for (const w of weightRes.data) {
+        newWeightMap.set(w.logged_at, { weight: Number(w.weight) });
+      }
+    }
+    setWeightMap(newWeightMap);
 
     const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => {
       if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
