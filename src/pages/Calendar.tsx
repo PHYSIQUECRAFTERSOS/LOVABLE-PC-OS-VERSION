@@ -192,9 +192,31 @@ const Calendar = () => {
 
       if (calRes.error) throw calRes.error;
 
+      // Helper to resolve body_stats from custom event_type via title
+      const isBodyStatsEvent = (ev: { event_type: string; title: string }) => {
+        if (ev.event_type === "body_stats") return true;
+        const tl = ev.title.toLowerCase();
+        return (ev.event_type === "custom" && (tl.includes("body stat") || tl.includes("bodystats")));
+      };
+
       const allEvents: CalendarEvent[] = (calRes.data || []).map((e: any) => {
         let title = e.title;
         let description = e.description;
+
+        // Enrich body stats events with weight value + trending arrow character
+        if (isBodyStatsEvent(e)) {
+          const wVal = wMap.get(e.event_date);
+          if (wVal !== undefined) {
+            let arrow = "";
+            const idx = sortedWeightDates.indexOf(e.event_date);
+            if (idx > 0) {
+              const prevW = wMap.get(sortedWeightDates[idx - 1])!;
+              if (wVal < prevW) arrow = " ↓";
+              else if (wVal > prevW) arrow = " ↑";
+            }
+            title = `${Math.round(wVal * 10) / 10} lbs${arrow}`;
+          }
+        }
 
         if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
           title = workoutLabelMap.get(e.linked_workout_id)!;
