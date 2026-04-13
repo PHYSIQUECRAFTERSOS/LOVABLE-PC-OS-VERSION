@@ -110,8 +110,7 @@ const EventDetailModal = ({
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null);
   const [nutritionFoods, setNutritionFoods] = useState<any[]>([]);
   const [loadingNutrition, setLoadingNutrition] = useState(false);
-
-  useEffect(() => {
+  const [showProgress, setShowProgress] = useState(false);
     if (!open || !event) {
       setWorkoutExercises([]);
       setSessionData(null);
