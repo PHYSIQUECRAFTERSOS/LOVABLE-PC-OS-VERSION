@@ -1154,6 +1154,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Weight History Modal */}
+      <WeightHistoryScreen
+        open={weightHistoryOpen}
+        onClose={() => setWeightHistoryOpen(false)}
+        clientId={clientId}
+        readOnly={false}
+      />
     </div>
   );
 };
