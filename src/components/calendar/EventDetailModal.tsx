@@ -111,6 +111,8 @@ const EventDetailModal = ({
   const [nutritionFoods, setNutritionFoods] = useState<any[]>([]);
   const [loadingNutrition, setLoadingNutrition] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+
+  useEffect(() => {
     if (!open || !event) {
       setWorkoutExercises([]);
       setSessionData(null);
