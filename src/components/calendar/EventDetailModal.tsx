@@ -6,7 +6,11 @@ import { CalendarEvent } from "./CalendarGrid";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer, UtensilsCrossed } from "lucide-react";
+import { Check, Clock, Repeat, Trash2, Play, Dumbbell, X, Flame, Timer, UtensilsCrossed, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import WorkoutProgressSheet from "./WorkoutProgressSheet";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { formatWeightForCoach, formatWeightForClient } from "@/utils/weightDisplay";
