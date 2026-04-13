@@ -327,7 +327,7 @@ const EventDetailModal = ({
             </span>
             <div className="flex items-center gap-1">
               {/* Three-dot menu for completed workouts */}
-              {isWorkout && hasSession && (
+              {isWorkout && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="p-1 rounded-lg hover:bg-secondary transition-colors">
