@@ -1172,10 +1172,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
                 setShowFinishModal(false);
                 finishWorkout(hasIncompleteSets());
               }}
-              disabled={loading}
+              disabled={loading || isCompletingRef.current}
             >
               {loading && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
-              Finish
+              {loading ? "Saving..." : "Finish"}
             </Button>
             <Button
               variant="secondary"
