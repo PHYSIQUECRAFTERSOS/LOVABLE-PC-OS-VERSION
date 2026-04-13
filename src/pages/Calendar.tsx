@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { addWeeks, subWeeks, addMonths, subMonths, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, addDays, isSameDay } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, CalendarDays, CalendarRange } from "lucide-react";
+import { Plus, CalendarDays, CalendarRange, TrendingUp, TrendingDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import CalendarGrid, { CalendarEvent } from "@/components/calendar/CalendarGrid";
 import CalendarDayList from "@/components/calendar/CalendarDayList";
@@ -20,6 +20,7 @@ import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 
 const Calendar = () => {
   const { user, role } = useAuth();
@@ -36,6 +37,7 @@ const Calendar = () => {
   const [cardioPopupEvent, setCardioPopupEvent] = useState<CalendarEvent | null>(null);
   // Workout preview popup state — reuses WorkoutStartPopup from the dashboard
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId?: string } | null>(null);
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
 
   const isCoach = role === "coach" || role === "admin";
 
@@ -162,13 +164,59 @@ const Calendar = () => {
             .abortSignal(signal)
         : Promise.resolve({ data: null });
 
-      const [calRes, sessRes, cardioRes, nutRes] = await Promise.all([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch]);
+      const weightFetch = !isCoach
+        ? supabase
+            .from("weight_logs")
+            .select("weight, logged_at")
+            .eq("client_id", user.id)
+            .gte("logged_at", startStr)
+            .lte("logged_at", endStr)
+            .order("logged_at", { ascending: true })
+            .abortSignal(signal)
+        : Promise.resolve({ data: null });
+
+      const [calResult, sessResult, cardioResult, nutResult, weightResult] = await Promise.allSettled([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch, weightFetch]);
+
+      const calRes = calResult.status === "fulfilled" ? calResult.value : { data: null, error: { message: "Failed" } };
+      const sessRes = sessResult.status === "fulfilled" ? sessResult.value : { data: null };
+      const cardioRes = cardioResult.status === "fulfilled" ? cardioResult.value : { data: null };
+      const nutRes = nutResult.status === "fulfilled" ? nutResult.value : { data: null };
+      const weightRes = weightResult.status === "fulfilled" ? weightResult.value : { data: null };
+
+      // Build weight map keyed by en-CA date string
+      const wMap = new Map<string, number>();
+      if (weightRes.data) {
+        for (const w of weightRes.data) wMap.set(w.logged_at, Number(w.weight));
+      }
+      const sortedWeightDates = Array.from(wMap.keys()).sort();
 
       if (calRes.error) throw calRes.error;
+
+      // Helper to resolve body_stats from custom event_type via title
+      const isBodyStatsEvent = (ev: { event_type: string; title: string }) => {
+        if (ev.event_type === "body_stats") return true;
+        const tl = ev.title.toLowerCase();
+        return (ev.event_type === "custom" && (tl.includes("body stat") || tl.includes("bodystats")));
+      };
 
       const allEvents: CalendarEvent[] = (calRes.data || []).map((e: any) => {
         let title = e.title;
         let description = e.description;
+
+        // Enrich body stats events with weight value + trending arrow character
+        if (isBodyStatsEvent(e)) {
+          const wVal = wMap.get(e.event_date);
+          if (wVal !== undefined) {
+            let arrow = "";
+            const idx = sortedWeightDates.indexOf(e.event_date);
+            if (idx > 0) {
+              const prevW = wMap.get(sortedWeightDates[idx - 1])!;
+              if (wVal < prevW) arrow = " ↓";
+              else if (wVal > prevW) arrow = " ↑";
+            }
+            title = `${Math.round(wVal * 10) / 10} lbs${arrow}`;
+          }
+        }
 
         if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
           title = workoutLabelMap.get(e.linked_workout_id)!;
@@ -285,6 +333,13 @@ const Calendar = () => {
   const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
 
   const handleEventClick = (event: CalendarEvent) => {
+    // Body stats events open the weight history modal
+    const tl = event.title.toLowerCase();
+    const isBS = event.event_type === "body_stats" || (event.event_type === "custom" && (tl.includes("body stat") || tl.includes("bodystats"))) || tl.includes("lbs");
+    if (isBS) {
+      setWeightHistoryOpen(true);
+      return;
+    }
     // Cardio events open the same bottom sheet used by the dashboard — not the generic modal
     if (event.event_type === "cardio") {
       setCardioPopupEvent(event);
@@ -440,6 +495,12 @@ const Calendar = () => {
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
       {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
       {workoutLauncher.WorkoutOverlay}
+      {/* Weight History Modal — reuse existing component */}
+      <WeightHistoryScreen
+        open={weightHistoryOpen}
+        onClose={() => setWeightHistoryOpen(false)}
+        clientId={user?.id}
+      />
     </AppLayout>
   );
 };

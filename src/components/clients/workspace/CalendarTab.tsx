@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,8 @@ import {
 import {
   CalendarDays, Dumbbell, Heart, Camera, FileText, Bell,
   ChevronLeft, ChevronRight, Check, Plus, ClipboardList,
-  Activity, MessageSquare, Repeat, Trash2, UtensilsCrossed
+  Activity, MessageSquare, Repeat, Trash2, UtensilsCrossed,
+  TrendingUp, TrendingDown, Scale
 } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -46,11 +48,24 @@ const EVENT_DOT: Record<string, string> = {
   workout: "bg-blue-500", cardio: "bg-green-500", checkin: "bg-purple-500",
   reminder: "bg-yellow-500", custom: "bg-teal-500", rest: "bg-pink-500",
   auto_message: "bg-orange-500", nutrition: "bg-red-500",
+  body_stats: "bg-purple-500", photos: "bg-orange-500", steps: "bg-blue-500",
 };
 
 const COMPLETED_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", custom: "Body Stats",
   rest: "Photos", checkin: "Check-in", nutrition: "Nutrition",
+  body_stats: "Body Stats", photos: "Photos",
+};
+
+// Resolve effective event type from event_type + title keywords
+const resolveEventType = (ev: { event_type: string; title: string }): string => {
+  const t = ev.event_type;
+  if (t === "body_stats" || t === "photos") return t;
+  const titleLower = ev.title.toLowerCase();
+  if (titleLower.includes("body stat") || titleLower.includes("bodystats")) return "body_stats";
+  if (titleLower.includes("photo") || titleLower.includes("progress pic")) return "photos";
+  if (titleLower.includes("check-in") || titleLower.includes("checkin")) return "checkin";
+  return t;
 };
 
 const WEEK_DAYS_FULL = [
@@ -116,6 +131,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const [dragEvent, setDragEvent] = useState<CalEvent | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [weightMap, setWeightMap] = useState<Map<string, { weight: number; body_fat?: number | null }>>(new Map());
+  const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [showEventDetail, setShowEventDetail] = useState(false);
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
 
@@ -234,7 +251,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       }
     }
 
-    const [eventsRes, sessionsRes, nutRes] = await Promise.all([
+    const [eventsResult, sessionsResult, nutResult, weightResult] = await Promise.allSettled([
       supabase.from("calendar_events")
         .select("id, title, event_date, event_type, is_completed, color, event_time, linked_workout_id, description, notes, linked_cardio_id, linked_checkin_id, is_recurring, recurrence_pattern, target_client_id, completed_at, end_time, user_id")
         .eq("user_id", clientId).gte("event_date", start).lte("event_date", end).order("event_date"),
@@ -246,7 +263,26 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         .select("id, logged_at, meal_type, calories, protein, carbs, fat, custom_name, food_item_id, quantity_display, quantity_unit")
         .eq("client_id", clientId)
         .gte("logged_at", start).lte("logged_at", end),
+      supabase.from("weight_logs")
+        .select("weight, logged_at")
+        .eq("client_id", clientId)
+        .gte("logged_at", start).lte("logged_at", end)
+        .order("logged_at", { ascending: true }),
     ]);
+
+    const eventsRes = eventsResult.status === "fulfilled" ? eventsResult.value : { data: null };
+    const sessionsRes = sessionsResult.status === "fulfilled" ? sessionsResult.value : { data: null };
+    const nutRes = nutResult.status === "fulfilled" ? nutResult.value : { data: null };
+    const weightRes = weightResult.status === "fulfilled" ? weightResult.value : { data: null };
+
+    // Build weight map keyed by en-CA date string
+    const newWeightMap = new Map<string, { weight: number; body_fat?: number | null }>();
+    if (weightRes.data) {
+      for (const w of weightRes.data) {
+        newWeightMap.set(w.logged_at, { weight: Number(w.weight) });
+      }
+    }
+    setWeightMap(newWeightMap);
 
     const normalizedEvents: CalEvent[] = (eventsRes.data || []).map((e: any) => {
       if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
@@ -387,9 +423,11 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const completedCounts: Record<string, number> = {
     workout: monthSessions.filter(s => s.completed_at).length,
     cardio: monthEvents.filter(e => e.event_type === "cardio").length,
-    custom: monthEvents.filter(e => e.event_type === "custom").length,
-    rest: monthEvents.filter(e => e.event_type === "rest").length,
+    custom: monthEvents.filter(e => resolveEventType(e) === "body_stats" && e.event_type === "custom").length,
+    rest: monthEvents.filter(e => resolveEventType(e) === "photos" && e.event_type === "rest").length,
     checkin: monthEvents.filter(e => e.event_type === "checkin").length,
+    body_stats: monthEvents.filter(e => e.event_type === "body_stats").length,
+    photos: monthEvents.filter(e => e.event_type === "photos").length,
   };
 
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -717,21 +755,58 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                   {format(day, "d")}
                 </div>
                 <div className="space-y-0.5">
-                  {dayItems.slice(0, 3).map((item: any, i: number) => (
+                  {dayItems.slice(0, 3).map((item: any, i: number) => {
+                    const effectiveType = resolveEventType(item);
+                    const isBodyStats = effectiveType === "body_stats";
+                    const dotColor = EVENT_DOT[effectiveType] || EVENT_DOT[item.event_type] || "bg-primary";
+
+                    // Build display label for body stats
+                    let displayLabel = item.title;
+                    let trendArrow: React.ReactNode = null;
+                    if (isBodyStats) {
+                      const wEntry = weightMap.get(item.event_date);
+                      if (wEntry) {
+                        displayLabel = `${Math.round(wEntry.weight * 10) / 10} lbs`;
+                        // Find previous weight entry
+                        const sortedDates = Array.from(weightMap.keys()).sort();
+                        const idx = sortedDates.indexOf(item.event_date);
+                        if (idx > 0) {
+                          const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
+                          if (wEntry.weight < prevWeight) {
+                            trendArrow = <TrendingDown className="h-2.5 w-2.5 text-green-400 shrink-0" />;
+                          } else if (wEntry.weight > prevWeight) {
+                            trendArrow = <TrendingUp className="h-2.5 w-2.5 text-red-400 shrink-0" />;
+                          }
+                        }
+                      } else {
+                        displayLabel = "Body Stats";
+                      }
+                    }
+
+                    return (
                     <button key={item.id + i} draggable={!item.isSession}
                       onDragStart={e => handleDragStart(e, item)}
-                      onClick={(e) => { e.stopPropagation(); handleEventClick(item); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isBodyStats) {
+                          setWeightHistoryOpen(true);
+                        } else {
+                          handleEventClick(item);
+                        }
+                      }}
                       className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                       {item.is_completed ? (
-                        <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
+                        <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
                           <Check className="h-1.5 w-1.5 text-white" />
                         </div>
                       ) : (
-                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
+                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotColor} opacity-40`} />
                       )}
-                      <span className="text-[9px] truncate leading-tight">{item.title}</span>
+                      <span className="text-[9px] truncate leading-tight">{displayLabel}</span>
+                      {trendArrow}
                     </button>
-                  ))}
+                    );
+                  })}
                   {dayItems.length > 3 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
@@ -934,30 +1009,55 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             {expandedDay && getEventsForDay(expandedDay).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No events</p>
             ) : (
-              expandedDay && getEventsForDay(expandedDay).map((item: any) => (
+              expandedDay && getEventsForDay(expandedDay).map((item: any) => {
+                const effectiveType = resolveEventType(item);
+                const isBodyStats = effectiveType === "body_stats";
+                const dotColor = EVENT_DOT[effectiveType] || EVENT_DOT[item.event_type] || "bg-primary";
+                let expandedLabel = item.title;
+                let expandedArrow: React.ReactNode = null;
+                if (isBodyStats) {
+                  const wEntry = weightMap.get(item.event_date);
+                  if (wEntry) {
+                    expandedLabel = `Body Stats — ${Math.round(wEntry.weight * 10) / 10} lbs`;
+                    const sortedDates = Array.from(weightMap.keys()).sort();
+                    const idx = sortedDates.indexOf(item.event_date);
+                    if (idx > 0) {
+                      const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
+                      if (wEntry.weight < prevWeight) expandedArrow = <TrendingDown className="h-3.5 w-3.5 text-green-400 shrink-0" />;
+                      else if (wEntry.weight > prevWeight) expandedArrow = <TrendingUp className="h-3.5 w-3.5 text-red-400 shrink-0" />;
+                    }
+                  }
+                }
+                return (
                 <button
                   key={item.id}
                   onClick={() => {
                     setExpandedDay(null);
-                    handleEventClick(item);
+                    if (isBodyStats) {
+                      setWeightHistoryOpen(true);
+                    } else {
+                      handleEventClick(item);
+                    }
                   }}
                   className="w-full text-left text-sm px-3 py-2.5 rounded-lg border border-border flex items-center gap-2 transition-colors hover:bg-secondary/50"
                 >
                   {item.is_completed ? (
-                    <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"}`}>
+                    <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
                       <Check className="h-2 w-2 text-white" />
                     </div>
                   ) : (
-                    <div className={`h-3 w-3 rounded-full shrink-0 ${EVENT_DOT[item.event_type] || "bg-primary"} opacity-40`} />
+                    <div className={`h-3 w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
                   )}
                   <div className="flex-1 min-w-0">
-                    <span className="font-medium truncate block">{item.title}</span>
+                    <span className="font-medium truncate block">{expandedLabel}</span>
                     {item.event_time && (
                       <span className="text-xs text-muted-foreground">{item.event_time.slice(0, 5)}</span>
                     )}
                   </div>
+                  {expandedArrow}
                 </button>
-              ))
+                );
+              })
             )}
           </div>
         </DialogContent>
@@ -1054,6 +1154,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Weight History Modal */}
+      <WeightHistoryScreen
+        open={weightHistoryOpen}
+        onClose={() => setWeightHistoryOpen(false)}
+        clientId={clientId}
+        readOnly={false}
+      />
     </div>
   );
 };
