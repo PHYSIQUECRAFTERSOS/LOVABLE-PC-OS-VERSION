@@ -495,6 +495,12 @@ const Calendar = () => {
       {isCoach && <ScheduleEventForm open={showScheduleForm} onClose={() => setShowScheduleForm(false)} onSave={reloadEvents} selectedDate={selectedDate} isCoach={isCoach} />}
       {/* Workout Logger Overlay — renders fullscreen without navigating to Training */}
       {workoutLauncher.WorkoutOverlay}
+      {/* Weight History Modal — reuse existing component */}
+      <WeightHistoryScreen
+        open={weightHistoryOpen}
+        onClose={() => setWeightHistoryOpen(false)}
+        clientId={user?.id}
+      />
     </AppLayout>
   );
 };
