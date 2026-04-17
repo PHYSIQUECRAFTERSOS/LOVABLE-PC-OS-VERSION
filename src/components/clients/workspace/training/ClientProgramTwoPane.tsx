@@ -380,8 +380,8 @@ export const ClientProgramTwoPane = ({
                   </Select>
                 </div>
 
-                {/* Workout list */}
-                <ScrollArea className="max-h-[60vh] -mx-1">
+                {/* Workout list (paginated, 8 per page) */}
+                <div className="-mx-1">
                   <div className="px-1 space-y-2">
                     {filteredWorkouts.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
@@ -398,37 +398,81 @@ export const ClientProgramTwoPane = ({
                     ) : (
                       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                         <SortableContext
-                          items={filteredWorkouts.map(w => w.id)}
+                          items={pagedWorkouts.map(w => w.id)}
                           strategy={verticalListSortingStrategy}
                         >
                           {(() => {
+                            // Continue position numbering across pages so Day numbers stay correct.
                             let dayCounter = 1;
-                            return filteredWorkouts.map(pw => {
+                            // Pre-walk all filtered workouts to establish numbering, then slice.
+                            const numbered = filteredWorkouts.map(pw => {
                               const isExcluded = pw.exclude_from_numbering;
                               const pos = isExcluded ? null : (sortBy === "position" ? dayCounter++ : null);
-                              return (
-                                <SortableWorkoutCard
-                                  key={pw.id}
-                                  dndId={pw.id}
-                                  workoutId={pw.workout_id}
-                                  workoutName={pw.workout_name}
-                                  displayPosition={pos}
-                                  customTag={isExcluded ? pw.custom_tag : null}
-                                  meta={meta[pw.workout_id]}
-                                  dragDisabled={sortBy !== "position" || !!search.trim()}
-                                  onPrimaryClick={() => onOpenWorkout(pw)}
-                                  onEdit={() => onEditWorkout(pw)}
-                                  onDuplicate={() => onDuplicateWorkout(pw, selectedPhase.id)}
-                                  onDelete={() => onDeleteWorkout(pw.id, pw.workout_name)}
-                                />
-                              );
-                            });
+                              return { pw, pos, isExcluded };
+                            }).slice(pageStart, pageStart + PAGE_SIZE);
+
+                            return numbered.map(({ pw, pos, isExcluded }) => (
+                              <SortableWorkoutCard
+                                key={pw.id}
+                                dndId={pw.id}
+                                workoutId={pw.workout_id}
+                                workoutName={pw.workout_name}
+                                displayPosition={pos}
+                                customTag={isExcluded ? pw.custom_tag : null}
+                                meta={meta[pw.workout_id]}
+                                dragDisabled={dragDisabled}
+                                onPrimaryClick={() => onOpenWorkout(pw)}
+                                onEdit={() => onEditWorkout(pw)}
+                                onDuplicate={() => onDuplicateWorkout(pw, selectedPhase.id)}
+                                onDelete={() => onDeleteWorkout(pw.id, pw.workout_name)}
+                              />
+                            ));
                           })()}
                         </SortableContext>
                       </DndContext>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
+
+                {/* Pagination controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+                    <span className="text-xs text-muted-foreground">
+                      Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, filteredWorkouts.length)} of {filteredWorkouts.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        disabled={safePage === 1}
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      >
+                        Prev
+                      </Button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                        <Button
+                          key={n}
+                          size="sm"
+                          variant={n === safePage ? "default" : "outline"}
+                          className={cn("h-8 w-8 p-0 text-xs", n === safePage && "bg-primary text-primary-foreground")}
+                          onClick={() => setCurrentPage(n)}
+                        >
+                          {n}
+                        </Button>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        disabled={safePage === totalPages}
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </CardContent>
