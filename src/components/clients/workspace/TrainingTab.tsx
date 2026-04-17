@@ -125,6 +125,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; names: string[] } | null>(null);
 
+  // Two-pane phase action dialogs
+  const [changeDurationPhase, setChangeDurationPhase] = useState<Phase | null>(null);
+  const [copyToMasterPhase, setCopyToMasterPhase] = useState<Phase | null>(null);
+  const [copyToClientPhase, setCopyToClientPhase] = useState<Phase | null>(null);
+  const [deletePhaseTarget, setDeletePhaseTarget] = useState<Phase | null>(null);
+
   // Sync hook data into local state (needed for editor mutations)
   useEffect(() => {
     setPhases(hookPhases as Phase[]);
