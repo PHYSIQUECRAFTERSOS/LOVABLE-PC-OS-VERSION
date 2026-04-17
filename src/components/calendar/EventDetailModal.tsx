@@ -335,7 +335,7 @@ const EventDetailModal = ({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[180px]">
-                    <DropdownMenuItem onClick={() => setShowProgress(true)} className="gap-2 cursor-pointer">
+                    <DropdownMenuItem onClick={() => { setShowProgress(true); onClose(); }} className="gap-2 cursor-pointer">
                       {/* Inline bar chart + arrow SVG icon */}
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
                         <rect x="1" y="10" width="3" height="5" rx="0.5" fill="hsl(var(--primary))" opacity="0.5" />
