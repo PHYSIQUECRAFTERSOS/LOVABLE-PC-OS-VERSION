@@ -206,7 +206,7 @@ const ClientDetail = () => {
         </div>
 
         {/* Workspace Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="w-full justify-start overflow-x-auto flex-nowrap">
             {tabItems.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5 shrink-0">
