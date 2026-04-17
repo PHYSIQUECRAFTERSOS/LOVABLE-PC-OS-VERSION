@@ -142,6 +142,19 @@ export const ClientProgramTwoPane = ({
     return list;
   }, [selectedPhaseWorkouts, search, sortBy]);
 
+  // Reset to page 1 whenever the phase, search, or sort changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedPhaseId, search, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredWorkouts.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pagedWorkouts = filteredWorkouts.slice(pageStart, pageStart + PAGE_SIZE);
+  // Drag-to-reorder must operate on the FULL phase order, not just the visible page.
+  // Disable drag whenever pagination, search, or non-position sort would make indices ambiguous.
+  const dragDisabled = sortBy !== "position" || !!search.trim() || totalPages > 1;
+
   const handleDragEnd = async (e: DragEndEvent) => {
     if (!selectedPhase || dragInFlightRef.current) return;
     const { active, over } = e;
