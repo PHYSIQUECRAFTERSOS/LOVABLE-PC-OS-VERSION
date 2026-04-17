@@ -109,54 +109,21 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
     return ANGLES.map(a => anglePhotos[a]).filter(Boolean) as Photo[];
   }, [anglePhotos]);
 
-  const handleCompare = async () => {
-    if (compareMode) {
-      setCompareMode(false);
-      return;
-    }
-    setLoadingPrev(true);
-    const { data } = await supabase
-      .from("progress_photos")
-      .select("id, storage_path, pose, photo_date")
-      .eq("client_id", clientId)
-      .lt("photo_date", actualDate)
-      .order("photo_date", { ascending: false })
-      .limit(10);
-
-    if (!data || data.length === 0) {
-      setNoPrevious(true);
-      setLoadingPrev(false);
-      return;
-    }
-
-    const prevDate = data[0].photo_date;
-    const sameDatePhotos = data.filter(p => p.photo_date === prevDate);
-    const enriched = await Promise.allSettled(
-      sameDatePhotos.map(async (p: any) => {
-        const { data: urlData } = await supabase.storage
-          .from("progress-photos")
-          .createSignedUrl(p.storage_path, 3600);
-        return { ...p, signedUrl: urlData?.signedUrl ?? null } as Photo;
-      })
-    );
-    setPrevPhotos(
-      enriched
-        .filter((r): r is PromiseFulfilledResult<Photo> => r.status === "fulfilled")
-        .map(r => r.value)
-        .filter(p => p.signedUrl)
-    );
-    setCompareMode(true);
-    setLoadingPrev(false);
-  };
-
-  const prevAnglePhotos = useMemo(() => {
-    const map: Record<string, Photo | null> = { front: null, back: null, side: null };
-    prevPhotos.forEach(p => {
-      const angle = mapPose(p.pose);
-      if (angle in map && !map[angle]) map[angle] = p;
-    });
-    return map;
-  }, [prevPhotos]);
+  // Probe whether the client has at least one OTHER check-in date (other than actualDate)
+  // so we can decide whether to render the Compare button.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("progress_photos")
+        .select("photo_date")
+        .eq("client_id", clientId)
+        .neq("photo_date", actualDate)
+        .limit(1);
+      if (!cancelled) setHasOtherDates(!!(data && data.length > 0));
+    })();
+    return () => { cancelled = true; };
+  }, [clientId, actualDate]);
 
   if (loading) {
     return (
