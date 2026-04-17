@@ -326,26 +326,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const loadWorkoutMeta = useCallback(async (allPhases: ProgramPhase[]) => {
     const workoutIds = allPhases.flatMap(p => p.workouts.map(w => w.workoutId));
     if (workoutIds.length === 0) return;
-
-    const { data: exerciseRows } = await supabase
-      .from("workout_exercises")
-      .select("workout_id, sets, rest_seconds, exercise_id, exercises(youtube_url, youtube_thumbnail)")
-      .in("workout_id", workoutIds)
-      .order("exercise_order");
-
-    const meta: Record<string, WorkoutMeta> = {};
-    for (const wId of workoutIds) {
-      const exes = (exerciseRows || []).filter((r: any) => r.workout_id === wId);
-      const firstEx = exes[0];
-      const thumb = firstEx
-        ? ((firstEx as any).exercises?.youtube_thumbnail || getYouTubeThumbnail((firstEx as any).exercises?.youtube_url))
-        : null;
-      meta[wId] = {
-        exerciseCount: exes.length,
-        estimatedMinutes: estimateWorkoutMinutes(exes.map((e: any) => ({ sets: e.sets || 3, rest_seconds: e.rest_seconds || 60 }))),
-        thumbnailUrl: thumb,
-      };
-    }
+    const { fetchWorkoutMeta } = await import("@/lib/workoutMeta");
+    const meta = await fetchWorkoutMeta(workoutIds);
     setWorkoutMeta(meta);
   }, []);
 
