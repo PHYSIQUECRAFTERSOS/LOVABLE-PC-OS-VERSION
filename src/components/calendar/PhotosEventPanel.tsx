@@ -196,30 +196,36 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
         </p>
       </div>
 
-      {compareMode ? (
-        <div className="grid grid-cols-2 gap-3">
-          {renderPhotoGrid(prevAnglePhotos, prevPhotos[0] ? format(new Date(prevPhotos[0].photo_date + "T12:00:00"), "MMM d") : "Previous")}
-          {renderPhotoGrid(anglePhotos, format(new Date(actualDate + "T12:00:00"), "MMM d"))}
-        </div>
-      ) : (
-        renderPhotoGrid(anglePhotos)
+      {renderPhotoGrid(anglePhotos)}
+
+      {hasOtherDates && (
+        <Button
+          variant="outline"
+          onClick={() => setCompareOpen(true)}
+          className="w-full border-primary/50 text-primary hover:bg-primary/10"
+        >
+          Compare to previous check-in
+        </Button>
       )}
 
-      <Button
-        variant="outline"
-        onClick={handleCompare}
-        disabled={noPrevious || loadingPrev}
-        className="w-full border-primary/50 text-primary hover:bg-primary/10"
-      >
-        {loadingPrev ? "Loading..." : compareMode ? "Exit Comparison" : noPrevious ? "No previous photos to compare" : "Compare to previous check-in"}
-      </Button>
-
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => {
+          if (navigatedRef.current) return;
+          navigatedRef.current = true;
+          navigate(`/clients/${clientId}?tab=progress`);
+        }}
         className="text-xs text-primary hover:underline"
       >
         View full progress history →
       </button>
+
+      <ProgressPhotoCompareModal
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        clientId={clientId}
+        initialDate={actualDate}
+      />
+
 
       {/* Lightbox */}
       {lightboxIdx !== null && orderedPhotos[lightboxIdx] && (
