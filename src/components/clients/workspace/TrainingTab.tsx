@@ -326,6 +326,60 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setEditingPhase(null);
   };
 
+  const changePhaseDuration = async (phaseId: string, weeks: number) => {
+    await supabase.from("program_phases").update({ duration_weeks: weeks }).eq("id", phaseId);
+    toast({ title: "Duration updated", description: `Phase set to ${weeks} week${weeks !== 1 ? "s" : ""}.` });
+    loadClientProgram();
+  };
+
+  const handleAddPhase = async () => {
+    if (!program) return;
+    await supabase.from("program_phases").insert({
+      program_id: program.id,
+      name: `Phase ${phases.length + 1}`,
+      phase_order: phases.length + 1,
+      duration_weeks: 4,
+    });
+    toast({ title: "Phase added" });
+    loadClientProgram();
+  };
+
+  const handleCopyPhaseToMaster = async (phase: Phase, targetMasterProgramId: string) => {
+    if (!user) return;
+    const result = await copyPhaseToMasterProgram({
+      coachId: user.id,
+      sourcePhase: phase,
+      targetMasterProgramId,
+    });
+    if (!result.ok) {
+      toast({ title: "Copy failed", description: result.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: result.message.title,
+      description: result.message.description,
+      variant: result.message.isWarning ? "destructive" : undefined,
+    });
+  };
+
+  const handleCopyPhaseToClient = async (phase: Phase, targetClientId: string) => {
+    if (!user) return;
+    const result = await copyPhaseToClientProgram({
+      coachId: user.id,
+      sourcePhase: phase,
+      targetClientId,
+    });
+    if (!result.ok) {
+      toast({ title: "Copy failed", description: result.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: result.message.title,
+      description: result.message.description,
+      variant: result.message.isWarning ? "destructive" : undefined,
+    });
+  };
+
   const renameProgram = async (newName: string) => {
     if (!program || !newName.trim()) { setEditingProgramName(false); return; }
     await supabase.from("programs").update({ name: newName.trim() }).eq("id", program.id);
