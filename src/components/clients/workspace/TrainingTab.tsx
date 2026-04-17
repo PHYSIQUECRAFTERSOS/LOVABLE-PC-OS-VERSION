@@ -645,186 +645,35 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   return (
     <div className="space-y-4">
-      {/* Program Header */}
-      <Card>
-        <CardContent className="pt-5 pb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              {editingProgramName ? (
-                <Input
-                  autoFocus
-                  value={programNameEdit}
-                  onChange={e => setProgramNameEdit(e.target.value)}
-                  onBlur={() => renameProgram(programNameEdit)}
-                  onKeyDown={e => e.key === "Enter" && renameProgram(programNameEdit)}
-                  className="h-8 w-64 text-lg font-semibold"
-                />
-              ) : (
-                <h3
-                  className="font-semibold text-foreground text-lg cursor-text hover:text-primary transition-colors"
-                  onClick={() => { setProgramNameEdit(program.name); setEditingProgramName(true); }}
-                  title="Click to rename"
-                >{program.name}</h3>
-              )}
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {program.goal_type && <Badge variant="secondary" className="text-[10px]">{program.goal_type}</Badge>}
-                <span className="text-xs text-muted-foreground">
-                  Week {assignment.current_week_number} · {phases.length} phase{phases.length !== 1 ? "s" : ""}
-                </span>
-                <Badge variant="outline" className="text-[10px]">v{assignment.master_version_number || 1}</Badge>
-                {isLinked ? (
-                  <Badge className="text-[10px] gap-1 bg-primary/20 text-primary"><Link2 className="h-2.5 w-2.5" /> Linked to Master</Badge>
-                ) : assignment.forked_from_program_id ? (
-                  <Badge variant="outline" className="text-[10px] gap-1"><Unlink className="h-2.5 w-2.5" /> Detached</Badge>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {isLinked && (
-                <Button variant="outline" size="sm" onClick={() => setShowDetach(true)}>
-                  <Unlink className="h-3.5 w-3.5 mr-1" /> Detach & Edit
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={openAssignDialog}>Change</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Two-pane Trainerize-style layout (replaces stacked phase Cards) */}
+      <ClientProgramTwoPane
+        programName={program.name}
+        programGoalType={program.goal_type}
+        isLinkedToMaster={isLinked}
+        currentPhaseId={assignment.current_phase_id}
+        currentWeekNumber={assignment.current_week_number}
+        phases={phases}
+        loading={loading}
+        onNewWorkout={(phaseId) => guardEdit(() => { setBuilderPhaseId(phaseId); setBuilderOpen(true); })}
+        onImport={(phaseId) => guardEdit(() => openImportDialog(phaseId))}
+        onOpenWorkout={(pw) => openWorkoutPreview(pw)}
+        onEditWorkout={(pw) => openWorkoutEditor(pw)}
+        onDuplicateWorkout={(pw, phaseId) => guardEdit(() => duplicateWorkout(pw, phaseId))}
+        onDeleteWorkout={(pwId, name) => guardEdit(() => setDeleteTarget({ ids: [pwId], names: [name] }))}
+        onAddPhase={() => guardEdit(handleAddPhase)}
+        onRenamePhase={renamePhase}
+        onChangeDuration={(phaseId) => {
+          const target = phases.find(p => p.id === phaseId);
+          if (target) setChangeDurationPhase(target);
+        }}
+        onDuplicatePhase={(phase) => guardEdit(() => duplicatePhase(phase))}
+        onDeletePhase={(phase) => guardEdit(() => setDeletePhaseTarget(phase))}
+        onCopyPhaseToMaster={(phase) => setCopyToMasterPhase(phase)}
+        onCopyPhaseToClient={(phase) => setCopyToClientPhase(phase)}
+        onChangeProgram={openAssignDialog}
+        onDetach={isLinked ? () => setShowDetach(true) : undefined}
+      />
 
-      {/* Selection toolbar */}
-      {selectionMode && selectedWorkouts.size > 0 && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-          <span className="text-sm font-medium">{selectedWorkouts.size} selected</span>
-          <div className="flex-1" />
-          <Button size="sm" variant="outline" className="h-8 text-xs"
-            onClick={() => {
-              const names = allWorkouts.filter(w => selectedWorkouts.has(w.id)).map(w => w.workout_name);
-              guardEdit(() => setDeleteTarget({ ids: Array.from(selectedWorkouts), names }));
-            }}>
-            <Trash2 className="h-3 w-3 mr-1" /> Delete
-          </Button>
-          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSelectionMode(false); setSelectedWorkouts(new Set()); }}>
-            Cancel
-          </Button>
-        </div>
-      )}
-
-      {/* Phases */}
-      {phases.map((phase, phaseIdx) => {
-        const phaseWeeks = weeks.filter(w => w.phase_id === phase.id);
-        const totalWorkouts = phase.directWorkouts.length + phaseWeeks.reduce((s, w) => s + w.workouts.length, 0);
-        const isExpanded = expandedPhase === phase.id;
-        const isCurrent = assignment.current_phase_id === phase.id;
-
-        return (
-          <Card key={phase.id} className={`overflow-hidden ${isCurrent ? "ring-1 ring-primary/50" : ""}`}>
-            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/30 transition-colors"
-              onClick={() => setExpandedPhase(isExpanded ? null : phase.id)}>
-              <div className="flex items-center gap-3">
-                {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                <div>
-                  {editingPhase === phase.id ? (
-                    <Input autoFocus value={phaseNameEdit} onChange={e => setPhaseNameEdit(e.target.value)}
-                      onBlur={() => renamePhase(phase.id, phaseNameEdit)}
-                      onKeyDown={e => e.key === "Enter" && renamePhase(phase.id, phaseNameEdit)}
-                      onClick={e => e.stopPropagation()} className="h-7 w-48 text-sm" />
-                  ) : (
-                    <h4 className="font-semibold text-sm text-foreground cursor-text hover:text-primary transition-colors"
-                      onClick={e => {
-                        e.stopPropagation();
-                        guardEdit(() => { setEditingPhase(phase.id); setPhaseNameEdit(phase.name); });
-                      }}
-                      title="Click to rename">{phase.name}</h4>
-                  )}
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {isCurrent && <Badge className="text-[9px] h-4">Current</Badge>}
-                    {phase.training_style && <span className="text-[10px] text-muted-foreground">{TRAINING_STYLE_LABELS[phase.training_style] || phase.training_style}</span>}
-                    <span className="text-[10px] text-muted-foreground">{phase.duration_weeks}w · {totalWorkouts} workouts</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phase.id, "up")} disabled={phaseIdx === 0}><ArrowUp className="h-3 w-3" /></Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => movePhase(phase.id, "down")} disabled={phaseIdx === phases.length - 1}><ArrowDown className="h-3 w-3" /></Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => duplicatePhase(phase)}><Copy className="h-3 w-3" /></Button>
-                {!selectionMode && (
-                  <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2"
-                    onClick={() => { setSelectionMode(true); setSelectedWorkouts(new Set()); }}>
-                    Select
-                  </Button>
-                )}
-                {phases.length > 1 && (
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => guardEdit(() => deletePhase(phase.id))}><Trash2 className="h-3 w-3" /></Button>
-                )}
-              </div>
-            </div>
-
-            {isExpanded && (
-              <CardContent className="pt-0 space-y-2 pb-4">
-                {/* New + Import toolbar */}
-                <div className="flex items-center gap-2 mb-2">
-                  <Button size="sm" variant="outline" className="h-8 text-xs"
-                    onClick={() => guardEdit(() => { setBuilderPhaseId(phase.id); setBuilderOpen(true); })}>
-                    <Plus className="h-3 w-3 mr-1" /> New
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-8 text-xs"
-                    onClick={() => guardEdit(() => openImportDialog(phase.id))}>
-                    <Download className="h-3 w-3 mr-1" /> Import
-                  </Button>
-                </div>
-
-                {(() => {
-                  const sorted = [...phase.directWorkouts].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
-                  let dayCounter = 1;
-                  return sorted.map(pw => {
-                    const isExcluded = pw.exclude_from_numbering;
-                    const pos = isExcluded ? null : dayCounter++;
-                    return renderWorkoutCard(pw, phase.id, pos, isExcluded ? pw.custom_tag : null);
-                  });
-                })()}
-
-                {phaseWeeks.length === 0 && phase.directWorkouts.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">No workouts in this phase.</p>
-                ) : phaseWeeks.map(week => (
-                  <Collapsible key={week.id} open={expandedWeek === week.id} onOpenChange={open => setExpandedWeek(open ? week.id : null)}>
-                    <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 rounded-md hover:bg-muted/50 transition-colors">
-                      <span className="text-sm font-medium">{week.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground">{week.workouts.length} workout{week.workouts.length !== 1 ? "s" : ""}</span>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pl-4 space-y-2 mt-1">
-                      {week.workouts.length === 0 ? (
-                        <p className="text-xs text-muted-foreground py-2">No workouts this week.</p>
-                      ) : (() => {
-                        const sorted = [...week.workouts].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
-                        let dayCounter = 1;
-                        return sorted.map(pw => {
-                          const isExcluded = pw.exclude_from_numbering;
-                          const pos = isExcluded ? null : dayCounter++;
-                          return renderWorkoutCard(pw, phase.id, pos, isExcluded ? pw.custom_tag : null);
-                        });
-                      })()}
-                    </CollapsibleContent>
-                  </Collapsible>
-                ))}
-              </CardContent>
-            )}
-          </Card>
-        );
-      })}
-
-      {/* Add Phase */}
-      <Button variant="outline" className="w-full" onClick={() => guardEdit(async () => {
-        if (!program) return;
-        await supabase.from("program_phases").insert({
-          program_id: program.id, name: `Phase ${phases.length + 1}`, phase_order: phases.length + 1, duration_weeks: 4,
-        });
-        toast({ title: "Phase added" }); loadClientProgram();
-      })}>
-        <Plus className="h-4 w-4 mr-2" /> Add Phase
-      </Button>
 
       {/* Assign Dialog */}
       <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
