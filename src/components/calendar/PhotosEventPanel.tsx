@@ -39,17 +39,16 @@ function getAdjacentDate(date: string, offset: number): string {
 
 const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
   const navigate = useNavigate();
+  const navigatedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isNearbyDate, setIsNearbyDate] = useState(false);
   const [actualDate, setActualDate] = useState(eventDate);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
-  // Compare state
-  const [compareMode, setCompareMode] = useState(false);
-  const [prevPhotos, setPrevPhotos] = useState<Photo[]>([]);
-  const [loadingPrev, setLoadingPrev] = useState(false);
-  const [noPrevious, setNoPrevious] = useState(false);
+  // Compare modal
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [hasOtherDates, setHasOtherDates] = useState(false);
 
   useEffect(() => {
     const fetchPhotos = async () => {
