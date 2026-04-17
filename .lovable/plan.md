@@ -1,55 +1,37 @@
 
 
-# Fix Scan Food Label -- End-to-End
+## Root cause
+The Workout Progress sheet is rendered as a Radix `Sheet` at `z-50`, but the parent `EventDetailModal` is a `Dialog` whose overlay is `z-[70]` and content is also `z-[70]`. So when the sheet opens, the Dialog's dark overlay sits **on top of** the Sheet → the numbers show but are dimmed and unclickable behind a black 80% scrim.
 
-## Diagnosis
+This matches our project's documented z-index hierarchy (Fullscreen overlays z-60, Dialogs z-70, Portals z-80), and the sheet currently violates it.
 
-**Root cause of "nothing happens"**: iOS Safari blocks programmatic `input.click()` when it is not in the direct user gesture chain. In `ScanFoodLabelButton.tsx` lines 393 and 400, the code first closes the Drawer (`setShowPicker(false)`) which triggers a React re-render and Drawer dismissal animation, then uses a 100ms `setTimeout` to call `cameraInputRef.current?.click()`. By the time the timeout fires, iOS has invalidated the user gesture context, so the file picker silently fails to open.
+## Fix (surgical, ~2 small edits)
 
-Compare with `MealScanCapture.tsx` line 66 which uses `setTimeout(() => fileRef.current?.click(), 0)` from a direct button click inside a Dialog (no Drawer dismissal in between) -- that works because the gesture chain is still alive.
+**1. Lift the Workout Progress sheet above the Dialog** — Edit `WorkoutProgressSheet.tsx` so its `SheetContent` (and its overlay) render at `z-[85]`, sitting above the `EventDetailModal` Dialog's `z-[70]`. This is done by passing a custom `className` (`z-[85]`) plus a custom `overlayClassName` — or by switching to a local `SheetPortal` + `SheetOverlay` with the higher z-index, leaving the shared `ui/sheet.tsx` untouched (so we don't risk regressions in other sheets).
 
-**Architecture is sound**: The edge function (`scan-food-label`) uses Lovable AI Gateway (Gemini Pro/Flash vision), is deployed, and correctly returns structured JSON. The client-side component has proper form pre-fill, duplicate detection, suspicious value warnings, and nutrition logging. The only break is the file picker never opening on mobile.
+**2. Close the parent Dialog when Progress opens (cleaner UX)** — In `EventDetailModal.tsx`, when the user taps "Workout Progress" in the dropdown, set `showProgress=true` AND call `onClose()` for the parent dialog. When the progress sheet is closed, do nothing extra (parent is already gone). This eliminates the stacked-modal feel entirely and matches iOS native behavior (push-to-front, single context at a time).
 
-## Plan
+## UX improvements (senior iOS engineer recommendations)
 
-### Step 1: Fix the file picker gesture chain (ScanFoodLabelButton.tsx)
+These are small wins that make the sheet feel native:
 
-The Drawer "Take Photo" and "Upload from Library" buttons must trigger the file input click BEFORE closing the Drawer, not after. Change lines 393 and 400:
+- **Full-height bottom sheet on mobile** (`h-[92vh]` instead of `85vh`) with a visible drag handle bar at top — iOS users instinctively swipe down to dismiss.
+- **Sticky workout name + session count header** with a back-chevron on the left (returns to the workout popup) and X on the right.
+- **Highlight the "current session" column** with a subtle gold left border so users instantly see which one they just did vs. history.
+- **Auto-scroll the table to the rightmost (newest) column** on open so the most recent session is in view without horizontal scrolling.
+- **Show delta vs. previous session** under each cell when reps × weight beat the prior session (small green ▲ or red ▼). Reuses existing data, no new queries.
+- **Sticky "Today" date pill** above the table when scrolled.
+- **Haptic-style tap feedback** on row tap (already supported via Capacitor on iOS; web no-op).
 
-**Current (broken)**:
-```typescript
-onClick={() => { setShowPicker(false); setTimeout(() => cameraInputRef.current?.click(), 100); }}
-```
+I'll implement #1–#4 from the UX list as part of this fix; #5 (deltas) and #6 (sticky pill) only if you want them in this same pass.
 
-**Fixed**:
-```typescript
-onClick={() => { cameraInputRef.current?.click(); setShowPicker(false); }}
-```
+## Files touched
+- `src/components/calendar/WorkoutProgressSheet.tsx` — z-index fix + UX polish
+- `src/components/calendar/EventDetailModal.tsx` — close parent dialog when launching progress sheet
 
-Same pattern for the library upload button -- click `fileInputRef` first, then close the Drawer. Remove the `setTimeout` wrapper entirely. This preserves the user gesture context so iOS Safari allows the file picker to open.
+## Out of scope (will not touch)
+Shared `ui/sheet.tsx`, shared `ui/dialog.tsx`, any other modal, calendar fetch logic, workout finish flow, RLS, schema.
 
-### Step 2: Verify edge function is deployed and responding
-
-Use `supabase--curl_edge_functions` to send a test request to `scan-food-label` with a small base64 image payload to confirm the function is live and returning data. Check `supabase--edge_function_logs` for any recent errors.
-
-### Step 3: Add image compression before upload (robustness)
-
-The current code sends raw camera photos (potentially 5-10MB) as base64 to the edge function. Add `browser-image-compression` (already in the project, used by MealScanCapture) to compress images to 800px max dimension and 0.5MB before base64 conversion. This prevents timeouts on large images and matches the pattern used by MealScanCapture.
-
-### Step 4: Verify all integration points are wired
-
-Confirm that:
-- The "All" tab Quick Action grid button (`setScanLabelOpen(true)`) correctly opens the headless ScanFoodLabelButton's Drawer
-- The "Custom Foods" tab inline ScanFoodLabelButton (variant="full") also works
-- Both paths flow through the same `handleImageSelected` callback
-- After successful scan + save, `onLogged()` is called to refresh the nutrition tracker
-
-### Files Modified
-- `src/components/nutrition/ScanFoodLabelButton.tsx` -- fix gesture chain, add image compression
-
-### Files NOT Modified
-- Edge function (`supabase/functions/scan-food-label/index.ts`) -- already correct
-- `AddFoodScreen.tsx` -- wiring is already correct
-- `CreateFoodScreen.tsx` -- not involved in scan flow
-- No database tables, RLS policies, or other components
+## Quick clarifying question
+Do you want the deltas-vs-previous-session indicator (small green ▲ / red ▼ under each cell) included now, or keep this fix purely visibility + polish and ship deltas separately?
 
