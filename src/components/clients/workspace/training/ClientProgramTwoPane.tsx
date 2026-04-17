@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Plus, Download, Search, Dumbbell, ChevronRight, Link2, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchWorkoutMeta, type WorkoutMeta } from "@/lib/workoutMeta";
