@@ -1254,15 +1254,18 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                               return (
                                 <SortableWorkoutCard
                                   key={pw.id || pw.workoutId + pwIdx}
-                                  pw={pw}
-                                  pwIdx={pwIdx}
-                                  phaseIdx={phaseIdx}
+                                  dndId={pw.id || pw.workoutId + pwIdx}
+                                  workoutId={pw.workoutId}
+                                  workoutName={pw.workoutName}
                                   displayPosition={pos}
+                                  customTag={pw.excludeFromNumbering ? pw.customTag : null}
                                   meta={workoutMeta[pw.workoutId]}
-                                  openWorkoutBuilder={openWorkoutBuilder}
-                                  removeWorkoutFromPhase={removeWorkoutFromPhase}
-                                  onToggleCustomTag={handleToggleCustomTag}
-                                  onCopyDayToClient={openCopyDayToClient}
+                                  initialExcludeFromNumbering={pw.excludeFromNumbering}
+                                  onPrimaryClick={() => openWorkoutBuilder(phaseIdx, pw)}
+                                  onEdit={() => openWorkoutBuilder(phaseIdx, pw)}
+                                  onDelete={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}
+                                  onToggleCustomTag={(exclude, tag) => handleToggleCustomTag(phaseIdx, pwIdx, exclude, tag)}
+                                  onCopyToClient={() => openCopyDayToClient(pw)}
                                 />
                               );
                             });
