@@ -26,7 +26,7 @@ import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } fr
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
 import SortableWorkoutCard from "./SortableWorkoutCard";
-import { getYouTubeThumbnail, estimateWorkoutMinutes, type WorkoutMeta } from "@/lib/workoutMeta";
+import type { WorkoutMeta } from "@/lib/workoutMeta";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
