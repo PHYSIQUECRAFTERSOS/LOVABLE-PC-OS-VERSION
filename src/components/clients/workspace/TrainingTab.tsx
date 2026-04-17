@@ -27,6 +27,11 @@ import MobileWorkoutEditor from "@/components/training/MobileWorkoutEditor";
 import WorkoutPreviewModal from "@/components/training/WorkoutPreviewModal";
 import WorkoutBuilderModal from "@/components/training/WorkoutBuilderModal";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
+import ClientProgramTwoPane from "./training/ClientProgramTwoPane";
+import ChangeDurationDialog from "./training/ChangeDurationDialog";
+import CopyPhaseToMasterDialog from "./training/CopyPhaseToMasterDialog";
+import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
+import { copyPhaseToMasterProgram, copyPhaseToClientProgram } from "@/lib/copyPhaseHelpers";
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
