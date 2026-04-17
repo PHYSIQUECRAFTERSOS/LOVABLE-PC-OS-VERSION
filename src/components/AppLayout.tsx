@@ -52,15 +52,35 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     const isCoach = role === "coach" || role === "admin";
 
     if (isCoach) {
-      // Count threads with unread messages for coach
+      // Count threads with at least one unread CLIENT message.
+      // IMPORTANT: this logic MUST stay in sync with src/components/messaging/CoachThreadList.tsx
+      // (the inbox list). Both surfaces define "unread" the same way:
+      //   - thread is not archived
+      //   - AND (a thread_messages row from the client exists with created_at > coach_last_seen_at,
+      //          OR coach_last_seen_at is null and any client message exists,
+      //          OR coach_marked_unread = true)
+      // Do NOT revert to using message_threads.updated_at — the update_thread_timestamp trigger
+      // bumps updated_at on the coach's own sends, which caused phantom unread counts.
       const { data: threads } = await (supabase as any)
         .from("message_threads")
-        .select("id, updated_at, coach_last_seen_at")
-        .eq("coach_id", user.id);
-      const count = (threads || []).filter(
-        (t: any) => !t.coach_last_seen_at || new Date(t.updated_at) > new Date(t.coach_last_seen_at)
-      ).length;
-      setUnreadCount(count);
+        .select("id, client_id, coach_last_seen_at, coach_marked_unread")
+        .eq("coach_id", user.id)
+        .eq("is_archived", false);
+
+      const results = await Promise.all(
+        (threads || []).map(async (t: any) => {
+          if (t.coach_marked_unread) return true;
+          let q = (supabase as any)
+            .from("thread_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("thread_id", t.id)
+            .eq("sender_id", t.client_id);
+          if (t.coach_last_seen_at) q = q.gt("created_at", t.coach_last_seen_at);
+          const { count: c } = await q;
+          return (c || 0) > 0;
+        })
+      );
+      setUnreadCount(results.filter(Boolean).length);
     } else {
       // Count unread messages for client
       const { count } = await (supabase as any)
