@@ -25,14 +25,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
+import SortableWorkoutCard from "./SortableWorkoutCard";
+import { getYouTubeThumbnail, estimateWorkoutMinutes, type WorkoutMeta } from "@/lib/workoutMeta";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
+  SortableContext, verticalListSortingStrategy, arrayMove,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 const TRAINING_STYLES = [
   { label: "Hypertrophy", value: "hypertrophy" },
