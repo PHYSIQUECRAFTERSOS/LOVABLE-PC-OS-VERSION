@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,18 +34,47 @@ interface ClientProfile {
   phone: string | null;
 }
 
+const VALID_TABS = new Set([
+  "dash", "checkins", "onboarding", "calendar", "training",
+  "nutrition", "mealplan", "supps", "plan", "progress", "messaging",
+]);
+
 const ClientDetail = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const userId = user?.id;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (() => {
+    const t = searchParams.get("tab");
+    return t && VALID_TABS.has(t) ? t : "dash";
+  })();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("dash");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [programName, setProgramName] = useState<string | null>(null);
   const [programType, setProgramType] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
+
+  // Sync activeTab when ?tab= changes (e.g., deep link from check-in modal)
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && VALID_TABS.has(t) && t !== activeTab) {
+      setActiveTab(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    // Strip ?tab= once user takes manual control to keep URL tidy
+    if (searchParams.get("tab")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("tab");
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   const loadClientData = useCallback(async () => {
     if (!clientId || !userId) return;
@@ -177,7 +206,7 @@ const ClientDetail = () => {
         </div>
 
         {/* Workspace Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="w-full justify-start overflow-x-auto flex-nowrap">
             {tabItems.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5 shrink-0">

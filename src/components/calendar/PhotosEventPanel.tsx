@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Camera, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import ProgressPhotoCompareModal from "./ProgressPhotoCompareModal";
 
 interface Photo {
   id: string;
@@ -38,17 +39,16 @@ function getAdjacentDate(date: string, offset: number): string {
 
 const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
   const navigate = useNavigate();
+  const navigatedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isNearbyDate, setIsNearbyDate] = useState(false);
   const [actualDate, setActualDate] = useState(eventDate);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
-  // Compare state
-  const [compareMode, setCompareMode] = useState(false);
-  const [prevPhotos, setPrevPhotos] = useState<Photo[]>([]);
-  const [loadingPrev, setLoadingPrev] = useState(false);
-  const [noPrevious, setNoPrevious] = useState(false);
+  // Compare modal
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [hasOtherDates, setHasOtherDates] = useState(false);
 
   useEffect(() => {
     const fetchPhotos = async () => {
@@ -109,54 +109,21 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
     return ANGLES.map(a => anglePhotos[a]).filter(Boolean) as Photo[];
   }, [anglePhotos]);
 
-  const handleCompare = async () => {
-    if (compareMode) {
-      setCompareMode(false);
-      return;
-    }
-    setLoadingPrev(true);
-    const { data } = await supabase
-      .from("progress_photos")
-      .select("id, storage_path, pose, photo_date")
-      .eq("client_id", clientId)
-      .lt("photo_date", actualDate)
-      .order("photo_date", { ascending: false })
-      .limit(10);
-
-    if (!data || data.length === 0) {
-      setNoPrevious(true);
-      setLoadingPrev(false);
-      return;
-    }
-
-    const prevDate = data[0].photo_date;
-    const sameDatePhotos = data.filter(p => p.photo_date === prevDate);
-    const enriched = await Promise.allSettled(
-      sameDatePhotos.map(async (p: any) => {
-        const { data: urlData } = await supabase.storage
-          .from("progress-photos")
-          .createSignedUrl(p.storage_path, 3600);
-        return { ...p, signedUrl: urlData?.signedUrl ?? null } as Photo;
-      })
-    );
-    setPrevPhotos(
-      enriched
-        .filter((r): r is PromiseFulfilledResult<Photo> => r.status === "fulfilled")
-        .map(r => r.value)
-        .filter(p => p.signedUrl)
-    );
-    setCompareMode(true);
-    setLoadingPrev(false);
-  };
-
-  const prevAnglePhotos = useMemo(() => {
-    const map: Record<string, Photo | null> = { front: null, back: null, side: null };
-    prevPhotos.forEach(p => {
-      const angle = mapPose(p.pose);
-      if (angle in map && !map[angle]) map[angle] = p;
-    });
-    return map;
-  }, [prevPhotos]);
+  // Probe whether the client has at least one OTHER check-in date (other than actualDate)
+  // so we can decide whether to render the Compare button.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("progress_photos")
+        .select("photo_date")
+        .eq("client_id", clientId)
+        .neq("photo_date", actualDate)
+        .limit(1);
+      if (!cancelled) setHasOtherDates(!!(data && data.length > 0));
+    })();
+    return () => { cancelled = true; };
+  }, [clientId, actualDate]);
 
   if (loading) {
     return (
@@ -229,30 +196,36 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
         </p>
       </div>
 
-      {compareMode ? (
-        <div className="grid grid-cols-2 gap-3">
-          {renderPhotoGrid(prevAnglePhotos, prevPhotos[0] ? format(new Date(prevPhotos[0].photo_date + "T12:00:00"), "MMM d") : "Previous")}
-          {renderPhotoGrid(anglePhotos, format(new Date(actualDate + "T12:00:00"), "MMM d"))}
-        </div>
-      ) : (
-        renderPhotoGrid(anglePhotos)
+      {renderPhotoGrid(anglePhotos)}
+
+      {hasOtherDates && (
+        <Button
+          variant="outline"
+          onClick={() => setCompareOpen(true)}
+          className="w-full border-primary/50 text-primary hover:bg-primary/10"
+        >
+          Compare to previous check-in
+        </Button>
       )}
 
-      <Button
-        variant="outline"
-        onClick={handleCompare}
-        disabled={noPrevious || loadingPrev}
-        className="w-full border-primary/50 text-primary hover:bg-primary/10"
-      >
-        {loadingPrev ? "Loading..." : compareMode ? "Exit Comparison" : noPrevious ? "No previous photos to compare" : "Compare to previous check-in"}
-      </Button>
-
       <button
-        onClick={() => navigate("/progress")}
+        onClick={() => {
+          if (navigatedRef.current) return;
+          navigatedRef.current = true;
+          navigate(`/clients/${clientId}?tab=progress`);
+        }}
         className="text-xs text-primary hover:underline"
       >
         View full progress history →
       </button>
+
+      <ProgressPhotoCompareModal
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        clientId={clientId}
+        initialDate={actualDate}
+      />
+
 
       {/* Lightbox */}
       {lightboxIdx !== null && orderedPhotos[lightboxIdx] && (
