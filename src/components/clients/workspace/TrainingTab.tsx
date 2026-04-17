@@ -884,6 +884,75 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Change phase duration */}
+      {changeDurationPhase && (
+        <ChangeDurationDialog
+          open={!!changeDurationPhase}
+          onOpenChange={(o) => { if (!o) setChangeDurationPhase(null); }}
+          initialWeeks={changeDurationPhase.duration_weeks}
+          phaseName={changeDurationPhase.name}
+          onSave={async (weeks) => {
+            await changePhaseDuration(changeDurationPhase.id, weeks);
+            setChangeDurationPhase(null);
+          }}
+        />
+      )}
+
+      {/* Copy phase to master program */}
+      {copyToMasterPhase && user && (
+        <CopyPhaseToMasterDialog
+          open={!!copyToMasterPhase}
+          onOpenChange={(o) => { if (!o) setCopyToMasterPhase(null); }}
+          coachId={user.id}
+          phaseName={copyToMasterPhase.name}
+          onConfirm={async (targetMasterProgramId) => {
+            await handleCopyPhaseToMaster(copyToMasterPhase, targetMasterProgramId);
+            setCopyToMasterPhase(null);
+          }}
+        />
+      )}
+
+      {/* Copy phase to another client */}
+      {copyToClientPhase && user && (
+        <CopyPhaseToClientDialog
+          open={!!copyToClientPhase}
+          onOpenChange={(o) => { if (!o) setCopyToClientPhase(null); }}
+          coachId={user.id}
+          excludeClientId={clientId}
+          phaseName={copyToClientPhase.name}
+          onConfirm={async (targetClientId) => {
+            await handleCopyPhaseToClient(copyToClientPhase, targetClientId);
+            setCopyToClientPhase(null);
+          }}
+        />
+      )}
+
+      {/* Delete phase confirm */}
+      <AlertDialog open={!!deletePhaseTarget} onOpenChange={(o) => { if (!o) setDeletePhaseTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete phase?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{deletePhaseTarget?.name}" and all its workouts will be removed from this client's program. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (deletePhaseTarget) {
+                  await deletePhase(deletePhaseTarget.id);
+                  setDeletePhaseTarget(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
