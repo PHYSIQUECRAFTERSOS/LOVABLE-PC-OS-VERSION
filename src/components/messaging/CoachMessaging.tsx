@@ -18,9 +18,17 @@ const CoachMessaging = () => {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeClientName, setActiveClientName] = useState("");
   const [activeClientAvatar, setActiveClientAvatar] = useState<string | null>(null);
+  // Tracks whether the client metadata for the active thread has resolved.
+  // We hold mounting <ThreadChatView> until this flips true so the chat opens
+  // with stable props and the initial scroll-to-bottom lands on a final
+  // scrollHeight (no post-mount avatar/name re-render shifting layout).
+  const [activeMetaReady, setActiveMetaReady] = useState(false);
 
   const handleSelectThread = async (threadId: string) => {
     setActiveThreadId(threadId);
+    setActiveMetaReady(false);
+    setActiveClientName("");
+    setActiveClientAvatar(null);
 
     const { data: thread } = await supabase
       .from("message_threads")
@@ -36,11 +44,15 @@ const CoachMessaging = () => {
         .single();
       setActiveClientName(profile?.full_name || "Client");
       setActiveClientAvatar(profile?.avatar_url || null);
+    } else {
+      setActiveClientName("Client");
     }
+    setActiveMetaReady(true);
   };
 
   const handleBack = () => {
     setActiveThreadId(null);
+    setActiveMetaReady(false);
     (window as any).__refetchCoachThreads?.();
   };
 
@@ -49,12 +61,18 @@ const CoachMessaging = () => {
     if (activeThreadId) {
       return (
         <div className="flex flex-col h-full">
-          <ThreadChatView
-            threadId={activeThreadId}
-            otherUserName={activeClientName}
-            otherUserAvatar={activeClientAvatar}
-            onBack={handleBack}
-          />
+          {activeMetaReady ? (
+            <ThreadChatView
+              threadId={activeThreadId}
+              otherUserName={activeClientName}
+              otherUserAvatar={activeClientAvatar}
+              onBack={handleBack}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )}
         </div>
       );
     }
@@ -122,12 +140,18 @@ const CoachMessaging = () => {
       {/* Right: Active chat or empty state */}
       <div className="flex-1 flex flex-col min-w-0">
         {activeThreadId ? (
-          <ThreadChatView
-            threadId={activeThreadId}
-            otherUserName={activeClientName}
-            otherUserAvatar={activeClientAvatar}
-            onBack={handleBack}
-          />
+          activeMetaReady ? (
+            <ThreadChatView
+              threadId={activeThreadId}
+              otherUserName={activeClientName}
+              otherUserAvatar={activeClientAvatar}
+              onBack={handleBack}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <MessageSquare className="h-12 w-12 opacity-30" />
