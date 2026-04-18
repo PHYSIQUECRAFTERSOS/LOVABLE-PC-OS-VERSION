@@ -167,8 +167,10 @@ const ThreadChatView = ({
   };
 
   useEffect(() => {
+    logScroll("mount-effect:FIRE", { initialLoadRef: initialLoadRef.current });
     fetchMessages().then(() => {
-      scrollToBottom(true);
+      logScroll("mount-effect:fetchMessages-RESOLVED");
+      scrollToBottom(true, "mount-effect");
       initialLoadRef.current = false;
       fetchReactions();
     });
