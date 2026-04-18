@@ -73,26 +73,6 @@ const ThreadChatView = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef(true);
 
-  /**
-   * Jump straight to the bottom of the messages list.
-   * Uses direct scrollTop assignment on the container (no anchor element,
-   * no scrollIntoView quirks) so it lands precisely above the composer.
-   */
-  const jumpToBottom = () => {
-    const c = scrollContainerRef.current;
-    if (!c) return;
-    c.scrollTop = c.scrollHeight;
-  };
-
-  const scrollToBottom = (instant = false) => {
-    if (instant) {
-      jumpToBottom();
-      return;
-    }
-    requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    });
-  };
 
   const handleBackAction = () => {
     if (showBackToDashboard) {
