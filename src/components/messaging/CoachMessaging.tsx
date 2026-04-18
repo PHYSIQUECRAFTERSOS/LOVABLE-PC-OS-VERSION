@@ -61,12 +61,18 @@ const CoachMessaging = () => {
     if (activeThreadId) {
       return (
         <div className="flex flex-col h-full">
-          <ThreadChatView
-            threadId={activeThreadId}
-            otherUserName={activeClientName}
-            otherUserAvatar={activeClientAvatar}
-            onBack={handleBack}
-          />
+          {activeMetaReady ? (
+            <ThreadChatView
+              threadId={activeThreadId}
+              otherUserName={activeClientName}
+              otherUserAvatar={activeClientAvatar}
+              onBack={handleBack}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )}
         </div>
       );
     }
@@ -134,12 +140,18 @@ const CoachMessaging = () => {
       {/* Right: Active chat or empty state */}
       <div className="flex-1 flex flex-col min-w-0">
         {activeThreadId ? (
-          <ThreadChatView
-            threadId={activeThreadId}
-            otherUserName={activeClientName}
-            otherUserAvatar={activeClientAvatar}
-            onBack={handleBack}
-          />
+          activeMetaReady ? (
+            <ThreadChatView
+              threadId={activeThreadId}
+              otherUserName={activeClientName}
+              otherUserAvatar={activeClientAvatar}
+              onBack={handleBack}
+            />
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <MessageSquare className="h-12 w-12 opacity-30" />
