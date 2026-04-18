@@ -72,6 +72,12 @@ const ThreadChatView = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef(true);
+  // Tracks the timestamp (ms) when initial scroll-to-bottom happened. We
+  // continue to re-pin to bottom while attachments (images/video) load and
+  // grow scrollHeight, but only within this grace window AND only if the
+  // user has not manually scrolled away from the bottom.
+  const initialPinUntilRef = useRef<number>(0);
+  const userScrolledAwayRef = useRef(false);
 
 
   const handleBackAction = () => {
