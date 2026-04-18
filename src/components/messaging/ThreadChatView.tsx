@@ -70,13 +70,36 @@ const ThreadChatView = ({
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef(true);
 
-  const scrollToBottom = (instant = false) => {
+  // [SCROLL-DEBUG] temporary instrumentation — remove after Phase 3
+  const logScroll = (label: string, extra: Record<string, unknown> = {}) => {
+    const c = scrollContainerRef.current;
+    // eslint-disable-next-line no-console
+    console.log("[SCROLL-DEBUG]", label, {
+      ts: Date.now(),
+      threadId,
+      role: (window as any).__pcRole ?? "?",
+      scrollTop: c?.scrollTop ?? null,
+      scrollHeight: c?.scrollHeight ?? null,
+      clientHeight: c?.clientHeight ?? null,
+      messagesCount: messages.length,
+      ...extra,
+    });
+  };
+
+  const scrollToBottom = (instant = false, source = "unknown") => {
+    logScroll(`scrollToBottom:CALL source=${source} instant=${instant}`);
     requestAnimationFrame(() => {
       setTimeout(() => {
+        logScroll(`scrollToBottom:BEFORE source=${source} instant=${instant}`);
         bottomRef.current?.scrollIntoView({
           behavior: instant ? "auto" : "smooth",
+        });
+        // Log after browser likely settled
+        requestAnimationFrame(() => {
+          logScroll(`scrollToBottom:AFTER source=${source} instant=${instant}`);
         });
       }, 50);
     });
