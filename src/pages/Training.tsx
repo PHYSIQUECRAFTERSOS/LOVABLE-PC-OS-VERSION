@@ -124,7 +124,7 @@ const Training = () => {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       const { data: activeSession } = await supabase
         .from("workout_sessions")
-        .select("id, workout_id, started_at")
+        .select("id, workout_id, started_at, status, completed_at")
         .eq("client_id", user.id)
         .eq("status", "in_progress")
         .gte("last_heartbeat", twoHoursAgo)
@@ -132,10 +132,36 @@ const Training = () => {
         .limit(1)
         .maybeSingle();
 
-      if (activeSession) {
-        console.log("[Training] Auto-resuming active session:", activeSession.id.slice(0, 8));
-        loadWorkoutExercises(activeSession.workout_id, activeSession.id);
+      if (!activeSession) return;
+
+      // Defensive guard (Fix 2B): if this workout already has a completed
+      // calendar_event for today, the previous finish flow succeeded but
+      // either status didn't flip or the row is stale. Do NOT re-hydrate
+      // the tracker with pre-filled completed data.
+      const todayStr = new Date().toLocaleDateString("en-CA");
+      const { data: completedToday } = await supabase
+        .from("calendar_events")
+        .select("id")
+        .eq("linked_workout_id", activeSession.workout_id)
+        .eq("event_type", "workout")
+        .eq("event_date", todayStr)
+        .eq("is_completed", true)
+        .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+        .limit(1);
+
+      if (completedToday && completedToday.length > 0) {
+        console.log("[Training] Skip auto-resume: workout already completed today");
+        // Self-heal: mark the lingering in-progress row as completed so it
+        // never triggers re-hydration again.
+        await supabase
+          .from("workout_sessions")
+          .update({ status: "completed" } as any)
+          .eq("id", activeSession.id);
+        return;
       }
+
+      console.log("[Training] Auto-resuming active session:", activeSession.id.slice(0, 8));
+      loadWorkoutExercises(activeSession.workout_id, activeSession.id);
     };
     checkActiveSession();
   }, [user, session, showLogger, location.state]); // eslint-disable-line react-hooks/exhaustive-deps
