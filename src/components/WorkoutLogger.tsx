@@ -192,6 +192,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   // Completion lock — prevents duplicate finish calls (useRef to avoid re-render loops)
   const isCompletingRef = useRef(false);
+  // Done-button lock — prevents double-fires of the post-summary navigation
+  const doneClickedRef = useRef(false);
 
   // Elapsed timer — updates every second
   useEffect(() => {
