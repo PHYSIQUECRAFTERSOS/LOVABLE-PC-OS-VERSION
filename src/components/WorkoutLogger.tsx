@@ -974,18 +974,39 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         isFirstSession={isFirstSession}
         rankData={summaryRankData}
         onDone={() => {
+          // Centralized "finish & navigate home" handler — all dismissal paths call this.
+          // Idempotent: safe to call multiple times (rapid taps).
+          if (doneClickedRef.current) return;
+          doneClickedRef.current = true;
+
           document.body.style.pointerEvents = '';
           clearRetryQueue();
-          // Mark this session as completed locally so the banner never re-appears,
-          // even if the DB query returns stale data
+
+          // Defensive: ensure the in-progress session row is no longer "in_progress"
+          // so the auto-resume guard in Training.tsx will never re-hydrate it.
           if (sessionId) {
             window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
+            // Fire-and-forget belt-and-suspenders update — finishWorkout already
+            // sets status to "completed", but in rare race conditions the row may
+            // still report in_progress on a slow network. This makes it explicit.
+            supabase
+              .from("workout_sessions")
+              .update({ status: "completed" } as any)
+              .eq("id", sessionId)
+              .then(() => { /* noop */ });
           }
-          // Dispatch ended event to clear the banner state immediately
           window.dispatchEvent(new CustomEvent("workout-session-ended"));
-          // Call onComplete first to close the overlay, then navigate
+
+          // Invalidate dashboard cache one more time to guarantee cross-off is fresh
+          if (user) {
+            const todayStr = format(new Date(), "yyyy-MM-dd");
+            invalidateCache(`today-actions-${user.id}-${todayStr}`);
+          }
+
+          // Close the overlay (resets selectedWorkout in Training/launcher), then
+          // navigate with replace semantics so the tracker is NOT on the back stack.
           onComplete?.();
-          navigate("/dashboard");
+          navigate("/dashboard", { replace: true });
         }}
       />
     );
