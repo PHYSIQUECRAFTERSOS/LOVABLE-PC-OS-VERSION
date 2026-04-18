@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -60,9 +60,7 @@ const ThreadChatView = ({
   onBack,
   showBackToDashboard,
 }: ThreadChatViewProps) => {
-  const { user, role } = useAuth();
-  // [SCROLL-DEBUG] expose role on window so logScroll can tag entries
-  if (typeof window !== "undefined") (window as any).__pcRole = role;
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -75,35 +73,24 @@ const ThreadChatView = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef(true);
 
-  // [SCROLL-DEBUG] temporary instrumentation — remove after Phase 3
-  const logScroll = (label: string, extra: Record<string, unknown> = {}) => {
+  /**
+   * Jump straight to the bottom of the messages list.
+   * Uses direct scrollTop assignment on the container (no anchor element,
+   * no scrollIntoView quirks) so it lands precisely above the composer.
+   */
+  const jumpToBottom = () => {
     const c = scrollContainerRef.current;
-    // eslint-disable-next-line no-console
-    console.log("[SCROLL-DEBUG]", label, {
-      ts: Date.now(),
-      threadId,
-      role: (window as any).__pcRole ?? "?",
-      scrollTop: c?.scrollTop ?? null,
-      scrollHeight: c?.scrollHeight ?? null,
-      clientHeight: c?.clientHeight ?? null,
-      messagesCount: messages.length,
-      ...extra,
-    });
+    if (!c) return;
+    c.scrollTop = c.scrollHeight;
   };
 
-  const scrollToBottom = (instant = false, source = "unknown") => {
-    logScroll(`scrollToBottom:CALL source=${source} instant=${instant}`);
+  const scrollToBottom = (instant = false) => {
+    if (instant) {
+      jumpToBottom();
+      return;
+    }
     requestAnimationFrame(() => {
-      setTimeout(() => {
-        logScroll(`scrollToBottom:BEFORE source=${source} instant=${instant}`);
-        bottomRef.current?.scrollIntoView({
-          behavior: instant ? "auto" : "smooth",
-        });
-        // Log after browser likely settled
-        requestAnimationFrame(() => {
-          logScroll(`scrollToBottom:AFTER source=${source} instant=${instant}`);
-        });
-      }, 50);
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     });
   };
 
