@@ -279,6 +279,11 @@ const ThreadChatView = ({
     return () => c.removeEventListener("scroll", onScroll);
   }, [threadId]);
 
+  // [SCROLL-DEBUG] log when otherUserName/otherUserAvatar props change after mount
+  useEffect(() => {
+    logScroll("props-change:otherUser", { otherUserName, hasAvatar: !!otherUserAvatar });
+  }, [otherUserName, otherUserAvatar]);
+
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
     setSending(true);
