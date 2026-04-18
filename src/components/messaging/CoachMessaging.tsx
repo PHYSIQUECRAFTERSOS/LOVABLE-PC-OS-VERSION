@@ -18,9 +18,17 @@ const CoachMessaging = () => {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeClientName, setActiveClientName] = useState("");
   const [activeClientAvatar, setActiveClientAvatar] = useState<string | null>(null);
+  // Tracks whether the client metadata for the active thread has resolved.
+  // We hold mounting <ThreadChatView> until this flips true so the chat opens
+  // with stable props and the initial scroll-to-bottom lands on a final
+  // scrollHeight (no post-mount avatar/name re-render shifting layout).
+  const [activeMetaReady, setActiveMetaReady] = useState(false);
 
   const handleSelectThread = async (threadId: string) => {
     setActiveThreadId(threadId);
+    setActiveMetaReady(false);
+    setActiveClientName("");
+    setActiveClientAvatar(null);
 
     const { data: thread } = await supabase
       .from("message_threads")
@@ -36,11 +44,15 @@ const CoachMessaging = () => {
         .single();
       setActiveClientName(profile?.full_name || "Client");
       setActiveClientAvatar(profile?.avatar_url || null);
+    } else {
+      setActiveClientName("Client");
     }
+    setActiveMetaReady(true);
   };
 
   const handleBack = () => {
     setActiveThreadId(null);
+    setActiveMetaReady(false);
     (window as any).__refetchCoachThreads?.();
   };
 
