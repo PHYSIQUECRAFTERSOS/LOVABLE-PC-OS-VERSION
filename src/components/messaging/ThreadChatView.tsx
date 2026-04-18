@@ -60,7 +60,9 @@ const ThreadChatView = ({
   onBack,
   showBackToDashboard,
 }: ThreadChatViewProps) => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  // [SCROLL-DEBUG] expose role on window so logScroll can tag entries
+  if (typeof window !== "undefined") (window as any).__pcRole = role;
   const { toast } = useToast();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
