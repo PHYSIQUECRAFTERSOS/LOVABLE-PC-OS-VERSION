@@ -72,6 +72,12 @@ const ThreadChatView = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef(true);
+  // Tracks the timestamp (ms) when initial scroll-to-bottom happened. We
+  // continue to re-pin to bottom while attachments (images/video) load and
+  // grow scrollHeight, but only within this grace window AND only if the
+  // user has not manually scrolled away from the bottom.
+  const initialPinUntilRef = useRef<number>(0);
+  const userScrolledAwayRef = useRef(false);
 
 
   const handleBackAction = () => {
@@ -229,9 +235,12 @@ const ThreadChatView = ({
    * Scroll behavior, all in one place:
    * - On the FIRST messages render for a thread, jump synchronously to the
    *   bottom (useLayoutEffect → before paint → no flash).
-   * - On subsequent message updates, smooth-scroll only if the user is already
-   *   near the bottom; otherwise preserve their scroll position so they can
-   *   read history without being yanked back down.
+   * - For ~2s after that, keep re-pinning to bottom whenever scrollHeight
+   *   grows (covers async image/video/audio loading that would otherwise
+   *   leave the user stranded above the real bottom). Stops the moment the
+   *   user manually scrolls up.
+   * - On subsequent message updates, smooth-scroll only if the user is
+   *   already near the bottom; otherwise preserve their scroll position.
    */
   useLayoutEffect(() => {
     const c = scrollContainerRef.current;
@@ -241,6 +250,9 @@ const ThreadChatView = ({
       if (messages.length === 0) return; // wait for first batch
       c.scrollTop = c.scrollHeight;
       initialLoadRef.current = false;
+      // Open a 2s window during which media loads can re-pin us to bottom.
+      initialPinUntilRef.current = Date.now() + 2000;
+      userScrolledAwayRef.current = false;
       return;
     }
 
@@ -252,6 +264,37 @@ const ThreadChatView = ({
     }
     // else: user scrolled up to read history → leave scroll position alone
   }, [messages]);
+
+  /**
+   * Watch for scrollHeight growth from late-loading attachments and re-pin
+   * to the bottom during the initial grace window. Fixes the bug where
+   * images load AFTER the initial scroll-to-bottom, growing the document
+   * but leaving scrollTop stranded — especially noticeable on coach side
+   * where recent threads tend to have more/larger media.
+   */
+  useEffect(() => {
+    const c = scrollContainerRef.current;
+    if (!c) return;
+
+    const onScroll = () => {
+      const distFromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
+      if (distFromBottom > 80) userScrolledAwayRef.current = true;
+    };
+    c.addEventListener("scroll", onScroll, { passive: true });
+
+    const ro = new ResizeObserver(() => {
+      if (Date.now() > initialPinUntilRef.current) return;
+      if (userScrolledAwayRef.current) return;
+      c.scrollTop = c.scrollHeight;
+    });
+    if (c.firstElementChild) ro.observe(c.firstElementChild);
+    ro.observe(c);
+
+    return () => {
+      ro.disconnect();
+      c.removeEventListener("scroll", onScroll);
+    };
+  }, [threadId]);
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
