@@ -60,7 +60,9 @@ const ThreadChatView = ({
   onBack,
   showBackToDashboard,
 }: ThreadChatViewProps) => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  // [SCROLL-DEBUG] expose role on window so logScroll can tag entries
+  if (typeof window !== "undefined") (window as any).__pcRole = role;
   const { toast } = useToast();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -70,13 +72,36 @@ const ThreadChatView = ({
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const initialLoadRef = useRef(true);
 
-  const scrollToBottom = (instant = false) => {
+  // [SCROLL-DEBUG] temporary instrumentation — remove after Phase 3
+  const logScroll = (label: string, extra: Record<string, unknown> = {}) => {
+    const c = scrollContainerRef.current;
+    // eslint-disable-next-line no-console
+    console.log("[SCROLL-DEBUG]", label, {
+      ts: Date.now(),
+      threadId,
+      role: (window as any).__pcRole ?? "?",
+      scrollTop: c?.scrollTop ?? null,
+      scrollHeight: c?.scrollHeight ?? null,
+      clientHeight: c?.clientHeight ?? null,
+      messagesCount: messages.length,
+      ...extra,
+    });
+  };
+
+  const scrollToBottom = (instant = false, source = "unknown") => {
+    logScroll(`scrollToBottom:CALL source=${source} instant=${instant}`);
     requestAnimationFrame(() => {
       setTimeout(() => {
+        logScroll(`scrollToBottom:BEFORE source=${source} instant=${instant}`);
         bottomRef.current?.scrollIntoView({
           behavior: instant ? "auto" : "smooth",
+        });
+        // Log after browser likely settled
+        requestAnimationFrame(() => {
+          logScroll(`scrollToBottom:AFTER source=${source} instant=${instant}`);
         });
       }, 50);
     });
@@ -144,8 +169,10 @@ const ThreadChatView = ({
   };
 
   useEffect(() => {
+    logScroll("mount-effect:FIRE", { initialLoadRef: initialLoadRef.current });
     fetchMessages().then(() => {
-      scrollToBottom(true);
+      logScroll("mount-effect:fetchMessages-RESOLVED");
+      scrollToBottom(true, "mount-effect");
       initialLoadRef.current = false;
       fetchReactions();
     });
@@ -233,8 +260,29 @@ const ThreadChatView = ({
   }, [threadId]);
 
   useEffect(() => {
-    if (!initialLoadRef.current) scrollToBottom(false);
+    logScroll("messages-effect:FIRE", { initialLoadRef: initialLoadRef.current });
+    if (!initialLoadRef.current) scrollToBottom(false, "messages-effect");
   }, [messages]);
+
+  // [SCROLL-DEBUG] attach scroll listener — temporary, remove after Phase 3
+  useEffect(() => {
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    let lastLog = 0;
+    const onScroll = () => {
+      const now = Date.now();
+      if (now - lastLog < 200) return;
+      lastLog = now;
+      logScroll("scroll-event", { distFromBottom: c.scrollHeight - c.scrollTop - c.clientHeight });
+    };
+    c.addEventListener("scroll", onScroll, { passive: true });
+    return () => c.removeEventListener("scroll", onScroll);
+  }, [threadId]);
+
+  // [SCROLL-DEBUG] log when otherUserName/otherUserAvatar props change after mount
+  useEffect(() => {
+    logScroll("props-change:otherUser", { otherUserName, hasAvatar: !!otherUserAvatar });
+  }, [otherUserName, otherUserAvatar]);
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
@@ -413,7 +461,7 @@ const ThreadChatView = ({
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <p className="text-sm">No messages yet. Start the conversation!</p>
