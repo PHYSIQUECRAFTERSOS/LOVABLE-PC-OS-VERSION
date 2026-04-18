@@ -75,8 +75,7 @@ const MessagingTab = ({ clientId }: { clientId: string }) => {
       .from("thread_messages")
       .select("*")
       .eq("thread_id", tId)
-      .order("created_at", { ascending: true })
-      .limit(50);
+      .order("created_at", { ascending: true });
     const msgs = (data as Message[]) || [];
     setMessages(msgs);
 
