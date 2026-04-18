@@ -245,30 +245,33 @@ const ThreadChatView = ({
     };
   }, [threadId]);
 
-  useEffect(() => {
-    logScroll("messages-effect:FIRE", { initialLoadRef: initialLoadRef.current });
-    if (!initialLoadRef.current) scrollToBottom(false, "messages-effect");
-  }, [messages]);
-
-  // [SCROLL-DEBUG] attach scroll listener — temporary, remove after Phase 3
-  useEffect(() => {
+  /**
+   * Scroll behavior, all in one place:
+   * - On the FIRST messages render for a thread, jump synchronously to the
+   *   bottom (useLayoutEffect → before paint → no flash).
+   * - On subsequent message updates, smooth-scroll only if the user is already
+   *   near the bottom; otherwise preserve their scroll position so they can
+   *   read history without being yanked back down.
+   */
+  useLayoutEffect(() => {
     const c = scrollContainerRef.current;
     if (!c) return;
-    let lastLog = 0;
-    const onScroll = () => {
-      const now = Date.now();
-      if (now - lastLog < 200) return;
-      lastLog = now;
-      logScroll("scroll-event", { distFromBottom: c.scrollHeight - c.scrollTop - c.clientHeight });
-    };
-    c.addEventListener("scroll", onScroll, { passive: true });
-    return () => c.removeEventListener("scroll", onScroll);
-  }, [threadId]);
 
-  // [SCROLL-DEBUG] log when otherUserName/otherUserAvatar props change after mount
-  useEffect(() => {
-    logScroll("props-change:otherUser", { otherUserName, hasAvatar: !!otherUserAvatar });
-  }, [otherUserName, otherUserAvatar]);
+    if (initialLoadRef.current) {
+      if (messages.length === 0) return; // wait for first batch
+      c.scrollTop = c.scrollHeight;
+      initialLoadRef.current = false;
+      return;
+    }
+
+    const distFromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
+    if (distFromBottom < 120) {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
+    }
+    // else: user scrolled up to read history → leave scroll position alone
+  }, [messages]);
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
