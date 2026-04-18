@@ -258,8 +258,24 @@ const ThreadChatView = ({
   }, [threadId]);
 
   useEffect(() => {
-    if (!initialLoadRef.current) scrollToBottom(false);
+    logScroll("messages-effect:FIRE", { initialLoadRef: initialLoadRef.current });
+    if (!initialLoadRef.current) scrollToBottom(false, "messages-effect");
   }, [messages]);
+
+  // [SCROLL-DEBUG] attach scroll listener — temporary, remove after Phase 3
+  useEffect(() => {
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    let lastLog = 0;
+    const onScroll = () => {
+      const now = Date.now();
+      if (now - lastLog < 200) return;
+      lastLog = now;
+      logScroll("scroll-event", { distFromBottom: c.scrollHeight - c.scrollTop - c.clientHeight });
+    };
+    c.addEventListener("scroll", onScroll, { passive: true });
+    return () => c.removeEventListener("scroll", onScroll);
+  }, [threadId]);
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
