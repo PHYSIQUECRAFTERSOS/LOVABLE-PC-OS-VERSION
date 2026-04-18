@@ -156,11 +156,10 @@ const ThreadChatView = ({
   };
 
   useEffect(() => {
-    logScroll("mount-effect:FIRE", { initialLoadRef: initialLoadRef.current });
     fetchMessages().then(() => {
-      logScroll("mount-effect:fetchMessages-RESOLVED");
-      scrollToBottom(true, "mount-effect");
-      initialLoadRef.current = false;
+      // Mark that an instant scroll-to-bottom is pending; the useLayoutEffect
+      // below will execute it synchronously after React commits the message DOM,
+      // before the browser paints — so the user never sees the list at top.
       fetchReactions();
     });
     markThreadSeen();
