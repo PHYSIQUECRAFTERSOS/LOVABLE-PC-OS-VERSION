@@ -1,37 +1,33 @@
 
+The user is reporting that despite multiple fix attempts (Round 1, 2, 3), the messages thread still does NOT open scrolled to the bottom. Both client and coach sides are still broken, with coach being significantly worse (opens 3 days behind on Apr 15 when today is Apr 18).
 
-## Root cause
-The Workout Progress sheet is rendered as a Radix `Sheet` at `z-50`, but the parent `EventDetailModal` is a `Dialog` whose overlay is `z-[70]` and content is also `z-[70]`. So when the sheet opens, the Dialog's dark overlay sits **on top of** the Sheet → the numbers show but are dimmed and unclickable behind a black 80% scrim.
+Per the failure-mode instructions in Round 3, since the Option A fix (gating mount on metadata + useLayoutEffect) did NOT resolve the bug, I should:
+1. Acknowledge the hypothesis was wrong/incomplete
+2. NOT apply another guessed fix
+3. Revert to instrumentation approach OR find the real root cause through deeper investigation
 
-This matches our project's documented z-index hierarchy (Fullscreen overlays z-60, Dialogs z-70, Portals z-80), and the sheet currently violates it.
+Let me look at the current state of the code to understand what's actually happening before proposing anything.
 
-## Fix (surgical, ~2 small edits)
+Key suspects to investigate:
+- ThreadChatView.tsx — current scroll logic
+- The container that scrolls — is the `useLayoutEffect` running against the right ref?
+- Are images/attachments loading async and shifting layout AFTER the layoutEffect fires?
+- Is the parent container (`CoachMessaging` / `ClientMessaging` / `Messages` page) using flex layouts that resize after mount?
+- Mobile-specific: keyboard avoidance, safe-area, dynamic viewport
 
-**1. Lift the Workout Progress sheet above the Dialog** — Edit `WorkoutProgressSheet.tsx` so its `SheetContent` (and its overlay) render at `z-[85]`, sitting above the `EventDetailModal` Dialog's `z-[70]`. This is done by passing a custom `className` (`z-[85]`) plus a custom `overlayClassName` — or by switching to a local `SheetPortal` + `SheetOverlay` with the higher z-index, leaving the shared `ui/sheet.tsx` untouched (so we don't risk regressions in other sheets).
+Looking at screenshot 1 (client view, Kevin Wu thread): opens scrolled with newest message ("yoo Kevin (Client) check in's are overdue...") partially cut off at bottom — close to bottom but not pinned.
 
-**2. Close the parent Dialog when Progress opens (cleaner UX)** — In `EventDetailModal.tsx`, when the user taps "Workout Progress" in the dropdown, set `showProgress=true` AND call `onClose()` for the parent dialog. When the progress sheet is closed, do nothing extra (parent is already gone). This eliminates the stacked-modal feel entirely and matches iOS native behavior (push-to-front, single context at a time).
+Screenshot 2 (coach view, Scott Szeto): opens on Apr 15 with empty/loading image attachment visible — this is a HUGE clue. The empty gray box at the bottom is an IMAGE that hasn't loaded yet. When it loads, it pushes content DOWN, but scroll has already been set, so user appears WAY above the new bottom.
 
-## UX improvements (senior iOS engineer recommendations)
+This is almost certainly an **image-loading layout shift** issue, not a metadata issue. The Round 3 hypothesis (CoachMessaging metadata) was wrong — or at least incomplete. The real culprit appears to be:
 
-These are small wins that make the sheet feel native:
+1. `useLayoutEffect` fires BEFORE images load → scrollTop = scrollHeight (correct AT THAT MOMENT)
+2. Images then load asynchronously (especially the most recent attachment) → scrollHeight grows
+3. `scrollTop` stays where it was, so user is now ABOVE the real bottom
+4. Coach side has MORE/larger image attachments in recent messages → bug appears worse
 
-- **Full-height bottom sheet on mobile** (`h-[92vh]` instead of `85vh`) with a visible drag handle bar at top — iOS users instinctively swipe down to dismiss.
-- **Sticky workout name + session count header** with a back-chevron on the left (returns to the workout popup) and X on the right.
-- **Highlight the "current session" column** with a subtle gold left border so users instantly see which one they just did vs. history.
-- **Auto-scroll the table to the rightmost (newest) column** on open so the most recent session is in view without horizontal scrolling.
-- **Show delta vs. previous session** under each cell when reps × weight beat the prior session (small green ▲ or red ▼). Reuses existing data, no new queries.
-- **Sticky "Today" date pill** above the table when scrolled.
-- **Haptic-style tap feedback** on row tap (already supported via Capacitor on iOS; web no-op).
+The fact that coach screenshot shows a half-loaded gray placeholder at the bottom is the smoking gun.
 
-I'll implement #1–#4 from the UX list as part of this fix; #5 (deltas) and #6 (sticky pill) only if you want them in this same pass.
+Let me verify by reading the current ThreadChatView code and MessageAttachment component before presenting plan.
 
-## Files touched
-- `src/components/calendar/WorkoutProgressSheet.tsx` — z-index fix + UX polish
-- `src/components/calendar/EventDetailModal.tsx` — close parent dialog when launching progress sheet
-
-## Out of scope (will not touch)
-Shared `ui/sheet.tsx`, shared `ui/dialog.tsx`, any other modal, calendar fetch logic, workout finish flow, RLS, schema.
-
-## Quick clarifying question
-Do you want the deltas-vs-previous-session indicator (small green ▲ / red ▼ under each cell) included now, or keep this fix purely visibility + polish and ship deltas separately?
-
+I need to investigate before planning. Let me look.
