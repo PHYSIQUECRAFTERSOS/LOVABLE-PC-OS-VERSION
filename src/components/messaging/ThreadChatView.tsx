@@ -78,6 +78,8 @@ const ThreadChatView = ({
   // user has not manually scrolled away from the bottom.
   const initialPinUntilRef = useRef<number>(0);
   const userScrolledAwayRef = useRef(false);
+  const lastScrollTopRef = useRef<number>(0);
+  const lastResizeAtRef = useRef<number>(0);
 
 
   const handleBackAction = () => {
@@ -244,29 +246,21 @@ const ThreadChatView = ({
    */
   useLayoutEffect(() => {
     const c = scrollContainerRef.current;
-    if (!c) {
-      console.log("[ThreadScroll] useLayoutEffect: no container ref", { threadId, msgCount: messages.length });
-      return;
-    }
+    if (!c) return;
 
     if (initialLoadRef.current) {
-      if (messages.length === 0) {
-        console.log("[ThreadScroll] initial: 0 messages, waiting", { threadId });
-        return; // wait for first batch
-      }
-      const before = { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight };
+      if (messages.length === 0) return; // wait for first batch
       c.scrollTop = c.scrollHeight;
-      const after = { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight };
-      console.log("[ThreadScroll] INITIAL scroll-to-bottom", { threadId, msgCount: messages.length, before, after, lastMsgAt: messages[messages.length - 1]?.created_at });
+      lastScrollTopRef.current = c.scrollTop;
       initialLoadRef.current = false;
-      // Open a 2s window during which media loads can re-pin us to bottom.
-      initialPinUntilRef.current = Date.now() + 2000;
+      // Open a 4s window during which media loads / mobile-browser chrome
+      // collapses can re-pin us to bottom.
+      initialPinUntilRef.current = Date.now() + 4000;
       userScrolledAwayRef.current = false;
       return;
     }
 
     const distFromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
-    console.log("[ThreadScroll] subsequent render", { threadId, msgCount: messages.length, distFromBottom, scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight });
     if (distFromBottom < 120) {
       requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -281,38 +275,51 @@ const ThreadChatView = ({
    * images load AFTER the initial scroll-to-bottom, growing the document
    * but leaving scrollTop stranded — especially noticeable on coach side
    * where recent threads tend to have more/larger media.
+   *
+   * Mobile Chrome quirk: the URL bar collapses on first touch, growing the
+   * viewport by 60-100px. This fires a synthetic scroll event with the same
+   * scrollTop but a larger clientHeight, which would falsely trip the
+   * "user scrolled away" flag and disable re-pinning. We guard against this by:
+   *   1. Only flipping the flag on an actual UPWARD scrollTop delta.
+   *   2. Ignoring scroll events that fire within 200ms of a resize event.
    */
   useEffect(() => {
     const c = scrollContainerRef.current;
     if (!c) return;
 
+    lastScrollTopRef.current = c.scrollTop;
+
     const onScroll = () => {
-      const distFromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
-      if (distFromBottom > 80 && !userScrolledAwayRef.current) {
-        console.log("[ThreadScroll] user scrolled AWAY from bottom", { threadId, distFromBottom, scrollTop: c.scrollTop, scrollHeight: c.scrollHeight });
+      const now = Date.now();
+      const sinceResize = now - lastResizeAtRef.current;
+      const prev = lastScrollTopRef.current;
+      const curr = c.scrollTop;
+      lastScrollTopRef.current = curr;
+
+      // Ignore synthetic scroll events caused by viewport resize
+      // (e.g. mobile Chrome URL bar collapsing).
+      if (sinceResize < 200) return;
+
+      const distFromBottom = c.scrollHeight - curr - c.clientHeight;
+      // Only mark "scrolled away" on a real upward swipe.
+      if (distFromBottom > 80 && curr < prev - 4 && !userScrolledAwayRef.current) {
         userScrolledAwayRef.current = true;
       }
     };
     c.addEventListener("scroll", onScroll, { passive: true });
 
     const ro = new ResizeObserver(() => {
+      lastResizeAtRef.current = Date.now();
       const inWindow = Date.now() <= initialPinUntilRef.current;
       if (!inWindow) return;
-      if (userScrolledAwayRef.current) {
-        console.log("[ThreadScroll] RO fired but user scrolled away — skipping re-pin", { threadId });
-        return;
-      }
-      const before = { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight };
+      if (userScrolledAwayRef.current) return;
       c.scrollTop = c.scrollHeight;
-      console.log("[ThreadScroll] RO re-pin to bottom", { threadId, before, after: { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight } });
+      lastScrollTopRef.current = c.scrollTop;
     });
     if (c.firstElementChild) ro.observe(c.firstElementChild);
     ro.observe(c);
 
-    console.log("[ThreadScroll] mount: observers attached", { threadId, initialClientHeight: c.clientHeight, initialScrollHeight: c.scrollHeight });
-
     return () => {
-      console.log("[ThreadScroll] unmount: observers detached", { threadId });
       ro.disconnect();
       c.removeEventListener("scroll", onScroll);
     };
