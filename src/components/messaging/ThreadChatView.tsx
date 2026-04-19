@@ -244,11 +244,20 @@ const ThreadChatView = ({
    */
   useLayoutEffect(() => {
     const c = scrollContainerRef.current;
-    if (!c) return;
+    if (!c) {
+      console.log("[ThreadScroll] useLayoutEffect: no container ref", { threadId, msgCount: messages.length });
+      return;
+    }
 
     if (initialLoadRef.current) {
-      if (messages.length === 0) return; // wait for first batch
+      if (messages.length === 0) {
+        console.log("[ThreadScroll] initial: 0 messages, waiting", { threadId });
+        return; // wait for first batch
+      }
+      const before = { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight };
       c.scrollTop = c.scrollHeight;
+      const after = { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight };
+      console.log("[ThreadScroll] INITIAL scroll-to-bottom", { threadId, msgCount: messages.length, before, after, lastMsgAt: messages[messages.length - 1]?.created_at });
       initialLoadRef.current = false;
       // Open a 2s window during which media loads can re-pin us to bottom.
       initialPinUntilRef.current = Date.now() + 2000;
@@ -257,6 +266,7 @@ const ThreadChatView = ({
     }
 
     const distFromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
+    console.log("[ThreadScroll] subsequent render", { threadId, msgCount: messages.length, distFromBottom, scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight });
     if (distFromBottom < 120) {
       requestAnimationFrame(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -278,19 +288,31 @@ const ThreadChatView = ({
 
     const onScroll = () => {
       const distFromBottom = c.scrollHeight - c.scrollTop - c.clientHeight;
-      if (distFromBottom > 80) userScrolledAwayRef.current = true;
+      if (distFromBottom > 80 && !userScrolledAwayRef.current) {
+        console.log("[ThreadScroll] user scrolled AWAY from bottom", { threadId, distFromBottom, scrollTop: c.scrollTop, scrollHeight: c.scrollHeight });
+        userScrolledAwayRef.current = true;
+      }
     };
     c.addEventListener("scroll", onScroll, { passive: true });
 
     const ro = new ResizeObserver(() => {
-      if (Date.now() > initialPinUntilRef.current) return;
-      if (userScrolledAwayRef.current) return;
+      const inWindow = Date.now() <= initialPinUntilRef.current;
+      if (!inWindow) return;
+      if (userScrolledAwayRef.current) {
+        console.log("[ThreadScroll] RO fired but user scrolled away — skipping re-pin", { threadId });
+        return;
+      }
+      const before = { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight, clientHeight: c.clientHeight };
       c.scrollTop = c.scrollHeight;
+      console.log("[ThreadScroll] RO re-pin to bottom", { threadId, before, after: { scrollTop: c.scrollTop, scrollHeight: c.scrollHeight } });
     });
     if (c.firstElementChild) ro.observe(c.firstElementChild);
     ro.observe(c);
 
+    console.log("[ThreadScroll] mount: observers attached", { threadId, initialClientHeight: c.clientHeight, initialScrollHeight: c.scrollHeight });
+
     return () => {
+      console.log("[ThreadScroll] unmount: observers detached", { threadId });
       ro.disconnect();
       c.removeEventListener("scroll", onScroll);
     };
