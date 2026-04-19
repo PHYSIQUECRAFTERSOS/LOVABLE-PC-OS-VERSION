@@ -611,7 +611,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       if (weight < 0 || !log.reps) return prev;
 
       exerciseId = ex.id;
-      restSecs = ex.restSeconds;
+      // Defensive: coerce null/undefined/NaN to a sane default so the rest
+      // timer always fires when an exercise has any configured rest. Bug 1
+      // root cause: workout_exercises.rest_seconds is nullable and was
+      // flowing through unchanged, causing `restSecs > 0` to silently fail.
+      restSecs = Number.isFinite(ex.restSeconds as number) && (ex.restSeconds as number) > 0
+        ? (ex.restSeconds as number)
+        : 90;
 
       const isPR = checkPR(ex.id, ex.name, weight, log.reps);
 
