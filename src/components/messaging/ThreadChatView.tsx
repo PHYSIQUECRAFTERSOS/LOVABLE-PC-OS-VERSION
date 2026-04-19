@@ -78,6 +78,8 @@ const ThreadChatView = ({
   // user has not manually scrolled away from the bottom.
   const initialPinUntilRef = useRef<number>(0);
   const userScrolledAwayRef = useRef(false);
+  const lastScrollTopRef = useRef<number>(0);
+  const lastResizeAtRef = useRef<number>(0);
 
 
   const handleBackAction = () => {
