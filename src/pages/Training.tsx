@@ -178,7 +178,7 @@ const Training = () => {
           sets: we.sets,
           reps: we.reps,
           tempo: we.tempo,
-          restSeconds: we.rest_seconds,
+          restSeconds: we.rest_seconds ?? 90,
           rir: we.rir,
           notes: we.notes,
           videoUrl: we.video_override || we.exercise?.youtube_url || we.exercise?.video_url || null,

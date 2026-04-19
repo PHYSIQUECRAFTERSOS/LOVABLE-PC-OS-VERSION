@@ -52,6 +52,8 @@ export const useActiveSession = () => {
         .limit(1)
         .maybeSingle();
 
+      let candidate: { id: string; workout_id: string; started_at: string; workout_name: string } | null = null;
+
       if (error) {
         // If last_heartbeat is null for old rows, also check started_at
         const { data: fallback } = await supabase
@@ -65,25 +67,53 @@ export const useActiveSession = () => {
           .maybeSingle();
 
         if (fallback && !completedSessionIds.current.has(fallback.id)) {
-          setActiveSession({
+          candidate = {
             id: fallback.id,
             workout_id: fallback.workout_id,
-            workout_name: (fallback as any).workouts?.name || "Your Workout",
             started_at: fallback.started_at,
-          });
-        } else {
-          setActiveSession(null);
+            workout_name: (fallback as any).workouts?.name || "Your Workout",
+          };
         }
       } else if (data && !completedSessionIds.current.has(data.id)) {
-        setActiveSession({
+        candidate = {
           id: data.id,
           workout_id: data.workout_id,
-          workout_name: (data as any).workouts?.name || "Your Workout",
           started_at: data.started_at || data.last_heartbeat,
-        });
-      } else {
-        setActiveSession(null);
+          workout_name: (data as any).workouts?.name || "Your Workout",
+        };
       }
+
+      if (!candidate) {
+        setActiveSession(null);
+        return;
+      }
+
+      // Defensive guard: cross-check calendar_events. If this workout already
+      // has a completed event for today, the prior finish flow succeeded but
+      // the session row was never flipped (background-write race). Self-heal
+      // the session row and suppress the banner. Mirrors Training.tsx logic.
+      const todayStr = new Date().toLocaleDateString("en-CA");
+      const { data: completedToday } = await supabase
+        .from("calendar_events")
+        .select("id")
+        .eq("linked_workout_id", candidate.workout_id)
+        .eq("event_type", "workout")
+        .eq("event_date", todayStr)
+        .eq("is_completed", true)
+        .or(`user_id.eq.${userId},target_client_id.eq.${userId}`)
+        .limit(1);
+
+      if (completedToday && completedToday.length > 0) {
+        completedSessionIds.current.add(candidate.id);
+        await supabase
+          .from("workout_sessions")
+          .update({ status: "completed" } as any)
+          .eq("id", candidate.id);
+        setActiveSession(null);
+        return;
+      }
+
+      setActiveSession(candidate);
     } catch (e) {
       console.error("[useActiveSession] check error:", e);
     } finally {
