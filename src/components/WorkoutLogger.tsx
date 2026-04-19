@@ -854,8 +854,15 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       document.body.style.pointerEvents = '';
       setLoading(false);
 
-      // Dispatch ended event now that DB is committed
+      // Dispatch ended event now that DB is committed.
+      // Also dispatch workout-session-completed with the sessionId so
+      // useActiveSession permanently suppresses the Unfinished Workout
+      // banner for this session even if a stale DB query returns it
+      // before the row's status flip is visible to the next read.
       window.dispatchEvent(new CustomEvent("workout-session-ended"));
+      if (sessionId) {
+        window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
+      }
 
       // STEP 4: Non-critical background work (PRs, calendar, XP) — fire-and-forget
       const backgroundWork = async () => {
@@ -877,20 +884,29 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
               .update({ is_completed: true, completed_at: completionTimestamp })
               .eq("id", calendarEventId);
           } else if (workoutId) {
+            // Bug 3 fix: when no explicit calendar_event was passed (ad-hoc
+            // launch from Training tab, banner resume, etc.), prefer events
+            // up to and including today. Among those, mark TODAY's event
+            // first if present; otherwise the most recent missed past event.
+            // Never mark a future event as completed.
+            const todayStr = new Date().toLocaleDateString("en-CA");
             const { data: calEvents } = await supabase
               .from("calendar_events")
-              .select("id")
+              .select("id, event_date")
               .eq("linked_workout_id", workoutId)
               .eq("event_type", "workout")
               .eq("is_completed", false)
+              .lte("event_date", todayStr)
               .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
               .order("event_date", { ascending: false })
-              .limit(1);
+              .limit(5);
             if (calEvents?.length) {
+              const todayEvent = calEvents.find(e => e.event_date === todayStr);
+              const target = todayEvent ?? calEvents[0];
               await supabase
                 .from("calendar_events")
                 .update({ is_completed: true, completed_at: completionTimestamp })
-                .eq("id", calEvents[0].id);
+                .eq("id", target.id);
             }
           }
 
