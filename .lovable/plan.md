@@ -1,67 +1,43 @@
 
-The user wants the client-profile Messages tab (inside Clients → [client] → Messages) to scroll-to-bottom on open, exactly like the main Messages tab does. The main Messages tab uses `ThreadChatView.tsx`, which already has the working scroll-to-bottom logic (useLayoutEffect + ResizeObserver grace window from the previous fix).
 
-The client-profile Messages tab is `src/components/clients/workspace/MessagingTab.tsx` — it has its own custom render of messages and its own scroll logic, which is missing the fixes that landed in `ThreadChatView`. That's why it opens scrolled up.
+## What you reported
+- Bug only on **mobile Chrome web** (phone browser), logged in as coach
+- Native iOS app works fine
+- Desktop coach + client (mobile + desktop) work fine
+- Lands ~10 days back instead of newest message
 
-The cleanest fix per project rules ("Do not recreate existing components. Reuse the thread rendering component that both tabs already use if one exists.") is to make the client-profile tab render via `ThreadChatView` — the same component the main Messages tab uses. This guarantees identical behavior: scroll, real-time, attachments, reactions, edit/delete, read receipts, link previews — all unified.
+## Root cause (mobile-Chrome-specific)
 
-Let me confirm by reading both files.
-<lov-tool-use id="toolu_vrtx_012B7CicWhyMCwPFoDPAHsx1" name="code--view" integration-id="code" data="{\"file_path\": \"src/components/clients/workspace/MessagingTab.tsx\"}">
-</lov-tool-use>
+Mobile Chrome's URL bar auto-collapses on first interaction. When it collapses, the viewport grows by ~60-100px, and the inner scroll container fires a synthetic `scroll` event because `clientHeight` and `scrollTop` geometry shift.
 
-<lov-tool-use id="toolu_vrtx_01Ws1Y1rKUEEdaSySC89g6z6" name="code--view" integration-id="code" data="{\"file_path\": \"src/components/clients/workspace/MessagingTab.tsx\"}">
-</lov-tool-use>
-Now I have a clear picture. The client-profile MessagingTab is a parallel re-implementation of ThreadChatView, and it has bad scroll logic (`scrollIntoView({ behavior: "smooth" })` with a 100ms timeout — same broken pattern that was fixed in the main ThreadChatView). The fix is to replace the body of this tab with the actual `ThreadChatView` (the source of truth) so it inherits all the fixed scroll, pagination, attachments, reactions, and read-receipt behavior.
+In `ThreadChatView.tsx`, the `onScroll` listener (line 289) sees `distFromBottom > 80` (because the viewport just grew) and sets `userScrolledAwayRef.current = true`. From that moment on, the ResizeObserver re-pin is **permanently disabled**, so when images/videos load asynchronously (which can take several seconds on a coach thread with lots of attachments), the user stays stranded mid-thread — exactly where the document was at the moment the address bar collapsed.
 
-<lov-plan>
+Native iOS Capacitor uses WKWebView with no collapsing URL bar → the synthetic scroll never fires → it works. Desktop Chrome has no URL bar collapse → works. Client mobile threads tend to have fewer images so the post-pin growth is small enough not to be noticeable.
 
-## Problem
+## Fix (narrow, mobile-only)
 
-The client-profile Messages tab (`src/components/clients/workspace/MessagingTab.tsx`) is a parallel re-implementation of the chat UI. It has its own scroll logic — `setTimeout(scrollIntoView({ behavior: "smooth" }), 100)` — which is the broken pattern we already fixed weeks ago in `ThreadChatView.tsx` (the source of truth used by the main Messages tab on left sidebar / bottom nav).
+In `src/components/messaging/ThreadChatView.tsx`, make the "user scrolled away" detection robust against browser-chrome resizes:
 
-Because it's a duplicate implementation, it does NOT benefit from any of the prior fixes:
-- The `useLayoutEffect` synchronous initial scroll
-- The `ResizeObserver` grace window that re-pins to bottom when async images load
-- The user-scroll detection that preserves history reading
-
-Result: when a coach opens a client profile → Messages tab, the thread loads scrolled up, exactly as shown in the screenshots.
-
-## Root cause
-
-Two separate components rendering the same thread, with divergent (and inferior) scroll logic in the workspace tab. The earlier `.limit(50)` fix removed the missing-messages bug, but the duplicated scroll logic remains broken.
-
-## Fix (single source of truth)
-
-Replace the body of `MessagingTab.tsx` so it delegates to `ThreadChatView` — the same component the main Messages tab uses. The tab still owns:
-- Resolving `clientId` → `threadId` (creating the thread row if none exists)
-- Fetching the client's display name + avatar for the header
-- Showing a skeleton while resolving
-
-Once `threadId` is ready, render `<ThreadChatView threadId={...} otherUserName={clientName} otherUserAvatar={clientAvatar} />` inside the existing Card shell (height 500px).
-
-This automatically gives the workspace tab:
-- The correct initial scroll-to-bottom (useLayoutEffect + ResizeObserver grace window)
-- Identical message rendering, reactions, attachments, voice messages, link previews
-- Identical read-receipt + unread-badge behavior
-- Identical realtime sync (already works through the shared `thread_messages` table)
-- Bidirectional sync with the main Messages tab (same source, same channel pattern)
+1. **Suppress the `userScrolledAwayRef` flag during the 2s grace window** if a `ResizeObserver` event was the immediate cause of the geometry change. Practically: track `lastResizeAt` from the ResizeObserver callback, and ignore `onScroll` events that fire within ~150ms of a resize event during the grace window.
+2. **Require an upward-scroll delta**, not just "distance from bottom > 80." Track previous `scrollTop`. Only flip `userScrolledAwayRef = true` if `scrollTop` actually decreased (user scrolled UP), not if it stayed the same while `clientHeight` grew.
+3. **Remove the `console.log` instrumentation** added in the previous round — fix is targeted enough that logs are no longer needed.
 
 ## Files modified
-
-- `src/components/clients/workspace/MessagingTab.tsx` — strip the duplicate UI (~240 lines of message rendering, scroll, send, realtime, reactions) and replace with `ThreadChatView`. Keep the thread-resolution + skeleton logic.
+- `src/components/messaging/ThreadChatView.tsx` — only the scroll-tracking logic in the `useEffect` at lines ~285-319. No changes to fetch, render, send, or any UI.
 
 ## Files NOT touched
-
-- `src/components/messaging/ThreadChatView.tsx` — source of truth, untouched
-- Main Messages tab (`CoachMessaging`, `CoachThreadList`) — untouched
-- Composer, attachments, reactions, scroll logic — all inherited from `ThreadChatView`
+- `Messages.tsx`, `CoachMessaging.tsx`, `MessagingTab.tsx` — wrappers untouched
+- Composer, attachments, reactions, message rendering — untouched
 - Database, RLS, schema — no changes
+- Native iOS code — untouched (it already works)
 
-## Acceptance
+## Test plan (after fix)
+- Open mobile Chrome on phone → log in as coach → tap any thread → confirm lands on newest message
+- Try thread with many image attachments (Scott Szeto) → confirm still lands at bottom after images load
+- Verify desktop coach, client mobile, client desktop still work (no regression)
+- Verify "scroll up to read history" still works (manual upward swipe should still pause auto-pin)
+- Verify "auto-scroll on incoming message when at bottom" still works
 
-- Open Clients → any client → Messages tab: thread opens with newest message pinned at bottom (matches main Messages tab behavior).
-- Send from workspace tab → appears in main Messages tab in real time, and vice versa.
-- Image-heavy threads (e.g. Scott Szeto) re-pin to bottom after attachments load.
-- Mobile (375px) and desktop (839px viewport) both work.
-- Unread badge + scroll fixes from prior rounds remain intact.
+## If this fix doesn't land
+Per the failure-mode protocol from the previous round: revert, then capture remote inspector logs from mobile Chrome before any further attempt.
 
