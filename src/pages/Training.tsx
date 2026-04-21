@@ -248,12 +248,7 @@ const Training = () => {
   if (showLogger && selectedWorkout) {
     return (
       <AppLayout>
-        {/* Mobile: fullscreen overlay covers header, sits above z-50 nav */}
-        <div className="fixed inset-0 z-[55] bg-background overflow-y-auto safe-top pb-24 px-4 md:hidden">
-          <WorkoutLogger workoutId={selectedWorkout.id} workoutName={selectedWorkout.name} workoutInstructions={selectedWorkout.instructions} exercises={selectedWorkout.exercises} resumeSessionId={selectedWorkout.resumeSessionId} calendarEventId={selectedWorkout.calendarEventId} onComplete={() => { setShowLogger(false); setSelectedWorkout(null); reloadWorkouts(); }} />
-        </div>
-        {/* Desktop: render normally inside main */}
-        <div className="animate-fade-in hidden md:block">
+        <div className="fixed inset-0 z-[55] bg-background overflow-y-auto safe-top pb-24 px-4 md:relative md:inset-auto md:z-auto md:pb-0 md:px-0 md:safe-top-0 animate-fade-in">
           <WorkoutLogger workoutId={selectedWorkout.id} workoutName={selectedWorkout.name} workoutInstructions={selectedWorkout.instructions} exercises={selectedWorkout.exercises} resumeSessionId={selectedWorkout.resumeSessionId} calendarEventId={selectedWorkout.calendarEventId} onComplete={() => { setShowLogger(false); setSelectedWorkout(null); reloadWorkouts(); }} />
         </div>
       </AppLayout>
