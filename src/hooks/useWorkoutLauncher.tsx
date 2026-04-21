@@ -107,32 +107,17 @@ export function useWorkoutLauncher() {
    * Place this at the bottom of your component's JSX.
    */
   const WorkoutOverlay = workout ? (
-    <>
-      {/* Mobile: fullscreen overlay covers header, sits above z-50 nav */}
-      <div className="fixed inset-0 z-[55] bg-background overflow-y-auto safe-top pb-24 px-4 md:hidden">
-        <WorkoutLogger
-          workoutId={workout.id}
-          workoutName={workout.name}
-          workoutInstructions={workout.instructions}
-          exercises={workout.exercises}
-          resumeSessionId={workout.resumeSessionId}
-          calendarEventId={workout.calendarEventId}
-          onComplete={close}
-        />
-      </div>
-      {/* Desktop: render normally */}
-      <div className="fixed inset-0 z-[55] bg-background overflow-y-auto hidden md:block p-6">
-        <WorkoutLogger
-          workoutId={workout.id}
-          workoutName={workout.name}
-          workoutInstructions={workout.instructions}
-          exercises={workout.exercises}
-          resumeSessionId={workout.resumeSessionId}
-          calendarEventId={workout.calendarEventId}
-          onComplete={close}
-        />
-      </div>
-    </>
+    <div className="fixed inset-0 z-[55] bg-background overflow-y-auto safe-top pb-24 px-4 md:pb-6 md:px-6 md:safe-top-0">
+      <WorkoutLogger
+        workoutId={workout.id}
+        workoutName={workout.name}
+        workoutInstructions={workout.instructions}
+        exercises={workout.exercises}
+        resumeSessionId={workout.resumeSessionId}
+        calendarEventId={workout.calendarEventId}
+        onComplete={close}
+      />
+    </div>
   ) : null;
 
   return { launch, close, loading, isActive, WorkoutOverlay };
