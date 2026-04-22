@@ -69,9 +69,10 @@ const ACTION_ROUTES: Record<string, string> = {
 interface TodayActionsProps {
   date?: string;
   onDataLoaded?: (items: ActionItem[]) => void;
+  sectionTitle?: string;
 }
 
-const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
+const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
