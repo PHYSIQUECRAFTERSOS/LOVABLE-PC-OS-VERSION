@@ -13,6 +13,7 @@ const PRIORITY_ICONS: Record<string, React.ReactNode> = {
 interface CoachPriorityProps {
   actions: ActionItem[];
   onActionClick?: (action: ActionItem) => void;
+  label?: string;
 }
 
 const CoachPriority = ({ actions, onActionClick }: CoachPriorityProps) => {

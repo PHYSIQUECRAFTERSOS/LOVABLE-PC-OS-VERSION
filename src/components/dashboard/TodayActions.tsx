@@ -335,7 +335,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-bold">Today's Actions</CardTitle>
+            <CardTitle className="text-lg font-bold">{sectionTitle}</CardTitle>
             <span className="text-sm font-semibold text-primary">
               {completedCount}/{totalCount}
             </span>
