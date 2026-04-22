@@ -16,7 +16,7 @@ interface CoachPriorityProps {
   label?: string;
 }
 
-const CoachPriority = ({ actions, onActionClick }: CoachPriorityProps) => {
+const CoachPriority = ({ actions, onActionClick, label = "Priority Today" }: CoachPriorityProps) => {
   const incomplete = actions.filter((a) => !a.completed);
   if (incomplete.length === 0) return null;
 
@@ -33,7 +33,7 @@ const CoachPriority = ({ actions, onActionClick }: CoachPriorityProps) => {
     >
       <Flame className="h-5 w-5 text-primary shrink-0" />
       <div className="text-left min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-primary">Priority Today</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-primary">{label}</p>
         <p className="text-sm font-bold text-foreground truncate">{priority.title}</p>
       </div>
       <span className="text-muted-foreground shrink-0">
