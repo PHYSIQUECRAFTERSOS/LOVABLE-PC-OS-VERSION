@@ -176,6 +176,15 @@ export function invalidateCache(queryKey: string) {
   cache.delete(queryKey);
 }
 
+// Clear all cache entries whose key starts with a given prefix
+export function invalidateCacheByPrefix(prefix: string) {
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key);
+    }
+  }
+}
+
 // Clear all cache
 export function clearCache() {
   cache.clear();

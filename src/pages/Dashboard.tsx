@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { format } from "date-fns";
+import { format, isToday as isDateToday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import TodayActions, { ActionItem } from "@/components/dashboard/TodayActions";
@@ -55,6 +55,11 @@ const ClientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const isTodaySelected = isDateToday(selectedDate);
+  const dayName = format(selectedDate, "EEEE"); // e.g. "Wednesday"
+
+  const sectionTitle = isTodaySelected ? "Today's Actions" : `${dayName}'s Actions`;
+  const priorityLabel = isTodaySelected ? "Priority Today" : `Priority ${dayName}`;
 
   const handleActionsLoaded = useCallback((items: ActionItem[]) => {
     setTodayItems(items);
@@ -90,7 +95,7 @@ const ClientDashboard = () => {
       />
 
       {/* Coach Priority */}
-      <CoachPriority actions={todayItems} />
+      <CoachPriority actions={todayItems} label={priorityLabel} />
 
       {/* Hero row: Completion ring + Today's Actions */}
       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4">
@@ -99,7 +104,7 @@ const ClientDashboard = () => {
           total={totalCount}
           streak={consistencyStreak}
         />
-        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
+        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} sectionTitle={sectionTitle} />
       </div>
 
       {/* Progress Widget Grid */}

@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
+import { useDataFetch, invalidateCache, invalidateCacheByPrefix } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -69,9 +69,10 @@ const ACTION_ROUTES: Record<string, string> = {
 interface TodayActionsProps {
   date?: string;
   onDataLoaded?: (items: ActionItem[]) => void;
+  sectionTitle?: string;
 }
 
-const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
+const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: TodayActionsProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
@@ -89,18 +90,20 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
 
   const refetchRef = useRef<(() => void) | null>(null);
 
-  // Listen for FAB-scheduled events to refetch instantly
+  // Listen for FAB-scheduled events and realtime changes to refetch instantly
   useEffect(() => {
+    const cachePrefix = `today-actions-${user?.id}-`;
+
     const handler = () => {
-      invalidateCache(cacheKeyRef.current);
-      // Staggered refetch to ensure DB write propagates (especially on remote URL setups)
+      // Invalidate ALL date caches for this user so any date strip tap gets fresh data
+      invalidateCacheByPrefix(cachePrefix);
       setTimeout(() => refetchRef.current?.(), 300);
       setTimeout(() => refetchRef.current?.(), 1000);
       setTimeout(() => refetchRef.current?.(), 2500);
     };
     window.addEventListener("calendar-event-added", handler);
 
-    // Realtime subscription for instant updates when coach schedules for client
+    // Realtime subscription for instant updates when coach schedules or client drags
     const channel = supabase
       .channel(`today-actions-rt-${user?.id}`)
       .on(
@@ -112,9 +115,9 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
         },
         (payload: any) => {
           const row = payload.new || payload.old;
-          // Only refetch if the event is relevant to this user
           if (row?.user_id === user?.id || row?.target_client_id === user?.id) {
-            invalidateCache(cacheKeyRef.current);
+            // Invalidate ALL date caches — the event may have moved between dates
+            invalidateCacheByPrefix(cachePrefix);
             setTimeout(() => refetchRef.current?.(), 300);
           }
         }
@@ -332,7 +335,7 @@ const TodayActions = ({ date, onDataLoaded }: TodayActionsProps) => {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-bold">Today's Actions</CardTitle>
+            <CardTitle className="text-lg font-bold">{sectionTitle}</CardTitle>
             <span className="text-sm font-semibold text-primary">
               {completedCount}/{totalCount}
             </span>
