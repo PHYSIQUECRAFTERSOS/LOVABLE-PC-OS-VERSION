@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Circle, Dumbbell, Heart, UtensilsCrossed, Footprints, Camera, Activity, ClipboardCheck, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
+import { useDataFetch, invalidateCache, invalidateCacheByPrefix } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
