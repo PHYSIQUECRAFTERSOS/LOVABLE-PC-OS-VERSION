@@ -26,7 +26,7 @@ interface MealSuggestion {
   items: QuickAddLog[];
 }
 
-const SELECT_COLS = "id, food_item_id, custom_name, meal_type, calories, protein, carbs, fat, sugar, sodium, servings, logged_at";
+const SELECT_COLS = "id, food_item_id, custom_name, meal_type, calories, protein, carbs, fat, fiber, sugar, sodium, servings, quantity_display, quantity_unit, logged_at";
 
 export function useQuickAddMeals(userId: string | undefined, selectedDate: Date) {
   const [suggestions, setSuggestions] = useState<Record<string, MealSuggestion | null>>({});
