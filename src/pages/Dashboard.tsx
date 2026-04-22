@@ -95,7 +95,7 @@ const ClientDashboard = () => {
       />
 
       {/* Coach Priority */}
-      <CoachPriority actions={todayItems} />
+      <CoachPriority actions={todayItems} label={priorityLabel} />
 
       {/* Hero row: Completion ring + Today's Actions */}
       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4">
@@ -104,7 +104,7 @@ const ClientDashboard = () => {
           total={totalCount}
           streak={consistencyStreak}
         />
-        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} />
+        <TodayActions date={dateStr} onDataLoaded={handleActionsLoaded} sectionTitle={sectionTitle} />
       </div>
 
       {/* Progress Widget Grid */}
