@@ -11,9 +11,12 @@ interface QuickAddLog {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number | null;
   sugar: number | null;
   sodium: number | null;
   servings: number;
+  quantity_display: number | null;
+  quantity_unit: string | null;
 }
 
 interface MealSuggestion {
