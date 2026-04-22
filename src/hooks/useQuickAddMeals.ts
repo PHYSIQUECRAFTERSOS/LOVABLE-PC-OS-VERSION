@@ -11,9 +11,12 @@ interface QuickAddLog {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number | null;
   sugar: number | null;
   sodium: number | null;
   servings: number;
+  quantity_display: number | null;
+  quantity_unit: string | null;
 }
 
 interface MealSuggestion {
@@ -23,7 +26,7 @@ interface MealSuggestion {
   items: QuickAddLog[];
 }
 
-const SELECT_COLS = "id, food_item_id, custom_name, meal_type, calories, protein, carbs, fat, sugar, sodium, servings, logged_at";
+const SELECT_COLS = "id, food_item_id, custom_name, meal_type, calories, protein, carbs, fat, fiber, sugar, sodium, servings, quantity_display, quantity_unit, logged_at";
 
 export function useQuickAddMeals(userId: string | undefined, selectedDate: Date) {
   const [suggestions, setSuggestions] = useState<Record<string, MealSuggestion | null>>({});
@@ -129,10 +132,13 @@ export function useQuickAddMeals(userId: string | undefined, selectedDate: Date)
       protein: item.protein,
       carbs: item.carbs,
       fat: item.fat,
+      fiber: item.fiber || 0,
       sugar: item.sugar || 0,
       sodium: item.sodium || 0,
       logged_at: dateStr,
       tz_corrected: true,
+      quantity_display: item.quantity_display ?? null,
+      quantity_unit: item.quantity_unit ?? null,
     }));
 
     const { error } = await supabase.from("nutrition_logs").insert(inserts);
