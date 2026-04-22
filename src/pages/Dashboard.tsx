@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { format } from "date-fns";
+import { useState, useCallback, useMemo } from "react";
+import { format, isToday as isDateToday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import TodayActions, { ActionItem } from "@/components/dashboard/TodayActions";
@@ -55,6 +55,11 @@ const ClientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
+  const isTodaySelected = isDateToday(selectedDate);
+  const dayName = format(selectedDate, "EEEE"); // e.g. "Wednesday"
+
+  const sectionTitle = isTodaySelected ? "Today's Actions" : `${dayName}'s Actions`;
+  const priorityLabel = isTodaySelected ? "Priority Today" : `Priority ${dayName}`;
 
   const handleActionsLoaded = useCallback((items: ActionItem[]) => {
     setTodayItems(items);
