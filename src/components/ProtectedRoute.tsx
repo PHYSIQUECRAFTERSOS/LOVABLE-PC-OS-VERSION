@@ -50,7 +50,6 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
       return;
     }
 
-    // If we just came from onboarding success, skip the DB round-trip
     if ((location.state as any)?.onboardingComplete) {
       setNeedsOnboarding(false);
       setOnboardingChecked(true);
@@ -58,25 +57,40 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     }
 
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     supabase
       .from("onboarding_profiles")
       .select("onboarding_completed")
       .eq("user_id", userId)
+      .abortSignal(controller.signal)
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
           console.error("[ProtectedRoute] Onboarding check failed:", error);
+          setNeedsOnboarding(false);
+          setOnboardingChecked(true);
+          return;
         }
         setNeedsOnboarding(!data?.onboarding_completed);
         setOnboardingChecked(true);
-      });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("[ProtectedRoute] Onboarding check timed out:", error);
+        setNeedsOnboarding(false);
+        setOnboardingChecked(true);
+      })
+      .finally(() => clearTimeout(timeout));
 
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [userId, role, location.pathname]);
+  }, [userId, role, location.pathname, location.state]);
 
   // Still loading session (no user yet)
   if (isAuthLoading && !stalledLoading) {
