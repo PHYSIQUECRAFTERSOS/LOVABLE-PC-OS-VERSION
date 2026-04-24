@@ -60,13 +60,15 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-    supabase
-      .from("onboarding_profiles")
-      .select("onboarding_completed")
-      .eq("user_id", userId)
-      .abortSignal(controller.signal)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    const run = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("onboarding_profiles")
+          .select("onboarding_completed")
+          .eq("user_id", userId)
+          .abortSignal(controller.signal)
+          .maybeSingle();
+
         if (cancelled) return;
         if (error) {
           console.error("[ProtectedRoute] Onboarding check failed:", error);
@@ -74,16 +76,20 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
           setOnboardingChecked(true);
           return;
         }
+
         setNeedsOnboarding(!data?.onboarding_completed);
         setOnboardingChecked(true);
-      })
-      .catch((error) => {
+      } catch (error) {
         if (cancelled) return;
         console.error("[ProtectedRoute] Onboarding check timed out:", error);
         setNeedsOnboarding(false);
         setOnboardingChecked(true);
-      })
-      .finally(() => clearTimeout(timeout));
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    run();
 
     return () => {
       cancelled = true;
