@@ -28,18 +28,27 @@ const ReSignPrompt = ({ children }: Props) => {
   }, [user, role]);
 
   const checkForUnsignedDocuments = async () => {
-    if (!user) return;
+    if (!user) {
+      setChecking(false);
+      return;
+    }
+
+    const signaturesController = new AbortController();
+    const templatesController = new AbortController();
+    const signaturesTimeout = setTimeout(() => signaturesController.abort(), 8000);
+    const templatesTimeout = setTimeout(() => templatesController.abort(), 8000);
 
     try {
-      // Get client's tier from their invite or most recent signature
-      const { data: signatures } = await supabase
+      const { data: signatures, error: signaturesError } = await supabase
         .from("client_signatures")
         .select("tier_at_signing, document_template_id, document_version")
         .eq("client_id", user.id)
-        .order("signed_at", { ascending: false });
+        .order("signed_at", { ascending: false })
+        .abortSignal(signaturesController.signal);
+
+      if (signaturesError) throw signaturesError;
 
       if (!signatures || signatures.length === 0) {
-        // No signatures at all — they may have been created before this system
         setChecking(false);
         return;
       }
@@ -47,18 +56,19 @@ const ReSignPrompt = ({ children }: Props) => {
       const clientTier = signatures[0].tier_at_signing;
       setTierName(clientTier);
 
-      // Get all active document templates applicable to this tier
-      const { data: templates } = await supabase
+      const { data: templates, error: templatesError } = await supabase
         .from("document_templates")
         .select("id, version, template_key, tier_applicability")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .abortSignal(templatesController.signal);
+
+      if (templatesError) throw templatesError;
 
       if (!templates) {
         setChecking(false);
         return;
       }
 
-      // Filter applicable templates
       const applicable = templates.filter((t: any) => {
         if (!t.tier_applicability || t.tier_applicability.length === 0) return true;
         return t.tier_applicability.includes(clientTier);
@@ -68,7 +78,6 @@ const ReSignPrompt = ({ children }: Props) => {
         return t.template_key !== "tos_monthly" && t.template_key !== "universal_tos_only";
       });
 
-      // Check if all applicable documents have been signed at their current version
       const signedVersions = new Map(
         signatures.map((s: any) => [s.document_template_id, s.document_version])
       );
@@ -77,12 +86,13 @@ const ReSignPrompt = ({ children }: Props) => {
         (t: any) => signedVersions.get(t.id) !== t.version
       );
 
-      if (unsigned.length > 0) {
-        setNeedsReSigning(true);
-      }
+      setNeedsReSigning(unsigned.length > 0);
     } catch (err) {
       console.error("[ReSignPrompt] Check error:", err);
+      setNeedsReSigning(false);
     } finally {
+      clearTimeout(signaturesTimeout);
+      clearTimeout(templatesTimeout);
       setChecking(false);
     }
   };

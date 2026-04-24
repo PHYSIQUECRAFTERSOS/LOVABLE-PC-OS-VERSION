@@ -17,8 +17,9 @@ import {
   Settings,
   UsersRound,
   Menu,
-  CreditCard,
   ClipboardList,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/sheet";
 import { useActiveSession } from "@/hooks/useActiveSession";
 import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanner";
+import { Button } from "@/components/ui/button";
 
 interface NavItem {
   to: string;
@@ -121,10 +123,35 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     };
   }, [fetchUnread]);
 
-  if (roleLoading || !role) {
+  if (roleLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!role) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background gap-4 px-6 text-center">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <p className="text-foreground font-medium">Could not load your session role</p>
+        <p className="text-sm text-muted-foreground">Please refresh. If this persists, sign in again.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => window.location.reload()} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              await signOut();
+              window.location.href = "/auth";
+            }}
+          >
+            Sign in again
+          </Button>
+        </div>
       </div>
     );
   }
