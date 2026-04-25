@@ -816,7 +816,7 @@ const MealPlanTemplateLibrary = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 };
 
