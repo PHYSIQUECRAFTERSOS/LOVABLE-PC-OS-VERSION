@@ -416,12 +416,10 @@ const MealPlanTemplateLibrary = () => {
       fat: acc.fat + (i.fat || 0),
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   };
-  return (
-    <div className="h-[calc(100vh-12rem)]">
-      <div className="flex h-full">
-        {/* LEFT SIDEBAR */}
-        <div className="w-80 border-r flex flex-col flex-shrink-0">
-          <div className="p-4 border-b space-y-3">
+  // ── LIST PANE (sidebar on desktop, full-width on mobile) ──
+  const listNode = (
+    <>
+      <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-sm text-foreground">Meal Plan Templates</h2>
               <div className="flex items-center gap-1.5">
@@ -591,123 +589,145 @@ const MealPlanTemplateLibrary = () => {
               )}
             </div>
           </ScrollArea>
+    </>
+  );
+
+  // ── DETAIL PANE (right side desktop, full-screen Sheet on mobile) ──
+  const detailNode = selectedTemplate ? (
+    <div className="p-4 sm:p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-bold text-foreground truncate">{selectedTemplate.name}</h2>
+          <div className="flex gap-2 mt-1">
+            {selectedTemplate.category && <Badge variant="outline">{selectedTemplate.category}</Badge>}
+          </div>
         </div>
-
-        {/* RIGHT PANEL - PREVIEW */}
-        <div className="flex-1 overflow-auto">
-          {selectedTemplate ? (
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">{selectedTemplate.name}</h2>
-                  <div className="flex gap-2 mt-1">
-                    {selectedTemplate.category && <Badge variant="outline">{selectedTemplate.category}</Badge>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingTemplateId(selectedTemplate.id); setShowBuilder(true); }} title="Edit">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => duplicateTemplate(selectedTemplate)} title="Duplicate">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCopyToClient(selectedTemplate)} title="Assign to Client">
-                    <UserPlus className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(selectedTemplate.id)} title="Delete">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Macro Targets */}
-              {(selectedTemplate.target_calories || selectedTemplate.target_protein) && (
-                <div className="grid grid-cols-4 gap-3">
-                  {[
-                    { label: "Calories", value: selectedTemplate.target_calories, color: "text-foreground" },
-                    { label: "Protein", value: selectedTemplate.target_protein, suffix: "g", color: "text-red-400" },
-                    { label: "Carbs", value: selectedTemplate.target_carbs, suffix: "g", color: "text-blue-400" },
-                    { label: "Fat", value: selectedTemplate.target_fat, suffix: "g", color: "text-yellow-400" },
-                  ].map(m => (
-                    <Card key={m.label}>
-                      <CardContent className="p-3 text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.label}</p>
-                        <p className={cn("text-lg font-bold", m.color)}>{m.value || "—"}{m.value && m.suffix}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-
-              {/* Day Preview */}
-              {loadingPreview ? (
-                <div className="space-y-3">{[1,2].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-              ) : previewDays.length === 0 ? (
-                <div className="text-center py-12">
-                  <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">Empty template — no days added yet.</p>
-                </div>
-              ) : (
-                previewDays.map(day => {
-                  const isExp = expandedDay === day.id;
-                  const totals = getDayTotals(day.id);
-                  const meals = getDayItems(day.id);
-
-                  return (
-                    <Card key={day.id}>
-                      <button
-                        onClick={() => setExpandedDay(isExp ? null : day.id)}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors"
-                      >
-                        <span className="font-semibold text-sm text-foreground">{day.day_type}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-muted-foreground">
-                            {totals.calories}cal · {totals.protein}P · {totals.carbs}C · {totals.fat}F
-                          </span>
-                          {isExp ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </div>
-                      </button>
-                      {isExp && (
-                        <CardContent className="pt-0 space-y-2">
-                          {meals.map(([key, items]) => {
-                            const mealName = key.split("::").slice(1).join("::");
-                            const mealCals = items.reduce((s, i) => s + (i.calories || 0), 0);
-                            const mealP = items.reduce((s, i) => s + (i.protein || 0), 0);
-                            return (
-                              <div key={key} className="rounded-lg border border-border/50 overflow-hidden">
-                                <div className="flex items-center justify-between px-3 py-1.5 bg-secondary/30">
-                                  <span className="text-xs font-semibold text-foreground">{mealName}</span>
-                                  <span className="text-[10px] text-muted-foreground">{mealCals}cal · {mealP}P</span>
-                                </div>
-                                <div className="divide-y divide-border/30">
-                                  {items.map((item, idx) => (
-                                    <div key={idx} className="flex items-center justify-between px-3 py-1.5">
-                                      <span className="text-xs text-foreground">{item.custom_name || "Food"}</span>
-                                      <span className="text-[10px] text-muted-foreground">
-                                        {item.gram_amount}g · {item.calories}cal · {item.protein}P · {item.carbs}C · {item.fat}F
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </CardContent>
-                      )}
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <UtensilsCrossed className="h-16 w-16 text-muted-foreground/20 mb-4" />
-              <h3 className="text-lg font-semibold text-muted-foreground">Select a Template</h3>
-              <p className="text-sm text-muted-foreground/70 mt-1">Choose a template from the sidebar or create a new one.</p>
-            </div>
-          )}
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { setEditingTemplateId(selectedTemplate.id); setShowBuilder(true); }} title="Edit">
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => duplicateTemplate(selectedTemplate)} title="Duplicate">
+            <Copy className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => openCopyToClient(selectedTemplate)} title="Assign to Client">
+            <UserPlus className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" onClick={() => setDeleteConfirmId(selectedTemplate.id)} title="Delete">
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+
+      {/* Macro Targets */}
+      {(selectedTemplate.target_calories || selectedTemplate.target_protein) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          {[
+            { label: "Calories", value: selectedTemplate.target_calories, color: "text-foreground" },
+            { label: "Protein", value: selectedTemplate.target_protein, suffix: "g", color: "text-red-400" },
+            { label: "Carbs", value: selectedTemplate.target_carbs, suffix: "g", color: "text-blue-400" },
+            { label: "Fat", value: selectedTemplate.target_fat, suffix: "g", color: "text-yellow-400" },
+          ].map(m => (
+            <Card key={m.label}>
+              <CardContent className="p-3 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.label}</p>
+                <p className={cn("text-base sm:text-lg font-bold", m.color)}>{m.value || "—"}{m.value && m.suffix}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Day Preview */}
+      {loadingPreview ? (
+        <div className="space-y-3">{[1,2].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
+      ) : previewDays.length === 0 ? (
+        <div className="text-center py-12">
+          <UtensilsCrossed className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Empty template — no days added yet.</p>
+        </div>
+      ) : (
+        previewDays.map(day => {
+          const isExp = expandedDay === day.id;
+          const totals = getDayTotals(day.id);
+          const meals = getDayItems(day.id);
+
+          return (
+            <Card key={day.id}>
+              <button
+                onClick={() => setExpandedDay(isExp ? null : day.id)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors"
+              >
+                <span className="font-semibold text-sm text-foreground">{day.day_type}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {totals.calories}cal · {totals.protein}P · {totals.carbs}C · {totals.fat}F
+                  </span>
+                  {isExp ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
+              </button>
+              {isExp && (
+                <CardContent className="pt-0 space-y-2">
+                  {meals.map(([key, items]) => {
+                    const mealName = key.split("::").slice(1).join("::");
+                    const mealCals = items.reduce((s, i) => s + (i.calories || 0), 0);
+                    const mealP = items.reduce((s, i) => s + (i.protein || 0), 0);
+                    return (
+                      <div key={key} className="rounded-lg border border-border/50 overflow-hidden">
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-secondary/30">
+                          <span className="text-xs font-semibold text-foreground">{mealName}</span>
+                          <span className="text-[10px] text-muted-foreground">{mealCals}cal · {mealP}P</span>
+                        </div>
+                        <div className="divide-y divide-border/30">
+                          {items.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between px-3 py-1.5">
+                              <span className="text-xs text-foreground">{item.custom_name || "Food"}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {item.gram_amount}g · {item.calories}cal · {item.protein}P · {item.carbs}C · {item.fat}F
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              )}
+            </Card>
+          );
+        })
+      )}
+    </div>
+  ) : null;
+
+  // ── EMPTY STATE (desktop only) ──
+  const emptyNode = templates.length === 0 && !loading ? (
+    <div className="flex flex-col items-center justify-center h-full text-center p-6">
+      <UtensilsCrossed className="h-16 w-16 text-muted-foreground/20 mb-4" />
+      <h3 className="text-lg font-semibold text-foreground">No templates yet</h3>
+      <p className="text-sm text-muted-foreground/70 mt-1 mb-4">Create your first reusable meal plan template.</p>
+      <Button onClick={() => { setEditingTemplateId(undefined); setShowBuilder(true); }}>
+        <Plus className="h-4 w-4 mr-1.5" /> Create Template
+      </Button>
+    </div>
+  ) : (
+    <div className="flex flex-col items-center justify-center h-full text-center">
+      <UtensilsCrossed className="h-16 w-16 text-muted-foreground/20 mb-4" />
+      <h3 className="text-lg font-semibold text-muted-foreground">Select a Template</h3>
+      <p className="text-sm text-muted-foreground/70 mt-1">Choose a template from the sidebar or create a new one.</p>
+    </div>
+  );
+
+  return (
+    <>
+      <MobileTwoPane
+        list={listNode}
+        detail={detailNode}
+        selected={!!selectedTemplate}
+        onClose={() => setSelectedTemplate(null)}
+        detailTitle={selectedTemplate?.name}
+        emptyState={emptyNode}
+        listWidthClass="w-80"
+      />
 
       {/* Copy to Client Modal */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
@@ -796,7 +816,7 @@ const MealPlanTemplateLibrary = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 };
 
