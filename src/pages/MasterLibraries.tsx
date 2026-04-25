@@ -50,13 +50,25 @@ const GOAL_LABELS: Record<string, string> = {
   recomp: "Recomp", prep: "Contest Prep",
 };
 
+const TAB_CONFIG = [
+  { value: "programs", label: "Programs", Icon: Layers },
+  { value: "exercises", label: "Exercises", Icon: Dumbbell },
+  { value: "meals", label: "Meals", Icon: UtensilsCrossed },
+  { value: "pc-recipes", label: "PC Recipes", Icon: UtensilsCrossed },
+  { value: "supplements", label: "Supplements", Icon: Pill },
+  { value: "guides", label: "Guides", Icon: BookOpen },
+  { value: "checkin-forms", label: "Check-In Forms", Icon: ClipboardCheck },
+] as const;
+
 const MasterLibraries = () => {
   const { user, role } = useAuth();
   const userId = user?.id;
   const isAdmin = role === "admin";
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "programs");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -69,6 +81,8 @@ const MasterLibraries = () => {
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [sharedExpanded, setSharedExpanded] = useState(true);
   const [personalExpanded, setPersonalExpanded] = useState(true);
+
+  const activeTabMeta = TAB_CONFIG.find(t => t.value === activeTab) ?? TAB_CONFIG[0];
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
