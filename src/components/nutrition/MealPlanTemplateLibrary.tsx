@@ -418,7 +418,20 @@ const MealPlanTemplateLibrary = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-12rem)]">
+    <>
+      <MobileTwoPane
+        selected={!!selectedTemplate}
+        onClose={() => setSelectedTemplate(null)}
+        detailTitle={selectedTemplate?.name || "Template"}
+        listWidthClass="w-80"
+        list={
+          <></>
+        }
+        detail={null}
+        emptyState={null}
+      />
+      {/* === ORIGINAL TWO-PANE BODY (will be migrated below) === */}
+      <div className="hidden h-[calc(100vh-12rem)]">
       <div className="flex h-full">
         {/* LEFT SIDEBAR */}
         <div className="w-80 border-r flex flex-col flex-shrink-0">
