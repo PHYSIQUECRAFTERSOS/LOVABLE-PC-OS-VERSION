@@ -443,7 +443,13 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const getEventsForDay = (day: Date) => {
     const dateStr = format(day, "yyyy-MM-dd");
     const dayEvents = events.filter(e => e.event_date === dateStr);
-    const daySessions = sessions.filter(s => format(new Date(s.created_at), "yyyy-MM-dd") === dateStr);
+    // CRITICAL: Bucket sessions by session_date (client-local YYYY-MM-DD)
+    // — NEVER by created_at (UTC), which would shift the workout to a different
+    // day cell in the coach's timezone and produce duplicate pills (Bug 2).
+    const daySessions = sessions.filter(s => {
+      const sDate = s.session_date || format(new Date(s.created_at), "yyyy-MM-dd");
+      return sDate === dateStr;
+    });
 
     // Merge session completion status into matching calendar events
     const linkedWorkoutIds = new Set<string>();
@@ -460,7 +466,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       return e;
     });
 
-    // Only include sessions that DON'T have a matching calendar event
+    // Only include sessions that DON'T have a matching calendar event.
+    // CRITICAL: Carry linked_workout_id so EventDetailModal can populate
+    // the prescribed exercises + logged sets when the orphan pill is clicked (Bug 1).
     const orphanSessions = daySessions
       .filter(s => !linkedWorkoutIds.has(s.workout_id))
       .map(s => ({
@@ -468,8 +476,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         title: (s.workouts as any)?.name || "Workout",
         event_type: "workout" as const,
         is_completed: !!s.completed_at,
+        completed_at: s.completed_at || null,
         isSession: true,
         event_date: dateStr,
+        linked_workout_id: s.workout_id,
         color: null,
         event_time: null,
       }));
