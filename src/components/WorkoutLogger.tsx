@@ -862,24 +862,42 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         await supabase.from("exercise_logs").delete().in("id", orphanedLogIds);
       }
 
-      // STEP 2: Update session status to "completed" — MUST succeed before showing summary
+      // STEP 2: Update session status to "completed" — MUST succeed before showing summary.
+      //
+      // Bug 1 root-cause defense: we update by id (canonical write) AND additionally
+      // close ANY other in_progress sessions this client may have stranded from prior
+      // partial finishes (iOS app suspension mid-request, network drops, etc.). This
+      // ensures the dashboard banner cannot resurrect from a sibling row.
+      const finishPayload = {
+        completed_at: new Date().toISOString(),
+        duration_seconds: durationSeconds,
+        total_volume: totalVolume,
+        sets_completed: completedSets,
+        pr_count: prAlerts.length,
+        status: "completed",
+        had_unlogged_sets: hadUnlogged,
+        exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
+      };
+
       const { error: sessionError } = await supabase
         .from("workout_sessions")
-        .update({
-          completed_at: new Date().toISOString(),
-          duration_seconds: durationSeconds,
-          total_volume: totalVolume,
-          sets_completed: completedSets,
-          pr_count: prAlerts.length,
-          status: "completed",
-          had_unlogged_sets: hadUnlogged,
-          exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
-        } as any)
+        .update(finishPayload as any)
         .eq("id", sessionId);
       if (sessionError) {
         console.error("[WorkoutLogger] Session update error:", sessionError);
         throw sessionError;
       }
+
+      // Belt-and-suspenders: close any sibling in_progress sessions for this client.
+      // Fire-and-forget — failure here must NOT block the summary screen.
+      supabase
+        .from("workout_sessions")
+        .update({ status: "completed", completed_at: new Date().toISOString() } as any)
+        .eq("client_id", user.id)
+        .eq("status", "in_progress")
+        .then(({ error }) => {
+          if (error) console.warn("[WorkoutLogger] Sibling session cleanup warning:", error);
+        });
 
       // STEP 3: Critical writes done — NOW show summary (safe to navigate away)
       setFrozenDuration(durationSeconds);
