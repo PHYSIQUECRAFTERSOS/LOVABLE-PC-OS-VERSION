@@ -419,7 +419,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     return d >= monthStart && d <= monthEnd && e.is_completed;
   });
   const monthSessions = sessions.filter(s => {
-    const d = new Date(s.created_at);
+    // Use session_date (client-local) so coach-timezone drift does not
+    // shift sessions into adjacent months in the count.
+    const dateStr = s.session_date || format(new Date(s.created_at), "yyyy-MM-dd");
+    const d = new Date(dateStr + "T12:00:00");
     return d >= monthStart && d <= monthEnd;
   });
 
