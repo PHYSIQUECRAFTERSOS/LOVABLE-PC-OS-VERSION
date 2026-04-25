@@ -95,10 +95,6 @@ const Progress = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="dashboard" className="mt-4">
-            <ProgressMetricsDashboard key={refreshKey} />
-          </TabsContent>
-
           <TabsContent value="weight" className="mt-4">
             <WeightTracker key={refreshKey} />
           </TabsContent>
