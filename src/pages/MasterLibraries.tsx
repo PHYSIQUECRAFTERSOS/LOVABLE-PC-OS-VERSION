@@ -551,14 +551,17 @@ const MasterLibraries = () => {
 
           {/* Programs Tab */}
           <TabsContent value="programs" className="mt-4">
-            <div className="h-[calc(100vh-12rem)]">
-              <div className="flex h-full">
-                {/* LEFT SIDEBAR */}
-                <div className="w-80 border-r flex flex-col flex-shrink-0">
+            <MobileTwoPane
+              selected={!!selectedProgramId}
+              onClose={() => { setSelectedProgramId(null); loadPrograms(); }}
+              detailTitle={selectedProgramName || "Program"}
+              listWidthClass="w-80"
+              list={
+                <>
                   <div className="p-4 border-b space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <h2 className="font-semibold text-sm text-foreground">Programs</h2>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <AIImportButton entryPoint="library" importType="workout" onImportComplete={loadPrograms} />
                         <Button size="sm" onClick={() => setShowBuilder(true)}>
                           <Plus className="h-3.5 w-3.5 mr-1" /> New
@@ -567,7 +570,7 @@ const MasterLibraries = () => {
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input placeholder="Search programs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 text-xs" />
+                      <Input placeholder="Search programs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
                     </div>
                   </div>
 
@@ -576,9 +579,13 @@ const MasterLibraries = () => {
                       {loading ? (
                         Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
                       ) : filteredPrograms.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                          <FolderOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                          <p className="text-sm text-muted-foreground">No programs yet.</p>
+                        <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                          <FolderOpen className="h-12 w-12 text-muted-foreground/30 mb-3" />
+                          <p className="text-base font-semibold text-foreground">No programs yet</p>
+                          <p className="text-sm text-muted-foreground/70 mt-1 mb-4">Create your first program to get started.</p>
+                          <Button size="sm" onClick={() => setShowBuilder(true)}>
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Create Program
+                          </Button>
                         </div>
                       ) : (
                         <>
@@ -619,28 +626,27 @@ const MasterLibraries = () => {
                       )}
                     </div>
                   </ScrollArea>
+                </>
+              }
+              detail={
+                selectedProgramId ? (
+                  <div className="p-4 md:p-6">
+                    <ProgramDetailView
+                      programId={selectedProgramId}
+                      programName={selectedProgramName}
+                      onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
+                    />
+                  </div>
+                ) : null
+              }
+              emptyState={
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Dumbbell className="h-16 w-16 text-muted-foreground/20 mb-4" />
+                  <h3 className="text-lg font-semibold text-muted-foreground">Select a Program</h3>
+                  <p className="text-sm text-muted-foreground/70 mt-1">Choose a program from the sidebar or create a new one.</p>
                 </div>
-
-                {/* RIGHT PANEL */}
-                <div className="flex-1 overflow-auto">
-                  {selectedProgramId ? (
-                    <div className="p-6">
-                      <ProgramDetailView
-                        programId={selectedProgramId}
-                        programName={selectedProgramName}
-                        onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <Dumbbell className="h-16 w-16 text-muted-foreground/20 mb-4" />
-                      <h3 className="text-lg font-semibold text-muted-foreground">Select a Program</h3>
-                      <p className="text-sm text-muted-foreground/70 mt-1">Choose a program from the sidebar or create a new one.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+              }
+            />
           </TabsContent>
 
           {/* Exercises Tab */}
