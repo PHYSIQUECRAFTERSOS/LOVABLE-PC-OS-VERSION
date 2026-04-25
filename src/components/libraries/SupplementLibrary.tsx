@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import MobileTwoPane from "@/components/libraries/MobileTwoPane";
 
 const TIMING_SLOTS = [
   { value: "fasted", label: "Fasted (Morning Ritual)" },
@@ -708,19 +709,19 @@ const SupplementLibrary = () => {
                               return (
                                 <div key={item.id} className="p-3 rounded-lg border border-primary/30 bg-card space-y-3">
                                   <p className="text-sm font-medium text-foreground">{supp?.name || "Unknown"} {supp?.brand ? `(${supp.brand})` : ""}</p>
-                                  <div className="grid grid-cols-3 gap-2">
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     <div>
                                       <Label className="text-[10px]">Dosage</Label>
-                                      <Input value={editDosage} onChange={e => setEditDosage(e.target.value)} className="h-7 text-xs" />
+                                      <Input value={editDosage} onChange={e => setEditDosage(e.target.value)} className="h-8 text-xs" />
                                     </div>
                                     <div>
                                       <Label className="text-[10px]">Unit</Label>
-                                      <Input value={editDosageUnit} onChange={e => setEditDosageUnit(e.target.value)} className="h-7 text-xs" />
+                                      <Input value={editDosageUnit} onChange={e => setEditDosageUnit(e.target.value)} className="h-8 text-xs" />
                                     </div>
-                                    <div>
+                                    <div className="col-span-2 sm:col-span-1">
                                       <Label className="text-[10px]">Timing</Label>
                                       <Select value={editTiming} onValueChange={setEditTiming}>
-                                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                           {TIMING_SLOTS.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
                                         </SelectContent>
