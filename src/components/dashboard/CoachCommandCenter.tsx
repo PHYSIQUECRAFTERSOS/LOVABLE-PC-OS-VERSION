@@ -793,39 +793,8 @@ const CoachCommandCenter = () => {
         )}
       </div>
 
-      {/* ─── SECTION 3 & 4: Leaderboard + At-Risk side by side ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Leaderboard */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-primary" />
-              Client Leaderboard
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {leaderboard.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-4 text-center">No client data yet.</p>
-            ) : (
-              leaderboard.map((entry, idx) => (
-                <div
-                  key={entry.clientId}
-                  className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
-                  onClick={() => navigate(`/clients/${entry.clientId}`)}
-                >
-                  <span className={`text-xs font-bold w-5 text-center ${idx < 3 ? "text-primary" : "text-muted-foreground"}`}>
-                    {idx + 1}
-                  </span>
-                  <UserAvatar src={entry.avatarUrl} name={entry.clientName} className="h-7 w-7" />
-                  <span className="text-sm text-foreground flex-1 truncate">{entry.clientName}</span>
-                  <span className="text-[10px] text-muted-foreground">{entry.streak}d streak</span>
-                  <span className={`text-sm font-bold ${complianceColor(entry.compliancePct)}`}>{entry.compliancePct}%</span>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
+      {/* ─── SECTION 4: At-Risk Clients (full width) ─── */}
+      <div>
         {/* At-Risk Panel */}
         <Card>
           <CardHeader className="pb-2">
