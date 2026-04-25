@@ -70,7 +70,6 @@ const Progress = () => {
           <TabsList className="w-full flex overflow-x-auto no-scrollbar">
             <TabsTrigger value="checkin" className="flex-shrink-0 text-xs px-2.5">Check-In</TabsTrigger>
             <TabsTrigger value="forms" className="flex-shrink-0 text-xs px-2.5">Forms</TabsTrigger>
-            <TabsTrigger value="dashboard" className="flex-shrink-0 text-xs px-2.5">Dashboard</TabsTrigger>
             <TabsTrigger value="weight" className="flex-shrink-0 text-xs px-2.5">Weight</TabsTrigger>
             <TabsTrigger value="photos" className="flex-shrink-0 text-xs px-2.5">Photos</TabsTrigger>
             <TabsTrigger value="steps" className="flex-shrink-0 text-xs px-2.5">Steps</TabsTrigger>
