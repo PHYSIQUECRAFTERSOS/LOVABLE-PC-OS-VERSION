@@ -598,9 +598,9 @@ const SupplementLibrary = () => {
         </div>
       ) : (
         /* ---- PLANS VIEW ---- */
-        <div className="flex h-full">
-          {/* Left sidebar - plan list */}
-          <div className="w-72 border-r flex flex-col flex-shrink-0">
+        (() => {
+          const planListNode = (
+            <>
             <div className="p-4 border-b space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-sm text-foreground">Plans</h2>
