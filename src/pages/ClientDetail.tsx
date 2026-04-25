@@ -1,9 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import TagAutomationDialog from "@/components/clients/TagAutomationDialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
   LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill, Tag,
+  ExternalLink,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
@@ -19,7 +26,7 @@ import NutritionTargetsTab from "@/components/clients/workspace/NutritionTargets
 import MealPlanTab from "@/components/clients/workspace/MealPlanTab";
 import CalendarTab from "@/components/clients/workspace/CalendarTab";
 import ClientWorkspaceProgress from "@/components/clients/workspace/ProgressTab";
-import MessagingTab from "@/components/clients/workspace/MessagingTab";
+import MessagesPopup from "@/components/clients/workspace/MessagesPopup";
 import ClientCheckinHistory from "@/components/checkin/ClientCheckinHistory";
 import OnboardingTab from "@/components/clients/workspace/OnboardingTab";
 import ClientSupplementPlan from "@/components/nutrition/ClientSupplementPlan";
@@ -47,6 +54,8 @@ const ClientDetail = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = (() => {
     const t = searchParams.get("tab");
+    // Don't auto-activate the messaging tab — it now opens as a popup
+    if (t === "messaging") return "dash";
     return t && VALID_TABS.has(t) ? t : "dash";
   })();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
@@ -56,25 +65,76 @@ const ClientDetail = () => {
   const [programType, setProgramType] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const previousTabRef = useRef<string>(initialTab);
 
-  // Sync activeTab when ?tab= changes (e.g., deep link from check-in modal)
+  // Detect touch-only devices (skip context menu on mobile)
+  const isTouchDevice = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      "ontouchstart" in window &&
+      (navigator.maxTouchPoints || 0) > 0 &&
+      !window.matchMedia("(hover: hover)").matches
+    );
+  }, []);
+
+  // Sync activeTab + messages popup when ?tab= or ?messages= changes
   useEffect(() => {
     const t = searchParams.get("tab");
-    if (t && VALID_TABS.has(t) && t !== activeTab) {
+    const messagesFlag = searchParams.get("messages");
+
+    if (t === "messaging" || messagesFlag === "open") {
+      setMessagesOpen(true);
+    }
+
+    if (t && VALID_TABS.has(t) && t !== "messaging" && t !== activeTab) {
       setActiveTab(t);
+      previousTabRef.current = t;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const handleTabChange = (val: string) => {
-    setActiveTab(val);
-    // Strip ?tab= once user takes manual control to keep URL tidy
-    if (searchParams.get("tab")) {
+    if (val === "messaging") {
+      // Don't switch the active Tabs value; just open the popup and reflect in URL
+      previousTabRef.current = activeTab;
+      setMessagesOpen(true);
       const next = new URLSearchParams(searchParams);
+      next.set("messages", "open");
+      next.delete("tab"); // strip stale ?tab=messaging if present
+      setSearchParams(next, { replace: true });
+      return;
+    }
+
+    setActiveTab(val);
+    previousTabRef.current = val;
+    if (searchParams.get("tab") || searchParams.get("messages")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("tab");
+      next.delete("messages");
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  const handleMessagesOpenChange = (open: boolean) => {
+    setMessagesOpen(open);
+    if (!open && searchParams.get("messages")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("messages");
       next.delete("tab");
       setSearchParams(next, { replace: true });
     }
   };
+
+  const buildTabUrl = useCallback(
+    (tabValue: string) => {
+      const base = `/clients/${clientId}`;
+      if (tabValue === "dash") return base;
+      if (tabValue === "messaging") return `${base}?messages=open`;
+      return `${base}?tab=${tabValue}`;
+    },
+    [clientId],
+  );
 
   const loadClientData = useCallback(async () => {
     if (!clientId || !userId) return;
@@ -144,6 +204,34 @@ const ClientDetail = () => {
     { value: "messaging", label: "Messages", icon: MessageSquare },
   ];
 
+  const renderTrigger = (tab: typeof tabItems[number]) => {
+    const trigger = (
+      <TabsTrigger value={tab.value} className="gap-1.5 shrink-0">
+        <tab.icon className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">{tab.label}</span>
+      </TabsTrigger>
+    );
+
+    if (isTouchDevice) return trigger;
+
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{trigger}</ContextMenuTrigger>
+        <ContextMenuContent className="min-w-[180px]">
+          <ContextMenuItem
+            onSelect={() =>
+              window.open(buildTabUrl(tab.value), "_blank", "noopener,noreferrer")
+            }
+            className="gap-2 cursor-pointer"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open in new tab
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  };
+
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-6">
@@ -177,7 +265,7 @@ const ClientDetail = () => {
                 variant="outline"
                 size="sm"
                 className="shrink-0 gap-1.5"
-                onClick={() => setActiveTab("messaging")}
+                onClick={() => handleTabChange("messaging")}
               >
                 <MessageSquare className="h-3.5 w-3.5" />
                 Message
@@ -209,10 +297,9 @@ const ClientDetail = () => {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="w-full justify-start overflow-x-auto flex-nowrap">
             {tabItems.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5 shrink-0">
-                <tab.icon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
+              <div key={tab.value} className="contents">
+                {renderTrigger(tab)}
+              </div>
             ))}
           </TabsList>
 
@@ -246,9 +333,7 @@ const ClientDetail = () => {
           <TabsContent value="progress">
             <ClientWorkspaceProgress clientId={clientId!} />
           </TabsContent>
-          <TabsContent value="messaging">
-            <MessagingTab clientId={clientId!} />
-          </TabsContent>
+          {/* Messages tab content intentionally omitted — opens in MessagesPopup */}
         </Tabs>
       </div>
       <QuickLogFAB clientId={clientId} />
@@ -258,6 +343,13 @@ const ClientDetail = () => {
         clientId={clientId!}
         clientName={profile.full_name || "Client"}
         onTagsChanged={loadClientData}
+      />
+      <MessagesPopup
+        open={messagesOpen}
+        onOpenChange={handleMessagesOpenChange}
+        clientId={clientId!}
+        clientName={profile.full_name || "Client"}
+        clientAvatar={profile.avatar_url}
       />
     </AppLayout>
   );
