@@ -661,150 +661,172 @@ const SupplementLibrary = () => {
                 )}
               </div>
             </ScrollArea>
-          </div>
+            </>
+          );
 
-          {/* Right panel - plan detail */}
-          <div className="flex-1 overflow-auto">
-            {selectedPlan ? (
-              <div className="p-6 space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-foreground">{selectedPlan.name}</h2>
-                    {selectedPlan.description && <p className="text-sm text-muted-foreground">{selectedPlan.description}</p>}
-                    {selectedPlan.coach_id !== user?.id && creatorNames[selectedPlan.coach_id] && (
-                      <p className="text-xs text-muted-foreground/70 mt-0.5">by {creatorNames[selectedPlan.coach_id]}</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => { setAssignPlanId(selectedPlan.id); setShowAssign(true); }}>
-                      <Users className="h-3.5 w-3.5 mr-1" /> Assign
-                    </Button>
-                    {canEditSelectedPlan && (
-                      <Button size="sm" onClick={() => { setItemTiming("fasted"); setShowAddItem(true); }}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
-                      </Button>
-                    )}
-                  </div>
+          // ── DETAIL PANE ──
+          const detailNode = selectedPlan ? (
+            <div className="p-4 sm:p-6 space-y-6">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base sm:text-lg font-bold text-foreground truncate">{selectedPlan.name}</h2>
+                  {selectedPlan.description && <p className="text-sm text-muted-foreground">{selectedPlan.description}</p>}
+                  {selectedPlan.coach_id !== user?.id && creatorNames[selectedPlan.coach_id] && (
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">by {creatorNames[selectedPlan.coach_id]}</p>
+                  )}
                 </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" variant="outline" onClick={() => { setAssignPlanId(selectedPlan.id); setShowAssign(true); }}>
+                    <Users className="h-3.5 w-3.5 mr-1" /> Assign
+                  </Button>
+                  {canEditSelectedPlan && (
+                    <Button size="sm" onClick={() => { setItemTiming("fasted"); setShowAddItem(true); }}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
+                    </Button>
+                  )}
+                </div>
+              </div>
 
-                {loadingItems ? (
-                  <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}</div>
-                ) : groupedItems.length === 0 ? (
-                  <div className="flex flex-col items-center py-16 text-center">
-                    <Pill className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-sm text-muted-foreground">No supplements in this plan yet.</p>
-                    {canEditSelectedPlan && <p className="text-xs text-muted-foreground/70 mt-1">Click "Add Item" to get started.</p>}
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {groupedItems.map(group => (
-                      <div key={group.slot}>
-                        <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">{group.label}</h3>
-                        <div className="space-y-2">
-                          {group.items.map(item => {
-                            const supp = suppMap.get(item.master_supplement_id);
-                            const isEditing = editingItemId === item.id;
+              {loadingItems ? (
+                <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}</div>
+              ) : groupedItems.length === 0 ? (
+                <div className="flex flex-col items-center py-16 text-center">
+                  <Pill className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">No supplements in this plan yet.</p>
+                  {canEditSelectedPlan && <p className="text-xs text-muted-foreground/70 mt-1">Click "Add Item" to get started.</p>}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {groupedItems.map(group => (
+                    <div key={group.slot}>
+                      <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-3">{group.label}</h3>
+                      <div className="space-y-2">
+                        {group.items.map(item => {
+                          const supp = suppMap.get(item.master_supplement_id);
+                          const isEditing = editingItemId === item.id;
 
-                            if (isEditing && canEditSelectedPlan) {
-                              return (
-                                <div key={item.id} className="p-3 rounded-lg border border-primary/30 bg-card space-y-3">
-                                  <p className="text-sm font-medium text-foreground">{supp?.name || "Unknown"} {supp?.brand ? `(${supp.brand})` : ""}</p>
-                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    <div>
-                                      <Label className="text-[10px]">Dosage</Label>
-                                      <Input value={editDosage} onChange={e => setEditDosage(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                    <div>
-                                      <Label className="text-[10px]">Unit</Label>
-                                      <Input value={editDosageUnit} onChange={e => setEditDosageUnit(e.target.value)} className="h-8 text-xs" />
-                                    </div>
-                                    <div className="col-span-2 sm:col-span-1">
-                                      <Label className="text-[10px]">Timing</Label>
-                                      <Select value={editTiming} onValueChange={setEditTiming}>
-                                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                          {TIMING_SLOTS.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
+                          if (isEditing && canEditSelectedPlan) {
+                            return (
+                              <div key={item.id} className="p-3 rounded-lg border border-primary/30 bg-card space-y-3">
+                                <p className="text-sm font-medium text-foreground">{supp?.name || "Unknown"} {supp?.brand ? `(${supp.brand})` : ""}</p>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  <div>
+                                    <Label className="text-[10px]">Dosage</Label>
+                                    <Input value={editDosage} onChange={e => setEditDosage(e.target.value)} className="h-8 text-xs" />
                                   </div>
                                   <div>
-                                    <Label className="text-[10px]">Coach Note</Label>
-                                    <Input value={editNote} onChange={e => setEditNote(e.target.value)} className="h-7 text-xs" placeholder="e.g. Mix with ACV" />
+                                    <Label className="text-[10px]">Unit</Label>
+                                    <Input value={editDosageUnit} onChange={e => setEditDosageUnit(e.target.value)} className="h-8 text-xs" />
                                   </div>
-                                  <div className="flex gap-2 justify-end">
-                                    <Button size="sm" variant="ghost" className="text-xs h-7" onClick={cancelEdit}>Cancel</Button>
-                                    <Button size="sm" className="text-xs h-7" onClick={saveEditItem}>Save</Button>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div
-                                key={item.id}
-                                className={cn("flex items-center gap-3 p-3 rounded-lg border border-border bg-card group", canEditSelectedPlan && "cursor-pointer hover:border-primary/20")}
-                                onClick={() => canEditSelectedPlan && startEditItem(item)}
-                              >
-                                <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-foreground">{supp?.name || "Unknown"}</span>
-                                    {supp?.brand && <span className="text-xs text-muted-foreground">({supp.brand})</span>}
-                                  </div>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    {item.dosage && <span className="text-xs text-primary">{item.dosage} {item.dosage_unit}</span>}
-                                    {item.coach_note && <span className="text-xs text-muted-foreground">· {item.coach_note}</span>}
-                                  </div>
-                                  <div className="flex gap-1 mt-1">
-                                    {(item.discount_code_override || supp?.discount_code) && (
-                                      <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary gap-0.5">
-                                        <Tag className="h-2 w-2" /> {item.discount_code_override || supp?.discount_code}
-                                      </Badge>
-                                    )}
-                                    {(item.link_url_override || supp?.link_url) && (
-                                      <a
-                                        href={item.link_url_override || supp?.link_url || "#"}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex"
-                                        onClick={e => e.stopPropagation()}
-                                      >
-                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5 hover:bg-muted">
-                                          <ExternalLink className="h-2 w-2" /> Link
-                                        </Badge>
-                                      </a>
-                                    )}
+                                  <div className="col-span-2 sm:col-span-1">
+                                    <Label className="text-[10px]">Timing</Label>
+                                    <Select value={editTiming} onValueChange={setEditTiming}>
+                                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        {TIMING_SLOTS.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                 </div>
-                                {canEditSelectedPlan && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 opacity-60 hover:opacity-100 text-destructive"
-                                    onClick={e => { e.stopPropagation(); removeItem(item.id); }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
+                                <div>
+                                  <Label className="text-[10px]">Coach Note</Label>
+                                  <Input value={editNote} onChange={e => setEditNote(e.target.value)} className="h-8 text-xs" placeholder="e.g. Mix with ACV" />
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                  <Button size="sm" variant="ghost" className="text-xs h-8" onClick={cancelEdit}>Cancel</Button>
+                                  <Button size="sm" className="text-xs h-8" onClick={saveEditItem}>Save</Button>
+                                </div>
                               </div>
                             );
-                          })}
-                        </div>
+                          }
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={cn("flex items-center gap-3 p-3 rounded-lg border border-border bg-card group", canEditSelectedPlan && "cursor-pointer hover:border-primary/20")}
+                              onClick={() => canEditSelectedPlan && startEditItem(item)}
+                            >
+                              <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0 hidden sm:block" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">{supp?.name || "Unknown"}</span>
+                                  {supp?.brand && <span className="text-xs text-muted-foreground">({supp.brand})</span>}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                  {item.dosage && <span className="text-xs text-primary">{item.dosage} {item.dosage_unit}</span>}
+                                  {item.coach_note && <span className="text-xs text-muted-foreground">· {item.coach_note}</span>}
+                                </div>
+                                <div className="flex gap-1 mt-1">
+                                  {(item.discount_code_override || supp?.discount_code) && (
+                                    <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary gap-0.5">
+                                      <Tag className="h-2 w-2" /> {item.discount_code_override || supp?.discount_code}
+                                    </Badge>
+                                  )}
+                                  {(item.link_url_override || supp?.link_url) && (
+                                    <a
+                                      href={item.link_url_override || supp?.link_url || "#"}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5 hover:bg-muted">
+                                        <ExternalLink className="h-2 w-2" /> Link
+                                      </Badge>
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              {canEditSelectedPlan && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-9 w-9 opacity-60 hover:opacity-100 text-destructive shrink-0"
+                                  onClick={e => { e.stopPropagation(); removeItem(item.id); }}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <Pill className="h-16 w-16 text-muted-foreground/20 mb-4" />
-                <h3 className="text-lg font-semibold text-muted-foreground">Select a Plan</h3>
-                <p className="text-sm text-muted-foreground/70 mt-1">Choose a plan from the sidebar or create a new one.</p>
-              </div>
-            )}
-          </div>
-        </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null;
+
+          const emptyNode = plans.length === 0 && !loading ? (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6">
+              <Pill className="h-16 w-16 text-muted-foreground/20 mb-4" />
+              <h3 className="text-lg font-semibold text-foreground">No plans yet</h3>
+              <p className="text-sm text-muted-foreground/70 mt-1 mb-4">Create your first supplement plan.</p>
+              <Button onClick={() => setShowPlanForm(true)}>
+                <Plus className="h-4 w-4 mr-1.5" /> Create Plan
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <Pill className="h-16 w-16 text-muted-foreground/20 mb-4" />
+              <h3 className="text-lg font-semibold text-muted-foreground">Select a Plan</h3>
+              <p className="text-sm text-muted-foreground/70 mt-1">Choose a plan from the sidebar or create a new one.</p>
+            </div>
+          );
+
+          return (
+            <MobileTwoPane
+              list={planListNode}
+              detail={detailNode}
+              selected={!!selectedPlan}
+              onClose={() => setSelectedPlanId(null)}
+              detailTitle={selectedPlan?.name}
+              emptyState={emptyNode}
+              listWidthClass="w-72"
+            />
+          );
+        })()
       )}
 
       {/* Supplement Form Dialog */}
