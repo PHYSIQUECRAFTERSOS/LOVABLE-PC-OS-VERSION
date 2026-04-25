@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import MealPlanBuilder from "./MealPlanBuilder";
 import AIImportButton from "@/components/import/AIImportButton";
+import MobileTwoPane from "@/components/libraries/MobileTwoPane";
 
 const CATEGORIES = ["Fat Loss", "Maintenance", "Lean Bulk", "High Protein", "Low Carb", "Contest Prep", "Refeed"];
 
@@ -415,7 +416,6 @@ const MealPlanTemplateLibrary = () => {
       fat: acc.fat + (i.fat || 0),
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   };
-
   return (
     <div className="h-[calc(100vh-12rem)]">
       <div className="flex h-full">

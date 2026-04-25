@@ -9,10 +9,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Plus, Search, FolderOpen, Layers, Trash2, Copy, MoreHorizontal,
   Users, Link2, Unlink, RefreshCw, History, Dumbbell, UtensilsCrossed,
   Target, ClipboardCheck, Pill, BookOpen, ChevronRight, Share2, Lock,
+  Menu, ArrowLeft,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -40,6 +43,7 @@ import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import SupplementLibrary from "@/components/libraries/SupplementLibrary";
 import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
 import AIImportButton from "@/components/import/AIImportButton";
+import MobileTwoPane from "@/components/libraries/MobileTwoPane";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -47,13 +51,25 @@ const GOAL_LABELS: Record<string, string> = {
   recomp: "Recomp", prep: "Contest Prep",
 };
 
+const TAB_CONFIG = [
+  { value: "programs", label: "Programs", Icon: Layers },
+  { value: "exercises", label: "Exercises", Icon: Dumbbell },
+  { value: "meals", label: "Meals", Icon: UtensilsCrossed },
+  { value: "pc-recipes", label: "PC Recipes", Icon: UtensilsCrossed },
+  { value: "supplements", label: "Supplements", Icon: Pill },
+  { value: "guides", label: "Guides", Icon: BookOpen },
+  { value: "checkin-forms", label: "Check-In Forms", Icon: ClipboardCheck },
+] as const;
+
 const MasterLibraries = () => {
   const { user, role } = useAuth();
   const userId = user?.id;
   const isAdmin = role === "admin";
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "programs");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,6 +82,8 @@ const MasterLibraries = () => {
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [sharedExpanded, setSharedExpanded] = useState(true);
   const [personalExpanded, setPersonalExpanded] = useState(true);
+
+  const activeTabMeta = TAB_CONFIG.find(t => t.value === activeTab) ?? TAB_CONFIG[0];
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -467,11 +485,62 @@ const MasterLibraries = () => {
 
   return (
     <AppLayout>
-      <div className="animate-fade-in space-y-4">
-        <h1 className="font-display text-2xl font-bold text-foreground">Master Libraries</h1>
+      <div className="animate-fade-in space-y-4 pb-[env(safe-area-inset-bottom)]">
+        {/* Page header — hamburger on mobile, plain title on desktop */}
+        <div className="flex items-center gap-2">
+          {/* Mobile hamburger → left Sheet listing all 7 tabs */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden h-10 w-10 -ml-2 shrink-0"
+                aria-label="Open library menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="w-72 p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+            >
+              <SheetHeader className="px-4 pt-4 pb-2 border-b border-border/50">
+                <SheetTitle className="text-base font-display">Master Libraries</SheetTitle>
+              </SheetHeader>
+              <nav className="p-2 space-y-1" aria-label="Library sections">
+                {TAB_CONFIG.map(({ value, label, Icon }) => {
+                  const isActive = activeTab === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => { setActiveTab(value); setMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                          : "text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 text-left">{label}</span>
+                      {isActive && <ChevronRight className="h-4 w-4 text-primary shrink-0" />}
+                    </button>
+                  );
+                })}
+              </nav>
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex-1 min-w-0">
+            <h1 className="font-display text-xl md:text-2xl font-bold text-foreground truncate">
+              <span className="md:hidden">{activeTabMeta.label}</span>
+              <span className="hidden md:inline">Master Libraries</span>
+            </h1>
+          </div>
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7">
+          {/* Desktop tab bar — hidden on mobile (replaced by hamburger Sheet above) */}
+          <TabsList className="hidden md:grid w-full grid-cols-7">
             <TabsTrigger value="programs" className="gap-1.5 text-xs"><Layers className="h-3.5 w-3.5" /> Programs</TabsTrigger>
             <TabsTrigger value="exercises" className="gap-1.5 text-xs"><Dumbbell className="h-3.5 w-3.5" /> Exercises</TabsTrigger>
             <TabsTrigger value="meals" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> Meals</TabsTrigger>
@@ -483,14 +552,17 @@ const MasterLibraries = () => {
 
           {/* Programs Tab */}
           <TabsContent value="programs" className="mt-4">
-            <div className="h-[calc(100vh-12rem)]">
-              <div className="flex h-full">
-                {/* LEFT SIDEBAR */}
-                <div className="w-80 border-r flex flex-col flex-shrink-0">
+            <MobileTwoPane
+              selected={!!selectedProgramId}
+              onClose={() => { setSelectedProgramId(null); loadPrograms(); }}
+              detailTitle={selectedProgramName || "Program"}
+              listWidthClass="w-80"
+              list={
+                <>
                   <div className="p-4 border-b space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <h2 className="font-semibold text-sm text-foreground">Programs</h2>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <AIImportButton entryPoint="library" importType="workout" onImportComplete={loadPrograms} />
                         <Button size="sm" onClick={() => setShowBuilder(true)}>
                           <Plus className="h-3.5 w-3.5 mr-1" /> New
@@ -499,7 +571,7 @@ const MasterLibraries = () => {
                     </div>
                     <div className="relative">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input placeholder="Search programs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 text-xs" />
+                      <Input placeholder="Search programs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
                     </div>
                   </div>
 
@@ -508,9 +580,13 @@ const MasterLibraries = () => {
                       {loading ? (
                         Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
                       ) : filteredPrograms.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-                          <FolderOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                          <p className="text-sm text-muted-foreground">No programs yet.</p>
+                        <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+                          <FolderOpen className="h-12 w-12 text-muted-foreground/30 mb-3" />
+                          <p className="text-base font-semibold text-foreground">No programs yet</p>
+                          <p className="text-sm text-muted-foreground/70 mt-1 mb-4">Create your first program to get started.</p>
+                          <Button size="sm" onClick={() => setShowBuilder(true)}>
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Create Program
+                          </Button>
                         </div>
                       ) : (
                         <>
@@ -551,28 +627,27 @@ const MasterLibraries = () => {
                       )}
                     </div>
                   </ScrollArea>
+                </>
+              }
+              detail={
+                selectedProgramId ? (
+                  <div className="p-4 md:p-6">
+                    <ProgramDetailView
+                      programId={selectedProgramId}
+                      programName={selectedProgramName}
+                      onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
+                    />
+                  </div>
+                ) : null
+              }
+              emptyState={
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <Dumbbell className="h-16 w-16 text-muted-foreground/20 mb-4" />
+                  <h3 className="text-lg font-semibold text-muted-foreground">Select a Program</h3>
+                  <p className="text-sm text-muted-foreground/70 mt-1">Choose a program from the sidebar or create a new one.</p>
                 </div>
-
-                {/* RIGHT PANEL */}
-                <div className="flex-1 overflow-auto">
-                  {selectedProgramId ? (
-                    <div className="p-6">
-                      <ProgramDetailView
-                        programId={selectedProgramId}
-                        programName={selectedProgramName}
-                        onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <Dumbbell className="h-16 w-16 text-muted-foreground/20 mb-4" />
-                      <h3 className="text-lg font-semibold text-muted-foreground">Select a Program</h3>
-                      <p className="text-sm text-muted-foreground/70 mt-1">Choose a program from the sidebar or create a new one.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+              }
+            />
           </TabsContent>
 
           {/* Exercises Tab */}
