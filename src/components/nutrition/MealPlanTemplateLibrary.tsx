@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import MealPlanBuilder from "./MealPlanBuilder";
 import AIImportButton from "@/components/import/AIImportButton";
+import MobileTwoPane from "@/components/libraries/MobileTwoPane";
 
 const CATEGORIES = ["Fat Loss", "Maintenance", "Lean Bulk", "High Protein", "Low Carb", "Contest Prep", "Refeed"];
 
