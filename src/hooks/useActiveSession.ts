@@ -88,6 +88,24 @@ export const useActiveSession = () => {
         return;
       }
 
+      // Bug 1 defensive double-check: re-read this exact row's current status
+      // straight from the server before showing the banner. Prevents banner
+      // flash from stale list-query results when the row was just flipped to
+      // "completed" but our list query observed an older snapshot, or when an
+      // iOS-suspended finish request finally landed between the list query
+      // and this read.
+      const { data: freshRow } = await supabase
+        .from("workout_sessions")
+        .select("status, completed_at")
+        .eq("id", candidate.id)
+        .maybeSingle();
+
+      if (freshRow && (freshRow.status !== "in_progress" || freshRow.completed_at)) {
+        completedSessionIds.current.add(candidate.id);
+        setActiveSession(null);
+        return;
+      }
+
       // Defensive guard: cross-check calendar_events. If this workout already
       // has a completed event for today, the prior finish flow succeeded but
       // the session row was never flipped (background-write race). Self-heal
