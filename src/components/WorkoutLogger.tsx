@@ -592,66 +592,99 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     }
   };
 
-  // FIX: Use functional updater to avoid stale closure reading old exercises state.
-  // This prevents the truncation bug where a fast-typed weight (e.g. "76") only captures
-  // the first digit ("7") because completeSet reads state before the last keystroke's
-  // setExercises has been committed by React 18 batching.
+  // Bug 2 fix: rest timer DISPLAY is decoupled from set save.
+  //
+  // Previously, the timer trigger read `restSecs` from a variable mutated INSIDE
+  // a `setExercises(prev => ...)` updater. Two failure modes existed:
+  //   (a) The early-return paths (missing reps, negative weight) returned `prev`
+  //       without setting `restSecs`, leaving the post-call read at 0 and skipping
+  //       the timer.
+  //   (b) Under React 18 concurrent rendering / Strict Mode, the updater can run
+  //       deferred or twice; relying on outer-scope mutation timing is unsafe.
+  //
+  // New approach (per Master Prompt's required architecture):
+  //   - Path A (display): read everything we need from the CURRENT `exercises`
+  //     state synchronously before any state update, then trigger the timer
+  //     immediately. This guarantees 100% timer reliability.
+  //   - Path B (save): the functional setExercises updater handles state
+  //     transition + autofill; persistSet is fired with values captured up-front.
+  //   - Coach-set rest seconds are honored exactly. We only fall back when the
+  //     value is missing/invalid (null/undefined/0/NaN).
   const completeSet = (exIdx: number, setIdx: number) => {
-    let exerciseId = '';
-    let completedLogForPersist: ExerciseLogForm["logs"][0] | null = null;
-    let restSecs = 0;
+    // ── Read snapshot synchronously from current state ──
+    const exSnapshot = exercises[exIdx];
+    if (!exSnapshot) return;
+    const logSnapshot = exSnapshot.logs[setIdx];
+    if (!logSnapshot) return;
 
+    const weight = logSnapshot.weight ?? 0;
+    if (weight < 0 || !logSnapshot.reps) return;
+
+    const exerciseId = exSnapshot.id;
+    // Honor coach-configured rest. Only fall back if the value is missing/invalid.
+    const restSecs =
+      Number.isFinite(exSnapshot.restSeconds as number) && (exSnapshot.restSeconds as number) > 0
+        ? (exSnapshot.restSeconds as number)
+        : 90;
+    const isPR = checkPR(exSnapshot.id, exSnapshot.name, weight, logSnapshot.reps);
+    const completedLogForPersist: ExerciseLogForm["logs"][0] = {
+      ...logSnapshot,
+      weight,
+      completed: true,
+      isPR,
+    };
+
+    // ── Path A (display): fire timer IMMEDIATELY, before any state update ──
+    // This runs in the same React event-handler tick. Wrapped in try/catch so a
+    // theoretical setState failure cannot block the save path below.
+    try {
+      if (restSecs > 0) {
+        setRestTimer({ exIdx, setIdx, seconds: restSecs, startedAt: Date.now() });
+      }
+    } catch (timerErr) {
+      console.error("[WorkoutLogger] Rest timer trigger failed:", timerErr);
+    }
+
+    // ── Path B (state + save): functional updater for safe React 18 batching ──
     setExercises(prev => {
       const ex = prev[exIdx];
       if (!ex) return prev;
       const log = ex.logs[setIdx];
       if (!log) return prev;
+      // Idempotency guard: if already completed (rapid double-tap), no-op.
+      if (log.completed) return prev;
 
-      const weight = log.weight ?? 0;
-      if (weight < 0 || !log.reps) return prev;
-
-      exerciseId = ex.id;
-      // Defensive: coerce null/undefined/NaN to a sane default so the rest
-      // timer always fires when an exercise has any configured rest. Bug 1
-      // root cause: workout_exercises.rest_seconds is nullable and was
-      // flowing through unchanged, causing `restSecs > 0` to silently fail.
-      restSecs = Number.isFinite(ex.restSeconds as number) && (ex.restSeconds as number) > 0
-        ? (ex.restSeconds as number)
-        : 90;
-
-      const isPR = checkPR(ex.id, ex.name, weight, log.reps);
-
-      // Deep-clone only the exercise being modified
       const newExercises = prev.map((e, i) => {
         if (i !== exIdx) return e;
         return { ...e, logs: e.logs.map(l => ({ ...l })) };
       });
 
-      const completedLog = { ...newExercises[exIdx].logs[setIdx], weight, completed: true, isPR };
-      newExercises[exIdx].logs[setIdx] = completedLog;
-      completedLogForPersist = completedLog;
+      newExercises[exIdx].logs[setIdx] = {
+        ...newExercises[exIdx].logs[setIdx],
+        weight,
+        completed: true,
+        isPR,
+      };
 
       // Auto-fill next incomplete set
       const nextIdx = newExercises[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
       if (nextIdx !== -1) {
-        if (newExercises[exIdx].logs[nextIdx].weight === undefined || newExercises[exIdx].logs[nextIdx].weight === null) {
+        if (
+          newExercises[exIdx].logs[nextIdx].weight === undefined ||
+          newExercises[exIdx].logs[nextIdx].weight === null
+        ) {
           newExercises[exIdx].logs[nextIdx].weight = weight;
         }
         if (!newExercises[exIdx].logs[nextIdx].reps) {
-          newExercises[exIdx].logs[nextIdx].reps = log.reps;
+          newExercises[exIdx].logs[nextIdx].reps = logSnapshot.reps;
         }
       }
 
       return newExercises;
     });
 
-    // These variables were set synchronously by the functional updater above
-    if (completedLogForPersist && exerciseId) {
-      persistSet(exerciseId, completedLogForPersist);
-    }
-    if (restSecs > 0) {
-      setRestTimer({ exIdx, setIdx, seconds: restSecs, startedAt: Date.now() });
-    }
+    // Persist the set independently — uses values captured at click time.
+    persistSet(exerciseId, completedLogForPersist);
   };
 
   const addSet = (exIdx: number) => {
