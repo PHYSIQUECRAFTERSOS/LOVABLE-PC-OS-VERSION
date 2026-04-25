@@ -416,48 +416,6 @@ const MealPlanTemplateLibrary = () => {
       fat: acc.fat + (i.fat || 0),
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   };
-
-  // ── Compose list + detail panes for MobileTwoPane (handles desktop & mobile in one wrapper) ──
-  const listPane = (
-    <>
-      <div className="p-4 border-b space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-sm text-foreground">Meal Plan Templates</h2>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <AIImportButton
-              entryPoint="library"
-              importType="meal"
-              size="sm"
-              onImportComplete={loadTemplates}
-            />
-            <Button size="sm" onClick={() => { setEditingTemplateId(undefined); setShowBuilder(true); }}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> New
-            </Button>
-          </div>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search templates..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
-        </div>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {/* (list rows rendered below — will be replaced in next edit) */}
-          {/* placeholder kept so the original block below still works during migration */}
-        </div>
-      </ScrollArea>
-    </>
-  );
-
   return (
     <div className="h-[calc(100vh-12rem)]">
       <div className="flex h-full">
