@@ -416,12 +416,10 @@ const MealPlanTemplateLibrary = () => {
       fat: acc.fat + (i.fat || 0),
     }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   };
-  return (
-    <div className="h-[calc(100vh-12rem)]">
-      <div className="flex h-full">
-        {/* LEFT SIDEBAR */}
-        <div className="w-80 border-r flex flex-col flex-shrink-0">
-          <div className="p-4 border-b space-y-3">
+  // ── LIST PANE (sidebar on desktop, full-width on mobile) ──
+  const listNode = (
+    <>
+      <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-sm text-foreground">Meal Plan Templates</h2>
               <div className="flex items-center gap-1.5">
