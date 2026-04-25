@@ -522,7 +522,7 @@ const SupplementLibrary = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-12rem)]">
+    <div className="md:h-[calc(100vh-12rem)]">
       {/* View toggle */}
       <div className="flex items-center gap-2 mb-4">
         <div className="flex gap-1 p-0.5 rounded-md bg-secondary">
