@@ -484,11 +484,62 @@ const MasterLibraries = () => {
 
   return (
     <AppLayout>
-      <div className="animate-fade-in space-y-4">
-        <h1 className="font-display text-2xl font-bold text-foreground">Master Libraries</h1>
+      <div className="animate-fade-in space-y-4 pb-[env(safe-area-inset-bottom)]">
+        {/* Page header — hamburger on mobile, plain title on desktop */}
+        <div className="flex items-center gap-2">
+          {/* Mobile hamburger → left Sheet listing all 7 tabs */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden h-10 w-10 -ml-2 shrink-0"
+                aria-label="Open library menu"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="w-72 p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+            >
+              <SheetHeader className="px-4 pt-4 pb-2 border-b border-border/50">
+                <SheetTitle className="text-base font-display">Master Libraries</SheetTitle>
+              </SheetHeader>
+              <nav className="p-2 space-y-1" aria-label="Library sections">
+                {TAB_CONFIG.map(({ value, label, Icon }) => {
+                  const isActive = activeTab === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => { setActiveTab(value); setMobileMenuOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                          : "text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 text-left">{label}</span>
+                      {isActive && <ChevronRight className="h-4 w-4 text-primary shrink-0" />}
+                    </button>
+                  );
+                })}
+              </nav>
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex-1 min-w-0">
+            <h1 className="font-display text-xl md:text-2xl font-bold text-foreground truncate">
+              <span className="md:hidden">{activeTabMeta.label}</span>
+              <span className="hidden md:inline">Master Libraries</span>
+            </h1>
+          </div>
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-7">
+          {/* Desktop tab bar — hidden on mobile (replaced by hamburger Sheet above) */}
+          <TabsList className="hidden md:grid w-full grid-cols-7">
             <TabsTrigger value="programs" className="gap-1.5 text-xs"><Layers className="h-3.5 w-3.5" /> Programs</TabsTrigger>
             <TabsTrigger value="exercises" className="gap-1.5 text-xs"><Dumbbell className="h-3.5 w-3.5" /> Exercises</TabsTrigger>
             <TabsTrigger value="meals" className="gap-1.5 text-xs"><UtensilsCrossed className="h-3.5 w-3.5" /> Meals</TabsTrigger>
