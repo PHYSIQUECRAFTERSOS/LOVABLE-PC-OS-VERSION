@@ -154,6 +154,30 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
       };
     });
 
+    // Telemetry: warn if any row matches the legacy "1g portion + huge macros"
+    // corruption pattern. Helps catch any future write path that slips through.
+    rawItems.forEach((raw: any) => {
+      const isGramUnit = (raw.serving_unit || "g") === "g";
+      const qty = Number(raw.quantity);
+      const cal = Number(raw.calories) || 0;
+      if (isGramUnit && qty === 1 && cal > 5) {
+        // 1g of any food is at most ~9 cal (pure fat). >5 cal at 1g is almost
+        // certainly a corrupted row where the real portion was lost.
+        const refServing = Number(raw.serving_size_g) > 0 ? Number(raw.serving_size_g) : 100;
+        const calPerG = (Number(raw.calories_per_100g) || 0) / 100;
+        const impliedG = calPerG > 0 ? Math.round(cal / calPerG) : null;
+        // eslint-disable-next-line no-console
+        console.warn("[SavedMealDetail] Suspicious portion=1g row detected", {
+          meal_id: meal.id,
+          item_id: raw.id,
+          food_name: raw.food_name,
+          stored_calories: cal,
+          implied_real_grams: impliedG,
+          ref_serving_g: refServing,
+        });
+      }
+    });
+
     setItems(enriched);
     setLoading(false);
   };
