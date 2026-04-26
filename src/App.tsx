@@ -15,6 +15,7 @@ import AcceptInvite from "./pages/AcceptInvite";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
+import AdminRepairSavedMeals from "./pages/AdminRepairSavedMeals";
 import Training from "./pages/Training";
 import Nutrition from "./pages/Nutrition";
 import Analytics from "./pages/Analytics";
