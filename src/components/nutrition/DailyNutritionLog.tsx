@@ -442,20 +442,60 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       return;
     }
 
-    const mealItems = selectedLogs.map(l => ({
-      saved_meal_id: meal.id,
-      food_item_id: l.food_item_id || null,
-      food_name: l.custom_name || (l.food_item_id ? foodNames[l.food_item_id] : null) || "Food",
-      quantity: l.quantity_display || l.servings || 1,
-      serving_unit: l.quantity_unit || "serving",
-      serving_size_g: l.quantity_unit === "g" ? (l.quantity_display || null) : null,
-      calories: Math.round(l.calories),
-      protein: Math.round(l.protein),
-      carbs: Math.round(l.carbs),
-      fat: Math.round(l.fat),
-    }));
+    // Look up serving metadata for any linked food items so we can persist
+    // per-100g reference values (prevents the "1g" portion corruption bug).
+    const foodIds = Array.from(new Set(selectedLogs.map(l => l.food_item_id).filter(Boolean))) as string[];
+    let foodMetaMap: Record<string, { serving_size: number | null; serving_unit: string | null; calories: number | null; protein: number | null; carbs: number | null; fat: number | null }> = {};
+    if (foodIds.length > 0) {
+      const { data: foodMeta } = await supabase
+        .from("food_items")
+        .select("id, serving_size, serving_unit, calories, protein, carbs, fat")
+        .in("id", foodIds);
+      (foodMeta || []).forEach((f: any) => { foodMetaMap[f.id] = f; });
+    }
 
-    await supabase.from("saved_meal_items" as any).insert(mealItems);
+    const mealItems = selectedLogs.map(l => {
+      // Resolve true quantity + unit from the source log. Never silently
+      // collapse to 1 — if quantity_display is missing, fall back to servings
+      // and a "serving" unit so render-time math stays correct.
+      const hasGramQty = l.quantity_unit === "g" && l.quantity_display != null && l.quantity_display > 0;
+      const quantity = hasGramQty
+        ? Number(l.quantity_display)
+        : (l.quantity_display && l.quantity_display > 0 ? Number(l.quantity_display) : Number(l.servings) || 1);
+      const serving_unit = hasGramQty ? "g" : (l.quantity_unit || "serving");
+
+      // Per-100g reference data (so render code never has to back-calculate)
+      const meta = l.food_item_id ? foodMetaMap[l.food_item_id] : null;
+      const refServing = meta?.serving_size && meta.serving_size > 0 ? Number(meta.serving_size) : 100;
+      const cal100 = meta?.calories != null && refServing > 0 ? (Number(meta.calories) / refServing) * 100 : 0;
+      const pro100 = meta?.protein != null && refServing > 0 ? (Number(meta.protein) / refServing) * 100 : 0;
+      const carb100 = meta?.carbs != null && refServing > 0 ? (Number(meta.carbs) / refServing) * 100 : 0;
+      const fat100 = meta?.fat != null && refServing > 0 ? (Number(meta.fat) / refServing) * 100 : 0;
+
+      return {
+        saved_meal_id: meal.id,
+        food_item_id: l.food_item_id || null,
+        food_name: l.custom_name || (l.food_item_id ? foodNames[l.food_item_id] : null) || "Food",
+        quantity,
+        serving_unit,
+        serving_size_g: hasGramQty ? Number(l.quantity_display) : refServing,
+        calories: Math.round(l.calories),
+        protein: Math.round(l.protein),
+        carbs: Math.round(l.carbs),
+        fat: Math.round(l.fat),
+        calories_per_100g: cal100,
+        protein_per_100g: pro100,
+        carbs_per_100g: carb100,
+        fat_per_100g: fat100,
+      };
+    });
+
+    const { error: itemsErr } = await supabase.from("saved_meal_items" as any).insert(mealItems);
+    if (itemsErr) {
+      toast({ title: "Couldn't save meal items.", description: itemsErr.message });
+      setSavingMeal(false);
+      return;
+    }
     toast({ title: `"${saveMealName.trim()}" saved as meal!` });
     setSavingMeal(false);
     setShowSaveMealDialog(false);
