@@ -259,13 +259,13 @@ const AdminRepairSavedMeals = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="h-4 w-4 text-warning" />
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 Ambiguous — manual review ({ambiguousRows.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {ambiguousRows.map(r => (
-                <div key={r.id} className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+                <div key={r.id} className="rounded-lg border border-border bg-muted/30 p-3">
                   <p className="font-medium text-foreground">{r.food_name}</p>
                   <p className="text-xs text-muted-foreground">in {mealNames[r.meal_id] || r.meal_id}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
