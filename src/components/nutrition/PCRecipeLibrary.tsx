@@ -84,7 +84,7 @@ const PCRecipeLibrary = () => {
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-foreground">PC Recipes</h2>
         <Button size="sm" onClick={() => { setEditingRecipe(null); setShowEditor(true); }}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> <span className="hidden xs:inline">Create Recipe</span><span className="xs:hidden">New</span>
+          <Plus className="h-3.5 w-3.5 mr-1" /> <span className="hidden sm:inline">Create Recipe</span><span className="sm:hidden">New</span>
         </Button>
       </div>
 
