@@ -122,6 +122,7 @@ const AdminRepairSavedMeals = () => {
     if (role === "admin") {
       loadLatest();
       loadEmptyMeals();
+      loadSyntheticLogs();
     }
   }, [role]);
 
