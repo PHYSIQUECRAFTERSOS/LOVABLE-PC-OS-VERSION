@@ -412,8 +412,16 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
   const save = async () => {
     if (!user || !name.trim()) return;
+
+    // Guard #1: never persist a meal with zero items
+    if (items.length === 0) {
+      toast({ title: "Add at least one food before saving." });
+      return;
+    }
+
     setSaving(true);
 
+    // Step 1: insert parent meal
     const { data: meal, error } = await supabase
       .from("saved_meals")
       .insert({
@@ -430,30 +438,58 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
       .single();
 
     if (error || !meal) {
-      toast({ title: "Couldn't save meal." });
+      console.error("[CreateMealSheet] Parent meal insert failed", error);
+      toast({ title: "Couldn't save meal.", description: error?.message });
       setSaving(false);
       return;
     }
 
-    if (items.length > 0) {
-      const mealItems = items.map(item => ({
-        saved_meal_id: meal.id,
-        food_item_id: item.food_item_id || null,
-        food_name: item.food_name,
-        quantity: item.quantity,
-        serving_unit: item.serving_unit === "g" ? "g" : item.serving_label,
-        calories: Math.round(item.calories),
-        protein: Math.round(item.protein),
-        carbs: Math.round(item.carbs),
-        fat: Math.round(item.fat),
-        serving_size_g: item.serving_size_g,
-        calories_per_100g: item.calories_per_100g,
-        protein_per_100g: item.protein_per_100g,
-        carbs_per_100g: item.carbs_per_100g,
-        fat_per_100g: item.fat_per_100g,
-      }));
+    // Step 2: insert child items, with explicit error checking
+    const mealItems = items.map(item => ({
+      saved_meal_id: meal.id,
+      food_item_id: item.food_item_id || null,
+      food_name: item.food_name,
+      quantity: item.quantity,
+      serving_unit: item.serving_unit === "g" ? "g" : item.serving_label,
+      calories: Math.round(item.calories),
+      protein: Math.round(item.protein),
+      carbs: Math.round(item.carbs),
+      fat: Math.round(item.fat),
+      serving_size_g: item.serving_size_g,
+      calories_per_100g: item.calories_per_100g,
+      protein_per_100g: item.protein_per_100g,
+      carbs_per_100g: item.carbs_per_100g,
+      fat_per_100g: item.fat_per_100g,
+    }));
 
-      await supabase.from("saved_meal_items" as any).insert(mealItems);
+    const { error: itemsError } = await supabase
+      .from("saved_meal_items" as any)
+      .insert(mealItems);
+
+    if (itemsError) {
+      // Rollback: delete the orphan parent so we never leave an empty meal
+      console.error("[CreateMealSheet] Child items insert failed — rolling back parent", itemsError);
+      await supabase.from("saved_meals").delete().eq("id", meal.id);
+      toast({
+        title: "Couldn't save meal items.",
+        description: itemsError.message,
+      });
+      setSaving(false);
+      return;
+    }
+
+    // Step 3: verify at least one child row landed (defense against partial RLS or trigger rejections)
+    const { count: childCount } = await supabase
+      .from("saved_meal_items" as any)
+      .select("id", { count: "exact", head: true })
+      .eq("saved_meal_id", meal.id);
+
+    if (!childCount || childCount === 0) {
+      console.error("[CreateMealSheet] Post-insert verification: 0 child rows persisted — rolling back");
+      await supabase.from("saved_meals").delete().eq("id", meal.id);
+      toast({ title: "Couldn't save meal items.", description: "No items persisted." });
+      setSaving(false);
+      return;
     }
 
     toast({ title: "Meal saved!" });
