@@ -542,8 +542,8 @@ const StandaloneFormBuilder = () => {
                           </Button>
                         </div>
 
-                        <div className="flex-1 space-y-3">
-                          <div className="flex gap-2">
+                        <div className="flex-1 min-w-0 space-y-3">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Input
                               value={q.question_text}
                               onChange={(e) => updateQuestion(q.id, "question_text", e.target.value)}
@@ -551,7 +551,7 @@ const StandaloneFormBuilder = () => {
                               className="flex-1"
                             />
                             <Select value={q.question_type} onValueChange={(v) => updateQuestion(q.id, "question_type", v)}>
-                              <SelectTrigger className="w-[170px]">
+                              <SelectTrigger className="w-full sm:w-[170px]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
