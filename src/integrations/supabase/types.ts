@@ -4642,6 +4642,8 @@ export type Database = {
           servings: number
           sodium: number | null
           soluble_fiber: number | null
+          source: string | null
+          source_saved_meal_id: string | null
           sugar: number | null
           trans_fat: number | null
           tz_corrected: boolean | null
@@ -4699,6 +4701,8 @@ export type Database = {
           servings?: number
           sodium?: number | null
           soluble_fiber?: number | null
+          source?: string | null
+          source_saved_meal_id?: string | null
           sugar?: number | null
           trans_fat?: number | null
           tz_corrected?: boolean | null
@@ -4756,6 +4760,8 @@ export type Database = {
           servings?: number
           sodium?: number | null
           soluble_fiber?: number | null
+          source?: string | null
+          source_saved_meal_id?: string | null
           sugar?: number | null
           trans_fat?: number | null
           tz_corrected?: boolean | null
@@ -7570,6 +7576,11 @@ export type Database = {
       }
     }
     Functions: {
+      admin_delete_empty_saved_meal: {
+        Args: { p_meal_id: string }
+        Returns: Json
+      }
+      admin_fan_out_synthetic_log: { Args: { p_log_id: string }; Returns: Json }
       admin_repair_workout_labels: { Args: never; Returns: Json }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -7612,6 +7623,38 @@ export type Database = {
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_empty_saved_meals: {
+        Args: never
+        Returns: {
+          calories: number
+          carbs: number
+          client_id: string
+          client_name: string
+          created_at: string
+          fat: number
+          id: string
+          meal_type: string
+          name: string
+          protein: number
+        }[]
+      }
+      list_synthetic_saved_meal_logs: {
+        Args: never
+        Returns: {
+          calories: number
+          carbs: number
+          client_id: string
+          client_name: string
+          fat: number
+          log_id: string
+          logged_at: string
+          meal_name: string
+          meal_type: string
+          protein: number
+          saved_meal_id: string
+          saved_meal_item_count: number
+        }[]
       }
       log_food_to_history: {
         Args: { p_food_id: string; p_user_id: string }
