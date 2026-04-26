@@ -89,23 +89,25 @@ const ExerciseLibrary = () => {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1">
+      {/* Filters — search full-width on mobile, filters split 50/50 below */}
+      <div className="space-y-2 sm:space-y-0 sm:flex sm:flex-row sm:gap-2">
+        <div className="relative sm:flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Search exercises..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-9 text-sm" />
+          <Input placeholder="Search exercises..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-8 h-10 sm:h-9 text-sm" />
         </div>
-        <Select value={muscleFilter} onValueChange={setMuscleFilter}>
-          <SelectTrigger className="w-40 h-9 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent>{MUSCLE_GROUPS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-        </Select>
-        <Select value={equipFilter} onValueChange={setEquipFilter}>
-          <SelectTrigger className="w-40 h-9 text-sm"><SelectValue placeholder="Equipment" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Equipment</SelectItem>
-            {EQUIPMENT_OPTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-2">
+          <Select value={muscleFilter} onValueChange={setMuscleFilter}>
+            <SelectTrigger className="w-full sm:w-40 h-10 sm:h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>{MUSCLE_GROUPS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={equipFilter} onValueChange={setEquipFilter}>
+            <SelectTrigger className="w-full sm:w-40 h-10 sm:h-9 text-sm"><SelectValue placeholder="Equipment" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All Equipment</SelectItem>
+              {EQUIPMENT_OPTIONS.map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Grid */}

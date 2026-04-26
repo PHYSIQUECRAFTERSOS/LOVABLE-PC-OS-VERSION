@@ -267,13 +267,13 @@ const CoachNutritionGuides = () => {
                   return (
                     <Card key={def.section_key} className="border-border/50">
                       <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-sm">{def.title}</CardTitle>
-                          <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <CardTitle className="text-sm leading-snug">{def.title}</CardTitle>
+                          <div className="flex items-center justify-between gap-3 sm:justify-end">
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 gap-1 text-xs"
+                              className="h-8 gap-1 text-xs px-2"
                               onClick={() => togglePreview(def.section_key)}
                             >
                               <Eye className="h-3 w-3" />
