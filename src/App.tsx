@@ -15,6 +15,7 @@ import AcceptInvite from "./pages/AcceptInvite";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
+import AdminRepairSavedMeals from "./pages/AdminRepairSavedMeals";
 import Training from "./pages/Training";
 import Nutrition from "./pages/Nutrition";
 import Analytics from "./pages/Analytics";
@@ -103,6 +104,7 @@ const App = () => (
             <Route path="/libraries" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><MasterLibraries /></ProtectedRoute>} />
             <Route path="/client-tracker" element={<ProtectedRoute allowedRoles={["coach", "admin"]}><ClientTracker /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><Admin /></ProtectedRoute>} />
+            <Route path="/admin/repair-saved-meals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminRepairSavedMeals /></ProtectedRoute>} />
             <Route path="/body-stats" element={<ProtectedRoute><BodyStats /></ProtectedRoute>} />
             <Route path="/subscribe" element={<ProtectedRoute><Subscribe /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
