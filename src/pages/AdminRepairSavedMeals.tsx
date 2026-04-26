@@ -281,6 +281,53 @@ const AdminRepairSavedMeals = () => {
           </CardContent>
         </Card>
 
+        {/* Saved-Meal Single-Row Logs — manual fan-out (no auto-conversion) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Split className="h-4 w-4 text-primary" />
+              Saved-Meal Single-Row Logs ({syntheticLogs.length})
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Legacy tracker rows that logged a whole saved meal as one row instead of fanning out into individual foods.
+              Click "Fan Out" to replace each one with its individual food rows in a single transaction.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingSynthetic ? (
+              <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin mr-2" />Loading…</p>
+            ) : syntheticLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No legacy single-row meal logs found. ✅</p>
+            ) : (
+              <div className="space-y-2">
+                {syntheticLogs.map((l) => (
+                  <div key={l.log_id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{l.meal_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {l.client_name} · {l.meal_type} · {new Date(l.logged_at).toLocaleDateString()} · {Math.round(l.calories || 0)} cal
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Source meal has {l.saved_meal_item_count} item{l.saved_meal_item_count === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleFanOut(l.log_id, l.meal_name, l.saved_meal_item_count)}
+                      disabled={fanningOutId === l.log_id || l.saved_meal_item_count === 0}
+                      className="gap-1.5 shrink-0"
+                    >
+                      {fanningOutId === l.log_id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Split className="h-3 w-3" />}
+                      Fan Out
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Repairs section */}
         <Card>
           <CardHeader>
