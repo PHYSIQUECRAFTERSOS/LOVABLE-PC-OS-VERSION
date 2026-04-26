@@ -87,7 +87,10 @@ const AdminRepairSavedMeals = () => {
         await loadRun((data as any).run_id);
       }
     };
-    if (role === "admin") loadLatest();
+    if (role === "admin") {
+      loadLatest();
+      loadEmptyMeals();
+    }
   }, [role]);
 
   const loadRun = async (runId: string) => {
