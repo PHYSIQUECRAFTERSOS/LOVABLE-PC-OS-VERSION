@@ -5975,6 +5975,99 @@ export type Database = {
           },
         ]
       }
+      saved_meal_repair_audit: {
+        Row: {
+          action: string
+          applied_at: string | null
+          back_calc_agreement_pct: number | null
+          food_id: string | null
+          food_name: string | null
+          id: string
+          meal_id: string
+          meal_item_id: string
+          mode: string
+          notes: string | null
+          original_amount: number | null
+          original_calories: number | null
+          original_calories_per_100g: number | null
+          original_carbs_g: number | null
+          original_carbs_per_100g: number | null
+          original_fat_g: number | null
+          original_fat_per_100g: number | null
+          original_protein_g: number | null
+          original_protein_per_100g: number | null
+          original_serving_size_g: number | null
+          original_unit: string | null
+          proposed_amount: number | null
+          proposed_unit: string | null
+          run_at: string
+          run_by: string
+          run_id: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          applied_at?: string | null
+          back_calc_agreement_pct?: number | null
+          food_id?: string | null
+          food_name?: string | null
+          id?: string
+          meal_id: string
+          meal_item_id: string
+          mode: string
+          notes?: string | null
+          original_amount?: number | null
+          original_calories?: number | null
+          original_calories_per_100g?: number | null
+          original_carbs_g?: number | null
+          original_carbs_per_100g?: number | null
+          original_fat_g?: number | null
+          original_fat_per_100g?: number | null
+          original_protein_g?: number | null
+          original_protein_per_100g?: number | null
+          original_serving_size_g?: number | null
+          original_unit?: string | null
+          proposed_amount?: number | null
+          proposed_unit?: string | null
+          run_at?: string
+          run_by: string
+          run_id: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          applied_at?: string | null
+          back_calc_agreement_pct?: number | null
+          food_id?: string | null
+          food_name?: string | null
+          id?: string
+          meal_id?: string
+          meal_item_id?: string
+          mode?: string
+          notes?: string | null
+          original_amount?: number | null
+          original_calories?: number | null
+          original_calories_per_100g?: number | null
+          original_carbs_g?: number | null
+          original_carbs_per_100g?: number | null
+          original_fat_g?: number | null
+          original_fat_per_100g?: number | null
+          original_protein_g?: number | null
+          original_protein_per_100g?: number | null
+          original_serving_size_g?: number | null
+          original_unit?: string | null
+          proposed_amount?: number | null
+          proposed_unit?: string | null
+          run_at?: string
+          run_by?: string
+          run_id?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       saved_meals: {
         Row: {
           calories: number
@@ -7545,6 +7638,8 @@ export type Database = {
         Args: { _user_id: string }
         Returns: undefined
       }
+      repair_saved_meals_commit: { Args: { p_run_id: string }; Returns: Json }
+      repair_saved_meals_dry_run: { Args: never; Returns: Json }
       search_foods: {
         Args: { result_limit?: number; search_query: string }
         Returns: {
