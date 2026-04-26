@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Wrench, Trash2, CheckCircle2, Loader2, PlayCircle } from "lucide-react";
+import { AlertTriangle, Wrench, Trash2, CheckCircle2, Loader2, PlayCircle, FileX } from "lucide-react";
 
 interface AuditRow {
   id: string;
@@ -46,6 +46,33 @@ const AdminRepairSavedMeals = () => {
   const [summary, setSummary] = useState<DryRunSummary | null>(null);
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [mealNames, setMealNames] = useState<Record<string, string>>({});
+  const [emptyMeals, setEmptyMeals] = useState<any[]>([]);
+  const [loadingEmpty, setLoadingEmpty] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadEmptyMeals = async () => {
+    setLoadingEmpty(true);
+    const { data, error } = await supabase.rpc("list_empty_saved_meals" as any);
+    if (error) {
+      toast({ title: "Failed to load empty meals", description: error.message, variant: "destructive" });
+    } else {
+      setEmptyMeals((data || []) as any[]);
+    }
+    setLoadingEmpty(false);
+  };
+
+  const handleDeleteEmpty = async (mealId: string, name: string) => {
+    if (!confirm(`Delete empty meal "${name}"? This cannot be undone.`)) return;
+    setDeletingId(mealId);
+    const { error } = await supabase.rpc("admin_delete_empty_saved_meal" as any, { p_meal_id: mealId });
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Empty meal deleted", description: name });
+      setEmptyMeals(prev => prev.filter(m => m.id !== mealId));
+    }
+    setDeletingId(null);
+  };
 
   useEffect(() => {
     // Auto-load latest dry-run if one exists
@@ -60,7 +87,10 @@ const AdminRepairSavedMeals = () => {
         await loadRun((data as any).run_id);
       }
     };
-    if (role === "admin") loadLatest();
+    if (role === "admin") {
+      loadLatest();
+      loadEmptyMeals();
+    }
   }, [role]);
 
   const loadRun = async (runId: string) => {
@@ -170,6 +200,49 @@ const AdminRepairSavedMeals = () => {
                 <Badge variant="outline">Deletions: {summary.deletions_proposed}</Badge>
                 <Badge variant="secondary">Ambiguous: {summary.ambiguous}</Badge>
                 <Badge variant="secondary">Already correct: {summary.already_correct}</Badge>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Empty Saved Meals — manual cleanup (no auto-delete) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileX className="h-4 w-4 text-destructive" />
+              Empty Saved Meals ({emptyMeals.length})
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Parent meal rows with zero items. Likely created by a buggy save flow before the Phase 2 fix. Review and delete manually.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingEmpty ? (
+              <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin mr-2" />Loading…</p>
+            ) : emptyMeals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No empty saved meals found. ✅</p>
+            ) : (
+              <div className="space-y-2">
+                {emptyMeals.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{m.name || "(unnamed)"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.client_name} · {m.meal_type || "—"} · header: {Math.round(m.calories || 0)} cal · created {new Date(m.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteEmpty(m.id, m.name)}
+                      disabled={deletingId === m.id}
+                      className="gap-1.5 shrink-0"
+                    >
+                      {deletingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      Delete
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

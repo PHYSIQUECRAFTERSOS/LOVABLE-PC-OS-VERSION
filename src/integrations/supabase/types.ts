@@ -7570,6 +7570,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_delete_empty_saved_meal: {
+        Args: { p_meal_id: string }
+        Returns: Json
+      }
       admin_repair_workout_labels: { Args: never; Returns: Json }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -7612,6 +7616,21 @@ export type Database = {
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_empty_saved_meals: {
+        Args: never
+        Returns: {
+          calories: number
+          carbs: number
+          client_id: string
+          client_name: string
+          created_at: string
+          fat: number
+          id: string
+          meal_type: string
+          name: string
+          protein: number
+        }[]
       }
       log_food_to_history: {
         Args: { p_food_id: string; p_user_id: string }
