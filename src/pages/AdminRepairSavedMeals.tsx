@@ -205,6 +205,49 @@ const AdminRepairSavedMeals = () => {
           </CardContent>
         </Card>
 
+        {/* Empty Saved Meals — manual cleanup (no auto-delete) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileX className="h-4 w-4 text-destructive" />
+              Empty Saved Meals ({emptyMeals.length})
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Parent meal rows with zero items. Likely created by a buggy save flow before the Phase 2 fix. Review and delete manually.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loadingEmpty ? (
+              <p className="text-sm text-muted-foreground"><Loader2 className="inline h-4 w-4 animate-spin mr-2" />Loading…</p>
+            ) : emptyMeals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No empty saved meals found. ✅</p>
+            ) : (
+              <div className="space-y-2">
+                {emptyMeals.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{m.name || "(unnamed)"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.client_name} · {m.meal_type || "—"} · header: {Math.round(m.calories || 0)} cal · created {new Date(m.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteEmpty(m.id, m.name)}
+                      disabled={deletingId === m.id}
+                      className="gap-1.5 shrink-0"
+                    >
+                      {deletingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      Delete
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Repairs section */}
         <Card>
           <CardHeader>
