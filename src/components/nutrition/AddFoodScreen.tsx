@@ -644,14 +644,20 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
           fat: Math.round(item.fat || 0),
           logged_at: effectiveDate,
           tz_corrected: true,
-        };
+          // Traceability: mark every fanned-out row with its source saved meal
+          source: "saved_meal",
+          source_saved_meal_id: meal.id,
+        } as any;
       });
       const { error } = await supabase.from("nutrition_logs").insert(entries);
       if (error) {
         toast({ title: "Couldn't log meal." });
       } else {
-        const t = toast({ title: `${meal.name} added to ${mealLabel}` });
-        setTimeout(() => t.dismiss(), 1000);
+        const count = entries.length;
+        const t = toast({
+          title: `Added ${count} ${count === 1 ? "item" : "items"} from ${meal.name} to ${mealLabel}`,
+        });
+        setTimeout(() => t.dismiss(), 1500);
         onLogged();
       }
     } else {
