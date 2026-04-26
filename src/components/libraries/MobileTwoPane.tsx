@@ -56,7 +56,7 @@ const MobileTwoPane: React.FC<MobileTwoPaneProps> = ({
   if (isMobile) {
     return (
       <>
-        <div className={cn("flex flex-col w-full", className)}>
+        <div className={cn("flex flex-col w-full min-w-0 overflow-x-hidden", className)}>
           {list}
         </div>
         <Sheet open={selected} onOpenChange={(open) => { if (!open) onClose(); }}>
