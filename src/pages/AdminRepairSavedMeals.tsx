@@ -46,6 +46,33 @@ const AdminRepairSavedMeals = () => {
   const [summary, setSummary] = useState<DryRunSummary | null>(null);
   const [rows, setRows] = useState<AuditRow[]>([]);
   const [mealNames, setMealNames] = useState<Record<string, string>>({});
+  const [emptyMeals, setEmptyMeals] = useState<any[]>([]);
+  const [loadingEmpty, setLoadingEmpty] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadEmptyMeals = async () => {
+    setLoadingEmpty(true);
+    const { data, error } = await supabase.rpc("list_empty_saved_meals" as any);
+    if (error) {
+      toast({ title: "Failed to load empty meals", description: error.message, variant: "destructive" });
+    } else {
+      setEmptyMeals((data || []) as any[]);
+    }
+    setLoadingEmpty(false);
+  };
+
+  const handleDeleteEmpty = async (mealId: string, name: string) => {
+    if (!confirm(`Delete empty meal "${name}"? This cannot be undone.`)) return;
+    setDeletingId(mealId);
+    const { error } = await supabase.rpc("admin_delete_empty_saved_meal" as any, { p_meal_id: mealId });
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Empty meal deleted", description: name });
+      setEmptyMeals(prev => prev.filter(m => m.id !== mealId));
+    }
+    setDeletingId(null);
+  };
 
   useEffect(() => {
     // Auto-load latest dry-run if one exists
