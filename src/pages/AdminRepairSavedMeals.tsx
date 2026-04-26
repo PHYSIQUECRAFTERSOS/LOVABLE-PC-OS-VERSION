@@ -49,6 +49,9 @@ const AdminRepairSavedMeals = () => {
   const [emptyMeals, setEmptyMeals] = useState<any[]>([]);
   const [loadingEmpty, setLoadingEmpty] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [syntheticLogs, setSyntheticLogs] = useState<any[]>([]);
+  const [loadingSynthetic, setLoadingSynthetic] = useState(false);
+  const [fanningOutId, setFanningOutId] = useState<string | null>(null);
 
   const loadEmptyMeals = async () => {
     setLoadingEmpty(true);
@@ -59,6 +62,17 @@ const AdminRepairSavedMeals = () => {
       setEmptyMeals((data || []) as any[]);
     }
     setLoadingEmpty(false);
+  };
+
+  const loadSyntheticLogs = async () => {
+    setLoadingSynthetic(true);
+    const { data, error } = await supabase.rpc("list_synthetic_saved_meal_logs" as any);
+    if (error) {
+      toast({ title: "Failed to load synthetic logs", description: error.message, variant: "destructive" });
+    } else {
+      setSyntheticLogs((data || []) as any[]);
+    }
+    setLoadingSynthetic(false);
   };
 
   const handleDeleteEmpty = async (mealId: string, name: string) => {
@@ -72,6 +86,24 @@ const AdminRepairSavedMeals = () => {
       setEmptyMeals(prev => prev.filter(m => m.id !== mealId));
     }
     setDeletingId(null);
+  };
+
+  const handleFanOut = async (logId: string, mealName: string, itemCount: number) => {
+    if (itemCount === 0) {
+      toast({ title: "Cannot fan out", description: "Source saved meal has no items.", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`Replace this single row with ${itemCount} individual food rows from "${mealName}"? Original will be deleted.`)) return;
+    setFanningOutId(logId);
+    const { data, error } = await supabase.rpc("admin_fan_out_synthetic_log" as any, { p_log_id: logId });
+    if (error) {
+      toast({ title: "Fan-out failed", description: error.message, variant: "destructive" });
+    } else {
+      const result = data as any;
+      toast({ title: "Fan-out complete", description: `Inserted ${result.rows_inserted} rows; deleted original.` });
+      setSyntheticLogs(prev => prev.filter(l => l.log_id !== logId));
+    }
+    setFanningOutId(null);
   };
 
   useEffect(() => {
