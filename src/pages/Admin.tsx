@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Database, Loader2 } from "lucide-react";
+import { Database, Loader2, Wrench } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Admin = () => {
   const { role, loading } = useAuth();
