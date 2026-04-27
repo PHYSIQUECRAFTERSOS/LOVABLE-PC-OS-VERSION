@@ -307,6 +307,24 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       const dayExercises = day.exercises || [];
       console.log("Inserting exercises for workout:", (workout as any).id, "count:", dayExercises.length);
 
+      // --- Rest redistribution: build group lookups before inserting ---
+      // Group rest comes from `superset_groups[].rest_seconds_between_rounds` (new schema).
+      // Members of a group: first/middle get 0s rest, the LAST member carries the group rest.
+      // Non-grouped exercises: trust the PDF (`rest_seconds ?? 0`). Never invent 60.
+      const groupRestById = new Map<string, number>();
+      const supersetGroups: any[] = (day as any).superset_groups || [];
+      for (const g of supersetGroups) {
+        if (g?.grouping_id) {
+          groupRestById.set(String(g.grouping_id), Number(g.rest_seconds_between_rounds ?? 0));
+        }
+      }
+      const lastIndexByGroup = new Map<string, number>();
+      dayExercises.forEach((ex: any, idx: number) => {
+        if (ex?.grouping_id) lastIndexByGroup.set(String(ex.grouping_id), idx);
+      });
+
+      const debugRest = import.meta.env.VITE_DEBUG_AI_IMPORT === "true";
+
       for (let ei = 0; ei < dayExercises.length; ei++) {
         const ex = dayExercises[ei];
         const match = matchResults?.exercises?.[ex.name];
@@ -327,13 +345,40 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         }
 
         if (exerciseId) {
+          // Resolve final rest_seconds per redistribution rules
+          const groupId = ex?.grouping_id ? String(ex.grouping_id) : null;
+          let finalRest: number;
+          if (groupId && groupRestById.has(groupId)) {
+            const isLast = lastIndexByGroup.get(groupId) === ei;
+            finalRest = isLast ? (groupRestById.get(groupId) ?? 0) : 0;
+          } else if (groupId && !groupRestById.has(groupId)) {
+            // Defensive: model gave us a grouping_id but no superset_groups entry.
+            // Fall back to 0 for all members; coach can edit. Log for tuning.
+            console.warn("[ai-import] grouping_id without superset_groups entry:", groupId, ex?.name);
+            finalRest = 0;
+          } else {
+            // Non-grouped: trust the PDF. null/undefined → 0. Never invent 60.
+            finalRest = typeof ex.rest_seconds === "number" ? ex.rest_seconds : 0;
+          }
+
+          if (debugRest) {
+            console.log("[ai-import][rest]", JSON.stringify({
+              name: ex.name,
+              raw_rest: ex.rest_seconds,
+              grouping_id: groupId,
+              group_rest: groupId ? groupRestById.get(groupId) : null,
+              is_last_in_group: groupId ? lastIndexByGroup.get(groupId) === ei : null,
+              final_rest: finalRest,
+            }));
+          }
+
           const { data: insertData, error: insertError } = await supabase.from("workout_exercises").insert({
             workout_id: (workout as any).id,
             exercise_id: exerciseId,
             exercise_order: ei + 1,
             sets: ex.sets || 3,
             reps: ex.reps || "10",
-            rest_seconds: ex.rest_seconds || null,
+            rest_seconds: finalRest,
             tempo: ex.tempo || null,
             rir: ex.rir ? parseInt(ex.rir, 10) : null,
             rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
