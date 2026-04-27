@@ -328,6 +328,31 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
       );
     }
 
+    // Server-side guard: even if the AI hallucinates a 60s rest on a superset member,
+    // force null. The client-side redistribution then resolves it to 0 for first/middle
+    // members and the group's rest_seconds_between_rounds for the last member.
+    if (document_type === "workout") {
+      const days = extracted?.days || extracted?.workout_days || [];
+      let normalizedCount = 0;
+      for (const day of days) {
+        const groupIds = new Set<string>(
+          ((day?.superset_groups || []) as any[])
+            .map((g: any) => (g?.grouping_id ? String(g.grouping_id) : ""))
+            .filter(Boolean),
+        );
+        for (const ex of day?.exercises || []) {
+          const gid = ex?.grouping_id ? String(ex.grouping_id) : "";
+          if (gid && groupIds.has(gid) && ex.rest_seconds != null) {
+            ex.rest_seconds = null;
+            normalizedCount++;
+          }
+        }
+      }
+      if (normalizedCount > 0) {
+        console.log(`[ai-import] normalized ${normalizedCount} superset-member rest_seconds → null`);
+      }
+    }
+
     // Fuzzy match against catalog
     let matchResults: any = null;
     if (document_type === "workout") {
