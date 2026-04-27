@@ -1003,6 +1003,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   <Button variant="ghost" size="sm" onClick={() => duplicateDay(day.id)}>
                     <Copy className="h-3 w-3 mr-1" /> Duplicate Day
                   </Button>
+                  {!clientId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:text-primary"
+                      onClick={() => {
+                        setCopyDayTarget(day);
+                        setCopyDayDialogOpen(true);
+                      }}
+                    >
+                      <Send className="h-3 w-3 mr-1" /> Copy to Client
+                    </Button>
+                  )}
                   {days.length > 1 && (
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeDay(day.id)}>
                       <Trash2 className="h-3 w-3 mr-1" /> Remove
