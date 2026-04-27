@@ -410,13 +410,32 @@ Extract workout program data. Return JSON in this format:
           "grouping_type": "superset | circuit | null",
           "grouping_id": "string or null (same ID for grouped exercises)"
         }
+      ],
+      "superset_groups": [
+        {
+          "grouping_id": "string (matches grouping_id on member exercises)",
+          "rest_seconds_between_rounds": number or null
+        }
       ]
     }
   ]
-}`;
+}
+
+CRITICAL REST RULES:
+1. If the PDF does NOT specify a rest value for an exercise, return rest_seconds: null. Do NOT invent 60 or any default. Mobility, warmup, and stretching rows almost always have no rest specified — return null for those.
+2. Convert rest values to seconds: "2 min" = 120, "90 sec" = 90, "15 sec" = 15, "1 min 30 sec" = 90.
+3. "Rest X between sets" applies to that single exercise. Put it in that exercise's rest_seconds.
+
+CRITICAL SUPERSET / CIRCUIT RULES:
+1. When you see a header like "Superset of N sets", "Giant set", or "Circuit", every exercise listed under that header until the next "Rest for X" line or the next non-grouped exercise belongs to the same group.
+2. Assign every exercise in that group the SAME grouping_id (use short strings: "g1", "g2", "g3"...). Set grouping_type to "superset" or "circuit" accordingly.
+3. The "Rest for X sec" / "Rest X min" line that appears AFTER the superset block (often followed by "Repeat new set") belongs to the GROUP, not to any individual exercise. Add an entry to superset_groups with that grouping_id and put the rest value in rest_seconds_between_rounds.
+4. For exercises inside a superset, set their individual rest_seconds to null. The group rest is the only rest that applies (the app will redistribute it to the last exercise in the group at write time).
+5. Do NOT copy the group rest value onto every member exercise.`;
   }
 
   if (docType === "meal") {
+
     return `${base}
 
 Extract meal plan data. Return JSON in this format:
