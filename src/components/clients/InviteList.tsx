@@ -173,6 +173,15 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
+      // Also remove the pending coach_clients row (active rows are protected by status filter)
+      if (deleteTarget.created_client_id) {
+        await supabase
+          .from("coach_clients")
+          .delete()
+          .eq("client_id", deleteTarget.created_client_id)
+          .eq("status", "pending");
+      }
+
       const { error } = await supabase
         .from("client_invites")
         .delete()
