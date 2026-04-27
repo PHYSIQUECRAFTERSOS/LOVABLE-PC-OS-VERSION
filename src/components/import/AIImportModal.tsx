@@ -160,18 +160,19 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           uploadName = file.name.replace(/\.pdf$/i, ".txt");
         }
 
-        const storagePath = `${user.id}/${newJobId}/${uploadName}`;
+        const safeName = sanitizeStorageKey(uploadName);
+        const storagePath = `${user.id}/${newJobId}/${safeName}`;
         const { data: uploadData, error: uploadErr } = await supabase.storage
           .from("ai-import-uploads")
           .upload(storagePath, uploadBlob, { upsert: true });
 
         if (uploadErr) {
-          console.error("Storage upload error:", uploadErr);
+          console.error("Storage upload error:", uploadErr, "path:", storagePath);
           await supabase
             .from("ai_import_jobs")
-            .update({ status: "failed", error_message: "File upload failed" } as any)
+            .update({ status: "failed", error_message: `File upload failed: ${uploadErr.message}` } as any)
             .eq("id", newJobId);
-          throw new Error("File upload failed - check your connection and try again.");
+          throw new Error(`File upload failed: ${uploadErr.message}`);
         }
         console.log("Uploaded to path:", uploadData.path);
         filePaths.push(`ai-import-uploads/${uploadData.path}`);
