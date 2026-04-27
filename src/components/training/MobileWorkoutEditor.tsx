@@ -284,6 +284,32 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
     setExercises(newExs.map((e, i) => ({ ...e, exerciseOrder: i + 1 })));
   };
 
+  // ── Drag-and-drop ──
+  // PointerSensor handles desktop; TouchSensor needs a long-press to
+  // not break vertical scroll on mobile.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setExercises((prev) => {
+      const oldIdx = prev.findIndex((e) => e.dndId === active.id);
+      const newIdx = prev.findIndex((e) => e.dndId === over.id);
+      if (oldIdx < 0 || newIdx < 0) return prev;
+      return arrayMove(prev, oldIdx, newIdx).map((e, i) => ({ ...e, exerciseOrder: i + 1 }));
+    });
+  };
+
+  // Reset all rest timers to 0 (clean up legacy AI imports)
+  const resetAllRests = () => {
+    setExercises(prev => prev.map(e => ({ ...e, restSeconds: 0 })));
+    toast({ title: "Rest timers reset", description: "All exercises set to 0s rest." });
+  };
+
   const updateExercise = (idx: number, field: keyof WorkoutExercise, value: any) => {
     const newExs = [...exercises];
     (newExs[idx] as any)[field] = value;
