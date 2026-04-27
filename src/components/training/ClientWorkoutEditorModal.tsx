@@ -109,6 +109,25 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   const [selectionMode, setSelectionMode] = useState(false);
   const [showCustomExerciseModal, setShowCustomExerciseModal] = useState(false);
 
+  // DnD sensors: pointer for desktop, touch (200ms long-press) for mobile,
+  // keyboard for accessibility.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setExercises((prev) => {
+      const oldIdx = prev.findIndex((e) => e.dndId === active.id);
+      const newIdx = prev.findIndex((e) => e.dndId === over.id);
+      if (oldIdx < 0 || newIdx < 0) return prev;
+      return arrayMove(prev, oldIdx, newIdx).map((e, i) => ({ ...e, exerciseOrder: i + 1 }));
+    });
+  };
+
   const loadLibrary = useCallback(async () => {
     setLibraryLoading(true);
     const { data } = await supabase.from("exercises")
