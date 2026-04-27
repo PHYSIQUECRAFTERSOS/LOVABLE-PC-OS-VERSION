@@ -702,7 +702,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       <div className="hidden md:block w-48 shrink-0 space-y-4">
         <Card>
           <CardHeader className="pb-2 pt-4 px-3">
-            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">
+            <CardTitle className="text-xs md:text-sm uppercase tracking-wider text-muted-foreground">
               Completed in {format(currentMonth, "MMMM")}
             </CardTitle>
           </CardHeader>
@@ -711,22 +711,22 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
               <div key={key} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`h-2 w-2 rounded-full ${EVENT_DOT[key]}`} />
-                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span className="text-xs md:text-sm md:font-medium text-muted-foreground">{label}</span>
                 </div>
-                <span className="text-xs font-semibold">{completedCounts[key] || 0}</span>
+                <span className="text-xs md:text-sm font-semibold">{completedCounts[key] || 0}</span>
               </div>
             ))}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2 pt-4 px-3">
-            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Legend</CardTitle>
+            <CardTitle className="text-xs md:text-sm uppercase tracking-wider text-muted-foreground">Legend</CardTitle>
           </CardHeader>
           <CardContent className="px-3 pb-3 space-y-1.5">
             {EVENT_TYPES.map(t => (
               <div key={t.value} className="flex items-center gap-2">
                 <div className={`h-2.5 w-2.5 rounded-full ${t.color}`} />
-                <span className="text-[10px] text-muted-foreground">{t.label}</span>
+                <span className="text-[10px] md:text-xs md:font-medium text-muted-foreground">{t.label}</span>
               </div>
             ))}
           </CardContent>
@@ -753,7 +753,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
         <div className="grid grid-cols-7 gap-px">
           {weekDays.map(d => (
-            <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1.5">{d}</div>
+            <div key={d} className="text-center text-xs md:text-sm font-medium md:font-semibold text-muted-foreground py-1.5 md:py-2">{d}</div>
           ))}
         </div>
 
@@ -766,8 +766,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             return (
               <div key={day.toISOString()} onClick={() => handleDayClick(day)}
                 onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
-                className={`min-h-[90px] md:min-h-[110px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50" : ""}`}>
-                <div className={`text-xs font-medium mb-0.5 w-5 h-5 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
+                className={`min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""}`}>
+                <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
                   {format(day, "d")}
                 </div>
                 <div className="space-y-0.5">
@@ -789,9 +789,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                         if (idx > 0) {
                           const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
                           if (wEntry.weight < prevWeight) {
-                            trendArrow = <TrendingDown className="h-2.5 w-2.5 text-green-400 shrink-0" />;
+                            trendArrow = <TrendingDown className="h-2.5 w-2.5 md:h-3 md:w-3 text-green-400 shrink-0" />;
                           } else if (wEntry.weight > prevWeight) {
-                            trendArrow = <TrendingUp className="h-2.5 w-2.5 text-red-400 shrink-0" />;
+                            trendArrow = <TrendingUp className="h-2.5 w-2.5 md:h-3 md:w-3 text-red-400 shrink-0" />;
                           }
                         }
                       } else {
@@ -812,13 +812,13 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                       }}
                       className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                       {item.is_completed ? (
-                        <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                          <Check className="h-1.5 w-1.5 text-white" />
+                        <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
+                          <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-white" />
                         </div>
                       ) : (
-                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotColor} opacity-40`} />
+                        <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
                       )}
-                      <span className="text-[9px] truncate leading-tight">{displayLabel}</span>
+                      <span className="text-[9px] md:text-xs md:font-medium truncate leading-tight">{displayLabel}</span>
                       {trendArrow}
                     </button>
                     );
@@ -826,7 +826,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                   {dayItems.length > 3 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
-                      className="w-full text-left text-[9px] text-primary font-medium pl-3 hover:underline"
+                      className="w-full text-left text-[9px] md:text-xs text-primary font-medium md:font-semibold pl-3 hover:underline"
                     >
                       +{dayItems.length - 3} more
                     </button>
