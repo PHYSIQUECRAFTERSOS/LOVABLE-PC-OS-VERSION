@@ -702,7 +702,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       <div className="hidden md:block w-48 shrink-0 space-y-4">
         <Card>
           <CardHeader className="pb-2 pt-4 px-3">
-            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">
+            <CardTitle className="text-xs md:text-sm uppercase tracking-wider text-muted-foreground">
               Completed in {format(currentMonth, "MMMM")}
             </CardTitle>
           </CardHeader>
@@ -711,22 +711,22 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
               <div key={key} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className={`h-2 w-2 rounded-full ${EVENT_DOT[key]}`} />
-                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span className="text-xs md:text-sm md:font-medium text-muted-foreground">{label}</span>
                 </div>
-                <span className="text-xs font-semibold">{completedCounts[key] || 0}</span>
+                <span className="text-xs md:text-sm font-semibold">{completedCounts[key] || 0}</span>
               </div>
             ))}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2 pt-4 px-3">
-            <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">Legend</CardTitle>
+            <CardTitle className="text-xs md:text-sm uppercase tracking-wider text-muted-foreground">Legend</CardTitle>
           </CardHeader>
           <CardContent className="px-3 pb-3 space-y-1.5">
             {EVENT_TYPES.map(t => (
               <div key={t.value} className="flex items-center gap-2">
                 <div className={`h-2.5 w-2.5 rounded-full ${t.color}`} />
-                <span className="text-[10px] text-muted-foreground">{t.label}</span>
+                <span className="text-[10px] md:text-xs md:font-medium text-muted-foreground">{t.label}</span>
               </div>
             ))}
           </CardContent>
