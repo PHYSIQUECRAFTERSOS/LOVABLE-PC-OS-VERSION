@@ -1181,6 +1181,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       <AssignTemplateModal open={templateModalOpen} onOpenChange={setTemplateModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AdjustMacrosModal open={adjustMacrosOpen} onOpenChange={setAdjustMacrosOpen} days={days} onApply={(newDays) => setDays(newDays)} />
 
+      <CopyDayToClientDialog
+        open={copyDayDialogOpen}
+        onOpenChange={setCopyDayDialogOpen}
+        day={copyDayTarget}
+        inferredSlot={copyDayTarget ? inferSlotFromDayType(copyDayTarget.type) : "all_days"}
+        sourcePlanName={planName}
+      />
+
       {/* Save Meal to Library Dialog */}
       <Dialog open={saveMealDialogOpen} onOpenChange={setSaveMealDialogOpen}>
         <DialogContent className="max-w-sm">
