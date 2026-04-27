@@ -337,6 +337,7 @@ serve(async (req) => {
     return jsonResponse({
       success: true,
       email_sent: emailSent,
+      email_already_exists: emailAlreadyExists,
       invite: {
         id: invite.id,
         email: invite.email,
@@ -345,6 +346,7 @@ serve(async (req) => {
         invite_status: invite.invite_status,
         expires_at: invite.expires_at,
         setup_url: setupUrl,
+        created_client_id: createdClientId,
       },
       coach_name: coachName,
     }, 200);
