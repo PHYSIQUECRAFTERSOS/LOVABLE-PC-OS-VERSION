@@ -220,7 +220,13 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     const source = exercises[idx];
     setExercises(prev => {
       const newList = [...prev];
-      newList.splice(idx + 1, 0, { ...source, id: undefined, exerciseOrder: idx + 2, selected: false });
+      newList.splice(idx + 1, 0, {
+        ...source,
+        id: undefined,
+        dndId: crypto.randomUUID(),
+        exerciseOrder: idx + 2,
+        selected: false,
+      });
       return newList.map((e, i) => ({ ...e, exerciseOrder: i + 1 }));
     });
   };
