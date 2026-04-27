@@ -753,7 +753,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
         <div className="grid grid-cols-7 gap-px">
           {weekDays.map(d => (
-            <div key={d} className="text-center text-xs font-medium text-muted-foreground py-1.5">{d}</div>
+            <div key={d} className="text-center text-xs md:text-sm font-medium md:font-semibold text-muted-foreground py-1.5 md:py-2">{d}</div>
           ))}
         </div>
 
@@ -766,8 +766,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             return (
               <div key={day.toISOString()} onClick={() => handleDayClick(day)}
                 onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
-                className={`min-h-[90px] md:min-h-[110px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50" : ""}`}>
-                <div className={`text-xs font-medium mb-0.5 w-5 h-5 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
+                className={`min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""}`}>
+                <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
                   {format(day, "d")}
                 </div>
                 <div className="space-y-0.5">
