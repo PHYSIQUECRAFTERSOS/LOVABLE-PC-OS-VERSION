@@ -592,4 +592,159 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
   );
 };
 
+// ── Sortable row used inside DndContext above ──
+interface SortableMobileRowProps {
+  ex: WorkoutExercise;
+  idx: number;
+  total: number;
+  isGroupStart: boolean;
+  isSelectionMode: boolean;
+  isEditing: boolean;
+  onTap: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onUpdate: (field: keyof WorkoutExercise, value: any) => void;
+}
+
+const SortableMobileRow = ({
+  ex, idx, total, isGroupStart, isSelectionMode, isEditing, onTap, onMoveUp, onMoveDown, onUpdate,
+}: SortableMobileRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: ex.dndId });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  const isInGroup = !!ex.groupingId;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative bg-[hsl(var(--background))] ${isInGroup ? "border-l-2 border-l-primary ml-2" : ""}`}
+    >
+      {isGroupStart && (
+        <div className="px-4 pt-2 pb-1">
+          <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30">
+            {ex.groupingType === "superset" ? "Superset" : ex.groupingType}
+          </Badge>
+        </div>
+      )}
+      <div
+        className={`flex items-center gap-3 px-4 py-3 ${ex.selected ? "bg-primary/10" : ""}`}
+        onClick={onTap}
+      >
+        {isSelectionMode && (
+          <Checkbox checked={ex.selected} className="shrink-0" />
+        )}
+
+        {/* Drag handle (long-press to drag on mobile) */}
+        {!isSelectionMode && (
+          <div
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+            className="touch-none flex-shrink-0 -ml-1 p-1 rounded cursor-grab active:cursor-grabbing"
+            title="Long-press to drag"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground/60" />
+          </div>
+        )}
+
+        {/* Thumbnail */}
+        <div className="h-12 w-16 rounded-lg overflow-hidden bg-[hsl(var(--muted))] flex-shrink-0 flex items-center justify-center">
+          {ex.thumbnail ? (
+            <img src={ex.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{ex.exerciseName}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <Badge variant="outline" className="text-[9px] h-4 border-primary/30 text-primary">
+              {ex.sets} × {ex.reps || "—"}
+            </Badge>
+            {ex.restSeconds > 0 && (
+              <span className="text-[10px] text-muted-foreground">{ex.restSeconds}s rest</span>
+            )}
+            {ex.rpe && <span className="text-[10px] text-muted-foreground">RPE {ex.rpe}</span>}
+          </div>
+        </div>
+
+        {/* Reorder chevrons (fallback for fine adjustments) */}
+        {!isSelectionMode && (
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} disabled={idx === 0}
+              className="p-1 rounded disabled:opacity-20">
+              <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} disabled={idx === total - 1}
+              className="p-1 rounded disabled:opacity-20">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Inline edit row */}
+      {isEditing && !isSelectionMode && (
+        <div className="px-4 pb-3 space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <span className="text-[10px] text-muted-foreground">Sets</span>
+              <Input className="h-8 text-xs mt-0.5" type="number" value={ex.sets}
+                onChange={(e) => onUpdate("sets", parseInt(e.target.value) || 0)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Reps</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.reps}
+                onChange={(e) => onUpdate("reps", e.target.value)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Rest (s)</span>
+              <Input className="h-8 text-xs mt-0.5" type="number" value={ex.restSeconds}
+                onChange={(e) => onUpdate("restSeconds", parseInt(e.target.value) || 0)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <span className="text-[10px] text-muted-foreground">RPE</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.rpe}
+                onChange={(e) => onUpdate("rpe", e.target.value)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">RIR</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.rir}
+                onChange={(e) => onUpdate("rir", e.target.value)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Tempo</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.tempo} placeholder="3-1-2"
+                onChange={(e) => onUpdate("tempo", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground">Notes</span>
+            <Input className="h-8 text-xs mt-0.5" value={ex.notes} placeholder="Exercise notes..."
+              onChange={(e) => onUpdate("notes", e.target.value)} />
+          </div>
+          {ex.groupingId && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
+              onUpdate("groupingType", null);
+              onUpdate("groupingId", null);
+            }}>
+              <Unlink className="h-3 w-3" /> Ungroup
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default MobileWorkoutEditor;
