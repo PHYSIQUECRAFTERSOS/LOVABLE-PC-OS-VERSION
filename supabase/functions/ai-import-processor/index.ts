@@ -443,7 +443,8 @@ Extract meal plan data. Return JSON in this format:
   "plan_name": "string",
   "days": [
     {
-      "day_label": "string (e.g. Day 1, Monday)",
+      "day_label": "string (e.g. 'Workout Day', 'Rest Day', 'Day 1', 'Monday')",
+      "day_type": "training | rest | all_days",
       "meals": [
         {
           "meal_name": "string (e.g. Breakfast, Meal 1)",
@@ -461,7 +462,16 @@ Extract meal plan data. Return JSON in this format:
       ]
     }
   ]
-}`;
+}
+
+DAY TYPE CLASSIFICATION RULES (MANDATORY):
+- If the day_label or any header above the day contains: "workout", "training", "lift", "lifting", "gym", "high carb", "high-carb", "on day", "on-day" → set day_type = "training"
+- If it contains: "rest", "non-training", "non-workout", "off day", "off-day", "recovery", "low carb", "low-carb" → set day_type = "rest"
+- If exactly two days are present and neither matches a keyword above, default the FIRST day to "training" and the SECOND to "rest".
+- If only one day is present and no keyword matches, set day_type = "all_days".
+- If both detected days resolve to the same type, force the second to the opposite type.
+
+Always include the day_type field. Do NOT omit it.`;
   }
 
   // supplement

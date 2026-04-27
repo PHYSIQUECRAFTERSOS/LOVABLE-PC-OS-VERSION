@@ -41,16 +41,20 @@ import {
   BookmarkPlus,
   ArrowUp,
   ArrowDown,
+  Send,
 } from "lucide-react";
+
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import CopyFromClientModal from "./CopyFromClientModal";
 import AssignTemplateModal from "./AssignTemplateModal";
 import AdjustMacrosModal from "./AdjustMacrosModal";
+import CopyDayToClientDialog, { inferSlotFromDayType } from "./CopyDayToClientDialog";
 import FoodIcon from "@/lib/foodIcons";
 import MealPlanMacroSidebar from "./MealPlanMacroSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
+
 
 interface FoodItem {
   id: string;
@@ -149,6 +153,9 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
+  const [copyDayDialogOpen, setCopyDayDialogOpen] = useState(false);
+  const [copyDayTarget, setCopyDayTarget] = useState<DayType | null>(null);
+
   const [macroTargets, setMacroTargets] = useState({ calories: 2000, protein: 150, carbs: 200, fat: 60 });
 
   // Save meal to library state
@@ -996,6 +1003,19 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   <Button variant="ghost" size="sm" onClick={() => duplicateDay(day.id)}>
                     <Copy className="h-3 w-3 mr-1" /> Duplicate Day
                   </Button>
+                  {!clientId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:text-primary"
+                      onClick={() => {
+                        setCopyDayTarget(day);
+                        setCopyDayDialogOpen(true);
+                      }}
+                    >
+                      <Send className="h-3 w-3 mr-1" /> Copy to Client
+                    </Button>
+                  )}
                   {days.length > 1 && (
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeDay(day.id)}>
                       <Trash2 className="h-3 w-3 mr-1" /> Remove
@@ -1160,6 +1180,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       <CopyFromClientModal open={copyModalOpen} onOpenChange={setCopyModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AssignTemplateModal open={templateModalOpen} onOpenChange={setTemplateModalOpen} onImport={clientId ? (days) => handleAssignTemplateToClient(days) : handleImportDays} />
       <AdjustMacrosModal open={adjustMacrosOpen} onOpenChange={setAdjustMacrosOpen} days={days} onApply={(newDays) => setDays(newDays)} />
+
+      <CopyDayToClientDialog
+        open={copyDayDialogOpen}
+        onOpenChange={setCopyDayDialogOpen}
+        day={copyDayTarget}
+        inferredSlot={copyDayTarget ? inferSlotFromDayType(copyDayTarget.type) : "all_days"}
+        sourcePlanName={planName}
+      />
 
       {/* Save Meal to Library Dialog */}
       <Dialog open={saveMealDialogOpen} onOpenChange={setSaveMealDialogOpen}>

@@ -436,6 +436,44 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     if (!user || !extracted) return;
     setSaveProgress(20);
 
+    const days = extracted.days || [];
+    const debugDays = import.meta.env.VITE_DEBUG_AI_IMPORT === "true";
+
+    // Classify each day as 'training' | 'rest' | 'all_days'.
+    // Prefers explicit day_type from the model, falls back to keyword matching on the label,
+    // then a sensible 2-day default.
+    const classifyDayType = (label: string, idx: number, total: number, hint?: string): "training" | "rest" | "all_days" => {
+      const fromModel = (hint || "").toLowerCase().trim();
+      if (fromModel === "training" || fromModel === "rest" || fromModel === "all_days") return fromModel;
+      const l = (label || "").toLowerCase();
+      if (/\b(rest|non[\s-]?training|non[\s-]?workout|off|off[\s-]?day|recovery|low[\s-]?carb)\b/.test(l)) return "rest";
+      if (/\b(workout|training|lift|lifting|gym|high[\s-]?carb|on[\s-]?day)\b/.test(l)) return "training";
+      if (total === 2) return idx === 0 ? "training" : "rest";
+      return "all_days";
+    };
+
+    const labelFor = (dayType: "training" | "rest" | "all_days") =>
+      dayType === "training" ? "Training Day" : dayType === "rest" ? "Rest Day" : "All Days";
+
+    // First pass: classify, then enforce that 2-day templates have one of each type.
+    const classifications: ("training" | "rest" | "all_days")[] = days.map((d: any, i: number) =>
+      classifyDayType(d.day_label || `Day ${i + 1}`, i, days.length, d.day_type)
+    );
+    if (days.length === 2 && classifications[0] === classifications[1]) {
+      classifications[1] = classifications[0] === "training" ? "rest" : "training";
+    }
+    if (debugDays) {
+      console.log("[ai-import][meal-days]", JSON.stringify(
+        days.map((d: any, i: number) => ({ label: d.day_label, hint: d.day_type, final: classifications[i] }))
+      ));
+    }
+
+    // Set parent meal_plans.day_type only when the whole template is a single classified type.
+    // For mixed (training + rest) two-day templates, leave it null so it slots into either pill.
+    const uniqueTypes = Array.from(new Set(classifications));
+    const planDayType = uniqueTypes.length === 1 ? uniqueTypes[0] : null;
+    const planDayLabel = planDayType ? labelFor(planDayType) : null;
+
     const isLibraryImport = !clientId;
     const { data: plan, error: planErr } = await supabase
       .from("meal_plans")
@@ -445,19 +483,18 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         name: extracted.plan_name || "Imported Meal Plan",
         is_template: isLibraryImport,
         flexibility_mode: false,
+        day_type: planDayType,
+        day_type_label: planDayLabel,
       } as any)
       .select()
       .single();
     if (planErr || !plan) throw new Error(planErr?.message || "Failed to create meal plan");
 
-    const days = extracted.days || [];
     for (let di = 0; di < days.length; di++) {
       const day = days[di];
       setSaveProgress(20 + Math.round((di / days.length) * 70));
 
-      // Convert day_label to a slug-style day_type (e.g. "Training Day" -> "training_day")
-      const dayLabel = day.day_label || `Day ${di + 1}`;
-      const dayType = dayLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+      const dayType = classifications[di];
 
       const { data: mpDay } = await supabase
         .from("meal_plan_days")
@@ -469,6 +506,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         .select()
         .single();
       if (!mpDay) continue;
+
 
       let mealOrder = 0;
       for (const meal of day.meals || []) {
