@@ -354,6 +354,28 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This client has pre-built data. Delete anyway?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've already built {cancelTarget?.preBuiltCount} item{cancelTarget?.preBuiltCount === 1 ? "" : "s"} (programs, meal plans, calendar events, supps, or notes) for <strong>{cancelTarget?.invite.first_name} {cancelTarget?.invite.last_name}</strong>. Cancelling the invite will remove their pending profile and that work will be orphaned.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!cancelling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelTarget && performCancel(cancelTarget.invite)}
+              disabled={!!cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
