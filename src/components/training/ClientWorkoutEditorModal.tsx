@@ -399,6 +399,17 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
                       </Button>
                     )}
                     {selectionMode && <span className="text-[10px] text-muted-foreground ml-auto">{selectedCount} selected</span>}
+                    {!selectionMode && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 ml-auto"
+                        onClick={resetAllRestsToZero}
+                        title="Set every exercise's rest timer to 0s — useful for cleaning up legacy AI-imported workouts"
+                      >
+                        <Timer className="h-3 w-3" /> Rest 0s
+                      </Button>
+                    )}
                   </div>
                 )}
 
