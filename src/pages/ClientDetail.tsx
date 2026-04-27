@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
   LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill, Tag,
-  ExternalLink,
+  ExternalLink, Hourglass, X,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
@@ -66,6 +66,8 @@ const ClientDetail = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [pendingBannerDismissed, setPendingBannerDismissed] = useState(false);
   const previousTabRef = useRef<string>(initialTab);
 
   // Detect touch-only devices (skip context menu on mobile)
@@ -149,12 +151,13 @@ const ClientDetail = () => {
         .eq("status", "active")
         .limit(1)
         .maybeSingle(),
-      supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
+      supabase.from("coach_clients").select("program_type, status").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
     ]);
     setProfile(profileRes.data as ClientProfile | null);
     setTags((tagsRes.data || []).map((t: any) => t.tag));
     setProgramName((programRes.data as any)?.programs?.name || null);
     setProgramType((coachClientRes.data as any)?.program_type || null);
+    setIsPending((coachClientRes.data as any)?.status === "pending");
     setLoading(false);
   }, [clientId, userId]);
 
