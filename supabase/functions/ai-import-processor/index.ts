@@ -328,6 +328,31 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
       );
     }
 
+    // Server-side guard: even if the AI hallucinates a 60s rest on a superset member,
+    // force null. The client-side redistribution then resolves it to 0 for first/middle
+    // members and the group's rest_seconds_between_rounds for the last member.
+    if (document_type === "workout") {
+      const days = extracted?.days || extracted?.workout_days || [];
+      let normalizedCount = 0;
+      for (const day of days) {
+        const groupIds = new Set<string>(
+          ((day?.superset_groups || []) as any[])
+            .map((g: any) => (g?.grouping_id ? String(g.grouping_id) : ""))
+            .filter(Boolean),
+        );
+        for (const ex of day?.exercises || []) {
+          const gid = ex?.grouping_id ? String(ex.grouping_id) : "";
+          if (gid && groupIds.has(gid) && ex.rest_seconds != null) {
+            ex.rest_seconds = null;
+            normalizedCount++;
+          }
+        }
+      }
+      if (normalizedCount > 0) {
+        console.log(`[ai-import] normalized ${normalizedCount} superset-member rest_seconds → null`);
+      }
+    }
+
     // Fuzzy match against catalog
     let matchResults: any = null;
     if (document_type === "workout") {
@@ -425,6 +450,7 @@ CRITICAL REST RULES:
 1. If the PDF does NOT specify a rest value for an exercise, return rest_seconds: null. Do NOT invent 60 or any default. Mobility, warmup, and stretching rows almost always have no rest specified — return null for those.
 2. Convert rest values to seconds: "2 min" = 120, "90 sec" = 90, "15 sec" = 15, "1 min 30 sec" = 90.
 3. "Rest X between sets" applies to that single exercise. Put it in that exercise's rest_seconds.
+4. There is NO default rest value. If you are tempted to write 60 because nothing is specified, write null instead. Repeat: there is no default — null means "PDF didn't say".
 
 CRITICAL SUPERSET / CIRCUIT RULES:
 1. When you see a header like "Superset of N sets", "Giant set", or "Circuit", every exercise listed under that header until the next "Rest for X" line or the next non-grouped exercise belongs to the same group.
