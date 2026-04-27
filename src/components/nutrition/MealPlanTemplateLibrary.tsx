@@ -145,11 +145,13 @@ const MealPlanTemplateLibrary = () => {
     setCopyModalOpen(true);
     setLoadingClients(true);
     if (user) {
+      // Include pending clients (invited but not fully onboarded) so coaches can
+      // pre-assign meal plan templates ahead of time.
       const { data: connections } = await supabase
         .from("coach_clients")
         .select("client_id")
         .eq("coach_id", user.id)
-        .eq("status", "active");
+        .in("status", ["active", "pending"]);
       const clientIds = (connections || []).map((c) => c.client_id);
       if (clientIds.length > 0) {
         const { data: profiles } = await supabase
