@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Search, Dumbbell, Trash2, Save, Loader2, GripVertical, X, ChevronUp, ChevronDown,
-  Link, Unlink, Copy, Replace,
+  Link, Unlink, Copy, Replace, Timer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -270,6 +270,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     setSelectionMode(false);
   };
 
+  // Reset all rest timers to 0 — useful for cleaning up legacy AI-imported workouts
+  // (mobility / supersets) where the model baked in a 60s default that the new
+  // import path no longer produces.
+  const resetAllRestsToZero = () => {
+    setExercises(prev => prev.map(e => ({ ...e, restSeconds: 0 })));
+    toast({ title: "Rest timers reset", description: "All exercises set to 0s rest." });
+  };
+
   const getGroupColor = (groupId: string | null) => {
     if (!groupId) return "";
     const hash = groupId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
@@ -391,6 +399,17 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
                       </Button>
                     )}
                     {selectionMode && <span className="text-[10px] text-muted-foreground ml-auto">{selectedCount} selected</span>}
+                    {!selectionMode && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1 ml-auto"
+                        onClick={resetAllRestsToZero}
+                        title="Set every exercise's rest timer to 0s — useful for cleaning up legacy AI-imported workouts"
+                      >
+                        <Timer className="h-3 w-3" /> Rest 0s
+                      </Button>
+                    )}
                   </div>
                 )}
 

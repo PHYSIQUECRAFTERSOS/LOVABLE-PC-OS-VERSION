@@ -7,15 +7,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Dumbbell, Save, Loader2, GripVertical, X, ChevronUp, ChevronDown,
-  Link, Unlink, Trash2, Plus, Pencil, Check,
+  Link, Unlink, Trash2, Plus, Pencil, Check, Timer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import MobileExercisePickerSheet from "./MobileExercisePickerSheet";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface WorkoutExercise {
   id?: string;
+  /** Stable client-side id used for drag-and-drop tracking. Survives saves. */
+  dndId: string;
   exerciseId: string;
   exerciseName: string;
   thumbnail: string | null;
@@ -85,8 +95,10 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
         .eq("workout_id", workoutId).order("exercise_order");
 
       if (exRows) {
-        const loaded = exRows.map((ex: any) => ({
-          id: ex.id, exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
+        const loaded: WorkoutExercise[] = exRows.map((ex: any) => ({
+          id: ex.id,
+          dndId: ex.id || crypto.randomUUID(),
+          exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
           thumbnail: ex.exercises?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
           sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds || 60,
           rir: ex.rir?.toString() || "", rpe: ex.rpe_target?.toString() || "", notes: ex.notes || "",
@@ -272,6 +284,32 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
     setExercises(newExs.map((e, i) => ({ ...e, exerciseOrder: i + 1 })));
   };
 
+  // ── Drag-and-drop ──
+  // PointerSensor handles desktop; TouchSensor needs a long-press to
+  // not break vertical scroll on mobile.
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setExercises((prev) => {
+      const oldIdx = prev.findIndex((e) => e.dndId === active.id);
+      const newIdx = prev.findIndex((e) => e.dndId === over.id);
+      if (oldIdx < 0 || newIdx < 0) return prev;
+      return arrayMove(prev, oldIdx, newIdx).map((e, i) => ({ ...e, exerciseOrder: i + 1 }));
+    });
+  };
+
+  // Reset all rest timers to 0 (clean up legacy AI imports)
+  const resetAllRests = () => {
+    setExercises(prev => prev.map(e => ({ ...e, restSeconds: 0 })));
+    toast({ title: "Rest timers reset", description: "All exercises set to 0s rest." });
+  };
+
   const updateExercise = (idx: number, field: keyof WorkoutExercise, value: any) => {
     const newExs = [...exercises];
     (newExs[idx] as any)[field] = value;
@@ -284,6 +322,7 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
       const newExs = [...prev];
       exList.forEach(ex => {
         newExs.push({
+          dndId: crypto.randomUUID(),
           exerciseId: ex.id, exerciseName: ex.name, thumbnail: ex.youtube_thumbnail,
           exerciseOrder: newExs.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 120,
           rir: "", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
@@ -407,126 +446,41 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
                   <p className="text-xs text-muted-foreground/70 mt-1">Tap Insert below to add exercises</p>
                 </div>
               ) : (
-                <div className="divide-y divide-border">
-                  {exercises.map((ex, idx) => {
-                    const isGroupStart = ex.groupingId && (idx === 0 || exercises[idx - 1].groupingId !== ex.groupingId);
-                    const isInGroup = !!ex.groupingId;
-                    const isSelectionMode = toolbarMode === "superset" || toolbarMode === "delete";
-
-                    return (
-                      <div key={idx} className={`relative ${isInGroup ? "border-l-2 border-l-primary ml-2" : ""}`}>
-                        {isGroupStart && (
-                          <div className="px-4 pt-2 pb-1">
-                            <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30">
-                              {ex.groupingType === "superset" ? "Superset" : ex.groupingType}
-                            </Badge>
-                          </div>
-                        )}
-                        <div
-                          className={`flex items-center gap-3 px-4 py-3 ${ex.selected ? "bg-primary/10" : ""}`}
-                          onClick={() => {
-                            if (isSelectionMode) toggleSelection(idx);
-                            else setEditingIdx(editingIdx === idx ? null : idx);
-                          }}
-                        >
-                          {isSelectionMode && (
-                            <Checkbox checked={ex.selected} className="shrink-0" />
-                          )}
-
-                          {/* Thumbnail */}
-                          <div className="h-12 w-16 rounded-lg overflow-hidden bg-[hsl(var(--muted))] flex-shrink-0 flex items-center justify-center">
-                            {ex.thumbnail ? (
-                              <img src={ex.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
-                            ) : (
-                              <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
-                            )}
-                          </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{ex.exerciseName}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <Badge variant="outline" className="text-[9px] h-4 border-primary/30 text-primary">
-                                {ex.sets} × {ex.reps || "—"}
-                              </Badge>
-                              {ex.restSeconds > 0 && (
-                                <span className="text-[10px] text-muted-foreground">{ex.restSeconds}s rest</span>
-                              )}
-                              {ex.rpe && <span className="text-[10px] text-muted-foreground">RPE {ex.rpe}</span>}
-                            </div>
-                          </div>
-
-                          {/* Reorder (non-selection mode) */}
-                          {!isSelectionMode && (
-                            <div className="flex flex-col gap-0.5 shrink-0">
-                              <button onClick={(e) => { e.stopPropagation(); moveExercise(idx, "up"); }} disabled={idx === 0}
-                                className="p-1 rounded disabled:opacity-20">
-                                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); moveExercise(idx, "down"); }} disabled={idx === exercises.length - 1}
-                                className="p-1 rounded disabled:opacity-20">
-                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Inline edit row */}
-                        {editingIdx === idx && !isSelectionMode && (
-                          <div className="px-4 pb-3 space-y-2">
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Sets</span>
-                                <Input className="h-8 text-xs mt-0.5" type="number" value={ex.sets}
-                                  onChange={(e) => updateExercise(idx, "sets", parseInt(e.target.value) || 0)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Reps</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.reps}
-                                  onChange={(e) => updateExercise(idx, "reps", e.target.value)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Rest (s)</span>
-                                <Input className="h-8 text-xs mt-0.5" type="number" value={ex.restSeconds}
-                                  onChange={(e) => updateExercise(idx, "restSeconds", parseInt(e.target.value) || 0)} />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">RPE</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.rpe}
-                                  onChange={(e) => updateExercise(idx, "rpe", e.target.value)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">RIR</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.rir}
-                                  onChange={(e) => updateExercise(idx, "rir", e.target.value)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Tempo</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.tempo} placeholder="3-1-2"
-                                  onChange={(e) => updateExercise(idx, "tempo", e.target.value)} />
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-muted-foreground">Notes</span>
-                              <Input className="h-8 text-xs mt-0.5" value={ex.notes} placeholder="Exercise notes..."
-                                onChange={(e) => updateExercise(idx, "notes", e.target.value)} />
-                            </div>
-                            {ex.groupingId && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
-                                updateExercise(idx, "groupingType", null);
-                                updateExercise(idx, "groupingId", null);
-                              }}>
-                                <Unlink className="h-3 w-3" /> Ungroup
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={exercises.map((e) => e.dndId)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="divide-y divide-border">
+                      {exercises.map((ex, idx) => {
+                        const isGroupStart = ex.groupingId && (idx === 0 || exercises[idx - 1].groupingId !== ex.groupingId);
+                        const isSelectionMode = toolbarMode === "superset" || toolbarMode === "delete";
+                        return (
+                          <SortableMobileRow
+                            key={ex.dndId}
+                            ex={ex}
+                            idx={idx}
+                            total={exercises.length}
+                            isGroupStart={!!isGroupStart}
+                            isSelectionMode={isSelectionMode}
+                            isEditing={editingIdx === idx}
+                            onTap={() => {
+                              if (isSelectionMode) toggleSelection(idx);
+                              else setEditingIdx(editingIdx === idx ? null : idx);
+                            }}
+                            onMoveUp={() => moveExercise(idx, "up")}
+                            onMoveDown={() => moveExercise(idx, "down")}
+                            onUpdate={(field, value) => updateExercise(idx, field, value)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
             </div>
           )}
@@ -543,6 +497,15 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
               >
                 <Link className="h-5 w-5" />
                 <span className="text-[10px]">Superset</span>
+              </button>
+              <button
+                onClick={resetAllRests}
+                className="flex flex-col items-center gap-1 text-muted-foreground"
+                disabled={exercises.length === 0}
+                title="Reset all rest timers to 0s"
+              >
+                <Timer className="h-5 w-5" />
+                <span className="text-[10px]">Rest 0s</span>
               </button>
               <button
                 onClick={() => { setToolbarMode("delete"); setEditingIdx(null); }}
@@ -626,6 +589,161 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+};
+
+// ── Sortable row used inside DndContext above ──
+interface SortableMobileRowProps {
+  ex: WorkoutExercise;
+  idx: number;
+  total: number;
+  isGroupStart: boolean;
+  isSelectionMode: boolean;
+  isEditing: boolean;
+  onTap: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onUpdate: (field: keyof WorkoutExercise, value: any) => void;
+}
+
+const SortableMobileRow = ({
+  ex, idx, total, isGroupStart, isSelectionMode, isEditing, onTap, onMoveUp, onMoveDown, onUpdate,
+}: SortableMobileRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: ex.dndId });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  const isInGroup = !!ex.groupingId;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative bg-[hsl(var(--background))] ${isInGroup ? "border-l-2 border-l-primary ml-2" : ""}`}
+    >
+      {isGroupStart && (
+        <div className="px-4 pt-2 pb-1">
+          <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30">
+            {ex.groupingType === "superset" ? "Superset" : ex.groupingType}
+          </Badge>
+        </div>
+      )}
+      <div
+        className={`flex items-center gap-3 px-4 py-3 ${ex.selected ? "bg-primary/10" : ""}`}
+        onClick={onTap}
+      >
+        {isSelectionMode && (
+          <Checkbox checked={ex.selected} className="shrink-0" />
+        )}
+
+        {/* Drag handle (long-press to drag on mobile) */}
+        {!isSelectionMode && (
+          <div
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+            className="touch-none flex-shrink-0 -ml-1 p-1 rounded cursor-grab active:cursor-grabbing"
+            title="Long-press to drag"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground/60" />
+          </div>
+        )}
+
+        {/* Thumbnail */}
+        <div className="h-12 w-16 rounded-lg overflow-hidden bg-[hsl(var(--muted))] flex-shrink-0 flex items-center justify-center">
+          {ex.thumbnail ? (
+            <img src={ex.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{ex.exerciseName}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <Badge variant="outline" className="text-[9px] h-4 border-primary/30 text-primary">
+              {ex.sets} × {ex.reps || "—"}
+            </Badge>
+            {ex.restSeconds > 0 && (
+              <span className="text-[10px] text-muted-foreground">{ex.restSeconds}s rest</span>
+            )}
+            {ex.rpe && <span className="text-[10px] text-muted-foreground">RPE {ex.rpe}</span>}
+          </div>
+        </div>
+
+        {/* Reorder chevrons (fallback for fine adjustments) */}
+        {!isSelectionMode && (
+          <div className="flex flex-col gap-0.5 shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); onMoveUp(); }} disabled={idx === 0}
+              className="p-1 rounded disabled:opacity-20">
+              <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onMoveDown(); }} disabled={idx === total - 1}
+              className="p-1 rounded disabled:opacity-20">
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Inline edit row */}
+      {isEditing && !isSelectionMode && (
+        <div className="px-4 pb-3 space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <span className="text-[10px] text-muted-foreground">Sets</span>
+              <Input className="h-8 text-xs mt-0.5" type="number" value={ex.sets}
+                onChange={(e) => onUpdate("sets", parseInt(e.target.value) || 0)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Reps</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.reps}
+                onChange={(e) => onUpdate("reps", e.target.value)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Rest (s)</span>
+              <Input className="h-8 text-xs mt-0.5" type="number" value={ex.restSeconds}
+                onChange={(e) => onUpdate("restSeconds", parseInt(e.target.value) || 0)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <span className="text-[10px] text-muted-foreground">RPE</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.rpe}
+                onChange={(e) => onUpdate("rpe", e.target.value)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">RIR</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.rir}
+                onChange={(e) => onUpdate("rir", e.target.value)} />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground">Tempo</span>
+              <Input className="h-8 text-xs mt-0.5" value={ex.tempo} placeholder="3-1-2"
+                onChange={(e) => onUpdate("tempo", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] text-muted-foreground">Notes</span>
+            <Input className="h-8 text-xs mt-0.5" value={ex.notes} placeholder="Exercise notes..."
+              onChange={(e) => onUpdate("notes", e.target.value)} />
+          </div>
+          {ex.groupingId && (
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
+              onUpdate("groupingType", null);
+              onUpdate("groupingId", null);
+            }}>
+              <Unlink className="h-3 w-3" /> Ungroup
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
