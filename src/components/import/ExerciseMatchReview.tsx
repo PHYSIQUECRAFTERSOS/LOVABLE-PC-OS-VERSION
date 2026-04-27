@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,9 @@ interface ExerciseMatch {
   matched_id: string | null;
   matched_name: string | null;
   confidence: number;
+  confidence_score?: number;
   confidence_level: "green" | "yellow" | "red";
+  from_alias?: boolean;
 }
 
 interface ExerciseMatchReviewProps {
@@ -19,52 +21,142 @@ interface ExerciseMatchReviewProps {
   onUpdateMatches: (updated: Record<string, ExerciseMatch>) => void;
 }
 
-const ConfidenceBadge = ({ level }: { level: string }) => {
-  const colors = {
-    green: "bg-green-500/20 text-green-400 border-green-500/30",
-    yellow: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    red: "bg-red-500/20 text-red-400 border-red-500/30",
-  };
-  const labels = { green: "High", yellow: "Medium", red: "Low" };
+// Single threshold per spec
+const AUTO_ACCEPT_SCORE = 80;
+
+const ConfidenceBadge = ({ score }: { score: number }) => {
+  const isHigh = score >= AUTO_ACCEPT_SCORE;
+  const cls = isHigh
+    ? "bg-green-500/20 text-green-400 border-green-500/30"
+    : "bg-red-500/20 text-red-400 border-red-500/30";
   return (
-    <Badge variant="outline" className={`text-[10px] ${colors[level as keyof typeof colors] || colors.red}`}>
-      {labels[level as keyof typeof labels] || "Low"}
+    <Badge variant="outline" className={`text-[10px] ${cls}`}>
+      {isHigh ? "High" : "Low"} {Math.round(score)}%
     </Badge>
   );
 };
+
+// ---------- Lightweight client-side scorer (mirrors edge function) ----------
+const NOISE = new Set(["me", "mb", "mh", "myo", "amrap", "drop", "rp", "skip", "to"]);
+function normalize(s: string): string {
+  if (!s) return "";
+  return s
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\b/g, " ")
+    .replace(/[.,;:!?'"`/\\\-–—_+*&|<>=\[\]{}()@#$%^~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((t) => t && !NOISE.has(t))
+    .map((t) => (t.length > 3 && t.endsWith("s") && !t.endsWith("ss") ? t.slice(0, -1) : t))
+    .join(" ");
+}
+function tokenSet(s: string) { return new Set(s.split(" ").filter(Boolean)); }
+function lev(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = new Array(n + 1).fill(0).map((_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0]; dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+function score(a: string, b: string): number {
+  const an = normalize(a), bn = normalize(b);
+  if (!an || !bn) return 0;
+  if (an === bn) return 100;
+  const sa = tokenSet(an), sb = tokenSet(bn);
+  if (sa.size && sa.size === sb.size) {
+    let all = true; for (const t of sa) if (!sb.has(t)) { all = false; break; }
+    if (all) return 95;
+  }
+  let aInB = true; for (const t of sa) if (!sb.has(t)) { aInB = false; break; }
+  let bInA = true; for (const t of sb) if (!sa.has(t)) { bInA = false; break; }
+  if ((aInB || bInA) && sa.size && sb.size) {
+    const min = Math.min(sa.size, sb.size), max = Math.max(sa.size, sb.size);
+    if (min / max >= 0.5) return 90;
+  }
+  const max = Math.max(an.length, bn.length);
+  return max === 0 ? 0 : (1 - lev(an, bn) / max) * 85;
+}
+// ---------------------------------------------------------------------------
 
 const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: ExerciseMatchReviewProps) => {
   const [searchOpen, setSearchOpen] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
-  const searchExercises = async (query: string) => {
-    if (!query || query.trim().length < 1) {
-      setSearchResults([]);
-      return;
-    }
+  const fetchCandidates = useCallback(async (query: string): Promise<any[]> => {
+    const norm = normalize(query);
+    const tokens = norm.split(" ").filter((t) => t.length >= 3).slice(0, 4);
+    if (tokens.length === 0 && !norm) return [];
 
-    const { data, error } = await supabase
+    let q = supabase
       .from("exercises")
-      .select("id, name, primary_muscle, equipment, youtube_thumbnail, youtube_url, tags")
-      .ilike("name", `%${query.trim()}%`)
-      .order("name", { ascending: true })
-      .limit(20);
+      .select("id, name, primary_muscle, equipment, youtube_thumbnail, youtube_url, tags");
 
-    if (error) {
-      console.error("Exercise search error:", error);
-      return;
+    if (tokens.length > 0) {
+      const orClause = tokens.map((t) => `name.ilike.%${t.replace(/[%_]/g, "")}%`).join(",");
+      q = q.or(orClause);
+    } else {
+      q = q.ilike("name", `%${norm}%`);
     }
-    console.log("Search results for", query, ":", data?.length, "results");
-    setSearchResults(data || []);
+
+    const { data, error } = await q.limit(50);
+    if (error) { console.error("Exercise search error:", error); return []; }
+    // Rank with scorer
+    const ranked = (data || [])
+      .map((row: any) => ({ ...row, _score: score(query, row.name) }))
+      .sort((a, b) => b._score - a._score)
+      .slice(0, 10);
+    return ranked;
+  }, []);
+
+  // Open Fix → pre-fill with extracted name and pre-fetch candidates immediately
+  const openFix = async (extractedName: string) => {
+    setSearchOpen(extractedName);
+    setSearchQuery(extractedName);
+    const results = await fetchCandidates(extractedName);
+    setSearchResults(results);
   };
 
+  // Live re-rank as the coach types
   useEffect(() => {
-    const timer = setTimeout(() => {
-      searchExercises(searchQuery);
-    }, 300);
+    if (!searchOpen) return;
+    const timer = setTimeout(async () => {
+      const results = await fetchCandidates(searchQuery);
+      setSearchResults(results);
+    }, 250);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, searchOpen, fetchCandidates]);
+
+  const persistAlias = async (extractedName: string, exerciseId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const normalized = normalize(extractedName);
+      if (!normalized) return;
+      // Upsert: increment hit_count if exists
+      await supabase.from("exercise_extraction_aliases").upsert(
+        {
+          extracted_name: extractedName,
+          normalized_name: normalized,
+          exercise_id: exerciseId,
+          created_by: user.id,
+          last_used_at: new Date().toISOString(),
+        },
+        { onConflict: "normalized_name,exercise_id" },
+      );
+    } catch (e) {
+      console.error("persistAlias error", e);
+    }
+  };
 
   const selectExercise = (pdfName: string, exercise: any | null) => {
     const updated = { ...matchResults.exercises };
@@ -74,14 +166,17 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
         matched_id: exercise.id,
         matched_name: exercise.name,
         confidence: 1.0,
+        confidence_score: 100,
         confidence_level: "green",
       };
+      void persistAlias(pdfName, exercise.id);
     } else {
       updated[pdfName] = {
         ...updated[pdfName],
         matched_id: null,
         matched_name: null,
         confidence: 0,
+        confidence_score: 0,
         confidence_level: "red",
       };
     }
@@ -105,6 +200,9 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
               const match = matchResults.exercises[ex.name];
               if (!match) return null;
               const isSearching = searchOpen === ex.name;
+              const displayScore =
+                match.confidence_score ?? Math.round((match.confidence ?? 0) * 100);
+              const isLow = displayScore < AUTO_ACCEPT_SCORE;
 
               return (
                 <div key={exIdx} className="bg-card border rounded-lg p-3">
@@ -116,18 +214,22 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                         <span className="text-xs text-muted-foreground truncate">
                           {match.matched_name || "No match"}
                         </span>
-                        <ConfidenceBadge level={match.confidence_level} />
+                        <ConfidenceBadge score={displayScore} />
                       </div>
                     </div>
-                    {match.confidence_level !== "green" && (
+                    {isLow && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="shrink-0 h-7 text-[10px]"
                         onClick={() => {
-                          setSearchOpen(isSearching ? null : ex.name);
-                          setSearchQuery("");
-                          setSearchResults([]);
+                          if (isSearching) {
+                            setSearchOpen(null);
+                            setSearchQuery("");
+                            setSearchResults([]);
+                          } else {
+                            void openFix(ex.name);
+                          }
                         }}
                       >
                         {isSearching ? "Close" : "Fix"}
@@ -148,29 +250,33 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
                           autoFocus
                         />
                       </div>
-                      <div className="max-h-32 overflow-y-auto space-y-0.5">
-                        <button
-                          className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted/50 flex items-center gap-1.5 text-primary"
-                          onClick={() => selectExercise(ex.name, null)}
-                        >
-                          <Plus className="h-3 w-3" /> Create New: &quot;{ex.name}&quot;
-                        </button>
-                        {searchResults.map((cat) => (
+                      <div className="max-h-40 overflow-y-auto space-y-0.5">
+                        {searchResults.slice(0, 5).map((cat) => (
                           <button
                             key={cat.id}
                             className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted/50 flex items-center gap-1.5"
                             onClick={() => selectExercise(ex.name, cat)}
                           >
-                            <Check className="h-3 w-3 text-muted-foreground" />
-                            {cat.name}
-                            {cat.primary_muscle && (
-                              <span className="text-[10px] text-muted-foreground">({cat.primary_muscle})</span>
+                            <Check className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="flex-1 truncate">{cat.name}</span>
+                            {typeof cat._score === "number" && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {Math.round(cat._score)}%
+                              </span>
                             )}
                           </button>
                         ))}
                         {searchQuery && searchResults.length === 0 && (
-                          <p className="text-[10px] text-muted-foreground px-2 py-2">No exercises found. Try a different search term.</p>
+                          <p className="text-[10px] text-muted-foreground px-2 py-2">
+                            No matches found. You can create this as a new exercise below.
+                          </p>
                         )}
+                        <button
+                          className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-muted/50 flex items-center gap-1.5 text-primary border-t border-border mt-1 pt-2"
+                          onClick={() => selectExercise(ex.name, null)}
+                        >
+                          <Plus className="h-3 w-3" /> Create New: &quot;{searchQuery || ex.name}&quot;
+                        </button>
                       </div>
                     </div>
                   )}

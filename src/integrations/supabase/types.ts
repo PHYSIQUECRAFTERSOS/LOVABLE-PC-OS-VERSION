@@ -2969,6 +2969,47 @@ export type Database = {
         }
         Relationships: []
       }
+      exercise_extraction_aliases: {
+        Row: {
+          created_at: string
+          created_by: string
+          exercise_id: string
+          extracted_name: string
+          hit_count: number
+          id: string
+          last_used_at: string
+          normalized_name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          exercise_id: string
+          extracted_name: string
+          hit_count?: number
+          id?: string
+          last_used_at?: string
+          normalized_name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          exercise_id?: string
+          extracted_name?: string
+          hit_count?: number
+          id?: string
+          last_used_at?: string
+          normalized_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exercise_extraction_aliases_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_logs: {
         Row: {
           created_at: string
@@ -3072,6 +3113,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      exercise_synonyms: {
+        Row: {
+          canonical: string
+          created_at: string
+          id: string
+          term: string
+          weight: number
+        }
+        Insert: {
+          canonical: string
+          created_at?: string
+          id?: string
+          term: string
+          weight?: number
+        }
+        Update: {
+          canonical?: string
+          created_at?: string
+          id?: string
+          term?: string
+          weight?: number
+        }
+        Relationships: []
       }
       exercises: {
         Row: {
