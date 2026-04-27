@@ -383,85 +383,43 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
                         <p className="text-sm text-muted-foreground">No exercises yet.</p>
                         <p className="text-xs text-muted-foreground/70 mt-1">Add exercises from the library →</p>
                       </div>
-                    ) : exercises.map((ex, idx) => {
-                      const isGroupStart = ex.groupingId && (idx === 0 || exercises[idx - 1].groupingId !== ex.groupingId);
-                      const isGroupEnd = ex.groupingId && (idx === exercises.length - 1 || exercises[idx + 1].groupingId !== ex.groupingId);
-                      const isInGroup = !!ex.groupingId;
-
-                      return (
-                        <div key={idx} className={`border rounded-lg p-3 bg-card space-y-2 group transition-all ${
-                          isInGroup ? `border-l-4 ${getGroupColor(ex.groupingId)} ${isGroupStart ? "rounded-b-none" : ""} ${isGroupEnd ? "rounded-t-none" : ""} ${!isGroupStart && !isGroupEnd ? "rounded-none" : ""}` : ""
-                        } ${ex.selected ? "ring-2 ring-primary bg-primary/5" : ""}`}>
-                          {isGroupStart && (
-                            <div className="flex items-center gap-1.5 -mt-1 mb-1">
-                              <Badge variant="secondary" className="text-[9px] px-1.5">{ex.groupingType === "circuit" ? "Circuit" : "Superset"}</Badge>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2">
-                            {selectionMode && <Checkbox checked={ex.selected} onCheckedChange={() => toggleSelection(idx)} className="flex-shrink-0" />}
-                            <GripVertical className="h-4 w-4 text-muted-foreground/30 flex-shrink-0 cursor-grab" />
-                            <Badge variant="secondary" className="text-[10px] px-1.5 min-w-[24px] justify-center">{idx + 1}</Badge>
-                            {ex.thumbnail ? (
-                              <img src={ex.thumbnail} alt="" className="w-10 h-7 rounded object-cover bg-secondary flex-shrink-0" />
-                            ) : (
-                              <div className="w-10 h-7 rounded bg-secondary flex items-center justify-center flex-shrink-0">
-                                <Dumbbell className="h-3.5 w-3.5 text-muted-foreground" />
-                              </div>
-                            )}
-                            <span className="text-xs font-medium flex-1 truncate">{ex.exerciseName}</span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => moveExercise(idx, "up")} disabled={idx === 0}><ChevronUp className="h-3 w-3" /></Button>
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => moveExercise(idx, "down")} disabled={idx === exercises.length - 1}><ChevronDown className="h-3 w-3" /></Button>
-                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => duplicateExercise(idx)}><Copy className="h-3 w-3" /></Button>
-                              <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeExercise(idx)}><Trash2 className="h-3 w-3" /></Button>
-                            </div>
-                          </div>
-                          {/* Inline editing row */}
-                          <div className="flex items-center gap-2 flex-wrap pl-8">
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-muted-foreground w-8">Sets</span>
-                              <Input className="h-7 w-14 text-xs px-1.5" type="number" value={ex.sets}
-                                onChange={(e) => updateExercise(idx, "sets", parseInt(e.target.value) || 0)} />
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-muted-foreground w-8">Reps</span>
-                              <Input className="h-7 w-16 text-xs px-1.5" value={ex.reps}
-                                onChange={(e) => updateExercise(idx, "reps", e.target.value)} />
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-muted-foreground w-8">Rest</span>
-                              <Input className="h-7 w-14 text-xs px-1.5" type="number" value={ex.restSeconds}
-                                onChange={(e) => updateExercise(idx, "restSeconds", parseInt(e.target.value) || 0)} />
-                              <span className="text-[10px] text-muted-foreground">s</span>
-                            </div>
-                            {useTempo && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground w-10">Tempo</span>
-                                <Input className="h-7 w-16 text-xs px-1.5" value={ex.tempo}
-                                  onChange={(e) => updateExercise(idx, "tempo", e.target.value)} placeholder="3-1-2" />
-                              </div>
-                            )}
-                            {useRpe && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground w-8">RPE</span>
-                                <Input className="h-7 w-14 text-xs px-1.5" value={ex.rpe}
-                                  onChange={(e) => updateExercise(idx, "rpe", e.target.value)} />
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-muted-foreground w-8">RIR</span>
-                              <Input className="h-7 w-14 text-xs px-1.5" value={ex.rir}
-                                onChange={(e) => updateExercise(idx, "rir", e.target.value)} />
-                            </div>
-                          </div>
-                          {/* Notes */}
-                          <div className="pl-8">
-                            <Input className="h-7 text-[10px] px-1.5" value={ex.notes}
-                              onChange={(e) => updateExercise(idx, "notes", e.target.value)} placeholder="Notes..." />
-                          </div>
-                        </div>
-                      );
-                    })}
+                    ) : (
+                      <DndContext
+                        sensors={dndSensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <SortableContext
+                          items={exercises.map((e) => e.dndId)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {exercises.map((ex, idx) => {
+                            const isGroupStart = ex.groupingId && (idx === 0 || exercises[idx - 1].groupingId !== ex.groupingId);
+                            const isGroupEnd = ex.groupingId && (idx === exercises.length - 1 || exercises[idx + 1].groupingId !== ex.groupingId);
+                            return (
+                              <SortableExerciseRow
+                                key={ex.dndId}
+                                ex={ex}
+                                idx={idx}
+                                total={exercises.length}
+                                isGroupStart={!!isGroupStart}
+                                isGroupEnd={!!isGroupEnd}
+                                groupColor={getGroupColor(ex.groupingId)}
+                                useRpe={useRpe}
+                                useTempo={useTempo}
+                                selectionMode={selectionMode}
+                                onToggleSelection={() => toggleSelection(idx)}
+                                onUpdate={(field, value) => updateExercise(idx, field, value)}
+                                onDuplicate={() => duplicateExercise(idx)}
+                                onRemove={() => removeExercise(idx)}
+                                onMoveUp={() => moveExercise(idx, "up")}
+                                onMoveDown={() => moveExercise(idx, "down")}
+                              />
+                            );
+                          })}
+                        </SortableContext>
+                      </DndContext>
+                    )}
                   </div>
                 </ScrollArea>
               </div>
