@@ -34,6 +34,7 @@ export interface SelectableClient {
   compliance: number;
   streak: number;
   tags: string[];
+  isPending?: boolean;
 }
 
 interface NutritionCompliance {
@@ -132,8 +133,8 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
       let query = supabase
         .from("coach_clients")
-        .select("client_id, program_type")
-        .eq("status", "active");
+        .select("client_id, program_type, status")
+        .in("status", ["active", "pending"]);
       if (coachId) query = query.eq("coach_id", coachId);
 
       const { data: assignments } = await query;
@@ -145,10 +146,12 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         return;
       }
 
-      // Build program type map
+      // Build program type map + pending set
       const ptMap: Record<string, string> = {};
+      const pendingSet = new Set<string>();
       assignments.forEach((a: any) => {
         if (a.program_type) ptMap[a.client_id] = a.program_type;
+        if (a.status === "pending") pendingSet.add(a.client_id);
       });
       setProgramTypeMap(ptMap);
 
