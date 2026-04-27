@@ -524,4 +524,144 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   );
 };
 
+// ── Sortable row used inside DndContext above ──
+interface SortableExerciseRowProps {
+  ex: WorkoutExercise;
+  idx: number;
+  total: number;
+  isGroupStart: boolean;
+  isGroupEnd: boolean;
+  groupColor: string;
+  useRpe: boolean;
+  useTempo: boolean;
+  selectionMode: boolean;
+  onToggleSelection: () => void;
+  onUpdate: (field: keyof WorkoutExercise, value: any) => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}
+
+const SortableExerciseRow = ({
+  ex, idx, total, isGroupStart, isGroupEnd, groupColor,
+  useRpe, useTempo, selectionMode, onToggleSelection, onUpdate,
+  onDuplicate, onRemove, onMoveUp, onMoveDown,
+}: SortableExerciseRowProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: ex.dndId });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  const isInGroup = !!ex.groupingId;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`border rounded-lg px-2.5 py-1.5 bg-card group transition-all ${
+        isInGroup ? `border-l-4 ${groupColor} ${isGroupStart ? "rounded-b-none" : ""} ${isGroupEnd ? "rounded-t-none" : ""} ${!isGroupStart && !isGroupEnd ? "rounded-none" : ""}` : ""
+      } ${ex.selected ? "ring-2 ring-primary bg-primary/5" : ""}`}
+    >
+      {isGroupStart && (
+        <div className="flex items-center gap-1.5 mb-1">
+          <Badge variant="secondary" className="text-[9px] px-1.5">{ex.groupingType === "circuit" ? "Circuit" : "Superset"}</Badge>
+        </div>
+      )}
+      {/* Single-line compact row: handle, badge, thumb, name, fields, actions */}
+      <div className="flex items-center gap-2">
+        {selectionMode && (
+          <Checkbox checked={ex.selected} onCheckedChange={onToggleSelection} className="flex-shrink-0" />
+        )}
+        <div {...attributes} {...listeners} className="touch-none flex-shrink-0">
+          <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab active:cursor-grabbing" />
+        </div>
+        <Badge variant="secondary" className="text-[10px] px-1.5 min-w-[24px] justify-center">{idx + 1}</Badge>
+        {ex.thumbnail ? (
+          <img src={ex.thumbnail} alt="" className="w-9 h-6 rounded object-cover bg-secondary flex-shrink-0" />
+        ) : (
+          <div className="w-9 h-6 rounded bg-secondary flex items-center justify-center flex-shrink-0">
+            <Dumbbell className="h-3 w-3 text-muted-foreground" />
+          </div>
+        )}
+        <span className="text-xs font-medium flex-1 truncate min-w-0">{ex.exerciseName}</span>
+        {/* Inline fields collapse to icons on small screens, show as labeled inputs on lg+ */}
+        <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
+          <Input className="h-7 w-12 text-xs px-1.5" type="number" value={ex.sets}
+            onChange={(e) => onUpdate("sets", parseInt(e.target.value) || 0)} title="Sets" />
+          <span className="text-[10px] text-muted-foreground">×</span>
+          <Input className="h-7 w-16 text-xs px-1.5" value={ex.reps}
+            onChange={(e) => onUpdate("reps", e.target.value)} placeholder="reps" title="Reps" />
+          <Input className="h-7 w-14 text-xs px-1.5" type="number" value={ex.restSeconds}
+            onChange={(e) => onUpdate("restSeconds", parseInt(e.target.value) || 0)} title="Rest (s)" />
+          <span className="text-[10px] text-muted-foreground">s</span>
+          {useTempo && (
+            <Input className="h-7 w-16 text-xs px-1.5" value={ex.tempo}
+              onChange={(e) => onUpdate("tempo", e.target.value)} placeholder="tempo" title="Tempo" />
+          )}
+          {useRpe && (
+            <Input className="h-7 w-12 text-xs px-1.5" value={ex.rpe}
+              onChange={(e) => onUpdate("rpe", e.target.value)} placeholder="RPE" title="RPE" />
+          )}
+          <Input className="h-7 w-12 text-xs px-1.5" value={ex.rir}
+            onChange={(e) => onUpdate("rir", e.target.value)} placeholder="RIR" title="RIR" />
+        </div>
+        <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onMoveUp} disabled={idx === 0}><ChevronUp className="h-3 w-3" /></Button>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onMoveDown} disabled={idx === total - 1}><ChevronDown className="h-3 w-3" /></Button>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onDuplicate}><Copy className="h-3 w-3" /></Button>
+          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={onRemove}><Trash2 className="h-3 w-3" /></Button>
+        </div>
+      </div>
+      {/* On screens narrower than lg, fall back to wrapped fields underneath */}
+      <div className="lg:hidden flex items-center gap-2 flex-wrap pl-7 mt-1.5">
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">Sets</span>
+          <Input className="h-7 w-12 text-xs px-1.5" type="number" value={ex.sets}
+            onChange={(e) => onUpdate("sets", parseInt(e.target.value) || 0)} />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">Reps</span>
+          <Input className="h-7 w-16 text-xs px-1.5" value={ex.reps}
+            onChange={(e) => onUpdate("reps", e.target.value)} />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">Rest</span>
+          <Input className="h-7 w-14 text-xs px-1.5" type="number" value={ex.restSeconds}
+            onChange={(e) => onUpdate("restSeconds", parseInt(e.target.value) || 0)} />
+          <span className="text-[10px] text-muted-foreground">s</span>
+        </div>
+        {useTempo && (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground">Tempo</span>
+            <Input className="h-7 w-16 text-xs px-1.5" value={ex.tempo}
+              onChange={(e) => onUpdate("tempo", e.target.value)} placeholder="3-1-2" />
+          </div>
+        )}
+        {useRpe && (
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground">RPE</span>
+            <Input className="h-7 w-12 text-xs px-1.5" value={ex.rpe}
+              onChange={(e) => onUpdate("rpe", e.target.value)} />
+          </div>
+        )}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">RIR</span>
+          <Input className="h-7 w-12 text-xs px-1.5" value={ex.rir}
+            onChange={(e) => onUpdate("rir", e.target.value)} />
+        </div>
+      </div>
+      {/* Notes */}
+      <div className="pl-7 mt-1">
+        <Input className="h-6 text-[10px] px-1.5" value={ex.notes}
+          onChange={(e) => onUpdate("notes", e.target.value)} placeholder="Notes..." />
+      </div>
+    </div>
+  );
+};
+
 export default ClientWorkoutEditorModal;
+
