@@ -41,7 +41,9 @@ import {
   BookmarkPlus,
   ArrowUp,
   ArrowDown,
+  Send,
 } from "lucide-react";
+
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
