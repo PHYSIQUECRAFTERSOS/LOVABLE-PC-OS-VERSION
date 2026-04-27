@@ -191,6 +191,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
   const addExercise = (ex: Exercise) => {
     setExercises(prev => [...prev, {
+      dndId: crypto.randomUUID(),
       exerciseId: ex.id, exerciseName: ex.name, thumbnail: ex.youtube_thumbnail,
       exerciseOrder: prev.length + 1, sets: 3, reps: "10", tempo: "", restSeconds: 60,
       rir: "", rpe: "", notes: "", groupingType: null, groupingId: null, selected: false,
