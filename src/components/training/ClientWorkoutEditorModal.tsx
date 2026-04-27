@@ -270,6 +270,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     setSelectionMode(false);
   };
 
+  // Reset all rest timers to 0 — useful for cleaning up legacy AI-imported workouts
+  // (mobility / supersets) where the model baked in a 60s default that the new
+  // import path no longer produces.
+  const resetAllRestsToZero = () => {
+    setExercises(prev => prev.map(e => ({ ...e, restSeconds: 0 })));
+    toast({ title: "Rest timers reset", description: "All exercises set to 0s rest." });
+  };
+
   const getGroupColor = (groupId: string | null) => {
     if (!groupId) return "";
     const hash = groupId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
