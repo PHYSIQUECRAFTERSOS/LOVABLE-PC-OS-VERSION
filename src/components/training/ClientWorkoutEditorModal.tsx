@@ -36,6 +36,8 @@ const MUSCLE_GROUPS = [
 
 interface WorkoutExercise {
   id?: string;
+  /** Stable client-side id used for drag-and-drop tracking. Survives saves. */
+  dndId: string;
   exerciseId: string;
   exerciseName: string;
   thumbnail: string | null;
