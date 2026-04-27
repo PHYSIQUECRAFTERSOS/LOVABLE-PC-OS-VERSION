@@ -789,9 +789,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                         if (idx > 0) {
                           const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
                           if (wEntry.weight < prevWeight) {
-                            trendArrow = <TrendingDown className="h-2.5 w-2.5 text-green-400 shrink-0" />;
+                            trendArrow = <TrendingDown className="h-2.5 w-2.5 md:h-3 md:w-3 text-green-400 shrink-0" />;
                           } else if (wEntry.weight > prevWeight) {
-                            trendArrow = <TrendingUp className="h-2.5 w-2.5 text-red-400 shrink-0" />;
+                            trendArrow = <TrendingUp className="h-2.5 w-2.5 md:h-3 md:w-3 text-red-400 shrink-0" />;
                           }
                         }
                       } else {
@@ -812,13 +812,13 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                       }}
                       className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                       {item.is_completed ? (
-                        <div className={`h-2.5 w-2.5 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                          <Check className="h-1.5 w-1.5 text-white" />
+                        <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
+                          <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-white" />
                         </div>
                       ) : (
-                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${dotColor} opacity-40`} />
+                        <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
                       )}
-                      <span className="text-[9px] truncate leading-tight">{displayLabel}</span>
+                      <span className="text-[9px] md:text-xs md:font-medium truncate leading-tight">{displayLabel}</span>
                       {trendArrow}
                     </button>
                     );
@@ -826,7 +826,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                   {dayItems.length > 3 && (
                     <button
                       onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
-                      className="w-full text-left text-[9px] text-primary font-medium pl-3 hover:underline"
+                      className="w-full text-left text-[9px] md:text-xs text-primary font-medium md:font-semibold pl-3 hover:underline"
                     >
                       +{dayItems.length - 3} more
                     </button>
