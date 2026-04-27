@@ -7,15 +7,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Dumbbell, Save, Loader2, GripVertical, X, ChevronUp, ChevronDown,
-  Link, Unlink, Trash2, Plus, Pencil, Check,
+  Link, Unlink, Trash2, Plus, Pencil, Check, Timer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import MobileExercisePickerSheet from "./MobileExercisePickerSheet";
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface WorkoutExercise {
   id?: string;
+  /** Stable client-side id used for drag-and-drop tracking. Survives saves. */
+  dndId: string;
   exerciseId: string;
   exerciseName: string;
   thumbnail: string | null;
