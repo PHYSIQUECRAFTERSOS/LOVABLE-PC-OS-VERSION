@@ -431,9 +431,11 @@ CRITICAL SUPERSET / CIRCUIT RULES:
 2. Assign every exercise in that group the SAME grouping_id (use short strings: "g1", "g2", "g3"...). Set grouping_type to "superset" or "circuit" accordingly.
 3. The "Rest for X sec" / "Rest X min" line that appears AFTER the superset block (often followed by "Repeat new set") belongs to the GROUP, not to any individual exercise. Add an entry to superset_groups with that grouping_id and put the rest value in rest_seconds_between_rounds.
 4. For exercises inside a superset, set their individual rest_seconds to null. The group rest is the only rest that applies (the app will redistribute it to the last exercise in the group at write time).
-5. Do NOT copy the group rest value onto every member exercise.
+5. Do NOT copy the group rest value onto every member exercise.`;
+  }
 
   if (docType === "meal") {
+
     return `${base}
 
 Extract meal plan data. Return JSON in this format:
