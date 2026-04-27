@@ -468,11 +468,14 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       ));
     }
 
-    // Set parent meal_plans.day_type only when the whole template is a single classified type.
-    // For mixed (training + rest) two-day templates, leave it null so it slots into either pill.
+    // Set parent meal_plans.day_type. The column is NOT NULL DEFAULT 'training',
+    // so for mixed (training + rest) two-day templates we keep 'training' as a
+    // safe parent default — the actual per-day classification still lives on
+    // meal_plan_days.day_type, which is what the client tabs read.
     const uniqueTypes = Array.from(new Set(classifications));
-    const planDayType = uniqueTypes.length === 1 ? uniqueTypes[0] : null;
-    const planDayLabel = planDayType ? labelFor(planDayType) : null;
+    const planDayType: "training" | "rest" | "all_days" =
+      uniqueTypes.length === 1 ? uniqueTypes[0] : "training";
+    const planDayLabel = labelFor(planDayType);
 
     const isLibraryImport = !clientId;
     const { data: plan, error: planErr } = await supabase
