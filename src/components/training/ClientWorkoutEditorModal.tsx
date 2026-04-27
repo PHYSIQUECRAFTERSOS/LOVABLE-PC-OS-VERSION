@@ -132,7 +132,9 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
       if (exRows) {
         const loaded = exRows.map((ex: any) => ({
-          id: ex.id, exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
+          id: ex.id,
+          dndId: ex.id || crypto.randomUUID(),
+          exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
           thumbnail: ex.exercises?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
           sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds || 60,
           rir: ex.rir?.toString() || "", rpe: ex.rpe_target?.toString() || "", notes: ex.notes || "",
