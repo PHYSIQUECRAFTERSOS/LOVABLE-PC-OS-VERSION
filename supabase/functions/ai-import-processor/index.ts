@@ -471,38 +471,133 @@ If a supplement has MULTIPLE timings (e.g. "1 pill post-workout + 2 pills before
 IMPORTANT: Extract dosage as a clean number and unit separately. For example "5g/day" → dosage: "5", dosage_unit: "g". For "3 pills" → dosage: "3", dosage_unit: "pills".`;
 }
 
+import {
+  scoreMatch,
+  scoreNormalized,
+  normalize,
+  expandTokens,
+  candidateTokens,
+  type SynonymMap,
+} from "../_shared/fuzzy-match.ts";
+
+// Single threshold per spec: 80% auto-accept (green), below = needs review (red).
+const AUTO_ACCEPT_SCORE = 80;
+
+async function loadSynonyms(db: any): Promise<SynonymMap> {
+  const { data } = await db.from("exercise_synonyms").select("term, canonical");
+  const map: SynonymMap = new Map();
+  for (const row of data || []) {
+    const term = (row.term || "").toLowerCase().trim();
+    const canon = (row.canonical || "").toLowerCase().trim();
+    if (!term || !canon) continue;
+    const arr = map.get(term) || [];
+    arr.push(canon);
+    map.set(term, arr);
+  }
+  return map;
+}
+
+function levelFor(score: number): "green" | "red" {
+  return score >= AUTO_ACCEPT_SCORE ? "green" : "red";
+}
+
+/** ilike OR clause for trigram-prefiltered candidate selection. */
+function buildOrClause(tokens: string[], column: string): string {
+  if (tokens.length === 0) return "";
+  return tokens.map((t) => `${column}.ilike.%${t.replace(/[%_]/g, "")}%`).join(",");
+}
+
 async function matchExercises(db: any, extracted: any) {
+  const days = extracted.days || extracted.workout_days || [];
   const allExerciseNames: string[] = [];
-  for (const day of extracted.days || []) {
+  for (const day of days) {
     for (const ex of day.exercises || []) {
       if (ex.name) allExerciseNames.push(ex.name);
     }
   }
   if (allExerciseNames.length === 0) return { exercises: {} };
 
-  const { data: catalog } = await db
-    .from("exercises")
-    .select("id, name, muscle_group, equipment")
-    .limit(1000);
+  const syn = await loadSynonyms(db);
 
+  // Load remembered aliases (normalized → exercise_id)
+  const aliasMap = new Map<string, { id: string; name: string }>();
+  const normalizedSet = Array.from(
+    new Set(allExerciseNames.map((n) => expandTokens(normalize(n), syn))),
+  ).filter(Boolean);
+
+  if (normalizedSet.length > 0) {
+    const { data: aliases } = await db
+      .from("exercise_extraction_aliases")
+      .select("normalized_name, exercise_id, exercises:exercise_id(id, name)")
+      .in("normalized_name", normalizedSet);
+    for (const row of aliases || []) {
+      if (row.exercises?.id) {
+        aliasMap.set(row.normalized_name, { id: row.exercises.id, name: row.exercises.name });
+      }
+    }
+  }
+
+  // Build a candidate pool by trigram-prefiltering per exercise, plus a global fallback
   const exerciseMatches: Record<string, any> = {};
+
   for (const pdfName of allExerciseNames) {
-    const normalizedPdf = pdfName.toLowerCase().trim();
+    const normExpanded = expandTokens(normalize(pdfName), syn);
+
+    // 1. Alias hit → 100
+    const alias = aliasMap.get(normExpanded);
+    if (alias) {
+      exerciseMatches[pdfName] = {
+        pdf_name: pdfName,
+        matched_id: alias.id,
+        matched_name: alias.name,
+        confidence: 100,
+        confidence_level: "green",
+        from_alias: true,
+      };
+      continue;
+    }
+
+    // 2. Trigram-prefiltered candidate query
+    const tokens = candidateTokens(pdfName, syn);
+    let candidates: any[] = [];
+    if (tokens.length > 0) {
+      const orClause = buildOrClause(tokens, "name");
+      const { data } = await db
+        .from("exercises")
+        .select("id, name, primary_muscle, equipment")
+        .or(orClause)
+        .limit(50);
+      candidates = data || [];
+    }
+
+    // Fallback: if no token candidates (very short name), pull a broader sample
+    if (candidates.length === 0) {
+      const { data } = await db
+        .from("exercises")
+        .select("id, name, primary_muscle, equipment")
+        .ilike("name", `%${normExpanded.split(" ")[0] || pdfName}%`)
+        .limit(50);
+      candidates = data || [];
+    }
+
     let bestMatch: any = null;
     let bestScore = 0;
-    for (const cat of catalog || []) {
-      const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
+    for (const cat of candidates) {
+      const candNorm = expandTokens(normalize(cat.name), syn);
+      const score = scoreNormalized(normExpanded, candNorm);
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cat;
       }
     }
+
     exerciseMatches[pdfName] = {
       pdf_name: pdfName,
       matched_id: bestMatch?.id || null,
       matched_name: bestMatch?.name || null,
-      confidence: bestScore,
-      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.6 ? "yellow" : "red",
+      confidence: Math.round(bestScore) / 100, // keep legacy 0..1 shape
+      confidence_score: Math.round(bestScore), // new 0..100
+      confidence_level: levelFor(bestScore),
     };
   }
   return { exercises: exerciseMatches };
@@ -519,18 +614,36 @@ async function matchFoods(db: any, extracted: any) {
   }
   if (allFoodNames.length === 0) return { foods: {} };
 
-  const { data: catalog } = await db
-    .from("food_items")
-    .select("id, name, brand, calories, protein, carbs, fat")
-    .limit(1000);
-
+  const syn = await loadSynonyms(db);
   const foodMatches: Record<string, any> = {};
+
   for (const pdfName of allFoodNames) {
-    const normalizedPdf = pdfName.toLowerCase().trim();
+    const normExpanded = expandTokens(normalize(pdfName), syn);
+    const tokens = candidateTokens(pdfName, syn);
+    let candidates: any[] = [];
+    if (tokens.length > 0) {
+      const orClause = buildOrClause(tokens, "name");
+      const { data } = await db
+        .from("food_items")
+        .select("id, name, brand, calories, protein, carbs, fat")
+        .or(orClause)
+        .limit(50);
+      candidates = data || [];
+    }
+    if (candidates.length === 0) {
+      const { data } = await db
+        .from("food_items")
+        .select("id, name, brand, calories, protein, carbs, fat")
+        .ilike("name", `%${normExpanded.split(" ")[0] || pdfName}%`)
+        .limit(50);
+      candidates = data || [];
+    }
+
     let bestMatch: any = null;
     let bestScore = 0;
-    for (const cat of catalog || []) {
-      const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
+    for (const cat of candidates) {
+      const candNorm = expandTokens(normalize(cat.name), syn);
+      const score = scoreNormalized(normExpanded, candNorm);
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cat;
@@ -541,8 +654,9 @@ async function matchFoods(db: any, extracted: any) {
       matched_id: bestMatch?.id || null,
       matched_name: bestMatch?.name || null,
       matched_brand: bestMatch?.brand || null,
-      confidence: bestScore,
-      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.6 ? "yellow" : "red",
+      confidence: Math.round(bestScore) / 100,
+      confidence_score: Math.round(bestScore),
+      confidence_level: levelFor(bestScore),
     };
   }
   return { foods: foodMatches };
@@ -551,6 +665,8 @@ async function matchFoods(db: any, extracted: any) {
 async function matchSupplements(db: any, extracted: any) {
   const supplements = extracted.supplements || [];
   if (supplements.length === 0) return { supplements: {} };
+
+  const syn = await loadSynonyms(db);
 
   const { data: catalog } = await db
     .from("master_supplements")
@@ -561,11 +677,12 @@ async function matchSupplements(db: any, extracted: any) {
   const suppMatches: Record<string, any> = {};
   for (const supp of supplements) {
     if (!supp.name) continue;
-    const normalizedPdf = supp.name.toLowerCase().trim();
+    const normExpanded = expandTokens(normalize(supp.name), syn);
     let bestMatch: any = null;
     let bestScore = 0;
     for (const cat of catalog || []) {
-      const score = computeSimilarity(normalizedPdf, cat.name.toLowerCase().trim());
+      const candNorm = expandTokens(normalize(cat.name), syn);
+      const score = scoreNormalized(normExpanded, candNorm);
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cat;
@@ -573,46 +690,12 @@ async function matchSupplements(db: any, extracted: any) {
     }
     suppMatches[supp.name] = {
       pdf_name: supp.name,
-      matched_id: bestScore >= 0.5 ? bestMatch?.id : null,
-      matched_name: bestScore >= 0.5 ? bestMatch?.name : null,
-      confidence: bestScore,
-      confidence_level: bestScore >= 0.85 ? "green" : bestScore >= 0.5 ? "yellow" : "red",
+      matched_id: bestScore >= AUTO_ACCEPT_SCORE ? bestMatch?.id : null,
+      matched_name: bestScore >= AUTO_ACCEPT_SCORE ? bestMatch?.name : null,
+      confidence: Math.round(bestScore) / 100,
+      confidence_score: Math.round(bestScore),
+      confidence_level: levelFor(bestScore),
     };
   }
   return { supplements: suppMatches };
-}
-
-function computeSimilarity(a: string, b: string): number {
-  return levenshteinSimilarity(a, b) * 0.5 + tokenOverlap(a, b) * 0.5;
-}
-
-function levenshteinSimilarity(a: string, b: string): number {
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-  return 1 - levenshteinDistance(a, b) / maxLen;
-}
-
-function levenshteinDistance(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-  return dp[m][n];
-}
-
-function tokenOverlap(a: string, b: string): number {
-  const tokensA = new Set(a.split(/\s+/).filter(Boolean));
-  const tokensB = new Set(b.split(/\s+/).filter(Boolean));
-  if (tokensA.size === 0 && tokensB.size === 0) return 1;
-  let overlap = 0;
-  for (const t of tokensA) if (tokensB.has(t)) overlap++;
-  const union = new Set([...tokensA, ...tokensB]).size;
-  return union === 0 ? 0 : overlap / union;
 }
