@@ -478,14 +478,7 @@ If a supplement has MULTIPLE timings (e.g. "1 pill post-workout + 2 pills before
 IMPORTANT: Extract dosage as a clean number and unit separately. For example "5g/day" → dosage: "5", dosage_unit: "g". For "3 pills" → dosage: "3", dosage_unit: "pills".`;
 }
 
-import {
-  scoreMatch,
-  scoreNormalized,
-  normalize,
-  expandTokens,
-  candidateTokens,
-  type SynonymMap,
-} from "../_shared/fuzzy-match.ts";
+
 
 // Single threshold per spec: 80% auto-accept (green), below = needs review (red).
 const AUTO_ACCEPT_SCORE = 80;
