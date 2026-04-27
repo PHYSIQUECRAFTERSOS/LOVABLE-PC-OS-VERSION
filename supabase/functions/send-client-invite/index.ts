@@ -203,12 +203,19 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || "https://physique-crafters-os.lovable.app";
     const setupUrl = `${origin}/setup?token=${token}`;
 
-    // Pre-create the auth user so they can set their password on the setup page
-    const { error: createUserError } = await supabase.auth.admin.createUser({
+    // Pre-create the auth user so they can set their password on the setup page.
+    // We also seed profile, user_roles, and a PENDING coach_clients row so the
+    // coach can immediately open the client's profile and pre-build their plan.
+    const fullName = `${first_name} ${last_name}`;
+    const targetCoachId = assigned_coach_id || user.id;
+    let createdClientId: string | null = null;
+    let emailAlreadyExists = false;
+
+    const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
       email: email.toLowerCase(),
       email_confirm: true,
       user_metadata: {
-        full_name: `${first_name} ${last_name}`,
+        full_name: fullName,
         invite_token: token,
         invited_by: user.id,
       },
@@ -216,6 +223,74 @@ serve(async (req) => {
 
     if (createUserError) {
       console.log("[send-client-invite] Create user result:", createUserError.message);
+      // Email already in use → look up existing user, attach to this coach
+      if (createUserError.message?.toLowerCase().includes("already")) {
+        emailAlreadyExists = true;
+        const { data: { users } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const existing = (users || []).find(
+          (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+        );
+        if (existing) createdClientId = existing.id;
+      }
+    } else if (createdUser?.user?.id) {
+      createdClientId = createdUser.user.id;
+    }
+
+    // Seed profile, role, coach_clients(pending), and tags so the pending
+    // client appears in the Active Clients list and the coach can pre-build.
+    if (createdClientId) {
+      // Profile (idempotent)
+      await supabase
+        .from("profiles")
+        .upsert({ user_id: createdClientId, full_name: fullName }, { onConflict: "user_id" });
+
+      // Client role (idempotent)
+      await supabase
+        .from("user_roles")
+        .upsert({ user_id: createdClientId, role: "client" }, { onConflict: "user_id,role" });
+
+      // Coach assignment — pending if newly created, leave alone if already attached
+      const { data: existingAssignment } = await supabase
+        .from("coach_clients")
+        .select("id, status")
+        .eq("coach_id", targetCoachId)
+        .eq("client_id", createdClientId)
+        .maybeSingle();
+
+      if (!existingAssignment) {
+        const { error: assignErr } = await supabase.from("coach_clients").insert({
+          coach_id: targetCoachId,
+          client_id: createdClientId,
+          status: "pending",
+        });
+        if (assignErr) console.error("[send-client-invite] Assignment insert:", assignErr);
+      }
+
+      // Tags (idempotent: skip duplicates)
+      if (Array.isArray(tags) && tags.length > 0) {
+        for (const tag of tags) {
+          const { data: existingTag } = await supabase
+            .from("client_tags")
+            .select("id")
+            .eq("client_id", createdClientId)
+            .eq("coach_id", targetCoachId)
+            .eq("tag", tag)
+            .maybeSingle();
+          if (!existingTag) {
+            await supabase.from("client_tags").insert({
+              client_id: createdClientId,
+              coach_id: targetCoachId,
+              tag,
+            });
+          }
+        }
+      }
+
+      // Link the invite row to this client_id so signup acceptance flips the same row
+      await supabase
+        .from("client_invites")
+        .update({ created_client_id: createdClientId })
+        .eq("id", invite.id);
     }
 
     // Queue branded invite email via enqueue_email (pgmq)
