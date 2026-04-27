@@ -177,16 +177,18 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
 
       const emailSent = res.data?.email_sent !== false;
       const setupUrl = res.data?.invite?.setup_url;
+      const createdClientId = res.data?.invite?.created_client_id;
+      const emailAlreadyExists = res.data?.email_already_exists === true;
 
-      // Auto-insert tracker row
+      // Auto-insert tracker row using the real created_client_id (not "pending")
       const selectedTier = tiers.find((t) => t.id === form.tier_id);
-      if (selectedTier) {
+      if (selectedTier && createdClientId) {
         const trackerWeeks = selectedTier.default_weeks || 4;
         await (supabase as any)
           .from("client_program_tracker")
           .upsert({
             coach_id: form.assigned_coach_id,
-            client_id: res.data?.invite?.created_client_id || "pending",
+            client_id: createdClientId,
             client_name: `${form.first_name.trim()} ${form.last_name.trim()}`,
             weeks: trackerWeeks,
             start_date: new Date().toLocaleDateString("en-CA"),
@@ -197,7 +199,12 @@ const AddClientWithAssignmentDialog = ({ open, onOpenChange, onInviteSent }: Add
           });
       }
 
-      if (emailSent && setupUrl) {
+      if (emailAlreadyExists) {
+        toast({
+          title: "Email Already in Use",
+          description: `${form.email} already has an account. They've been attached to your roster as Pending.`,
+        });
+      } else if (emailSent && setupUrl) {
         toast({
           title: "Invite Sent",
           description: `Invitation email sent to ${form.email}. Setup link available to copy.`,
