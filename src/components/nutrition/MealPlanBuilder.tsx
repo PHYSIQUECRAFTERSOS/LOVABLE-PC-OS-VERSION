@@ -48,9 +48,11 @@ import FoodSearchPanel, { FoodResult } from "./FoodSearchPanel";
 import CopyFromClientModal from "./CopyFromClientModal";
 import AssignTemplateModal from "./AssignTemplateModal";
 import AdjustMacrosModal from "./AdjustMacrosModal";
+import CopyDayToClientDialog, { inferSlotFromDayType } from "./CopyDayToClientDialog";
 import FoodIcon from "@/lib/foodIcons";
 import MealPlanMacroSidebar from "./MealPlanMacroSidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
+
 
 interface FoodItem {
   id: string;
