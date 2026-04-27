@@ -34,6 +34,7 @@ export interface SelectableClient {
   compliance: number;
   streak: number;
   tags: string[];
+  isPending?: boolean;
 }
 
 interface NutritionCompliance {
@@ -132,8 +133,8 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
       let query = supabase
         .from("coach_clients")
-        .select("client_id, program_type")
-        .eq("status", "active");
+        .select("client_id, program_type, status")
+        .in("status", ["active", "pending"]);
       if (coachId) query = query.eq("coach_id", coachId);
 
       const { data: assignments } = await query;
@@ -145,10 +146,12 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         return;
       }
 
-      // Build program type map
+      // Build program type map + pending set
       const ptMap: Record<string, string> = {};
+      const pendingSet = new Set<string>();
       assignments.forEach((a: any) => {
         if (a.program_type) ptMap[a.client_id] = a.program_type;
+        if (a.status === "pending") pendingSet.add(a.client_id);
       });
       setProgramTypeMap(ptMap);
 
@@ -249,6 +252,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           compliance,
           streak,
           tags: tagMap[p.user_id] || [],
+          isPending: pendingSet.has(p.user_id),
         };
       });
 
@@ -588,7 +592,17 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     <AvatarFallback className="text-xs">{client.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-foreground text-sm truncate">{client.name}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-medium text-foreground text-sm truncate">{client.name}</p>
+                      {client.isPending && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 border-muted-foreground/30 text-muted-foreground bg-muted/30 font-medium"
+                        >
+                          Pending
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs text-muted-foreground">{client.compliance}% compliance</span>
                       {client.streak > 0 && (

@@ -41,6 +41,7 @@ interface Invite {
   updated_at: string;
   tags: string[];
   invite_token?: string;
+  created_client_id?: string | null;
 }
 
 interface InviteListProps {
@@ -63,6 +64,7 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invite | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ invite: Invite; preBuiltCount: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const setCopiedState = (inviteId: string) => {
@@ -112,7 +114,20 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
     fetchInvites();
   }, [user, refreshKey]);
 
-  const handleCancel = async (invite: Invite) => {
+  // Count pre-built data the coach has staged for this pending client.
+  // Used to warn before revoking an invite that would orphan that work.
+  const countPreBuiltData = async (clientId: string): Promise<number> => {
+    const [progRes, mealRes, calRes, suppRes, notesRes] = await Promise.all([
+      supabase.from("client_program_assignments").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+      supabase.from("coach_meal_plan_uploads").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+      supabase.from("calendar_events").select("id", { count: "exact", head: true }).eq("target_client_id", clientId),
+      supabase.from("client_supplement_assignments").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+      supabase.from("client_notes").select("id", { count: "exact", head: true }).eq("client_id", clientId),
+    ]);
+    return (progRes.count || 0) + (mealRes.count || 0) + (calRes.count || 0) + (suppRes.count || 0) + (notesRes.count || 0);
+  };
+
+  const performCancel = async (invite: Invite) => {
     setCancelling(invite.id);
     try {
       const { error } = await supabase
@@ -122,19 +137,51 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
 
       if (error) throw error;
 
+      // Remove the pending coach_clients row so the pending card disappears
+      // from Active Clients. Only touches PENDING rows — never an active client.
+      if (invite.created_client_id) {
+        await supabase
+          .from("coach_clients")
+          .delete()
+          .eq("client_id", invite.created_client_id)
+          .eq("status", "pending");
+      }
+
       toast({ title: "Invite Cancelled", description: `The invite for ${invite.first_name} ${invite.last_name} has been voided.` });
       fetchInvites();
     } catch (err: any) {
       toast({ title: "Cancel Failed", description: err.message || "Could not cancel invite.", variant: "destructive" });
     } finally {
       setCancelling(null);
+      setCancelTarget(null);
     }
+  };
+
+  const handleCancel = async (invite: Invite) => {
+    // If pre-built data exists, warn before revoking
+    if (invite.created_client_id) {
+      const count = await countPreBuiltData(invite.created_client_id);
+      if (count > 0) {
+        setCancelTarget({ invite, preBuiltCount: count });
+        return;
+      }
+    }
+    await performCancel(invite);
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
+      // Also remove the pending coach_clients row (active rows are protected by status filter)
+      if (deleteTarget.created_client_id) {
+        await supabase
+          .from("coach_clients")
+          .delete()
+          .eq("client_id", deleteTarget.created_client_id)
+          .eq("status", "pending");
+      }
+
       const { error } = await supabase
         .from("client_invites")
         .delete()
@@ -303,6 +350,28 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This client has pre-built data. Delete anyway?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You've already built {cancelTarget?.preBuiltCount} item{cancelTarget?.preBuiltCount === 1 ? "" : "s"} (programs, meal plans, calendar events, supps, or notes) for <strong>{cancelTarget?.invite.first_name} {cancelTarget?.invite.last_name}</strong>. Cancelling the invite will remove their pending profile and that work will be orphaned.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!cancelling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelTarget && performCancel(cancelTarget.invite)}
+              disabled={!!cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

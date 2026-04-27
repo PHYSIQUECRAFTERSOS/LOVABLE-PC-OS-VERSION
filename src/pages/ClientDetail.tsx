@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft, MessageSquare, Dumbbell, UtensilsCrossed, CalendarDays,
   LayoutDashboard, Target, ClipboardList, BarChart3, BookOpen, Pill, Tag,
-  ExternalLink,
+  ExternalLink, Hourglass, X,
 } from "lucide-react";
 import ClientWorkspaceSummary from "@/components/clients/workspace/SummaryTab";
 import ClientWorkspaceTraining from "@/components/clients/workspace/TrainingTab";
@@ -66,6 +66,8 @@ const ClientDetail = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [pendingBannerDismissed, setPendingBannerDismissed] = useState(false);
   const previousTabRef = useRef<string>(initialTab);
 
   // Detect touch-only devices (skip context menu on mobile)
@@ -149,12 +151,13 @@ const ClientDetail = () => {
         .eq("status", "active")
         .limit(1)
         .maybeSingle(),
-      supabase.from("coach_clients").select("program_type").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
+      supabase.from("coach_clients").select("program_type, status").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
     ]);
     setProfile(profileRes.data as ClientProfile | null);
     setTags((tagsRes.data || []).map((t: any) => t.tag));
     setProgramName((programRes.data as any)?.programs?.name || null);
     setProgramType((coachClientRes.data as any)?.program_type || null);
+    setIsPending((coachClientRes.data as any)?.status === "pending");
     setLoading(false);
   }, [clientId, userId]);
 
@@ -292,6 +295,30 @@ const ClientDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* Pending client banner */}
+        {isPending && !pendingBannerDismissed && (
+          <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+            <Hourglass className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                This client hasn't signed up yet
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Anything you build now — programs, meal plans, calendar events, supps, notes, messages — will be ready for them on first login.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 shrink-0"
+              onClick={() => setPendingBannerDismissed(true)}
+              aria-label="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
         {/* Workspace Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
