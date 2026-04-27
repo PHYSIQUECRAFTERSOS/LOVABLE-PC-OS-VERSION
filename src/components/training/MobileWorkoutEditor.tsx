@@ -499,6 +499,15 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
                 <span className="text-[10px]">Superset</span>
               </button>
               <button
+                onClick={resetAllRests}
+                className="flex flex-col items-center gap-1 text-muted-foreground"
+                disabled={exercises.length === 0}
+                title="Reset all rest timers to 0s"
+              >
+                <Timer className="h-5 w-5" />
+                <span className="text-[10px]">Rest 0s</span>
+              </button>
+              <button
                 onClick={() => { setToolbarMode("delete"); setEditingIdx(null); }}
                 className="flex flex-col items-center gap-1 text-muted-foreground"
                 disabled={exercises.length === 0}
