@@ -41,6 +41,7 @@ interface Invite {
   updated_at: string;
   tags: string[];
   invite_token?: string;
+  created_client_id?: string | null;
 }
 
 interface InviteListProps {
@@ -63,6 +64,7 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invite | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ invite: Invite; preBuiltCount: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const setCopiedState = (inviteId: string) => {
