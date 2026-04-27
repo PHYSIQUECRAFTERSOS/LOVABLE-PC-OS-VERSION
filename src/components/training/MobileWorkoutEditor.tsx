@@ -446,126 +446,41 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
                   <p className="text-xs text-muted-foreground/70 mt-1">Tap Insert below to add exercises</p>
                 </div>
               ) : (
-                <div className="divide-y divide-border">
-                  {exercises.map((ex, idx) => {
-                    const isGroupStart = ex.groupingId && (idx === 0 || exercises[idx - 1].groupingId !== ex.groupingId);
-                    const isInGroup = !!ex.groupingId;
-                    const isSelectionMode = toolbarMode === "superset" || toolbarMode === "delete";
-
-                    return (
-                      <div key={idx} className={`relative ${isInGroup ? "border-l-2 border-l-primary ml-2" : ""}`}>
-                        {isGroupStart && (
-                          <div className="px-4 pt-2 pb-1">
-                            <Badge className="text-[9px] bg-primary/20 text-primary border-primary/30">
-                              {ex.groupingType === "superset" ? "Superset" : ex.groupingType}
-                            </Badge>
-                          </div>
-                        )}
-                        <div
-                          className={`flex items-center gap-3 px-4 py-3 ${ex.selected ? "bg-primary/10" : ""}`}
-                          onClick={() => {
-                            if (isSelectionMode) toggleSelection(idx);
-                            else setEditingIdx(editingIdx === idx ? null : idx);
-                          }}
-                        >
-                          {isSelectionMode && (
-                            <Checkbox checked={ex.selected} className="shrink-0" />
-                          )}
-
-                          {/* Thumbnail */}
-                          <div className="h-12 w-16 rounded-lg overflow-hidden bg-[hsl(var(--muted))] flex-shrink-0 flex items-center justify-center">
-                            {ex.thumbnail ? (
-                              <img src={ex.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
-                            ) : (
-                              <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
-                            )}
-                          </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">{ex.exerciseName}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <Badge variant="outline" className="text-[9px] h-4 border-primary/30 text-primary">
-                                {ex.sets} × {ex.reps || "—"}
-                              </Badge>
-                              {ex.restSeconds > 0 && (
-                                <span className="text-[10px] text-muted-foreground">{ex.restSeconds}s rest</span>
-                              )}
-                              {ex.rpe && <span className="text-[10px] text-muted-foreground">RPE {ex.rpe}</span>}
-                            </div>
-                          </div>
-
-                          {/* Reorder (non-selection mode) */}
-                          {!isSelectionMode && (
-                            <div className="flex flex-col gap-0.5 shrink-0">
-                              <button onClick={(e) => { e.stopPropagation(); moveExercise(idx, "up"); }} disabled={idx === 0}
-                                className="p-1 rounded disabled:opacity-20">
-                                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                              <button onClick={(e) => { e.stopPropagation(); moveExercise(idx, "down"); }} disabled={idx === exercises.length - 1}
-                                className="p-1 rounded disabled:opacity-20">
-                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Inline edit row */}
-                        {editingIdx === idx && !isSelectionMode && (
-                          <div className="px-4 pb-3 space-y-2">
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Sets</span>
-                                <Input className="h-8 text-xs mt-0.5" type="number" value={ex.sets}
-                                  onChange={(e) => updateExercise(idx, "sets", parseInt(e.target.value) || 0)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Reps</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.reps}
-                                  onChange={(e) => updateExercise(idx, "reps", e.target.value)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Rest (s)</span>
-                                <Input className="h-8 text-xs mt-0.5" type="number" value={ex.restSeconds}
-                                  onChange={(e) => updateExercise(idx, "restSeconds", parseInt(e.target.value) || 0)} />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">RPE</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.rpe}
-                                  onChange={(e) => updateExercise(idx, "rpe", e.target.value)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">RIR</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.rir}
-                                  onChange={(e) => updateExercise(idx, "rir", e.target.value)} />
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-muted-foreground">Tempo</span>
-                                <Input className="h-8 text-xs mt-0.5" value={ex.tempo} placeholder="3-1-2"
-                                  onChange={(e) => updateExercise(idx, "tempo", e.target.value)} />
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-muted-foreground">Notes</span>
-                              <Input className="h-8 text-xs mt-0.5" value={ex.notes} placeholder="Exercise notes..."
-                                onChange={(e) => updateExercise(idx, "notes", e.target.value)} />
-                            </div>
-                            {ex.groupingId && (
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
-                                updateExercise(idx, "groupingType", null);
-                                updateExercise(idx, "groupingId", null);
-                              }}>
-                                <Unlink className="h-3 w-3" /> Ungroup
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={exercises.map((e) => e.dndId)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="divide-y divide-border">
+                      {exercises.map((ex, idx) => {
+                        const isGroupStart = ex.groupingId && (idx === 0 || exercises[idx - 1].groupingId !== ex.groupingId);
+                        const isSelectionMode = toolbarMode === "superset" || toolbarMode === "delete";
+                        return (
+                          <SortableMobileRow
+                            key={ex.dndId}
+                            ex={ex}
+                            idx={idx}
+                            total={exercises.length}
+                            isGroupStart={!!isGroupStart}
+                            isSelectionMode={isSelectionMode}
+                            isEditing={editingIdx === idx}
+                            onTap={() => {
+                              if (isSelectionMode) toggleSelection(idx);
+                              else setEditingIdx(editingIdx === idx ? null : idx);
+                            }}
+                            onMoveUp={() => moveExercise(idx, "up")}
+                            onMoveDown={() => moveExercise(idx, "down")}
+                            onUpdate={(field, value) => updateExercise(idx, field, value)}
+                          />
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
             </div>
           )}
