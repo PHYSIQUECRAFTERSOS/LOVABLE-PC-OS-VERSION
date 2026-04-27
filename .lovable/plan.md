@@ -1,135 +1,74 @@
-# Fix AI Import rest timer parsing for supersets and missing-rest exercises
+# Fix: AI Import "File upload failed" for Meals & Supplements
 
-## Root cause
+## Root cause (confirmed via DB diagnostic)
 
-Two layers fail together:
+Looked at `ai_import_jobs` records: **every recent failure** is the same PDF named:
 
-1. **Edge Function prompt** (`supabase/functions/ai-import-processor/index.ts` lines 386–417) doesn't teach the model the superset rest semantics or the "no rest = null" rule. The model improvises — it sees "Rest for 60 sec" near a superset block and attaches 60 to every member.
-2. **Client persistence** (`src/components/import/AIImportModal.tsx` line 336) writes whatever the model returned, with zero redistribution. There is no post-processing pass that walks supersets and reassigns rest.
-
-No `?? 60` fallback exists in code — the 60s comes from the model itself, then is written verbatim. Fix must address both layers.
-
-Also: line 336 uses `ex.rest_seconds || null`, which incorrectly maps an explicit `0` to `null`. Will be replaced with `?? 0`.
-
----
-
-## Phase 1 — Update extraction prompt and schema
-
-**File:** `supabase/functions/ai-import-processor/index.ts` → `buildSystemPrompt()` (~line 391)
-
-New JSON shape adds `superset_groups` per day:
-```json
-{
-  "program_name": "string",
-  "days": [{
-    "day_name": "string",
-    "exercises": [{
-      "name": "string",
-      "sets": "number | null",
-      "reps": "string",
-      "rest_seconds": "number | null",
-      "tempo": "string | null",
-      "rir": "number | null",
-      "rpe": "number | null",
-      "notes": "string | null",
-      "grouping_type": "superset | circuit | null",
-      "grouping_id": "string | null"
-    }],
-    "superset_groups": [{
-      "grouping_id": "string",
-      "rest_seconds_between_rounds": "number | null"
-    }]
-  }]
-}
+```
+ [bi weekly ] Jose Lopez  April 9 2026.pdf
 ```
 
-New explicit rules in the prompt:
-- "If the PDF does not specify a rest value for an exercise, return `rest_seconds: null`. Do NOT invent 60 or any default."
-- "When you see 'Superset of N sets' / 'Giant set' / 'Circuit', assign every exercise in that block the same `grouping_id` (short string like `g1`). Set `grouping_type` to `superset` or `circuit`."
-- "The 'Rest for X sec' line that follows the superset block belongs to the **group**, not to any individual exercise. Put it in `superset_groups[].rest_seconds_between_rounds`. Inside the group, set every exercise's `rest_seconds` to null."
-- "Convert all rest values to seconds: '2 min' = 120, '90 sec' = 90, '15 sec' = 15."
+— note the **leading space**, **square brackets `[ ]`**, and **double spaces**. The most recent **successful** import was a workout with a clean filename (`Jose 4 day week program.pdf`).
 
----
+The flow in `src/components/import/AIImportModal.tsx` (line 140) constructs the storage key directly from the filename:
 
-## Phase 2 — Post-extraction redistribution (the actual fix)
-
-**File:** `src/components/import/AIImportModal.tsx` → `saveWorkoutProgram()` (lines 310–346)
-
-Before the per-exercise insert loop, build group lookups:
 ```ts
-const groupRestById = new Map<string, number>();
-for (const g of (day.superset_groups ?? [])) {
-  if (g.grouping_id) groupRestById.set(g.grouping_id, g.rest_seconds_between_rounds ?? 0);
-}
-const lastIndexByGroup = new Map<string, number>();
-dayExercises.forEach((ex, idx) => {
-  if (ex.grouping_id) lastIndexByGroup.set(ex.grouping_id, idx);
-});
+const storagePath = `${user.id}/${newJobId}/${uploadName}`;
+const { data, error } = await supabase.storage
+  .from("ai-import-uploads")
+  .upload(storagePath, uploadBlob, { upsert: true });
 ```
 
-Replace line 336 (`rest_seconds: ex.rest_seconds || null`) with:
-```ts
-let finalRest: number;
-if (ex.grouping_id && groupRestById.has(ex.grouping_id)) {
-  const isLast = lastIndexByGroup.get(ex.grouping_id) === ei;
-  finalRest = isLast ? groupRestById.get(ex.grouping_id)! : 0;
-} else {
-  finalRest = ex.rest_seconds ?? 0;   // trust the PDF; never invent 60
-}
-// then: rest_seconds: finalRest
+Supabase Storage's S3-compatible object key validator rejects keys containing **square brackets, leading/trailing spaces, and certain other characters**. The upload returns an error → we show "File upload failed - check your connection and try again." (which is misleading — it's not a connection issue).
+
+This affects Meals **and** Supplements **and** Workouts equally. The user only noticed it on Meals/Supplements because that's the PDF they happened to use; the workout import that succeeded used a different, clean filename.
+
+The bucket itself (`ai-import-uploads`) is configured correctly: 50MB limit, accepts `application/pdf`, `image/*`, and `text/plain`, with proper RLS policies for the coach's folder. No backend changes needed.
+
+## The fix (single, narrow change)
+
+Add a `sanitizeStorageKey()` helper in `AIImportModal.tsx` and use it when building `uploadName`. It will:
+
+- strip leading/trailing whitespace
+- replace any character that isn't `[A-Za-z0-9._-]` with `_`
+- collapse runs of `_` into a single `_`
+- keep the original extension intact
+- preserve the existing PDF→`.txt` conversion behavior
+
+Example transformation:
+
+```
+" [bi weekly ] Jose Lopez  April 9 2026.pdf"
+  → "_bi_weekly_Jose_Lopez_April_9_2026.txt"
 ```
 
-Defensive fallback: if `superset_groups` is missing but exercises share a `grouping_id` (older model output), assign rest=0 to all members and log a warning.
+The original (unsanitized) filename will continue to be stored in `ai_import_jobs.file_names` for display/audit purposes — only the **storage key** gets sanitized.
 
-Keep `grouping_type` / `grouping_id` write-through unchanged so the editor's superset banner still renders.
+## Files to change
 
----
+1. **`src/components/import/AIImportModal.tsx`** (only file)
+   - Add `sanitizeStorageKey(name: string): string` helper near the top of the file (next to `extractTextFromPDF`).
+   - In the upload loop (around line 130–140), after computing `uploadName`, pass it through `sanitizeStorageKey()` before building `storagePath`.
+   - Improve the error message at line 151 to surface the actual Supabase error (`uploadErr.message`) instead of a hardcoded "check your connection" string, so future filename/permission/size failures are diagnosable instead of looking like network issues.
 
-## Phase 3 — Audit pass
+No other files, no DB changes, no edge function changes, no RLS changes.
 
-Re-grep the importer for `?? 60`, `|| 60`, `: 60`, `defaultRest`. Currently none exist; re-verify after Phase 2 changes. Only acceptable fallback for missing rest is `0`.
+## Verification plan (after implementation)
 
----
+1. **Reproduce the exact failure first** with the user's filename: open AI Import on Master Libraries → Meals → upload the same `[bi weekly ] Jose Lopez April 9 2026.pdf`. Confirm it now reaches the "Processing with AI" step instead of erroring.
+2. **Repeat for Supplements tab** with the same file — should also succeed.
+3. **Verify workout import still works** with a clean filename (regression check).
+4. **Check `ai_import_jobs` table**: new jobs should reach `status='review'` instead of `status='failed'`.
+5. **Check edge function logs** for `ai-import-processor` to confirm the function received the sanitized path and could read the file from storage.
 
-## Phase 4 — Debug logging behind `VITE_DEBUG_AI_IMPORT`
+## Out of scope (not touched)
 
-Client (only when `import.meta.env.VITE_DEBUG_AI_IMPORT === 'true'`):
-1. After model returns: log `{ name, raw_rest, group, group_rest }` per exercise.
-2. After redistribution: log `{ name, final_rest, is_last_in_group }`.
+- Rest timer redistribution logic from the previous task
+- Exercise/food/supplement matching engine
+- Edge function prompt or schema
+- Any RLS policies
+- The `ai_import_jobs` table schema
 
-Edge Function (only when `Deno.env.get("DEBUG_AI_IMPORT") === 'true'`):
-- Log full raw model JSON for the workout extraction (structured `console.log(JSON.stringify(...))` for grep-ability).
+## Risk assessment
 
----
-
-## Phase 5 — Manual verification matrix (Jose Lopez Phase 11)
-
-| Exercise | Expected rest |
-|---|---|
-| Upper Body Mobility Routine | **0s** |
-| Incline Smith bench press | 120s |
-| Cable Fly Low To High (myo) | 15s |
-| Day 1 superset: rope hammer curl | **0s** |
-| Day 1 superset: tricep rope pushdown | **90s** |
-| Day 3 superset: incline hammer curl | **0s** |
-| Day 3 superset: lying DB tricep ext | **60s** |
-
-Phase 1 (prompt) + Phase 2 (redistribution) are belt-and-suspenders: even if the model still attaches 60 to a superset member, the client redistribution overrides it.
-
----
-
-## Files touched
-
-- `supabase/functions/ai-import-processor/index.ts` — prompt + schema (no API call format change)
-- `src/components/import/AIImportModal.tsx` — redistribution + `?? 0` fallback
-
-No DB migrations. No RLS changes. No new columns. Existing `workout_exercises` columns (`rest_seconds`, `grouping_type`, `grouping_id`) cover the full requirement.
-
-Both Master Library and Client Profile imports already share `AIImportModal` + the single Edge Function, so the fix lands on both surfaces simultaneously.
-
----
-
-## Decisions made on consultant recommendations
-
-- **Rec 6 (null vs 0):** Write **`0`**, not `null`, when PDF specifies no rest. Matches "trust the PDF" spec and gives the timer UI an explicit value.
-- **Recs 1, 2, 3, 4, 5:** Out of scope here — separate prompts (pre-save rest review, tempo parsing, AMRAP markers, bulk import, fixture tests).
+Very low. The sanitization is purely a client-side string transformation on the storage key. The displayed filename in `file_names` stays intact. No existing successful import path is modified — clean filenames already pass through unchanged because alphanumeric/dot/dash/underscore characters are preserved.

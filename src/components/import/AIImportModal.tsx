@@ -30,6 +30,29 @@ async function extractTextFromPDF(file: File): Promise<string> {
   return textParts.join("\n");
 }
 
+/**
+ * Sanitize a filename for use as a Supabase Storage object key.
+ * Storage rejects keys with brackets, leading/trailing whitespace, and many
+ * other characters. We keep only [A-Za-z0-9._-], replace runs of anything
+ * else with a single underscore, and trim leading/trailing underscores.
+ * The original (unsanitized) filename is still stored in ai_import_jobs.file_names.
+ */
+function sanitizeStorageKey(name: string): string {
+  const trimmed = name.trim();
+  // Split off the last extension so we don't mangle it
+  const lastDot = trimmed.lastIndexOf(".");
+  const base = lastDot > 0 ? trimmed.slice(0, lastDot) : trimmed;
+  const ext = lastDot > 0 ? trimmed.slice(lastDot) : "";
+  const safeBase = base
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[_.-]+|[_.-]+$/g, "");
+  const safeExt = ext.replace(/[^A-Za-z0-9.]+/g, "");
+  const finalName = (safeBase || "file") + safeExt;
+  return finalName;
+}
+
+
 type Step = "upload" | "processing" | "review" | "saving" | "done";
 
 interface AIImportModalProps {
