@@ -450,6 +450,7 @@ CRITICAL REST RULES:
 1. If the PDF does NOT specify a rest value for an exercise, return rest_seconds: null. Do NOT invent 60 or any default. Mobility, warmup, and stretching rows almost always have no rest specified — return null for those.
 2. Convert rest values to seconds: "2 min" = 120, "90 sec" = 90, "15 sec" = 15, "1 min 30 sec" = 90.
 3. "Rest X between sets" applies to that single exercise. Put it in that exercise's rest_seconds.
+4. There is NO default rest value. If you are tempted to write 60 because nothing is specified, write null instead. Repeat: there is no default — null means "PDF didn't say".
 
 CRITICAL SUPERSET / CIRCUIT RULES:
 1. When you see a header like "Superset of N sets", "Giant set", or "Circuit", every exercise listed under that header until the next "Rest for X" line or the next non-grouped exercise belongs to the same group.
