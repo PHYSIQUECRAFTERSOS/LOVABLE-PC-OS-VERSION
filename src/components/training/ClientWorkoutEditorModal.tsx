@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Search, Dumbbell, Trash2, Save, Loader2, GripVertical, X, ChevronUp, ChevronDown,
-  Link, Unlink, Copy, Replace,
+  Link, Unlink, Copy, Replace, Timer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
