@@ -181,7 +181,9 @@ const SupplementLibrary = () => {
 
   const loadClients = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase.from("coach_clients").select("client_id").eq("coach_id", user.id).eq("status", "active");
+    // Include both active and pending clients so coaches can pre-assign plans
+    // to clients who have been invited but haven't completed onboarding yet.
+    const { data } = await supabase.from("coach_clients").select("client_id").eq("coach_id", user.id).in("status", ["active", "pending"]);
     if (!data || data.length === 0) { setClients([]); return; }
     const ids = data.map((d: any) => d.client_id);
     const { data: profiles } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);

@@ -124,11 +124,13 @@ const ProgramList = () => {
 
   const loadClients = async () => {
     if (!userId) return;
+    // Include pending clients so coaches can pre-assign workout programs to
+    // clients who haven't completed onboarding yet.
     const { data, error } = await supabase
       .from("coach_clients")
       .select("client_id")
       .eq("coach_id", userId)
-      .eq("status", "active");
+      .in("status", ["active", "pending"]);
     if (error || !data) return;
     
     const clientIds = data.map((d: any) => d.client_id);
