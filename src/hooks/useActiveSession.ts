@@ -125,7 +125,7 @@ export const useActiveSession = () => {
         completedSessionIds.current.add(candidate.id);
         await supabase
           .from("workout_sessions")
-          .update({ status: "completed" } as any)
+          .update({ status: "completed", completed_at: new Date().toISOString() } as any)
           .eq("id", candidate.id);
         setActiveSession(null);
         return;
