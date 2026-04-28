@@ -1064,6 +1064,32 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
 
+  // Workout was already completed today — show a friendly panel instead of
+  // a fresh tracker. Prevents the "back into empty workout" symptom that
+  // occurs when the logger remounts after a successful finish.
+  if (alreadyCompletedToday) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-6 bg-background">
+        <div className="text-5xl">✅</div>
+        <h1 className="text-2xl font-display font-bold text-foreground text-center">
+          Workout Already Completed
+        </h1>
+        <p className="text-sm text-muted-foreground text-center max-w-xs">
+          You've already finished {workoutName} today. Nice work.
+        </p>
+        <button
+          onClick={() => {
+            onComplete?.();
+            navigate("/dashboard", { replace: true });
+          }}
+          className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
   if (showSummary) {
     return (
       <WorkoutSummary
