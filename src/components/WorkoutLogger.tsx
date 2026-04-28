@@ -190,6 +190,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
   const [recoveredSetCount, setRecoveredSetCount] = useState(0);
 
+  // Guard: workout was already completed today (prevents ghost session creation
+  // if the logger remounts after a successful finish — see fix for Keith Berens
+  // "crashes back into empty workout" report).
+  const [alreadyCompletedToday, setAlreadyCompletedToday] = useState(false);
+
   // Completion lock — prevents duplicate finish calls (useRef to avoid re-render loops)
   const isCompletingRef = useRef(false);
   // Done-button lock — prevents double-fires of the post-summary navigation
