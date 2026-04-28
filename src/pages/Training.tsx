@@ -155,7 +155,7 @@ const Training = () => {
         // never triggers re-hydration again.
         await supabase
           .from("workout_sessions")
-          .update({ status: "completed" } as any)
+          .update({ status: "completed", completed_at: new Date().toISOString() } as any)
           .eq("id", activeSession.id);
         return;
       }

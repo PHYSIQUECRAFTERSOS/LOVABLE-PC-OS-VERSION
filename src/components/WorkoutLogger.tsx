@@ -190,6 +190,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
   const [recoveredSetCount, setRecoveredSetCount] = useState(0);
 
+  // Guard: workout was already completed today (prevents ghost session creation
+  // if the logger remounts after a successful finish — see fix for Keith Berens
+  // "crashes back into empty workout" report).
+  const [alreadyCompletedToday, setAlreadyCompletedToday] = useState(false);
+
   // Completion lock — prevents duplicate finish calls (useRef to avoid re-render loops)
   const isCompletingRef = useRef(false);
   // Done-button lock — prevents double-fires of the post-summary navigation
@@ -298,8 +303,31 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           }
           setSessionId(existingSession.id);
         } else {
-          // No existing session — create a new one
+          // No existing in_progress session. Before creating a new one, check
+          // if this workout was already completed today (calendar self-heal).
+          // Without this guard, a parent re-render that remounts the logger
+          // after a successful finish would insert an empty ghost session row,
+          // which useActiveSession then flips to "completed" with no data —
+          // producing the "crashes back into empty workout" symptom.
           const { getLocalDateString } = await import("@/utils/localDate");
+          const todayStr = getLocalDateString();
+          const { data: completedToday } = await supabase
+            .from("calendar_events")
+            .select("id")
+            .eq("linked_workout_id", workoutId)
+            .eq("event_type", "workout")
+            .eq("event_date", todayStr)
+            .eq("is_completed", true)
+            .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+            .limit(1);
+
+          if (completedToday && completedToday.length > 0) {
+            console.log("[WorkoutLogger] Workout already completed today — skipping session creation");
+            setAlreadyCompletedToday(true);
+            return;
+          }
+
+          // Safe to create a new session.
           const { data, error } = await supabase
             .from("workout_sessions")
             .insert({
@@ -1036,6 +1064,32 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
 
+  // Workout was already completed today — show a friendly panel instead of
+  // a fresh tracker. Prevents the "back into empty workout" symptom that
+  // occurs when the logger remounts after a successful finish.
+  if (alreadyCompletedToday) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-6 bg-background">
+        <div className="text-5xl">✅</div>
+        <h1 className="text-2xl font-display font-bold text-foreground text-center">
+          Workout Already Completed
+        </h1>
+        <p className="text-sm text-muted-foreground text-center max-w-xs">
+          You've already finished {workoutName} today. Nice work.
+        </p>
+        <button
+          onClick={() => {
+            onComplete?.();
+            navigate("/dashboard", { replace: true });
+          }}
+          className="px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
+
   if (showSummary) {
     return (
       <WorkoutSummary
@@ -1064,9 +1118,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             // Fire-and-forget belt-and-suspenders update — finishWorkout already
             // sets status to "completed", but in rare race conditions the row may
             // still report in_progress on a slow network. This makes it explicit.
+            // Always set completed_at so this row never appears as a "ghost" with
+            // status='completed' but completed_at=NULL.
             supabase
               .from("workout_sessions")
-              .update({ status: "completed" } as any)
+              .update({ status: "completed", completed_at: new Date().toISOString() } as any)
               .eq("id", sessionId)
               .then(() => { /* noop */ });
           }
