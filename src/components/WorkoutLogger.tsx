@@ -303,8 +303,31 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           }
           setSessionId(existingSession.id);
         } else {
-          // No existing session — create a new one
+          // No existing in_progress session. Before creating a new one, check
+          // if this workout was already completed today (calendar self-heal).
+          // Without this guard, a parent re-render that remounts the logger
+          // after a successful finish would insert an empty ghost session row,
+          // which useActiveSession then flips to "completed" with no data —
+          // producing the "crashes back into empty workout" symptom.
           const { getLocalDateString } = await import("@/utils/localDate");
+          const todayStr = getLocalDateString();
+          const { data: completedToday } = await supabase
+            .from("calendar_events")
+            .select("id")
+            .eq("linked_workout_id", workoutId)
+            .eq("event_type", "workout")
+            .eq("event_date", todayStr)
+            .eq("is_completed", true)
+            .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+            .limit(1);
+
+          if (completedToday && completedToday.length > 0) {
+            console.log("[WorkoutLogger] Workout already completed today — skipping session creation");
+            setAlreadyCompletedToday(true);
+            return;
+          }
+
+          // Safe to create a new session.
           const { data, error } = await supabase
             .from("workout_sessions")
             .insert({
