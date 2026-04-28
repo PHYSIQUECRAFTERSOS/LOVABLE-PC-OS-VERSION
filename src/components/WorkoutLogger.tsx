@@ -1118,9 +1118,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             // Fire-and-forget belt-and-suspenders update — finishWorkout already
             // sets status to "completed", but in rare race conditions the row may
             // still report in_progress on a slow network. This makes it explicit.
+            // Always set completed_at so this row never appears as a "ghost" with
+            // status='completed' but completed_at=NULL.
             supabase
               .from("workout_sessions")
-              .update({ status: "completed" } as any)
+              .update({ status: "completed", completed_at: new Date().toISOString() } as any)
               .eq("id", sessionId)
               .then(() => { /* noop */ });
           }
