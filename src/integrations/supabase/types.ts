@@ -7748,6 +7748,19 @@ export type Database = {
       }
       repair_saved_meals_commit: { Args: { p_run_id: string }; Returns: Json }
       repair_saved_meals_dry_run: { Args: never; Returns: Json }
+      save_meal_with_items: {
+        Args: {
+          p_calories: number
+          p_carbs: number
+          p_fat: number
+          p_items?: Json
+          p_meal_type: string
+          p_name: string
+          p_protein: number
+          p_servings?: number
+        }
+        Returns: string
+      }
       search_foods: {
         Args: { result_limit?: number; search_query: string }
         Returns: {

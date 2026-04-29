@@ -421,27 +421,6 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     if (!user || selectedLogs.length === 0 || !saveMealName.trim()) return;
     setSavingMeal(true);
 
-    const { data: meal, error } = await supabase
-      .from("saved_meals")
-      .insert({
-        client_id: user.id,
-        name: saveMealName.trim(),
-        meal_type: selectedLogs[0].meal_type,
-        calories: Math.round(selectedTotals.calories),
-        protein: Math.round(selectedTotals.protein),
-        carbs: Math.round(selectedTotals.carbs),
-        fat: Math.round(selectedTotals.fat),
-        servings: 1,
-      } as any)
-      .select()
-      .single();
-
-    if (error || !meal) {
-      toast({ title: "Couldn't save meal." });
-      setSavingMeal(false);
-      return;
-    }
-
     // Look up serving metadata for any linked food items so we can persist
     // per-100g reference values (prevents the "1g" portion corruption bug).
     const foodIds = Array.from(new Set(selectedLogs.map(l => l.food_item_id).filter(Boolean))) as string[];
@@ -473,7 +452,6 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       const fat100 = meta?.fat != null && refServing > 0 ? (Number(meta.fat) / refServing) * 100 : 0;
 
       return {
-        saved_meal_id: meal.id,
         food_item_id: l.food_item_id || null,
         food_name: l.custom_name || (l.food_item_id ? foodNames[l.food_item_id] : null) || "Food",
         quantity,
@@ -490,9 +468,20 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       };
     });
 
-    const { error: itemsErr } = await supabase.from("saved_meal_items" as any).insert(mealItems);
-    if (itemsErr) {
-      toast({ title: "Couldn't save meal items.", description: itemsErr.message });
+    const { error } = await supabase.rpc("save_meal_with_items" as any, {
+      p_name: saveMealName.trim(),
+      p_meal_type: selectedLogs[0].meal_type || "snack",
+      p_calories: Math.round(selectedTotals.calories),
+      p_protein: Math.round(selectedTotals.protein),
+      p_carbs: Math.round(selectedTotals.carbs),
+      p_fat: Math.round(selectedTotals.fat),
+      p_servings: 1,
+      p_items: mealItems,
+    } as any);
+
+    if (error) {
+      console.error("[handleSaveMealFromTracker] Save failed:", error);
+      toast({ title: "Couldn't save meal.", description: error.message, variant: "destructive" });
       setSavingMeal(false);
       return;
     }
