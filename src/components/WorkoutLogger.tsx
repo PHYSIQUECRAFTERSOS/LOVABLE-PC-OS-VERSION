@@ -835,7 +835,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   };
 
   const finishWorkout = async (hadUnlogged: boolean = false) => {
-    if (!user || !sessionId) return;
+    if (!user) return;
     // Prevent duplicate completion calls (rapid taps, double-fires)
     if (isCompletingRef.current) return;
     isCompletingRef.current = true;
@@ -843,15 +843,49 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
     const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
 
+    // Bug 1 root-cause fix: in earlier builds we silently returned when
+    // sessionId was null (race: user taps Finish before initSession completed,
+    // or after a remount). That path lost all logged sets and dumped the user
+    // back to the tracker with no summary. Now we lazily create a session row
+    // here so the canonical save path always runs.
+    let activeSessionId = sessionId;
+    if (!activeSessionId) {
+      try {
+        const { getLocalDateString } = await import("@/utils/localDate");
+        const { data: created, error: createErr } = await supabase
+          .from("workout_sessions")
+          .insert({
+            client_id: user.id,
+            workout_id: workoutId,
+            status: "in_progress",
+            started_at: new Date(startTime).toISOString(),
+            last_heartbeat: new Date().toISOString(),
+            session_date: getLocalDateString(),
+            tz_corrected: true,
+          } as any)
+          .select("id")
+          .single();
+        if (createErr || !created) throw createErr || new Error("session create failed");
+        activeSessionId = created.id;
+        setSessionId(created.id);
+      } catch (e) {
+        console.error("[WorkoutLogger] Lazy session create failed:", e);
+        isCompletingRef.current = false;
+        setLoading(false);
+        toast({ title: "Couldn't save workout", description: "Please try again.", variant: "destructive" });
+        return;
+      }
+    }
+
     // Immediately signal to the active-session hook that this session is finishing,
     // so the banner will NOT appear even if we navigate before DB writes commit.
-    window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
+    window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId: activeSessionId } }));
 
     try {
       // STEP 1: Save all exercise logs to DB (critical — must complete before teardown)
       const logsToUpsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
-          session_id: sessionId,
+          session_id: activeSessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
           weight: log.weight ?? 0,
@@ -880,7 +914,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       const { data: existingLogs } = await supabase
         .from("exercise_logs")
         .select("id, exercise_id")
-        .eq("session_id", sessionId);
+        .eq("session_id", activeSessionId);
       
       const orphanedLogIds = (existingLogs || [])
         .filter(l => !activeExerciseIds.includes(l.exercise_id))
@@ -910,7 +944,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       const { error: sessionError } = await supabase
         .from("workout_sessions")
         .update(finishPayload as any)
-        .eq("id", sessionId);
+        .eq("id", activeSessionId);
       if (sessionError) {
         console.error("[WorkoutLogger] Session update error:", sessionError);
         throw sessionError;
@@ -939,8 +973,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // banner for this session even if a stale DB query returns it
       // before the row's status flip is visible to the next read.
       window.dispatchEvent(new CustomEvent("workout-session-ended"));
-      if (sessionId) {
-        window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
+      if (activeSessionId) {
+        window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId: activeSessionId } }));
       }
 
       // STEP 4: Non-critical background work (PRs, calendar, XP) — fire-and-forget
