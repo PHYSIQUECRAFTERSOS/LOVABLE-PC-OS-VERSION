@@ -885,7 +885,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // STEP 1: Save all exercise logs to DB (critical — must complete before teardown)
       const logsToUpsert = exercises.flatMap((ex) =>
         ex.logs.filter(log => log.completed).map((log) => ({
-          session_id: sessionId,
+          session_id: activeSessionId,
           exercise_id: ex.id,
           set_number: log.setNumber,
           weight: log.weight ?? 0,
@@ -914,7 +914,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       const { data: existingLogs } = await supabase
         .from("exercise_logs")
         .select("id, exercise_id")
-        .eq("session_id", sessionId);
+        .eq("session_id", activeSessionId);
       
       const orphanedLogIds = (existingLogs || [])
         .filter(l => !activeExerciseIds.includes(l.exercise_id))
@@ -944,7 +944,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       const { error: sessionError } = await supabase
         .from("workout_sessions")
         .update(finishPayload as any)
-        .eq("id", sessionId);
+        .eq("id", activeSessionId);
       if (sessionError) {
         console.error("[WorkoutLogger] Session update error:", sessionError);
         throw sessionError;
@@ -973,8 +973,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // banner for this session even if a stale DB query returns it
       // before the row's status flip is visible to the next read.
       window.dispatchEvent(new CustomEvent("workout-session-ended"));
-      if (sessionId) {
-        window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId } }));
+      if (activeSessionId) {
+        window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId: activeSessionId } }));
       }
 
       // STEP 4: Non-critical background work (PRs, calendar, XP) — fire-and-forget
