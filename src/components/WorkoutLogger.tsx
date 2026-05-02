@@ -150,7 +150,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   const { triggerXP } = useXPAward();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { weightUnit: clientWeightUnit, weightLabel } = useUnitPreferences();
+  const { weightUnit: clientWeightUnit, weightLabel, loading: unitPrefsLoading } = useUnitPreferences();
   const [loading, setLoading] = useState(false);
   const [exercises, setExercises] = useState(initialExercises);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
@@ -246,6 +246,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
+    // Wait for unit preferences to load before restoring logs to prevent
+    // stale default 'lbs' from corrupting kg values via normalizeToClientUnit
+    if (unitPrefsLoading) return;
     // Session init
     const initSession = async () => {
       if (resumeSessionId) {
@@ -348,7 +351,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       }
     };
     initSession();
-  }, [user, workoutId, resumeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, workoutId, resumeSessionId, unitPrefsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-dismiss recovery banner after 4s
   useEffect(() => {
