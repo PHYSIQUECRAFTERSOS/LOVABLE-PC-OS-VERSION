@@ -8,6 +8,7 @@ import { Scale } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 interface WeightEntry {
   logged_at: string;
@@ -17,6 +18,7 @@ interface WeightEntry {
 const WeightTracker = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { convertWeight, parseWeightInput, weightLabel } = useUnitPreferences();
   const [weight, setWeight] = useState("");
   const [history, setHistory] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,9 +39,11 @@ const WeightTracker = () => {
   const handleLog = async () => {
     if (!user || !weight) return;
     setLoading(true);
+    // Convert from user's display unit to lbs for canonical storage
+    const storedWeight = parseWeightInput(parseFloat(weight));
     const { error } = await supabase.from("weight_logs").upsert({
       client_id: user.id,
-      weight: parseFloat(weight),
+      weight: storedWeight,
     }, { onConflict: "client_id,logged_at" });
     setLoading(false);
 
@@ -53,13 +57,14 @@ const WeightTracker = () => {
     }
   };
 
+  // Convert stored lbs values to display unit for chart
   const chartData = history.map(h => ({
     date: format(new Date(h.logged_at), "MM/dd"),
-    weight: Number(h.weight),
+    weight: convertWeight(Number(h.weight)),
   }));
 
-  const latestWeight = history.length > 0 ? Number(history[history.length - 1].weight) : null;
-  const startWeight = history.length > 1 ? Number(history[0].weight) : null;
+  const latestWeight = history.length > 0 ? convertWeight(Number(history[history.length - 1].weight)) : null;
+  const startWeight = history.length > 1 ? convertWeight(Number(history[0].weight)) : null;
   const change = latestWeight && startWeight ? (latestWeight - startWeight).toFixed(1) : null;
 
   return (
@@ -76,7 +81,7 @@ const WeightTracker = () => {
             step="0.1"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder="Today's weight (lbs)"
+            placeholder={`Today's weight (${weightLabel})`}
             className="flex-1"
           />
           <Button onClick={handleLog} disabled={loading || !weight}>
@@ -88,13 +93,13 @@ const WeightTracker = () => {
           <div className="flex items-center gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Current: </span>
-              <span className="font-bold text-foreground">{latestWeight} lbs</span>
+              <span className="font-bold text-foreground">{latestWeight} {weightLabel}</span>
             </div>
             {change && (
               <div>
                 <span className="text-muted-foreground">Change: </span>
                 <span className={`font-bold ${parseFloat(change) < 0 ? "text-green-400" : "text-red-400"}`}>
-                  {parseFloat(change) > 0 ? "+" : ""}{change} lbs
+                  {parseFloat(change) > 0 ? "+" : ""}{change} {weightLabel}
                 </span>
               </div>
             )}
@@ -112,6 +117,7 @@ const WeightTracker = () => {
                   contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: "hsl(var(--foreground))" }}
                   wrapperStyle={{ zIndex: 10, maxWidth: "85vw" }}
+                  formatter={(value: number) => [`${value} ${weightLabel}`, "Weight"]}
                 />
                 <Line type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--primary))" }} />
               </LineChart>
