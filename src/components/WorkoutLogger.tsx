@@ -246,6 +246,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Create in_progress session on mount OR restore resumed session
   useEffect(() => {
     if (!user) return;
+    // Wait for unit preferences to load before restoring logs to prevent
+    // stale default 'lbs' from corrupting kg values via normalizeToClientUnit
+    if (unitPrefsLoading) return;
     // Session init
     const initSession = async () => {
       if (resumeSessionId) {
