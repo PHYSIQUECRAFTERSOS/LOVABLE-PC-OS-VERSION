@@ -351,7 +351,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       }
     };
     initSession();
-  }, [user, workoutId, resumeSessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, workoutId, resumeSessionId, unitPrefsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-dismiss recovery banner after 4s
   useEffect(() => {
