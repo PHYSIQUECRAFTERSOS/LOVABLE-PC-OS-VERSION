@@ -176,6 +176,11 @@ const EventDetailModal = ({
     };
 
     const loadSession = async () => {
+      // Only load session data for completed events — scheduled/future events show template only
+      if (!event.is_completed) {
+        setLoadingSession(false);
+        return;
+      }
       setLoadingSession(true);
       try {
         let query = supabase
@@ -193,9 +198,14 @@ const EventDetailModal = ({
           return;
         }
 
+        // Match session to THIS event's date only — never fall back to unrelated sessions
         const session = sessions.find(s => s.session_date === event.event_date)
-          || sessions.find(s => s.completed_at?.startsWith(event.event_date))
-          || sessions[0];
+          || sessions.find(s => s.completed_at?.startsWith(event.event_date));
+
+        if (!session) {
+          setLoadingSession(false);
+          return;
+        }
 
         const { data: logs } = await supabase
           .from("exercise_logs")
