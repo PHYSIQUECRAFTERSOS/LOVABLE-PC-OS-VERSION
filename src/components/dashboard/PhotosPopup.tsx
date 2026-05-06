@@ -66,7 +66,11 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
         useWebWorker: true,
       });
       const preview = URL.createObjectURL(compressed);
-      setFiles(prev => ({ ...prev, [currentPose.angle]: compressed }));
+      setFiles(prev => {
+        const updated = { ...prev, [currentPose.angle]: compressed };
+        filesRef.current = updated;
+        return updated;
+      });
       setPreviews(prev => ({ ...prev, [currentPose.angle]: preview }));
       setTimeout(() => advanceStep(), 800);
     } catch {
@@ -84,7 +88,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
 
   const handleUpload = async () => {
     if (!user) return;
-    const uploadFiles = Object.entries(files).filter(([_, f]) => f !== null) as [Angle, File][];
+    const uploadFiles = Object.entries(filesRef.current).filter(([_, f]) => f !== null) as [Angle, File][];
 
     if (uploadFiles.length === 0) {
       toast({ title: "No photos to upload", description: "Come back when you're ready!", variant: "destructive" });
