@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,6 +48,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   const { toast } = useToast();
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");
   const [files, setFiles] = useState<Record<Angle, File | null>>({ front: null, side: null, back: null });
+  const filesRef = useRef<Record<Angle, File | null>>(files);
   const [previews, setPreviews] = useState<Record<Angle, string | null>>({ front: null, side: null, back: null });
   const pickInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
