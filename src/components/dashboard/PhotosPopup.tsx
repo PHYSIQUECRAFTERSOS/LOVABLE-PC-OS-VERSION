@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,6 +48,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
   const { toast } = useToast();
   const [step, setStep] = useState<"intro" | number | "uploading">("intro");
   const [files, setFiles] = useState<Record<Angle, File | null>>({ front: null, side: null, back: null });
+  const filesRef = useRef<Record<Angle, File | null>>(files);
   const [previews, setPreviews] = useState<Record<Angle, string | null>>({ front: null, side: null, back: null });
   const pickInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +66,11 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
         useWebWorker: true,
       });
       const preview = URL.createObjectURL(compressed);
-      setFiles(prev => ({ ...prev, [currentPose.angle]: compressed }));
+      setFiles(prev => {
+        const updated = { ...prev, [currentPose.angle]: compressed };
+        filesRef.current = updated;
+        return updated;
+      });
       setPreviews(prev => ({ ...prev, [currentPose.angle]: preview }));
       setTimeout(() => advanceStep(), 800);
     } catch {
@@ -83,7 +88,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
 
   const handleUpload = async () => {
     if (!user) return;
-    const uploadFiles = Object.entries(files).filter(([_, f]) => f !== null) as [Angle, File][];
+    const uploadFiles = Object.entries(filesRef.current).filter(([_, f]) => f !== null) as [Angle, File][];
 
     if (uploadFiles.length === 0) {
       toast({ title: "No photos to upload", description: "Come back when you're ready!", variant: "destructive" });
@@ -136,6 +141,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
     Object.values(previews).forEach(p => p && URL.revokeObjectURL(p));
     setStep("intro");
     setFiles({ front: null, side: null, back: null });
+    filesRef.current = { front: null, side: null, back: null };
     setPreviews({ front: null, side: null, back: null });
     onClose();
   };
