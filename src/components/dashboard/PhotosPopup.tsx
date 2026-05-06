@@ -141,6 +141,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
     Object.values(previews).forEach(p => p && URL.revokeObjectURL(p));
     setStep("intro");
     setFiles({ front: null, side: null, back: null });
+    filesRef.current = { front: null, side: null, back: null };
     setPreviews({ front: null, side: null, back: null });
     onClose();
   };
