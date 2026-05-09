@@ -45,6 +45,7 @@ import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
+import { MEAL_SECTIONS, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 
 /* ─── MiniSparkline ─── */
 const MiniSparkline = forwardRef<SVGSVGElement, { data: { value: number }[]; color?: string }>(
