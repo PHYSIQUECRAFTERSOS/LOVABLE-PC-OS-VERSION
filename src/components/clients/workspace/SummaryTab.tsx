@@ -317,7 +317,9 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [logDate, setLogDate] = useState(new Date());
   const [foodLog, setFoodLog] = useState<FoodLogEntry[]>([]);
   const [foodLogLoading, setFoodLogLoading] = useState(false);
-  const [openMeals, setOpenMeals] = useState<Record<string, boolean>>({ breakfast: true, lunch: true, dinner: true, snack: true });
+  const [openMeals, setOpenMeals] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(MEAL_SECTIONS.map(s => [s.key, true]))
+  );
 
   // Momentum
   const [weightTrend30, setWeightTrend30] = useState<string>("—");
