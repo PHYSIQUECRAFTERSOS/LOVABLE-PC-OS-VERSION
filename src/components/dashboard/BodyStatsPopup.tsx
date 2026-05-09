@@ -43,6 +43,10 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
 
   const handleSave = async () => {
     if (!user) return;
+    if (prefsLoading) {
+      toast({ title: "Loading your unit preference…", description: "One moment.", variant: "destructive" });
+      return;
+    }
     if (!bodyWeight && Object.values(measurements).every(v => !v)) {
       toast({ title: "Enter at least body weight or one measurement", variant: "destructive" });
       return;
@@ -52,9 +56,10 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
       const today = format(new Date(), "yyyy-MM-dd");
 
       if (bodyWeight) {
+        const weightLbs = Number(parseWeightInput(parseFloat(bodyWeight)).toFixed(1));
         const { error } = await supabase.from("weight_logs").insert({
           client_id: user.id,
-          weight: parseFloat(bodyWeight),
+          weight: weightLbs,
           logged_at: today,
           source: "body_stats_popup",
         });
