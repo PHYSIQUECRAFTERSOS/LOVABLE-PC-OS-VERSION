@@ -420,6 +420,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
     getPlanByDayType,
     getItemsBySection,
     getItemsForMealSection,
+    getCoachMealNameAtPosition,
     copyMealToTracker,
     copyEntireDayToTracker,
   };
