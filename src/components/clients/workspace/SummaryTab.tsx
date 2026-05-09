@@ -714,9 +714,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
   if (!data) return null;
 
-  const MEALS = ["breakfast", "lunch", "dinner", "snack"] as const;
-  const mealGroups = MEALS.reduce<Record<string, FoodLogEntry[]>>((acc, m) => {
-    acc[m] = foodLog.filter((f) => f.meal_type === m);
+  const mealGroups = MEAL_SECTIONS.reduce<Record<string, FoodLogEntry[]>>((acc, s) => {
+    acc[s.key] = foodLog.filter((f) => mapMealNameToKey(f.meal_type) === s.key);
     return acc;
   }, {});
 
