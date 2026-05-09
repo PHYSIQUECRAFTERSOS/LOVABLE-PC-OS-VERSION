@@ -115,11 +115,23 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
 
       const { data: logs } = await supabase
         .from("exercise_logs")
-        .select("session_id, exercise_id, set_number, weight, reps, rir, weight_unit, exercises(name)")
+        .select("session_id, exercise_id, set_number, weight, reps, rir, weight_unit, exercises(name, youtube_url, video_url, youtube_thumbnail)")
         .in("session_id", sessionIds)
         .order("set_number");
 
-      const exerciseOrderMap = new Map<string, { name: string; maxSets: number; firstSeen: number }>();
+      const extractYouTubeId = (url?: string | null): string | null => {
+        if (!url) return null;
+        const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+        return m ? m[1] : null;
+      };
+      const resolveThumb = (ex: any): string | null => {
+        if (!ex) return null;
+        if (ex.youtube_thumbnail) return ex.youtube_thumbnail;
+        const id = extractYouTubeId(ex.youtube_url) || extractYouTubeId(ex.video_url);
+        return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+      };
+
+      const exerciseOrderMap = new Map<string, { name: string; maxSets: number; firstSeen: number; thumbnail: string | null }>();
       let exerciseOrder = 0;
 
       (logs || []).forEach((log: any) => {
@@ -130,6 +142,7 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
             name: log.exercises?.name || "Unknown",
             maxSets: log.set_number,
             firstSeen: exerciseOrder++,
+            thumbnail: resolveThumb(log.exercises),
           });
         } else {
           existing.maxSets = Math.max(existing.maxSets, log.set_number);
@@ -142,6 +155,7 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
           exerciseId: id,
           exerciseName: info.name,
           maxSets: info.maxSets,
+          thumbnail: info.thumbnail,
         }));
 
       const sessionColumns: SessionColumn[] = displaySessions.map(s => {
