@@ -21,7 +21,7 @@ import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
 import CopyDayDialog from "./CopyDayDialog";
 import SwipeToDelete from "./SwipeToDelete";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
-import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
+import { useMealPlanTracker, mapMealNameToKey, MEAL_SECTIONS, parseMealSubtitle } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
 import EditFoodModal from "./EditFoodModal";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
