@@ -45,11 +45,13 @@ interface WorkoutExercise {
   sets: number;
   reps: string;
   rest_seconds: number;
+  thumbnail?: string | null;
 }
 
 interface SessionLog {
   exercise_name: string;
   exercise_id: string;
+  thumbnail?: string | null;
   sets: {
     set_number: number;
     weight: number | null;
@@ -96,6 +98,50 @@ const getRPELabel = (rpe: number): string => {
   if (rpe <= 8) return "hard";
   if (rpe <= 9) return "very hard";
   return "max effort";
+};
+
+const extractYouTubeId = (url?: string | null): string | null => {
+  if (!url) return null;
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+};
+
+const resolveExerciseThumbnail = (ex: { youtube_thumbnail?: string | null; youtube_url?: string | null; video_url?: string | null } | null | undefined): string | null => {
+  if (!ex) return null;
+  if (ex.youtube_thumbnail) return ex.youtube_thumbnail;
+  const id = extractYouTubeId(ex.youtube_url) || extractYouTubeId(ex.video_url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+};
+
+const SetRow = ({ weight, reps, unit }: { weight: number | null; reps: number | null; unit: string }) => {
+  const isBodyweight = weight == null || weight === 0;
+  const weightPart = isBodyweight ? "BW" : `${weight} ${unit || "lbs"}`;
+  const repsPart = reps == null || reps === 0 ? "--" : `${reps} reps`;
+  return (
+    <span className="text-sm font-medium tabular-nums text-foreground">
+      {weightPart} × {repsPart}
+    </span>
+  );
+};
+
+const ExerciseThumb = ({ src }: { src: string | null | undefined }) => {
+  const [errored, setErrored] = useState(false);
+  const showImg = !!src && !errored;
+  return (
+    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+      {showImg ? (
+        <img
+          src={src!}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover pointer-events-none"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        <Dumbbell className="h-5 w-5 text-muted-foreground" />
+      )}
+    </div>
+  );
 };
 
 const EventDetailModal = ({
@@ -152,7 +198,7 @@ const EventDetailModal = ({
       try {
         const { data } = await supabase
           .from("workout_exercises")
-          .select("sets, reps, rest_seconds, exercises(name)")
+          .select("sets, reps, rest_seconds, exercises(name, youtube_url, video_url, youtube_thumbnail)")
           .eq("workout_id", event.linked_workout_id!)
           .order("exercise_order");
 
@@ -161,6 +207,7 @@ const EventDetailModal = ({
           sets: we.sets,
           reps: we.reps,
           rest_seconds: we.rest_seconds,
+          thumbnail: resolveExerciseThumbnail(we.exercises),
         }));
         setWorkoutExercises(exercises);
 
@@ -209,7 +256,7 @@ const EventDetailModal = ({
 
         const { data: logs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, rpe, weight_unit, exercises(name)")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, weight_unit, exercises(name, youtube_url, video_url, youtube_thumbnail)")
           .eq("session_id", session.id)
           .order("set_number");
 
@@ -220,6 +267,7 @@ const EventDetailModal = ({
             exerciseMap.set(exId, {
               exercise_id: exId,
               exercise_name: log.exercises?.name || "Unknown",
+              thumbnail: resolveExerciseThumbnail(log.exercises),
               sets: [],
             });
           }
@@ -307,17 +355,22 @@ const EventDetailModal = ({
   const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
   const exerciseDisplay = hasSession
-    ? sessionData!.logs.map(log => ({
-        name: log.exercise_name,
-        exercise_id: log.exercise_id,
-        prescribed: workoutExercises.find(we => we.name.toLowerCase() === log.exercise_name.toLowerCase()),
-        loggedSets: log.sets,
-      }))
+    ? sessionData!.logs.map(log => {
+        const prescribed = workoutExercises.find(we => we.name.toLowerCase() === log.exercise_name.toLowerCase());
+        return {
+          name: log.exercise_name,
+          exercise_id: log.exercise_id,
+          prescribed,
+          loggedSets: log.sets,
+          thumbnail: log.thumbnail || prescribed?.thumbnail || null,
+        };
+      })
     : workoutExercises.map((we, i) => ({
         name: we.name,
         exercise_id: `prescribed-${i}`,
         prescribed: we,
         loggedSets: [] as SessionLog["sets"],
+        thumbnail: we.thumbnail || null,
       }));
 
   const resolvedClientId = clientId || event.target_client_id || event.user_id;
@@ -492,22 +545,37 @@ const EventDetailModal = ({
               {exerciseDisplay.map((ex) => (
                 <div key={ex.exercise_id} className="border-t border-border first:border-t-0">
                   {/* Exercise header row — Trainerize style */}
-                  <div className="flex items-center gap-3 py-3">
-                    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                      <Dumbbell className="h-5 w-5 text-muted-foreground" />
+                  <div className="flex items-start gap-3 py-3 flex-wrap sm:flex-nowrap">
+                    <ExerciseThumb src={ex.thumbnail} />
+                    <div className="flex-1 min-w-0 basis-0 sm:basis-auto">
+                      <p className="text-sm font-semibold text-foreground break-words sm:truncate">{ex.name}</p>
+                      {/* Mobile-only: stack prescription below name */}
+                      {ex.prescribed && (
+                        <div className="sm:hidden mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-muted-foreground">
+                            {ex.prescribed.sets} sets × {ex.prescribed.reps} reps
+                          </span>
+                          {ex.prescribed.rest_seconds > 0 && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Flame className="h-3 w-3 text-orange-400" />
+                              Rest {ex.prescribed.rest_seconds >= 60
+                                ? `${Math.floor(ex.prescribed.rest_seconds / 60)} min`
+                                : `${ex.prescribed.rest_seconds}s`}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{ex.name}</p>
-                    </div>
+                    {/* Desktop-only inline prescription */}
                     {ex.prescribed && (
-                      <div className="text-right shrink-0">
+                      <div className="hidden sm:block text-right shrink-0">
                         <p className="text-xs text-muted-foreground">
                           {ex.prescribed.sets} sets × {ex.prescribed.reps} reps
                         </p>
                       </div>
                     )}
                     {ex.prescribed && ex.prescribed.rest_seconds > 0 && (
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="hidden sm:flex items-center gap-1 shrink-0">
                         <Flame className="h-3 w-3 text-orange-400" />
                         <span className="text-xs text-muted-foreground">
                           Rest {ex.prescribed.rest_seconds >= 60
@@ -521,32 +589,38 @@ const EventDetailModal = ({
                   {/* Logged sets — shown inline like Trainerize */}
                   {ex.loggedSets.length > 0 && (
                     <div className="pl-[52px] pb-3 space-y-1.5">
-                      {ex.loggedSets.map((s) => (
-                        <div key={s.set_number} className="flex items-center gap-4">
-                          <span className="text-xs font-medium text-muted-foreground w-10">Set {s.set_number}</span>
-                          {(() => {
-                            if (isCoach) {
-                              const wd = formatWeightForCoach(s.weight, s.weight_unit || 'lbs');
+                      {ex.loggedSets.map((s) => {
+                        const isBW = s.weight == null || s.weight === 0;
+                        const repsPart = s.reps == null || s.reps === 0 ? "--" : `${s.reps} reps`;
+                        return (
+                          <div key={s.set_number} className="flex items-center gap-4">
+                            <span className="text-xs font-medium text-muted-foreground w-10">Set {s.set_number}</span>
+                            {(() => {
+                              if (isCoach) {
+                                const wd = formatWeightForCoach(s.weight, s.weight_unit || 'lbs');
+                                const primary = isBW ? "BW" : wd.primary;
+                                return (
+                                  <span className="text-sm font-medium tabular-nums text-foreground">
+                                    {primary} × {repsPart}
+                                    {!isBW && wd.secondary && (
+                                      <span className="block text-[10px] text-muted-foreground ml-0">{wd.secondary}</span>
+                                    )}
+                                  </span>
+                                );
+                              }
+                              const primary = isBW ? "BW" : formatWeightForClient(s.weight, s.weight_unit || 'lbs');
                               return (
                                 <span className="text-sm font-medium tabular-nums text-foreground">
-                                  {s.reps ?? "—"} × {wd.primary}
-                                  {wd.secondary && (
-                                    <span className="block text-[10px] text-muted-foreground ml-0">{wd.secondary}</span>
-                                  )}
+                                  {primary} × {repsPart}
                                 </span>
                               );
-                            }
-                            return (
-                              <span className="text-sm font-medium tabular-nums text-foreground">
-                                {s.reps ?? "—"} × {formatWeightForClient(s.weight, s.weight_unit || 'lbs')}
-                              </span>
-                            );
-                          })()}
-                          {s.rpe != null && (
-                            <span className="text-xs text-muted-foreground ml-auto">RPE {s.rpe}</span>
-                          )}
-                        </div>
-                      ))}
+                            })()}
+                            {s.rpe != null && (
+                              <span className="text-xs text-muted-foreground ml-auto">RPE {s.rpe}</span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
