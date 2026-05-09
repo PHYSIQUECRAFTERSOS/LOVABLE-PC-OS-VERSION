@@ -34,6 +34,7 @@ interface ExerciseRow {
   exerciseId: string;
   exerciseName: string;
   maxSets: number;
+  thumbnail: string | null;
 }
 
 const MAX_SESSIONS = 20;
