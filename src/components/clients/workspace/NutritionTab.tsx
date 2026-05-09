@@ -32,12 +32,12 @@ interface Targets {
 }
 
 const MEAL_SECTIONS = [
-  { key: "breakfast", label: "Breakfast" },
-  { key: "pre-workout", label: "Pre-Workout" },
-  { key: "lunch", label: "Lunch" },
-  { key: "post-workout", label: "Post-Workout" },
-  { key: "dinner", label: "Dinner" },
-  { key: "snack", label: "Snacks" },
+  { key: "meal-1", label: "Meal 1" },
+  { key: "meal-2", label: "Meal 2" },
+  { key: "meal-3", label: "Meal 3" },
+  { key: "meal-4", label: "Meal 4" },
+  { key: "meal-5", label: "Meal 5" },
+  { key: "meal-6", label: "Meal 6" },
 ] as const;
 
 const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
