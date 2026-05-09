@@ -26,6 +26,7 @@ interface WeightEntry {
   id: string;
   weight: number;
   logged_at: string;
+  created_at?: string | null;
   source?: string | null;
   notes?: string | null;
 }
@@ -55,12 +56,25 @@ const RANGE_FILTERS = [
 
 const LBS_TO_KG = 0.453592;
 
-function rollingAverage(data: { date: string; weight: number }[], window = 7) {
-  return data.map((point, i) => {
-    const slice = data.slice(Math.max(0, i - window + 1), i + 1);
-    const avg = slice.reduce((sum, p) => sum + p.weight, 0) / slice.length;
-    return { ...point, smoothed: Number(avg.toFixed(1)) };
-  });
+/**
+ * Dedupe weight entries by logged_at date, keeping the most recently created
+ * row per date. Returns ascending by logged_at.
+ */
+function dedupeByDate(rows: WeightEntry[]): WeightEntry[] {
+  const byDate = new Map<string, WeightEntry>();
+  for (const r of rows) {
+    const existing = byDate.get(r.logged_at);
+    if (!existing) {
+      byDate.set(r.logged_at, r);
+      continue;
+    }
+    const a = r.created_at ? new Date(r.created_at).getTime() : 0;
+    const b = existing.created_at ? new Date(existing.created_at).getTime() : 0;
+    if (a >= b) byDate.set(r.logged_at, r);
+  }
+  return Array.from(byDate.values()).sort((a, b) =>
+    a.logged_at < b.logged_at ? -1 : a.logged_at > b.logged_at ? 1 : 0
+  );
 }
 
 const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
@@ -70,7 +84,6 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const targetId = clientId || user?.id;
 
   const [entries, setEntries] = useState<WeightEntry[]>([]);
-  const [recentEntries, setRecentEntries] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [rangeIdx, setRangeIdx] = useState(2);
   const [showLogSheet, setShowLogSheet] = useState(false);
@@ -83,14 +96,18 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const convert = (lbs: number) => convertWeight(lbs);
   const unitLabel = weightLabel;
 
+  // Single source of truth: fetch range-filtered rows, dedupe by date keeping
+  // the most recently created entry per logged_at. Both chart, Recent Entries,
+  // Starting and Current all read from this same dataset.
   const fetchEntries = useCallback(async () => {
     if (!targetId) return;
     setLoading(true);
     let query = supabase
       .from("weight_logs")
-      .select("id, weight, logged_at, source, notes")
+      .select("id, weight, logged_at, created_at, source, notes")
       .eq("client_id", targetId)
-      .order("logged_at", { ascending: true });
+      .order("logged_at", { ascending: true })
+      .order("created_at", { ascending: true });
 
     const range = RANGE_FILTERS[rangeIdx];
     if (range.months > 0) {
@@ -99,37 +116,22 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
       query = query.gte("logged_at", format(new Date(Date.now() - range.days * 86400000), "yyyy-MM-dd"));
     }
 
-    const { data } = await query.limit(500);
-    setEntries(
-      (data || []).map((d: any) => ({
-        id: d.id, weight: Number(d.weight), logged_at: d.logged_at, source: d.source, notes: d.notes,
-      }))
-    );
+    const { data } = await query.limit(1000);
+    const mapped: WeightEntry[] = (data || []).map((d: any) => ({
+      id: d.id,
+      weight: Number(d.weight),
+      logged_at: d.logged_at,
+      created_at: d.created_at,
+      source: d.source,
+      notes: d.notes,
+    }));
+    setEntries(dedupeByDate(mapped));
     setLoading(false);
   }, [targetId, rangeIdx]);
 
-  // Fetch recent 5 entries (unfiltered by range)
-  const fetchRecent = useCallback(async () => {
-    if (!targetId) return;
-    const { data } = await supabase
-      .from("weight_logs")
-      .select("id, weight, logged_at, source, notes")
-      .eq("client_id", targetId)
-      .order("logged_at", { ascending: false })
-      .limit(5);
-    setRecentEntries(
-      (data || []).map((d: any) => ({
-        id: d.id, weight: Number(d.weight), logged_at: d.logged_at, source: d.source, notes: d.notes,
-      }))
-    );
-  }, [targetId]);
-
   useEffect(() => {
-    if (open) {
-      fetchEntries();
-      fetchRecent();
-    }
-  }, [open, fetchEntries, fetchRecent]);
+    if (open) fetchEntries();
+  }, [open, fetchEntries]);
 
   const handleSave = async () => {
     if (!targetId || !logWeight) return;
@@ -146,7 +148,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     } else {
       toast({ title: "Weight logged!" });
       setLogWeight(""); setLogNotes(""); setLogDate(new Date()); setShowLogSheet(false);
-      fetchEntries(); fetchRecent();
+      fetchEntries();
     }
   };
 
@@ -154,32 +156,33 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     if (!deleteId) return;
     await supabase.from("weight_logs").delete().eq("id", deleteId);
     setDeleteId(null);
-    fetchEntries(); fetchRecent();
+    fetchEntries();
     toast({ title: "Entry deleted" });
   };
 
-  // Chart data
-  const rawChartData = entries.map((e) => ({
+  // Chart data — raw weight per deduped date entry. No smoothing, no averaging.
+  const chartData = entries.map((e) => ({
     date: format(new Date(e.logged_at + "T00:00:00"), "MMM d"),
     weight: convert(e.weight),
   }));
-  const chartData = entries.length >= 7
-    ? rollingAverage(rawChartData)
-    : rawChartData.map(d => ({ ...d, smoothed: d.weight }));
 
-  // Summary bar
+  // Recent Entries — last 5 entries from the same deduped, range-filtered set,
+  // shown newest-first. Guaranteed to match graph values exactly.
+  const recentEntries = [...entries].reverse().slice(0, 5);
+
+  // Summary bar — first/last of deduped range
   const startingWeight = entries.length > 0 ? convert(entries[0].weight) : null;
   const currentWeight = entries.length > 0 ? convert(entries[entries.length - 1].weight) : null;
-  const totalChange = startingWeight && currentWeight ? Number((currentWeight - startingWeight).toFixed(1)) : null;
+  const totalChange = startingWeight !== null && currentWeight !== null ? Number((currentWeight - startingWeight).toFixed(1)) : null;
 
   const title = clientName ? `${clientName}'s Weight` : "My Weight";
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.[0]) return null;
-    const { date, smoothed } = payload[0].payload;
+    const { date, weight } = payload[0].payload;
     return (
       <div className="rounded-lg border border-primary/50 bg-[#1a1a1a] px-3 py-1.5 text-xs text-foreground shadow-lg">
-        {date} &nbsp; <span className="font-bold">{smoothed} {unitLabel}</span>
+        {date} &nbsp; <span className="font-bold">{weight} {unitLabel}</span>
       </div>
     );
   };
@@ -267,7 +270,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                     />
                     <Tooltip content={<CustomTooltip />} cursor={false} />
                     <Area
-                      type="monotone" dataKey="smoothed"
+                      type="monotone" dataKey="weight"
                       stroke="hsl(var(--primary))" strokeWidth={2.5}
                       fill="url(#weightGrad)" dot={false}
                       activeDot={{ r: 4, fill: "hsl(var(--primary))" }}
