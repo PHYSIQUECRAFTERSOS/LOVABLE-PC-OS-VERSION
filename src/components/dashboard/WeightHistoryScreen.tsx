@@ -26,6 +26,7 @@ interface WeightEntry {
   id: string;
   weight: number;
   logged_at: string;
+  created_at?: string | null;
   source?: string | null;
   notes?: string | null;
 }
@@ -55,12 +56,25 @@ const RANGE_FILTERS = [
 
 const LBS_TO_KG = 0.453592;
 
-function rollingAverage(data: { date: string; weight: number }[], window = 7) {
-  return data.map((point, i) => {
-    const slice = data.slice(Math.max(0, i - window + 1), i + 1);
-    const avg = slice.reduce((sum, p) => sum + p.weight, 0) / slice.length;
-    return { ...point, smoothed: Number(avg.toFixed(1)) };
-  });
+/**
+ * Dedupe weight entries by logged_at date, keeping the most recently created
+ * row per date. Returns ascending by logged_at.
+ */
+function dedupeByDate(rows: WeightEntry[]): WeightEntry[] {
+  const byDate = new Map<string, WeightEntry>();
+  for (const r of rows) {
+    const existing = byDate.get(r.logged_at);
+    if (!existing) {
+      byDate.set(r.logged_at, r);
+      continue;
+    }
+    const a = r.created_at ? new Date(r.created_at).getTime() : 0;
+    const b = existing.created_at ? new Date(existing.created_at).getTime() : 0;
+    if (a >= b) byDate.set(r.logged_at, r);
+  }
+  return Array.from(byDate.values()).sort((a, b) =>
+    a.logged_at < b.logged_at ? -1 : a.logged_at > b.logged_at ? 1 : 0
+  );
 }
 
 const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
