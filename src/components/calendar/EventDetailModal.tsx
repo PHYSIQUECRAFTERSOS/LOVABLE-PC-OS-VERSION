@@ -45,11 +45,13 @@ interface WorkoutExercise {
   sets: number;
   reps: string;
   rest_seconds: number;
+  thumbnail?: string | null;
 }
 
 interface SessionLog {
   exercise_name: string;
   exercise_id: string;
+  thumbnail?: string | null;
   sets: {
     set_number: number;
     weight: number | null;
