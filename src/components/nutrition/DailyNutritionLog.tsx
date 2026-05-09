@@ -60,14 +60,7 @@ interface NutritionLogsUpdatedDetail {
   addedRows?: Array<{ id: string }>;
 }
 
-const MEAL_SECTIONS = [
-  { key: "breakfast", label: "Breakfast" },
-  { key: "pre-workout", label: "Pre-Workout Meal" },
-  { key: "post-workout", label: "Post-Workout Meal" },
-  { key: "lunch", label: "Lunch" },
-  { key: "dinner", label: "Dinner" },
-  { key: "snack", label: "Snacks" },
-] as const;
+// MEAL_SECTIONS now imported from useMealPlanTracker — canonical meal-1..meal-6
 
 interface DailyNutritionLogProps {
   selectedDate?: Date;
