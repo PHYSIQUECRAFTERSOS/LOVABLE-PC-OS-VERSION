@@ -100,6 +100,30 @@ const getRPELabel = (rpe: number): string => {
   return "max effort";
 };
 
+const extractYouTubeId = (url?: string | null): string | null => {
+  if (!url) return null;
+  const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+};
+
+const resolveExerciseThumbnail = (ex: { youtube_thumbnail?: string | null; youtube_url?: string | null; video_url?: string | null } | null | undefined): string | null => {
+  if (!ex) return null;
+  if (ex.youtube_thumbnail) return ex.youtube_thumbnail;
+  const id = extractYouTubeId(ex.youtube_url) || extractYouTubeId(ex.video_url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+};
+
+const SetRow = ({ weight, reps, unit }: { weight: number | null; reps: number | null; unit: string }) => {
+  const isBodyweight = weight == null || weight === 0;
+  const weightPart = isBodyweight ? "BW" : `${weight} ${unit || "lbs"}`;
+  const repsPart = reps == null || reps === 0 ? "--" : `${reps} reps`;
+  return (
+    <span className="text-sm font-medium tabular-nums text-foreground">
+      {weightPart} × {repsPart}
+    </span>
+  );
+};
+
 const EventDetailModal = ({
   event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout, clientId,
 }: EventDetailModalProps) => {
