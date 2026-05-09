@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -34,6 +34,7 @@ interface ExerciseRow {
   exerciseId: string;
   exerciseName: string;
   maxSets: number;
+  thumbnail: string | null;
 }
 
 const MAX_SESSIONS = 20;
@@ -114,11 +115,23 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
 
       const { data: logs } = await supabase
         .from("exercise_logs")
-        .select("session_id, exercise_id, set_number, weight, reps, rir, weight_unit, exercises(name)")
+        .select("session_id, exercise_id, set_number, weight, reps, rir, weight_unit, exercises(name, youtube_url, video_url, youtube_thumbnail)")
         .in("session_id", sessionIds)
         .order("set_number");
 
-      const exerciseOrderMap = new Map<string, { name: string; maxSets: number; firstSeen: number }>();
+      const extractYouTubeId = (url?: string | null): string | null => {
+        if (!url) return null;
+        const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+        return m ? m[1] : null;
+      };
+      const resolveThumb = (ex: any): string | null => {
+        if (!ex) return null;
+        if (ex.youtube_thumbnail) return ex.youtube_thumbnail;
+        const id = extractYouTubeId(ex.youtube_url) || extractYouTubeId(ex.video_url);
+        return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+      };
+
+      const exerciseOrderMap = new Map<string, { name: string; maxSets: number; firstSeen: number; thumbnail: string | null }>();
       let exerciseOrder = 0;
 
       (logs || []).forEach((log: any) => {
@@ -129,6 +142,7 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
             name: log.exercises?.name || "Unknown",
             maxSets: log.set_number,
             firstSeen: exerciseOrder++,
+            thumbnail: resolveThumb(log.exercises),
           });
         } else {
           existing.maxSets = Math.max(existing.maxSets, log.set_number);
@@ -141,6 +155,7 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
           exerciseId: id,
           exerciseName: info.name,
           maxSets: info.maxSets,
+          thumbnail: info.thumbnail,
         }));
 
       const sessionColumns: SessionColumn[] = displaySessions.map(s => {
@@ -273,10 +288,32 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
                       <>
                         <tr key={`name-${ex.exerciseId}`} className="bg-secondary/30">
                           <td
-                            className="sticky left-0 z-10 bg-secondary/30 border-r border-border px-3 py-2 text-xs font-semibold text-primary truncate max-w-[200px]"
+                            className="sticky left-0 z-10 bg-secondary/30 border-r border-border px-3 py-2 text-xs font-semibold text-primary max-w-[200px]"
                             colSpan={1}
                           >
-                            {ex.exerciseName}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                                {ex.thumbnail ? (
+                                  <img
+                                    src={ex.thumbnail}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-full w-full object-cover pointer-events-none"
+                                    onError={(e) => {
+                                      const img = e.currentTarget;
+                                      img.style.display = "none";
+                                      const fallback = img.nextElementSibling as HTMLElement | null;
+                                      if (fallback) fallback.style.display = "block";
+                                    }}
+                                  />
+                                ) : null}
+                                <Dumbbell
+                                  className="h-3.5 w-3.5 text-muted-foreground"
+                                  style={{ display: ex.thumbnail ? "none" : "block" }}
+                                />
+                              </div>
+                              <span className="truncate">{ex.exerciseName}</span>
+                            </div>
                           </td>
                           {sessions.map(s => (
                             <td
@@ -309,7 +346,7 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
                               return (
                                 <td key={s.sessionId} className={cellClass}>
                                   <span className="text-xs font-medium text-foreground tabular-nums">
-                                    {cell.reps ?? "—"} × {cell.weight ?? 0} lbs
+                                    {(cell.weight == null || cell.weight === 0) ? "BW" : `${cell.weight} ${cell.weight_unit || "lbs"}`} × {(cell.reps == null || cell.reps === 0) ? "--" : `${cell.reps} reps`}
                                   </span>
                                   {cell.rir != null && (
                                     <span className="block text-[10px] text-muted-foreground">
