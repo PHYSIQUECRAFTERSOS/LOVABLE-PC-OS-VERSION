@@ -113,7 +113,7 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
-  const getMealItems = (key: string) => logs.filter(l => l.meal_type === key);
+  const getMealItems = (key: string) => logs.filter(l => mapMealNameToKey(l.meal_type) === key);
   const getMealTotals = (items: NutritionLog[]) =>
     items.reduce(
       (acc, l) => ({
