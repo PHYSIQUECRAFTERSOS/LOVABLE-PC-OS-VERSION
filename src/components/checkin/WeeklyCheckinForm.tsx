@@ -18,6 +18,7 @@ import { ClipboardCheck, CheckCircle, Loader2, Star, AlertCircle } from "lucide-
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
 import { invalidateCache } from "@/hooks/useDataFetch";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 const HARDCODED_FALLBACK_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
