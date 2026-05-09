@@ -270,7 +270,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                     />
                     <Tooltip content={<CustomTooltip />} cursor={false} />
                     <Area
-                      type="monotone" dataKey="smoothed"
+                      type="monotone" dataKey="weight"
                       stroke="hsl(var(--primary))" strokeWidth={2.5}
                       fill="url(#weightGrad)" dot={false}
                       activeDot={{ r: 4, fill: "hsl(var(--primary))" }}
