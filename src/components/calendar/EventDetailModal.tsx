@@ -580,17 +580,30 @@ const EventDetailModal = ({
                 )}
 
                 {!loadingNutrition && nutritionFoods.length > 0 && (() => {
+                  // Normalize legacy meal_type keys (breakfast/pre-workout/...) to canonical meal-1..meal-6
+                  const LEGACY_TO_NEW: Record<string, string> = {
+                    breakfast: "meal-1", "pre-workout": "meal-2", "post-workout": "meal-3",
+                    lunch: "meal-4", dinner: "meal-5", snack: "meal-6",
+                  };
+                  const normalizeKey = (raw: string): string => {
+                    if (!raw) return "Other";
+                    if (/^meal-[1-6]$/.test(raw)) return raw;
+                    if (LEGACY_TO_NEW[raw]) return LEGACY_TO_NEW[raw];
+                    const m = raw.match(/meal\s*[-_:]?\s*([1-6])/i);
+                    if (m) return `meal-${m[1]}`;
+                    return raw;
+                  };
                   const mealGroups: Record<string, any[]> = {};
                   nutritionFoods.forEach((f: any) => {
-                    const slot = f.meal_type || "Other";
+                    const slot = normalizeKey(f.meal_type || "Other");
                     if (!mealGroups[slot]) mealGroups[slot] = [];
                     mealGroups[slot].push(f);
                   });
 
-                  const MEAL_ORDER = ["breakfast", "pre-workout", "lunch", "post-workout", "dinner", "snack"];
+                  const MEAL_ORDER = ["meal-1", "meal-2", "meal-3", "meal-4", "meal-5", "meal-6"];
                   const MEAL_LABELS: Record<string, string> = {
-                    breakfast: "Breakfast", "pre-workout": "Pre-Workout", lunch: "Lunch",
-                    "post-workout": "Post-Workout", dinner: "Dinner", snack: "Snacks",
+                    "meal-1": "Meal 1", "meal-2": "Meal 2", "meal-3": "Meal 3",
+                    "meal-4": "Meal 4", "meal-5": "Meal 5", "meal-6": "Meal 6",
                   };
                   const sortedMeals = Object.entries(mealGroups).sort(([a], [b]) => {
                     const ai = MEAL_ORDER.indexOf(a);
