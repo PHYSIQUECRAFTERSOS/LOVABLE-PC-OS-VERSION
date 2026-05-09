@@ -288,10 +288,32 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
                       <>
                         <tr key={`name-${ex.exerciseId}`} className="bg-secondary/30">
                           <td
-                            className="sticky left-0 z-10 bg-secondary/30 border-r border-border px-3 py-2 text-xs font-semibold text-primary truncate max-w-[200px]"
+                            className="sticky left-0 z-10 bg-secondary/30 border-r border-border px-3 py-2 text-xs font-semibold text-primary max-w-[200px]"
                             colSpan={1}
                           >
-                            {ex.exerciseName}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="h-7 w-7 rounded-md bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+                                {ex.thumbnail ? (
+                                  <img
+                                    src={ex.thumbnail}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-full w-full object-cover pointer-events-none"
+                                    onError={(e) => {
+                                      const img = e.currentTarget;
+                                      img.style.display = "none";
+                                      const fallback = img.nextElementSibling as HTMLElement | null;
+                                      if (fallback) fallback.style.display = "block";
+                                    }}
+                                  />
+                                ) : null}
+                                <Dumbbell
+                                  className="h-3.5 w-3.5 text-muted-foreground"
+                                  style={{ display: ex.thumbnail ? "none" : "block" }}
+                                />
+                              </div>
+                              <span className="truncate">{ex.exerciseName}</span>
+                            </div>
                           </td>
                           {sessions.map(s => (
                             <td
