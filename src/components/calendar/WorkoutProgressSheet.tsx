@@ -346,7 +346,7 @@ const WorkoutProgressSheet = ({ open, onClose, workoutId, workoutName, clientId 
                               return (
                                 <td key={s.sessionId} className={cellClass}>
                                   <span className="text-xs font-medium text-foreground tabular-nums">
-                                    {cell.reps ?? "—"} × {cell.weight ?? 0} lbs
+                                    {(cell.weight == null || cell.weight === 0) ? "BW" : `${cell.weight} ${cell.weight_unit || "lbs"}`} × {(cell.reps == null || cell.reps === 0) ? "--" : `${cell.reps} reps`}
                                   </span>
                                   {cell.rir != null && (
                                     <span className="block text-[10px] text-muted-foreground">
