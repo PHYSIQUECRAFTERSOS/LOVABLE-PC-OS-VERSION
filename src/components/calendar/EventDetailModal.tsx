@@ -236,7 +236,7 @@ const EventDetailModal = ({
 
         const { data: logs } = await supabase
           .from("exercise_logs")
-          .select("exercise_id, set_number, weight, reps, rir, rpe, weight_unit, exercises(name)")
+          .select("exercise_id, set_number, weight, reps, rir, rpe, weight_unit, exercises(name, youtube_url, video_url, youtube_thumbnail)")
           .eq("session_id", session.id)
           .order("set_number");
 
@@ -247,6 +247,7 @@ const EventDetailModal = ({
             exerciseMap.set(exId, {
               exercise_id: exId,
               exercise_name: log.exercises?.name || "Unknown",
+              thumbnail: resolveExerciseThumbnail(log.exercises),
               sets: [],
             });
           }
