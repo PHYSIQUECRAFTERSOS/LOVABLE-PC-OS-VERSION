@@ -8,12 +8,20 @@ import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { format, subDays } from "date-fns";
 
 const MEAL_LABELS: Record<string, string> = {
-  breakfast: "Breakfast",
-  "pre-workout": "Pre-Workout Meal",
-  "post-workout": "Post-Workout Meal",
-  lunch: "Lunch",
-  dinner: "Dinner",
-  snack: "Snacks",
+  // Canonical
+  "meal-1": "Meal 1",
+  "meal-2": "Meal 2",
+  "meal-3": "Meal 3",
+  "meal-4": "Meal 4",
+  "meal-5": "Meal 5",
+  "meal-6": "Meal 6",
+  // Legacy
+  breakfast: "Meal 1",
+  "pre-workout": "Meal 2",
+  "post-workout": "Meal 3",
+  lunch: "Meal 4",
+  dinner: "Meal 5",
+  snack: "Meal 6",
 };
 
 interface CopyPreviousMealSheetProps {
