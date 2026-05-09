@@ -45,6 +45,7 @@ import { format, subDays, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
+import { MEAL_SECTIONS, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 
 /* ─── MiniSparkline ─── */
 const MiniSparkline = forwardRef<SVGSVGElement, { data: { value: number }[]; color?: string }>(
@@ -316,7 +317,9 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [logDate, setLogDate] = useState(new Date());
   const [foodLog, setFoodLog] = useState<FoodLogEntry[]>([]);
   const [foodLogLoading, setFoodLogLoading] = useState(false);
-  const [openMeals, setOpenMeals] = useState<Record<string, boolean>>({ breakfast: true, lunch: true, dinner: true, snack: true });
+  const [openMeals, setOpenMeals] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(MEAL_SECTIONS.map(s => [s.key, true]))
+  );
 
   // Momentum
   const [weightTrend30, setWeightTrend30] = useState<string>("—");
@@ -711,9 +714,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
 
   if (!data) return null;
 
-  const MEALS = ["breakfast", "lunch", "dinner", "snack"] as const;
-  const mealGroups = MEALS.reduce<Record<string, FoodLogEntry[]>>((acc, m) => {
-    acc[m] = foodLog.filter((f) => f.meal_type === m);
+  const mealGroups = MEAL_SECTIONS.reduce<Record<string, FoodLogEntry[]>>((acc, s) => {
+    acc[s.key] = foodLog.filter((f) => mapMealNameToKey(f.meal_type) === s.key);
     return acc;
   }, {});
 
@@ -1017,7 +1019,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             </div>
           ) : (
             <>
-              {MEALS.map((meal) => {
+              {MEAL_SECTIONS.map(({ key: meal, label }) => {
                 const items = mealGroups[meal];
                 const mealCals = items.reduce((s, i) => s + i.calories, 0);
                 const mealP = items.reduce((s, i) => s + i.protein, 0);
@@ -1028,7 +1030,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                   <Collapsible key={meal} open={openMeals[meal]} onOpenChange={() => toggleMeal(meal)}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full py-2.5 px-3 rounded-lg hover:bg-secondary/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground capitalize">{meal}</span>
+                        <span className="text-sm font-semibold text-foreground">{label}</span>
                         {items.length > 0 && (
                           <span className="text-[11px] text-muted-foreground">
                             {Math.round(mealP)}g P · {Math.round(mealC)}g C · {Math.round(mealF)}g F
