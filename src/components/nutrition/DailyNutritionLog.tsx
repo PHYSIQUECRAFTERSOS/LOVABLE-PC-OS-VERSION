@@ -21,7 +21,7 @@ import QuickAddPreviousMeal from "./QuickAddPreviousMeal";
 import CopyDayDialog from "./CopyDayDialog";
 import SwipeToDelete from "./SwipeToDelete";
 import { useQuickAddMeals } from "@/hooks/useQuickAddMeals";
-import { useMealPlanTracker, mapMealNameToKey } from "@/hooks/useMealPlanTracker";
+import { useMealPlanTracker, mapMealNameToKey, MEAL_SECTIONS, parseMealSubtitle } from "@/hooks/useMealPlanTracker";
 import { useToast } from "@/hooks/use-toast";
 import EditFoodModal from "./EditFoodModal";
 import { getLocalDateString, toLocalDateString } from "@/utils/localDate";
@@ -60,14 +60,7 @@ interface NutritionLogsUpdatedDetail {
   addedRows?: Array<{ id: string }>;
 }
 
-const MEAL_SECTIONS = [
-  { key: "breakfast", label: "Breakfast" },
-  { key: "pre-workout", label: "Pre-Workout Meal" },
-  { key: "post-workout", label: "Post-Workout Meal" },
-  { key: "lunch", label: "Lunch" },
-  { key: "dinner", label: "Dinner" },
-  { key: "snack", label: "Snacks" },
-] as const;
+// MEAL_SECTIONS now imported from useMealPlanTracker — canonical meal-1..meal-6
 
 interface DailyNutritionLogProps {
   selectedDate?: Date;
@@ -113,6 +106,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     allItems: allMealPlanItems,
     getPlanByDayType,
     getItemsForMealSection,
+    getCoachMealNameAtPosition,
     copyMealToTracker,
   } = useMealPlanTracker(selectedDate);
 
@@ -667,10 +661,14 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       {/* Meal Sections */}
       <div className="space-y-4">
-        {MEAL_SECTIONS.map(({ key, label }) => {
+        {MEAL_SECTIONS.map(({ key, label, position }) => {
           const items = logs.filter((l) => mapMealNameToKey(l.meal_type) === key);
           const mealTotals = getMealTotals(items);
           const hasplanForMeal = !isCoach && hasPlanItems(key);
+          const coachMealName = activeDayId
+            ? getCoachMealNameAtPosition(activeDayId, position, mealPlanItems as any)
+            : null;
+          const subtitle = parseMealSubtitle(coachMealName);
 
           return (
             <div key={key} className="rounded-lg border border-border bg-card overflow-hidden">
@@ -678,6 +676,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+                  {subtitle && (
+                    <p className="text-[11px] text-primary/80 mt-0.5">({subtitle})</p>
+                  )}
                   {items.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {mealTotals.calories} cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F

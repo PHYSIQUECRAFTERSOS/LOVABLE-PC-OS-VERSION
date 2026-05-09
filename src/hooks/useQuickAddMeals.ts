@@ -58,12 +58,13 @@ export function useQuickAddMeals(userId: string | undefined, selectedDate: Date)
     const yesterdayLogs = yesterdayRes.data || [];
     const weekLogs = weekRes.data || [];
 
-    const mealKeys = ["breakfast", "pre-workout", "post-workout", "lunch", "dinner", "snack"];
+    const mealKeys = ["meal-1", "meal-2", "meal-3", "meal-4", "meal-5", "meal-6"];
+    const { mapMealNameToKey } = await import("@/hooks/useMealPlanTracker");
     const result: Record<string, MealSuggestion | null> = {};
 
     for (const key of mealKeys) {
       // Check yesterday first
-      const yItems = yesterdayLogs.filter((l: any) => l.meal_type === key);
+      const yItems = yesterdayLogs.filter((l: any) => mapMealNameToKey(l.meal_type) === key);
       if (yItems.length > 0) {
         const totalCal = yItems.reduce((s: number, i: any) => s + (i.calories || 0), 0);
         result[key] = {
@@ -80,7 +81,7 @@ export function useQuickAddMeals(userId: string | undefined, selectedDate: Date)
       const daySignatures: Record<string, string> = {};
 
       for (const log of weekLogs as any[]) {
-        if (log.meal_type !== key) continue;
+        if (mapMealNameToKey(log.meal_type) !== key) continue;
         const day = log.logged_at as string;
         if (!dayItems[day]) dayItems[day] = [];
         dayItems[day].push(log);

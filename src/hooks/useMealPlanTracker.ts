@@ -39,64 +39,99 @@ export interface MealPlanData {
   sort_order: number;
 }
 
-const MEAL_SECTION_MAP: Record<string, string> = {
-  Breakfast: "breakfast",
-  "Pre-Workout": "pre-workout",
-  "Pre Workout": "pre-workout",
-  "Pre-Workout Meal": "pre-workout",
-  "Pre Workout Meal": "pre-workout",
-  "Post-Workout": "post-workout",
-  "Post Workout": "post-workout",
-  "Post-Workout Meal": "post-workout",
-  "Post Workout Meal": "post-workout",
-  Lunch: "lunch",
-  Dinner: "dinner",
-  Snacks: "snack",
-  Snack: "snack",
-  breakfast: "breakfast",
-  "pre-workout": "pre-workout",
-  "post-workout": "post-workout",
-  lunch: "lunch",
-  dinner: "dinner",
-  snack: "snack",
-};
-
+// Canonical tracker keys: meal-1 ... meal-6 (1:1 with the 6 nutrition tracker slots)
 export const MEAL_SECTIONS = [
-  { key: "breakfast", label: "Breakfast", order: 0 },
-  { key: "pre-workout", label: "Pre-Workout", order: 1 },
-  { key: "post-workout", label: "Post-Workout", order: 2 },
-  { key: "lunch", label: "Lunch", order: 3 },
-  { key: "dinner", label: "Dinner", order: 4 },
-  { key: "snack", label: "Snacks", order: 5 },
+  { key: "meal-1", label: "Meal 1", order: 0, position: 1 },
+  { key: "meal-2", label: "Meal 2", order: 1, position: 2 },
+  { key: "meal-3", label: "Meal 3", order: 2, position: 3 },
+  { key: "meal-4", label: "Meal 4", order: 3, position: 4 },
+  { key: "meal-5", label: "Meal 5", order: 4, position: 5 },
+  { key: "meal-6", label: "Meal 6", order: 5, position: 6 },
 ] as const;
 
+// Legacy stored meal_type keys → new canonical key (per spec ordering)
+const LEGACY_KEY_TO_NEW: Record<string, string> = {
+  breakfast: "meal-1",
+  "pre-workout": "meal-2",
+  "post-workout": "meal-3",
+  lunch: "meal-4",
+  dinner: "meal-5",
+  snack: "meal-6",
+};
+
+/**
+ * Maps any meal identifier (legacy stored key, legacy display name, or new
+ * "Meal N" / "meal-N" form) to a canonical tracker key (meal-1..meal-6).
+ * Backward compatible with previously logged nutrition_logs rows.
+ */
 export function mapMealNameToKey(mealName: string): string {
-  const raw = mealName?.trim();
-  if (!raw) return "snack";
+  const raw = (mealName ?? "").toString().trim();
+  if (!raw) return "meal-6";
 
-  const direct =
-    MEAL_SECTION_MAP[raw] ||
-    MEAL_SECTION_MAP[raw.toLowerCase()] ||
-    MEAL_SECTION_MAP[raw.replace(/\s+/g, " ")];
+  // Already new canonical key
+  if (/^meal-[1-6]$/i.test(raw)) return raw.toLowerCase();
 
-  if (direct) return direct;
+  // "Meal N" / "Meal N (anything)" / "Meal N - x"
+  const numbered = raw.match(/meal\s*[-_:]?\s*([1-6])\b/i);
+  if (numbered) return `meal-${numbered[1]}`;
 
-  const normalized = raw
-    .toLowerCase()
+  // Legacy stored key
+  const lower = raw.toLowerCase();
+  if (LEGACY_KEY_TO_NEW[lower]) return LEGACY_KEY_TO_NEW[lower];
+
+  // Legacy display names
+  const norm = lower
     .replace(/_/g, " ")
     .replace(/-/g, " ")
     .replace(/\s+/g, " ")
-    .replace(/\bmeal\b/g, "")
     .trim();
 
-  if (normalized.includes("breakfast")) return "breakfast";
-  if (normalized.includes("pre workout") || normalized === "preworkout") return "pre-workout";
-  if (normalized.includes("post workout") || normalized === "postworkout") return "post-workout";
-  if (normalized.includes("lunch")) return "lunch";
-  if (normalized.includes("dinner")) return "dinner";
-  if (normalized.includes("snack")) return "snack";
+  if (norm.includes("breakfast")) return "meal-1";
+  if (norm.includes("pre workout") || norm === "preworkout") return "meal-2";
+  if (norm.includes("post workout") || norm === "postworkout") return "meal-3";
+  if (norm.includes("lunch")) return "meal-4";
+  if (norm.includes("dinner")) return "meal-5";
+  if (norm.includes("snack")) return "meal-6";
 
-  return "snack";
+  return "meal-6";
+}
+
+/** Parse "(Pre-Workout)" subtitle from "Meal 2 (Pre-Workout)". Returns null if no brackets. */
+export function parseMealSubtitle(mealName: string | null | undefined): string | null {
+  if (!mealName) return null;
+  const m = mealName.match(/\(([^)]+)\)/);
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * Returns the distinct coach meal_names for a day, ordered by their first
+ * appearance in meal_order ascending. Position is 1-indexed.
+ */
+export function getOrderedMealNamesForDay(
+  items: Array<{ day_id: string | null; meal_name: string; meal_order: number }>,
+  dayId: string
+): string[] {
+  const minOrder = new Map<string, number>();
+  for (const it of items) {
+    if (it.day_id !== dayId) continue;
+    const name = (it.meal_name ?? "").toString();
+    const ord = Number(it.meal_order ?? 0);
+    const cur = minOrder.get(name);
+    if (cur === undefined || ord < cur) minOrder.set(name, ord);
+  }
+  return [...minOrder.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([n]) => n);
+}
+
+/** Coach's meal_name at a given 1-indexed position within the day, or null. */
+export function getCoachMealNameForPosition(
+  items: Array<{ day_id: string | null; meal_name: string; meal_order: number }>,
+  dayId: string,
+  position: number
+): string | null {
+  const ordered = getOrderedMealNamesForDay(items, dayId);
+  return ordered[position - 1] ?? null;
 }
 
 type NutritionLogsUpdatedEventDetail = {
@@ -186,13 +221,21 @@ export function useMealPlanTracker(selectedDate?: Date) {
     [plans, allDays, allItems]
   );
 
+  /**
+   * Group items by tracker key (meal-1..meal-6) using POSITION-based mapping
+   * (coach's meal_order).
+   */
   const getItemsBySection = useCallback(
     (dayId: string, planItems?: MealPlanFood[]) => {
       const src = planItems || items || [];
       const dayItems = src.filter((i) => i.day_id === dayId);
+      const ordered = getOrderedMealNamesForDay(dayItems as any, dayId);
+      const nameToPos = new Map<string, number>();
+      ordered.forEach((n, idx) => nameToPos.set(n, idx + 1));
       const grouped: Record<string, MealPlanFood[]> = {};
       dayItems.forEach((item) => {
-        const key = mapMealNameToKey(item.meal_name);
+        const pos = nameToPos.get(item.meal_name);
+        const key = pos && pos <= 6 ? `meal-${pos}` : mapMealNameToKey(item.meal_name);
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(item);
       });
@@ -201,12 +244,31 @@ export function useMealPlanTracker(selectedDate?: Date) {
     [items]
   );
 
+  /** Position-based items lookup. mealKey is "meal-1".."meal-6". */
   const getItemsForMealSection = useCallback(
     (dayId: string, mealKey: string, planItems?: MealPlanFood[]): MealPlanFood[] => {
       const src = planItems || items || [];
-      return src.filter(
-        (i) => i.day_id === dayId && mapMealNameToKey(i.meal_name) === mealKey
-      );
+      const match = mealKey.match(/^meal-([1-6])$/);
+      if (!match) {
+        return src.filter(
+          (i) => i.day_id === dayId && mapMealNameToKey(i.meal_name) === mealKey
+        );
+      }
+      const position = Number(match[1]);
+      const dayItems = src.filter((i) => i.day_id === dayId);
+      const coachName = getCoachMealNameForPosition(dayItems as any, dayId, position);
+      if (!coachName) return [];
+      return dayItems.filter((i) => i.meal_name === coachName);
+    },
+    [items]
+  );
+
+  /** Coach's display name for the meal at a 1-indexed position (for subtitle). */
+  const getCoachMealNameAtPosition = useCallback(
+    (dayId: string, position: number, planItems?: MealPlanFood[]): string | null => {
+      const src = planItems || items || [];
+      const dayItems = src.filter((i) => i.day_id === dayId);
+      return getCoachMealNameForPosition(dayItems as any, dayId, position);
     },
     [items]
   );
@@ -302,22 +364,31 @@ export function useMealPlanTracker(selectedDate?: Date) {
         }
       }
 
-      const entries = dayItems.map((item) => ({
-        client_id: user.id,
-        food_item_id: item.food_item_id,
-        custom_name: item.custom_name,
-        meal_type: mapMealNameToKey(item.meal_name),
-        servings: 1,
-        calories: Number(item.calories) || 0,
-        protein: Number(item.protein) || 0,
-        carbs: Number(item.carbs) || 0,
-        fat: Number(item.fat) || 0,
-        logged_at: dateStr,
-        tz_corrected: true,
-        quantity_display: item.gram_amount || item.serving_size || null,
-        quantity_unit: item.serving_unit || "g",
-        ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
-      }));
+      // Position-based meal_type assignment
+      const ordered = getOrderedMealNamesForDay(dayItems as any, dayId);
+      const nameToPos = new Map<string, number>();
+      ordered.forEach((n, idx) => nameToPos.set(n, idx + 1));
+
+      const entries = dayItems.map((item) => {
+        const pos = nameToPos.get(item.meal_name);
+        const mealType = pos && pos <= 6 ? `meal-${pos}` : mapMealNameToKey(item.meal_name);
+        return {
+          client_id: user.id,
+          food_item_id: item.food_item_id,
+          custom_name: item.custom_name,
+          meal_type: mealType,
+          servings: 1,
+          calories: Number(item.calories) || 0,
+          protein: Number(item.protein) || 0,
+          carbs: Number(item.carbs) || 0,
+          fat: Number(item.fat) || 0,
+          logged_at: dateStr,
+          tz_corrected: true,
+          quantity_display: item.gram_amount || item.serving_size || null,
+          quantity_unit: item.serving_unit || "g",
+          ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
+        };
+      });
       const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
       if (error) {
         console.error("[copyEntireDayToTracker] Insert error:", error);
@@ -349,6 +420,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
     getPlanByDayType,
     getItemsBySection,
     getItemsForMealSection,
+    getCoachMealNameAtPosition,
     copyMealToTracker,
     copyEntireDayToTracker,
   };

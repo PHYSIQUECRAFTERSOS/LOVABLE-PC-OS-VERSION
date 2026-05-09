@@ -9,6 +9,7 @@ import DateNavigator from "@/components/dashboard/DateNavigator";
 import { formatServingDisplay } from "@/utils/formatServingDisplay";
 import MacroRing from "@/components/nutrition/MacroRing";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { mapMealNameToKey } from "@/hooks/useMealPlanTracker";
 
 interface NutritionLog {
   id: string;
@@ -32,12 +33,12 @@ interface Targets {
 }
 
 const MEAL_SECTIONS = [
-  { key: "breakfast", label: "Breakfast" },
-  { key: "pre-workout", label: "Pre-Workout" },
-  { key: "lunch", label: "Lunch" },
-  { key: "post-workout", label: "Post-Workout" },
-  { key: "dinner", label: "Dinner" },
-  { key: "snack", label: "Snacks" },
+  { key: "meal-1", label: "Meal 1" },
+  { key: "meal-2", label: "Meal 2" },
+  { key: "meal-3", label: "Meal 3" },
+  { key: "meal-4", label: "Meal 4" },
+  { key: "meal-5", label: "Meal 5" },
+  { key: "meal-6", label: "Meal 6" },
 ] as const;
 
 const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
@@ -48,8 +49,8 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({
-    breakfast: true, lunch: true, dinner: true, snack: true,
-    "pre-workout": true, "post-workout": true,
+    "meal-1": true, "meal-2": true, "meal-3": true,
+    "meal-4": true, "meal-5": true, "meal-6": true,
   });
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -113,7 +114,7 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
 
-  const getMealItems = (key: string) => logs.filter(l => l.meal_type === key);
+  const getMealItems = (key: string) => logs.filter(l => mapMealNameToKey(l.meal_type) === key);
   const getMealTotals = (items: NutritionLog[]) =>
     items.reduce(
       (acc, l) => ({
