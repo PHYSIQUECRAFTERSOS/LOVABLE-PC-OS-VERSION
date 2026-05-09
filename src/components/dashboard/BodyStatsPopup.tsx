@@ -33,6 +33,7 @@ interface BodyStatsPopupProps {
 const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { parseWeightInput, weightLabel, loading: prefsLoading } = useUnitPreferences();
   const [bodyWeight, setBodyWeight] = useState("");
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
