@@ -18,6 +18,7 @@ import { ClipboardCheck, CheckCircle, Loader2, Star, AlertCircle } from "lucide-
 import { useXPAward } from "@/hooks/useXPAward";
 import { XP_VALUES } from "@/utils/rankedXP";
 import { invalidateCache } from "@/hooks/useDataFetch";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
 const HARDCODED_FALLBACK_TEMPLATE_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -25,6 +26,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { triggerXP } = useXPAward();
+  const { parseWeightInput } = useUnitPreferences();
   const queryClient = useQueryClient();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -233,14 +235,15 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
       const { error: rErr } = await supabase.from("checkin_responses").insert(responses);
       if (rErr) throw rErr;
 
-      // Log weight if applicable
+      // Log weight if applicable — convert from client's unit to canonical lbs
       const weightQ = questions.find((q) => q.question_order === 10);
       if (weightQ && answers[weightQ.id]) {
         const w = parseFloat(answers[weightQ.id]);
         if (!isNaN(w)) {
+          const wLbs = Number(parseWeightInput(w).toFixed(1));
           await supabase.from("weight_logs").upsert({
             client_id: user.id,
-            weight: w,
+            weight: wLbs,
           }, { onConflict: "client_id,logged_at" });
         }
       }

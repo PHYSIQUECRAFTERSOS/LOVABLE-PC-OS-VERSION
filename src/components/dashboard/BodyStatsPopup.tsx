@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { Drawer, DrawerContent, DrawerFooter } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ interface BodyStatsPopupProps {
 const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { parseWeightInput, weightLabel, loading: prefsLoading } = useUnitPreferences();
   const [bodyWeight, setBodyWeight] = useState("");
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
@@ -41,6 +43,10 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
 
   const handleSave = async () => {
     if (!user) return;
+    if (prefsLoading) {
+      toast({ title: "Loading your unit preference…", description: "One moment.", variant: "destructive" });
+      return;
+    }
     if (!bodyWeight && Object.values(measurements).every(v => !v)) {
       toast({ title: "Enter at least body weight or one measurement", variant: "destructive" });
       return;
@@ -50,9 +56,10 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
       const today = format(new Date(), "yyyy-MM-dd");
 
       if (bodyWeight) {
+        const weightLbs = Number(parseWeightInput(parseFloat(bodyWeight)).toFixed(1));
         const { error } = await supabase.from("weight_logs").insert({
           client_id: user.id,
-          weight: parseFloat(bodyWeight),
+          weight: weightLbs,
           logged_at: today,
           source: "body_stats_popup",
         });
@@ -132,7 +139,7 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
                 className="text-center text-2xl font-bold h-14 max-w-[160px] bg-secondary/50 border-primary/20 focus:border-primary"
                 autoFocus
               />
-              <span className="text-sm text-muted-foreground font-semibold">lbs</span>
+              <span className="text-sm text-muted-foreground font-semibold">{weightLabel}</span>
             </div>
           </div>
 
