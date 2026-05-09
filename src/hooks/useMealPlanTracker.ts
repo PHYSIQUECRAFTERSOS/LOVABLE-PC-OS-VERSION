@@ -364,22 +364,31 @@ export function useMealPlanTracker(selectedDate?: Date) {
         }
       }
 
-      const entries = dayItems.map((item) => ({
-        client_id: user.id,
-        food_item_id: item.food_item_id,
-        custom_name: item.custom_name,
-        meal_type: mapMealNameToKey(item.meal_name),
-        servings: 1,
-        calories: Number(item.calories) || 0,
-        protein: Number(item.protein) || 0,
-        carbs: Number(item.carbs) || 0,
-        fat: Number(item.fat) || 0,
-        logged_at: dateStr,
-        tz_corrected: true,
-        quantity_display: item.gram_amount || item.serving_size || null,
-        quantity_unit: item.serving_unit || "g",
-        ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
-      }));
+      // Position-based meal_type assignment
+      const ordered = getOrderedMealNamesForDay(dayItems as any, dayId);
+      const nameToPos = new Map<string, number>();
+      ordered.forEach((n, idx) => nameToPos.set(n, idx + 1));
+
+      const entries = dayItems.map((item) => {
+        const pos = nameToPos.get(item.meal_name);
+        const mealType = pos && pos <= 6 ? `meal-${pos}` : mapMealNameToKey(item.meal_name);
+        return {
+          client_id: user.id,
+          food_item_id: item.food_item_id,
+          custom_name: item.custom_name,
+          meal_type: mealType,
+          servings: 1,
+          calories: Number(item.calories) || 0,
+          protein: Number(item.protein) || 0,
+          carbs: Number(item.carbs) || 0,
+          fat: Number(item.fat) || 0,
+          logged_at: dateStr,
+          tz_corrected: true,
+          quantity_display: item.gram_amount || item.serving_size || null,
+          quantity_unit: item.serving_unit || "g",
+          ...(item.food_item_id && microsMap[item.food_item_id] ? microsMap[item.food_item_id] : {}),
+        };
+      });
       const { data: inserted, error } = await supabase.from("nutrition_logs").insert(entries as any).select();
       if (error) {
         console.error("[copyEntireDayToTracker] Insert error:", error);
