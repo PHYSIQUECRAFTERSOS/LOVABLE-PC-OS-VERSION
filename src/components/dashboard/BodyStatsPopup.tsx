@@ -139,7 +139,7 @@ const BodyStatsPopup = ({ open, onClose, eventId, onCompleted }: BodyStatsPopupP
                 className="text-center text-2xl font-bold h-14 max-w-[160px] bg-secondary/50 border-primary/20 focus:border-primary"
                 autoFocus
               />
-              <span className="text-sm text-muted-foreground font-semibold">lbs</span>
+              <span className="text-sm text-muted-foreground font-semibold">{weightLabel}</span>
             </div>
           </div>
 
