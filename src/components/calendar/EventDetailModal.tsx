@@ -178,7 +178,7 @@ const EventDetailModal = ({
       try {
         const { data } = await supabase
           .from("workout_exercises")
-          .select("sets, reps, rest_seconds, exercises(name)")
+          .select("sets, reps, rest_seconds, exercises(name, youtube_url, video_url, youtube_thumbnail)")
           .eq("workout_id", event.linked_workout_id!)
           .order("exercise_order");
 
@@ -187,6 +187,7 @@ const EventDetailModal = ({
           sets: we.sets,
           reps: we.reps,
           rest_seconds: we.rest_seconds,
+          thumbnail: resolveExerciseThumbnail(we.exercises),
         }));
         setWorkoutExercises(exercises);
 
