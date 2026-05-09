@@ -335,17 +335,22 @@ const EventDetailModal = ({
   const hasActionRoute = event.event_type === "workout" || effectiveType === "body_stats" || effectiveType === "photos" || !!EVENT_ROUTES[event.event_type];
 
   const exerciseDisplay = hasSession
-    ? sessionData!.logs.map(log => ({
-        name: log.exercise_name,
-        exercise_id: log.exercise_id,
-        prescribed: workoutExercises.find(we => we.name.toLowerCase() === log.exercise_name.toLowerCase()),
-        loggedSets: log.sets,
-      }))
+    ? sessionData!.logs.map(log => {
+        const prescribed = workoutExercises.find(we => we.name.toLowerCase() === log.exercise_name.toLowerCase());
+        return {
+          name: log.exercise_name,
+          exercise_id: log.exercise_id,
+          prescribed,
+          loggedSets: log.sets,
+          thumbnail: log.thumbnail || prescribed?.thumbnail || null,
+        };
+      })
     : workoutExercises.map((we, i) => ({
         name: we.name,
         exercise_id: `prescribed-${i}`,
         prescribed: we,
         loggedSets: [] as SessionLog["sets"],
+        thumbnail: we.thumbnail || null,
       }));
 
   const resolvedClientId = clientId || event.target_client_id || event.user_id;
