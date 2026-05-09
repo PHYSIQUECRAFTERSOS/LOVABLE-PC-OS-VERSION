@@ -661,10 +661,14 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
       {/* Meal Sections */}
       <div className="space-y-4">
-        {MEAL_SECTIONS.map(({ key, label }) => {
+        {MEAL_SECTIONS.map(({ key, label, position }) => {
           const items = logs.filter((l) => mapMealNameToKey(l.meal_type) === key);
           const mealTotals = getMealTotals(items);
           const hasplanForMeal = !isCoach && hasPlanItems(key);
+          const coachMealName = activeDayId
+            ? getCoachMealNameAtPosition(activeDayId, position, mealPlanItems as any)
+            : null;
+          const subtitle = parseMealSubtitle(coachMealName);
 
           return (
             <div key={key} className="rounded-lg border border-border bg-card overflow-hidden">
@@ -672,6 +676,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">{label}</h3>
+                  {subtitle && (
+                    <p className="text-[11px] text-primary/80 mt-0.5">({subtitle})</p>
+                  )}
                   {items.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {mealTotals.calories} cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F
