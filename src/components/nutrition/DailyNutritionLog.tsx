@@ -106,6 +106,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     allItems: allMealPlanItems,
     getPlanByDayType,
     getItemsForMealSection,
+    getCoachMealNameAtPosition,
     copyMealToTracker,
   } = useMealPlanTracker(selectedDate);
 
