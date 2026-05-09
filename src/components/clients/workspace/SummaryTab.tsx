@@ -1019,7 +1019,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
             </div>
           ) : (
             <>
-              {MEALS.map((meal) => {
+              {MEAL_SECTIONS.map(({ key: meal, label }) => {
                 const items = mealGroups[meal];
                 const mealCals = items.reduce((s, i) => s + i.calories, 0);
                 const mealP = items.reduce((s, i) => s + i.protein, 0);
@@ -1030,7 +1030,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                   <Collapsible key={meal} open={openMeals[meal]} onOpenChange={() => toggleMeal(meal)}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full py-2.5 px-3 rounded-lg hover:bg-secondary/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-foreground capitalize">{meal}</span>
+                        <span className="text-sm font-semibold text-foreground">{label}</span>
                         {items.length > 0 && (
                           <span className="text-[11px] text-muted-foreground">
                             {Math.round(mealP)}g P · {Math.round(mealC)}g C · {Math.round(mealF)}g F
