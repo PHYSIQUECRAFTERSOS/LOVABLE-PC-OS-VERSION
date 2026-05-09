@@ -124,6 +124,26 @@ const SetRow = ({ weight, reps, unit }: { weight: number | null; reps: number | 
   );
 };
 
+const ExerciseThumb = ({ src }: { src: string | null | undefined }) => {
+  const [errored, setErrored] = useState(false);
+  const showImg = !!src && !errored;
+  return (
+    <div className="h-10 w-10 rounded-lg bg-secondary flex items-center justify-center shrink-0 overflow-hidden">
+      {showImg ? (
+        <img
+          src={src!}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover pointer-events-none"
+          onError={() => setErrored(true)}
+        />
+      ) : (
+        <Dumbbell className="h-5 w-5 text-muted-foreground" />
+      )}
+    </div>
+  );
+};
+
 const EventDetailModal = ({
   event, open, onClose, onComplete, onDelete, isCoach, onStartWorkout, clientId,
 }: EventDetailModalProps) => {
