@@ -48,8 +48,8 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedMeals, setExpandedMeals] = useState<Record<string, boolean>>({
-    breakfast: true, lunch: true, dinner: true, snack: true,
-    "pre-workout": true, "post-workout": true,
+    "meal-1": true, "meal-2": true, "meal-3": true,
+    "meal-4": true, "meal-5": true, "meal-6": true,
   });
 
   const dateStr = format(selectedDate, "yyyy-MM-dd");
