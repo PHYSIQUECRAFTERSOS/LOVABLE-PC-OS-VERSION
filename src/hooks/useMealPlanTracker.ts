@@ -221,13 +221,21 @@ export function useMealPlanTracker(selectedDate?: Date) {
     [plans, allDays, allItems]
   );
 
+  /**
+   * Group items by tracker key (meal-1..meal-6) using POSITION-based mapping
+   * (coach's meal_order).
+   */
   const getItemsBySection = useCallback(
     (dayId: string, planItems?: MealPlanFood[]) => {
       const src = planItems || items || [];
       const dayItems = src.filter((i) => i.day_id === dayId);
+      const ordered = getOrderedMealNamesForDay(dayItems as any, dayId);
+      const nameToPos = new Map<string, number>();
+      ordered.forEach((n, idx) => nameToPos.set(n, idx + 1));
       const grouped: Record<string, MealPlanFood[]> = {};
       dayItems.forEach((item) => {
-        const key = mapMealNameToKey(item.meal_name);
+        const pos = nameToPos.get(item.meal_name);
+        const key = pos && pos <= 6 ? `meal-${pos}` : mapMealNameToKey(item.meal_name);
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(item);
       });
@@ -236,12 +244,31 @@ export function useMealPlanTracker(selectedDate?: Date) {
     [items]
   );
 
+  /** Position-based items lookup. mealKey is "meal-1".."meal-6". */
   const getItemsForMealSection = useCallback(
     (dayId: string, mealKey: string, planItems?: MealPlanFood[]): MealPlanFood[] => {
       const src = planItems || items || [];
-      return src.filter(
-        (i) => i.day_id === dayId && mapMealNameToKey(i.meal_name) === mealKey
-      );
+      const match = mealKey.match(/^meal-([1-6])$/);
+      if (!match) {
+        return src.filter(
+          (i) => i.day_id === dayId && mapMealNameToKey(i.meal_name) === mealKey
+        );
+      }
+      const position = Number(match[1]);
+      const dayItems = src.filter((i) => i.day_id === dayId);
+      const coachName = getCoachMealNameForPosition(dayItems as any, dayId, position);
+      if (!coachName) return [];
+      return dayItems.filter((i) => i.meal_name === coachName);
+    },
+    [items]
+  );
+
+  /** Coach's display name for the meal at a 1-indexed position (for subtitle). */
+  const getCoachMealNameAtPosition = useCallback(
+    (dayId: string, position: number, planItems?: MealPlanFood[]): string | null => {
+      const src = planItems || items || [];
+      const dayItems = src.filter((i) => i.day_id === dayId);
+      return getCoachMealNameForPosition(dayItems as any, dayId, position);
     },
     [items]
   );
