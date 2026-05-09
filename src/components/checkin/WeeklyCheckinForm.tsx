@@ -235,14 +235,15 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
       const { error: rErr } = await supabase.from("checkin_responses").insert(responses);
       if (rErr) throw rErr;
 
-      // Log weight if applicable
+      // Log weight if applicable — convert from client's unit to canonical lbs
       const weightQ = questions.find((q) => q.question_order === 10);
       if (weightQ && answers[weightQ.id]) {
         const w = parseFloat(answers[weightQ.id]);
         if (!isNaN(w)) {
+          const wLbs = Number(parseWeightInput(w).toFixed(1));
           await supabase.from("weight_logs").upsert({
             client_id: user.id,
-            weight: w,
+            weight: wLbs,
           }, { onConflict: "client_id,logged_at" });
         }
       }
