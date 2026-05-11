@@ -134,6 +134,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const mealPlanDays = resolvedPlanData.days;
   const mealPlanItems = resolvedPlanData.items;
   const activeDayId = mealPlanDays?.[0]?.id || null;
+  // Subtitles must come ONLY from a plan whose day_type matches the resolved day.
+  // Prevents the training plan's "(pre workout)" tags leaking onto rest days via fallback.
+  const subtitleItems = mealPlan && mealPlan.day_type === dayTypeKey ? mealPlanItems : [];
+
 
   // Determine available plan pills (only show pills if 2+ plans exist)
   const availablePlanPills = useMemo(() => {
