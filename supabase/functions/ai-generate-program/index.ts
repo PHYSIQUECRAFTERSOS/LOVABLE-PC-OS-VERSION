@@ -595,6 +595,58 @@ Deno.serve(async (req) => {
       return d.toLocaleDateString("en-CA");
     })();
 
+    // ---------- Post-process: normalize rest times + prepend mobility drill ----------
+    const AB_NAME_RE = /\b(ab|abs|core|crunch|plank|sit[- ]?up|leg raise|hanging|hollow|dead\s*bug|woodchop|russian twist|cable crunch|knee raise|toes?[- ]to[- ]bar|ab wheel)\b/i;
+    const AB_MUSCLES = new Set(["abs", "core", "abdominals", "obliques"]);
+    const isAb = (ex: AIExercise) => {
+      const m = (ex.primary_muscle || "").toLowerCase().trim();
+      return AB_MUSCLES.has(m) || AB_NAME_RE.test(ex.name || "");
+    };
+
+    const classifyDay = (label: string): "upper" | "lower" | "full" => {
+      const l = (label || "").toLowerCase();
+      if (/full[\s-]?body/.test(l)) return "full";
+      const hasUpper = /(pull|push|upper|chest|arm|back)/.test(l);
+      const hasLower = /(leg|lower|glute|hamstring|quad|calves|calf)/.test(l);
+      if (hasLower) return "lower"; // shoulders+legs => lower
+      if (hasUpper) return "upper";
+      return "full";
+    };
+
+    const MOBILITY_NAMES = {
+      upper: "upper body mobility routine",
+      lower: "lower body mobility routine",
+      full: "Full Body Mobility Routine",
+    };
+
+    for (const day of resolvedDays) {
+      // Normalize rest times for non-mobility exercises
+      for (const ex of day.exercises) {
+        ex.rest_seconds = isAb(ex) ? 60 : 120;
+      }
+
+      // Prepend mobility drill
+      const kind = classifyDay(day.day_label);
+      const mobilityName = MOBILITY_NAMES[kind];
+      const match = findExerciseInLibrary(mobilityName, library);
+      if (match) {
+        const exId = (match.exercise as any).id;
+        day.exercises.unshift({
+          name: match.exercise.name,
+          sets: 1,
+          reps: "10/exercise",
+          rest_seconds: 0,
+          notes: "1 set, 10 reps per exercise",
+          is_amrap: false,
+          primary_muscle: match.exercise.primary_muscle || "mobility",
+          // @ts-ignore - exercise_id consumed client-side at save
+          exercise_id: exId,
+        } as AIExercise);
+      } else {
+        console.warn(`[ai-generate-program] mobility drill not found in library: ${mobilityName} (day: ${day.day_label})`);
+      }
+    }
+
     return json({
       ok: true,
       program: {
