@@ -144,9 +144,9 @@ function validateProgram(
         errors.push(`AMRAP only allowed on bodyweight movements. "${canonical.name}" is not bodyweight.`);
       }
 
-      // No coaching note
-      if (!ex.notes || ex.notes.trim().length < 10) {
-        errors.push(`Exercise "${canonical.name}" missing a coaching note.`);
+      // Arnold Press is forbidden unless client trains at home gym
+      if (!ctx.homeGym && /arnold\s*press/i.test(canonical.name)) {
+        errors.push(`"${canonical.name}" is only allowed for home-gym clients.`);
       }
 
       resolvedExercises.push({
