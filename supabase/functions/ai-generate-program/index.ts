@@ -80,6 +80,7 @@ function validateProgram(
     availableDays: number;
     library: { id: string; name: string; primary_muscle?: string | null; equipment?: string | null }[];
     planetFitness: boolean;
+    homeGym: boolean;
     cannotDoTokens: string[];
     previousExerciseNames: Set<string>;
     focusMuscle: string | null;
