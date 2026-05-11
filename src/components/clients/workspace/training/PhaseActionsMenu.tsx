@@ -37,6 +37,14 @@ export const PhaseActionsMenu = ({
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+      {onAICreate && (
+        <>
+          <DropdownMenuItem onClick={onAICreate} className="text-primary focus:text-primary">
+            <Sparkles className="h-3.5 w-3.5 mr-2" /> AI Create New Phase
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+      )}
       <DropdownMenuItem onClick={onRename}><Pencil className="h-3.5 w-3.5 mr-2" /> Rename</DropdownMenuItem>
       <DropdownMenuItem onClick={onChangeDuration}><Clock className="h-3.5 w-3.5 mr-2" /> Change Duration</DropdownMenuItem>
       <DropdownMenuItem onClick={onDuplicate}><Copy className="h-3.5 w-3.5 mr-2" /> Duplicate</DropdownMenuItem>
