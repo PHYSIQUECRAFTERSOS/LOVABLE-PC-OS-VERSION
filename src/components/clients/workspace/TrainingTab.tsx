@@ -683,6 +683,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         onDeletePhase={(phase) => guardEdit(() => setDeletePhaseTarget(phase))}
         onCopyPhaseToMaster={(phase) => setCopyToMasterPhase(phase)}
         onCopyPhaseToClient={(phase) => setCopyToClientPhase(phase)}
+        onAICreatePhase={() => guardEdit(() => setAiCreateOpen(true))}
         onChangeProgram={openAssignDialog}
         onDetach={isLinked ? () => setShowDetach(true) : undefined}
       />
