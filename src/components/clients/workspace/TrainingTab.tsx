@@ -136,15 +136,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   useEffect(() => {
     if (!clientId) return;
     supabase.from("profiles")
-      .select("full_name, first_name, last_name")
-      .eq("id", clientId)
+      .select("full_name")
+      .eq("user_id", clientId)
       .maybeSingle()
       .then(({ data }) => {
-        if (!data) return;
-        const name = (data as any).full_name
-          || [(data as any).first_name, (data as any).last_name].filter(Boolean).join(" ")
-          || "Client";
-        setClientDisplayName(name);
+        if (data?.full_name) setClientDisplayName(data.full_name);
       });
   }, [clientId]);
 
