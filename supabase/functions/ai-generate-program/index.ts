@@ -202,8 +202,8 @@ HARD RULES (non-negotiable):
 17. Respect injuries and the client's cannot-do list. Avoid contraindicated variants.
 18. Equipment filter: Planet Fitness = no barbells. Home gym = only what is in the equipment list. Full commercial = no filter.
 19. If client is high-BF + high-BW (subjective; rough threshold 30%+ BF and 230+ lb), avoid weighted walking lunges, pull-ups, dips, plyometrics, deep barbell squats. Bias toward seated and machine-supported moves.
-20. Focus area: train it FIRST in every session it appears AND bump volume to 16-22 sets/wk — UNLESS the focus area is abs/belly/stomach/midsection. In that case, do NOT bump ab volume; raise a conflict_flag noting it is a body-comp (nutrition) priority.
-21. Rest seconds: ALWAYS use 120 seconds for every exercise, EXCEPT abdominal/core exercises which use 60 seconds. Do not vary.
+20. Focus area: train it FIRST in every session it appears AND bump volume to 16-22 sets/wk — UNLESS the focus area is abs/belly/stomach/midsection. In that case, raise a conflict_flag noting it is a body-comp (nutrition) priority.
+21. ABSOLUTE: Do NOT include ANY abdominal/core/oblique exercises (no crunches, planks, sit-ups, leg raises, hanging knee raises, ab wheel, woodchops, russian twists, dead bugs, hollow holds, cable crunches, etc.). The system injects a standardized abs block on 2 days post-process. Default rest is 120 seconds for every exercise.
 22. Do NOT include warmups, mobility drills, or activation work — the system auto-prepends a mobility routine to every workout.
 23. Do NOT use "Arnold Press" or any Arnold-press variant UNLESS the client trains at a home gym (training_location contains "home").
 
