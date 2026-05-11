@@ -423,6 +423,7 @@ Deno.serve(async (req) => {
     const trainingLocation = onboarding.training_location || "unknown";
     const homeEquipment = onboarding.home_equipment_list || "";
     const planetFitness = /planet\s*fitness/i.test(trainingLocation);
+    const homeGym = /home/i.test(trainingLocation);
 
     const heightDisplay = onboarding.height_feet != null
       ? `${onboarding.height_feet}'${onboarding.height_inches || 0}"`
