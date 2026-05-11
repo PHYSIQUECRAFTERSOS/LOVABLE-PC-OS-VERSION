@@ -202,6 +202,8 @@ HARD RULES (non-negotiable):
 18. Equipment filter: Planet Fitness = no barbells. Home gym = only what is in the equipment list. Full commercial = no filter.
 19. If client is high-BF + high-BW (subjective; rough threshold 30%+ BF and 230+ lb), avoid weighted walking lunges, pull-ups, dips, plyometrics, deep barbell squats. Bias toward seated and machine-supported moves.
 20. Focus area: train it FIRST in every session it appears AND bump volume to 16-22 sets/wk — UNLESS the focus area is abs/belly/stomach/midsection. In that case, do NOT bump ab volume; raise a conflict_flag noting it is a body-comp (nutrition) priority.
+21. Rest seconds: ALWAYS use 120 seconds for every exercise, EXCEPT abdominal/core exercises which use 60 seconds. Do not vary.
+22. Do NOT include warmups, mobility drills, or activation work — the system auto-prepends a mobility routine to every workout.
 
 Return rationale (1 short paragraph), conflict_flags (array of strings), weekly_volume (per primary muscle, sets/wk), and days (array). For each day include day_label (e.g. "Push", "Pull", "Legs", "Upper A", "Lower A", "Full Body A"), day_of_week (0=Mon ... 6=Sun), category (push/pull/legs/upper/lower/fullbody), and exercises (each with name, sets, reps, rest_seconds, notes, is_amrap, primary_muscle).`;
 }
