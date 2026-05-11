@@ -1,46 +1,45 @@
-## Goal
-Make the coach's exact meal naming flow through to the client UI, and make the pre/post-workout subtitle truly dynamic (driven by the coach's text and the day type — never on rest days).
+## Problem
 
-## Changes
+In a client's Training tab, editing a workout in Phase 3 and pressing Save jumps the view back to the current/active phase (e.g., Phase 1). The intent is to stay on Phase 3 so the coach can keep editing other workouts in that phase.
 
-### 1. Client meal plan view shows coach's exact wording
-**File:** `src/components/nutrition/ClientStructuredMealPlan.tsx`
+## Cause
 
-Currently each meal section renders the static `MEAL_SECTIONS` label ("Meal 1"…"Meal 6") and ignores whatever the coach typed. Update it to match the tracker pattern:
+`ClientProgramTwoPane` keeps `selectedPhaseId` in local state with this effect:
 
-- Import `parseMealSubtitle` and `getCoachMealNameForPosition` from `useMealPlanTracker`.
-- For each rendered section, look up the coach's actual `meal_name` for that day at the section's `position` (1–6).
-- Render bold "Meal N" as today + below it, in small gold text (`text-primary/80`), the parenthetical the coach wrote — e.g. `(pre workout)`, `(post workout meal)`, `(snack)`, anything inside `( … )` in the coach name.
-- If the coach typed no parenthetical, show no subtitle.
-
-This means whatever the coach types in MealPlanBuilder ("Meal 5 (pre workout meal)", "Meal 3 (post workout)", "Meal 2 (oatmeal bowl)"), the client sees it verbatim.
-
-### 2. Nutrition tracker subtitle becomes fully dynamic
-**File:** `src/components/nutrition/DailyNutritionLog.tsx`
-
-The tracker already uses `getCoachMealNameAtPosition` + `parseMealSubtitle` (lines 668–681), so dynamic subtitles already work for training days. Two fixes:
-
-a. **Hide pre/post-workout subtitles on rest days.** Around line 671, after computing `subtitle`, suppress it when the resolved day is a rest day AND the subtitle matches pre/post workout wording:
 ```
-const isRest = dayTypeKey === "rest";
-const looksWorkoutTagged = subtitle && /pre[-\s]?workout|post[-\s]?workout/i.test(subtitle);
-const visibleSubtitle = isRest && looksWorkoutTagged ? null : subtitle;
+if (!phases.length) { setSelectedPhaseId(null); return; }
+if (selectedPhaseId && phases.some(p => p.id === selectedPhaseId)) return;
+setSelectedPhaseId(currentPhaseId ?? phases[0].id);
 ```
-Then render `visibleSubtitle` instead of `subtitle`. Other parentheticals the coach types in a rest plan (e.g. "(snack)") still show.
 
-b. **Don't fall back to the training plan for subtitle text on rest days.** In the `resolvedPlanData` memo (lines 115–131), when `dayTypeKey === "rest"` and no rest plan exists, do **not** fall back to `all_days` or the first plan for *subtitle resolution* — keep the macros fallback (so totals still display) but pass an empty `mealPlanItems` to `getCoachMealNameAtPosition` on rest days when there's no real rest plan. Implementation: derive a separate `subtitleItems` value that is `mealPlanItems` only when the resolved plan's `day_type === dayTypeKey`, else `[]`.
+After saving, the parent `TrainingTab` calls `loadClientProgram()`, which briefly sets `phases` to `[]` during the refetch. That early-return wipes `selectedPhaseId` to `null`. When phases repopulate, the fallback re-selects the client's `currentPhaseId` (Phase 1).
 
-This guarantees: on a rest day, the client only sees pre/post-workout wording if the coach explicitly put it in the rest plan — and even then, rule (a) hides those two specific tags.
+## Fix
 
-### 3. No DB / coach-side / edge-function changes
-Coach already saves the full `meal_name` string into `meal_plan_items.meal_name`. No schema, RLS, or backend work needed.
+In `src/components/clients/workspace/training/ClientProgramTwoPane.tsx`:
+
+- Remove the `setSelectedPhaseId(null)` reset when `phases.length === 0`. A transient empty list during a refetch should not clear the user's selection.
+- Keep selection sticky: only fall back to `currentPhaseId` / `phases[0]` when `selectedPhaseId` is `null` OR no longer exists in the new phase list (e.g., the selected phase was deleted).
+- Scope is session-only; no persistence to localStorage or DB.
+
+Resulting effect logic:
+
+```
+if (!phases.length) return;                     // wait for data, keep current selection
+if (selectedPhaseId && phases.some(p => p.id === selectedPhaseId)) return;
+setSelectedPhaseId(currentPhaseId && phases.some(p => p.id === currentPhaseId)
+  ? currentPhaseId
+  : phases[0].id);
+```
 
 ## Out of scope
-- No change to `MEAL_SECTIONS` keys or `mapMealNameToKey` (would risk breaking historical `nutrition_logs` rows).
-- No change to MealPlanBuilder UX.
-- No change to FoodLogger modal title (it's the add-food sheet, not the section header).
+
+- No changes to save flow, no changes to `loadClientProgram`, no DB or RLS changes.
+- No cross-tab/cross-session persistence.
 
 ## Verification
-- As coach: rename "Meal 4" → "Meal 4 (pre workout meal)" on the training plan. As client on a training day: meal plan view shows `Meal 4` + gold `(pre workout meal)`; tracker shows `Meal 4` + gold `(pre workout)`.
-- Switch the calendar/day to a rest day with a separate rest plan that has no parentheticals: both views show plain `Meal 1…N` with no subtitles, even if the training plan has pre/post tags.
-- Existing logged data still groups under the correct meal slot (no key changes).
+
+1. As coach on a client's Training tab, click Phase 3 → edit a workout → Save.
+2. Confirm the view stays on Phase 3 after the refetch completes.
+3. Delete the currently selected phase → confirm it falls back to current/first phase (no broken state).
+4. Switch to another tab and back → defaults to client's current phase as before.

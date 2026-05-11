@@ -98,8 +98,10 @@ export const ClientProgramTwoPane = ({
   const dragInFlightRef = useRef(false);
 
   // Default-select active or first phase whenever phase list changes.
+  // Keep the user's selection sticky across refetches: if phases is briefly
+  // empty during a reload, do nothing so we don't snap back to the current phase.
   useEffect(() => {
-    if (!phases.length) { setSelectedPhaseId(null); return; }
+    if (!phases.length) return;
     if (selectedPhaseId && phases.some(p => p.id === selectedPhaseId)) return;
     setSelectedPhaseId(currentPhaseId && phases.some(p => p.id === currentPhaseId)
       ? currentPhaseId
