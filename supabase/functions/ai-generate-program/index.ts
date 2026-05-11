@@ -707,7 +707,7 @@ Deno.serve(async (req) => {
     });
 
     // Deterministic shuffle seeded by client id (so re-running for same client yields same picks unless library changes)
-    const seedStr = String(client?.id || client?.user_id || "seed");
+    const seedStr = String(clientId || "seed");
     let seed = 0;
     for (const c of seedStr) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
     const rand = () => {
