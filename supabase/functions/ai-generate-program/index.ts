@@ -202,6 +202,8 @@ HARD RULES (non-negotiable):
 18. Equipment filter: Planet Fitness = no barbells. Home gym = only what is in the equipment list. Full commercial = no filter.
 19. If client is high-BF + high-BW (subjective; rough threshold 30%+ BF and 230+ lb), avoid weighted walking lunges, pull-ups, dips, plyometrics, deep barbell squats. Bias toward seated and machine-supported moves.
 20. Focus area: train it FIRST in every session it appears AND bump volume to 16-22 sets/wk — UNLESS the focus area is abs/belly/stomach/midsection. In that case, do NOT bump ab volume; raise a conflict_flag noting it is a body-comp (nutrition) priority.
+21. Rest seconds: ALWAYS use 120 seconds for every exercise, EXCEPT abdominal/core exercises which use 60 seconds. Do not vary.
+22. Do NOT include warmups, mobility drills, or activation work — the system auto-prepends a mobility routine to every workout.
 
 Return rationale (1 short paragraph), conflict_flags (array of strings), weekly_volume (per primary muscle, sets/wk), and days (array). For each day include day_label (e.g. "Push", "Pull", "Legs", "Upper A", "Lower A", "Full Body A"), day_of_week (0=Mon ... 6=Sun), category (push/pull/legs/upper/lower/fullbody), and exercises (each with name, sets, reps, rest_seconds, notes, is_amrap, primary_muscle).`;
 }
@@ -592,6 +594,58 @@ Deno.serve(async (req) => {
       d.setDate(d.getDate() + 55); // start + 55 = 56 day span (8w)
       return d.toLocaleDateString("en-CA");
     })();
+
+    // ---------- Post-process: normalize rest times + prepend mobility drill ----------
+    const AB_NAME_RE = /\b(ab|abs|core|crunch|plank|sit[- ]?up|leg raise|hanging|hollow|dead\s*bug|woodchop|russian twist|cable crunch|knee raise|toes?[- ]to[- ]bar|ab wheel)\b/i;
+    const AB_MUSCLES = new Set(["abs", "core", "abdominals", "obliques"]);
+    const isAb = (ex: AIExercise) => {
+      const m = (ex.primary_muscle || "").toLowerCase().trim();
+      return AB_MUSCLES.has(m) || AB_NAME_RE.test(ex.name || "");
+    };
+
+    const classifyDay = (label: string): "upper" | "lower" | "full" => {
+      const l = (label || "").toLowerCase();
+      if (/full[\s-]?body/.test(l)) return "full";
+      const hasUpper = /(pull|push|upper|chest|arm|back)/.test(l);
+      const hasLower = /(leg|lower|glute|hamstring|quad|calves|calf)/.test(l);
+      if (hasLower) return "lower"; // shoulders+legs => lower
+      if (hasUpper) return "upper";
+      return "full";
+    };
+
+    const MOBILITY_NAMES = {
+      upper: "upper body mobility routine",
+      lower: "lower body mobility routine",
+      full: "Full Body Mobility Routine",
+    };
+
+    for (const day of resolvedDays) {
+      // Normalize rest times for non-mobility exercises
+      for (const ex of day.exercises) {
+        ex.rest_seconds = isAb(ex) ? 60 : 120;
+      }
+
+      // Prepend mobility drill
+      const kind = classifyDay(day.day_label);
+      const mobilityName = MOBILITY_NAMES[kind];
+      const match = findExerciseInLibrary(mobilityName, library);
+      if (match) {
+        const exId = (match.exercise as any).id;
+        day.exercises.unshift({
+          name: match.exercise.name,
+          sets: 1,
+          reps: "10/exercise",
+          rest_seconds: 0,
+          notes: "1 set, 10 reps per exercise",
+          is_amrap: false,
+          primary_muscle: match.exercise.primary_muscle || "mobility",
+          // @ts-ignore - exercise_id consumed client-side at save
+          exercise_id: exId,
+        } as AIExercise);
+      } else {
+        console.warn(`[ai-generate-program] mobility drill not found in library: ${mobilityName} (day: ${day.day_label})`);
+      }
+    }
 
     return json({
       ok: true,
