@@ -9,7 +9,7 @@ import {
   DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Pencil, Clock, Copy, Trash2, Library, Users } from "lucide-react";
+import { MoreVertical, Pencil, Clock, Copy, Trash2, Library, Users, Sparkles } from "lucide-react";
 
 interface Props {
   onRename: () => void;
@@ -18,10 +18,11 @@ interface Props {
   onDelete: () => void;
   onCopyToMaster: () => void;
   onCopyToClient: () => void;
+  onAICreate?: () => void;
 }
 
 export const PhaseActionsMenu = ({
-  onRename, onChangeDuration, onDuplicate, onDelete, onCopyToMaster, onCopyToClient,
+  onRename, onChangeDuration, onDuplicate, onDelete, onCopyToMaster, onCopyToClient, onAICreate,
 }: Props) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
