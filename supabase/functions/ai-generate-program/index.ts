@@ -80,6 +80,7 @@ function validateProgram(
     availableDays: number;
     library: { id: string; name: string; primary_muscle?: string | null; equipment?: string | null }[];
     planetFitness: boolean;
+    homeGym: boolean;
     cannotDoTokens: string[];
     previousExerciseNames: Set<string>;
     focusMuscle: string | null;
@@ -144,9 +145,9 @@ function validateProgram(
         errors.push(`AMRAP only allowed on bodyweight movements. "${canonical.name}" is not bodyweight.`);
       }
 
-      // No coaching note
-      if (!ex.notes || ex.notes.trim().length < 10) {
-        errors.push(`Exercise "${canonical.name}" missing a coaching note.`);
+      // Arnold Press is forbidden unless client trains at home gym
+      if (!ctx.homeGym && /arnold\s*press/i.test(canonical.name)) {
+        errors.push(`"${canonical.name}" is only allowed for home-gym clients.`);
       }
 
       resolvedExercises.push({
@@ -197,15 +198,16 @@ HARD RULES (non-negotiable):
 13. Weekly working sets per muscle: focus-area / lagging 16-22, average 10-16, strong 8-12. Calves and abs 10-20. HARD CEILING 22 sets per muscle per week.
 14. Reps: heavy compound 6-10, secondary compound 8-12, isolation 10-15, stretch-loaded isolation 12-20.
 15. Rest seconds: heavy compound 120-180, secondary compound 90-120, isolation 60-90.
-16. Every exercise must have a 1-2 sentence J3U-style execution cue (specific to the lift — bracing, tempo, ROM).
+16. Leave the "notes" field as an empty string for every exercise. Do not write coaching cues.
 17. Respect injuries and the client's cannot-do list. Avoid contraindicated variants.
 18. Equipment filter: Planet Fitness = no barbells. Home gym = only what is in the equipment list. Full commercial = no filter.
 19. If client is high-BF + high-BW (subjective; rough threshold 30%+ BF and 230+ lb), avoid weighted walking lunges, pull-ups, dips, plyometrics, deep barbell squats. Bias toward seated and machine-supported moves.
 20. Focus area: train it FIRST in every session it appears AND bump volume to 16-22 sets/wk — UNLESS the focus area is abs/belly/stomach/midsection. In that case, do NOT bump ab volume; raise a conflict_flag noting it is a body-comp (nutrition) priority.
 21. Rest seconds: ALWAYS use 120 seconds for every exercise, EXCEPT abdominal/core exercises which use 60 seconds. Do not vary.
 22. Do NOT include warmups, mobility drills, or activation work — the system auto-prepends a mobility routine to every workout.
+23. Do NOT use "Arnold Press" or any Arnold-press variant UNLESS the client trains at a home gym (training_location contains "home").
 
-Return rationale (1 short paragraph), conflict_flags (array of strings), weekly_volume (per primary muscle, sets/wk), and days (array). For each day include day_label (e.g. "Push", "Pull", "Legs", "Upper A", "Lower A", "Full Body A"), day_of_week (0=Mon ... 6=Sun), category (push/pull/legs/upper/lower/fullbody), and exercises (each with name, sets, reps, rest_seconds, notes, is_amrap, primary_muscle).`;
+Return rationale as an empty string, conflict_flags (array of strings), weekly_volume (per primary muscle, sets/wk), and days (array). For each day include day_label (e.g. "Push", "Pull", "Legs", "Upper A", "Lower A", "Full Body A"), day_of_week (0=Mon ... 6=Sun), category (push/pull/legs/upper/lower/fullbody), and exercises (each with name, sets, reps, rest_seconds, notes as empty string, is_amrap, primary_muscle).`;
 }
 
 function buildUserPrompt(p: {
@@ -421,6 +423,7 @@ Deno.serve(async (req) => {
     const trainingLocation = onboarding.training_location || "unknown";
     const homeEquipment = onboarding.home_equipment_list || "";
     const planetFitness = /planet\s*fitness/i.test(trainingLocation);
+    const homeGym = /home/i.test(trainingLocation);
 
     const heightDisplay = onboarding.height_feet != null
       ? `${onboarding.height_feet}'${onboarding.height_inches || 0}"`
@@ -561,6 +564,7 @@ Deno.serve(async (req) => {
         availableDays,
         library: usableLibrary,
         planetFitness,
+        homeGym,
         cannotDoTokens,
         previousExerciseNames,
         focusMuscle: focusMuscleRaw,
@@ -619,10 +623,14 @@ Deno.serve(async (req) => {
       full: "Full Body Mobility Routine",
     };
 
+    // Blank the rationale — clients should see a clean, custom-looking phase
+    progResult.rationale = "";
+
     for (const day of resolvedDays) {
-      // Normalize rest times for non-mobility exercises
+      // Normalize rest times + strip coaching notes for non-mobility exercises
       for (const ex of day.exercises) {
         ex.rest_seconds = isAb(ex) ? 60 : 120;
+        ex.notes = "";
       }
 
       // Prepend mobility drill
@@ -642,6 +650,8 @@ Deno.serve(async (req) => {
           // @ts-ignore - exercise_id consumed client-side at save
           exercise_id: exId,
         } as AIExercise);
+        // Defensive: mobility rest must always be 0
+        day.exercises[0].rest_seconds = 0;
       } else {
         console.warn(`[ai-generate-program] mobility drill not found in library: ${mobilityName} (day: ${day.day_label})`);
       }
