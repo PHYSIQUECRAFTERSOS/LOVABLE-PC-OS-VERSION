@@ -73,6 +73,7 @@ interface Props {
   onDeletePhase: (phase: Phase) => void;
   onCopyPhaseToMaster: (phase: Phase) => void;
   onCopyPhaseToClient: (phase: Phase) => void;
+  onAICreatePhase?: (phase: Phase) => void;
   onChangeProgram: () => void;
   onDetach?: () => void;
 }
@@ -82,7 +83,7 @@ export const ClientProgramTwoPane = ({
   phases, loading,
   onNewWorkout, onImport, onOpenWorkout, onEditWorkout, onDuplicateWorkout, onDeleteWorkout,
   onAddPhase, onRenamePhase, onChangeDuration, onDuplicatePhase, onDeletePhase,
-  onCopyPhaseToMaster, onCopyPhaseToClient, onChangeProgram, onDetach,
+  onCopyPhaseToMaster, onCopyPhaseToClient, onAICreatePhase, onChangeProgram, onDetach,
 }: Props) => {
   const { toast } = useToast();
   const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
@@ -315,6 +316,7 @@ export const ClientProgramTwoPane = ({
                           onDelete={() => onDeletePhase(p)}
                           onCopyToMaster={() => onCopyPhaseToMaster(p)}
                           onCopyToClient={() => onCopyPhaseToClient(p)}
+                          onAICreate={onAICreatePhase ? () => onAICreatePhase(p) : undefined}
                         />
                       </div>
                     </div>

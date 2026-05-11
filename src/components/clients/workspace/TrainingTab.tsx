@@ -32,6 +32,7 @@ import ChangeDurationDialog from "./training/ChangeDurationDialog";
 import CopyPhaseToMasterDialog from "./training/CopyPhaseToMasterDialog";
 import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
 import { copyPhaseToMasterProgram, copyPhaseToClientProgram } from "@/lib/copyPhaseHelpers";
+import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
@@ -130,6 +131,19 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [copyToMasterPhase, setCopyToMasterPhase] = useState<Phase | null>(null);
   const [copyToClientPhase, setCopyToClientPhase] = useState<Phase | null>(null);
   const [deletePhaseTarget, setDeletePhaseTarget] = useState<Phase | null>(null);
+  const [aiCreateOpen, setAiCreateOpen] = useState(false);
+  const [clientDisplayName, setClientDisplayName] = useState<string>("Client");
+
+  useEffect(() => {
+    if (!clientId) return;
+    supabase.from("profiles")
+      .select("full_name")
+      .eq("user_id", clientId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.full_name) setClientDisplayName(data.full_name);
+      });
+  }, [clientId]);
 
   // Sync hook data into local state (needed for editor mutations)
   useEffect(() => {
@@ -670,6 +684,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         onDeletePhase={(phase) => guardEdit(() => setDeletePhaseTarget(phase))}
         onCopyPhaseToMaster={(phase) => setCopyToMasterPhase(phase)}
         onCopyPhaseToClient={(phase) => setCopyToClientPhase(phase)}
+        onAICreatePhase={() => guardEdit(() => setAiCreateOpen(true))}
         onChangeProgram={openAssignDialog}
         onDetach={isLinked ? () => setShowDetach(true) : undefined}
       />
@@ -928,7 +943,18 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         />
       )}
 
-      {/* Delete phase confirm */}
+      {/* AI Create New Phase */}
+      {aiCreateOpen && program && (
+        <AICreateProgramModal
+          open={aiCreateOpen}
+          onOpenChange={setAiCreateOpen}
+          clientId={clientId}
+          clientName={clientDisplayName}
+          programId={program.id}
+          currentPhaseId={assignment?.current_phase_id || phases[0]?.id || ""}
+          onSaved={() => loadClientProgram()}
+        />
+      )}
       <AlertDialog open={!!deletePhaseTarget} onOpenChange={(o) => { if (!o) setDeletePhaseTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
