@@ -130,6 +130,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [copyToMasterPhase, setCopyToMasterPhase] = useState<Phase | null>(null);
   const [copyToClientPhase, setCopyToClientPhase] = useState<Phase | null>(null);
   const [deletePhaseTarget, setDeletePhaseTarget] = useState<Phase | null>(null);
+  const [aiCreateOpen, setAiCreateOpen] = useState(false);
+  const [clientDisplayName, setClientDisplayName] = useState<string>("Client");
+
+  useEffect(() => {
+    if (!clientId) return;
+    supabase.from("profiles")
+      .select("full_name, first_name, last_name")
+      .eq("id", clientId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const name = (data as any).full_name
+          || [(data as any).first_name, (data as any).last_name].filter(Boolean).join(" ")
+          || "Client";
+        setClientDisplayName(name);
+      });
+  }, [clientId]);
 
   // Sync hook data into local state (needed for editor mutations)
   useEffect(() => {
