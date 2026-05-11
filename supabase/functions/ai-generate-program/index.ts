@@ -195,7 +195,7 @@ HARD RULES (non-negotiable):
 10. All hamstring/glute/quad/calf work goes on Legs (5-day), Lower (4-day Upper/Lower or 5-day), or Full Body days (3-day).
 11. Split selection by available days: 3 → Full Body A/B/C OR Upper/Lower/Full; 4 → Upper/Lower/Upper/Lower OR Chest+Back+Arms / Legs+Shoulders A/B; 5 → Push/Pull/Legs/Upper/Lower.
 12. Order within a session: focus-area muscle first, then heavy compound primary, heavy compound secondary, isolation primary, isolation secondary, optional finisher (isolation only).
-13. Weekly working sets per muscle: focus-area / lagging 16-22, average 10-16, strong 8-12. Calves and abs 10-20. HARD CEILING 22 sets per muscle per week.
+13. Weekly working sets per muscle: focus-area / lagging 16-22, average 10-16, strong 8-12. Calves 10-20. HARD CEILING 22 sets per muscle per week. Do NOT program abs (the system injects a standardized abs block post-process).
 14. Reps: heavy compound 6-10, secondary compound 8-12, isolation 10-15, stretch-loaded isolation 12-20.
 15. Rest seconds: heavy compound 120-180, secondary compound 90-120, isolation 60-90.
 16. Leave the "notes" field as an empty string for every exercise. Do not write coaching cues.
