@@ -134,6 +134,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const mealPlanDays = resolvedPlanData.days;
   const mealPlanItems = resolvedPlanData.items;
   const activeDayId = mealPlanDays?.[0]?.id || null;
+  // Subtitles must come ONLY from a plan whose day_type matches the resolved day.
+  // Prevents the training plan's "(pre workout)" tags leaking onto rest days via fallback.
+  const subtitleItems = mealPlan && mealPlan.day_type === dayTypeKey ? mealPlanItems : [];
+
 
   // Determine available plan pills (only show pills if 2+ plans exist)
   const availablePlanPills = useMemo(() => {
@@ -666,9 +670,12 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
           const mealTotals = getMealTotals(items);
           const hasplanForMeal = !isCoach && hasPlanItems(key);
           const coachMealName = activeDayId
-            ? getCoachMealNameAtPosition(activeDayId, position, mealPlanItems as any)
+            ? getCoachMealNameAtPosition(activeDayId, position, subtitleItems as any)
             : null;
-          const subtitle = parseMealSubtitle(coachMealName);
+          const rawSubtitle = parseMealSubtitle(coachMealName);
+          const isRest = dayTypeKey === "rest";
+          const looksWorkoutTagged = rawSubtitle && /pre[-\s]?workout|post[-\s]?workout/i.test(rawSubtitle);
+          const subtitle = isRest && looksWorkoutTagged ? null : rawSubtitle;
 
           return (
             <div key={key} className="rounded-lg border border-border bg-card overflow-hidden">
@@ -679,6 +686,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                   {subtitle && (
                     <p className="text-[11px] text-primary/80 mt-0.5">({subtitle})</p>
                   )}
+
                   {items.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {mealTotals.calories} cal · {mealTotals.protein}P · {mealTotals.carbs}C · {mealTotals.fat}F

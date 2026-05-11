@@ -25,6 +25,8 @@ import {
   useMealPlanTracker,
   MEAL_SECTIONS,
   mapMealNameToKey,
+  parseMealSubtitle,
+  getCoachMealNameForPosition,
   type MealPlanFood,
   type MealPlanData,
 } from "@/hooks/useMealPlanTracker";
@@ -341,7 +343,7 @@ const ClientStructuredMealPlan = ({
       </div>
 
       {/* Meal Sections */}
-      {MEAL_SECTIONS.map(({ key, label }) => {
+      {MEAL_SECTIONS.map(({ key, label, position }) => {
         const sectionItems = sectionsByDay[key] || [];
         const isExpanded = expandedSections.has(key);
         const isCompleted = completedSections.has(key);
@@ -358,6 +360,15 @@ const ClientStructuredMealPlan = ({
         );
 
         if (sectionItems.length === 0) return null;
+
+        // Resolve coach's exact meal name (e.g. "Meal 2 (pre workout)") and pull the parenthetical
+        const coachMealName = selectedDayId
+          ? getCoachMealNameForPosition(activeItems as any, selectedDayId, position)
+          : null;
+        const rawSubtitle = parseMealSubtitle(coachMealName);
+        const isRest = activeDayType === "rest";
+        const looksWorkoutTagged = rawSubtitle && /pre[-\s]?workout|post[-\s]?workout/i.test(rawSubtitle);
+        const subtitle = isRest && looksWorkoutTagged ? null : rawSubtitle;
 
         return (
           <div
@@ -378,7 +389,12 @@ const ClientStructuredMealPlan = ({
                   </div>
                 )}
                 <Utensils className={cn("h-4 w-4", isCompleted ? "text-primary" : "text-muted-foreground")} />
-                <span className="text-sm font-semibold text-foreground">{label}</span>
+                <div className="flex flex-col items-start text-left">
+                  <span className="text-sm font-semibold text-foreground">{label}</span>
+                  {subtitle && (
+                    <span className="text-[11px] text-primary/80 leading-tight">({subtitle})</span>
+                  )}
+                </div>
                 <span className="text-xs text-muted-foreground">
                   ({sectionItems.length} item{sectionItems.length !== 1 ? "s" : ""})
                 </span>
