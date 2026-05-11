@@ -942,7 +942,18 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         />
       )}
 
-      {/* Delete phase confirm */}
+      {/* AI Create New Phase */}
+      {aiCreateOpen && program && (
+        <AICreateProgramModal
+          open={aiCreateOpen}
+          onOpenChange={setAiCreateOpen}
+          clientId={clientId}
+          clientName={clientDisplayName}
+          programId={program.id}
+          currentPhaseId={assignment?.current_phase_id || phases[0]?.id || ""}
+          onSaved={() => loadClientProgram()}
+        />
+      )}
       <AlertDialog open={!!deletePhaseTarget} onOpenChange={(o) => { if (!o) setDeletePhaseTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
