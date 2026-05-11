@@ -25,6 +25,8 @@ import {
   useMealPlanTracker,
   MEAL_SECTIONS,
   mapMealNameToKey,
+  parseMealSubtitle,
+  getCoachMealNameForPosition,
   type MealPlanFood,
   type MealPlanData,
 } from "@/hooks/useMealPlanTracker";

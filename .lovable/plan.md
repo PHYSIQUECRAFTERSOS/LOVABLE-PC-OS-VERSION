@@ -1,33 +1,46 @@
-## Changes to AI Program Generator
+## Goal
+Make the coach's exact meal naming flow through to the client UI, and make the pre/post-workout subtitle truly dynamic (driven by the coach's text and the day type — never on rest days).
 
-All edits are in `supabase/functions/ai-generate-program/index.ts` (no UI/DB changes).
+## Changes
 
-### 1. Strip the phase description (no more "8-week program designed for...")
+### 1. Client meal plan view shows coach's exact wording
+**File:** `src/components/nutrition/ClientStructuredMealPlan.tsx`
 
-- After validation, force `progResult.rationale = ""` before returning.
-- This blanks the gray text under the phase title AND the saved phase description (the save flow uses `program.rationale.slice(0, 500)` for `program_phases.description`, so clients will see nothing there).
-- Also remove the rationale instruction from the system prompt so the AI doesn't waste tokens generating it.
+Currently each meal section renders the static `MEAL_SECTIONS` label ("Meal 1"…"Meal 6") and ignores whatever the coach typed. Update it to match the tracker pattern:
 
-### 2. Strip per-exercise coaching notes
+- Import `parseMealSubtitle` and `getCoachMealNameForPosition` from `useMealPlanTracker`.
+- For each rendered section, look up the coach's actual `meal_name` for that day at the section's `position` (1–6).
+- Render bold "Meal N" as today + below it, in small gold text (`text-primary/80`), the parenthetical the coach wrote — e.g. `(pre workout)`, `(post workout meal)`, `(snack)`, anything inside `( … )` in the coach name.
+- If the coach typed no parenthetical, show no subtitle.
 
-- In the post-processing loop (where rest times are normalized), set `ex.notes = ""` for every non-mobility exercise.
-- Mobility exercises keep their note (`"1 set, 10 reps per exercise"`).
-- Update the system prompt: replace rule #16 ("Every exercise must have a 1-2 sentence J3U-style execution cue…") with "Leave the notes field as an empty string for every exercise."
-- Remove the `validateProgram` check that errors out when `notes` is missing/short (lines 147–150) so blank notes pass validation.
+This means whatever the coach types in MealPlanBuilder ("Meal 5 (pre workout meal)", "Meal 3 (post workout)", "Meal 2 (oatmeal bowl)"), the client sees it verbatim.
 
-### 3. Forbid "Arnold Press" unless the client has a home gym
+### 2. Nutrition tracker subtitle becomes fully dynamic
+**File:** `src/components/nutrition/DailyNutritionLog.tsx`
 
-- Compute `homeGym = /home/i.test(trainingLocation)` from the existing `trainingLocation` value.
-- Add to the system prompt: "Do NOT use the exercise 'Arnold Press' (or any Arnold-press variant) UNLESS the client trains at a home gym."
-- Add a server-side guard in `validateProgram`: if `!homeGym` and the resolved exercise name matches `/arnold\s*press/i`, push a validation error so the generator retries without it. Pass `homeGym` through the validator context.
+The tracker already uses `getCoachMealNameAtPosition` + `parseMealSubtitle` (lines 668–681), so dynamic subtitles already work for training days. Two fixes:
 
-### 4. Mobility rest = 0s (already enforced)
+a. **Hide pre/post-workout subtitles on rest days.** Around line 671, after computing `subtitle`, suppress it when the resolved day is a rest day AND the subtitle matches pre/post workout wording:
+```
+const isRest = dayTypeKey === "rest";
+const looksWorkoutTagged = subtitle && /pre[-\s]?workout|post[-\s]?workout/i.test(subtitle);
+const visibleSubtitle = isRest && looksWorkoutTagged ? null : subtitle;
+```
+Then render `visibleSubtitle` instead of `subtitle`. Other parentheticals the coach types in a rest plan (e.g. "(snack)") still show.
 
-- The post-process already prepends each mobility drill with `rest_seconds: 0`. No change needed, but I'll add a defensive line: after the unshift, explicitly set `day.exercises[0].rest_seconds = 0` so future edits to the loop can't accidentally bump it to 120.
+b. **Don't fall back to the training plan for subtitle text on rest days.** In the `resolvedPlanData` memo (lines 115–131), when `dayTypeKey === "rest"` and no rest plan exists, do **not** fall back to `all_days` or the first plan for *subtitle resolution* — keep the macros fallback (so totals still display) but pass an empty `mealPlanItems` to `getCoachMealNameAtPosition` on rest days when there's no real rest plan. Implementation: derive a separate `subtitleItems` value that is `mealPlanItems` only when the resolved plan's `day_type === dayTypeKey`, else `[]`.
 
-### Scope
+This guarantees: on a rest day, the client only sees pre/post-workout wording if the coach explicitly put it in the rest plan — and even then, rule (a) hides those two specific tags.
 
-- Only new generations (per prior decision).
-- No frontend changes.
-- No DB migrations.
-- Edge function will be redeployed.
+### 3. No DB / coach-side / edge-function changes
+Coach already saves the full `meal_name` string into `meal_plan_items.meal_name`. No schema, RLS, or backend work needed.
+
+## Out of scope
+- No change to `MEAL_SECTIONS` keys or `mapMealNameToKey` (would risk breaking historical `nutrition_logs` rows).
+- No change to MealPlanBuilder UX.
+- No change to FoodLogger modal title (it's the add-food sheet, not the section header).
+
+## Verification
+- As coach: rename "Meal 4" → "Meal 4 (pre workout meal)" on the training plan. As client on a training day: meal plan view shows `Meal 4` + gold `(pre workout meal)`; tracker shows `Meal 4` + gold `(pre workout)`.
+- Switch the calendar/day to a rest day with a separate rest plan that has no parentheticals: both views show plain `Meal 1…N` with no subtitles, even if the training plan has pre/post tags.
+- Existing logged data still groups under the correct meal slot (no key changes).
