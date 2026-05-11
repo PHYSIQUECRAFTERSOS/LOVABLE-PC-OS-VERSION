@@ -623,10 +623,14 @@ Deno.serve(async (req) => {
       full: "Full Body Mobility Routine",
     };
 
+    // Blank the rationale — clients should see a clean, custom-looking phase
+    progResult.rationale = "";
+
     for (const day of resolvedDays) {
-      // Normalize rest times for non-mobility exercises
+      // Normalize rest times + strip coaching notes for non-mobility exercises
       for (const ex of day.exercises) {
         ex.rest_seconds = isAb(ex) ? 60 : 120;
+        ex.notes = "";
       }
 
       // Prepend mobility drill
@@ -646,6 +650,8 @@ Deno.serve(async (req) => {
           // @ts-ignore - exercise_id consumed client-side at save
           exercise_id: exId,
         } as AIExercise);
+        // Defensive: mobility rest must always be 0
+        day.exercises[0].rest_seconds = 0;
       } else {
         console.warn(`[ai-generate-program] mobility drill not found in library: ${mobilityName} (day: ${day.day_label})`);
       }
