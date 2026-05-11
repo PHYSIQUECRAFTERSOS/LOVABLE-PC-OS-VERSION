@@ -316,6 +316,7 @@ export const ClientProgramTwoPane = ({
                           onDelete={() => onDeletePhase(p)}
                           onCopyToMaster={() => onCopyPhaseToMaster(p)}
                           onCopyToClient={() => onCopyPhaseToClient(p)}
+                          onAICreate={onAICreatePhase ? () => onAICreatePhase(p) : undefined}
                         />
                       </div>
                     </div>
