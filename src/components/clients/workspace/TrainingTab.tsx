@@ -32,6 +32,7 @@ import ChangeDurationDialog from "./training/ChangeDurationDialog";
 import CopyPhaseToMasterDialog from "./training/CopyPhaseToMasterDialog";
 import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
 import { copyPhaseToMasterProgram, copyPhaseToClientProgram } from "@/lib/copyPhaseHelpers";
+import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
