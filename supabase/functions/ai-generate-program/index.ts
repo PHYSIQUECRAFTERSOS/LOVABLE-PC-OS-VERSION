@@ -564,6 +564,7 @@ Deno.serve(async (req) => {
         availableDays,
         library: usableLibrary,
         planetFitness,
+        homeGym,
         cannotDoTokens,
         previousExerciseNames,
         focusMuscle: focusMuscleRaw,
