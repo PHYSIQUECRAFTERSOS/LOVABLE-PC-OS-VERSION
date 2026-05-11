@@ -510,7 +510,7 @@ Deno.serve(async (req) => {
     let resolvedDays: AIDay[] | null = null;
     let progResult: AIProgram | null = null;
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       const retryMsg = attempt > 0
         ? `\n\nPrevious attempt failed validation:\n- ${lastErrors.slice(0, 8).join("\n- ")}\n\nFix all issues and resubmit.`
         : "";
@@ -522,7 +522,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-pro",
+          model: "google/gemini-2.5-flash",
           messages: [
             { role: "system", content: systemPrompt + retryMsg },
             { role: "user", content: userContent },
