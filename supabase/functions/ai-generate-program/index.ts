@@ -657,7 +657,112 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({
+    // ---------- Mandatory Abs Injection: 2 days/week, 2 distinct exercises x 3 sets x 60s ----------
+    // Strip any abs the AI emitted (defensive; prompt forbids it)
+    for (const day of resolvedDays) {
+      day.exercises = day.exercises.filter((ex) => !isAb(ex));
+    }
+
+    // Pick 2 ab days with at least 2 full days of separation (delta in day_of_week >= 3)
+    // Prefer the pair with the largest gap; tie-break: prefer pairs where both days are upper-focused.
+    const trainingDays = [...resolvedDays].sort((a, b) => a.day_of_week - b.day_of_week);
+    const isLegHeavy = (d: AIDay) => d.category === "legs" || d.category === "lower";
+    let abDayIndices: [number, number] | null = null;
+    if (trainingDays.length >= 2) {
+      let best: { i: number; j: number; gap: number; upperBonus: number } | null = null;
+      for (let i = 0; i < trainingDays.length; i++) {
+        for (let j = i + 1; j < trainingDays.length; j++) {
+          const gap = Math.abs(trainingDays[j].day_of_week - trainingDays[i].day_of_week);
+          if (gap < 3) continue; // must have ≥2 rest days between sessions
+          const upperBonus = (!isLegHeavy(trainingDays[i]) ? 1 : 0) + (!isLegHeavy(trainingDays[j]) ? 1 : 0);
+          if (
+            !best ||
+            gap > best.gap ||
+            (gap === best.gap && upperBonus > best.upperBonus)
+          ) {
+            best = { i, j, gap, upperBonus };
+          }
+        }
+      }
+      // Fallback: no pair satisfied 2-day separation — pick the pair with the largest gap regardless
+      if (!best) {
+        for (let i = 0; i < trainingDays.length; i++) {
+          for (let j = i + 1; j < trainingDays.length; j++) {
+            const gap = Math.abs(trainingDays[j].day_of_week - trainingDays[i].day_of_week);
+            if (!best || gap > best.gap) best = { i, j, gap, upperBonus: 0 };
+          }
+        }
+      }
+      if (best) abDayIndices = [best.i, best.j];
+    }
+
+    // Pick 4 distinct ab exercises from the usable library, excluding forbidden (previous-phase) names
+    const forbiddenNorms = new Set(Array.from(previousExerciseNames));
+    const abPool = (usableLibrary as any[]).filter((e) => {
+      const m = (e.primary_muscle || "").toLowerCase().trim();
+      const matchesAb = AB_MUSCLES.has(m) || AB_NAME_RE.test(e.name || "");
+      if (!matchesAb) return false;
+      const norm = normalizeExerciseName(e.name);
+      return !forbiddenNorms.has(norm);
+    });
+
+    // Deterministic shuffle seeded by client id (so re-running for same client yields same picks unless library changes)
+    const seedStr = String(client?.id || client?.user_id || "seed");
+    let seed = 0;
+    for (const c of seedStr) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0xffffffff;
+    };
+    const shuffled = [...abPool].sort(() => rand() - 0.5);
+
+    if (abDayIndices && shuffled.length > 0) {
+      // Take up to 4; if fewer than 4, recycle but keep within-day exercises distinct
+      const picks = shuffled.slice(0, Math.min(4, shuffled.length));
+      // Distribute: day1 gets picks[0,1], day2 gets picks[2,3]. If <4 available, fall back gracefully.
+      const day1Abs = [picks[0], picks[1 % picks.length]].filter(Boolean);
+      const day2Abs = [picks[2 % picks.length], picks[3 % picks.length]].filter(Boolean);
+      // Ensure within-day distinctness
+      const dedupe = (arr: any[]) => {
+        const seen = new Set<string>();
+        return arr.filter((e) => {
+          const n = normalizeExerciseName(e.name);
+          if (seen.has(n)) return false;
+          seen.add(n);
+          return true;
+        });
+      };
+      const assignments: Array<{ day: AIDay; abs: any[] }> = [
+        { day: trainingDays[abDayIndices[0]], abs: dedupe(day1Abs).slice(0, 2) },
+        { day: trainingDays[abDayIndices[1]], abs: dedupe(day2Abs).slice(0, 2) },
+      ];
+
+      for (const { day, abs } of assignments) {
+        if (abs.length === 0) continue;
+        for (const ex of abs) {
+          day.exercises.push({
+            name: ex.name,
+            sets: 3,
+            reps: "12-15",
+            rest_seconds: 60,
+            notes: "",
+            is_amrap: false,
+            primary_muscle: ex.primary_muscle || "abs",
+            // @ts-ignore - exercise_id consumed client-side at save
+            exercise_id: ex.id,
+          } as AIExercise);
+        }
+        // Append " & Abs" to label (idempotent)
+        if (!/&\s*Abs\s*$/i.test(day.day_label)) {
+          day.day_label = `${day.day_label} & Abs`;
+        }
+      }
+    } else {
+      console.warn(
+        `[ai-generate-program] abs injection skipped: abDayIndices=${JSON.stringify(abDayIndices)} abPoolSize=${abPool.length}`,
+      );
+    }
+
       ok: true,
       program: {
         ...progResult,
