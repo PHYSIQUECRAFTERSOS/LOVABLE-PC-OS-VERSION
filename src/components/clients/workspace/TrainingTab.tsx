@@ -601,7 +601,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     </div>
   );
 
-  if (loading) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>;
+  // Only show full skeleton on the INITIAL load (no program yet). During background
+  // refetches after save/edit, keep the pane mounted so selectedPhaseId is preserved.
+  if (loading && !program) return <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>;
 
   if (!assignment || !program) {
     const handleBuildFromScratch = async () => {
