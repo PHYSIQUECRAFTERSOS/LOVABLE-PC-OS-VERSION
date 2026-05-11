@@ -73,6 +73,7 @@ interface Props {
   onDeletePhase: (phase: Phase) => void;
   onCopyPhaseToMaster: (phase: Phase) => void;
   onCopyPhaseToClient: (phase: Phase) => void;
+  onAICreatePhase?: (phase: Phase) => void;
   onChangeProgram: () => void;
   onDetach?: () => void;
 }
