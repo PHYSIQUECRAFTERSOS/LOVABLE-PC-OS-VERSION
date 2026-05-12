@@ -54,6 +54,8 @@ interface Phase {
 interface Props {
   programName: string;
   programGoalType?: string | null;
+  programStartDate?: string | null;
+  programEndDate?: string | null;
   isLinkedToMaster: boolean;
   currentPhaseId?: string | null;
   currentWeekNumber?: number;
@@ -79,7 +81,8 @@ interface Props {
 }
 
 export const ClientProgramTwoPane = ({
-  programName, programGoalType, isLinkedToMaster, currentPhaseId, currentWeekNumber,
+  programName, programGoalType, programStartDate, programEndDate,
+  isLinkedToMaster, currentPhaseId, currentWeekNumber,
   phases, loading,
   onNewWorkout, onImport, onOpenWorkout, onEditWorkout, onDuplicateWorkout, onDeleteWorkout,
   onAddPhase, onRenamePhase, onChangeDuration, onDuplicatePhase, onDeletePhase,
