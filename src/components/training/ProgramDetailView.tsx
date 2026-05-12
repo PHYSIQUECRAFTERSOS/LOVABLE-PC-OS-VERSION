@@ -103,7 +103,7 @@ interface ProgramDetailViewProps {
   onSwitchPhase?: (phaseId: string) => void;
 }
 
-const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailViewProps) => {
+const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBackToOverview, onSwitchPhase }: ProgramDetailViewProps) => {
   const { user } = useAuth();
   const userId = user?.id;
   const { toast } = useToast();
