@@ -1484,8 +1484,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               {copyDayDetectionState === "no_program" && (
                 <p className="text-xs text-destructive">This client has no active program. Assign one first.</p>
               )}
-              {copyDayDetectionState === "no_phase" && (
-                <p className="text-xs text-destructive">This client has a program but no current phase. Set a phase as current before copying.</p>
+              {copyDayDetectionState === "no_phases" && (
+                <p className="text-xs text-destructive">This program has no phases. Add a phase before copying.</p>
               )}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowCopyDayDialog(false)}>Cancel</Button>
