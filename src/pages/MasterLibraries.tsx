@@ -716,7 +716,7 @@ const MasterLibraries = () => {
           <TabsContent value="programs" className="mt-4">
             <MobileTwoPane
               selected={!!selectedProgramId}
-              onClose={() => { setSelectedProgramId(null); loadPrograms(); }}
+              onClose={() => { setSelectedProgramId(null); setSelectedPhaseId(null); setExpandedProgramId(null); loadPrograms(); }}
               detailTitle={selectedProgramName || "Program"}
               listWidthClass="w-80"
               list={
@@ -794,11 +794,31 @@ const MasterLibraries = () => {
               detail={
                 selectedProgramId ? (
                   <div className="p-4 md:p-6">
-                    <ProgramDetailView
-                      programId={selectedProgramId}
-                      programName={selectedProgramName}
-                      onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
-                    />
+                    {selectedPhaseId ? (
+                      <ProgramDetailView
+                        programId={selectedProgramId}
+                        programName={selectedProgramName}
+                        focusPhaseId={selectedPhaseId}
+                        onBack={() => { setSelectedProgramId(null); setSelectedPhaseId(null); setExpandedProgramId(null); loadPrograms(); }}
+                        onBackToOverview={() => setSelectedPhaseId(null)}
+                        onSwitchPhase={(phaseId) => setSelectedPhaseId(phaseId)}
+                      />
+                    ) : (
+                      <ProgramOverviewPane
+                        programId={selectedProgramId}
+                        programName={selectedProgramName}
+                        programDescription={programs.find(p => p.id === selectedProgramId)?.description}
+                        isMaster={programs.find(p => p.id === selectedProgramId)?.is_master}
+                        versionNumber={programs.find(p => p.id === selectedProgramId)?.version_number}
+                        refreshKey={overviewRefreshKey}
+                        onSelectPhase={(phaseId) => setSelectedPhaseId(phaseId)}
+                        onAssignPhase={(phaseId) => {
+                          setAssignProgramId(selectedProgramId);
+                          setAssignPhaseId(phaseId);
+                          setShowAssignDialog(true);
+                        }}
+                      />
+                    )}
                   </div>
                 ) : null
               }
