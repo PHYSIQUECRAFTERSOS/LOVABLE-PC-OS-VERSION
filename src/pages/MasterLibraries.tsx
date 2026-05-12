@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import ProgramDetailView from "@/components/training/ProgramDetailView";
+import ProgramOverviewPane from "@/components/training/ProgramOverviewPane";
 import ProgramBuilder from "@/components/training/ProgramBuilder";
 import ExerciseLibrary from "@/components/libraries/ExerciseLibrary";
 import { format } from "date-fns";
@@ -75,6 +76,10 @@ const MasterLibraries = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedProgramName, setSelectedProgramName] = useState("");
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
+  const [expandedProgramId, setExpandedProgramId] = useState<string | null>(null);
+  const [phasesByProgram, setPhasesByProgram] = useState<Record<string, { id: string; name: string; phase_order: number; duration_weeks: number }[]>>({});
+  const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
@@ -83,11 +88,50 @@ const MasterLibraries = () => {
   const [sharedExpanded, setSharedExpanded] = useState(true);
   const [personalExpanded, setPersonalExpanded] = useState(true);
 
+  /** Fetch and cache the phases for a given program (for the inline accordion). */
+  const ensurePhasesLoaded = async (programId: string) => {
+    if (phasesByProgram[programId]) return;
+    const { data } = await supabase
+      .from("program_phases")
+      .select("id, name, phase_order, duration_weeks")
+      .eq("program_id", programId)
+      .order("phase_order");
+    setPhasesByProgram(prev => ({ ...prev, [programId]: (data || []) as any }));
+  };
+
+  /** Toggle the inline left-list accordion for a program. Selects program too. */
+  const handleProgramRowClick = async (program: any) => {
+    const isSame = expandedProgramId === program.id;
+    if (isSame) {
+      // Collapse — but keep program selected (overview state)
+      setExpandedProgramId(null);
+      setSelectedPhaseId(null);
+      return;
+    }
+    // Expand this program; collapse any other; switch right pane to overview
+    setExpandedProgramId(program.id);
+    setSelectedProgramId(program.id);
+    setSelectedProgramName(program.name);
+    setSelectedPhaseId(null);
+    await ensurePhasesLoaded(program.id);
+  };
+
+  const handleSelectPhase = async (programId: string, phaseId: string, programName?: string) => {
+    setSelectedProgramId(programId);
+    if (programName) setSelectedProgramName(programName);
+    setExpandedProgramId(programId);
+    setSelectedPhaseId(phaseId);
+    await ensurePhasesLoaded(programId);
+  };
+
+
   const activeTabMeta = TAB_CONFIG.find(t => t.value === activeTab) ?? TAB_CONFIG[0];
 
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [assignProgramId, setAssignProgramId] = useState<string | null>(null);
+  /** When set, the Assign dialog clones only this single phase. */
+  const [assignPhaseId, setAssignPhaseId] = useState<string | null>(null);
   const [assignMode, setAssignMode] = useState<"subscribe" | "import">("subscribe");
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
@@ -311,21 +355,45 @@ const MasterLibraries = () => {
       if (!source) throw new Error("Program not found");
       const isLinked = assignMode === "subscribe";
 
+      // If single-phase mode, fetch the chosen phase first to derive program duration
+      const { data: phaseRows } = await supabase
+        .from("program_phases")
+        .select("*")
+        .eq("program_id", assignProgramId)
+        .order("phase_order");
+
+      const phasesToClone = assignPhaseId
+        ? (phaseRows || []).filter((p: any) => p.id === assignPhaseId)
+        : (phaseRows || []);
+
+      if (assignPhaseId && phasesToClone.length === 0) {
+        throw new Error("Selected phase not found.");
+      }
+
+      const programDuration = assignPhaseId
+        ? phasesToClone.reduce((s: number, p: any) => s + (p.duration_weeks || 0), 0)
+        : source.duration_weeks;
+
+      const programLabel = assignPhaseId
+        ? `${source.name} — ${phasesToClone[0].name}`
+        : source.name;
+
       const { data: newProg, error } = await supabase.from("programs").insert({
-        coach_id: user.id, client_id: selectedClientId, name: source.name, description: source.description,
+        coach_id: user.id, client_id: selectedClientId, name: programLabel, description: source.description,
         goal_type: source.goal_type, start_date: startDate, is_template: false, is_master: false,
-        duration_weeks: source.duration_weeks, tags: source.tags, version_number: source.version_number,
+        duration_weeks: programDuration, tags: source.tags, version_number: source.version_number,
       } as any).select().single();
       if (error) throw error;
 
-      const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", assignProgramId).order("phase_order");
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
-      for (const phase of (phaseRows || [])) {
+      let normalizedOrder = 1;
+      for (const phase of phasesToClone) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
           program_id: newProg.id, name: phase.name, description: phase.description,
-          phase_order: phase.phase_order, duration_weeks: phase.duration_weeks,
+          phase_order: assignPhaseId ? normalizedOrder++ : phase.phase_order,
+          duration_weeks: phase.duration_weeks,
           training_style: phase.training_style, intensity_system: phase.intensity_system,
           progression_rule: phase.progression_rule,
         }).select().single();
@@ -360,20 +428,29 @@ const MasterLibraries = () => {
       await supabase.from("client_program_assignments").insert({
         client_id: selectedClientId, program_id: newProg.id, coach_id: user.id, start_date: startDate,
         current_phase_id: firstPhaseId, current_week_number: 1, status: "active", auto_advance: autoAdvance,
-        forked_from_program_id: assignProgramId, is_linked_to_master: isLinked,
+        forked_from_program_id: assignProgramId,
+        // Single-phase assigns are independent (not subscribed to the multi-phase master).
+        is_linked_to_master: assignPhaseId ? false : isLinked,
         master_version_number: source.version_number, last_synced_at: new Date().toISOString(),
       });
 
       // Show post-import summary
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
+      const successTitle = assignPhaseId
+        ? "Phase assigned to client"
+        : isLinked ? "Client subscribed" : msg.title;
+      const successDesc = assignPhaseId
+        ? `${phasesToClone[0].name} (${phasesToClone[0].duration_weeks}w) assigned.`
+        : isLinked ? "Future updates will sync." : msg.description;
       toast({
-        title: isLinked ? "Client subscribed" : msg.title,
-        description: isLinked ? "Future updates will sync." : msg.description,
+        title: successTitle,
+        description: successDesc,
         variant: msg.isWarning ? "destructive" : undefined,
       });
       setShowAssignDialog(false);
       setSelectedClientId("");
+      setAssignPhaseId(null);
       loadPrograms();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -406,82 +483,167 @@ const MasterLibraries = () => {
     </div>
   );
 
-  const renderProgramItem = (program: any) => (
-    <button
-      key={program.id}
-      onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
-      className={`w-full text-left p-3 rounded-lg border transition-colors group ${
-        selectedProgramId === program.id
-          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-          : "border-transparent hover:bg-muted/50"
-      }`}
-    >
-      <div className="flex items-start gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div
-              role="button"
-              className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
-              <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
-            </DropdownMenuItem>
-            {canEditProgram(program) && linkedCounts[program.id] > 0 && (
-              <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
-                <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
-              <History className="h-3.5 w-3.5 mr-2" /> Versions
-            </DropdownMenuItem>
-            {canEditProgram(program) && (
-              <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
-                {program.is_master ? <Lock className="h-3.5 w-3.5 mr-2" /> : <Share2 className="h-3.5 w-3.5 mr-2" />}
-                {program.is_master ? "Make Private" : "Share with Team"}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
-              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
-            </DropdownMenuItem>
-            {canDeleteProgram(program) && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
-                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+  const renderProgramItem = (program: any) => {
+    const isExpanded = expandedProgramId === program.id;
+    const isSelected = selectedProgramId === program.id;
+    const phaseList = phasesByProgram[program.id] || [];
+
+    return (
+      <div key={program.id} className="space-y-1">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleProgramRowClick(program)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleProgramRowClick(program);
+            }
+          }}
+          className={`w-full text-left p-3 rounded-lg border transition-colors group cursor-pointer ${
+            isSelected
+              ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+              : "border-transparent hover:bg-muted/50"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div
+                  role="button"
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setAssignPhaseId(null); setShowAssignDialog(true); }}>
+                  <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
                 </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{program.name}</p>
-          {program.coach_id !== userId && creatorNames[program.coach_id] && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">by {creatorNames[program.coach_id]}</p>
-          )}
-          <div className="flex flex-wrap gap-1 mt-1">
-            {phaseCounts[program.id] > 0 && (
-              <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
-                <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
-              </Badge>
-            )}
-            {program.duration_weeks && (
-              <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
-            )}
-            {linkedCounts[program.id] > 0 && (
-              <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
-                <Users className="h-2 w-2" /> {linkedCounts[program.id]}
-              </Badge>
-            )}
+                {canEditProgram(program) && linkedCounts[program.id] > 0 && (
+                  <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
+                  <History className="h-3.5 w-3.5 mr-2" /> Versions
+                </DropdownMenuItem>
+                {canEditProgram(program) && (
+                  <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
+                    {program.is_master ? <Lock className="h-3.5 w-3.5 mr-2" /> : <Share2 className="h-3.5 w-3.5 mr-2" />}
+                    {program.is_master ? "Make Private" : "Share with Team"}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
+                  <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
+                </DropdownMenuItem>
+                {canDeleteProgram(program) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <ChevronRight
+                  className={`h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0 ${
+                    isExpanded ? "rotate-90" : ""
+                  }`}
+                />
+                <p className="text-sm font-medium truncate">{program.name}</p>
+              </div>
+              {program.coach_id !== userId && creatorNames[program.coach_id] && (
+                <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">by {creatorNames[program.coach_id]}</p>
+              )}
+              <div className="flex flex-wrap gap-1 mt-1 ml-5">
+                {phaseCounts[program.id] > 0 && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
+                    <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
+                  </Badge>
+                )}
+                {program.duration_weeks && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
+                )}
+                {linkedCounts[program.id] > 0 && (
+                  <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
+                    <Users className="h-2 w-2" /> {linkedCounts[program.id]}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Inline phase accordion */}
+        {isExpanded && (
+          <div className="ml-6 pl-2 border-l border-border/50 space-y-0.5">
+            {phaseList.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground px-2 py-1.5">No phases.</p>
+            ) : (
+              phaseList.map((ph) => {
+                const phaseSelected = selectedPhaseId === ph.id && selectedProgramId === program.id;
+                return (
+                  <div
+                    key={ph.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectPhase(program.id, ph.id, program.name);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectPhase(program.id, ph.id, program.name);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer transition-colors ${
+                      phaseSelected
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                        : "hover:bg-muted/50 text-foreground"
+                    }`}
+                  >
+                    <Layers className="h-3 w-3 shrink-0 opacity-60" />
+                    <span className="flex-1 truncate">{ph.name}</span>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
+                      {ph.duration_weeks}w
+                    </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div
+                          role="button"
+                          className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-3 w-3" />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setAssignProgramId(program.id);
+                            setAssignPhaseId(ph.id);
+                            setShowAssignDialog(true);
+                          }}
+                        >
+                          <Users className="h-3.5 w-3.5 mr-2" /> Assign Phase to Client
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
-    </button>
-  );
+    );
+  };
 
   return (
     <AppLayout>
@@ -554,7 +716,7 @@ const MasterLibraries = () => {
           <TabsContent value="programs" className="mt-4">
             <MobileTwoPane
               selected={!!selectedProgramId}
-              onClose={() => { setSelectedProgramId(null); loadPrograms(); }}
+              onClose={() => { setSelectedProgramId(null); setSelectedPhaseId(null); setExpandedProgramId(null); loadPrograms(); }}
               detailTitle={selectedProgramName || "Program"}
               listWidthClass="w-80"
               list={
@@ -632,11 +794,31 @@ const MasterLibraries = () => {
               detail={
                 selectedProgramId ? (
                   <div className="p-4 md:p-6">
-                    <ProgramDetailView
-                      programId={selectedProgramId}
-                      programName={selectedProgramName}
-                      onBack={() => { setSelectedProgramId(null); loadPrograms(); }}
-                    />
+                    {selectedPhaseId ? (
+                      <ProgramDetailView
+                        programId={selectedProgramId}
+                        programName={selectedProgramName}
+                        focusPhaseId={selectedPhaseId}
+                        onBack={() => { setSelectedProgramId(null); setSelectedPhaseId(null); setExpandedProgramId(null); loadPrograms(); }}
+                        onBackToOverview={() => setSelectedPhaseId(null)}
+                        onSwitchPhase={(phaseId) => setSelectedPhaseId(phaseId)}
+                      />
+                    ) : (
+                      <ProgramOverviewPane
+                        programId={selectedProgramId}
+                        programName={selectedProgramName}
+                        programDescription={programs.find(p => p.id === selectedProgramId)?.description}
+                        isMaster={programs.find(p => p.id === selectedProgramId)?.is_master}
+                        versionNumber={programs.find(p => p.id === selectedProgramId)?.version_number}
+                        refreshKey={overviewRefreshKey}
+                        onSelectPhase={(phaseId) => setSelectedPhaseId(phaseId)}
+                        onAssignPhase={(phaseId) => {
+                          setAssignProgramId(selectedProgramId);
+                          setAssignPhaseId(phaseId);
+                          setShowAssignDialog(true);
+                        }}
+                      />
+                    )}
                   </div>
                 ) : null
               }
@@ -665,10 +847,10 @@ const MasterLibraries = () => {
       </div>
 
       {/* Assign Dialog */}
-      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+      <Dialog open={showAssignDialog} onOpenChange={(open) => { setShowAssignDialog(open); if (!open) setAssignPhaseId(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Assign Program to Client</DialogTitle>
+            <DialogTitle>{assignPhaseId ? "Assign Phase to Client" : "Assign Program to Client"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
