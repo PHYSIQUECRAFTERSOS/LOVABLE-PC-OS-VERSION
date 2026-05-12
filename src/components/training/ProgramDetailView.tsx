@@ -1190,9 +1190,46 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         </div>
       </div>
 
+      {/* Drill-down header: Back + phase quick switcher */}
+      {focusPhaseId && (
+        <div className="flex items-center justify-between gap-2 p-3 border rounded-lg bg-muted/20">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 -ml-1 text-xs"
+            onClick={() => onBackToOverview?.()}
+          >
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to program
+          </Button>
+          {phases.length > 1 && onSwitchPhase && (
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-muted-foreground hidden sm:inline">
+                Jump to phase
+              </Label>
+              <Select value={focusPhaseId} onValueChange={(v) => onSwitchPhase(v)}>
+                <SelectTrigger className="h-8 text-xs w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {phases
+                    .filter((p) => !!p.id)
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id!} className="text-xs">
+                        {p.name} · {p.durationWeeks}w
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Phases */}
       <div className="space-y-3">
-        {phases.map((phase, phaseIdx) => (
+        {phases.map((phase, phaseIdx) => {
+          if (focusPhaseId && phase.id !== focusPhaseId) return null;
+          return (
           <Card key={phaseIdx} data-phase-index={phaseIdx} className="border-l-4 border-l-primary/40">
             <Collapsible open={!phase.collapsed} onOpenChange={(open) => updatePhase(phaseIdx, { collapsed: !open })}>
               <CollapsibleTrigger asChild>
