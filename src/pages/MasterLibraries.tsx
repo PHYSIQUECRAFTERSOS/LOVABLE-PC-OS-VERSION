@@ -355,14 +355,36 @@ const MasterLibraries = () => {
       if (!source) throw new Error("Program not found");
       const isLinked = assignMode === "subscribe";
 
+      // If single-phase mode, fetch the chosen phase first to derive program duration
+      const { data: phaseRows } = await supabase
+        .from("program_phases")
+        .select("*")
+        .eq("program_id", assignProgramId)
+        .order("phase_order");
+
+      const phasesToClone = assignPhaseId
+        ? (phaseRows || []).filter((p: any) => p.id === assignPhaseId)
+        : (phaseRows || []);
+
+      if (assignPhaseId && phasesToClone.length === 0) {
+        throw new Error("Selected phase not found.");
+      }
+
+      const programDuration = assignPhaseId
+        ? phasesToClone.reduce((s: number, p: any) => s + (p.duration_weeks || 0), 0)
+        : source.duration_weeks;
+
+      const programLabel = assignPhaseId
+        ? `${source.name} — ${phasesToClone[0].name}`
+        : source.name;
+
       const { data: newProg, error } = await supabase.from("programs").insert({
-        coach_id: user.id, client_id: selectedClientId, name: source.name, description: source.description,
+        coach_id: user.id, client_id: selectedClientId, name: programLabel, description: source.description,
         goal_type: source.goal_type, start_date: startDate, is_template: false, is_master: false,
-        duration_weeks: source.duration_weeks, tags: source.tags, version_number: source.version_number,
+        duration_weeks: programDuration, tags: source.tags, version_number: source.version_number,
       } as any).select().single();
       if (error) throw error;
 
-      const { data: phaseRows } = await supabase.from("program_phases").select("*").eq("program_id", assignProgramId).order("phase_order");
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
