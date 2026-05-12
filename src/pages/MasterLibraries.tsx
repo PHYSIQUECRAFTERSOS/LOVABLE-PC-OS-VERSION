@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import ProgramDetailView from "@/components/training/ProgramDetailView";
+import ProgramOverviewPane from "@/components/training/ProgramOverviewPane";
 import ProgramBuilder from "@/components/training/ProgramBuilder";
 import ExerciseLibrary from "@/components/libraries/ExerciseLibrary";
 import { format } from "date-fns";
