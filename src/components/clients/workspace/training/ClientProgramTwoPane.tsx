@@ -285,8 +285,12 @@ export const ClientProgramTwoPane = ({
                 )}
                 {phases.map(p => {
                   const isSelected = selectedPhaseId === p.id;
-                  const isCurrent = currentPhaseId === p.id;
+                  const dd = dateMap[p.id];
+                  const isCurrent = (dd?.isCurrent) || currentPhaseId === p.id;
+                  const isUpcoming = !!dd?.isUpcoming;
+                  const isCompleted = !!dd?.isCompleted;
                   const totalWorkouts = p.directWorkouts.length;
+                  const dateRange = formatPhaseDateRange(dd?.start_date, dd?.end_date);
                   return (
                     <div
                       key={p.id}
@@ -295,7 +299,10 @@ export const ClientProgramTwoPane = ({
                         "group relative rounded-md px-3 py-2 cursor-pointer transition-colors border-l-2",
                         isSelected
                           ? "bg-primary/10 border-primary"
-                          : "border-transparent hover:bg-muted/40"
+                          : isCurrent
+                            ? "border-primary/70 hover:bg-muted/40"
+                            : "border-transparent hover:bg-muted/40",
+                        isCompleted && "opacity-60"
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -319,12 +326,31 @@ export const ClientProgramTwoPane = ({
                               className="h-6 text-sm"
                             />
                           ) : (
-                            <p className={cn("text-sm font-medium truncate", isSelected ? "text-foreground" : "text-foreground/90")}>
-                              {p.name}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={cn("text-sm font-medium truncate", isSelected ? "text-foreground" : "text-foreground/90")}>
+                                {p.name}
+                              </p>
+                              {isCurrent && <Badge className="text-[9px] h-4 px-1.5 flex-shrink-0">Current</Badge>}
+                            </div>
+                          )}
+                          {dateRange && (
+                            <p
+                              className={cn(
+                                "text-[10px] mt-0.5 truncate",
+                                isCurrent
+                                  ? "text-primary font-medium"
+                                  : isUpcoming
+                                    ? "text-muted-foreground/70"
+                                    : "text-muted-foreground"
+                              )}
+                            >
+                              {dateRange}
+                              {isCurrent && dd?.daysLeft !== null && (
+                                <span className="ml-1.5 text-primary/90">· {formatDaysLeft(dd!.daysLeft)}</span>
+                              )}
                             </p>
                           )}
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            {isCurrent && <Badge className="text-[9px] h-4 px-1.5">Current</Badge>}
                             <span className="text-[10px] text-muted-foreground">
                               {p.duration_weeks}w · {totalWorkouts} workout{totalWorkouts !== 1 ? "s" : ""}
                             </span>
