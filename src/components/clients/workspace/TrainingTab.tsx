@@ -96,12 +96,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [importOpen, setImportOpen] = useState(false);
   const [importPhaseId, setImportPhaseId] = useState<string | null>(null);
   const [importSource, setImportSource] = useState<"master" | "client">("master");
-  const [importWorkouts, setImportWorkouts] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
-  const [importSelectedClient, setImportSelectedClient] = useState("");
-  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
-  const [importSelectedWorkout, setImportSelectedWorkout] = useState("");
   const [importing, setImporting] = useState(false);
+  // From-Client import state
+  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
+  const [importSelectedClient, setImportSelectedClient] = useState("");
+  const [importClientWorkouts, setImportClientWorkouts] = useState<any[]>([]);
+  // Master Library cascading state
+  const [masterProgramsList, setMasterProgramsList] = useState<any[]>([]);
+  const [masterProgramsLoading, setMasterProgramsLoading] = useState(false);
+  const [selectedMasterProgramId, setSelectedMasterProgramId] = useState("");
+  const [masterPhasesList, setMasterPhasesList] = useState<any[]>([]);
+  const [masterPhasesLoading, setMasterPhasesLoading] = useState(false);
+  const [selectedMasterPhaseId, setSelectedMasterPhaseId] = useState("");
+  const [masterPhaseWorkouts, setMasterPhaseWorkouts] = useState<any[]>([]);
+  const [masterPhaseWorkoutsLoading, setMasterPhaseWorkoutsLoading] = useState(false);
+  const [selectedMasterWorkoutIds, setSelectedMasterWorkoutIds] = useState<Set<string>>(new Set());
+  const [importSearchTerm, setImportSearchTerm] = useState("");
 
   // Workout selection for bulk actions
   const [selectedWorkouts, setSelectedWorkouts] = useState<Set<string>>(new Set());
