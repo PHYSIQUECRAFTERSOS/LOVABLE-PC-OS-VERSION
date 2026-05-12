@@ -27,6 +27,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { derivePhaseDates, deriveProgramRange, formatPhaseDateRange, formatDaysLeft } from "@/lib/phaseDates";
 
 interface ProgramWorkout {
   id: string;
