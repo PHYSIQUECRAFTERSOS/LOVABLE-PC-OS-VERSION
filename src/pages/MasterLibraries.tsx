@@ -388,10 +388,12 @@ const MasterLibraries = () => {
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
-      for (const phase of (phaseRows || [])) {
+      let normalizedOrder = 1;
+      for (const phase of phasesToClone) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
           program_id: newProg.id, name: phase.name, description: phase.description,
-          phase_order: phase.phase_order, duration_weeks: phase.duration_weeks,
+          phase_order: assignPhaseId ? normalizedOrder++ : phase.phase_order,
+          duration_weeks: phase.duration_weeks,
           training_style: phase.training_style, intensity_system: phase.intensity_system,
           progression_rule: phase.progression_rule,
         }).select().single();
