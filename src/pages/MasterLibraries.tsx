@@ -483,82 +483,167 @@ const MasterLibraries = () => {
     </div>
   );
 
-  const renderProgramItem = (program: any) => (
-    <button
-      key={program.id}
-      onClick={() => { setSelectedProgramId(program.id); setSelectedProgramName(program.name); }}
-      className={`w-full text-left p-3 rounded-lg border transition-colors group ${
-        selectedProgramId === program.id
-          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-          : "border-transparent hover:bg-muted/50"
-      }`}
-    >
-      <div className="flex items-start gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div
-              role="button"
-              className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setShowAssignDialog(true); }}>
-              <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
-            </DropdownMenuItem>
-            {canEditProgram(program) && linkedCounts[program.id] > 0 && (
-              <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
-                <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
-              <History className="h-3.5 w-3.5 mr-2" /> Versions
-            </DropdownMenuItem>
-            {canEditProgram(program) && (
-              <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
-                {program.is_master ? <Lock className="h-3.5 w-3.5 mr-2" /> : <Share2 className="h-3.5 w-3.5 mr-2" />}
-                {program.is_master ? "Make Private" : "Share with Team"}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
-              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
-            </DropdownMenuItem>
-            {canDeleteProgram(program) && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
-                  <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+  const renderProgramItem = (program: any) => {
+    const isExpanded = expandedProgramId === program.id;
+    const isSelected = selectedProgramId === program.id;
+    const phaseList = phasesByProgram[program.id] || [];
+
+    return (
+      <div key={program.id} className="space-y-1">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleProgramRowClick(program)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleProgramRowClick(program);
+            }
+          }}
+          className={`w-full text-left p-3 rounded-lg border transition-colors group cursor-pointer ${
+            isSelected
+              ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+              : "border-transparent hover:bg-muted/50"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div
+                  role="button"
+                  className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted transition-all shrink-0 mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={() => { setAssignProgramId(program.id); setAssignPhaseId(null); setShowAssignDialog(true); }}>
+                  <Users className="h-3.5 w-3.5 mr-2" /> Assign to Client
                 </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{program.name}</p>
-          {program.coach_id !== userId && creatorNames[program.coach_id] && (
-            <p className="text-[10px] text-muted-foreground mt-0.5">by {creatorNames[program.coach_id]}</p>
-          )}
-          <div className="flex flex-wrap gap-1 mt-1">
-            {phaseCounts[program.id] > 0 && (
-              <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
-                <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
-              </Badge>
-            )}
-            {program.duration_weeks && (
-              <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
-            )}
-            {linkedCounts[program.id] > 0 && (
-              <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
-                <Users className="h-2 w-2" /> {linkedCounts[program.id]}
-              </Badge>
-            )}
+                {canEditProgram(program) && linkedCounts[program.id] > 0 && (
+                  <DropdownMenuItem onClick={() => openPushDialog(program.id)}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-2" /> Push Update
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
+                  <History className="h-3.5 w-3.5 mr-2" /> Versions
+                </DropdownMenuItem>
+                {canEditProgram(program) && (
+                  <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
+                    {program.is_master ? <Lock className="h-3.5 w-3.5 mr-2" /> : <Share2 className="h-3.5 w-3.5 mr-2" />}
+                    {program.is_master ? "Make Private" : "Share with Team"}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
+                  <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
+                </DropdownMenuItem>
+                {canDeleteProgram(program) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => deleteProgram(program.id)}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <ChevronRight
+                  className={`h-3.5 w-3.5 text-muted-foreground transition-transform shrink-0 ${
+                    isExpanded ? "rotate-90" : ""
+                  }`}
+                />
+                <p className="text-sm font-medium truncate">{program.name}</p>
+              </div>
+              {program.coach_id !== userId && creatorNames[program.coach_id] && (
+                <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">by {creatorNames[program.coach_id]}</p>
+              )}
+              <div className="flex flex-wrap gap-1 mt-1 ml-5">
+                {phaseCounts[program.id] > 0 && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5">
+                    <Layers className="h-2 w-2" /> {phaseCounts[program.id]} phases
+                  </Badge>
+                )}
+                {program.duration_weeks && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0">{program.duration_weeks}w</Badge>
+                )}
+                {linkedCounts[program.id] > 0 && (
+                  <Badge className="text-[9px] px-1 py-0 bg-accent/50 text-accent-foreground gap-0.5">
+                    <Users className="h-2 w-2" /> {linkedCounts[program.id]}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Inline phase accordion */}
+        {isExpanded && (
+          <div className="ml-6 pl-2 border-l border-border/50 space-y-0.5">
+            {phaseList.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground px-2 py-1.5">No phases.</p>
+            ) : (
+              phaseList.map((ph) => {
+                const phaseSelected = selectedPhaseId === ph.id && selectedProgramId === program.id;
+                return (
+                  <div
+                    key={ph.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectPhase(program.id, ph.id, program.name);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelectPhase(program.id, ph.id, program.name);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-xs cursor-pointer transition-colors ${
+                      phaseSelected
+                        ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                        : "hover:bg-muted/50 text-foreground"
+                    }`}
+                  >
+                    <Layers className="h-3 w-3 shrink-0 opacity-60" />
+                    <span className="flex-1 truncate">{ph.name}</span>
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 shrink-0">
+                      {ph.duration_weeks}w
+                    </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <div
+                          role="button"
+                          className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-3 w-3" />
+                        </div>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setAssignProgramId(program.id);
+                            setAssignPhaseId(ph.id);
+                            setShowAssignDialog(true);
+                          }}
+                        >
+                          <Users className="h-3.5 w-3.5 mr-2" /> Assign Phase to Client
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
-    </button>
-  );
+    );
+  };
 
   return (
     <AppLayout>
