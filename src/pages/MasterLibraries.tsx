@@ -428,20 +428,29 @@ const MasterLibraries = () => {
       await supabase.from("client_program_assignments").insert({
         client_id: selectedClientId, program_id: newProg.id, coach_id: user.id, start_date: startDate,
         current_phase_id: firstPhaseId, current_week_number: 1, status: "active", auto_advance: autoAdvance,
-        forked_from_program_id: assignProgramId, is_linked_to_master: isLinked,
+        forked_from_program_id: assignProgramId,
+        // Single-phase assigns are independent (not subscribed to the multi-phase master).
+        is_linked_to_master: assignPhaseId ? false : isLinked,
         master_version_number: source.version_number, last_synced_at: new Date().toISOString(),
       });
 
       // Show post-import summary
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
+      const successTitle = assignPhaseId
+        ? "Phase assigned to client"
+        : isLinked ? "Client subscribed" : msg.title;
+      const successDesc = assignPhaseId
+        ? `${phasesToClone[0].name} (${phasesToClone[0].duration_weeks}w) assigned.`
+        : isLinked ? "Future updates will sync." : msg.description;
       toast({
-        title: isLinked ? "Client subscribed" : msg.title,
-        description: isLinked ? "Future updates will sync." : msg.description,
+        title: successTitle,
+        description: successDesc,
         variant: msg.isWarning ? "destructive" : undefined,
       });
       setShowAssignDialog(false);
       setSelectedClientId("");
+      setAssignPhaseId(null);
       loadPrograms();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
