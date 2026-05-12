@@ -76,6 +76,10 @@ const MasterLibraries = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedProgramName, setSelectedProgramName] = useState("");
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
+  const [expandedProgramId, setExpandedProgramId] = useState<string | null>(null);
+  const [phasesByProgram, setPhasesByProgram] = useState<Record<string, { id: string; name: string; phase_order: number; duration_weeks: number }[]>>({});
+  const [overviewRefreshKey, setOverviewRefreshKey] = useState(0);
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<string | undefined>();
   const [phaseCounts, setPhaseCounts] = useState<Record<string, number>>({});
@@ -83,6 +87,43 @@ const MasterLibraries = () => {
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [sharedExpanded, setSharedExpanded] = useState(true);
   const [personalExpanded, setPersonalExpanded] = useState(true);
+
+  /** Fetch and cache the phases for a given program (for the inline accordion). */
+  const ensurePhasesLoaded = async (programId: string) => {
+    if (phasesByProgram[programId]) return;
+    const { data } = await supabase
+      .from("program_phases")
+      .select("id, name, phase_order, duration_weeks")
+      .eq("program_id", programId)
+      .order("phase_order");
+    setPhasesByProgram(prev => ({ ...prev, [programId]: (data || []) as any }));
+  };
+
+  /** Toggle the inline left-list accordion for a program. Selects program too. */
+  const handleProgramRowClick = async (program: any) => {
+    const isSame = expandedProgramId === program.id;
+    if (isSame) {
+      // Collapse — but keep program selected (overview state)
+      setExpandedProgramId(null);
+      setSelectedPhaseId(null);
+      return;
+    }
+    // Expand this program; collapse any other; switch right pane to overview
+    setExpandedProgramId(program.id);
+    setSelectedProgramId(program.id);
+    setSelectedProgramName(program.name);
+    setSelectedPhaseId(null);
+    await ensurePhasesLoaded(program.id);
+  };
+
+  const handleSelectPhase = async (programId: string, phaseId: string, programName?: string) => {
+    setSelectedProgramId(programId);
+    if (programName) setSelectedProgramName(programName);
+    setExpandedProgramId(programId);
+    setSelectedPhaseId(phaseId);
+    await ensurePhasesLoaded(programId);
+  };
+
 
   const activeTabMeta = TAB_CONFIG.find(t => t.value === activeTab) ?? TAB_CONFIG[0];
 
