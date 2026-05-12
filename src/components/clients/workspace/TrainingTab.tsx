@@ -479,24 +479,80 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const openImportDialog = async (phaseId: string) => {
     setImportPhaseId(phaseId);
     setImportSource("master");
-    setImportSelectedWorkout("");
     setImportSelectedClient("");
+    setImportClientWorkouts([]);
+    // Reset master cascading state
+    setSelectedMasterProgramId("");
+    setSelectedMasterPhaseId("");
+    setMasterPhasesList([]);
+    setMasterPhaseWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
+    setImportSearchTerm("");
     setImportOpen(true);
-    // Load master workouts
-    loadMasterWorkouts();
-    // Load clients for client import
+    loadMasterPrograms();
     loadImportClients();
   };
 
-  const loadMasterWorkouts = async () => {
+  const loadMasterPrograms = async () => {
     if (!user) return;
-    setImportLoading(true);
-    const { data } = await supabase.from("workouts")
-      .select("id, name, description, workout_type")
-      .eq("coach_id", user.id).eq("is_template", true)
+    setMasterProgramsLoading(true);
+    // RLS surfaces both the coach's own templates and shared masters
+    const { data } = await supabase.from("programs")
+      .select("id, name, duration_weeks, version_number, is_master")
+      .eq("is_template", true)
       .order("name");
-    setImportWorkouts(data || []);
-    setImportLoading(false);
+    setMasterProgramsList(data || []);
+    setMasterProgramsLoading(false);
+  };
+
+  const loadMasterPhases = async (programId: string) => {
+    setMasterPhasesLoading(true);
+    setMasterPhasesList([]);
+    setSelectedMasterPhaseId("");
+    setMasterPhaseWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
+    const { data } = await supabase.from("program_phases")
+      .select("id, name, phase_order, duration_weeks")
+      .eq("program_id", programId)
+      .order("phase_order");
+    setMasterPhasesList(data || []);
+    setMasterPhasesLoading(false);
+  };
+
+  const loadMasterPhaseWorkouts = async (phaseId: string) => {
+    setMasterPhaseWorkoutsLoading(true);
+    setMasterPhaseWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
+    const { data: pws } = await supabase.from("program_workouts")
+      .select("workout_id, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name, workout_type)")
+      .eq("phase_id", phaseId)
+      .order("sort_order");
+    // Fetch exercise counts in parallel
+    const workoutIds = (pws || []).map((p: any) => p.workout_id).filter(Boolean);
+    let countsByWid: Record<string, number> = {};
+    if (workoutIds.length > 0) {
+      const countResults = await Promise.allSettled(
+        workoutIds.map(async (wid: string) => {
+          const { count } = await supabase
+            .from("workout_exercises")
+            .select("id", { count: "exact", head: true })
+            .eq("workout_id", wid);
+          return { wid, count: count || 0 };
+        })
+      );
+      for (const r of countResults) {
+        if (r.status === "fulfilled") countsByWid[r.value.wid] = r.value.count;
+      }
+    }
+    const list = (pws || []).map((pw: any) => ({
+      id: pw.workout_id,
+      name: (pw.workouts as any)?.name || "Workout",
+      day_label: pw.day_label,
+      workout_type: (pw.workouts as any)?.workout_type,
+      exercise_count: countsByWid[pw.workout_id] || 0,
+    }));
+    setMasterPhaseWorkouts(list);
+    setMasterPhaseWorkoutsLoading(false);
   };
 
   const loadImportClients = async () => {
@@ -512,48 +568,59 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const loadClientWorkouts = async (selectedClientId: string) => {
     setImportLoading(true);
-    // Get the client's active program workouts
+    setImportClientWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
     const { data: assignData } = await supabase.from("client_program_assignments")
-      .select("program_id").eq("client_id", selectedClientId).eq("status", "active")
+      .select("program_id").eq("client_id", selectedClientId)
+      .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!assignData) {
-      setImportWorkouts([]);
-      setImportLoading(false);
-      return;
-    }
+    if (!assignData) { setImportLoading(false); return; }
     const { data: phasesData } = await supabase.from("program_phases")
       .select("id").eq("program_id", assignData.program_id);
     const phaseIds = (phasesData || []).map(p => p.id);
-    if (phaseIds.length === 0) {
-      setImportWorkouts([]);
-      setImportLoading(false);
-      return;
-    }
+    if (phaseIds.length === 0) { setImportLoading(false); return; }
     const { data: pws } = await supabase.from("program_workouts")
-      .select("workout_id, workouts(id, name, description, workout_type)")
+      .select("workout_id, workouts(id, name, workout_type)")
       .in("phase_id", phaseIds);
     const unique = new Map<string, any>();
     for (const pw of (pws || [])) {
       const w = (pw as any).workouts;
-      if (w && !unique.has(w.id)) unique.set(w.id, w);
+      if (w && !unique.has(w.id)) unique.set(w.id, { id: w.id, name: w.name, workout_type: w.workout_type, exercise_count: 0 });
     }
-    setImportWorkouts(Array.from(unique.values()));
+    setImportClientWorkouts(Array.from(unique.values()));
     setImportLoading(false);
   };
 
+  const toggleImportWorkoutSelection = (wid: string) => {
+    setSelectedMasterWorkoutIds(prev => {
+      const next = new Set(prev);
+      if (next.has(wid)) next.delete(wid); else next.add(wid);
+      return next;
+    });
+  };
+
   const handleImportWorkout = async () => {
-    if (!importSelectedWorkout || !importPhaseId || !user) return;
+    if (!importPhaseId || !user || selectedMasterWorkoutIds.size === 0) return;
     setImporting(true);
     try {
-      const clientW = await cloneWorkoutToClient(importSelectedWorkout);
-      if (!clientW) throw new Error("Failed to clone workout");
-      const phase = phases.find(p => p.id === importPhaseId);
-      const sortOrder = phase ? phase.directWorkouts.length + 1 : 1;
-      await supabase.from("program_workouts").insert({
-        phase_id: importPhaseId, workout_id: clientW.id,
-        day_of_week: 0, day_label: clientW.name, sort_order: sortOrder,
+      const targetPhase = phases.find(p => p.id === importPhaseId);
+      const ids = Array.from(selectedMasterWorkoutIds);
+      const { successCount, failureCount, results } = await importMasterWorkoutsToClientPhase({
+        coachId: user.id,
+        clientId,
+        targetPhaseId: importPhaseId,
+        sourceWorkoutIds: ids,
       });
-      toast({ title: "Workout imported" });
+      if (successCount > 0) {
+        toast({
+          title: `Imported ${successCount} workout${successCount !== 1 ? "s" : ""}${targetPhase ? ` into ${targetPhase.name}` : ""}`,
+          description: failureCount > 0 ? `${failureCount} failed to import.` : undefined,
+          variant: failureCount > 0 ? "destructive" : undefined,
+        });
+      } else {
+        const firstErr = results.flatMap(r => r.errors)[0] || "Unknown error";
+        throw new Error(firstErr);
+      }
       setImportOpen(false);
       loadClientProgram();
     } catch (err: any) {
