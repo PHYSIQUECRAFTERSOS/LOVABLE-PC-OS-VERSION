@@ -93,7 +93,7 @@ export function useClientProgram(clientId: string | undefined) {
       // Step 2: Get program
       const { data: prog, error: progErr } = await supabase
         .from("programs")
-        .select("id, name, description, goal_type, version_number, is_master")
+        .select("id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks")
         .eq("id", assignData.program_id)
         .maybeSingle();
 

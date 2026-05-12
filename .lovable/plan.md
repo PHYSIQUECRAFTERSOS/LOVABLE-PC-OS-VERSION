@@ -1,43 +1,43 @@
-# Fix: Copy Day to Client (Master Libraries) shows false "no active program"
+# Fix: Phase dates never render in client profile Training tab
 
-## Root cause hypothesis
-Jordan has an active program with `current_phase_id` set in the DB and Kevin has admin+coach role + an active `coach_clients` link, so the detection query *should* succeed. The most likely culprits, in order:
+## Root cause
+`src/hooks/useClientProgram.ts` line 96 selects programs with this column list:
 
-1. The embedded join `programs(name)` in `client_program_assignments` select silently throws or returns a shape PostgREST can't resolve, leaving `assignments` undefined and skipping straight to `no_program`.
-2. A transient race: `setCopyDaySelectedClient` then `handleCopyDaySelectClient(v)` fire back-to-back; if the dialog is closed/reopened quickly the stale resolver lands.
-3. Cached/stale code on the live build (less likely — preview also fails).
+```
+"id, name, description, goal_type, version_number, is_master"
+```
 
-## Scope
-Only `src/components/training/ProgramDetailView.tsx`. No changes to:
-- DB / RLS
-- The "Import from Master Library" flow inside the client profile (already working — explicitly do not touch).
-- Phase-level "Copy to Client" (separate dialog, different code path).
+`start_date` and `end_date` are NOT in the list. The cast `(program as any).start_date ?? null` in `TrainingTab.tsx` line 746 therefore always passes `null` to `ClientProgramTwoPane`, which causes `derivePhaseDates(null, phases)` to return `start_date: null` for every phase — so the date-range `<p>` blocks never render. Only the existing `{duration_weeks}w · N workouts` line shows.
 
-## Changes
+DB confirms the data exists:
+- Jack Fisher (current client viewed): `start_date = 2026-05-05`
+- Jordan Carmean: `start_date = 2026-05-03`
+- 28 of 59 programs total have a `start_date` set.
 
-### 1. Bulletproof `handleCopyDaySelectClient` (lines 843–878)
-- Drop the embedded `programs(name)` join. Use a flat select on `client_program_assignments` and resolve `program.name` in a separate query.
-- Capture `error` from every Supabase call and `console.error` with context if anything fails (so we can see it in network/console next time).
-- Guard against stale resolution: capture the `clientId` at call time and bail if `copyDaySelectedClient` has changed by the time the awaits return.
+## Fix (one-line change)
+Update the SELECT in `useClientProgram.ts` line 96 to:
 
-### 2. Auto-resolve to LAST phase when `current_phase_id` is null
-Per user choice: if a client has an active assignment but no `current_phase_id`, query `program_phases` for that program ordered by `phase_order DESC LIMIT 1` and use that phase as the destination. The detection state becomes `ok` with the resolved phase name, and the green "Will copy into: {phase name}" hint shows the auto-picked phase. No more `no_phase` red error in this case.
+```
+"id, name, description, goal_type, version_number, is_master, start_date, end_date, duration_weeks"
+```
 
-If even *that* returns nothing (program has zero phases), fall back to the existing red error message but with a clearer wording: `"This program has no phases. Add a phase before copying."`
+That's all it takes for dates to start rendering everywhere we already wired them:
+- Program header range (top of TwoPane)
+- Sidebar phase rows (date under each phase name)
+- Phase detail header (`8 weeks (05 May 2026 - 29 Jun 2026)` + "Current / N days left" chip)
 
-### 3. Keep the `no_program` red error
-Only fires when truly no `active`/`subscribed` assignment exists for the client. Wording unchanged.
+## What about programs with no start_date (~half of them)?
+Those will still show only `{weeks}w` (current behavior, graceful degradation per the State B implementation). To make EVERY client show dates, we'd need a fallback to `client_program_assignments.created_at` as the program start. The user picked "Auto-derive from `programs.start_date`" only, so I will NOT add that fallback unless they ask — coach authority means we don't invent a start date the coach didn't set.
 
-### 4. Detection state enum updated
-- `idle | ok | no_program | no_phases` (rename `no_phase` → `no_phases` to reflect new meaning: program has zero phases at all).
-- Render block at lines 1446–1451 updated to match.
-
-## Acceptance test
-1. Open Master Libraries → Programs → click any workout day → ⋯ → Copy to Client → select Jordan → expect green "Will copy into: phase 7: triple cluster" (Jordan's actual current phase). 
-2. Select a client whose assignment has `current_phase_id = NULL` but program has phases → expect green "Will copy into: {last phase name}".
-3. Select a client with no active assignment → expect red "no active program".
-4. Phase-level "Copy to Client" untouched and still works.
-5. Client-profile "Import from Master Library" untouched and still works.
+## Out of scope
+- No DB / RLS changes
+- No UI changes (rendering already in place from previous turn)
+- No changes to `phaseDates.ts`, `ClientProgramTwoPane.tsx`, or `TrainingTab.tsx`
 
 ## Files touched
-- `src/components/training/ProgramDetailView.tsx` (only)
+- `src/hooks/useClientProgram.ts` (line 96 only)
+
+## Acceptance test
+1. Open Jack Fisher's profile → Training tab → expect to see `05 May 2026 - …` under the program name and a date range under each phase.
+2. Open Jordan Carmean → same.
+3. Open Julian Lesnevich (no start_date in DB) → no date line, just `{weeks}w` (correct graceful fallback).
