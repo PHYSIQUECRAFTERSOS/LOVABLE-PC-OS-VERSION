@@ -95,6 +95,12 @@ interface ProgramDetailViewProps {
   programId: string;
   programName: string;
   onBack: () => void;
+  /** When set, only this phase is rendered (drill-down mode). */
+  focusPhaseId?: string | null;
+  /** Called when the user taps "Back to program" in drill-down mode. */
+  onBackToOverview?: () => void;
+  /** Called when the user picks a different phase in the quick switcher. */
+  onSwitchPhase?: (phaseId: string) => void;
 }
 
 const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailViewProps) => {
