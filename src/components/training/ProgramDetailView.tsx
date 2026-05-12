@@ -841,25 +841,39 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
   const handleCopyDaySelectClient = async (clientId: string) => {
     setCopyDaySelectedClient(clientId);
-    // Find the client's active program
+    setCopyDayClientProgram(null);
+    setCopyDayDetectionState("idle");
+    // Detect active program: accept both 'active' and 'subscribed' (matches is_client_assigned_to_program)
     const { data: assignments } = await supabase
       .from("client_program_assignments")
       .select("program_id, current_phase_id, programs(name)")
       .eq("client_id", clientId)
-      .eq("status", "active")
+      .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false })
       .limit(1);
-    
+
     const assignment = assignments?.[0];
-    if (assignment) {
-      setCopyDayClientProgram({
-        id: assignment.program_id,
-        name: (assignment as any).programs?.name || "Current Program",
-        phaseId: assignment.current_phase_id || "",
-      });
-    } else {
-      setCopyDayClientProgram(null);
+    if (!assignment) {
+      setCopyDayDetectionState("no_program");
+      return;
     }
+    if (!assignment.current_phase_id) {
+      setCopyDayDetectionState("no_phase");
+      return;
+    }
+    // Resolve phase name
+    const { data: phase } = await supabase
+      .from("program_phases")
+      .select("name")
+      .eq("id", assignment.current_phase_id)
+      .maybeSingle();
+    setCopyDayClientProgram({
+      id: assignment.program_id,
+      name: (assignment as any).programs?.name || "Current Program",
+      phaseId: assignment.current_phase_id,
+      phaseName: phase?.name || "Current Phase",
+    });
+    setCopyDayDetectionState("ok");
   };
 
   const handleCopyDayProceedToPreview = async () => {
