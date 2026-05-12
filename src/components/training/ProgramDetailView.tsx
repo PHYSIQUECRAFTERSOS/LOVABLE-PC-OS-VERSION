@@ -148,7 +148,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [copyDayExercisesLoading, setCopyDayExercisesLoading] = useState(false);
   const [copyDaySelectedClient, setCopyDaySelectedClient] = useState("");
   const [copyDayClientProgram, setCopyDayClientProgram] = useState<{ id: string; name: string; phaseId: string; phaseName: string } | null>(null);
-  const [copyDayDetectionState, setCopyDayDetectionState] = useState<"idle" | "no_program" | "no_phase" | "ok">("idle");
+  const [copyDayDetectionState, setCopyDayDetectionState] = useState<"idle" | "no_program" | "no_phases" | "ok">("idle");
   const [copyDayConflict, setCopyDayConflict] = useState<{ existingId: string; existingName: string } | null>(null);
   const [copyDayConflictChoice, setCopyDayConflictChoice] = useState<"replace" | "add_new">("replace");
   const [copyDayStep, setCopyDayStep] = useState<"select_client" | "preview" | "conflict" | "copying">("select_client");
@@ -844,37 +844,75 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setCopyDaySelectedClient(clientId);
     setCopyDayClientProgram(null);
     setCopyDayDetectionState("idle");
-    // Detect active program: accept both 'active' and 'subscribed' (matches is_client_assigned_to_program)
-    const { data: assignments } = await supabase
-      .from("client_program_assignments")
-      .select("program_id, current_phase_id, programs(name)")
-      .eq("client_id", clientId)
-      .in("status", ["active", "subscribed"])
-      .order("created_at", { ascending: false })
-      .limit(1);
+    try {
+      // 1. Find active assignment (flat select — no embedded join)
+      const { data: assignments, error: aErr } = await supabase
+        .from("client_program_assignments")
+        .select("program_id, current_phase_id")
+        .eq("client_id", clientId)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (aErr) console.error("[CopyDay] assignment lookup failed:", aErr);
 
-    const assignment = assignments?.[0];
-    if (!assignment) {
+      const assignment = assignments?.[0];
+      if (!assignment) {
+        setCopyDayDetectionState("no_program");
+        return;
+      }
+
+      // 2. Resolve program name
+      const { data: prog, error: pErr } = await supabase
+        .from("programs")
+        .select("name")
+        .eq("id", assignment.program_id)
+        .maybeSingle();
+      if (pErr) console.error("[CopyDay] program name lookup failed:", pErr);
+
+      // 3. Resolve destination phase: prefer current_phase_id, else fall back to LAST phase
+      let phaseId = assignment.current_phase_id as string | null;
+      let phaseName = "Current Phase";
+
+      if (phaseId) {
+        const { data: phase } = await supabase
+          .from("program_phases")
+          .select("name")
+          .eq("id", phaseId)
+          .maybeSingle();
+        phaseName = phase?.name || "Current Phase";
+      } else {
+        const { data: phases, error: phErr } = await supabase
+          .from("program_phases")
+          .select("id, name, phase_order")
+          .eq("program_id", assignment.program_id)
+          .order("phase_order", { ascending: false })
+          .limit(1);
+        if (phErr) console.error("[CopyDay] last-phase lookup failed:", phErr);
+        const last = phases?.[0];
+        if (!last) {
+          setCopyDayDetectionState("no_phases");
+          return;
+        }
+        phaseId = last.id;
+        phaseName = last.name || "Last Phase";
+      }
+
+      // Stale-resolution guard: only commit if the user's selection didn't change mid-flight
+      setCopyDaySelectedClient((current) => {
+        if (current !== clientId) return current;
+        setCopyDayClientProgram({
+          id: assignment.program_id,
+          name: prog?.name || "Current Program",
+          phaseId: phaseId!,
+          phaseName,
+        });
+        setCopyDayDetectionState("ok");
+        return current;
+      });
+    } catch (err) {
+      console.error("[CopyDay] detection threw:", err);
       setCopyDayDetectionState("no_program");
-      return;
     }
-    if (!assignment.current_phase_id) {
-      setCopyDayDetectionState("no_phase");
-      return;
-    }
-    // Resolve phase name
-    const { data: phase } = await supabase
-      .from("program_phases")
-      .select("name")
-      .eq("id", assignment.current_phase_id)
-      .maybeSingle();
-    setCopyDayClientProgram({
-      id: assignment.program_id,
-      name: (assignment as any).programs?.name || "Current Program",
-      phaseId: assignment.current_phase_id,
-      phaseName: phase?.name || "Current Phase",
-    });
-    setCopyDayDetectionState("ok");
   };
 
   const handleCopyDayProceedToPreview = async () => {
@@ -1446,8 +1484,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
               {copyDayDetectionState === "no_program" && (
                 <p className="text-xs text-destructive">This client has no active program. Assign one first.</p>
               )}
-              {copyDayDetectionState === "no_phase" && (
-                <p className="text-xs text-destructive">This client has a program but no current phase. Set a phase as current before copying.</p>
+              {copyDayDetectionState === "no_phases" && (
+                <p className="text-xs text-destructive">This program has no phases. Add a phase before copying.</p>
               )}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowCopyDayDialog(false)}>Cancel</Button>
