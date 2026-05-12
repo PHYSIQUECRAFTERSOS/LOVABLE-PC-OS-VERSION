@@ -896,23 +896,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       {/* Import Workout Dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Import Workout</DialogTitle>
-            <DialogDescription>Import a workout from your template library or another client's program.</DialogDescription>
+            <DialogDescription>Import workouts from a master program or copy from another client.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {/* Source toggle */}
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => { setImportSource("master"); loadMasterWorkouts(); setImportSelectedWorkout(""); }}
+              <button onClick={() => { setImportSource("master"); setSelectedMasterWorkoutIds(new Set()); }}
                 className={`p-3 rounded-lg border text-left transition-colors ${importSource === "master" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Dumbbell className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">Master Library</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Your template workouts</p>
+                <p className="text-[11px] text-muted-foreground">Master program → phase → workouts</p>
               </button>
-              <button onClick={() => { setImportSource("client"); setImportSelectedWorkout(""); setImportWorkouts([]); }}
+              <button onClick={() => { setImportSource("client"); setSelectedMasterWorkoutIds(new Set()); setImportClientWorkouts([]); }}
                 className={`p-3 rounded-lg border text-left transition-colors ${importSource === "client" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Copy className="h-4 w-4 text-primary" />
@@ -922,59 +922,179 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               </button>
             </div>
 
-            {/* Client selector for client import */}
-            {importSource === "client" && (
-              <div className="space-y-2">
-                <Label className="text-sm">Select Client</Label>
-                <SearchableClientSelect
-                  clients={importClients}
-                  value={importSelectedClient}
-                  onValueChange={(v) => {
-                    setImportSelectedClient(v);
-                    setImportSelectedWorkout("");
-                    if (v) loadClientWorkouts(v);
-                  }}
-                  placeholder="Choose a client..."
-                />
-              </div>
-            )}
+            {/* MASTER LIBRARY: cascading select */}
+            {importSource === "master" && (
+              <>
+                {/* Level 1: Master program */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Master Program</Label>
+                  {masterProgramsLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : masterProgramsList.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">You have no master programs yet. Create one in Master Libraries → Programs.</p>
+                  ) : (
+                    <Select value={selectedMasterProgramId} onValueChange={(v) => { setSelectedMasterProgramId(v); loadMasterPhases(v); }}>
+                      <SelectTrigger><SelectValue placeholder="Select a master program…" /></SelectTrigger>
+                      <SelectContent>
+                        {masterProgramsList.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}{p.duration_weeks ? ` · ${p.duration_weeks}w` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
 
-            {/* Workout list */}
-            <div className="space-y-2">
-              <Label className="text-sm">Select Workout</Label>
-              {importLoading ? (
-                <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-              ) : importWorkouts.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  {importSource === "client" && !importSelectedClient ? "Select a client first" : "No workouts found"}
-                </p>
-              ) : (
-                <ScrollArea className="max-h-60">
-                  <div className="space-y-1">
-                    {importWorkouts.map(w => (
-                      <button key={w.id} onClick={() => setImportSelectedWorkout(w.id)}
-                        className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors ${
-                          importSelectedWorkout === w.id ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
-                        }`}>
-                        <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                          <Dumbbell className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{w.name}</p>
-                          {w.workout_type && w.workout_type !== "regular" && (
-                            <span className="text-[10px] text-muted-foreground">{w.workout_type}</span>
+                {/* Level 2: Phase */}
+                {selectedMasterProgramId && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Training Phase</Label>
+                    {masterPhasesLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : masterPhasesList.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">This master program has no phases yet.</p>
+                    ) : (
+                      <Select value={selectedMasterPhaseId} onValueChange={(v) => { setSelectedMasterPhaseId(v); loadMasterPhaseWorkouts(v); }}>
+                        <SelectTrigger><SelectValue placeholder="Select a phase…" /></SelectTrigger>
+                        <SelectContent>
+                          {masterPhasesList.map(ph => (
+                            <SelectItem key={ph.id} value={ph.id}>
+                              {ph.name}{ph.duration_weeks ? ` · ${ph.duration_weeks}w` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+
+                {/* Level 3: Workouts (multi-select) */}
+                {selectedMasterPhaseId && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Workouts</Label>
+                      {masterPhaseWorkouts.length > 0 && (
+                        <span className="text-[11px] text-muted-foreground">{selectedMasterWorkoutIds.size} selected</span>
+                      )}
+                    </div>
+                    {masterPhaseWorkoutsLoading ? (
+                      <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                    ) : masterPhaseWorkouts.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">This phase has no workouts yet.</p>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            placeholder="Search workouts…"
+                            value={importSearchTerm}
+                            onChange={(e) => setImportSearchTerm(e.target.value)}
+                            className="pl-8 h-8 text-xs"
+                          />
+                          {importSearchTerm && (
+                            <button onClick={() => setImportSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs">×</button>
                           )}
                         </div>
-                      </button>
-                    ))}
+                        {(() => {
+                          const term = importSearchTerm.trim().toLowerCase();
+                          const visible = term
+                            ? masterPhaseWorkouts.filter(w => w.name.toLowerCase().includes(term) || (w.day_label || "").toLowerCase().includes(term))
+                            : masterPhaseWorkouts;
+                          const visibleIds = visible.map(w => w.id);
+                          const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedMasterWorkoutIds.has(id));
+                          const toggleAll = () => {
+                            setSelectedMasterWorkoutIds(prev => {
+                              const next = new Set(prev);
+                              if (allVisibleSelected) visibleIds.forEach(id => next.delete(id));
+                              else visibleIds.forEach(id => next.add(id));
+                              return next;
+                            });
+                          };
+                          return (
+                            <>
+                              <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                                <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAll} />
+                                <span className="text-xs font-medium">Select All ({visible.length})</span>
+                              </label>
+                              <ScrollArea className="max-h-64 border rounded-md">
+                                <div className="p-1">
+                                  {visible.length === 0 ? (
+                                    <p className="text-[11px] text-muted-foreground text-center py-3">No workouts match "{importSearchTerm}"</p>
+                                  ) : visible.map(w => (
+                                    <label key={w.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                                      <Checkbox checked={selectedMasterWorkoutIds.has(w.id)} onCheckedChange={() => toggleImportWorkoutSelection(w.id)} />
+                                      <div className="h-7 w-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                                        <Dumbbell className="h-3.5 w-3.5 text-primary" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium truncate">{w.day_label ? `${w.day_label}: ` : ""}{w.name}</p>
+                                        <p className="text-[10px] text-muted-foreground">{w.exercise_count} exercise{w.exercise_count !== 1 ? "s" : ""}</p>
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </ScrollArea>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
                   </div>
-                </ScrollArea>
-              )}
-            </div>
+                )}
+              </>
+            )}
 
-            <Button className="w-full" disabled={!importSelectedWorkout || importing} onClick={handleImportWorkout}>
+            {/* FROM CLIENT (legacy single-select retained) */}
+            {importSource === "client" && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Client</Label>
+                  <SearchableClientSelect
+                    clients={importClients}
+                    value={importSelectedClient}
+                    onValueChange={(v) => {
+                      setImportSelectedClient(v);
+                      setSelectedMasterWorkoutIds(new Set());
+                      if (v) loadClientWorkouts(v);
+                    }}
+                    placeholder="Choose a client..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Workout(s)</Label>
+                  {importLoading ? (
+                    <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                  ) : importClientWorkouts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      {!importSelectedClient ? "Select a client first" : "No workouts found"}
+                    </p>
+                  ) : (
+                    <ScrollArea className="max-h-60 border rounded-md">
+                      <div className="p-1">
+                        {importClientWorkouts.map(w => (
+                          <label key={w.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                            <Checkbox checked={selectedMasterWorkoutIds.has(w.id)} onCheckedChange={() => toggleImportWorkoutSelection(w.id)} />
+                            <div className="h-7 w-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                              <Dumbbell className="h-3.5 w-3.5 text-primary" />
+                            </div>
+                            <p className="text-sm font-medium truncate">{w.name}</p>
+                          </label>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              </>
+            )}
+
+            <Button className="w-full" disabled={selectedMasterWorkoutIds.size === 0 || importing} onClick={handleImportWorkout}>
               {importing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-              Import Workout
+              {selectedMasterWorkoutIds.size > 1
+                ? `Import ${selectedMasterWorkoutIds.size} Workouts`
+                : selectedMasterWorkoutIds.size === 1
+                  ? "Import 1 Workout"
+                  : "Import Workout"}
             </Button>
           </div>
         </DialogContent>
