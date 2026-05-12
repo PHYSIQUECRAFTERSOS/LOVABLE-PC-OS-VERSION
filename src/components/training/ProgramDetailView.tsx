@@ -1436,18 +1436,22 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                   />
                 )}
               </div>
-              {copyDayClientProgram && (
+              {copyDayDetectionState === "ok" && copyDayClientProgram && (
                 <div className="p-2 rounded border bg-muted/30">
                   <p className="text-xs text-muted-foreground">Current program:</p>
                   <p className="text-sm font-medium">{copyDayClientProgram.name}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Will copy into: <span className="text-primary">{copyDayClientProgram.phaseName}</span></p>
                 </div>
               )}
-              {copyDaySelectedClient && !copyDayClientProgram && (
+              {copyDayDetectionState === "no_program" && (
                 <p className="text-xs text-destructive">This client has no active program. Assign one first.</p>
+              )}
+              {copyDayDetectionState === "no_phase" && (
+                <p className="text-xs text-destructive">This client has a program but no current phase. Set a phase as current before copying.</p>
               )}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowCopyDayDialog(false)}>Cancel</Button>
-                <Button onClick={handleCopyDayProceedToPreview} disabled={!copyDaySelectedClient || !copyDayClientProgram}>
+                <Button onClick={handleCopyDayProceedToPreview} disabled={copyDayDetectionState !== "ok"}>
                   Next
                 </Button>
               </DialogFooter>
