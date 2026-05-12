@@ -147,7 +147,8 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
   const [copyDayExercises, setCopyDayExercises] = useState<any[]>([]);
   const [copyDayExercisesLoading, setCopyDayExercisesLoading] = useState(false);
   const [copyDaySelectedClient, setCopyDaySelectedClient] = useState("");
-  const [copyDayClientProgram, setCopyDayClientProgram] = useState<{ id: string; name: string; phaseId: string } | null>(null);
+  const [copyDayClientProgram, setCopyDayClientProgram] = useState<{ id: string; name: string; phaseId: string; phaseName: string } | null>(null);
+  const [copyDayDetectionState, setCopyDayDetectionState] = useState<"idle" | "no_program" | "no_phase" | "ok">("idle");
   const [copyDayConflict, setCopyDayConflict] = useState<{ existingId: string; existingName: string } | null>(null);
   const [copyDayConflictChoice, setCopyDayConflictChoice] = useState<"replace" | "add_new">("replace");
   const [copyDayStep, setCopyDayStep] = useState<"select_client" | "preview" | "conflict" | "copying">("select_client");
@@ -820,6 +821,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setCopyDayWorkout(pw);
     setCopyDaySelectedClient("");
     setCopyDayClientProgram(null);
+    setCopyDayDetectionState("idle");
     setCopyDayConflict(null);
     setCopyDayConflictChoice("replace");
     setCopyDayStep("select_client");
@@ -840,25 +842,39 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
 
   const handleCopyDaySelectClient = async (clientId: string) => {
     setCopyDaySelectedClient(clientId);
-    // Find the client's active program
+    setCopyDayClientProgram(null);
+    setCopyDayDetectionState("idle");
+    // Detect active program: accept both 'active' and 'subscribed' (matches is_client_assigned_to_program)
     const { data: assignments } = await supabase
       .from("client_program_assignments")
       .select("program_id, current_phase_id, programs(name)")
       .eq("client_id", clientId)
-      .eq("status", "active")
+      .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false })
       .limit(1);
-    
+
     const assignment = assignments?.[0];
-    if (assignment) {
-      setCopyDayClientProgram({
-        id: assignment.program_id,
-        name: (assignment as any).programs?.name || "Current Program",
-        phaseId: assignment.current_phase_id || "",
-      });
-    } else {
-      setCopyDayClientProgram(null);
+    if (!assignment) {
+      setCopyDayDetectionState("no_program");
+      return;
     }
+    if (!assignment.current_phase_id) {
+      setCopyDayDetectionState("no_phase");
+      return;
+    }
+    // Resolve phase name
+    const { data: phase } = await supabase
+      .from("program_phases")
+      .select("name")
+      .eq("id", assignment.current_phase_id)
+      .maybeSingle();
+    setCopyDayClientProgram({
+      id: assignment.program_id,
+      name: (assignment as any).programs?.name || "Current Program",
+      phaseId: assignment.current_phase_id,
+      phaseName: phase?.name || "Current Phase",
+    });
+    setCopyDayDetectionState("ok");
   };
 
   const handleCopyDayProceedToPreview = async () => {
@@ -1420,18 +1436,22 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
                   />
                 )}
               </div>
-              {copyDayClientProgram && (
+              {copyDayDetectionState === "ok" && copyDayClientProgram && (
                 <div className="p-2 rounded border bg-muted/30">
                   <p className="text-xs text-muted-foreground">Current program:</p>
                   <p className="text-sm font-medium">{copyDayClientProgram.name}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Will copy into: <span className="text-primary">{copyDayClientProgram.phaseName}</span></p>
                 </div>
               )}
-              {copyDaySelectedClient && !copyDayClientProgram && (
+              {copyDayDetectionState === "no_program" && (
                 <p className="text-xs text-destructive">This client has no active program. Assign one first.</p>
+              )}
+              {copyDayDetectionState === "no_phase" && (
+                <p className="text-xs text-destructive">This client has a program but no current phase. Set a phase as current before copying.</p>
               )}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowCopyDayDialog(false)}>Cancel</Button>
-                <Button onClick={handleCopyDayProceedToPreview} disabled={!copyDaySelectedClient || !copyDayClientProgram}>
+                <Button onClick={handleCopyDayProceedToPreview} disabled={copyDayDetectionState !== "ok"}>
                   Next
                 </Button>
               </DialogFooter>

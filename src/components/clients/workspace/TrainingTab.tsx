@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary, importMasterWorkoutsToClientPhase } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import { useClientProgram } from "@/hooks/useClientProgram";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -96,12 +96,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [importOpen, setImportOpen] = useState(false);
   const [importPhaseId, setImportPhaseId] = useState<string | null>(null);
   const [importSource, setImportSource] = useState<"master" | "client">("master");
-  const [importWorkouts, setImportWorkouts] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
-  const [importSelectedClient, setImportSelectedClient] = useState("");
-  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
-  const [importSelectedWorkout, setImportSelectedWorkout] = useState("");
   const [importing, setImporting] = useState(false);
+  // From-Client import state
+  const [importClients, setImportClients] = useState<{ id: string; name: string }[]>([]);
+  const [importSelectedClient, setImportSelectedClient] = useState("");
+  const [importClientWorkouts, setImportClientWorkouts] = useState<any[]>([]);
+  // Master Library cascading state
+  const [masterProgramsList, setMasterProgramsList] = useState<any[]>([]);
+  const [masterProgramsLoading, setMasterProgramsLoading] = useState(false);
+  const [selectedMasterProgramId, setSelectedMasterProgramId] = useState("");
+  const [masterPhasesList, setMasterPhasesList] = useState<any[]>([]);
+  const [masterPhasesLoading, setMasterPhasesLoading] = useState(false);
+  const [selectedMasterPhaseId, setSelectedMasterPhaseId] = useState("");
+  const [masterPhaseWorkouts, setMasterPhaseWorkouts] = useState<any[]>([]);
+  const [masterPhaseWorkoutsLoading, setMasterPhaseWorkoutsLoading] = useState(false);
+  const [selectedMasterWorkoutIds, setSelectedMasterWorkoutIds] = useState<Set<string>>(new Set());
+  const [importSearchTerm, setImportSearchTerm] = useState("");
 
   // Workout selection for bulk actions
   const [selectedWorkouts, setSelectedWorkouts] = useState<Set<string>>(new Set());
@@ -468,24 +479,80 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const openImportDialog = async (phaseId: string) => {
     setImportPhaseId(phaseId);
     setImportSource("master");
-    setImportSelectedWorkout("");
     setImportSelectedClient("");
+    setImportClientWorkouts([]);
+    // Reset master cascading state
+    setSelectedMasterProgramId("");
+    setSelectedMasterPhaseId("");
+    setMasterPhasesList([]);
+    setMasterPhaseWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
+    setImportSearchTerm("");
     setImportOpen(true);
-    // Load master workouts
-    loadMasterWorkouts();
-    // Load clients for client import
+    loadMasterPrograms();
     loadImportClients();
   };
 
-  const loadMasterWorkouts = async () => {
+  const loadMasterPrograms = async () => {
     if (!user) return;
-    setImportLoading(true);
-    const { data } = await supabase.from("workouts")
-      .select("id, name, description, workout_type")
-      .eq("coach_id", user.id).eq("is_template", true)
+    setMasterProgramsLoading(true);
+    // RLS surfaces both the coach's own templates and shared masters
+    const { data } = await supabase.from("programs")
+      .select("id, name, duration_weeks, version_number, is_master")
+      .eq("is_template", true)
       .order("name");
-    setImportWorkouts(data || []);
-    setImportLoading(false);
+    setMasterProgramsList(data || []);
+    setMasterProgramsLoading(false);
+  };
+
+  const loadMasterPhases = async (programId: string) => {
+    setMasterPhasesLoading(true);
+    setMasterPhasesList([]);
+    setSelectedMasterPhaseId("");
+    setMasterPhaseWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
+    const { data } = await supabase.from("program_phases")
+      .select("id, name, phase_order, duration_weeks")
+      .eq("program_id", programId)
+      .order("phase_order");
+    setMasterPhasesList(data || []);
+    setMasterPhasesLoading(false);
+  };
+
+  const loadMasterPhaseWorkouts = async (phaseId: string) => {
+    setMasterPhaseWorkoutsLoading(true);
+    setMasterPhaseWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
+    const { data: pws } = await supabase.from("program_workouts")
+      .select("workout_id, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name, workout_type)")
+      .eq("phase_id", phaseId)
+      .order("sort_order");
+    // Fetch exercise counts in parallel
+    const workoutIds = (pws || []).map((p: any) => p.workout_id).filter(Boolean);
+    let countsByWid: Record<string, number> = {};
+    if (workoutIds.length > 0) {
+      const countResults = await Promise.allSettled(
+        workoutIds.map(async (wid: string) => {
+          const { count } = await supabase
+            .from("workout_exercises")
+            .select("id", { count: "exact", head: true })
+            .eq("workout_id", wid);
+          return { wid, count: count || 0 };
+        })
+      );
+      for (const r of countResults) {
+        if (r.status === "fulfilled") countsByWid[r.value.wid] = r.value.count;
+      }
+    }
+    const list = (pws || []).map((pw: any) => ({
+      id: pw.workout_id,
+      name: (pw.workouts as any)?.name || "Workout",
+      day_label: pw.day_label,
+      workout_type: (pw.workouts as any)?.workout_type,
+      exercise_count: countsByWid[pw.workout_id] || 0,
+    }));
+    setMasterPhaseWorkouts(list);
+    setMasterPhaseWorkoutsLoading(false);
   };
 
   const loadImportClients = async () => {
@@ -501,48 +568,59 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const loadClientWorkouts = async (selectedClientId: string) => {
     setImportLoading(true);
-    // Get the client's active program workouts
+    setImportClientWorkouts([]);
+    setSelectedMasterWorkoutIds(new Set());
     const { data: assignData } = await supabase.from("client_program_assignments")
-      .select("program_id").eq("client_id", selectedClientId).eq("status", "active")
+      .select("program_id").eq("client_id", selectedClientId)
+      .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!assignData) {
-      setImportWorkouts([]);
-      setImportLoading(false);
-      return;
-    }
+    if (!assignData) { setImportLoading(false); return; }
     const { data: phasesData } = await supabase.from("program_phases")
       .select("id").eq("program_id", assignData.program_id);
     const phaseIds = (phasesData || []).map(p => p.id);
-    if (phaseIds.length === 0) {
-      setImportWorkouts([]);
-      setImportLoading(false);
-      return;
-    }
+    if (phaseIds.length === 0) { setImportLoading(false); return; }
     const { data: pws } = await supabase.from("program_workouts")
-      .select("workout_id, workouts(id, name, description, workout_type)")
+      .select("workout_id, workouts(id, name, workout_type)")
       .in("phase_id", phaseIds);
     const unique = new Map<string, any>();
     for (const pw of (pws || [])) {
       const w = (pw as any).workouts;
-      if (w && !unique.has(w.id)) unique.set(w.id, w);
+      if (w && !unique.has(w.id)) unique.set(w.id, { id: w.id, name: w.name, workout_type: w.workout_type, exercise_count: 0 });
     }
-    setImportWorkouts(Array.from(unique.values()));
+    setImportClientWorkouts(Array.from(unique.values()));
     setImportLoading(false);
   };
 
+  const toggleImportWorkoutSelection = (wid: string) => {
+    setSelectedMasterWorkoutIds(prev => {
+      const next = new Set(prev);
+      if (next.has(wid)) next.delete(wid); else next.add(wid);
+      return next;
+    });
+  };
+
   const handleImportWorkout = async () => {
-    if (!importSelectedWorkout || !importPhaseId || !user) return;
+    if (!importPhaseId || !user || selectedMasterWorkoutIds.size === 0) return;
     setImporting(true);
     try {
-      const clientW = await cloneWorkoutToClient(importSelectedWorkout);
-      if (!clientW) throw new Error("Failed to clone workout");
-      const phase = phases.find(p => p.id === importPhaseId);
-      const sortOrder = phase ? phase.directWorkouts.length + 1 : 1;
-      await supabase.from("program_workouts").insert({
-        phase_id: importPhaseId, workout_id: clientW.id,
-        day_of_week: 0, day_label: clientW.name, sort_order: sortOrder,
+      const targetPhase = phases.find(p => p.id === importPhaseId);
+      const ids = Array.from(selectedMasterWorkoutIds);
+      const { successCount, failureCount, results } = await importMasterWorkoutsToClientPhase({
+        coachId: user.id,
+        clientId,
+        targetPhaseId: importPhaseId,
+        sourceWorkoutIds: ids,
       });
-      toast({ title: "Workout imported" });
+      if (successCount > 0) {
+        toast({
+          title: `Imported ${successCount} workout${successCount !== 1 ? "s" : ""}${targetPhase ? ` into ${targetPhase.name}` : ""}`,
+          description: failureCount > 0 ? `${failureCount} failed to import.` : undefined,
+          variant: failureCount > 0 ? "destructive" : undefined,
+        });
+      } else {
+        const firstErr = results.flatMap(r => r.errors)[0] || "Unknown error";
+        throw new Error(firstErr);
+      }
       setImportOpen(false);
       loadClientProgram();
     } catch (err: any) {
@@ -818,23 +896,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       {/* Import Workout Dialog */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Import Workout</DialogTitle>
-            <DialogDescription>Import a workout from your template library or another client's program.</DialogDescription>
+            <DialogDescription>Import workouts from a master program or copy from another client.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {/* Source toggle */}
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => { setImportSource("master"); loadMasterWorkouts(); setImportSelectedWorkout(""); }}
+              <button onClick={() => { setImportSource("master"); setSelectedMasterWorkoutIds(new Set()); }}
                 className={`p-3 rounded-lg border text-left transition-colors ${importSource === "master" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Dumbbell className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">Master Library</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Your template workouts</p>
+                <p className="text-[11px] text-muted-foreground">Master program → phase → workouts</p>
               </button>
-              <button onClick={() => { setImportSource("client"); setImportSelectedWorkout(""); setImportWorkouts([]); }}
+              <button onClick={() => { setImportSource("client"); setSelectedMasterWorkoutIds(new Set()); setImportClientWorkouts([]); }}
                 className={`p-3 rounded-lg border text-left transition-colors ${importSource === "client" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <Copy className="h-4 w-4 text-primary" />
@@ -844,59 +922,179 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               </button>
             </div>
 
-            {/* Client selector for client import */}
-            {importSource === "client" && (
-              <div className="space-y-2">
-                <Label className="text-sm">Select Client</Label>
-                <SearchableClientSelect
-                  clients={importClients}
-                  value={importSelectedClient}
-                  onValueChange={(v) => {
-                    setImportSelectedClient(v);
-                    setImportSelectedWorkout("");
-                    if (v) loadClientWorkouts(v);
-                  }}
-                  placeholder="Choose a client..."
-                />
-              </div>
-            )}
+            {/* MASTER LIBRARY: cascading select */}
+            {importSource === "master" && (
+              <>
+                {/* Level 1: Master program */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Master Program</Label>
+                  {masterProgramsLoading ? (
+                    <Skeleton className="h-9 w-full" />
+                  ) : masterProgramsList.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">You have no master programs yet. Create one in Master Libraries → Programs.</p>
+                  ) : (
+                    <Select value={selectedMasterProgramId} onValueChange={(v) => { setSelectedMasterProgramId(v); loadMasterPhases(v); }}>
+                      <SelectTrigger><SelectValue placeholder="Select a master program…" /></SelectTrigger>
+                      <SelectContent>
+                        {masterProgramsList.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}{p.duration_weeks ? ` · ${p.duration_weeks}w` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
 
-            {/* Workout list */}
-            <div className="space-y-2">
-              <Label className="text-sm">Select Workout</Label>
-              {importLoading ? (
-                <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-              ) : importWorkouts.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  {importSource === "client" && !importSelectedClient ? "Select a client first" : "No workouts found"}
-                </p>
-              ) : (
-                <ScrollArea className="max-h-60">
-                  <div className="space-y-1">
-                    {importWorkouts.map(w => (
-                      <button key={w.id} onClick={() => setImportSelectedWorkout(w.id)}
-                        className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-colors ${
-                          importSelectedWorkout === w.id ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
-                        }`}>
-                        <div className="h-8 w-8 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                          <Dumbbell className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">{w.name}</p>
-                          {w.workout_type && w.workout_type !== "regular" && (
-                            <span className="text-[10px] text-muted-foreground">{w.workout_type}</span>
+                {/* Level 2: Phase */}
+                {selectedMasterProgramId && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Training Phase</Label>
+                    {masterPhasesLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : masterPhasesList.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">This master program has no phases yet.</p>
+                    ) : (
+                      <Select value={selectedMasterPhaseId} onValueChange={(v) => { setSelectedMasterPhaseId(v); loadMasterPhaseWorkouts(v); }}>
+                        <SelectTrigger><SelectValue placeholder="Select a phase…" /></SelectTrigger>
+                        <SelectContent>
+                          {masterPhasesList.map(ph => (
+                            <SelectItem key={ph.id} value={ph.id}>
+                              {ph.name}{ph.duration_weeks ? ` · ${ph.duration_weeks}w` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+
+                {/* Level 3: Workouts (multi-select) */}
+                {selectedMasterPhaseId && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Workouts</Label>
+                      {masterPhaseWorkouts.length > 0 && (
+                        <span className="text-[11px] text-muted-foreground">{selectedMasterWorkoutIds.size} selected</span>
+                      )}
+                    </div>
+                    {masterPhaseWorkoutsLoading ? (
+                      <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                    ) : masterPhaseWorkouts.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">This phase has no workouts yet.</p>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            placeholder="Search workouts…"
+                            value={importSearchTerm}
+                            onChange={(e) => setImportSearchTerm(e.target.value)}
+                            className="pl-8 h-8 text-xs"
+                          />
+                          {importSearchTerm && (
+                            <button onClick={() => setImportSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs">×</button>
                           )}
                         </div>
-                      </button>
-                    ))}
+                        {(() => {
+                          const term = importSearchTerm.trim().toLowerCase();
+                          const visible = term
+                            ? masterPhaseWorkouts.filter(w => w.name.toLowerCase().includes(term) || (w.day_label || "").toLowerCase().includes(term))
+                            : masterPhaseWorkouts;
+                          const visibleIds = visible.map(w => w.id);
+                          const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedMasterWorkoutIds.has(id));
+                          const toggleAll = () => {
+                            setSelectedMasterWorkoutIds(prev => {
+                              const next = new Set(prev);
+                              if (allVisibleSelected) visibleIds.forEach(id => next.delete(id));
+                              else visibleIds.forEach(id => next.add(id));
+                              return next;
+                            });
+                          };
+                          return (
+                            <>
+                              <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                                <Checkbox checked={allVisibleSelected} onCheckedChange={toggleAll} />
+                                <span className="text-xs font-medium">Select All ({visible.length})</span>
+                              </label>
+                              <ScrollArea className="max-h-64 border rounded-md">
+                                <div className="p-1">
+                                  {visible.length === 0 ? (
+                                    <p className="text-[11px] text-muted-foreground text-center py-3">No workouts match "{importSearchTerm}"</p>
+                                  ) : visible.map(w => (
+                                    <label key={w.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                                      <Checkbox checked={selectedMasterWorkoutIds.has(w.id)} onCheckedChange={() => toggleImportWorkoutSelection(w.id)} />
+                                      <div className="h-7 w-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                                        <Dumbbell className="h-3.5 w-3.5 text-primary" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium truncate">{w.day_label ? `${w.day_label}: ` : ""}{w.name}</p>
+                                        <p className="text-[10px] text-muted-foreground">{w.exercise_count} exercise{w.exercise_count !== 1 ? "s" : ""}</p>
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </ScrollArea>
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
                   </div>
-                </ScrollArea>
-              )}
-            </div>
+                )}
+              </>
+            )}
 
-            <Button className="w-full" disabled={!importSelectedWorkout || importing} onClick={handleImportWorkout}>
+            {/* FROM CLIENT (legacy single-select retained) */}
+            {importSource === "client" && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Client</Label>
+                  <SearchableClientSelect
+                    clients={importClients}
+                    value={importSelectedClient}
+                    onValueChange={(v) => {
+                      setImportSelectedClient(v);
+                      setSelectedMasterWorkoutIds(new Set());
+                      if (v) loadClientWorkouts(v);
+                    }}
+                    placeholder="Choose a client..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Select Workout(s)</Label>
+                  {importLoading ? (
+                    <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                  ) : importClientWorkouts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      {!importSelectedClient ? "Select a client first" : "No workouts found"}
+                    </p>
+                  ) : (
+                    <ScrollArea className="max-h-60 border rounded-md">
+                      <div className="p-1">
+                        {importClientWorkouts.map(w => (
+                          <label key={w.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                            <Checkbox checked={selectedMasterWorkoutIds.has(w.id)} onCheckedChange={() => toggleImportWorkoutSelection(w.id)} />
+                            <div className="h-7 w-7 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                              <Dumbbell className="h-3.5 w-3.5 text-primary" />
+                            </div>
+                            <p className="text-sm font-medium truncate">{w.name}</p>
+                          </label>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              </>
+            )}
+
+            <Button className="w-full" disabled={selectedMasterWorkoutIds.size === 0 || importing} onClick={handleImportWorkout}>
               {importing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-              Import Workout
+              {selectedMasterWorkoutIds.size > 1
+                ? `Import ${selectedMasterWorkoutIds.size} Workouts`
+                : selectedMasterWorkoutIds.size === 1
+                  ? "Import 1 Workout"
+                  : "Import Workout"}
             </Button>
           </div>
         </DialogContent>
