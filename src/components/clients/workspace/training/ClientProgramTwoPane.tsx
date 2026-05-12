@@ -395,6 +395,20 @@ export const ClientProgramTwoPane = ({
                         {selectedPhase.duration_weeks}w · {selectedPhaseWorkouts.length} workout{selectedPhaseWorkouts.length !== 1 ? "s" : ""}
                       </span>
                     </h4>
+                    {(() => {
+                      const dd = dateMap[selectedPhase.id];
+                      if (!dd?.start_date || !dd?.end_date) return null;
+                      return (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {selectedPhase.duration_weeks} week{selectedPhase.duration_weeks !== 1 ? "s" : ""} ({formatPhaseDateRange(dd.start_date, dd.end_date)})
+                          {dd.isCurrent && dd.daysLeft !== null && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[10px] font-medium">
+                              {formatDaysLeft(dd.daysLeft)}
+                            </span>
+                          )}
+                        </p>
+                      );
+                    })()}
                     {selectedPhase.description && (
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">{selectedPhase.description}</p>
                     )}
