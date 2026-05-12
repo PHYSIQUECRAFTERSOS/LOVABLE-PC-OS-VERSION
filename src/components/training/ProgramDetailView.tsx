@@ -1366,11 +1366,14 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
               </CollapsibleContent>
             </Collapsible>
           </Card>
-        ))}
+          );
+        })}
 
-        <Button size="sm" variant="outline" onClick={addPhase} className="w-full">
-          <Plus className="h-3.5 w-3.5 mr-1" /> Add Phase
-        </Button>
+        {!focusPhaseId && (
+          <Button size="sm" variant="outline" onClick={addPhase} className="w-full">
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Phase
+          </Button>
+        )}
       </div>
 
       {/* Rename Phase Dialog */}
