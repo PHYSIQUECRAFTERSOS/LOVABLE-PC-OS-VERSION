@@ -847,10 +847,10 @@ const MasterLibraries = () => {
       </div>
 
       {/* Assign Dialog */}
-      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+      <Dialog open={showAssignDialog} onOpenChange={(open) => { setShowAssignDialog(open); if (!open) setAssignPhaseId(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Assign Program to Client</DialogTitle>
+            <DialogTitle>{assignPhaseId ? "Assign Phase to Client" : "Assign Program to Client"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
