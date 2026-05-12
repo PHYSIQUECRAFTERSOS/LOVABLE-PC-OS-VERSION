@@ -137,6 +137,16 @@ export const ClientProgramTwoPane = ({
   const selectedPhase = phases.find(p => p.id === selectedPhaseId) || null;
   const selectedPhaseWorkouts = selectedPhase ? (localWorkouts[selectedPhase.id] || []) : [];
 
+  // Derived phase dates (State B: computed from program.start_date + duration_weeks).
+  const dateMap = useMemo(
+    () => derivePhaseDates(programStartDate || null, phases),
+    [programStartDate, phases],
+  );
+  const programRange = useMemo(
+    () => deriveProgramRange(programStartDate || null, programEndDate || null, dateMap),
+    [programStartDate, programEndDate, dateMap],
+  );
+
   const filteredWorkouts = useMemo(() => {
     let list = [...selectedPhaseWorkouts];
     if (search.trim()) {
