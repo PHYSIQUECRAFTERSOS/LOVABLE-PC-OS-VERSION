@@ -217,6 +217,11 @@ export const ClientProgramTwoPane = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="font-semibold text-foreground text-base truncate">{programName}</h3>
+              {programRange.start && programRange.end && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formatPhaseDateRange(programRange.start, programRange.end)}
+                </p>
+              )}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {programGoalType && <Badge variant="secondary" className="text-[10px]">{programGoalType}</Badge>}
                 <span className="text-xs text-muted-foreground">
