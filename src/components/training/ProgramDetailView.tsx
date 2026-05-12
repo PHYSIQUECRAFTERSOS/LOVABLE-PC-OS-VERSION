@@ -821,6 +821,7 @@ const ProgramDetailView = ({ programId, programName, onBack }: ProgramDetailView
     setCopyDayWorkout(pw);
     setCopyDaySelectedClient("");
     setCopyDayClientProgram(null);
+    setCopyDayDetectionState("idle");
     setCopyDayConflict(null);
     setCopyDayConflictChoice("replace");
     setCopyDayStep("select_client");
