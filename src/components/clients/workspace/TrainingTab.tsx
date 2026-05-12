@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
+import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary, importMasterWorkoutsToClientPhase } from "@/lib/cloneWorkoutHelpers";
 import { useAuth } from "@/hooks/useAuth";
 import { useClientProgram } from "@/hooks/useClientProgram";
 import { useIsMobile } from "@/hooks/use-mobile";
