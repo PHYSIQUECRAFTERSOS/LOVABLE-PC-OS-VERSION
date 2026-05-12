@@ -130,6 +130,8 @@ const MasterLibraries = () => {
   // Assign dialog
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [assignProgramId, setAssignProgramId] = useState<string | null>(null);
+  /** When set, the Assign dialog clones only this single phase. */
+  const [assignPhaseId, setAssignPhaseId] = useState<string | null>(null);
   const [assignMode, setAssignMode] = useState<"subscribe" | "import">("subscribe");
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
