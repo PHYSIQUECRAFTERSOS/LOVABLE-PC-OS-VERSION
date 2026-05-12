@@ -181,3 +181,93 @@ export function formatImportSummary(summary: ImportSummary): { title: string; de
     isWarning: true,
   };
 }
+
+/**
+ * Shared routine — deep copies one or more master workouts into a client's
+ * specific program phase. Each clone gets a fresh workouts row + exercises,
+ * with no FK back to the source. New program_workouts rows are appended
+ * to the end of the target phase using the next available sort_order.
+ *
+ * Used by:
+ *   - Client Profile → Training → Import → Master Library (multi-select)
+ *   - Master Libraries → Programs → Day "..." → Copy Day to Client (single)
+ */
+export async function importMasterWorkoutsToClientPhase(params: {
+  coachId: string;
+  clientId: string;
+  targetPhaseId: string;
+  sourceWorkoutIds: string[];
+}): Promise<{
+  successCount: number;
+  failureCount: number;
+  results: CloneWorkoutResult[];
+  insertedProgramWorkoutIds: string[];
+}> {
+  const { coachId, clientId, targetPhaseId, sourceWorkoutIds } = params;
+  const { supabase } = await import("@/integrations/supabase/client");
+
+  // Resolve trailing sort_order once
+  const { data: existing } = await supabase
+    .from("program_workouts")
+    .select("sort_order")
+    .eq("phase_id", targetPhaseId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  let nextSort = ((existing?.[0]?.sort_order ?? -1) + 1);
+
+  const results: CloneWorkoutResult[] = [];
+  const insertedProgramWorkoutIds: string[] = [];
+  let successCount = 0;
+  let failureCount = 0;
+
+  // Look up source metadata in parallel for day_of_week / day_label / flags
+  const sourceMeta = await Promise.allSettled(
+    sourceWorkoutIds.map(async (wid) => {
+      const { data } = await supabase
+        .from("program_workouts")
+        .select("day_of_week, day_label, exclude_from_numbering, custom_tag")
+        .eq("workout_id", wid)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return { wid, meta: data };
+    })
+  );
+  const metaByWid: Record<string, any> = {};
+  for (const r of sourceMeta) {
+    if (r.status === "fulfilled" && r.value?.meta) metaByWid[r.value.wid] = r.value.meta;
+  }
+
+  // Sequential cloning to avoid hammering RLS / racing inserts
+  for (const sourceWid of sourceWorkoutIds) {
+    const { workout, result } = await cloneWorkoutWithExercises(sourceWid, coachId, clientId, false);
+    results.push(result);
+    if (!workout) { failureCount++; continue; }
+
+    const meta = metaByWid[sourceWid] || {};
+    const { data: pw, error: pwErr } = await supabase
+      .from("program_workouts")
+      .insert({
+        phase_id: targetPhaseId,
+        workout_id: workout.id,
+        day_of_week: meta.day_of_week ?? 0,
+        day_label: meta.day_label || workout.name,
+        sort_order: nextSort,
+        exclude_from_numbering: meta.exclude_from_numbering || false,
+        custom_tag: meta.custom_tag || null,
+      })
+      .select()
+      .single();
+
+    if (pwErr || !pw) {
+      result.errors.push(`Failed to attach workout to phase: ${pwErr?.message || "unknown"}`);
+      failureCount++;
+    } else {
+      insertedProgramWorkoutIds.push(pw.id);
+      nextSort++;
+      successCount++;
+    }
+  }
+
+  return { successCount, failureCount, results, insertedProgramWorkoutIds };
+}
