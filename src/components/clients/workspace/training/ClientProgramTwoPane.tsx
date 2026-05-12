@@ -27,6 +27,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { derivePhaseDates, deriveProgramRange, formatPhaseDateRange, formatDaysLeft } from "@/lib/phaseDates";
 
 interface ProgramWorkout {
   id: string;
@@ -54,6 +55,8 @@ interface Phase {
 interface Props {
   programName: string;
   programGoalType?: string | null;
+  programStartDate?: string | null;
+  programEndDate?: string | null;
   isLinkedToMaster: boolean;
   currentPhaseId?: string | null;
   currentWeekNumber?: number;
@@ -79,7 +82,8 @@ interface Props {
 }
 
 export const ClientProgramTwoPane = ({
-  programName, programGoalType, isLinkedToMaster, currentPhaseId, currentWeekNumber,
+  programName, programGoalType, programStartDate, programEndDate,
+  isLinkedToMaster, currentPhaseId, currentWeekNumber,
   phases, loading,
   onNewWorkout, onImport, onOpenWorkout, onEditWorkout, onDuplicateWorkout, onDeleteWorkout,
   onAddPhase, onRenamePhase, onChangeDuration, onDuplicatePhase, onDeletePhase,
@@ -132,6 +136,16 @@ export const ClientProgramTwoPane = ({
 
   const selectedPhase = phases.find(p => p.id === selectedPhaseId) || null;
   const selectedPhaseWorkouts = selectedPhase ? (localWorkouts[selectedPhase.id] || []) : [];
+
+  // Derived phase dates (State B: computed from program.start_date + duration_weeks).
+  const dateMap = useMemo(
+    () => derivePhaseDates(programStartDate || null, phases),
+    [programStartDate, phases],
+  );
+  const programRange = useMemo(
+    () => deriveProgramRange(programStartDate || null, programEndDate || null, dateMap),
+    [programStartDate, programEndDate, dateMap],
+  );
 
   const filteredWorkouts = useMemo(() => {
     let list = [...selectedPhaseWorkouts];
@@ -203,6 +217,11 @@ export const ClientProgramTwoPane = ({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h3 className="font-semibold text-foreground text-base truncate">{programName}</h3>
+              {programRange.start && programRange.end && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formatPhaseDateRange(programRange.start, programRange.end)}
+                </p>
+              )}
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {programGoalType && <Badge variant="secondary" className="text-[10px]">{programGoalType}</Badge>}
                 <span className="text-xs text-muted-foreground">
@@ -266,8 +285,12 @@ export const ClientProgramTwoPane = ({
                 )}
                 {phases.map(p => {
                   const isSelected = selectedPhaseId === p.id;
-                  const isCurrent = currentPhaseId === p.id;
+                  const dd = dateMap[p.id];
+                  const isCurrent = (dd?.isCurrent) || currentPhaseId === p.id;
+                  const isUpcoming = !!dd?.isUpcoming;
+                  const isCompleted = !!dd?.isCompleted;
                   const totalWorkouts = p.directWorkouts.length;
+                  const dateRange = formatPhaseDateRange(dd?.start_date, dd?.end_date);
                   return (
                     <div
                       key={p.id}
@@ -276,7 +299,10 @@ export const ClientProgramTwoPane = ({
                         "group relative rounded-md px-3 py-2 cursor-pointer transition-colors border-l-2",
                         isSelected
                           ? "bg-primary/10 border-primary"
-                          : "border-transparent hover:bg-muted/40"
+                          : isCurrent
+                            ? "border-primary/70 hover:bg-muted/40"
+                            : "border-transparent hover:bg-muted/40",
+                        isCompleted && "opacity-60"
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -300,12 +326,31 @@ export const ClientProgramTwoPane = ({
                               className="h-6 text-sm"
                             />
                           ) : (
-                            <p className={cn("text-sm font-medium truncate", isSelected ? "text-foreground" : "text-foreground/90")}>
-                              {p.name}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className={cn("text-sm font-medium truncate", isSelected ? "text-foreground" : "text-foreground/90")}>
+                                {p.name}
+                              </p>
+                              {isCurrent && <Badge className="text-[9px] h-4 px-1.5 flex-shrink-0">Current</Badge>}
+                            </div>
+                          )}
+                          {dateRange && (
+                            <p
+                              className={cn(
+                                "text-[10px] mt-0.5 truncate",
+                                isCurrent
+                                  ? "text-primary font-medium"
+                                  : isUpcoming
+                                    ? "text-muted-foreground/70"
+                                    : "text-muted-foreground"
+                              )}
+                            >
+                              {dateRange}
+                              {isCurrent && dd?.daysLeft !== null && (
+                                <span className="ml-1.5 text-primary/90">· {formatDaysLeft(dd!.daysLeft)}</span>
+                              )}
                             </p>
                           )}
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            {isCurrent && <Badge className="text-[9px] h-4 px-1.5">Current</Badge>}
                             <span className="text-[10px] text-muted-foreground">
                               {p.duration_weeks}w · {totalWorkouts} workout{totalWorkouts !== 1 ? "s" : ""}
                             </span>
@@ -350,6 +395,20 @@ export const ClientProgramTwoPane = ({
                         {selectedPhase.duration_weeks}w · {selectedPhaseWorkouts.length} workout{selectedPhaseWorkouts.length !== 1 ? "s" : ""}
                       </span>
                     </h4>
+                    {(() => {
+                      const dd = dateMap[selectedPhase.id];
+                      if (!dd?.start_date || !dd?.end_date) return null;
+                      return (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {selectedPhase.duration_weeks} week{selectedPhase.duration_weeks !== 1 ? "s" : ""} ({formatPhaseDateRange(dd.start_date, dd.end_date)})
+                          {dd.isCurrent && dd.daysLeft !== null && (
+                            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[10px] font-medium">
+                              {formatDaysLeft(dd.daysLeft)}
+                            </span>
+                          )}
+                        </p>
+                      );
+                    })()}
                     {selectedPhase.description && (
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">{selectedPhase.description}</p>
                     )}

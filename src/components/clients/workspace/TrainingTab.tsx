@@ -743,6 +743,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       <ClientProgramTwoPane
         programName={program.name}
         programGoalType={program.goal_type}
+        programStartDate={(program as any).start_date ?? null}
+        programEndDate={(program as any).end_date ?? null}
         isLinkedToMaster={isLinked}
         currentPhaseId={assignment.current_phase_id}
         currentWeekNumber={assignment.current_week_number}
