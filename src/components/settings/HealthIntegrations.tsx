@@ -5,7 +5,7 @@ import { useHealthSync } from "@/hooks/useHealthSync";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Activity, RefreshCw, Unplug, Footprints, Watch, Heart, Smartphone, AlertCircle } from "lucide-react";
+import { Activity, RefreshCw, Unplug, Footprints, Watch, Smartphone, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -329,25 +329,6 @@ const HealthIntegrations = () => {
     );
   };
 
-  const renderComingSoon = (
-    label: string,
-    icon: React.ReactNode,
-    description: string,
-  ) => (
-    <div className="flex items-center justify-between rounded-lg border border-border p-4 opacity-60">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
-          {icon}
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-    </div>
-  );
-
   const hasAnyConnection = wearables.some((w) => isReallyConnected(w.provider)) || (isNativeIOS && healthSync.connection?.is_connected);
 
   return (
@@ -366,10 +347,6 @@ const HealthIntegrations = () => {
         {renderOAuthProvider("Fitbit", "fitbit", <Watch className="h-5 w-5 text-foreground" />, "Sync steps, heart rate & sleep via Fitbit")}
         {renderOAuthProvider("Google Fit", "google_fit", <Activity className="h-5 w-5 text-foreground" />, "Sync steps & activity via Google Fit")}
 
-        {/* Coming soon */}
-        {renderComingSoon("Whoop", <Heart className="h-5 w-5 text-foreground" />, "Recovery & strain data — API integration coming soon")}
-
-        {/* Info banner — only show on non-native */}
         {!isNativeIOS && (
           <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3">
             <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
