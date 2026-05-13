@@ -329,25 +329,6 @@ const HealthIntegrations = () => {
     );
   };
 
-  const renderComingSoon = (
-    label: string,
-    icon: React.ReactNode,
-    description: string,
-  ) => (
-    <div className="flex items-center justify-between rounded-lg border border-border p-4 opacity-60">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
-          {icon}
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-    </div>
-  );
-
   const hasAnyConnection = wearables.some((w) => isReallyConnected(w.provider)) || (isNativeIOS && healthSync.connection?.is_connected);
 
   return (
