@@ -4,6 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp, Trophy, Footprints, SlidersHorizontal } from "lucide-react";
+import { format } from "date-fns";
+
+// A challenge is only truly active if its DB status is 'active' AND end_date hasn't passed (local day).
+const getEffectiveStatus = (c: Challenge): Challenge["status"] => {
+  if (c.status === "active") {
+    const end = new Date(c.end_date + "T23:59:59");
+    if (end.getTime() < Date.now()) return "completed";
+  }
+  return c.status;
+};
 import { Challenge, useChallenges, useJoinChallenge } from "@/hooks/useChallenges";
 import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
