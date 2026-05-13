@@ -1,233 +1,170 @@
 /**
- * Rest Timer Audio Utility — AudioContext-only
+ * Rest Timer Completion Audio
  *
- * Uses Web Audio API (AudioContext) which MIXES with Spotify/Apple Music
- * instead of hijacking the audio session like <audio> elements do.
+ * SINGLE SOURCE OF TRUTH for the rest-timer completion sound.
  *
- * Flow:
- * 1. Call `initAudioContext()` on a user gesture (e.g. "Start Workout")
- * 2. Call `preloadCountdownSound()` early to fetch+decode the MP3
- * 3. Call `playCountdownSound()` when 3 seconds remain on the rest timer
- * 4. Call `stopCountdownSound()` on skip/unmount
+ * Two firing paths — both keyed to a wall-clock `endTime`:
+ *   A. Foreground: NativeAudio (iOS/Android) or HTMLAudioElement (web)
+ *      plays bundled `public/sounds/rest-timer-complete.mp3` immediately.
+ *   B. Background / locked screen: LocalNotifications scheduled at endTime
+ *      with the bundled MP3 as notification sound. Cancelled the moment
+ *      Path A successfully fires to prevent double-play.
+ *
+ * NEVER fetched at runtime — file is bundled.
+ * Foreground path mixes with Spotify/Apple Music (focus: false on native;
+ * AudioMixPlugin already sets AVAudioSession .playback + .mixWithOthers).
  */
 
-let audioCtx: AudioContext | null = null;
-let countdownBuffer: AudioBuffer | null = null;
-let countdownBufferPromise: Promise<AudioBuffer | null> | null = null;
-let activeSource: AudioBufferSourceNode | OscillatorNode | null = null;
-let gainNode: GainNode | null = null;
+import { Capacitor } from "@capacitor/core";
+import { NativeAudio } from "@capacitor-community/native-audio";
+import { LocalNotifications } from "@capacitor/local-notifications";
+import AudioMixPlugin from "@/plugins/AudioMixPlugin";
 
-type ManagedAudioContextState = AudioContextState | "interrupted";
+const ASSET_ID = "rest-timer-complete";
+// On iOS native, NativeAudio resolves relative paths against the app bundle's
+// `public/` directory (populated by `npx cap copy ios`).
+const NATIVE_ASSET_PATH = "public/sounds/rest-timer-complete.mp3";
+const WEB_ASSET_URL = "/sounds/rest-timer-complete.mp3";
+// LocalNotifications iOS sound name — file must exist at bundle ROOT
+// (ios/App/App/rest-timer-complete.mp3). Lose-free across `cap copy`.
+const NOTIFICATION_SOUND = "rest-timer-complete.mp3";
+
+let preloaded = false;
+let preloadPromise: Promise<void> | null = null;
+let notifPermissionRequested = false;
+let webAudio: HTMLAudioElement | null = null;
+
+const isNative = () => Capacitor.isNativePlatform();
+
+/** Preload the MP3 + request notification permission. Idempotent. Safe to call from any user gesture. */
+export async function preloadRestTimerAudio(): Promise<void> {
+  if (preloaded) return;
+  if (preloadPromise) return preloadPromise;
+
+  preloadPromise = (async () => {
+    try {
+      if (isNative()) {
+        await AudioMixPlugin.enableMixing().catch(() => undefined);
+        await NativeAudio.preload({
+          assetId: ASSET_ID,
+          assetPath: NATIVE_ASSET_PATH,
+          audioChannelNum: 1,
+          isUrl: false,
+          // CRITICAL: do NOT take audio focus — mix with Spotify/Apple Music
+          
+          volume: 1.0,
+        }).catch((err) => {
+          // Already-loaded errors are fine
+          if (!String(err?.message ?? err).toLowerCase().includes("already")) {
+            console.warn("[RestTimerAudio] NativeAudio preload warning:", err);
+          }
+        });
+      } else {
+        webAudio = new Audio(WEB_ASSET_URL);
+        webAudio.preload = "auto";
+        webAudio.load();
+      }
+      preloaded = true;
+    } catch (err) {
+      console.warn("[RestTimerAudio] preload failed:", err);
+    }
+  })();
+
+  return preloadPromise;
+}
+
+/** Request local-notification permission (idempotent). Failure does not block foreground audio. */
+export async function ensureNotificationPermission(): Promise<boolean> {
+  if (!isNative()) return false;
+  try {
+    const status = await LocalNotifications.checkPermissions();
+    if (status.display === "granted") return true;
+    if (notifPermissionRequested) return false;
+    notifPermissionRequested = true;
+    const req = await LocalNotifications.requestPermissions();
+    return req.display === "granted";
+  } catch (err) {
+    console.warn("[RestTimerAudio] notification permission failed:", err);
+    return false;
+  }
+}
 
 /**
- * Overlay volume relative to music (0.0–1.0).
- * Kept high enough to be audible over Spotify/Apple Music without taking over playback.
+ * Schedule a silent local notification (sound only, blank body) to fire at `endTime`.
+ * Returns the notification id (or null if scheduling failed / not native / no permission).
  */
-const OVERLAY_VOLUME = 0.9;
-const COUNTDOWN_SOUND_URL = "/assets/sounds/rest-timer-countdown-v2.mp3";
+export async function scheduleBackgroundCompletion(endTime: number): Promise<number | null> {
+  if (!isNative()) return null;
+  if (endTime <= Date.now() + 250) return null; // too soon to schedule reliably
 
-function registerActiveSource(source: AudioBufferSourceNode | OscillatorNode, onEnded?: () => void): void {
-  source.onended = () => {
-    if (activeSource === source) activeSource = null;
-    onEnded?.();
-  };
+  const granted = await ensureNotificationPermission();
+  if (!granted) return null;
 
-  activeSource = source;
-}
-
-function disposeAudioContext(): void {
-  stopCountdownSound();
-  gainNode?.disconnect();
-  gainNode = null;
-  countdownBuffer = null;
-  countdownBufferPromise = null;
-
-  if (audioCtx && audioCtx.state !== "closed") {
-    void audioCtx.close().catch(() => {
-      // ignore cleanup failures
+  const id = Math.floor(Math.random() * 2_000_000_000);
+  try {
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id,
+          title: "",
+          body: " ", // iOS requires non-empty body
+          schedule: { at: new Date(endTime), allowWhileIdle: true },
+          sound: NOTIFICATION_SOUND,
+          smallIcon: "ic_stat_icon_config_sample",
+        },
+      ],
     });
-  }
-
-  audioCtx = null;
-}
-
-function createAudioContext(forceReset = false): AudioContext | null {
-  if (typeof window === "undefined") return null;
-
-  const AudioContextCtor = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextCtor) {
-    console.warn("[Audio] Web Audio API unavailable on this device");
+    return id;
+  } catch (err) {
+    console.warn("[RestTimerAudio] schedule failed:", err);
     return null;
   }
-
-  if (forceReset) {
-    disposeAudioContext();
-  }
-
-  if (!audioCtx || (audioCtx.state as ManagedAudioContextState) === "closed") {
-    audioCtx = new AudioContextCtor();
-    gainNode = audioCtx.createGain();
-    gainNode.gain.value = OVERLAY_VOLUME;
-    gainNode.connect(audioCtx.destination);
-  }
-
-  return audioCtx;
 }
 
-async function resumeAudioContext(ctx: AudioContext): Promise<boolean> {
-  if ((ctx.state as ManagedAudioContextState) === "running") return true;
-
+export async function cancelBackgroundCompletion(id: number | null): Promise<void> {
+  if (!isNative() || id == null) return;
   try {
-    await ctx.resume();
-  } catch (error) {
-    console.warn("[Audio] Failed to resume audio context:", error);
+    await LocalNotifications.cancel({ notifications: [{ id }] });
+  } catch (err) {
+    console.warn("[RestTimerAudio] cancel failed:", err);
   }
-
-  return (ctx.state as ManagedAudioContextState) === "running";
 }
 
-async function ensureRunningAudioContext(): Promise<AudioContext | null> {
-  let ctx = createAudioContext();
-  if (!ctx) return null;
-
-  if (await resumeAudioContext(ctx)) {
-    return ctx;
-  }
-
-  console.warn("[Audio] Audio context stuck, recreating:", ctx.state);
-  ctx = createAudioContext(true);
-  if (!ctx) return null;
-
-  if (await resumeAudioContext(ctx)) {
-    return ctx;
-  }
-
-  console.warn("[Audio] Audio context unavailable after recreation:", ctx.state);
-  return null;
-}
-
-async function loadCountdownBuffer(): Promise<AudioBuffer | null> {
-  if (countdownBuffer) return countdownBuffer;
-  if (countdownBufferPromise) return countdownBufferPromise;
-
-  countdownBufferPromise = (async () => {
-    const ctx = createAudioContext();
-    if (!ctx) return null;
-
-    const response = await fetch(COUNTDOWN_SOUND_URL, { cache: "force-cache" });
-    if (!response.ok) {
-      throw new Error(`Countdown sound fetch failed with ${response.status}`);
+/** Play the bundled completion sound (foreground path). Mixes with other audio. */
+export async function playCompletionSound(): Promise<void> {
+  try {
+    if (isNative()) {
+      if (!preloaded) await preloadRestTimerAudio();
+      await AudioMixPlugin.enableMixing().catch(() => undefined);
+      await NativeAudio.play({ assetId: ASSET_ID }).catch(async (err) => {
+        // If asset wasn't preloaded yet (e.g., user gesture happened later), retry once
+        console.warn("[RestTimerAudio] NativeAudio play retry:", err);
+        await NativeAudio.preload({
+          assetId: ASSET_ID,
+          assetPath: NATIVE_ASSET_PATH,
+          audioChannelNum: 1,
+          isUrl: false,
+          
+          volume: 1.0,
+        }).catch(() => undefined);
+        await NativeAudio.play({ assetId: ASSET_ID });
+      });
+      return;
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const decodedBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-    countdownBuffer = decodedBuffer;
-    console.log("[Audio] Countdown sound preloaded successfully");
-    return decodedBuffer;
-  })()
-    .catch((error) => {
-      console.warn("[Audio] Sound preload failed:", error);
-      countdownBuffer = null;
-      return null;
-    })
-    .finally(() => {
-      countdownBufferPromise = null;
+    // Web fallback
+    if (!webAudio) {
+      webAudio = new Audio(WEB_ASSET_URL);
+    }
+    try {
+      webAudio.currentTime = 0;
+    } catch {
+      // ignore
+    }
+    await webAudio.play().catch((err) => {
+      console.warn("[RestTimerAudio] web play failed:", err);
     });
-
-  return countdownBufferPromise;
-}
-
-function playFallbackTone(ctx: AudioContext): void {
-  if (!gainNode) return;
-
-  const oscillator = ctx.createOscillator();
-  const localGain = ctx.createGain();
-  const startAt = ctx.currentTime;
-
-  oscillator.type = "sine";
-  oscillator.frequency.value = 880;
-
-  localGain.gain.setValueAtTime(0.0001, startAt);
-  localGain.gain.exponentialRampToValueAtTime(0.45, startAt + 0.02);
-  localGain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.22);
-
-  oscillator.connect(localGain);
-  localGain.connect(gainNode);
-
-  registerActiveSource(oscillator, () => {
-    oscillator.disconnect();
-    localGain.disconnect();
-  });
-
-  oscillator.start(startAt);
-  oscillator.stop(startAt + 0.24);
-  console.warn("[Audio] Using fallback countdown tone");
-}
-
-/**
- * Create or resume the AudioContext. Must be called from a user gesture
- * (tap/click) at least once to satisfy iOS autoplay policy.
- */
-export function initAudioContext(): void {
-  void ensureRunningAudioContext();
-}
-
-/**
- * Fetch and decode the 3-second countdown MP3 into an AudioBuffer.
- * Safe to call multiple times — only loads once per session.
- */
-export async function preloadCountdownSound(): Promise<void> {
-  await loadCountdownBuffer();
-}
-
-/**
- * Play the 3-second countdown sound. Mixes with Spotify/Apple Music.
- * If the file has not finished decoding yet, this waits for it instead of silently failing.
- */
-export async function playCountdownSound(): Promise<void> {
-  const ctx = await ensureRunningAudioContext();
-  const buffer = countdownBuffer ?? await loadCountdownBuffer();
-
-  if (!ctx || !gainNode) {
-    console.warn("[Audio] Cannot play countdown — audio context unavailable");
-    return;
+  } catch (err) {
+    console.error("[RestTimerAudio] playCompletionSound error:", err);
   }
-
-  stopCountdownSound();
-
-  if (!buffer) {
-    playFallbackTone(ctx);
-    return;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(gainNode);
-  registerActiveSource(source, () => {
-    source.disconnect();
-  });
-
-  try {
-    source.start(0);
-    console.log("[Audio] Countdown sound playing at volume", OVERLAY_VOLUME);
-  } catch (error) {
-    console.warn("[Audio] Countdown playback failed, using fallback tone:", error);
-    source.disconnect();
-    playFallbackTone(ctx);
-  }
-}
-
-/**
- * Stop the countdown sound (e.g. on skip).
- */
-export function stopCountdownSound(): void {
-  if (!activeSource) return;
-
-  try {
-    activeSource.stop();
-  } catch {
-    // already stopped
-  }
-
-  activeSource = null;
 }
