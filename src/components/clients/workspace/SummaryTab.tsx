@@ -872,6 +872,8 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         open={sleepHistoryOpen}
         onClose={() => setSleepHistoryOpen(false)}
         clientId={clientId}
+        clientName={clientNameForSteps}
+        readOnly
       />
 
       {/* ── 2x2 Grid: Weight, Photos, Calories, Distance ── */}
