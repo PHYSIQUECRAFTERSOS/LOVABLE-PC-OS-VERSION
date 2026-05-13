@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SkipForward, Check } from "lucide-react";
 import { createTimerWorker } from "@/services/timerWorker";
+import {
+  preloadRestTimerAudio,
+  playCompletionSound,
+  scheduleBackgroundCompletion,
+  cancelBackgroundCompletion,
+} from "@/utils/restTimerAudio";
 
 interface InlineRestTimerProps {
   seconds: number;
@@ -11,26 +17,54 @@ interface InlineRestTimerProps {
 const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: InlineRestTimerProps) => {
   const [timeRemaining, setTimeRemaining] = useState(initialSeconds);
   const workerRef = useRef<Worker | null>(null);
-  const completedRef = useRef(false);
+  const hasPlayedRef = useRef(false);
+  const notifIdRef = useRef<number | null>(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
+  // Preload bundled MP3 + warm AVAudioSession on mount (set log = user gesture)
+  useEffect(() => {
+    void preloadRestTimerAudio();
+  }, []);
+
   useEffect(() => {
     setTimeRemaining(initialSeconds);
-    completedRef.current = false;
+    hasPlayedRef.current = false;
 
     const endTime = Date.now() + initialSeconds * 1000;
+
+    // Path B: schedule background notification with bundled sound
+    let cancelled = false;
+    void scheduleBackgroundCompletion(endTime).then((id) => {
+      if (cancelled) {
+        if (id != null) void cancelBackgroundCompletion(id);
+        return;
+      }
+      notifIdRef.current = id;
+    });
+
     const worker = createTimerWorker();
     workerRef.current = worker;
 
     const handleDone = () => {
-      if (completedRef.current) return;
-      completedRef.current = true;
+      if (hasPlayedRef.current) return;
+      hasPlayedRef.current = true;
       setTimeRemaining(0);
+
+      // Cancel pending background notification BEFORE playing foreground
+      // so a ~1ms race cannot double-play.
+      const pendingId = notifIdRef.current;
+      notifIdRef.current = null;
+      void cancelBackgroundCompletion(pendingId);
+
+      // Path A: foreground completion sound (mixes with Spotify/Apple Music)
+      void playCompletionSound();
+
       // Haptic feedback
       if ("vibrate" in navigator) {
-        navigator.vibrate([200, 100, 200]);
+        try { navigator.vibrate([200, 100, 200]); } catch { /* ignore */ }
       }
+
       setTimeout(() => onCompleteRef.current(), 800);
     };
 
@@ -59,19 +93,31 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
+      cancelled = true;
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
       document.removeEventListener("visibilitychange", handleVisibility);
+      // Cancel scheduled notification on unmount IF we haven't fired yet
+      // (so a still-pending notification doesn't ring after the user moves on).
+      if (!hasPlayedRef.current && notifIdRef.current != null) {
+        const pendingId = notifIdRef.current;
+        notifIdRef.current = null;
+        void cancelBackgroundCompletion(pendingId);
+      }
     };
   }, [initialSeconds]);
 
   const handleSkip = useCallback(() => {
+    hasPlayedRef.current = true; // prevent any pending fire
     if (workerRef.current) {
       workerRef.current.postMessage({ type: "stop" });
       workerRef.current.terminate();
       workerRef.current = null;
     }
+    const pendingId = notifIdRef.current;
+    notifIdRef.current = null;
+    void cancelBackgroundCompletion(pendingId);
     onSkip();
   }, [onSkip]);
 
@@ -84,7 +130,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     <div className={`relative w-full h-11 rounded-lg border-l-4 flex items-center px-3 transition-colors ${
       isComplete ? "border-l-primary bg-primary/20 animate-pulse" : "border-l-primary bg-primary/15"
     }`}>
-      {/* Top progress line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary/20 rounded-t-lg overflow-hidden">
         <div
           className="h-full bg-primary transition-all duration-500 ease-linear"
@@ -92,7 +137,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         />
       </div>
 
-      {/* Timer display */}
       <div className="flex items-center gap-2 flex-1">
         {isComplete ? (
           <Check className="h-4 w-4 text-primary" />
@@ -104,7 +148,6 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         </span>
       </div>
 
-      {/* Skip button */}
       <button
         onClick={handleSkip}
         className="h-7 px-2.5 rounded-full bg-background/80 border border-border text-xs font-medium flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
