@@ -366,9 +366,6 @@ const HealthIntegrations = () => {
         {renderOAuthProvider("Fitbit", "fitbit", <Watch className="h-5 w-5 text-foreground" />, "Sync steps, heart rate & sleep via Fitbit")}
         {renderOAuthProvider("Google Fit", "google_fit", <Activity className="h-5 w-5 text-foreground" />, "Sync steps & activity via Google Fit")}
 
-        {/* OAuth-based integrations */}
-        {renderOAuthProvider("Fitbit", "fitbit", <Watch className="h-5 w-5 text-foreground" />, "Sync steps, heart rate & sleep via Fitbit")}
-        {renderOAuthProvider("Google Fit", "google_fit", <Activity className="h-5 w-5 text-foreground" />, "Sync steps & activity via Google Fit")}
         {!isNativeIOS && (
           <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3">
             <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
