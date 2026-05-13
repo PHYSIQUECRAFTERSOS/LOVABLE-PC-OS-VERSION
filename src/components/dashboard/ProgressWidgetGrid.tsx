@@ -67,6 +67,7 @@ const ProgressWidgetGrid = () => {
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
+  const [sleepHistoryOpen, setSleepHistoryOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const [refreshKey, setRefreshKey] = useState(0);
