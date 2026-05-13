@@ -46,19 +46,26 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
     return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)}</div>;
   }
 
-  const active = (challenges || []).filter((c) => c.status === "active");
-  const upcoming = (challenges || []).filter((c) => c.status === "upcoming");
-  const past = (challenges || []).filter((c) => c.status === "completed" || c.status === "cancelled");
+  const active = (challenges || []).filter((c) => getEffectiveStatus(c) === "active");
+  const upcoming = (challenges || []).filter((c) => getEffectiveStatus(c) === "upcoming");
+  const past = (challenges || []).filter((c) => {
+    const s = getEffectiveStatus(c);
+    return s === "completed" || s === "cancelled";
+  });
 
   const renderCard = (challenge: Challenge) => {
+    const effectiveStatus = getEffectiveStatus(challenge);
     const daysLeft = Math.max(0, Math.ceil((new Date(challenge.end_date).getTime() - Date.now()) / 86400000));
     const totalDays = Math.max(1, Math.ceil((new Date(challenge.end_date).getTime() - new Date(challenge.start_date).getTime()) / 86400000));
-    const progressPct = challenge.status === "active" ? Math.min(100, Math.round(((totalDays - daysLeft) / totalDays) * 100)) : 0;
+    const progressPct = effectiveStatus === "active" ? Math.min(100, Math.round(((totalDays - daysLeft) / totalDays) * 100)) : 0;
+    const endedLabel = (() => {
+      try { return format(new Date(challenge.end_date + "T00:00:00"), "MMM d, yyyy"); } catch { return challenge.end_date; }
+    })();
 
     return (
       <Card
         key={challenge.id}
-        className={`border-border bg-card cursor-pointer hover:border-muted-foreground/30 transition-all ${challenge.status === "active" ? "border-primary/30" : ""}`}
+        className={`border-border bg-card cursor-pointer hover:border-muted-foreground/30 transition-all ${effectiveStatus === "active" ? "border-primary/30" : ""}`}
         onClick={() => setSelectedChallenge(challenge)}
       >
         <CardContent className="pt-4 space-y-3">
@@ -72,16 +79,23 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
                 <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{challenge.description}</p>
               )}
             </div>
-            <Badge variant={challenge.status === "active" ? "default" : challenge.status === "completed" ? "secondary" : "outline"}>
-              {challenge.status === "completed" && <Check className="h-3 w-3 mr-1" />}
-              {challenge.status}
+            <Badge variant={effectiveStatus === "active" ? "default" : effectiveStatus === "completed" ? "secondary" : "outline"}>
+              {effectiveStatus === "completed" && <Check className="h-3 w-3 mr-1" />}
+              {effectiveStatus}
             </Badge>
           </div>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {challenge.participant_count || 0} joined</span>
-            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {challenge.status === "active" ? `${daysLeft} days left` : `${challenge.start_date} → ${challenge.end_date}`}</span>
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {effectiveStatus === "active"
+                ? `${daysLeft} days left · ends ${endedLabel}`
+                : effectiveStatus === "completed"
+                ? `Ended ${endedLabel}`
+                : `${challenge.start_date} → ${challenge.end_date}`}
+            </span>
           </div>
-          {challenge.status === "active" && (
+          {effectiveStatus === "active" && (
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Progress</span>
@@ -90,7 +104,7 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
               <Progress value={progressPct} className="h-2" />
             </div>
           )}
-          {challenge.status === "active" && !challenge.is_joined && !isCoach && (
+          {effectiveStatus === "active" && !challenge.is_joined && !isCoach && (
             <Button
               size="sm"
               variant="outline"
