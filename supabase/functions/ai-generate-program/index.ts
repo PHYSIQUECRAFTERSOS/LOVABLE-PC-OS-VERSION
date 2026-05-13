@@ -206,6 +206,23 @@ HARD RULES (non-negotiable):
 21. ABSOLUTE: Do NOT include ANY abdominal/core/oblique exercises (no crunches, planks, sit-ups, leg raises, hanging knee raises, ab wheel, woodchops, russian twists, dead bugs, hollow holds, cable crunches, etc.). The system injects a standardized abs block on 2 days post-process. Default rest is 120 seconds for every exercise.
 22. Do NOT include warmups, mobility drills, or activation work — the system auto-prepends a mobility routine to every workout.
 23. Do NOT use "Arnold Press" or any Arnold-press variant UNLESS the client trains at a home gym (training_location contains "home").
+24. CHEST PRESSING VARIANT POLICY. Do NOT program "Flat Barbell Bench Press", "Incline Barbell Bench Press", or any flat/incline barbell bench variant by DEFAULT. Allowed ONLY if (a) training_location contains "home" AND barbell is in the home equipment list, OR (b) the coach override / client notes explicitly state a barbell preference. Preferred chest pressing pool (pick from these first): Smith Machine Bench Press, Incline Smith Machine Bench Press, Flat Dumbbell Bench Press, Incline Dumbbell Bench Press, Machine Seated Chest Press, Incline Machine Chest Press, Hammer Grip Incline DB Bench Press, Dumbbell Lying Hammer Press. "Standing Cable Chest Press" is allowed ONLY as a SECOND chest movement, never the first.
+25. SQUAT VARIANT POLICY. Do NOT program "Barbell Back Squat", "Heel Elevated Barbell Squat", "Barbell Sumo Squat", or any barbell-loaded squat by DEFAULT. Allowed only with the same home-gym + barbell, or explicit barbell preference exemption as Rule 24. Preferred squat pool: Smith Machine Sumo Squat, Hack Squat (Glute Bias / Quad Bias variants), Heel Elevated Goblet Squat, Dumbbell Goblet Squat, Dumbbell Sumo Squat, Heel Elevated Smith Machine Back Squat, Smith Machine Back Squat. "Pendulum Squat" only if equipment list confirms one is available. "Heel Elevated Dumbbell Front Squat" only if training_location contains "home".
+26. HEAVIER / HIGHER-BF CLIENTS. If is_heavier_client=true (roughly 200+ lb at 25%+ BF, or 250+ lb at 40%+ BF) NEVER program: pull-ups, push-ups (any variant), pike push-ups, deficit push-ups, hanging leg raises, dips, plyometrics. Substitute regressed equivalents: Assisted Pull-Up, Lat Pulldown, Incline Push-Up or Machine Push-Up, Reverse Crunch, Lying Leg Raise, Seated Dip Machine. Bias the entire program toward machine-based and seated/supported movements. Layers on top of Rule 19.
+27. CHEST SEQUENCING. On every chest-containing day: the FIRST chest movement must be a heavy machine or DB press (Smith, Machine Press, or DB Bench — flat or incline). The SECOND must be a different angle than the first (incline ↔ flat). The THIRD chest movement (if any) must be an isolation (pec deck, cable fly, or DB fly). Never two consecutive chest exercises at the same angle.
+28. BACK DAY STRUCTURE. Order: (1) vertical pull or heavy row primary, (2) horizontal row from a DIFFERENT implement than #1, (3) lat-biased isolation (straight-arm pulldown or pullover), (4) optional rear-delt finisher. Always include at least one chest-supported row (Chest-Supported T-Bar Row, Chest-Supported Machine Row, or Seal Row) on every back/pull day. Deadlifts (conventional, sumo, trap-bar) only if client explicitly lists them as preferred OR has clean lower-back history; default to RDL or hip-hinge machine.
+29. SHOULDER PROGRAMMING. Every push/upper day must include 1 dedicated lateral raise variant (DB, cable, or machine), separate from any pressing. Rear delts: minimum 6 sets/week across the program (rear-delt fly, face pull, reverse pec deck), placed on pull/upper days. Overhead pressing: prefer Seated DB Shoulder Press or Machine Shoulder Press over standing barbell OHP.
+30. HAMSTRINGS / POSTERIOR CHAIN. Every leg/lower day must include BOTH a knee-flexion hamstring movement (Lying or Seated Leg Curl) AND a hip-hinge hamstring movement (RDL variant, Single-Leg RDL, or loaded 45° Back Extension). Prefer Seated Leg Curl over Lying when both available.
+31. GLUTE-SPECIFIC WORK. If focus area is "glutes" (or female client with focus unspecified): minimum 2 dedicated glute movements per leg day (Hip Thrust variant, Cable Kickback, Glute-Focused Hack Squat, B-Stance Hip Thrust, Smith Hip Thrust). Hip Thrust must use Smith or Machine — never barbell unless Rule 24 home-gym exemption applies.
+32. ARM PROGRAMMING. Biceps weekly: 1 stretch-loaded (Incline DB Curl or Bayesian Cable Curl) + 1 peak/short-head (Preacher, Spider, or Concentration). Triceps weekly: 1 overhead/long-head (Overhead Cable Extension or DB French Press) + 1 lateral-head (Cable Pressdown or Bench Dip Machine). Never two biceps movements at the same arm angle back-to-back.
+33. ANTAGONIST PAIRING (ordering only — DO NOT write notes). Keep the empty-notes rule. Encode pairing through ORDER: place antagonist isolations adjacent (e.g. cable curl directly after triceps pressdown).
+34. REP-RANGE BIAS BY GOAL. If primary_goal contains "fat loss" / "cut" / "lean": secondary compounds 10-15, isolations 12-20, isolation rest 60s. If primary_goal contains "muscle gain" / "bulk" / "size": heavy compound 6-8, secondary 8-10, isolation 10-12, heavy compound rest 150-180s. Otherwise keep Rule 14 ranges.
+35. STRETCH-EMPHASIS BIAS (J3U signature). For each major muscle, ≥1 exercise per week in a fully stretched/lengthened position. Chest → Incline DB Press, DB Fly, or High-to-Low Cable Fly. Back → Pullover, Straight-Arm Pulldown, Lat Prayer. Triceps → Overhead Cable Extension or DB French Press. Biceps → Incline DB Curl or Bayesian Curl. Quads → Heel-Elevated Squat variant or Sissy Squat. Hamstrings → RDL variant or Seated Leg Curl. Side delts → Cross-Body Cable Lateral or Y-Raise.
+36. FREQUENCY. Each major muscle (chest, back, quads, hams, glutes, shoulders) hit ≥2x/week on any 4+ day split. 3-day full-body: 1x/week is acceptable. Biceps and triceps: ≥2x/week direct work on any 4+ day split.
+37. INJURY-AWARE SUBSTITUTIONS. Lower-back → no barbell rows, no conventional deadlift, no good mornings, no standing barbell OHP; use chest-supported rows, hip-thrust hinge, machine shoulder press. Shoulder/AC → no behind-the-neck, no upright row, no wide-grip bench, no dips; use neutral-grip DB press, thumb-up cable lateral. Knee → no deep barbell squat, no walking lunges, no jumping; use leg press (limited ROM), heel-elevated goblet, leg extension partials. Wrist/elbow → no straight-bar curls, no skullcrushers; use EZ-bar, DB neutral grip, cable rope.
+38. SESSION LENGTH CAP. 5-7 exercises per session (excluding auto warmup + abs block). 16-22 working sets per session. If focus-area volume would push past 22 sets, drop a non-focus accessory rather than adding a 7th exercise.
+39. FEMALE CLIENT BIAS. If gender = female: default focus toward glutes + hamstrings unless client explicitly states otherwise. Reduce direct chest volume to 6-10 sets/week unless chest is the focus area. Increase glute volume cap to 18-24 sets/week.
+40. BEGINNER BIAS. If notes/onboarding indicate a beginner (<1 year experience or self-described beginner): cap split at 3-4 days max even if more available; prefer machines and fixed-path movements over free-weight DB; reduce isolation count and increase compound frequency.
 
 Return rationale as an empty string, conflict_flags (array of strings), weekly_volume (per primary muscle, sets/wk), and days (array). For each day include day_label (e.g. "Push", "Pull", "Legs", "Upper A", "Lower A", "Full Body A"), day_of_week (0=Mon ... 6=Sun), category (push/pull/legs/upper/lower/fullbody), and exercises (each with name, sets, reps, rest_seconds, notes as empty string, is_amrap, primary_muscle).`;
 }
@@ -232,11 +249,21 @@ function buildUserPrompt(p: {
     .map((e) => `${e.name}${e.primary_muscle ? ` [${e.primary_muscle}]` : ""}${e.equipment ? ` (${e.equipment})` : ""}`)
     .join("\n");
 
+  const goal = (p.onboarding?.primary_goal || "").toString().trim() || "(unspecified)";
+  const gender = (p.onboarding?.gender || p.client?.gender || "").toString().trim() || "(unspecified)";
+  const bf = p.bodyFat;
+  const wt = p.weightLb;
+  const isHeavierClient =
+    !!(wt && bf != null && ((wt >= 200 && bf >= 25) || (wt >= 250 && bf >= 40)));
+
   return `CLIENT PROFILE
 Name: ${p.client?.full_name || "Client"}
+Gender: ${gender}
+Primary goal: ${goal}
 Height: ${p.heightDisplay}
 Weight: ${p.weightLb ? `${p.weightLb} lb` : "unknown"}
 Body fat %: ${p.bodyFat != null ? p.bodyFat : "unknown — estimate from photo"}
+is_heavier_client: ${isHeavierClient} (Rule 26 trigger)
 Available days/week: ${p.availableDays}
 Training location: ${p.trainingLocation}
 Home equipment list: ${p.homeEquipment || "n/a"}
