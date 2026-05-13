@@ -304,6 +304,44 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           failedQueries.push(`distance: ${String(err)}`);
         }
 
+        // Sleep — best-effort, failure does not block other metrics
+        try {
+          const sleepRes = await pluginTimeout(
+            HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
+            15000, "querySleep"
+          );
+          const sleepRows = (sleepRes.values || [])
+            .filter((s) => s.totalMinutes > 0)
+            .map((s) => ({
+              client_id: user.id,
+              sleep_date: s.date,
+              total_minutes: s.totalMinutes,
+              in_bed_minutes: s.inBedMinutes,
+              asleep_minutes: s.asleepMinutes,
+              deep_minutes: s.deepMinutes,
+              rem_minutes: s.remMinutes,
+              light_minutes: s.lightMinutes,
+              awake_minutes: s.awakeMinutes,
+              bedtime_at: s.bedtimeAt,
+              wake_at: s.wakeAt,
+              source: "apple_health",
+              source_priority: 100,
+              synced_at: new Date().toISOString(),
+            }));
+          if (sleepRows.length > 0) {
+            // Only overwrite rows whose existing source_priority is <= 100 (always true for apple_health)
+            const { error: sleepErr } = await supabase
+              .from("sleep_logs" as any)
+              .upsert(sleepRows, { onConflict: "client_id,sleep_date" });
+            if (sleepErr) console.warn("[HealthSync] Sleep upsert error:", sleepErr);
+            else console.log(`[HealthSync] Sleep synced: ${sleepRows.length} nights`);
+          }
+          anySuccess = true;
+        } catch (err) {
+          console.warn("[HealthSync] Sleep query failed (continuing):", err);
+          failedQueries.push(`sleep: ${String(err)}`);
+        }
+
         if (!anySuccess) {
           // Include the actual errors in the log for debugging
           const detail = failedQueries.join("; ");

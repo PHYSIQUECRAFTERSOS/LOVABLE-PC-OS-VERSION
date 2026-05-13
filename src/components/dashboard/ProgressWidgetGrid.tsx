@@ -11,6 +11,8 @@ import WeightHistoryScreen from "./WeightHistoryScreen";
 import StepTrendModal from "./StepTrendModal";
 import DistanceTrendModal from "./DistanceTrendModal";
 import ProgressPhotosModal from "./ProgressPhotosModal";
+import SleepCard from "./SleepCard";
+import SleepHistoryModal from "./SleepHistoryModal";
 
 interface SparkData {
   value: number;
@@ -65,6 +67,7 @@ const ProgressWidgetGrid = () => {
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
+  const [sleepHistoryOpen, setSleepHistoryOpen] = useState(false);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -183,36 +186,35 @@ const ProgressWidgetGrid = () => {
   return (
     <>
       <div className="space-y-3">
-        {/* Steps — Full Width Bar */}
-        <button
-          onClick={() => setStepTrendOpen(true)}
-          className="w-full rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Footprints className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="text-xs text-muted-foreground">Steps</span>
+        {/* Steps + Sleep — 2-col row */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setStepTrendOpen(true)}
+            className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <Footprints className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground truncate">Steps</span>
             </div>
-            <div className="flex items-center gap-3">
-              <MiniSparkline data={finalStepsSpark} />
-              <span className="text-xs text-muted-foreground">
-                Goal: {(stepGoal / 1000).toFixed(0)}K
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
+                {hasSteps ? finalSteps.toLocaleString() : "–"}
               </span>
+              <span className="text-[10px] text-muted-foreground tabular-nums">/ {(stepGoal / 1000).toFixed(0)}K</span>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-foreground tabular-nums">
-              {hasSteps ? finalSteps.toLocaleString() : "–"}
-            </span>
-            <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${stepPct}%` }}
-              />
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${stepPct}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-medium text-foreground tabular-nums">{stepPct}%</span>
             </div>
-            <span className="text-xs font-medium text-foreground tabular-nums">{stepPct}%</span>
-          </div>
-        </button>
+          </button>
+
+          <SleepCard onClick={() => setSleepHistoryOpen(true)} />
+        </div>
 
         {/* 2x2 Grid */}
         <div className="grid grid-cols-2 gap-3">
@@ -298,6 +300,10 @@ const ProgressWidgetGrid = () => {
           clientId={user.id}
         />
       )}
+      <SleepHistoryModal
+        open={sleepHistoryOpen}
+        onClose={() => setSleepHistoryOpen(false)}
+      />
     </>
   );
 };

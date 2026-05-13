@@ -6193,6 +6193,69 @@ export type Database = {
         }
         Relationships: []
       }
+      sleep_logs: {
+        Row: {
+          asleep_minutes: number | null
+          awake_minutes: number | null
+          bedtime_at: string | null
+          client_id: string
+          created_at: string
+          deep_minutes: number | null
+          id: string
+          in_bed_minutes: number | null
+          light_minutes: number | null
+          raw_payload: Json | null
+          rem_minutes: number | null
+          sleep_date: string
+          source: string
+          source_priority: number
+          synced_at: string
+          total_minutes: number | null
+          updated_at: string
+          wake_at: string | null
+        }
+        Insert: {
+          asleep_minutes?: number | null
+          awake_minutes?: number | null
+          bedtime_at?: string | null
+          client_id: string
+          created_at?: string
+          deep_minutes?: number | null
+          id?: string
+          in_bed_minutes?: number | null
+          light_minutes?: number | null
+          raw_payload?: Json | null
+          rem_minutes?: number | null
+          sleep_date: string
+          source?: string
+          source_priority?: number
+          synced_at?: string
+          total_minutes?: number | null
+          updated_at?: string
+          wake_at?: string | null
+        }
+        Update: {
+          asleep_minutes?: number | null
+          awake_minutes?: number | null
+          bedtime_at?: string | null
+          client_id?: string
+          created_at?: string
+          deep_minutes?: number | null
+          id?: string
+          in_bed_minutes?: number | null
+          light_minutes?: number | null
+          raw_payload?: Json | null
+          rem_minutes?: number | null
+          sleep_date?: string
+          source?: string
+          source_priority?: number
+          synced_at?: string
+          total_minutes?: number | null
+          updated_at?: string
+          wake_at?: string | null
+        }
+        Relationships: []
+      }
       staff_invites: {
         Row: {
           accepted_at: string | null
