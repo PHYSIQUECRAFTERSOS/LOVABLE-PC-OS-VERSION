@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import StepTrendModal from "@/components/dashboard/StepTrendModal";
 import DistanceTrendModal from "@/components/dashboard/DistanceTrendModal";
+import SleepCard from "@/components/dashboard/SleepCard";
+import SleepHistoryModal from "@/components/dashboard/SleepHistoryModal";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 import ProgressPhotosModal from "@/components/dashboard/ProgressPhotosModal";
 import DateNavigator from "@/components/dashboard/DateNavigator";
