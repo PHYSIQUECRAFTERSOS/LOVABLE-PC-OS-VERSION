@@ -841,31 +841,38 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         clientId={clientId}
       />
 
-      {/* ── Steps Full-Width Bar ── */}
-      <button
-        onClick={() => setStepTrendOpen(true)}
-        className="w-full rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
-      >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Footprints className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground">Steps</span>
+      {/* ── Steps + Sleep Row ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => setStepTrendOpen(true)}
+          className="rounded-xl bg-card border border-border p-3 sm:p-4 text-left transition-colors hover:bg-secondary/30 overflow-hidden"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1.5">
+              <Footprints className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground">Steps</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground">Goal {(stepGoal / 1000).toFixed(0)}K</span>
           </div>
-          <div className="flex items-center gap-3">
-            <MiniSparkline data={stepsSpark} />
-            <span className="text-xs text-muted-foreground">Goal: {(stepGoal / 1000).toFixed(0)}K</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-foreground tabular-nums">
+          <div className="text-lg sm:text-xl font-bold text-foreground tabular-nums">
             {todaySteps !== null && todaySteps > 0 ? todaySteps.toLocaleString() : "–"}
-          </span>
-          <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${stepPct}%` }} />
           </div>
-          <span className="text-xs font-medium text-foreground tabular-nums">{stepPct}%</span>
-        </div>
-      </button>
+          <div className="flex items-center gap-2 mt-1.5">
+            <div className="flex-1 h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${stepPct}%` }} />
+            </div>
+            <span className="text-[10px] font-medium text-foreground tabular-nums">{stepPct}%</span>
+          </div>
+        </button>
+
+        <SleepCard onClick={() => setSleepHistoryOpen(true)} clientId={clientId} />
+      </div>
+
+      <SleepHistoryModal
+        open={sleepHistoryOpen}
+        onClose={() => setSleepHistoryOpen(false)}
+        clientId={clientId}
+      />
 
       {/* ── 2x2 Grid: Weight, Photos, Calories, Distance ── */}
       <div className="grid grid-cols-2 gap-3">
