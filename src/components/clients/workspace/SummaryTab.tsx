@@ -600,7 +600,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
         .maybeSingle();
       if (wearConn) {
         const providerLabels: Record<string, string> = {
-          fitbit: "Fitbit", google_fit: "Google Fit", apple_health: "Apple Health", whoop: "Whoop"
+          fitbit: "Fitbit", google_fit: "Google Fit", apple_health: "Apple Health"
         };
         setStepsProvider(providerLabels[wearConn.provider] || wearConn.provider);
         if (wearConn.last_synced_at) setStepsLastSynced(wearConn.last_synced_at);

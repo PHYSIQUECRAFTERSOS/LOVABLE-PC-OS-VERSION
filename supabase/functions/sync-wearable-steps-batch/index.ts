@@ -15,7 +15,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch all active wearable connections (exclude Whoop until steps API available)
+    // Fetch all active wearable connections
     const { data: connections, error } = await supabase
       .from("wearable_connections")
       .select("client_id, provider, access_token, refresh_token, token_expires_at")
