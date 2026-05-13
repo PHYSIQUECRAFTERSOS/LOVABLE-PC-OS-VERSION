@@ -13,6 +13,7 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "queryActiveEnergy", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "queryDistance", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "queryWeight", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "querySleep", returnType: CAPPluginReturnPromise),
     ]
 
     private let healthStore = HKHealthStore()
@@ -31,20 +32,21 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        let readTypes: Set<HKObjectType> = [
+        var readTypes: Set<HKObjectType> = [
             HKQuantityType.quantityType(forIdentifier: .stepCount)!,
             HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!,
             HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!,
             HKQuantityType.quantityType(forIdentifier: .bodyMass)!,
         ]
+        if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) {
+            readTypes.insert(sleepType)
+        }
 
         healthStore.requestAuthorization(toShare: nil, read: readTypes) { success, error in
             if let error = error {
                 call.reject("Authorization failed: \(error.localizedDescription)")
                 return
             }
-            // Note: `success` only means the dialog was shown, not that the user granted access.
-            // HealthKit does not reveal whether the user tapped Allow or Don't Allow.
             call.resolve(["granted": success])
         }
     }
@@ -93,6 +95,144 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
         healthStore.execute(query)
     }
 
+    // MARK: - querySleep
+    //
+    // Aggregates HKCategoryTypeSleepAnalysis samples per night.
+    // A "night" is keyed to the wake date — the date a sample's endDate falls on (local TZ).
+    // For each date we sum total time in bed, asleep, deep, REM, light, awake.
+    // Returns minutes (rounded) plus earliest bedtime + latest wake timestamps.
+    @objc func querySleep(_ call: CAPPluginCall) {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+            call.reject("Sleep analysis type unavailable")
+            return
+        }
+
+        guard let startDateStr = call.getString("startDate"),
+              let endDateStr   = call.getString("endDate") else {
+            call.reject("startDate and endDate are required (YYYY-MM-DD)")
+            return
+        }
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.timeZone  = TimeZone.current
+
+        guard let startDate = fmt.date(from: startDateStr),
+              let endDate   = fmt.date(from: endDateStr) else {
+            call.reject("Invalid date format. Use YYYY-MM-DD.")
+            return
+        }
+
+        let calendar = Calendar.current
+        // Pull samples from start-of-startDate minus 12h (catch night-before bedtime),
+        // through end-of-endDate.
+        let queryStart = calendar.date(byAdding: .hour, value: -12, to: calendar.startOfDay(for: startDate))!
+        let queryEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate))!
+
+        let predicate = HKQuery.predicateForSamples(withStart: queryStart, end: queryEnd, options: [])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        let query = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, error in
+            if let error = error {
+                call.reject("Sleep query failed: \(error.localizedDescription)")
+                return
+            }
+
+            // Per-date aggregation
+            struct Agg {
+                var inBed: TimeInterval = 0
+                var asleep: TimeInterval = 0
+                var deep: TimeInterval = 0
+                var rem: TimeInterval = 0
+                var light: TimeInterval = 0
+                var awake: TimeInterval = 0
+                var earliestStart: Date?
+                var latestEnd: Date?
+            }
+            var byDate: [String: Agg] = [:]
+
+            for sample in (samples as? [HKCategorySample]) ?? [] {
+                let duration = sample.endDate.timeIntervalSince(sample.startDate)
+                if duration <= 0 { continue }
+                let dateKey = fmt.string(from: sample.endDate) // attribute to wake date
+                var agg = byDate[dateKey] ?? Agg()
+
+                let value = sample.value
+                if #available(iOS 16.0, *) {
+                    switch value {
+                    case HKCategoryValueSleepAnalysis.inBed.rawValue:
+                        agg.inBed += duration
+                    case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+                         HKCategoryValueSleepAnalysis.asleepCore.rawValue:
+                        agg.asleep += duration
+                        agg.light += duration
+                    case HKCategoryValueSleepAnalysis.asleepDeep.rawValue:
+                        agg.asleep += duration
+                        agg.deep += duration
+                    case HKCategoryValueSleepAnalysis.asleepREM.rawValue:
+                        agg.asleep += duration
+                        agg.rem += duration
+                    case HKCategoryValueSleepAnalysis.awake.rawValue:
+                        agg.awake += duration
+                    default:
+                        break
+                    }
+                } else {
+                    // Pre-iOS 16: only inBed / asleep / awake exist
+                    switch value {
+                    case HKCategoryValueSleepAnalysis.inBed.rawValue:
+                        agg.inBed += duration
+                    case HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue:
+                        agg.asleep += duration
+                    case HKCategoryValueSleepAnalysis.awake.rawValue:
+                        agg.awake += duration
+                    default:
+                        break
+                    }
+                }
+
+                if agg.earliestStart == nil || sample.startDate < agg.earliestStart! {
+                    agg.earliestStart = sample.startDate
+                }
+                if agg.latestEnd == nil || sample.endDate > agg.latestEnd! {
+                    agg.latestEnd = sample.endDate
+                }
+                byDate[dateKey] = agg
+            }
+
+            let iso = ISO8601DateFormatter()
+            var values: [[String: Any]] = []
+
+            // Walk requested date range so empty dates can also be considered explicitly.
+            var cursor = calendar.startOfDay(for: startDate)
+            let last = calendar.startOfDay(for: endDate)
+            while cursor <= last {
+                let key = fmt.string(from: cursor)
+                if let agg = byDate[key] {
+                    let asleepMin = Int((agg.asleep / 60).rounded())
+                    // If no asleep samples (older devices), fall back to inBed
+                    let totalMin = asleepMin > 0 ? asleepMin : Int((agg.inBed / 60).rounded())
+                    values.append([
+                        "date": key,
+                        "totalMinutes": totalMin,
+                        "inBedMinutes": Int((agg.inBed / 60).rounded()),
+                        "asleepMinutes": asleepMin,
+                        "deepMinutes": Int((agg.deep / 60).rounded()),
+                        "remMinutes": Int((agg.rem / 60).rounded()),
+                        "lightMinutes": Int((agg.light / 60).rounded()),
+                        "awakeMinutes": Int((agg.awake / 60).rounded()),
+                        "bedtimeAt": agg.earliestStart.map { iso.string(from: $0) } as Any? ?? NSNull(),
+                        "wakeAt": agg.latestEnd.map { iso.string(from: $0) } as Any? ?? NSNull(),
+                    ])
+                }
+                cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
+            }
+
+            call.resolve(["values": values])
+        }
+        healthStore.execute(query)
+    }
+
     // MARK: - Private helpers
 
     /// Generic daily-sum aggregation using HKStatisticsCollectionQuery.
@@ -118,7 +258,6 @@ public class HealthKitPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        // End of endDate day
         let calendar = Calendar.current
         let anchorDate = calendar.startOfDay(for: startDate)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate))!
