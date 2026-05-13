@@ -11,6 +11,8 @@ import WeightHistoryScreen from "./WeightHistoryScreen";
 import StepTrendModal from "./StepTrendModal";
 import DistanceTrendModal from "./DistanceTrendModal";
 import ProgressPhotosModal from "./ProgressPhotosModal";
+import SleepCard from "./SleepCard";
+import SleepHistoryModal from "./SleepHistoryModal";
 
 interface SparkData {
   value: number;
