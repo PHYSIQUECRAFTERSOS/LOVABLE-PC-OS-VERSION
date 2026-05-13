@@ -43,7 +43,7 @@ const GlobalLeaderboard = () => {
         <div className="text-center py-12">
           <Trophy className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
           <p className="text-sm text-muted-foreground">
-            {search ? "No matching members found." : "No challenge participants yet. Join a challenge to appear here!"}
+            {search ? "No matching members found." : "No active challenge at the moment. Check back soon!"}
           </p>
         </div>
       ) : (
