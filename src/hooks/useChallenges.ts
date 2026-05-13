@@ -313,21 +313,33 @@ export function useChallengeLeaderboard() {
   return useQuery({
     queryKey: ["challenge-leaderboard"],
     queryFn: async () => {
-      // Get all active challenges
-      const { data: activeChallenges, error: cErr } = await db
+      // Get all active challenges ordered by most recent start date
+      const { data: challenges, error: cErr } = await db
         .from("challenges")
-        .select("id")
-        .eq("status", "active");
+        .select("id, start_date, end_date")
+        .eq("status", "active")
+        .order("start_date", { ascending: false });
       if (cErr) throw cErr;
-      if (!activeChallenges?.length) return [];
 
-      const challengeIds = activeChallenges.map((c: any) => c.id);
+      // Filter to only challenges whose end_date hasn't passed
+      const now = Date.now();
+      const activeChallenges = (challenges || []).filter((c: any) => {
+        const end = new Date(c.end_date + "T23:59:59");
+        return end.getTime() >= now;
+      });
 
-      // Get all participants from active challenges
+      // No currently active challenge — return empty
+      if (!activeChallenges.length) return [];
+
+      // Use the most recently started active challenge as the "current" one
+      const currentChallenge = activeChallenges[0];
+
+      // Get participants for this specific challenge only
       const { data: participants, error: pErr } = await db
         .from("challenge_participants")
-        .select("user_id, current_value")
-        .in("challenge_id", challengeIds);
+        .select("user_id, current_value, best_value")
+        .eq("challenge_id", currentChallenge.id)
+        .eq("status", "active");
       if (pErr) throw pErr;
       if (!participants?.length) return [];
 
@@ -345,15 +357,14 @@ export function useChallengeLeaderboard() {
         .in("role", ["admin", "coach", "manager"]);
       const staffIds = new Set((staffRoles || []).map((r: any) => r.user_id));
 
-      // Aggregate points per user across all active challenges (active clients only)
-      const userPoints: Record<string, number> = {};
-      participants.forEach((p: any) => {
-        if (!activeClientIds.has(p.user_id) || staffIds.has(p.user_id)) return;
-        userPoints[p.user_id] = (userPoints[p.user_id] || 0) + (Number(p.current_value) || 0);
+      // Filter participants
+      const validParticipants = (participants || []).filter((p: any) => {
+        return activeClientIds.has(p.user_id) && !staffIds.has(p.user_id);
       });
 
-      const userIds = Object.keys(userPoints);
-      if (!userIds.length) return [];
+      if (!validParticipants.length) return [];
+
+      const userIds = validParticipants.map((p: any) => p.user_id);
 
       // Get profiles
       const { data: profiles } = await supabase
@@ -362,13 +373,13 @@ export function useChallengeLeaderboard() {
         .in("user_id", userIds);
       const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
 
-      // Build sorted leaderboard
-      const entries: LeaderboardEntry[] = userIds
-        .map((uid) => ({
-          user_id: uid,
-          full_name: profileMap[uid]?.full_name || "Unknown",
-          avatar_url: profileMap[uid]?.avatar_url || null,
-          total_points: userPoints[uid],
+      // Build sorted leaderboard using best_value per participant
+      const entries: LeaderboardEntry[] = validParticipants
+        .map((p: any) => ({
+          user_id: p.user_id,
+          full_name: profileMap[p.user_id]?.full_name || "Unknown",
+          avatar_url: profileMap[p.user_id]?.avatar_url || null,
+          total_points: Number(p.best_value || 0),
           rank: 0,
         }))
         .sort((a, b) => b.total_points - a.total_points);
