@@ -249,11 +249,21 @@ function buildUserPrompt(p: {
     .map((e) => `${e.name}${e.primary_muscle ? ` [${e.primary_muscle}]` : ""}${e.equipment ? ` (${e.equipment})` : ""}`)
     .join("\n");
 
+  const goal = (p.onboarding?.primary_goal || "").toString().trim() || "(unspecified)";
+  const gender = (p.onboarding?.gender || p.client?.gender || "").toString().trim() || "(unspecified)";
+  const bf = p.bodyFat;
+  const wt = p.weightLb;
+  const isHeavierClient =
+    !!(wt && bf != null && ((wt >= 200 && bf >= 25) || (wt >= 250 && bf >= 40)));
+
   return `CLIENT PROFILE
 Name: ${p.client?.full_name || "Client"}
+Gender: ${gender}
+Primary goal: ${goal}
 Height: ${p.heightDisplay}
 Weight: ${p.weightLb ? `${p.weightLb} lb` : "unknown"}
 Body fat %: ${p.bodyFat != null ? p.bodyFat : "unknown — estimate from photo"}
+is_heavier_client: ${isHeavierClient} (Rule 26 trigger)
 Available days/week: ${p.availableDays}
 Training location: ${p.trainingLocation}
 Home equipment list: ${p.homeEquipment || "n/a"}
