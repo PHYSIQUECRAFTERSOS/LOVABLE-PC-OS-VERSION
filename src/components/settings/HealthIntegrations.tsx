@@ -5,7 +5,7 @@ import { useHealthSync } from "@/hooks/useHealthSync";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Activity, RefreshCw, Unplug, Footprints, Watch, Heart, Smartphone, AlertCircle } from "lucide-react";
+import { Activity, RefreshCw, Unplug, Footprints, Watch, Smartphone, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
