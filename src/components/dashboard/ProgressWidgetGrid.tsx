@@ -300,6 +300,10 @@ const ProgressWidgetGrid = () => {
           clientId={user.id}
         />
       )}
+      <SleepHistoryModal
+        open={sleepHistoryOpen}
+        onClose={() => setSleepHistoryOpen(false)}
+      />
     </>
   );
 };
