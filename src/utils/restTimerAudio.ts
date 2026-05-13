@@ -51,7 +51,7 @@ export async function preloadRestTimerAudio(): Promise<void> {
           audioChannelNum: 1,
           isUrl: false,
           // CRITICAL: do NOT take audio focus — mix with Spotify/Apple Music
-          focus: false,
+          
           volume: 1.0,
         }).catch((err) => {
           // Already-loaded errors are fine
@@ -144,7 +144,7 @@ export async function playCompletionSound(): Promise<void> {
           assetPath: NATIVE_ASSET_PATH,
           audioChannelNum: 1,
           isUrl: false,
-          focus: false,
+          
           volume: 1.0,
         }).catch(() => undefined);
         await NativeAudio.play({ assetId: ASSET_ID });
