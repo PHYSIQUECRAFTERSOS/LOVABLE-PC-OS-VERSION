@@ -337,6 +337,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
   const [stepsLastSynced, setStepsLastSynced] = useState<string | null>(null);
   const [stepsProvider, setStepsProvider] = useState<string | null>(null);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
+  const [sleepHistoryOpen, setSleepHistoryOpen] = useState(false);
   const [clientNameForSteps, setClientNameForSteps] = useState("");
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
