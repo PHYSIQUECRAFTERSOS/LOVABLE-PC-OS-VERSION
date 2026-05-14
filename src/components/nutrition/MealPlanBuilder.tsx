@@ -236,6 +236,16 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           .order("meal_order")
           .order("item_order");
 
+        const dayIds = dbDays.map((d: any) => d.id);
+        const { data: mealNotes } = await supabase
+          .from("meal_plan_meal_notes")
+          .select("day_id, meal_order, note")
+          .in("day_id", dayIds);
+        const noteByKey = new Map<string, string>();
+        (mealNotes || []).forEach((n: any) => {
+          noteByKey.set(`${n.day_id}::${n.meal_order}`, n.note || "");
+        });
+
         const loadedDays: DayType[] = dbDays.map((day) => {
           const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
           const mealGroups: Record<string, any[]> = {};
@@ -248,10 +258,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           const meals: Meal[] = Object.entries(mealGroups)
             .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
             .map(([key, groupItems]) => {
+              const mealOrder = parseInt(key);
               const mealName = key.split("::").slice(1).join("::");
               return {
                 id: uid(),
                 name: mealName,
+                note: noteByKey.get(`${day.id}::${mealOrder}`) || "",
                 foods: groupItems.map((item: any) => {
                   const fi = item.food_items as any;
                   const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
@@ -271,6 +283,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                     sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                     serving_unit: unit,
                     serving_size_g: ss,
+                    note: item.note || "",
                   };
                 }),
               };
