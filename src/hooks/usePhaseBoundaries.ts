@@ -61,7 +61,7 @@ export const usePhaseBoundaries = (
     setLoading(true);
     const { data: assignment, error: assignErr } = await supabase
       .from("client_program_assignments")
-      .select("program_id, programs(start_date)")
+      .select("program_id, programs!client_program_assignments_program_id_fkey(start_date)")
       .eq("client_id", clientId)
       .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false })
