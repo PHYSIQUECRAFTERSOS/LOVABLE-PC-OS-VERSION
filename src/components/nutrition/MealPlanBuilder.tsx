@@ -835,12 +835,29 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             serving_size: food.serving_size_g || food.gram_amount || 100,
             item_order: fi,
             meal_order: mi,
+            note: food.note?.trim() ? food.note.trim() : null,
           }))
         );
 
         if (items.length > 0) {
           const { error: itemErr } = await supabase.from("meal_plan_items").insert(items);
           if (itemErr) throw itemErr;
+        }
+
+        const mealNoteRows = day.meals
+          .map((meal, mi) => ({ meal, mi }))
+          .filter(({ meal }) => (meal.note || "").trim().length > 0)
+          .map(({ meal, mi }) => ({
+            day_id: dayRow.id,
+            meal_order: mi,
+            meal_name: meal.name,
+            note: meal.note!.trim(),
+          }));
+        if (mealNoteRows.length > 0) {
+          const { error: noteErr } = await supabase
+            .from("meal_plan_meal_notes")
+            .insert(mealNoteRows);
+          if (noteErr) console.warn("[MealPlanBuilder] meal note insert error:", noteErr);
         }
       }
 
