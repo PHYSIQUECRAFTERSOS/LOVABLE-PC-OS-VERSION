@@ -161,9 +161,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   useEffect(() => {
     setPhases(hookPhases as Phase[]);
     setWeeks(hookWeeks as Week[]);
-    if (assignment?.current_phase_id) setExpandedPhase(assignment.current_phase_id);
+    // Prefer date-derived current phase over the (potentially stale) stored current_phase_id.
+    const dates = derivePhaseDates(program?.start_date || null, hookPhases as any);
+    const dateCurrent = (hookPhases as Phase[]).find(p => dates[p.id]?.isCurrent);
+    if (dateCurrent) setExpandedPhase(dateCurrent.id);
+    else if (assignment?.current_phase_id) setExpandedPhase(assignment.current_phase_id);
     else if (hookPhases.length > 0) setExpandedPhase(hookPhases[0].id);
-  }, [hookPhases, hookWeeks, assignment]);
+  }, [hookPhases, hookWeeks, assignment, program?.start_date]);
 
   const openWorkoutEditor = (pw: ProgramWorkout) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
