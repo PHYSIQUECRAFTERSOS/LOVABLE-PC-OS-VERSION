@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout" },
