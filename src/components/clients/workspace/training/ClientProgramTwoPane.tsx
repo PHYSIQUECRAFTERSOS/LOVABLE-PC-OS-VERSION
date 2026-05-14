@@ -107,10 +107,14 @@ export const ClientProgramTwoPane = ({
   useEffect(() => {
     if (!phases.length) return;
     if (selectedPhaseId && phases.some(p => p.id === selectedPhaseId)) return;
-    setSelectedPhaseId(currentPhaseId && phases.some(p => p.id === currentPhaseId)
-      ? currentPhaseId
-      : phases[0].id);
-  }, [phases, currentPhaseId, selectedPhaseId]);
+    // Prefer date-derived current phase; fall back to stored currentPhaseId; then first.
+    const datesNow = derivePhaseDates(programStartDate || null, phases);
+    const dateCurrent = phases.find(p => datesNow[p.id]?.isCurrent);
+    setSelectedPhaseId(
+      dateCurrent?.id
+        ?? (currentPhaseId && phases.some(p => p.id === currentPhaseId) ? currentPhaseId : phases[0].id)
+    );
+  }, [phases, currentPhaseId, selectedPhaseId, programStartDate]);
 
   // Sync local workouts with incoming phases (used for optimistic drag updates).
   useEffect(() => {
