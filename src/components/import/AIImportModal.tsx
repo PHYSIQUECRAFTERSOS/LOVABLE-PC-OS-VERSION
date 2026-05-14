@@ -467,13 +467,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       }
     }
 
-    // If client, create assignment
-    if (clientId) {
+    // If client (legacy new-program flow only), create assignment
+    if (clientId && targetMode === "new-program") {
       await supabase.from("client_program_assignments").insert({
         client_id: clientId,
-        program_id: (prog as any).id,
+        program_id: programId,
         coach_id: user.id,
-        current_phase_id: (phase as any).id,
+        current_phase_id: phaseId,
         current_week_number: 1,
         status: "active",
       });
