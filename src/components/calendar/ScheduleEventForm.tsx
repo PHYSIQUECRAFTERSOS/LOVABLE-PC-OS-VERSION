@@ -335,7 +335,14 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
           {/* Linked Workout */}
           {isCoach && eventType === "workout" && workouts.length > 0 && (
             <div className="space-y-1.5">
-              <Label>Link Workout</Label>
+              <div className="flex items-baseline justify-between">
+                <Label>Link Workout</Label>
+                {activePhaseLabel && (
+                  <span className="text-[10px] text-muted-foreground">
+                    from <span className="text-primary font-medium">{activePhaseLabel}</span>
+                  </span>
+                )}
+              </div>
               <Select value={linkedWorkoutId} onValueChange={(val) => {
                 setLinkedWorkoutId(val);
                 const w = workouts.find((wk) => wk.id === val);
