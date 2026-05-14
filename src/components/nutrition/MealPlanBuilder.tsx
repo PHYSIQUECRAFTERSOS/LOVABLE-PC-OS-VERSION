@@ -84,12 +84,14 @@ interface MealFood {
   sugar_per_100: number;
   serving_unit: string;
   serving_size_g: number;
+  note?: string;
 }
 
 interface Meal {
   id: string;
   name: string;
   foods: MealFood[];
+  note?: string;
 }
 
 interface DayType {
