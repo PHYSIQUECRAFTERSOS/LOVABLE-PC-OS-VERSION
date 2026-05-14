@@ -372,9 +372,9 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
       // Link to phase
       await supabase.from("program_workouts").insert({
-        phase_id: (phase as any).id,
+        phase_id: phaseId,
         workout_id: (workout as any).id,
-        sort_order: di + 1,
+        sort_order: startingSortOrder + di + 1,
         day_label: day.day_name || `Day ${di + 1}`,
       });
 
