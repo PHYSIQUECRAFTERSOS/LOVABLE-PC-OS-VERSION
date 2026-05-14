@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout" },
@@ -100,41 +101,29 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     loadClients();
   }, [isCoach, user]);
 
-  // Load workouts scoped to selected client's assigned phase
+  // Date-driven phase resolution. The "current" phase is whichever phase
+  // contains the event date — not client_program_assignments.current_phase_id,
+  // which can be stale when a coach shortens a phase mid-flight.
+  const { resolvePhaseForDate, phases: programPhases } = usePhaseBoundaries(
+    targetClientId && targetClientId !== "none" ? targetClientId : null,
+  );
+  const [activePhaseLabel, setActivePhaseLabel] = useState<string | null>(null);
+
+  // Load workouts scoped to the phase that contains the form's event date
   useEffect(() => {
     if (!isCoach || !user) return;
 
     const loadWorkouts = async () => {
       if (!targetClientId || targetClientId === "none") {
         setWorkouts([]);
+        setActivePhaseLabel(null);
         return;
       }
 
-      const { data: assignment } = await supabase
-        .from("client_program_assignments")
-        .select("program_id, current_phase_id")
-        .eq("client_id", targetClientId)
-        .in("status", ["active", "subscribed"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!assignment?.program_id) {
-        setWorkouts([]);
-        return;
-      }
-
-      let phaseId = assignment.current_phase_id;
-      if (!phaseId) {
-        const { data: firstPhase } = await supabase
-          .from("program_phases")
-          .select("id")
-          .eq("program_id", assignment.program_id)
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        phaseId = firstPhase?.id ?? null;
-      }
+      const ymd = eventDate || new Date().toLocaleDateString("en-CA");
+      const resolved = resolvePhaseForDate(ymd);
+      const phaseId = resolved?.id ?? null;
+      setActivePhaseLabel(resolved?.name ?? null);
 
       if (!phaseId) {
         setWorkouts([]);
@@ -157,9 +146,6 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
 
       const positioned = withDisplayPositions(normalized);
 
-      // Root cause note:
-      // `program_workouts.day_label` contained stale legacy values (e.g. Day 6/7) and was previously used for UI labels.
-      // We now compute labels only from sorted position + workout name to eliminate phantom numbering.
       const mapped = positioned.map((w) => {
         const cleanName = normalizeWorkoutName(w.name);
         const label = w.exclude_from_numbering && w.custom_tag
@@ -192,7 +178,8 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
     };
 
     loadWorkouts();
-  }, [isCoach, user, targetClientId]);
+  }, [isCoach, user, targetClientId, eventDate, programPhases.length, resolvePhaseForDate]);
+
 
   const resetForm = () => {
     setTitle("");
@@ -348,7 +335,14 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
           {/* Linked Workout */}
           {isCoach && eventType === "workout" && workouts.length > 0 && (
             <div className="space-y-1.5">
-              <Label>Link Workout</Label>
+              <div className="flex items-baseline justify-between">
+                <Label>Link Workout</Label>
+                {activePhaseLabel && (
+                  <span className="text-[10px] text-muted-foreground">
+                    from <span className="text-primary font-medium">{activePhaseLabel}</span>
+                  </span>
+                )}
+              </div>
               <Select value={linkedWorkoutId} onValueChange={(val) => {
                 setLinkedWorkoutId(val);
                 const w = workouts.find((wk) => wk.id === val);

@@ -32,6 +32,8 @@ import {
 } from "date-fns";
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
+import { Flag } from "lucide-react";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
@@ -348,32 +350,20 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     return name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
   }
 
-  const loadClientWorkouts = async () => {
-    const { data: assignment } = await supabase
-      .from("client_program_assignments")
-      .select("program_id, current_phase_id")
-      .eq("client_id", clientId)
-      .in("status", ["active", "subscribed"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const { resolvePhaseForDate, boundariesByDate, phases: programPhases } = usePhaseBoundaries(clientId);
+  const [activePhaseLabel, setActivePhaseLabel] = useState<string | null>(null);
 
-    if (!assignment?.program_id) {
-      setClientWorkouts([]);
-      return;
-    }
-
-    let phaseId = assignment.current_phase_id;
-    if (!phaseId) {
-      const { data: firstPhase } = await supabase
-        .from("program_phases")
-        .select("id")
-        .eq("program_id", assignment.program_id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      phaseId = firstPhase?.id ?? null;
-    }
+  const loadClientWorkouts = async (forDate?: Date | null) => {
+    // Resolve which phase the chosen scheduling date belongs to.
+    // Falls back to today's phase, then to the first phase, so the dropdown
+    // always reflects the date the coach is actually scheduling for —
+    // not the static current_phase_id pointer.
+    const ymd = forDate
+      ? format(forDate, "yyyy-MM-dd")
+      : new Date().toLocaleDateString("en-CA");
+    const resolved = resolvePhaseForDate(ymd);
+    const phaseId = resolved?.id ?? null;
+    setActivePhaseLabel(resolved?.name ?? null);
 
     if (!phaseId) {
       setClientWorkouts([]);
@@ -411,6 +401,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
     setClientWorkouts(mapped);
   };
+
+  // Reload workouts whenever the coach changes the scheduling date — phase
+  // membership is date-driven now, so a date change can swap the entire list.
+  useEffect(() => {
+    if (showSchedule) loadClientWorkouts(scheduleDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleDate, showSchedule, programPhases.length]);
+
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -762,11 +760,29 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             const dayItems = getEventsForDay(day);
             const inMonth = isSameMonth(day, currentMonth);
             const today = isToday(day);
+            const dayKey = format(day, "yyyy-MM-dd");
+            const dayBoundaries = boundariesByDate.get(dayKey) || [];
+            const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
+            const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
 
             return (
               <div key={day.toISOString()} onClick={() => handleDayClick(day)}
                 onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
-                className={`min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""}`}>
+                className={`relative min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""} ${hasPhaseStart ? "border-t-2 border-t-primary" : ""} ${hasPhaseEnd ? "border-b-2 border-b-primary/70" : ""}`}>
+                {dayBoundaries.length > 0 && (
+                  <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 p-0.5 pointer-events-none z-10">
+                    {dayBoundaries.map((b, i) => (
+                      <span
+                        key={i}
+                        title={b.type === "start" ? `Phase ${b.phaseOrder} starts — ${b.phaseName}` : `Phase ${b.phaseOrder} ends`}
+                        className={`flex items-center gap-0.5 text-[8px] md:text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded-sm pointer-events-auto ${b.type === "start" ? "bg-primary text-primary-foreground" : "bg-primary/15 text-primary border border-primary/40"}`}
+                      >
+                        <Flag className="h-2 w-2" />
+                        P{b.phaseOrder} {b.type === "start" ? "start" : "end"}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
                   {format(day, "d")}
                 </div>
@@ -866,7 +882,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             {/* Workout picker */}
             {selectedTypes.includes("workout") && clientWorkouts.length > 0 && (
               <div>
-                <Label>Link to Workout</Label>
+                <div className="flex items-baseline justify-between">
+                  <Label>Link to Workout</Label>
+                  {activePhaseLabel && (
+                    <span className="text-[10px] text-muted-foreground">
+                      from <span className="text-primary font-medium">{activePhaseLabel}</span>
+                    </span>
+                  )}
+                </div>
                 <Select value={selectedWorkoutId} onValueChange={setSelectedWorkoutId}>
                   <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                   <SelectContent>
