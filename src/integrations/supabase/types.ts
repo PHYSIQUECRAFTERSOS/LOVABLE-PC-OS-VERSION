@@ -4173,6 +4173,7 @@ export type Database = {
           meal_order: number
           meal_plan_id: string
           meal_type: string
+          note: string | null
           protein: number
           serving_size: number | null
           serving_unit: string | null
@@ -4193,6 +4194,7 @@ export type Database = {
           meal_order?: number
           meal_plan_id: string
           meal_type?: string
+          note?: string | null
           protein?: number
           serving_size?: number | null
           serving_unit?: string | null
@@ -4213,6 +4215,7 @@ export type Database = {
           meal_order?: number
           meal_plan_id?: string
           meal_type?: string
+          note?: string | null
           protein?: number
           serving_size?: number | null
           serving_unit?: string | null
@@ -4238,6 +4241,44 @@ export type Database = {
             columns: ["meal_plan_id"]
             isOneToOne: false
             referencedRelation: "meal_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meal_plan_meal_notes: {
+        Row: {
+          created_at: string
+          day_id: string
+          id: string
+          meal_name: string
+          meal_order: number
+          note: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_id: string
+          id?: string
+          meal_name?: string
+          meal_order: number
+          note?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_id?: string
+          id?: string
+          meal_name?: string
+          meal_order?: number
+          note?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_plan_meal_notes_day_id_fkey"
+            columns: ["day_id"]
+            isOneToOne: false
+            referencedRelation: "meal_plan_days"
             referencedColumns: ["id"]
           },
         ]
