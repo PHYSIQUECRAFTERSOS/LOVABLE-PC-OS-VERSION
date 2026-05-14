@@ -33,6 +33,7 @@ import {
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
+import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
 
 const EVENT_TYPES = [
