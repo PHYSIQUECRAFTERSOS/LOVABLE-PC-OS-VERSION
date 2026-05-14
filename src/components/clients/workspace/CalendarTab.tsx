@@ -32,6 +32,8 @@ import {
 } from "date-fns";
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
+import { Flag } from "lucide-react";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
