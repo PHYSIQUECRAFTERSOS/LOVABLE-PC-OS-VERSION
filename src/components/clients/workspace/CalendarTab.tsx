@@ -820,23 +820,35 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
               <div key={day.toISOString()} onClick={() => handleDayClick(day)}
                 onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
                 className={`relative min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""} ${hasPhaseStart ? "border-t-2 border-t-primary" : ""} ${hasPhaseEnd ? "border-b-2 border-b-primary/70" : ""}`}>
-                {dayBoundaries.length > 0 && (
-                  <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 p-0.5 pointer-events-none z-10">
-                    {dayBoundaries.map((b, i) => (
-                      <span
-                        key={i}
-                        title={b.type === "start" ? `Phase ${b.phaseOrder} starts — ${b.phaseName}` : `Phase ${b.phaseOrder} ends`}
-                        className={`flex items-center gap-0.5 text-[8px] md:text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded-sm pointer-events-auto ${b.type === "start" ? "bg-primary text-primary-foreground" : "bg-primary/15 text-primary border border-primary/40"}`}
-                      >
-                        <Flag className="h-2 w-2" />
-                        P{b.phaseOrder} {b.type === "start" ? "start" : "end"}
-                      </span>
-                    ))}
-                  </div>
-                )}
                 <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
                   {format(day, "d")}
                 </div>
+                {dayBoundaries.length > 0 && (
+                  <div className="space-y-0.5 mb-1">
+                    {dayBoundaries.map((b, i) => (
+                      <div
+                        key={i}
+                        title={
+                          b.type === "start"
+                            ? `${b.phaseName} starts on ${format(day, "MMM d")}`
+                            : `Phase ${b.phaseOrder} ended on ${format(day, "MMM d")}`
+                        }
+                        className={`flex items-center gap-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-1 py-0.5 rounded leading-tight ${
+                          b.type === "start"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-primary/10 text-primary border border-primary/40"
+                        }`}
+                      >
+                        <Flag className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">
+                          {b.type === "start"
+                            ? `P${b.phaseOrder} starts`
+                            : `P${b.phaseOrder} ended`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="space-y-0.5">
                   {dayItems.slice(0, 3).map((item: any, i: number) => {
                     const effectiveType = resolveEventType(item);
