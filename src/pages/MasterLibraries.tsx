@@ -15,7 +15,7 @@ import {
   Plus, Search, FolderOpen, Layers, Trash2, Copy, MoreHorizontal,
   Users, Link2, Unlink, RefreshCw, History, Dumbbell, UtensilsCrossed,
   Target, ClipboardCheck, Pill, BookOpen, ChevronRight, Share2, Lock,
-  Menu, ArrowLeft,
+  Menu, ArrowLeft, Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
