@@ -33,6 +33,7 @@ import {
 import { withDisplayPositions } from "@/utils/displayPosition";
 import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
+import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
 
 const EVENT_TYPES = [
@@ -355,15 +356,65 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
   const loadClientWorkouts = async (forDate?: Date | null) => {
     // Resolve which phase the chosen scheduling date belongs to.
-    // Falls back to today's phase, then to the first phase, so the dropdown
-    // always reflects the date the coach is actually scheduling for —
-    // not the static current_phase_id pointer.
+    // Falls back to today's phase, then to current_phase_id, then to first phase.
+    // Guarantees the dropdown always shows workouts even before usePhaseBoundaries
+    // has finished loading or when a date sits outside all phase windows.
     const ymd = forDate
       ? format(forDate, "yyyy-MM-dd")
       : new Date().toLocaleDateString("en-CA");
-    const resolved = resolvePhaseForDate(ymd);
-    const phaseId = resolved?.id ?? null;
-    setActivePhaseLabel(resolved?.name ?? null);
+
+    let resolved = resolvePhaseForDate(ymd);
+    let phaseId = resolved?.id ?? null;
+    let phaseName = resolved?.name ?? null;
+
+    // Fallback: hit the DB directly so we never end up with an empty dropdown.
+    if (!phaseId) {
+      const { data: assignment } = await supabase
+        .from("client_program_assignments")
+        .select("program_id, current_phase_id")
+        .eq("client_id", clientId)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (assignment?.program_id) {
+        // Prefer the date-aware phase from a fresh phase fetch.
+        const { data: rawPhases } = await supabase
+          .from("program_phases")
+          .select("id, name, phase_order, duration_weeks")
+          .eq("program_id", assignment.program_id)
+          .order("phase_order", { ascending: true });
+
+        const { data: prog } = await supabase
+          .from("programs")
+          .select("start_date")
+          .eq("id", assignment.program_id)
+          .maybeSingle();
+
+        const derived = derivePhaseDates(prog?.start_date, (rawPhases as any[]) || []);
+        const sorted = ((rawPhases as any[]) || []).slice().sort((a, b) => a.phase_order - b.phase_order);
+        const hit = sorted.find((p) => {
+          const d = derived[p.id];
+          return d?.start_date && d?.end_date && ymd >= d.start_date && ymd <= d.end_date;
+        });
+        const last = sorted[sorted.length - 1];
+        const first = sorted[0];
+        const fallbackPhase =
+          hit ||
+          sorted.find((p) => p.id === assignment.current_phase_id) ||
+          (last && derived[last.id]?.end_date && ymd > (derived[last.id].end_date as string) ? last : null) ||
+          first ||
+          null;
+
+        if (fallbackPhase) {
+          phaseId = fallbackPhase.id;
+          phaseName = fallbackPhase.name;
+        }
+      }
+    }
+
+    setActivePhaseLabel(phaseName);
 
     if (!phaseId) {
       setClientWorkouts([]);
