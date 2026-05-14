@@ -26,9 +26,32 @@ export interface PhaseBoundary {
   phaseOrder: number;
 }
 
-export const usePhaseBoundaries = (clientId: string | null | undefined) => {
+export interface PhaseBoundariesSeed {
+  programStart?: string | null;
+  phases?: Array<{ id: string; name: string; phase_order: number; duration_weeks: number }>;
+}
+
+export const usePhaseBoundaries = (
+  clientId: string | null | undefined,
+  seed?: PhaseBoundariesSeed,
+) => {
   const [phases, setPhases] = useState<ResolvedPhase[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // If a seed is provided (caller already has program + phases loaded), hydrate
+  // synchronously so banners render on first paint with zero round-trips.
+  const seededPhases = useMemo<ResolvedPhase[] | null>(() => {
+    if (!seed?.phases?.length || !seed.programStart) return null;
+    const sorted = [...seed.phases].sort((a, b) => a.phase_order - b.phase_order);
+    const derived = derivePhaseDates(seed.programStart, sorted as PhaseLike[]);
+    return sorted.map((p) => ({
+      id: p.id,
+      name: p.name,
+      phase_order: p.phase_order,
+      start_date: derived[p.id]?.start_date ?? null,
+      end_date: derived[p.id]?.end_date ?? null,
+    }));
+  }, [seed?.programStart, seed?.phases]);
 
   const load = useCallback(async () => {
     if (!clientId) {
@@ -36,7 +59,7 @@ export const usePhaseBoundaries = (clientId: string | null | undefined) => {
       return;
     }
     setLoading(true);
-    const { data: assignment } = await supabase
+    const { data: assignment, error: assignErr } = await supabase
       .from("client_program_assignments")
       .select("program_id, programs(start_date)")
       .eq("client_id", clientId)
@@ -45,19 +68,24 @@ export const usePhaseBoundaries = (clientId: string | null | undefined) => {
       .limit(1)
       .maybeSingle();
 
+    if (assignErr) console.warn("[usePhaseBoundaries] assignment fetch error:", assignErr);
+
     const programId = assignment?.program_id;
     const programStart = (assignment as any)?.programs?.start_date as string | null | undefined;
     if (!programId) {
+      console.warn("[usePhaseBoundaries] no active program assignment for client", clientId);
       setPhases([]);
       setLoading(false);
       return;
     }
 
-    const { data: rawPhases } = await supabase
+    const { data: rawPhases, error: phasesErr } = await supabase
       .from("program_phases")
       .select("id, name, phase_order, duration_weeks")
       .eq("program_id", programId)
       .order("phase_order", { ascending: true });
+
+    if (phasesErr) console.warn("[usePhaseBoundaries] phases fetch error:", phasesErr);
 
     const sorted = ((rawPhases as any[]) || []) as (PhaseLike & { name: string })[];
     const derived = derivePhaseDates(programStart, sorted);
@@ -68,11 +96,18 @@ export const usePhaseBoundaries = (clientId: string | null | undefined) => {
       start_date: derived[p.id]?.start_date ?? null,
       end_date: derived[p.id]?.end_date ?? null,
     }));
+    if (resolved.length === 0) {
+      console.warn("[usePhaseBoundaries] resolved 0 phases for program", programId);
+    }
     setPhases(resolved);
     setLoading(false);
   }, [clientId]);
 
+  // Always run the network load so we stay correct even if seed is stale.
   useEffect(() => { load(); }, [load]);
+
+  // Prefer fetched phases once available; otherwise fall back to seed.
+  const effectivePhases = phases.length > 0 ? phases : (seededPhases ?? phases);
 
   /** Resolve which phase a given YYYY-MM-DD belongs to. Falls back gracefully. */
   const resolvePhaseForDate = useCallback(
