@@ -44,6 +44,7 @@ import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import SupplementLibrary from "@/components/libraries/SupplementLibrary";
 import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
 import AIImportButton from "@/components/import/AIImportButton";
+import AIImportModal from "@/components/import/AIImportModal";
 import MobileTwoPane from "@/components/libraries/MobileTwoPane";
 
 const GOAL_LABELS: Record<string, string> = {
