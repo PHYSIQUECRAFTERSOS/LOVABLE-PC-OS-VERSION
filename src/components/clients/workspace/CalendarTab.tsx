@@ -35,6 +35,7 @@ import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
+import PhaseWeekBanner from "@/components/calendar/PhaseWeekBanner";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
