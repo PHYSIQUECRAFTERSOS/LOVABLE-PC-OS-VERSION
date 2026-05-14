@@ -488,6 +488,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
+  // Chunk into 7-day rows so we can render a Trainerize-style phase banner
+  // immediately above the week that contains a phase start date.
+  const weekRows: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) weekRows.push(days.slice(i, i + 7));
 
   const getEventsForDay = (day: Date) => {
     const dateStr = format(day, "yyyy-MM-dd");
