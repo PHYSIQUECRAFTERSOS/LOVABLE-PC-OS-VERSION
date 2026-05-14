@@ -952,6 +952,30 @@ const MasterLibraries = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Import → existing program (new phase) or existing phase (append workouts) */}
+      {aiImportTarget && (
+        <AIImportModal
+          open={!!aiImportTarget}
+          onOpenChange={(open) => { if (!open) setAiImportTarget(null); }}
+          entryPoint="library"
+          importType="workout"
+          targetMode={aiImportTarget.phaseId ? "append-to-phase" : "append-phase"}
+          targetProgramId={aiImportTarget.programId}
+          targetPhaseId={aiImportTarget.phaseId}
+          onImportComplete={() => {
+            // Refresh phases for that program + program list counts
+            setPhasesByProgram((prev) => {
+              const next = { ...prev };
+              delete next[aiImportTarget.programId];
+              return next;
+            });
+            ensurePhasesLoaded(aiImportTarget.programId);
+            setOverviewRefreshKey((k) => k + 1);
+            loadPrograms();
+          }}
+        />
+      )}
     </AppLayout>
   );
 };
