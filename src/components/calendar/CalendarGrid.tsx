@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Check, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, X, Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +84,8 @@ const CalendarGrid = ({
   onNext,
 }: CalendarGridProps) => {
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
+  const { user } = useAuth();
+  const { boundariesByDate } = usePhaseBoundaries(user?.id);
 
   const days = view === "week"
     ? eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) })
@@ -140,6 +144,10 @@ const CalendarGrid = ({
           const inMonth = isSameMonth(day, currentDate);
           const today = isToday(day);
           const overflowCount = dayEvents.length - maxVisible;
+          const dayKey = format(day, "yyyy-MM-dd");
+          const dayBoundaries = boundariesByDate.get(dayKey) || [];
+          const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
+          const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
 
           return (
             <div
@@ -148,7 +156,9 @@ const CalendarGrid = ({
               className={cn(
                 "min-h-[80px] md:min-h-[110px] p-1.5 bg-card cursor-pointer transition-colors hover:bg-secondary/50",
                 !inMonth && view === "month" && "opacity-40",
-                today && "ring-1 ring-inset ring-primary/50"
+                today && "ring-1 ring-inset ring-primary/50",
+                hasPhaseStart && "border-t-2 border-t-primary",
+                hasPhaseEnd && "border-b-2 border-b-primary/70"
               )}
             >
               <div className={cn(
@@ -157,6 +167,34 @@ const CalendarGrid = ({
               )}>
                 {format(day, "d")}
               </div>
+
+              {dayBoundaries.length > 0 && (
+                <div className="space-y-0.5 mb-1">
+                  {dayBoundaries.map((b, i) => (
+                    <div
+                      key={i}
+                      title={
+                        b.type === "start"
+                          ? `${b.phaseName} starts on ${format(day, "MMM d")}`
+                          : `Phase ${b.phaseOrder} ended on ${format(day, "MMM d")}`
+                      }
+                      className={cn(
+                        "flex items-center gap-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-1 py-0.5 rounded leading-tight",
+                        b.type === "start"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-primary/10 text-primary border border-primary/40"
+                      )}
+                    >
+                      <Flag className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">
+                        {b.type === "start"
+                          ? `P${b.phaseOrder} starts`
+                          : `P${b.phaseOrder} ended`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="space-y-0.5">
                 {dayEvents.slice(0, maxVisible).map((event) => (
