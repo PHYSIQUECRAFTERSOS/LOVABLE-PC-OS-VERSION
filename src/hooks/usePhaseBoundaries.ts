@@ -55,11 +55,11 @@ export const usePhaseBoundaries = (clientId: string | null | undefined) => {
 
     const { data: rawPhases } = await supabase
       .from("program_phases")
-      .select("id, name, phase_order, duration_weeks, start_date, end_date")
+      .select("id, name, phase_order, duration_weeks")
       .eq("program_id", programId)
       .order("phase_order", { ascending: true });
 
-    const sorted = (rawPhases || []) as (PhaseLike & { name: string })[];
+    const sorted = ((rawPhases as any[]) || []) as (PhaseLike & { name: string })[];
     const derived = derivePhaseDates(programStart, sorted);
     const resolved: ResolvedPhase[] = sorted.map((p) => ({
       id: p.id,
