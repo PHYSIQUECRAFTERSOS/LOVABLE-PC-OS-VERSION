@@ -112,28 +112,26 @@ export const usePhaseBoundaries = (
   /** Resolve which phase a given YYYY-MM-DD belongs to. Falls back gracefully. */
   const resolvePhaseForDate = useCallback(
     (ymd: string | null | undefined): ResolvedPhase | null => {
-      if (!ymd || phases.length === 0) return phases[0] ?? null;
-      // Inside a phase window
-      const hit = phases.find(
+      const list = effectivePhases;
+      if (!ymd || list.length === 0) return list[0] ?? null;
+      const hit = list.find(
         (p) => p.start_date && p.end_date && ymd >= p.start_date && ymd <= p.end_date
       );
       if (hit) return hit;
-      // Before first phase → first
-      const first = phases[0];
+      const first = list[0];
       if (first?.start_date && ymd < first.start_date) return first;
-      // After last phase → last
-      const last = phases[phases.length - 1];
+      const last = list[list.length - 1];
       if (last?.end_date && ymd > last.end_date) return last;
-      return phases[0] ?? null;
+      return list[0] ?? null;
     },
-    [phases]
+    [effectivePhases]
   );
 
   /** Map<YYYY-MM-DD, PhaseBoundary[]> for calendar markers. */
   const boundariesByDate = useMemo(() => {
     const map = new Map<string, PhaseBoundary[]>();
-    phases.forEach((p, idx) => {
-      if (p.end_date && idx < phases.length - 1) {
+    effectivePhases.forEach((p, idx) => {
+      if (p.end_date && idx < effectivePhases.length - 1) {
         const arr = map.get(p.end_date) || [];
         arr.push({ type: "end", phaseName: p.name, phaseOrder: p.phase_order });
         map.set(p.end_date, arr);
@@ -145,7 +143,38 @@ export const usePhaseBoundaries = (
       }
     });
     return map;
-  }, [phases]);
+  }, [effectivePhases]);
 
-  return { phases, loading, resolvePhaseForDate, boundariesByDate, reload: load };
+  /**
+   * Find any phase whose start_date falls within [weekStartYmd, weekEndYmd].
+   * Used to render the Trainerize-style banner above a week row.
+   */
+  const findPhaseStartsInWeek = useCallback(
+    (weekStartYmd: string, weekEndYmd: string) => {
+      return effectivePhases
+        .filter(
+          (p, idx) =>
+            idx > 0 &&
+            p.start_date &&
+            p.start_date >= weekStartYmd &&
+            p.start_date <= weekEndYmd,
+        )
+        .map((p) => ({
+          startDate: p.start_date as string,
+          phaseName: p.name,
+          phaseOrder: p.phase_order,
+        }));
+    },
+    [effectivePhases],
+  );
+
+  return {
+    phases: effectivePhases,
+    loading,
+    resolvePhaseForDate,
+    boundariesByDate,
+    findPhaseStartsInWeek,
+    reload: load,
+  };
 };
+
