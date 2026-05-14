@@ -1,20 +1,153 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, ClipboardCheck, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { ChevronDown, ChevronRight, ClipboardCheck, TrendingUp, TrendingDown, Minus, StickyNote, Copy, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import CoachNoteText from "./CoachNoteText";
+
+type Submission = {
+  id: string;
+  week_number: number | null;
+  submitted_at: string | null;
+  submitted_at_pst: string | null;
+  status: string;
+  coach_response: string | null;
+  coach_response_updated_at: string | null;
+};
+
+const draftKey = (subId: string) => `coach-note-draft:${subId}`;
+
+const CoachNoteEditor: React.FC<{
+  submission: Submission;
+  clientId: string;
+  previousNote: string | null;
+  onSaved: () => void;
+}> = ({ submission, clientId, previousNote, onSaved }) => {
+  const initial = submission.coach_response ?? "";
+  // sessionStorage draft trumps server value if present
+  const draft = typeof window !== "undefined" ? sessionStorage.getItem(draftKey(submission.id)) : null;
+  const [value, setValue] = useState<string>(draft ?? initial);
+  const [saving, setSaving] = useState(false);
+  const lastSavedRef = useRef<string>(initial);
+
+  // Persist draft on every keystroke (debounced via micro-task)
+  useEffect(() => {
+    if (value === lastSavedRef.current) {
+      sessionStorage.removeItem(draftKey(submission.id));
+    } else {
+      sessionStorage.setItem(draftKey(submission.id), value);
+    }
+  }, [value, submission.id]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const trimmed = value.trim();
+    const payload: Record<string, any> = {
+      coach_response: trimmed.length === 0 ? null : value,
+      coach_response_updated_at: new Date().toISOString(),
+      // Reset read status so the client gets the unread indicator again
+      coach_response_read_at: null,
+    };
+    const { error } = await supabase
+      .from("checkin_submissions")
+      .update(payload)
+      .eq("id", submission.id)
+      .select()
+      .single();
+    if (error) {
+      console.error("[CoachNote] save failed", error);
+      toast.error("Could not save note");
+      setSaving(false);
+      return;
+    }
+    lastSavedRef.current = value;
+    sessionStorage.removeItem(draftKey(submission.id));
+
+    // Fire push notification (non-blocking)
+    if (trimmed.length > 0) {
+      const week = submission.week_number;
+      supabase.functions
+        .invoke("send-push-notification", {
+          body: {
+            user_id: clientId,
+            title: "New coach note",
+            body: week
+              ? `Your coach left a note on your Week ${week} check-in.`
+              : "Your coach left a note on your check-in.",
+            notification_type: "checkin",
+            data: { route: "/progress?tab=forms", submission_id: submission.id },
+          },
+        })
+        .catch((e) => console.warn("[CoachNote] push failed (non-fatal)", e));
+    }
+
+    toast.success(trimmed.length === 0 ? "Note cleared" : "Note saved");
+    setSaving(false);
+    onSaved();
+  };
+
+  // Enter inserts newline (default browser behavior). We only block any
+  // accidental "submit on Enter" by NOT adding a keydown handler.
+  return (
+    <div className="pt-3 border-t border-border space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-primary flex items-center gap-1.5">
+          <StickyNote className="h-3.5 w-3.5" /> Coach Note
+        </p>
+        {previousNote && previousNote.trim().length > 0 && value.trim().length === 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px] text-muted-foreground hover:text-primary"
+            onClick={() => setValue(previousNote)}
+          >
+            <Copy className="h-3 w-3 mr-1" /> Copy from previous week
+          </Button>
+        )}
+      </div>
+      <Textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Add a note for this check-in… (Enter for new line — click Save to submit)"
+        className="min-h-[120px] bg-card border-border text-sm font-normal whitespace-pre-wrap resize-y"
+      />
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] text-muted-foreground">
+          Visible to client.
+          {submission.coach_response_updated_at && (
+            <> Last saved {format(new Date(submission.coach_response_updated_at), "MMM d, h:mm a")}.</>
+          )}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleSave}
+          disabled={saving || value === lastSavedRef.current}
+          className="h-8"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+          Save Note
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const ClientCheckinHistory = ({ clientId }: { clientId: string }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: submissions, isLoading } = useQuery({
     queryKey: ["client-checkin-history", clientId],
