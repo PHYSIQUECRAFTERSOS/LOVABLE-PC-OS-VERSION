@@ -285,11 +285,12 @@ const ClientCheckinHistory = ({ clientId }: { clientId: string }) => {
       {/* Submission List */}
       {submissions && submissions.length > 0 ? (
         <div className="space-y-2">
-          {submissions.map((sub) => {
+          {submissions.map((sub, subIdx) => {
             const subResponses = allResponses
               ?.filter((r: any) => r.submission_id === sub.id)
               .sort((a: any, b: any) => (a.checkin_questions?.question_order ?? 0) - (b.checkin_questions?.question_order ?? 0));
             const isExpanded = expandedId === sub.id;
+            const previousNote = submissions[subIdx + 1]?.coach_response ?? null;
 
             return (
               <Collapsible key={sub.id} open={isExpanded} onOpenChange={() => setExpandedId(isExpanded ? null : sub.id)}>
@@ -300,8 +301,11 @@ const ClientCheckinHistory = ({ clientId }: { clientId: string }) => {
                         <div className="flex items-center gap-2">
                           {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                           <div>
-                            <p className="text-sm font-medium">
+                            <p className="text-sm font-medium flex items-center gap-1.5">
                               Week {sub.week_number || "—"} · {sub.submitted_at ? format(new Date(sub.submitted_at), "MMM d, yyyy") : "—"}
+                              {sub.coach_response && (
+                                <StickyNote className="h-3 w-3 text-primary" aria-label="Has coach note" />
+                              )}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {sub.submitted_at_pst || (sub.submitted_at ? format(new Date(sub.submitted_at), "h:mm a") : "")}
@@ -328,12 +332,14 @@ const ClientCheckinHistory = ({ clientId }: { clientId: string }) => {
                           </p>
                         </div>
                       ))}
-                      {sub.coach_response && (
-                        <div className="pt-2 border-t border-border">
-                          <p className="text-xs font-medium text-primary">Coach Response:</p>
-                          <p className="text-sm text-foreground mt-1">{sub.coach_response}</p>
-                        </div>
-                      )}
+                      <CoachNoteEditor
+                        submission={sub as Submission}
+                        clientId={clientId}
+                        previousNote={previousNote}
+                        onSaved={() =>
+                          queryClient.invalidateQueries({ queryKey: ["client-checkin-history", clientId] })
+                        }
+                      />
                     </CardContent>
                   </Card>
                 </CollapsibleContent>
