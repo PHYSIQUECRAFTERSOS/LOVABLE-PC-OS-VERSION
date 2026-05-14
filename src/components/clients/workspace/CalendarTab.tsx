@@ -760,11 +760,29 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             const dayItems = getEventsForDay(day);
             const inMonth = isSameMonth(day, currentMonth);
             const today = isToday(day);
+            const dayKey = format(day, "yyyy-MM-dd");
+            const dayBoundaries = boundariesByDate.get(dayKey) || [];
+            const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
+            const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
 
             return (
               <div key={day.toISOString()} onClick={() => handleDayClick(day)}
                 onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
-                className={`min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""}`}>
+                className={`relative min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""} ${hasPhaseStart ? "border-t-2 border-t-primary" : ""} ${hasPhaseEnd ? "border-b-2 border-b-primary/70" : ""}`}>
+                {dayBoundaries.length > 0 && (
+                  <div className="absolute top-0 right-0 flex flex-col items-end gap-0.5 p-0.5 pointer-events-none z-10">
+                    {dayBoundaries.map((b, i) => (
+                      <span
+                        key={i}
+                        title={b.type === "start" ? `Phase ${b.phaseOrder} starts — ${b.phaseName}` : `Phase ${b.phaseOrder} ends`}
+                        className={`flex items-center gap-0.5 text-[8px] md:text-[9px] font-bold uppercase tracking-wide px-1 py-px rounded-sm pointer-events-auto ${b.type === "start" ? "bg-primary text-primary-foreground" : "bg-primary/15 text-primary border border-primary/40"}`}
+                      >
+                        <Flag className="h-2 w-2" />
+                        P{b.phaseOrder} {b.type === "start" ? "start" : "end"}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
                   {format(day, "d")}
                 </div>
