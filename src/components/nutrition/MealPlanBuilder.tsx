@@ -522,6 +522,20 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, meals: d.meals.map((m) => (m.id === mealId ? { ...m, name } : m)) } : d));
   };
 
+  const updateMealNote = (dayId: string, mealId: string, note: string) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, meals: d.meals.map((m) => (m.id === mealId ? { ...m, note } : m)) } : d));
+  };
+
+  const updateFoodNote = (dayId: string, mealId: string, foodId: string, note: string) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? { ...d, meals: d.meals.map((m) => m.id === mealId ? { ...m, foods: m.foods.map((f) => (f.id === foodId ? { ...f, note } : f)) } : m) }
+          : d
+      )
+    );
+  };
+
   const duplicateMeal = (dayId: string, mealId: string) => {
     setDays((prev) =>
       prev.map((d) => {
