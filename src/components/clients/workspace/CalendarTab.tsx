@@ -351,7 +351,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     return name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
   }
 
-  const { resolvePhaseForDate, boundariesByDate, phases: programPhases } = usePhaseBoundaries(clientId);
+  const { resolvePhaseForDate, boundariesByDate, findPhaseStartsInWeek, phases: programPhases } = usePhaseBoundaries(clientId);
   const [activePhaseLabel, setActivePhaseLabel] = useState<string | null>(null);
 
   const loadClientWorkouts = async (forDate?: Date | null) => {
