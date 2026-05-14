@@ -1,50 +1,71 @@
-## Problem
+## Goal
 
-1. **Schedule Event → "Link Workout" shows wrong phase.** It loads workouts from `client_program_assignments.current_phase_id`, which is a static pointer that doesn't follow phase date boundaries. When Phase 1's duration is shortened, the assignment still points at Phase 1, so Phase 2's workouts never show.
-2. **Change Duration only accepts weeks.** Coaches think in end-dates too (e.g. "make this phase end May 11").
-3. **Calendar gives no visual cue** that one phase ended and a new one started on a given date.
+Make phase transitions unmistakable on the client workspace calendar (and the client-side `CalendarGrid`) by rendering a **full-width gold banner across the entire week row** the moment a new phase begins, plus a matching outlined pill on the previous phase's final day. Match Trainerize's "PHASE 4: FST 7…" treatment.
 
-## Fix
+## Why the current markers don't show
 
-### 1. Date-aware current phase in `ScheduleEventForm.tsx`
-Replace the `current_phase_id`-based lookup with date-driven resolution:
-- Load **all** phases for the assigned program (`program_phases` ordered by `phase_order`) plus `programs.start_date`.
-- Run them through existing `derivePhaseDates()` from `src/lib/phaseDates.ts`.
-- Pick the phase whose `[start_date, end_date]` window contains the form's `eventDate` (the date the coach is scheduling for).
-  - Falls back to: current phase by today, then last phase if eventDate is past program end, then first phase if before program start.
-- Re-fetch `program_workouts` whenever `targetClientId` **or** `eventDate` changes.
-- Show a small caption above the workout dropdown: "Showing workouts from **PHASE 2: Prep Mens physique**" so the coach knows which phase is active for that date. Trainerize does the same.
+`usePhaseBoundaries` renders inside cells as small `P2 starts` pills — but on Jack's calendar they aren't appearing at all. Verified DB state is correct (program start 2026-05-05, Phase 1 = 1 wk → ends May 11, "PHASE 2: Prep Mens physique" starts May 12, status `active`). The cells render as if `boundariesByDate` is empty. Two probable causes:
 
-### 2. End-date option in `ChangeDurationDialog.tsx`
-- Add a segmented toggle at the top: **Weeks | End Date**.
-- Weeks tab: existing numeric input (1–52).
-- End Date tab: native date picker. Compute weeks from `(endDate − phaseStart) / 7`, rounded up, clamped 1–52. Display a live preview: "≈ 6 weeks (05 May – 16 Jun 2026)".
-- `onSave(weeks)` signature stays the same — the dialog just converts a chosen end date back into weeks before calling it. No DB schema change, no business-logic change.
-- Phase start date comes in as a new optional prop `phaseStartDate` (already known by the caller in `TrainingTab.tsx`).
+1. **RLS**: coach reading `client_program_assignments` for a client other than themselves may be blocked silently (hook returns no rows → empty boundaries).
+2. **Race**: `usePhaseBoundaries` resolves after the grid renders and the memo doesn't re-run because `boundariesByDate` is a new Map identity but hidden behind a child boundary.
 
-### 3. Phase-boundary markers on the calendar
-In `CalendarGrid.tsx` (month view) and `CalendarDayList.tsx` (week view):
-- Compute phase boundaries from the active program via `derivePhaseDates()`.
-- On the **last day of a phase**: thin gold bottom border + small badge "Phase N ends".
-- On the **first day of the next phase**: thin gold top border + badge "Phase N+1 starts — {phase name}".
-- Pure presentation, no event-data changes. Uses existing `--primary` gold token.
+Fix: add the same defensive fallback pattern used for the workout dropdown (try the assignment query, on empty fall back to `programs` + `program_phases` directly via the `client_program_assignments` row already loaded by `useClientProgram`).
 
-## Technical notes
+## Implementation
 
-- `derivePhaseDates()` already returns `start_date`, `end_date`, `isCurrent`, etc. — no new helper needed.
-- The `current_phase_id` column is left untouched (other places still rely on it for "current week" math). Only the *workout picker* and the *calendar markers* switch to date-driven resolution.
-- All date math must use the existing `parseLocal` / `toLocalYMD` pattern (no `toISOString()`).
-- Fetches stay parallel-safe; the workout dropdown is debounced via the existing useEffect deps.
+### 1. Robust data layer — `src/hooks/usePhaseBoundaries.ts`
+- Accept an optional `seed` arg `{ programId, programStart, phases }` so callers that already loaded the program (e.g. `CalendarTab` via `useClientProgram`) can hydrate boundaries instantly with zero extra round-trips.
+- Keep the existing fetch as fallback. Log a single `console.warn` when both paths return empty so future regressions are visible.
+- Export `weekHasPhaseStart(weekStart, weekEnd)` helper that returns the **starting phase** if any phase begins in that week — used by the new banner.
 
-## Files touched
+### 2. Trainerize-style week banner
 
-- `src/components/calendar/ScheduleEventForm.tsx` — date-driven phase resolution + caption
-- `src/components/clients/workspace/training/ChangeDurationDialog.tsx` — Weeks/End-Date toggle
-- `src/components/calendar/CalendarGrid.tsx` — phase boundary markers (month)
-- `src/components/calendar/CalendarDayList.tsx` — phase boundary markers (week/day list)
-- New tiny hook `src/hooks/usePhaseBoundaries.ts` — fetches program + phases for a given client and returns a `Map<date, { type: 'end'|'start', phaseName, phaseNumber }>` used by both calendar views.
+Both calendars need the same banner. Extract to `src/components/calendar/PhaseWeekBanner.tsx`:
 
-## Out of scope
+```text
+┌──────────────────────────────────────────────────────────────┐
+│  ▌ PHASE 2: PREP MENS PHYSIQUE  ·  STARTS TUE MAY 12         │  ← gold bg, dark text
+└──────────────────────────────────────────────────────────────┘
+[ Mon 11 ] [ Tue 12 ] [ Wed 13 ] [ Thu 14 ] [ Fri 15 ] [ Sat 16 ] [ Sun 17 ]
+```
 
-- Auto-updating `client_program_assignments.current_phase_id` based on dates (separate concern, would touch dashboard / week-number logic).
-- Drag-resizing phase blocks on the calendar.
+- Renders **above** the 7-day cell row when any day in that week is a phase start date.
+- Background: `bg-primary text-primary-foreground` (gold on black). Uppercase, tracking-wide, `font-bold`. Optional `Flag` icon at left.
+- Text: full phase name from program (per your choice), with `· starts {weekday MMM d}` suffix in lighter weight.
+- Click target: opens the program tab focused on that phase (nice-to-have; out of scope if it complicates things).
+
+### 3. End-of-phase marker
+
+On the previous phase's last day cell (e.g. May 11 for Phase 1):
+- Outlined gold pill spanning the full cell width: `border border-primary/60 text-primary bg-primary/5`.
+- Text: `PHASE 1 · ENDS TODAY` in tiny uppercase, with `Flag` icon.
+- Cell also gets a `border-b-2 border-b-primary/60` so the bottom edge clearly visually closes the phase.
+
+### 4. Files touched
+
+- `src/hooks/usePhaseBoundaries.ts` — accept seed, add fallback log, export `findPhaseStartingInWeek`.
+- `src/components/calendar/PhaseWeekBanner.tsx` — **new** shared banner component.
+- `src/components/clients/workspace/CalendarTab.tsx` — render `<PhaseWeekBanner>` above each week row; replace inline `P2 starts` pill with the new full-width end-day pill; pass already-loaded program/phases as seed.
+- `src/components/calendar/CalendarGrid.tsx` (client-side calendar) — render the same banner so clients see their own phase transitions.
+
+### 5. Out of scope
+
+- No DB schema changes.
+- No changes to phase resolution logic for scheduling (already fixed last turn).
+- No changes to mobile day-list view (markers there can be a follow-up).
+
+## Verification checklist
+
+After implementation I'll:
+1. Reload Jack's workspace calendar in May 2026 and confirm a gold banner sits above the row containing May 12 with text `PHASE 2: PREP MENS PHYSIQUE · STARTS TUE MAY 12`.
+2. Confirm May 11 cell shows the outlined `PHASE 1 · ENDS TODAY` pill and a gold bottom border.
+3. Confirm prior weeks (no phase change) render normally with no banner.
+4. Open the client-side `/calendar` route as Jack and confirm the same banner appears.
+5. Check the console for the new warn — should be silent when data loads.
+
+## Suggested follow-up improvements (ask before building)
+
+- **Phase progress chip** in the month header: `Week 2 of 20 · PHASE 2` so the coach always sees current context.
+- **"Jump to next phase"** arrow in the calendar toolbar that scrolls/navigates to the week containing the next phase start.
+- **Mini phase ribbon** down the left edge of each week row colored per phase (Trainerize does this in their year view), making multi-month programs scannable at a glance.
+- **Drag-to-reschedule guardrail**: when dragging a workout across a phase boundary, show a confirm toast `"This workout belongs to Phase 1 — move to Phase 2?"`.

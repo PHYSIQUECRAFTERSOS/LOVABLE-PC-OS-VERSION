@@ -35,6 +35,7 @@ import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
 import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
+import PhaseWeekBanner from "@/components/calendar/PhaseWeekBanner";
 
 const EVENT_TYPES = [
   { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
@@ -351,7 +352,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     return name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
   }
 
-  const { resolvePhaseForDate, boundariesByDate, phases: programPhases } = usePhaseBoundaries(clientId);
+  const { resolvePhaseForDate, boundariesByDate, findPhaseStartsInWeek, phases: programPhases } = usePhaseBoundaries(clientId);
   const [activePhaseLabel, setActivePhaseLabel] = useState<string | null>(null);
 
   const loadClientWorkouts = async (forDate?: Date | null) => {
@@ -488,6 +489,10 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
   const calStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
+  // Chunk into 7-day rows so we can render a Trainerize-style phase banner
+  // immediately above the week that contains a phase start date.
+  const weekRows: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) weekRows.push(days.slice(i, i + 7));
 
   const getEventsForDay = (day: Date) => {
     const dateStr = format(day, "yyyy-MM-dd");
@@ -806,116 +811,112 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
-          {days.map(day => {
-            const dayItems = getEventsForDay(day);
-            const inMonth = isSameMonth(day, currentMonth);
-            const today = isToday(day);
-            const dayKey = format(day, "yyyy-MM-dd");
-            const dayBoundaries = boundariesByDate.get(dayKey) || [];
-            const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
-            const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
-
+        <div className="space-y-1.5">
+          {weekRows.map((week, wIdx) => {
+            const weekStartYmd = format(week[0], "yyyy-MM-dd");
+            const weekEndYmd = format(week[week.length - 1], "yyyy-MM-dd");
+            const weekStarts = findPhaseStartsInWeek(weekStartYmd, weekEndYmd);
             return (
-              <div key={day.toISOString()} onClick={() => handleDayClick(day)}
-                onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
-                className={`relative min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""} ${hasPhaseStart ? "border-t-2 border-t-primary" : ""} ${hasPhaseEnd ? "border-b-2 border-b-primary/70" : ""}`}>
-                <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
-                  {format(day, "d")}
-                </div>
-                {dayBoundaries.length > 0 && (
-                  <div className="space-y-0.5 mb-1">
-                    {dayBoundaries.map((b, i) => (
-                      <div
-                        key={i}
-                        title={
-                          b.type === "start"
-                            ? `${b.phaseName} starts on ${format(day, "MMM d")}`
-                            : `Phase ${b.phaseOrder} ended on ${format(day, "MMM d")}`
-                        }
-                        className={`flex items-center gap-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-1 py-0.5 rounded leading-tight ${
-                          b.type === "start"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-primary/10 text-primary border border-primary/40"
-                        }`}
-                      >
-                        <Flag className="h-2.5 w-2.5 shrink-0" />
-                        <span className="truncate">
-                          {b.type === "start"
-                            ? `P${b.phaseOrder} starts`
-                            : `P${b.phaseOrder} ended`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="space-y-0.5">
-                  {dayItems.slice(0, 3).map((item: any, i: number) => {
-                    const effectiveType = resolveEventType(item);
-                    const isBodyStats = effectiveType === "body_stats";
-                    const dotColor = EVENT_DOT[effectiveType] || EVENT_DOT[item.event_type] || "bg-primary";
-
-                    // Build display label for body stats
-                    let displayLabel = item.title;
-                    let trendArrow: React.ReactNode = null;
-                    if (isBodyStats) {
-                      const wEntry = weightMap.get(item.event_date);
-                      if (wEntry) {
-                        displayLabel = `${Math.round(wEntry.weight * 10) / 10} lbs`;
-                        // Find previous weight entry
-                        const sortedDates = Array.from(weightMap.keys()).sort();
-                        const idx = sortedDates.indexOf(item.event_date);
-                        if (idx > 0) {
-                          const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
-                          if (wEntry.weight < prevWeight) {
-                            trendArrow = <TrendingDown className="h-2.5 w-2.5 md:h-3 md:w-3 text-green-400 shrink-0" />;
-                          } else if (wEntry.weight > prevWeight) {
-                            trendArrow = <TrendingUp className="h-2.5 w-2.5 md:h-3 md:w-3 text-red-400 shrink-0" />;
-                          }
-                        }
-                      } else {
-                        displayLabel = "Body Stats";
-                      }
-                    }
+              <div key={`week-${wIdx}`} className="space-y-1">
+                <PhaseWeekBanner starts={weekStarts} />
+                <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+                  {week.map(day => {
+                    const dayItems = getEventsForDay(day);
+                    const inMonth = isSameMonth(day, currentMonth);
+                    const today = isToday(day);
+                    const dayKey = format(day, "yyyy-MM-dd");
+                    const dayBoundaries = boundariesByDate.get(dayKey) || [];
+                    const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
+                    const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
+                    const endBoundary = dayBoundaries.find((b) => b.type === "end");
 
                     return (
-                    <button key={item.id + i} draggable={!item.isSession}
-                      onDragStart={e => handleDragStart(e, item)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isBodyStats) {
-                          setWeightHistoryOpen(true);
-                        } else {
-                          handleEventClick(item);
-                        }
-                      }}
-                      className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
-                      {item.is_completed ? (
-                        <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                          <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-white" />
+                      <div key={day.toISOString()} onClick={() => handleDayClick(day)}
+                        onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, day)}
+                        className={`relative min-h-[90px] md:min-h-[130px] p-1 bg-card cursor-pointer transition-colors hover:bg-muted/30 ${!inMonth ? "opacity-40" : ""} ${today ? "ring-1 ring-inset ring-primary/50 md:border-l-2 md:border-l-primary" : ""} ${hasPhaseStart ? "border-t-2 border-t-primary" : ""} ${hasPhaseEnd ? "border-b-2 border-b-primary/70" : ""}`}>
+                        <div className={`text-xs md:text-sm font-medium md:font-semibold mb-0.5 w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full ${today ? "bg-primary text-primary-foreground" : ""}`}>
+                          {format(day, "d")}
                         </div>
-                      ) : (
-                        <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
-                      )}
-                      <span className="text-[9px] md:text-xs md:font-medium truncate leading-tight">{displayLabel}</span>
-                      {trendArrow}
-                    </button>
+                        {endBoundary && (
+                          <div
+                            title={`${endBoundary.phaseName} ended on ${format(day, "MMM d")}`}
+                            className="flex items-center gap-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-1 py-0.5 rounded leading-tight bg-primary/10 text-primary border border-primary/40 mb-1"
+                          >
+                            <Flag className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">Phase {endBoundary.phaseOrder} ends</span>
+                          </div>
+                        )}
+                        <div className="space-y-0.5">
+                          {dayItems.slice(0, 3).map((item: any, i: number) => {
+                            const effectiveType = resolveEventType(item);
+                            const isBodyStats = effectiveType === "body_stats";
+                            const dotColor = EVENT_DOT[effectiveType] || EVENT_DOT[item.event_type] || "bg-primary";
+
+                            // Build display label for body stats
+                            let displayLabel = item.title;
+                            let trendArrow: React.ReactNode = null;
+                            if (isBodyStats) {
+                              const wEntry = weightMap.get(item.event_date);
+                              if (wEntry) {
+                                displayLabel = `${Math.round(wEntry.weight * 10) / 10} lbs`;
+                                const sortedDates = Array.from(weightMap.keys()).sort();
+                                const idx = sortedDates.indexOf(item.event_date);
+                                if (idx > 0) {
+                                  const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
+                                  if (wEntry.weight < prevWeight) {
+                                    trendArrow = <TrendingDown className="h-2.5 w-2.5 md:h-3 md:w-3 text-green-400 shrink-0" />;
+                                  } else if (wEntry.weight > prevWeight) {
+                                    trendArrow = <TrendingUp className="h-2.5 w-2.5 md:h-3 md:w-3 text-red-400 shrink-0" />;
+                                  }
+                                }
+                              } else {
+                                displayLabel = "Body Stats";
+                              }
+                            }
+
+                            return (
+                              <button key={item.id + i} draggable={!item.isSession}
+                                onDragStart={e => handleDragStart(e, item)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isBodyStats) {
+                                    setWeightHistoryOpen(true);
+                                  } else {
+                                    handleEventClick(item);
+                                  }
+                                }}
+                                className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
+                                {item.is_completed ? (
+                                  <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
+                                    <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-white" />
+                                  </div>
+                                ) : (
+                                  <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
+                                )}
+                                <span className="text-[9px] md:text-xs md:font-medium truncate leading-tight">{displayLabel}</span>
+                                {trendArrow}
+                              </button>
+                            );
+                          })}
+                          {dayItems.length > 3 && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
+                              className="w-full text-left text-[9px] md:text-xs text-primary font-medium md:font-semibold pl-3 hover:underline"
+                            >
+                              +{dayItems.length - 3} more
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
-                  {dayItems.length > 3 && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setExpandedDay(day); }}
-                      className="w-full text-left text-[9px] md:text-xs text-primary font-medium md:font-semibold pl-3 hover:underline"
-                    >
-                      +{dayItems.length - 3} more
-                    </button>
-                  )}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
 
       {/* Schedule Dialog */}
       <Dialog open={showSchedule} onOpenChange={setShowSchedule}>
