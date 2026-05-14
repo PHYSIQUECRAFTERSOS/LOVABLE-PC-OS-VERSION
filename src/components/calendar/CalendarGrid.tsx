@@ -84,6 +84,8 @@ const CalendarGrid = ({
   onNext,
 }: CalendarGridProps) => {
   const [expandedDay, setExpandedDay] = useState<Date | null>(null);
+  const { user } = useAuth();
+  const { boundariesByDate } = usePhaseBoundaries(user?.id);
 
   const days = view === "week"
     ? eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) })
