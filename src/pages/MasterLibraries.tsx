@@ -644,6 +644,13 @@ const MasterLibraries = () => {
                         >
                           <Users className="h-3.5 w-3.5 mr-2" /> Assign Phase to Client
                         </DropdownMenuItem>
+                        {canEditProgram(program) && (
+                          <DropdownMenuItem
+                            onClick={() => setAiImportTarget({ programId: program.id, phaseId: ph.id })}
+                          >
+                            <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> AI Import (into this phase)
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
