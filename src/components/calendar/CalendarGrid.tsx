@@ -98,6 +98,12 @@ const CalendarGrid = ({
         return eachDayOfInterval({ start: calStart, end: calEnd });
       })();
 
+  const weekRows = useMemo(() => {
+    const rows: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7));
+    return rows;
+  }, [days]);
+
   const getEventsForDay = (day: Date) =>
     events.filter((e) => isSameDay(new Date(e.event_date), day));
 
