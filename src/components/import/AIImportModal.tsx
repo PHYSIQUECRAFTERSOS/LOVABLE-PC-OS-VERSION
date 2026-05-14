@@ -85,12 +85,16 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
   const [saveProgress, setSaveProgress] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // When targeting an existing program/phase, the import is always a workout doc
+  const isTargetedWorkoutImport = !!(targetProgramId || targetPhaseId);
+  const effectiveImportType = isTargetedWorkoutImport ? "workout" : importType;
+
   // Reset on close
   useEffect(() => {
     if (!open) {
       setStep("upload");
       setFiles([]);
-      setDocType(importType === "any" ? "workout" : importType);
+      setDocType(effectiveImportType === "any" ? "workout" : effectiveImportType);
       setJobId(null);
       setExtracted(null);
       setMatchResults(null);
@@ -98,7 +102,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       setSaveProgress(0);
       if (pollRef.current) clearInterval(pollRef.current);
     }
-  }, [open, importType]);
+  }, [open, effectiveImportType]);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
