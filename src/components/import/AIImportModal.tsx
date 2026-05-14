@@ -62,13 +62,23 @@ interface AIImportModalProps {
   clientId?: string;
   importType: "workout" | "meal" | "supplement" | "any";
   onImportComplete?: () => void;
+  /**
+   * Optional target for workout imports.
+   * - "new-program" (default): create a brand-new program with one phase (legacy behavior).
+   * - "append-phase": append a new auto-numbered phase to targetProgramId.
+   * - "append-to-phase": append workouts to targetPhaseId (no new phase created).
+   */
+  targetMode?: "new-program" | "append-phase" | "append-to-phase";
+  targetProgramId?: string;
+  targetPhaseId?: string;
 }
 
-const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, onImportComplete }: AIImportModalProps) => {
+const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, onImportComplete, targetMode = "new-program", targetProgramId, targetPhaseId }: AIImportModalProps) => {
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [docType, setDocType] = useState<string>(importType === "any" ? "workout" : importType);
+  // Note: when targetProgramId/targetPhaseId are set, docType is locked to "workout" (see effectiveImportType below).
   const [jobId, setJobId] = useState<string | null>(null);
   const [extracted, setExtracted] = useState<any>(null);
   const [matchResults, setMatchResults] = useState<any>(null);
@@ -76,12 +86,16 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
   const [saveProgress, setSaveProgress] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // When targeting an existing program/phase, the import is always a workout doc
+  const isTargetedWorkoutImport = !!(targetProgramId || targetPhaseId);
+  const effectiveImportType = isTargetedWorkoutImport ? "workout" : importType;
+
   // Reset on close
   useEffect(() => {
     if (!open) {
       setStep("upload");
       setFiles([]);
-      setDocType(importType === "any" ? "workout" : importType);
+      setDocType(effectiveImportType === "any" ? "workout" : effectiveImportType);
       setJobId(null);
       setExtracted(null);
       setMatchResults(null);
@@ -89,7 +103,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       setSaveProgress(0);
       if (pollRef.current) clearInterval(pollRef.current);
     }
-  }, [open, importType]);
+  }, [open, effectiveImportType]);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -264,35 +278,77 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     // Support both "days" and "workout_days" from AI extraction
     const days = extracted.days || extracted.workout_days || [];
 
-    // Create program - set is_master: true for library imports so it appears in Shared
     const isLibraryImport = !clientId;
-    const { data: prog, error: progErr } = await supabase
-      .from("programs")
-      .insert({
-        coach_id: user.id,
-        name: extracted.program_name || "Imported Program",
-        is_template: isLibraryImport,
-        is_master: isLibraryImport,
-        client_id: clientId || null,
-      } as any)
-      .select()
-      .single();
-    if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
-    console.log("Created program:", (prog as any).id, "Full record:", prog);
+    let programId: string;
+    let phaseId: string;
+    let startingSortOrder = 0;
 
-    // Create a single phase
-    const { data: phase, error: phaseErr } = await supabase
-      .from("program_phases")
-      .insert({
-        program_id: (prog as any).id,
-        name: extracted.program_phase || "Phase 1",
-        phase_order: 1,
-        duration_weeks: 4,
-      })
-      .select()
-      .single();
-    if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
-    console.log("Created phase:", (phase as any).id);
+    if (targetMode === "append-to-phase" && targetPhaseId && targetProgramId) {
+      // Append workouts directly into existing phase
+      programId = targetProgramId;
+      phaseId = targetPhaseId;
+      const { data: existing } = await supabase
+        .from("program_workouts")
+        .select("sort_order")
+        .eq("phase_id", phaseId)
+        .order("sort_order", { ascending: false })
+        .limit(1);
+      startingSortOrder = (existing?.[0] as any)?.sort_order ?? 0;
+      console.log("Appending to existing phase:", phaseId, "starting sort_order:", startingSortOrder);
+    } else if (targetMode === "append-phase" && targetProgramId) {
+      // Append a new auto-numbered phase to existing program
+      programId = targetProgramId;
+      const { data: existingPhases } = await supabase
+        .from("program_phases")
+        .select("phase_order")
+        .eq("program_id", programId)
+        .order("phase_order", { ascending: false })
+        .limit(1);
+      const nextPhaseOrder = ((existingPhases?.[0] as any)?.phase_order ?? 0) + 1;
+      const { data: phase, error: phaseErr } = await supabase
+        .from("program_phases")
+        .insert({
+          program_id: programId,
+          name: `Phase ${nextPhaseOrder}`,
+          phase_order: nextPhaseOrder,
+          duration_weeks: 4,
+        })
+        .select()
+        .single();
+      if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
+      phaseId = (phase as any).id;
+      console.log("Appended new phase:", phaseId, "as Phase", nextPhaseOrder, "to program", programId);
+    } else {
+      // Legacy: create new program + first phase
+      const { data: prog, error: progErr } = await supabase
+        .from("programs")
+        .insert({
+          coach_id: user.id,
+          name: extracted.program_name || "Imported Program",
+          is_template: isLibraryImport,
+          is_master: isLibraryImport,
+          client_id: clientId || null,
+        } as any)
+        .select()
+        .single();
+      if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
+      programId = (prog as any).id;
+      console.log("Created program:", programId, "Full record:", prog);
+
+      const { data: phase, error: phaseErr } = await supabase
+        .from("program_phases")
+        .insert({
+          program_id: programId,
+          name: extracted.program_phase || "Phase 1",
+          phase_order: 1,
+          duration_weeks: 4,
+        })
+        .select()
+        .single();
+      if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
+      phaseId = (phase as any).id;
+      console.log("Created phase:", phaseId);
+    }
 
     setSaveProgress(40);
 
@@ -321,9 +377,9 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
       // Link to phase
       await supabase.from("program_workouts").insert({
-        phase_id: (phase as any).id,
+        phase_id: phaseId,
         workout_id: (workout as any).id,
-        sort_order: di + 1,
+        sort_order: startingSortOrder + di + 1,
         day_label: day.day_name || `Day ${di + 1}`,
       });
 
@@ -416,13 +472,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       }
     }
 
-    // If client, create assignment
-    if (clientId) {
+    // If client (legacy new-program flow only), create assignment
+    if (clientId && targetMode === "new-program") {
       await supabase.from("client_program_assignments").insert({
         client_id: clientId,
-        program_id: (prog as any).id,
+        program_id: programId,
         coach_id: user.id,
-        current_phase_id: (phase as any).id,
+        current_phase_id: phaseId,
         current_week_number: 1,
         status: "active",
       });
@@ -665,7 +721,17 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
               </div>
             )}
 
-            {importType === "any" && (
+            {isTargetedWorkoutImport && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                <p className="text-xs text-foreground">
+                  {targetMode === "append-to-phase"
+                    ? "Workouts from this PDF will be added to the selected phase."
+                    : "A new auto-numbered phase will be added to this program with the imported workouts."}
+                </p>
+              </div>
+            )}
+
+            {effectiveImportType === "any" && (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Document Type</label>
                 <Select value={docType} onValueChange={setDocType}>

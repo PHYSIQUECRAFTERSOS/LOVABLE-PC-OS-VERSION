@@ -15,7 +15,7 @@ import {
   Plus, Search, FolderOpen, Layers, Trash2, Copy, MoreHorizontal,
   Users, Link2, Unlink, RefreshCw, History, Dumbbell, UtensilsCrossed,
   Target, ClipboardCheck, Pill, BookOpen, ChevronRight, Share2, Lock,
-  Menu, ArrowLeft,
+  Menu, ArrowLeft, Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -44,6 +44,7 @@ import StandaloneFormBuilder from "@/components/checkin/StandaloneFormBuilder";
 import SupplementLibrary from "@/components/libraries/SupplementLibrary";
 import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
 import AIImportButton from "@/components/import/AIImportButton";
+import AIImportModal from "@/components/import/AIImportModal";
 import MobileTwoPane from "@/components/libraries/MobileTwoPane";
 
 const GOAL_LABELS: Record<string, string> = {
@@ -150,6 +151,11 @@ const MasterLibraries = () => {
   // Version history
   const [showVersions, setShowVersions] = useState(false);
   const [versions, setVersions] = useState<any[]>([]);
+
+  // AI Import target (program kebab → new phase, phase kebab → workouts into existing phase)
+  const [aiImportTarget, setAiImportTarget] = useState<
+    { programId: string; phaseId?: string } | null
+  >(null);
 
   const loadPrograms = async () => {
     if (!userId) return;
@@ -538,6 +544,11 @@ const MasterLibraries = () => {
                 <DropdownMenuItem onClick={() => duplicateProgram(program.id)}>
                   <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
                 </DropdownMenuItem>
+                {canEditProgram(program) && (
+                  <DropdownMenuItem onClick={() => setAiImportTarget({ programId: program.id })}>
+                    <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> AI Import (new phase)
+                  </DropdownMenuItem>
+                )}
                 {canDeleteProgram(program) && (
                   <>
                     <DropdownMenuSeparator />
@@ -633,6 +644,13 @@ const MasterLibraries = () => {
                         >
                           <Users className="h-3.5 w-3.5 mr-2" /> Assign Phase to Client
                         </DropdownMenuItem>
+                        {canEditProgram(program) && (
+                          <DropdownMenuItem
+                            onClick={() => setAiImportTarget({ programId: program.id, phaseId: ph.id })}
+                          >
+                            <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> AI Import (into this phase)
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -934,6 +952,30 @@ const MasterLibraries = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Import → existing program (new phase) or existing phase (append workouts) */}
+      {aiImportTarget && (
+        <AIImportModal
+          open={!!aiImportTarget}
+          onOpenChange={(open) => { if (!open) setAiImportTarget(null); }}
+          entryPoint="library"
+          importType="workout"
+          targetMode={aiImportTarget.phaseId ? "append-to-phase" : "append-phase"}
+          targetProgramId={aiImportTarget.programId}
+          targetPhaseId={aiImportTarget.phaseId}
+          onImportComplete={() => {
+            // Refresh phases for that program + program list counts
+            setPhasesByProgram((prev) => {
+              const next = { ...prev };
+              delete next[aiImportTarget.programId];
+              return next;
+            });
+            ensurePhasesLoaded(aiImportTarget.programId);
+            setOverviewRefreshKey((k) => k + 1);
+            loadPrograms();
+          }}
+        />
+      )}
     </AppLayout>
   );
 };
