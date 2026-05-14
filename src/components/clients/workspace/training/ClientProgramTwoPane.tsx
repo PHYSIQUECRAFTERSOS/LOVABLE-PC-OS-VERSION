@@ -290,7 +290,7 @@ export const ClientProgramTwoPane = ({
                 {phases.map(p => {
                   const isSelected = selectedPhaseId === p.id;
                   const dd = dateMap[p.id];
-                  const isCurrent = (dd?.isCurrent) || currentPhaseId === p.id;
+                  const isCurrent = !!dd?.isCurrent;
                   const isUpcoming = !!dd?.isUpcoming;
                   const isCompleted = !!dd?.isCompleted;
                   const totalWorkouts = p.directWorkouts.length;
