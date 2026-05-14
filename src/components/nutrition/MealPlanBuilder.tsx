@@ -42,7 +42,9 @@ import {
   ArrowUp,
   ArrowDown,
   Send,
+  StickyNote,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
