@@ -350,32 +350,20 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
     return name.replace(/^day\s*\d+\s*[:\-]\s*/i, "").trim();
   }
 
-  const loadClientWorkouts = async () => {
-    const { data: assignment } = await supabase
-      .from("client_program_assignments")
-      .select("program_id, current_phase_id")
-      .eq("client_id", clientId)
-      .in("status", ["active", "subscribed"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const { resolvePhaseForDate, boundariesByDate, phases: programPhases } = usePhaseBoundaries(clientId);
+  const [activePhaseLabel, setActivePhaseLabel] = useState<string | null>(null);
 
-    if (!assignment?.program_id) {
-      setClientWorkouts([]);
-      return;
-    }
-
-    let phaseId = assignment.current_phase_id;
-    if (!phaseId) {
-      const { data: firstPhase } = await supabase
-        .from("program_phases")
-        .select("id")
-        .eq("program_id", assignment.program_id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      phaseId = firstPhase?.id ?? null;
-    }
+  const loadClientWorkouts = async (forDate?: Date | null) => {
+    // Resolve which phase the chosen scheduling date belongs to.
+    // Falls back to today's phase, then to the first phase, so the dropdown
+    // always reflects the date the coach is actually scheduling for —
+    // not the static current_phase_id pointer.
+    const ymd = forDate
+      ? format(forDate, "yyyy-MM-dd")
+      : new Date().toLocaleDateString("en-CA");
+    const resolved = resolvePhaseForDate(ymd);
+    const phaseId = resolved?.id ?? null;
+    setActivePhaseLabel(resolved?.name ?? null);
 
     if (!phaseId) {
       setClientWorkouts([]);
@@ -413,6 +401,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
 
     setClientWorkouts(mapped);
   };
+
+  // Reload workouts whenever the coach changes the scheduling date — phase
+  // membership is date-driven now, so a date change can swap the entire list.
+  useEffect(() => {
+    if (showSchedule) loadClientWorkouts(scheduleDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleDate, showSchedule, programPhases.length]);
+
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
