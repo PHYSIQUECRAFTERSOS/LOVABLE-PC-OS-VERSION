@@ -154,6 +154,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [existingPlanId, setExistingPlanId] = useState<string | null>(null);
 
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
+  const [expandedFoodNote, setExpandedFoodNote] = useState<string | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
