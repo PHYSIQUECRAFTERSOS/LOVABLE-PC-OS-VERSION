@@ -273,35 +273,77 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     // Support both "days" and "workout_days" from AI extraction
     const days = extracted.days || extracted.workout_days || [];
 
-    // Create program - set is_master: true for library imports so it appears in Shared
     const isLibraryImport = !clientId;
-    const { data: prog, error: progErr } = await supabase
-      .from("programs")
-      .insert({
-        coach_id: user.id,
-        name: extracted.program_name || "Imported Program",
-        is_template: isLibraryImport,
-        is_master: isLibraryImport,
-        client_id: clientId || null,
-      } as any)
-      .select()
-      .single();
-    if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
-    console.log("Created program:", (prog as any).id, "Full record:", prog);
+    let programId: string;
+    let phaseId: string;
+    let startingSortOrder = 0;
 
-    // Create a single phase
-    const { data: phase, error: phaseErr } = await supabase
-      .from("program_phases")
-      .insert({
-        program_id: (prog as any).id,
-        name: extracted.program_phase || "Phase 1",
-        phase_order: 1,
-        duration_weeks: 4,
-      })
-      .select()
-      .single();
-    if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
-    console.log("Created phase:", (phase as any).id);
+    if (targetMode === "append-to-phase" && targetPhaseId && targetProgramId) {
+      // Append workouts directly into existing phase
+      programId = targetProgramId;
+      phaseId = targetPhaseId;
+      const { data: existing } = await supabase
+        .from("program_workouts")
+        .select("sort_order")
+        .eq("phase_id", phaseId)
+        .order("sort_order", { ascending: false })
+        .limit(1);
+      startingSortOrder = (existing?.[0] as any)?.sort_order ?? 0;
+      console.log("Appending to existing phase:", phaseId, "starting sort_order:", startingSortOrder);
+    } else if (targetMode === "append-phase" && targetProgramId) {
+      // Append a new auto-numbered phase to existing program
+      programId = targetProgramId;
+      const { data: existingPhases } = await supabase
+        .from("program_phases")
+        .select("phase_order")
+        .eq("program_id", programId)
+        .order("phase_order", { ascending: false })
+        .limit(1);
+      const nextPhaseOrder = ((existingPhases?.[0] as any)?.phase_order ?? 0) + 1;
+      const { data: phase, error: phaseErr } = await supabase
+        .from("program_phases")
+        .insert({
+          program_id: programId,
+          name: `Phase ${nextPhaseOrder}`,
+          phase_order: nextPhaseOrder,
+          duration_weeks: 4,
+        })
+        .select()
+        .single();
+      if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
+      phaseId = (phase as any).id;
+      console.log("Appended new phase:", phaseId, "as Phase", nextPhaseOrder, "to program", programId);
+    } else {
+      // Legacy: create new program + first phase
+      const { data: prog, error: progErr } = await supabase
+        .from("programs")
+        .insert({
+          coach_id: user.id,
+          name: extracted.program_name || "Imported Program",
+          is_template: isLibraryImport,
+          is_master: isLibraryImport,
+          client_id: clientId || null,
+        } as any)
+        .select()
+        .single();
+      if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
+      programId = (prog as any).id;
+      console.log("Created program:", programId, "Full record:", prog);
+
+      const { data: phase, error: phaseErr } = await supabase
+        .from("program_phases")
+        .insert({
+          program_id: programId,
+          name: extracted.program_phase || "Phase 1",
+          phase_order: 1,
+          duration_weeks: 4,
+        })
+        .select()
+        .single();
+      if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
+      phaseId = (phase as any).id;
+      console.log("Created phase:", phaseId);
+    }
 
     setSaveProgress(40);
 
