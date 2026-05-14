@@ -1177,6 +1177,8 @@ export type Database = {
           client_id: string
           coach_notes: string | null
           coach_response: string | null
+          coach_response_read_at: string | null
+          coach_response_updated_at: string | null
           created_at: string
           due_date: string
           id: string
@@ -1193,6 +1195,8 @@ export type Database = {
           client_id: string
           coach_notes?: string | null
           coach_response?: string | null
+          coach_response_read_at?: string | null
+          coach_response_updated_at?: string | null
           created_at?: string
           due_date: string
           id?: string
@@ -1209,6 +1213,8 @@ export type Database = {
           client_id?: string
           coach_notes?: string | null
           coach_response?: string | null
+          coach_response_read_at?: string | null
+          coach_response_updated_at?: string | null
           created_at?: string
           due_date?: string
           id?: string
