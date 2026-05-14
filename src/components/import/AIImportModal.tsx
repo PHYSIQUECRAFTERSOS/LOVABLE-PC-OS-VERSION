@@ -78,6 +78,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [docType, setDocType] = useState<string>(importType === "any" ? "workout" : importType);
+  // Note: when targetProgramId/targetPhaseId are set, docType is locked to "workout" (see effectiveImportType below).
   const [jobId, setJobId] = useState<string | null>(null);
   const [extracted, setExtracted] = useState<any>(null);
   const [matchResults, setMatchResults] = useState<any>(null);
