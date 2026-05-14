@@ -721,7 +721,17 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
               </div>
             )}
 
-            {importType === "any" && (
+            {isTargetedWorkoutImport && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                <p className="text-xs text-foreground">
+                  {targetMode === "append-to-phase"
+                    ? "Workouts from this PDF will be added to the selected phase."
+                    : "A new auto-numbered phase will be added to this program with the imported workouts."}
+                </p>
+              </div>
+            )}
+
+            {effectiveImportType === "any" && (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Document Type</label>
                 <Select value={docType} onValueChange={setDocType}>
