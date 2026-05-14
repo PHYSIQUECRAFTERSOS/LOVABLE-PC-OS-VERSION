@@ -864,7 +864,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
             {/* Workout picker */}
             {selectedTypes.includes("workout") && clientWorkouts.length > 0 && (
               <div>
-                <Label>Link to Workout</Label>
+                <div className="flex items-baseline justify-between">
+                  <Label>Link to Workout</Label>
+                  {activePhaseLabel && (
+                    <span className="text-[10px] text-muted-foreground">
+                      from <span className="text-primary font-medium">{activePhaseLabel}</span>
+                    </span>
+                  )}
+                </div>
                 <Select value={selectedWorkoutId} onValueChange={setSelectedWorkoutId}>
                   <SelectTrigger><SelectValue placeholder="Select workout" /></SelectTrigger>
                   <SelectContent>
