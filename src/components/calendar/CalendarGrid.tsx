@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addDays, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Check, ChevronLeft, ChevronRight, X, Flag } from "lucide-react";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
+import PhaseWeekBanner from "@/components/calendar/PhaseWeekBanner";
 import {
   Dialog,
   DialogContent,
