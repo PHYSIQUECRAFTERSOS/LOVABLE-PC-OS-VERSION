@@ -1,71 +1,52 @@
-## Goal
+## Root Causes Found
 
-Make phase transitions unmistakable on the client workspace calendar (and the client-side `CalendarGrid`) by rendering a **full-width gold banner across the entire week row** the moment a new phase begins, plus a matching outlined pill on the previous phase's final day. Match Trainerize's "PHASE 4: FST 7…" treatment.
+**Issue 1 — Calendar shows no phase boundary banners**
+The `usePhaseBoundaries` hook is failing silently with a Postgrest error. The query joins `client_program_assignments` with `programs`, but there are **two foreign keys** between those tables (`program_id` and `forked_from_program_id`), so Supabase rejects the ambiguous embed:
 
-## Why the current markers don't show
-
-`usePhaseBoundaries` renders inside cells as small `P2 starts` pills — but on Jack's calendar they aren't appearing at all. Verified DB state is correct (program start 2026-05-05, Phase 1 = 1 wk → ends May 11, "PHASE 2: Prep Mens physique" starts May 12, status `active`). The cells render as if `boundariesByDate` is empty. Two probable causes:
-
-1. **RLS**: coach reading `client_program_assignments` for a client other than themselves may be blocked silently (hook returns no rows → empty boundaries).
-2. **Race**: `usePhaseBoundaries` resolves after the grid renders and the memo doesn't re-run because `boundariesByDate` is a new Map identity but hidden behind a child boundary.
-
-Fix: add the same defensive fallback pattern used for the workout dropdown (try the assignment query, on empty fall back to `programs` + `program_phases` directly via the `client_program_assignments` row already loaded by `useClientProgram`).
-
-## Implementation
-
-### 1. Robust data layer — `src/hooks/usePhaseBoundaries.ts`
-- Accept an optional `seed` arg `{ programId, programStart, phases }` so callers that already loaded the program (e.g. `CalendarTab` via `useClientProgram`) can hydrate boundaries instantly with zero extra round-trips.
-- Keep the existing fetch as fallback. Log a single `console.warn` when both paths return empty so future regressions are visible.
-- Export `weekHasPhaseStart(weekStart, weekEnd)` helper that returns the **starting phase** if any phase begins in that week — used by the new banner.
-
-### 2. Trainerize-style week banner
-
-Both calendars need the same banner. Extract to `src/components/calendar/PhaseWeekBanner.tsx`:
-
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  ▌ PHASE 2: PREP MENS PHYSIQUE  ·  STARTS TUE MAY 12         │  ← gold bg, dark text
-└──────────────────────────────────────────────────────────────┘
-[ Mon 11 ] [ Tue 12 ] [ Wed 13 ] [ Thu 14 ] [ Fri 15 ] [ Sat 16 ] [ Sun 17 ]
+```
+PGRST201: Could not embed because more than one relationship was found for
+'client_program_assignments' and 'programs'
 ```
 
-- Renders **above** the 7-day cell row when any day in that week is a phase start date.
-- Background: `bg-primary text-primary-foreground` (gold on black). Uppercase, tracking-wide, `font-bold`. Optional `Flag` icon at left.
-- Text: full phase name from program (per your choice), with `· starts {weekday MMM d}` suffix in lighter weight.
-- Click target: opens the program tab focused on that phase (nice-to-have; out of scope if it complicates things).
+Result: assignment fetch returns null → 0 phases resolved → no banner, no "Phase 1 ends" pill on the coach's calendar.
 
-### 3. End-of-phase marker
+**Issue 2 — Training tab opens to old/wrong phase**
+`TrainingTab.tsx` (line 163) and `ClientProgramTwoPane.tsx` (line 110) both default the selected phase to `assignment.current_phase_id`. That stored field still points at Phase 1 (it isn't auto-rotated when a phase ends), so the UI lands on the expired phase even though today (May 14) is inside Phase 2.
 
-On the previous phase's last day cell (e.g. May 11 for Phase 1):
-- Outlined gold pill spanning the full cell width: `border border-primary/60 text-primary bg-primary/5`.
-- Text: `PHASE 1 · ENDS TODAY` in tiny uppercase, with `Flag` icon.
-- Cell also gets a `border-b-2 border-b-primary/60` so the bottom edge clearly visually closes the phase.
+**Issue 3 — Past phase still shows "Current" badge**
+`ClientProgramTwoPane.tsx` line 289 uses:
+```
+const isCurrent = (dd?.isCurrent) || currentPhaseId === p.id;
+```
+The OR fallback to the stale `assignment.current_phase_id` keeps the badge on Phase 1 forever. Date-derived `dd.isCurrent` is the source of truth.
 
-### 4. Files touched
+---
 
-- `src/hooks/usePhaseBoundaries.ts` — accept seed, add fallback log, export `findPhaseStartingInWeek`.
-- `src/components/calendar/PhaseWeekBanner.tsx` — **new** shared banner component.
-- `src/components/clients/workspace/CalendarTab.tsx` — render `<PhaseWeekBanner>` above each week row; replace inline `P2 starts` pill with the new full-width end-day pill; pass already-loaded program/phases as seed.
-- `src/components/calendar/CalendarGrid.tsx` (client-side calendar) — render the same banner so clients see their own phase transitions.
+## Plan
 
-### 5. Out of scope
+### 1. Fix the ambiguous embed in `src/hooks/usePhaseBoundaries.ts`
+Replace the embed with the explicit FK hint so the join resolves cleanly:
+```
+.select("program_id, programs!client_program_assignments_program_id_fkey(start_date)")
+```
+Keep all existing fallback/seed logic intact. This single change restores the gold "PHASE 2: PREP MENS PHYSIQUE · STARTS TUE MAY 12" banner above the May 11–17 row and the "Phase 1 ends" pill on May 11.
 
-- No DB schema changes.
-- No changes to phase resolution logic for scheduling (already fixed last turn).
-- No changes to mobile day-list view (markers there can be a follow-up).
+### 2. Make Training tab open to the date-current phase
+- In `src/components/clients/workspace/TrainingTab.tsx` (lines 159–165): compute the active phase from program start date + phase durations using the existing `derivePhaseDates` helper, and prefer that over `assignment.current_phase_id` when expanding a phase on first load.
+- In `src/components/clients/workspace/training/ClientProgramTwoPane.tsx` (lines 107–113): same change — when defaulting `selectedPhaseId`, look for a phase whose date range contains today; fall back to `currentPhaseId`, then to `phases[0]`.
 
-## Verification checklist
+### 3. Make the "Current" badge date-driven
+In `ClientProgramTwoPane.tsx` line 289 change to:
+```
+const isCurrent = !!dd?.isCurrent;
+```
+Drops the stale fallback. Phase 1 (May 5–11) will no longer show the badge after May 11; Phase 2 (May 12+) will be the only one labelled Current. The `border-l-2` highlight on line 302–303 inherits the same fix automatically.
 
-After implementation I'll:
-1. Reload Jack's workspace calendar in May 2026 and confirm a gold banner sits above the row containing May 12 with text `PHASE 2: PREP MENS PHYSIQUE · STARTS TUE MAY 12`.
-2. Confirm May 11 cell shows the outlined `PHASE 1 · ENDS TODAY` pill and a gold bottom border.
-3. Confirm prior weeks (no phase change) render normally with no banner.
-4. Open the client-side `/calendar` route as Jack and confirm the same banner appears.
-5. Check the console for the new warn — should be silent when data loads.
+### Out of scope
+- No DB migration. The stale `current_phase_id` value is left as-is (other systems may still reference it; auto-rotating it belongs to a separate "phase advancement" job).
+- No changes to mobile workout editor, drag/drop, or program builder.
 
-## Suggested follow-up improvements (ask before building)
-
-- **Phase progress chip** in the month header: `Week 2 of 20 · PHASE 2` so the coach always sees current context.
-- **"Jump to next phase"** arrow in the calendar toolbar that scrolls/navigates to the week containing the next phase start.
-- **Mini phase ribbon** down the left edge of each week row colored per phase (Trainerize does this in their year view), making multi-month programs scannable at a glance.
-- **Drag-to-reschedule guardrail**: when dragging a workout across a phase boundary, show a confirm toast `"This workout belongs to Phase 1 — move to Phase 2?"`.
+### Verification
+- Reload Jack Fisher's profile → Calendar tab → confirm gold "PHASE 2…" banner appears across the May 11–17 row and the "Phase 1 ends" pill renders on May 11.
+- Open Training tab → confirm Phase 2 is auto-selected/expanded with its workouts visible, and only Phase 2 carries the "Current" badge.
+- Console should no longer log `PGRST201` from `usePhaseBoundaries`.
