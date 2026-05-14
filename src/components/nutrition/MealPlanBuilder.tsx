@@ -1158,6 +1158,16 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                         </div>
                       </div>
 
+                      <div className="px-3 pt-2">
+                        <Textarea
+                          value={meal.note || ""}
+                          onChange={(e) => updateMealNote(day.id, meal.id, e.target.value)}
+                          placeholder="Coach note for this meal (e.g. Have ½ tsp potassium salt + 500ml water after this meal)"
+                          rows={2}
+                          className="text-[11px] min-h-[44px] bg-secondary/40 border-border/40 placeholder:text-muted-foreground/60 resize-y"
+                        />
+                      </div>
+
                       <div className="divide-y divide-border/50">
                         {meal.foods.map((food) => {
                           const macros = calcMacros(food);
@@ -1166,37 +1176,58 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                             ? +(food.gram_amount / food.serving_size_g).toFixed(2)
                             : food.gram_amount;
                           const displayUnit = useNatural ? food.serving_unit : "g";
+                          const noteOpen = !!(food.note && food.note.length > 0) || expandedFoodNote === food.id;
                           return (
-                            <div key={food.id} className="flex items-center gap-2 px-3 py-2">
-                              <FoodIcon name={food.food_name} size={28} />
-                              <div className="flex-1 min-w-0">
-                                <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
-                                {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
+                            <div key={food.id} className="px-3 py-2 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <FoodIcon name={food.food_name} size={28} />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
+                                  {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Input
+                                    type="number"
+                                    min="0.1"
+                                    step={useNatural ? "0.5" : "1"}
+                                    value={displayQty}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const grams = useNatural ? val * food.serving_size_g : val;
+                                      updateGrams(day.id, meal.id, food.id, grams);
+                                    }}
+                                    className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
+                                </div>
+                                <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
+                                  <span>{Math.round(macros.calories)}cal</span>
+                                  <span className="text-red-400">{Math.round(macros.protein)}P</span>
+                                  <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
+                                  <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  onClick={() => setExpandedFoodNote(expandedFoodNote === food.id ? null : food.id)}
+                                  title={food.note ? "Edit note" : "Add note"}
+                                >
+                                  <StickyNote className={cn("h-3 w-3", food.note ? "text-primary" : "text-muted-foreground")} />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <Input
-                                  type="number"
-                                  min="0.1"
-                                  step={useNatural ? "0.5" : "1"}
-                                  value={displayQty}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
-                                    const grams = useNatural ? val * food.serving_size_g : val;
-                                    updateGrams(day.id, meal.id, food.id, grams);
-                                  }}
-                                  className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
+                              {noteOpen && (
+                                <Textarea
+                                  value={food.note || ""}
+                                  onChange={(e) => updateFoodNote(day.id, meal.id, food.id, e.target.value)}
+                                  placeholder="Note for this food (e.g. Mix with greek yogurt)"
+                                  rows={1}
+                                  className="text-[11px] min-h-[32px] bg-secondary/30 border-border/40 placeholder:text-muted-foreground/60 resize-y ml-9"
                                 />
-                                <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
-                              </div>
-                              <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
-                                <span>{Math.round(macros.calories)}cal</span>
-                                <span className="text-red-400">{Math.round(macros.protein)}P</span>
-                                <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
-                                <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
-                              </div>
-                              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                              )}
                             </div>
                           );
                         })}
