@@ -152,6 +152,11 @@ const MasterLibraries = () => {
   const [showVersions, setShowVersions] = useState(false);
   const [versions, setVersions] = useState<any[]>([]);
 
+  // AI Import target (program kebab → new phase, phase kebab → workouts into existing phase)
+  const [aiImportTarget, setAiImportTarget] = useState<
+    { programId: string; phaseId?: string } | null
+  >(null);
+
   const loadPrograms = async () => {
     if (!userId) return;
     setLoading(true);
