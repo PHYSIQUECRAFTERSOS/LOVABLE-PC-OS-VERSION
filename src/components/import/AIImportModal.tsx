@@ -62,9 +62,18 @@ interface AIImportModalProps {
   clientId?: string;
   importType: "workout" | "meal" | "supplement" | "any";
   onImportComplete?: () => void;
+  /**
+   * Optional target for workout imports.
+   * - "new-program" (default): create a brand-new program with one phase (legacy behavior).
+   * - "append-phase": append a new auto-numbered phase to targetProgramId.
+   * - "append-to-phase": append workouts to targetPhaseId (no new phase created).
+   */
+  targetMode?: "new-program" | "append-phase" | "append-to-phase";
+  targetProgramId?: string;
+  targetPhaseId?: string;
 }
 
-const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, onImportComplete }: AIImportModalProps) => {
+const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, onImportComplete, targetMode = "new-program", targetProgramId, targetPhaseId }: AIImportModalProps) => {
   const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [files, setFiles] = useState<File[]>([]);
