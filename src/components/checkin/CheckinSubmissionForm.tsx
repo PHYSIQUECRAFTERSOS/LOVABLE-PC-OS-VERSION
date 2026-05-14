@@ -353,24 +353,73 @@ const CheckinSubmissionForm = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {pastSubmissions.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 p-3 rounded-lg bg-muted/30 overflow-hidden">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <CheckCircle className="h-4 w-4 text-primary shrink-0" />
-                    <span className="text-sm truncate">Check-in for {s.due_date}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant={s.status === "reviewed" ? "default" : "secondary"} className="text-[10px] px-1.5">
-                      {s.status}
-                    </Badge>
-                    {s.submitted_at && (
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {format(new Date(s.submitted_at), "MMM d")}
-                      </span>
+              {pastSubmissions.map((s: any) => {
+                const hasNote = !!(s.coach_response && s.coach_response.trim().length > 0);
+                const isUnread = hasNote && !s.coach_response_read_at;
+                const isOpen = expandedSubId === s.id;
+                return (
+                  <Collapsible
+                    key={s.id}
+                    open={isOpen}
+                    onOpenChange={(open) => {
+                      setExpandedSubId(open ? s.id : null);
+                      if (open && isUnread) markCoachNoteRead(s.id);
+                    }}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div
+                        className={`flex items-center gap-2 p-3 rounded-lg bg-muted/30 overflow-hidden cursor-pointer hover:bg-muted/50 transition-colors ${
+                          hasNote ? "" : "cursor-default"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {hasNote ? (
+                            isOpen ? (
+                              <ChevronDown className="h-4 w-4 text-primary shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-primary shrink-0" />
+                            )
+                          ) : (
+                            <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                          )}
+                          <span className="text-sm truncate">Check-in for {s.due_date}</span>
+                          {hasNote && (
+                            <span className="flex items-center gap-1 shrink-0">
+                              <StickyNote className="h-3 w-3 text-primary" />
+                              {isUnread && (
+                                <span
+                                  aria-label="Unread coach note"
+                                  className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-pulse"
+                                />
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge variant={s.status === "reviewed" ? "default" : "secondary"} className="text-[10px] px-1.5">
+                            {s.status}
+                          </Badge>
+                          {s.submitted_at && (
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {format(new Date(s.submitted_at), "MMM d")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    {hasNote && (
+                      <CollapsibleContent>
+                        <div className="mt-1 ml-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                          <p className="text-[11px] font-medium text-primary uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                            <StickyNote className="h-3 w-3" /> Coach Note
+                          </p>
+                          <CoachNoteText text={s.coach_response} />
+                        </div>
+                      </CollapsibleContent>
                     )}
-                  </div>
-                </div>
-              ))}
+                  </Collapsible>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
