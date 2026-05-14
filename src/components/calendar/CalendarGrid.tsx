@@ -145,93 +145,88 @@ const CalendarGrid = ({
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
-        {days.map((day) => {
-          const dayEvents = getEventsForDay(day);
-          const inMonth = isSameMonth(day, currentDate);
-          const today = isToday(day);
-          const overflowCount = dayEvents.length - maxVisible;
-          const dayKey = format(day, "yyyy-MM-dd");
-          const dayBoundaries = boundariesByDate.get(dayKey) || [];
-          const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
-          const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
-
+      <div className="space-y-1.5">
+        {weekRows.map((week, wIdx) => {
+          const weekStartYmd = format(week[0], "yyyy-MM-dd");
+          const weekEndYmd = format(week[week.length - 1], "yyyy-MM-dd");
+          const weekStarts = findPhaseStartsInWeek(weekStartYmd, weekEndYmd);
           return (
-            <div
-              key={day.toISOString()}
-              onClick={() => onDayClick(day)}
-              className={cn(
-                "min-h-[80px] md:min-h-[110px] p-1.5 bg-card cursor-pointer transition-colors hover:bg-secondary/50",
-                !inMonth && view === "month" && "opacity-40",
-                today && "ring-1 ring-inset ring-primary/50",
-                hasPhaseStart && "border-t-2 border-t-primary",
-                hasPhaseEnd && "border-b-2 border-b-primary/70"
-              )}
-            >
-              <div className={cn(
-                "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
-                today && "bg-primary text-primary-foreground"
-              )}>
-                {format(day, "d")}
-              </div>
+            <div key={`week-${wIdx}`} className="space-y-1">
+              <PhaseWeekBanner starts={weekStarts} />
+              <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+                {week.map((day) => {
+                  const dayEvents = getEventsForDay(day);
+                  const inMonth = isSameMonth(day, currentDate);
+                  const today = isToday(day);
+                  const overflowCount = dayEvents.length - maxVisible;
+                  const dayKey = format(day, "yyyy-MM-dd");
+                  const dayBoundaries = boundariesByDate.get(dayKey) || [];
+                  const hasPhaseStart = dayBoundaries.some((b) => b.type === "start");
+                  const hasPhaseEnd = dayBoundaries.some((b) => b.type === "end");
+                  const endBoundary = dayBoundaries.find((b) => b.type === "end");
 
-              {dayBoundaries.length > 0 && (
-                <div className="space-y-0.5 mb-1">
-                  {dayBoundaries.map((b, i) => (
+                  return (
                     <div
-                      key={i}
-                      title={
-                        b.type === "start"
-                          ? `${b.phaseName} starts on ${format(day, "MMM d")}`
-                          : `Phase ${b.phaseOrder} ended on ${format(day, "MMM d")}`
-                      }
+                      key={day.toISOString()}
+                      onClick={() => onDayClick(day)}
                       className={cn(
-                        "flex items-center gap-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-1 py-0.5 rounded leading-tight",
-                        b.type === "start"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-primary/10 text-primary border border-primary/40"
+                        "min-h-[80px] md:min-h-[110px] p-1.5 bg-card cursor-pointer transition-colors hover:bg-secondary/50",
+                        !inMonth && view === "month" && "opacity-40",
+                        today && "ring-1 ring-inset ring-primary/50",
+                        hasPhaseStart && "border-t-2 border-t-primary",
+                        hasPhaseEnd && "border-b-2 border-b-primary/70"
                       )}
                     >
-                      <Flag className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">
-                        {b.type === "start"
-                          ? `P${b.phaseOrder} starts`
-                          : `P${b.phaseOrder} ended`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      <div className={cn(
+                        "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
+                        today && "bg-primary text-primary-foreground"
+                      )}>
+                        {format(day, "d")}
+                      </div>
 
-              <div className="space-y-0.5">
-                {dayEvents.slice(0, maxVisible).map((event) => (
-                  <button
-                    key={event.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEventClick(event);
-                    }}
-                    className={cn(
-                      "w-full text-left text-[10px] md:text-xs px-1.5 py-0.5 rounded border truncate flex items-center gap-1",
-                      EVENT_COLORS[event.event_type] || EVENT_COLORS.custom,
-                      event.is_completed && "line-through opacity-60"
-                    )}
-                  >
-                    {event.is_completed && <Check className="h-2.5 w-2.5 shrink-0" />}
-                    <span className="truncate">{event.title}</span>
-                  </button>
-                ))}
-                {overflowCount > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpandedDay(day);
-                    }}
-                    className="w-full text-left text-[10px] text-primary font-medium px-1 hover:underline"
-                  >
-                    +{overflowCount} more
-                  </button>
-                )}
+                      {endBoundary && (
+                        <div
+                          title={`${endBoundary.phaseName} ended on ${format(day, "MMM d")}`}
+                          className="flex items-center gap-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wide px-1 py-0.5 rounded leading-tight bg-primary/10 text-primary border border-primary/40 mb-1"
+                        >
+                          <Flag className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">Phase {endBoundary.phaseOrder} ends</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-0.5">
+                        {dayEvents.slice(0, maxVisible).map((event) => (
+                          <button
+                            key={event.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEventClick(event);
+                            }}
+                            className={cn(
+                              "w-full text-left text-[10px] md:text-xs px-1.5 py-0.5 rounded border truncate flex items-center gap-1",
+                              EVENT_COLORS[event.event_type] || EVENT_COLORS.custom,
+                              event.is_completed && "line-through opacity-60"
+                            )}
+                          >
+                            {event.is_completed && <Check className="h-2.5 w-2.5 shrink-0" />}
+                            <span className="truncate">{event.title}</span>
+                          </button>
+                        ))}
+                        {overflowCount > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedDay(day);
+                            }}
+                            className="w-full text-left text-[10px] text-primary font-medium px-1 hover:underline"
+                          >
+                            +{overflowCount} more
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
