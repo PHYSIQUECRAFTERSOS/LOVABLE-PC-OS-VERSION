@@ -429,7 +429,6 @@ const ExerciseCard = ({
                    }}
                    placeholder={isBW ? "BW" : "0"}
                    className="text-sm h-8"
-                   disabled={log.completed}
                  />
                 {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
                   <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
