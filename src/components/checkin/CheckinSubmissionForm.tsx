@@ -29,6 +29,16 @@ const CheckinSubmissionForm = () => {
 
   const [activeAssignment, setActiveAssignment] = useState<any>(null);
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
+
+  const markCoachNoteRead = async (subId: string) => {
+    await supabase
+      .from("checkin_submissions")
+      .update({ coach_response_read_at: new Date().toISOString() })
+      .eq("id", subId)
+      .is("coach_response_read_at", null);
+    queryClient.invalidateQueries({ queryKey: ["client-submissions", user?.id] });
+  };
 
   // Fetch join date for week number calculation
   const { data: assignedAt } = useQuery({
