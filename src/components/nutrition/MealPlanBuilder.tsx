@@ -42,7 +42,9 @@ import {
   ArrowUp,
   ArrowDown,
   Send,
+  StickyNote,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -84,12 +86,14 @@ interface MealFood {
   sugar_per_100: number;
   serving_unit: string;
   serving_size_g: number;
+  note?: string;
 }
 
 interface Meal {
   id: string;
   name: string;
   foods: MealFood[];
+  note?: string;
 }
 
 interface DayType {
@@ -150,6 +154,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   const [existingPlanId, setExistingPlanId] = useState<string | null>(null);
 
   const [searchingMealId, setSearchingMealId] = useState<string | null>(null);
+  const [expandedFoodNote, setExpandedFoodNote] = useState<string | null>(null);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [adjustMacrosOpen, setAdjustMacrosOpen] = useState(false);
@@ -232,6 +237,16 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           .order("meal_order")
           .order("item_order");
 
+        const dayIds = dbDays.map((d: any) => d.id);
+        const { data: mealNotes } = await supabase
+          .from("meal_plan_meal_notes")
+          .select("day_id, meal_order, note")
+          .in("day_id", dayIds);
+        const noteByKey = new Map<string, string>();
+        (mealNotes || []).forEach((n: any) => {
+          noteByKey.set(`${n.day_id}::${n.meal_order}`, n.note || "");
+        });
+
         const loadedDays: DayType[] = dbDays.map((day) => {
           const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
           const mealGroups: Record<string, any[]> = {};
@@ -244,10 +259,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           const meals: Meal[] = Object.entries(mealGroups)
             .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
             .map(([key, groupItems]) => {
+              const mealOrder = parseInt(key);
               const mealName = key.split("::").slice(1).join("::");
               return {
                 id: uid(),
                 name: mealName,
+                note: noteByKey.get(`${day.id}::${mealOrder}`) || "",
                 foods: groupItems.map((item: any) => {
                   const fi = item.food_items as any;
                   const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
@@ -267,6 +284,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                     sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                     serving_unit: unit,
                     serving_size_g: ss,
+                    note: item.note || "",
                   };
                 }),
               };
@@ -338,6 +356,16 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         .order("meal_order")
         .order("item_order");
 
+      const dayIds = dbDays.map((d: any) => d.id);
+      const { data: mealNotes } = await supabase
+        .from("meal_plan_meal_notes")
+        .select("day_id, meal_order, note")
+        .in("day_id", dayIds);
+      const noteByKey = new Map<string, string>();
+      (mealNotes || []).forEach((n: any) => {
+        noteByKey.set(`${n.day_id}::${n.meal_order}`, n.note || "");
+      });
+
       const loadedDays: DayType[] = dbDays.map((day) => {
         const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
         const mealGroups: Record<string, any[]> = {};
@@ -350,10 +378,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         const meals: Meal[] = Object.entries(mealGroups)
           .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
           .map(([key, groupItems]) => {
+            const mealOrder = parseInt(key);
             const mealName = key.split("::").slice(1).join("::");
             return {
               id: uid(),
               name: mealName,
+              note: noteByKey.get(`${day.id}::${mealOrder}`) || "",
               foods: groupItems.map((item: any) => {
                 const fi = item.food_items as any;
                 const ss = Math.max(fi?.serving_size || item.serving_size || 100, 1);
@@ -373,6 +403,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                   sugar_per_100: fi ? ((fi.sugar || 0) / ss) * 100 : 0,
                   serving_unit: unit,
                   serving_size_g: ss,
+                  note: item.note || "",
                 };
               }),
             };
@@ -490,6 +521,20 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
 
   const renameMeal = (dayId: string, mealId: string, name: string) => {
     setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, meals: d.meals.map((m) => (m.id === mealId ? { ...m, name } : m)) } : d));
+  };
+
+  const updateMealNote = (dayId: string, mealId: string, note: string) => {
+    setDays((prev) => prev.map((d) => d.id === dayId ? { ...d, meals: d.meals.map((m) => (m.id === mealId ? { ...m, note } : m)) } : d));
+  };
+
+  const updateFoodNote = (dayId: string, mealId: string, foodId: string, note: string) => {
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? { ...d, meals: d.meals.map((m) => m.id === mealId ? { ...m, foods: m.foods.map((f) => (f.id === foodId ? { ...f, note } : f)) } : m) }
+          : d
+      )
+    );
   };
 
   const duplicateMeal = (dayId: string, mealId: string) => {
@@ -791,12 +836,29 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             serving_size: food.serving_size_g || food.gram_amount || 100,
             item_order: fi,
             meal_order: mi,
+            note: food.note?.trim() ? food.note.trim() : null,
           }))
         );
 
         if (items.length > 0) {
           const { error: itemErr } = await supabase.from("meal_plan_items").insert(items);
           if (itemErr) throw itemErr;
+        }
+
+        const mealNoteRows = day.meals
+          .map((meal, mi) => ({ meal, mi }))
+          .filter(({ meal }) => (meal.note || "").trim().length > 0)
+          .map(({ meal, mi }) => ({
+            day_id: dayRow.id,
+            meal_order: mi,
+            meal_name: meal.name,
+            note: meal.note!.trim(),
+          }));
+        if (mealNoteRows.length > 0) {
+          const { error: noteErr } = await supabase
+            .from("meal_plan_meal_notes")
+            .insert(mealNoteRows);
+          if (noteErr) console.warn("[MealPlanBuilder] meal note insert error:", noteErr);
         }
       }
 
@@ -870,11 +932,24 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
             fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
             item_order: fi,
             meal_order: mi,
+            note: food.note?.trim() ? food.note.trim() : null,
           }))
         );
         if (items.length > 0) {
           const { error: itemErr } = await supabase.from("meal_plan_items").insert(items);
           if (itemErr) throw itemErr;
+        }
+        const mealNoteRows = day.meals
+          .map((meal, mi) => ({ meal, mi }))
+          .filter(({ meal }) => (meal.note || "").trim().length > 0)
+          .map(({ meal, mi }) => ({
+            day_id: dayRow.id,
+            meal_order: mi,
+            meal_name: meal.name,
+            note: meal.note!.trim(),
+          }));
+        if (mealNoteRows.length > 0) {
+          await supabase.from("meal_plan_meal_notes").insert(mealNoteRows);
         }
       }
       toast({ title: "Plan assigned!" });
@@ -1084,6 +1159,16 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                         </div>
                       </div>
 
+                      <div className="px-3 pt-2">
+                        <Textarea
+                          value={meal.note || ""}
+                          onChange={(e) => updateMealNote(day.id, meal.id, e.target.value)}
+                          placeholder="Coach note for this meal (e.g. Have ½ tsp potassium salt + 500ml water after this meal)"
+                          rows={2}
+                          className="text-[11px] min-h-[44px] bg-secondary/40 border-border/40 placeholder:text-muted-foreground/60 resize-y"
+                        />
+                      </div>
+
                       <div className="divide-y divide-border/50">
                         {meal.foods.map((food) => {
                           const macros = calcMacros(food);
@@ -1092,37 +1177,58 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                             ? +(food.gram_amount / food.serving_size_g).toFixed(2)
                             : food.gram_amount;
                           const displayUnit = useNatural ? food.serving_unit : "g";
+                          const noteOpen = !!(food.note && food.note.length > 0) || expandedFoodNote === food.id;
                           return (
-                            <div key={food.id} className="flex items-center gap-2 px-3 py-2">
-                              <FoodIcon name={food.food_name} size={28} />
-                              <div className="flex-1 min-w-0">
-                                <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
-                                {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
+                            <div key={food.id} className="px-3 py-2 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <FoodIcon name={food.food_name} size={28} />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
+                                  {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Input
+                                    type="number"
+                                    min="0.1"
+                                    step={useNatural ? "0.5" : "1"}
+                                    value={displayQty}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      const grams = useNatural ? val * food.serving_size_g : val;
+                                      updateGrams(day.id, meal.id, food.id, grams);
+                                    }}
+                                    className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
+                                </div>
+                                <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
+                                  <span>{Math.round(macros.calories)}cal</span>
+                                  <span className="text-red-400">{Math.round(macros.protein)}P</span>
+                                  <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
+                                  <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  onClick={() => setExpandedFoodNote(expandedFoodNote === food.id ? null : food.id)}
+                                  title={food.note ? "Edit note" : "Add note"}
+                                >
+                                  <StickyNote className={cn("h-3 w-3", food.note ? "text-primary" : "text-muted-foreground")} />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                <Input
-                                  type="number"
-                                  min="0.1"
-                                  step={useNatural ? "0.5" : "1"}
-                                  value={displayQty}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
-                                    const grams = useNatural ? val * food.serving_size_g : val;
-                                    updateGrams(day.id, meal.id, food.id, grams);
-                                  }}
-                                  className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
+                              {noteOpen && (
+                                <Textarea
+                                  value={food.note || ""}
+                                  onChange={(e) => updateFoodNote(day.id, meal.id, food.id, e.target.value)}
+                                  placeholder="Note for this food (e.g. Mix with greek yogurt)"
+                                  rows={1}
+                                  className="text-[11px] min-h-[32px] bg-secondary/30 border-border/40 placeholder:text-muted-foreground/60 resize-y ml-9"
                                 />
-                                <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
-                              </div>
-                              <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
-                                <span>{Math.round(macros.calories)}cal</span>
-                                <span className="text-red-400">{Math.round(macros.protein)}P</span>
-                                <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
-                                <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
-                              </div>
-                              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                              )}
                             </div>
                           );
                         })}

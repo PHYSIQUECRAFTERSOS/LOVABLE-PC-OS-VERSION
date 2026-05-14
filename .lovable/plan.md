@@ -1,41 +1,49 @@
-## Goal
-Add **AI Import** to the kebab menus in the Master Library so phases (and workouts) can be transferred from PDFs much faster — no need to re-create a new program every time.
+# Coach Notes on Meal Plans
 
-## Two new menu entries
+Let coaches attach plain-text notes to each **meal** (e.g., "Have ½ tsp potassium salt + 500ml water after this meal") and to each **food item** (e.g., "Mix with greek yogurt"). Clients see them inline in their meal plan view. Notes are naturally per day-type because each `meal_plan_days` row already has a `day_type` (Training / Rest), so editing under the Training day only affects training, and Rest day only affects rest.
 
-### 1. Program kebab → "AI Import (as new phase)"
-Click the 3-dots on a master program → **AI Import** → upload PDF/images → review → on save, a **new phase** is appended to that program with all extracted workouts. Phase is auto-numbered (e.g. if the program has 4 phases, this becomes "Phase 5"). The program itself is **not** duplicated.
+## Schema changes (one migration)
 
-### 2. Phase kebab → "AI Import (workouts into this phase)"
-Click the 3-dots on a specific phase → **AI Import** → upload → review → workouts are appended to **that existing phase** (sort_order continues from the last workout). No new phase is created.
+1. **New table `meal_plan_meal_notes`** — meal-level note keyed by the meal grouping inside a day.
+   - `id uuid pk`
+   - `day_id uuid not null` → `meal_plan_days(id) on delete cascade`
+   - `meal_order int not null` (matches existing `meal_plan_items.meal_order`)
+   - `meal_name text not null` (denormalized for resilience if order shifts)
+   - `note text not null default ''`
+   - `created_at`, `updated_at` with trigger
+   - `unique (day_id, meal_order)`
+   - RLS mirrors `meal_plan_days`: coach owner / admin manage; client of the parent plan can SELECT.
 
-Both reuse the existing `AIImportModal` review flow (extraction, exercise matching, auto-create unmatched exercises, rest-redistribution rules — all unchanged).
+2. **Add column `note text` to `meal_plan_items`** — per-food note. Nullable.
 
-## Files to change
+No data migration needed (additive).
 
-**`src/components/import/AIImportModal.tsx`** — add an optional target mode and rewire `saveWorkoutProgram` to branch on it:
-- New props: `targetProgramId?: string`, `targetPhaseId?: string`, `targetMode?: "new-program" | "append-phase" | "append-to-phase"` (default `"new-program"` — preserves all existing call sites).
-- In the save path:
-  - `"new-program"` (today's behavior): unchanged.
-  - `"append-phase"`: skip program insert. Look up `program_phases` for `targetProgramId`, take `MAX(phase_order)+1` as the new phase_order, name it `"Phase N"`. Insert workouts under that new phase as today.
-  - `"append-to-phase"`: skip both program and phase inserts. For each extracted day, create a `workouts` row and a `program_workouts` row linked to `targetPhaseId` with `sort_order = MAX(existing sort_order)+i+1`.
-- Force `docType` to `"workout"` when either target prop is present (PDF must be a workout doc) and hide the doc-type selector in upload step in that case.
-- All other branches (meal/supplement) untouched.
+## Coach UI — `MealPlanBuilder.tsx`
 
-**`src/pages/MasterLibraries.tsx`**
-- Add two state slots: `aiImportTarget: { programId?: string; phaseId?: string } | null`.
-- Program kebab: new `<DropdownMenuItem>` "AI Import" with Sparkles icon → sets `{ programId: program.id }`.
-- Phase kebab: new `<DropdownMenuItem>` "AI Import" → sets `{ programId: program.id, phaseId: ph.id }`.
-- Render `<AIImportModal>` once at page level when `aiImportTarget` is set, passing the appropriate `targetMode`, `targetProgramId`, `targetPhaseId`. On `onImportComplete`, refresh the program/phase lists (existing refresh hook) and close.
-- Gate both menu items by `canEditProgram(program)` (consistent with other mutating actions).
+Reference: the screenshot shows each meal header (`Meal 1 (Pre-Workout)`, `Meal 2 (Post workout)`) with food rows underneath.
 
-## Notes / out of scope
-- No DB schema changes. Uses existing `programs`, `program_phases`, `program_workouts`, `workouts`, `workout_exercises`, `exercises` tables.
-- The exercise-match review screen still appears so unmatched exercises can be confirmed before save (same UX as today).
-- Other AI Import call sites (client workspace, supplement library, meal library) are untouched — they continue working in `"new-program"` mode by default.
-- iOS/PWA upload behavior unchanged.
+- **Meal-level note**: under each meal header, add a collapsible `Coach note` row. Single textarea (multiline, line breaks preserved). Debounced save (~600ms) → upsert into `meal_plan_meal_notes` keyed by `(day_id, meal_order)`. Empty string deletes the row.
+- **Food-item note**: small note icon button on each food row (next to the trash icon). Click → inline expands a small textarea below the row. Debounced save → updates `meal_plan_items.note`. A filled note shows the icon in gold; empty in muted gray.
+- Both editors are plain `<textarea>` styled to match the dark card aesthetic. No rich formatting.
+- Notes load with the existing meal-plan fetch (`useMealPlanTracker` / builder query) — extend the select to include the new table + column.
+
+## Client UI — `ClientStructuredMealPlan.tsx` (the view clients see under Nutrition → Meal Plan)
+
+- Under each meal header (e.g., "Meal 1 (Pre-Workout)"), if a meal note exists, render it as a small gold-bordered card with `Coach Note` label and `whitespace-pre-wrap` text so line breaks survive.
+- Under each food row, if `note` is set, render a one-line muted italic text beneath the food name.
+- Read-only for clients.
+
+## Files touched
+
+- `supabase/migrations/...` — new table + new column + RLS + trigger.
+- `src/components/nutrition/MealPlanBuilder.tsx` — meal-note editor + food-note editor + save logic.
+- `src/components/nutrition/ClientStructuredMealPlan.tsx` — render notes inline.
+- `src/hooks/useMealPlanTracker.ts` — include `note` and meal notes in fetch shape.
+- `src/integrations/supabase/types.ts` — auto-regenerated after migration.
 
 ## Verification
-1. Master Library → kebab on a master program → click "AI Import" → upload `BW_circuits-2.pdf` → confirm exercises → save. Refresh: the program now has one extra phase named e.g. "Phase 5" with the imported days. Original phases untouched.
-2. Expand a program, kebab on a specific phase → "AI Import" → upload → save. That phase now contains the original workouts plus the newly imported ones, with sort_order continuing.
-3. Existing client-workspace AI Import still creates a brand-new program (no regression).
+
+1. Coach: open a client meal plan, add a meal note on Meal 1 of Training Day, add a food note on Rice Krispy Cereal. Reload — both persist.
+2. Switch to Rest Day tab — notes are independent (different `day_id`).
+3. Log in as that client → Nutrition → Meal Plan: meal note shows under Meal 1 header (line breaks preserved); food note shows under the food name.
+4. Clear the textarea → row deleted / column cleared on next debounced save.
