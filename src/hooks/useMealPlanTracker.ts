@@ -20,6 +20,14 @@ export interface MealPlanFood {
   day_id: string | null;
   serving_size: number | null;
   serving_unit: string | null;
+  note?: string | null;
+}
+
+export interface MealPlanMealNote {
+  day_id: string;
+  meal_order: number;
+  meal_name: string;
+  note: string;
 }
 
 export interface MealPlanDay {
