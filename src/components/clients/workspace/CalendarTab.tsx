@@ -621,9 +621,14 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           const w = clientWorkouts.find((cw) => cw.id === selectedWorkoutId);
           title = w?.label || "Workout";
         } else if (type === "cardio") {
-          const targetStr = cardioTargetType !== "none" && cardioTargetValue
-            ? ` — ${cardioTargetValue} ${cardioTargetUnit}`
-            : "";
+          let targetStr = "";
+          if (cardioTargetType === "custom" && cardioTargetValue) {
+            targetStr = ` — ${cardioTargetValue}`;
+          } else if (cardioTargetType === "time" && cardioTargetValue) {
+            targetStr = ` — ${cardioTargetValue} min`;
+          } else if (cardioTargetType === "distance" && cardioTargetValue) {
+            targetStr = ` — ${cardioTargetValue} ${cardioTargetUnit}`;
+          }
           title = `${cardioType}${targetStr}`;
         } else if (selectedTypes.length === 1 && scheduleTitle) {
           title = scheduleTitle;
