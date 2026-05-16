@@ -15,6 +15,7 @@ import CoachNutritionAnalytics from "@/components/nutrition/CoachNutritionAnalyt
 import ChronicDeficiencyTracker from "@/components/nutrition/ChronicDeficiencyTracker";
 import ClientNutritionDashboard from "@/components/nutrition/ClientNutritionDashboard";
 import RecipeBuilder from "@/components/nutrition/RecipeBuilder";
+import PoweredByFatSecret from "@/components/nutrition/PoweredByFatSecret";
 import { Pill, FlaskConical, Brain, ChefHat } from "lucide-react";
 
 const Nutrition = () => {
@@ -27,8 +28,11 @@ const Nutrition = () => {
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl font-bold text-foreground">Nutrition</h1>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="font-display text-2xl font-bold text-foreground">Nutrition</h1>
+            <PoweredByFatSecret variant="inline" />
+          </div>
           <div className="flex items-center gap-2">
             {isCoach && <USDAFoodSearch onImport={() => {}} />}
             {isCoach && <MacroTargetEditor />}
@@ -75,11 +79,13 @@ const Nutrition = () => {
           </TabsList>
           <TabsContent value="tracker">
             <DailyNutritionLog key={trackerKey} selectedDate={nutritionDate} onDateChange={setNutritionDate} />
+            <PoweredByFatSecret />
           </TabsContent>
           {isCoach && (
             <TabsContent value="micros" className="space-y-6">
               <MicronutrientDashboard />
               <ChronicDeficiencyTracker />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           <TabsContent value="supplements">
@@ -88,24 +94,29 @@ const Nutrition = () => {
           {isCoach && (
             <TabsContent value="analytics">
               <CoachNutritionAnalytics />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           {isCoach && (
             <TabsContent value="mealplans">
               <MealPlanBuilder />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           {isCoach && (
             <TabsContent value="recipes">
               <RecipeBuilder />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           <TabsContent value="coachplan">
             {isCoach ? <CoachNutritionGuides /> : <ClientNutritionHub />}
+            <PoweredByFatSecret />
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
              <ClientStructuredMealPlan selectedDate={nutritionDate} onLogged={refreshTracker} />
+             <PoweredByFatSecret />
             </TabsContent>
           )}
         </Tabs>
