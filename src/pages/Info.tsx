@@ -158,13 +158,33 @@ const Info = () => {
 
       {/* Footer */}
       <footer className="border-t border-border/40 px-5 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 text-center text-xs text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
-          <span>© {new Date().getFullYear()} Physique Crafters LLC. All rights reserved.</span>
-          <div className="flex gap-5">
-            <Link to="/pricing" className="hover:text-foreground transition-colors">Programs & Pricing</Link>
-            <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-            <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
-            <Link to="/support" className="hover:text-foreground transition-colors">Support</Link>
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 text-xs text-muted-foreground">
+          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:justify-between sm:text-left">
+            <span>© {new Date().getFullYear()} Physique Crafters LLC. All rights reserved.</span>
+            <div className="flex gap-5">
+              <Link to="/pricing" className="hover:text-foreground transition-colors">Programs & Pricing</Link>
+              <Link to="/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              <Link to="/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link>
+              <Link to="/support" className="hover:text-foreground transition-colors">Support</Link>
+            </div>
+          </div>
+          <div className="flex flex-col items-start gap-2 border-t border-border/40 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <span>Nutrition data powered by FatSecret Platform API.</span>
+            <a
+              href="https://platform.fatsecret.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Nutrition information provided by fatsecret Platform API"
+            >
+              <img
+                alt="Nutrition information provided by fatsecret Platform API"
+                src="https://platform.fatsecret.com/api/static/images/powered_by_fatsecret_horizontal_dark.png"
+                srcSet="https://platform.fatsecret.com/api/static/images/powered_by_fatsecret_horizontal_dark@2x.png 2x, https://platform.fatsecret.com/api/static/images/powered_by_fatsecret_horizontal_dark@3x.png 3x"
+                className="h-7 w-auto"
+                // @ts-ignore
+                border={0}
+              />
+            </a>
           </div>
         </div>
       </footer>
