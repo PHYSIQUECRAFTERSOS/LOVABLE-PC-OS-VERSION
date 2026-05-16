@@ -15,6 +15,7 @@ import CoachNutritionAnalytics from "@/components/nutrition/CoachNutritionAnalyt
 import ChronicDeficiencyTracker from "@/components/nutrition/ChronicDeficiencyTracker";
 import ClientNutritionDashboard from "@/components/nutrition/ClientNutritionDashboard";
 import RecipeBuilder from "@/components/nutrition/RecipeBuilder";
+import PoweredByFatSecret from "@/components/nutrition/PoweredByFatSecret";
 import { Pill, FlaskConical, Brain, ChefHat } from "lucide-react";
 
 const Nutrition = () => {
