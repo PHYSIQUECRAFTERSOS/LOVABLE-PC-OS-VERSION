@@ -28,8 +28,11 @@ const Nutrition = () => {
   return (
     <AppLayout>
       <div className="animate-fade-in space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl font-bold text-foreground">Nutrition</h1>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="font-display text-2xl font-bold text-foreground">Nutrition</h1>
+            <PoweredByFatSecret variant="inline" />
+          </div>
           <div className="flex items-center gap-2">
             {isCoach && <USDAFoodSearch onImport={() => {}} />}
             {isCoach && <MacroTargetEditor />}
