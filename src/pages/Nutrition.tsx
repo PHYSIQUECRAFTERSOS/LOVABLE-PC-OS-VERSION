@@ -79,11 +79,13 @@ const Nutrition = () => {
           </TabsList>
           <TabsContent value="tracker">
             <DailyNutritionLog key={trackerKey} selectedDate={nutritionDate} onDateChange={setNutritionDate} />
+            <PoweredByFatSecret />
           </TabsContent>
           {isCoach && (
             <TabsContent value="micros" className="space-y-6">
               <MicronutrientDashboard />
               <ChronicDeficiencyTracker />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           <TabsContent value="supplements">
@@ -92,24 +94,29 @@ const Nutrition = () => {
           {isCoach && (
             <TabsContent value="analytics">
               <CoachNutritionAnalytics />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           {isCoach && (
             <TabsContent value="mealplans">
               <MealPlanBuilder />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           {isCoach && (
             <TabsContent value="recipes">
               <RecipeBuilder />
+              <PoweredByFatSecret />
             </TabsContent>
           )}
           <TabsContent value="coachplan">
             {isCoach ? <CoachNutritionGuides /> : <ClientNutritionHub />}
+            <PoweredByFatSecret />
           </TabsContent>
           {!isCoach && (
             <TabsContent value="myplan">
              <ClientStructuredMealPlan selectedDate={nutritionDate} onLogged={refreshTracker} />
+             <PoweredByFatSecret />
             </TabsContent>
           )}
         </Tabs>
