@@ -100,7 +100,7 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
           dndId: ex.id || crypto.randomUUID(),
           exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
           thumbnail: ex.exercises?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
-          sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds || 60,
+          sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds ?? 60,
           rir: ex.rir?.toString() || "", rpe: ex.rpe_target?.toString() || "", notes: ex.notes || "",
           groupingType: (ex as any).grouping_type || null, groupingId: (ex as any).grouping_id || null, selected: false,
         }));
@@ -153,7 +153,7 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
         exercises.map((ex, i) => ({
           workout_id: workoutId, exercise_id: ex.exerciseId, exercise_order: i + 1,
           sets: ex.sets, reps: ex.reps || null, tempo: ex.tempo || null,
-          rest_seconds: ex.restSeconds || null, rir: ex.rir ? parseInt(ex.rir) : null,
+          rest_seconds: ex.restSeconds ?? null, rir: ex.rir ? parseInt(ex.rir) : null,
           rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
           notes: ex.notes || null, grouping_type: ex.groupingType || null, grouping_id: ex.groupingId || null,
         }))
@@ -345,7 +345,7 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
           exercises.map((ex, i) => ({
             workout_id: workoutId, exercise_id: ex.exerciseId, exercise_order: i + 1,
             sets: ex.sets, reps: ex.reps || null, tempo: ex.tempo || null,
-            rest_seconds: ex.restSeconds || null, rir: ex.rir ? parseInt(ex.rir) : null,
+            rest_seconds: ex.restSeconds ?? null, rir: ex.rir ? parseInt(ex.rir) : null,
             rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
             notes: ex.notes || null, grouping_type: ex.groupingType || null, grouping_id: ex.groupingId || null,
           }))
