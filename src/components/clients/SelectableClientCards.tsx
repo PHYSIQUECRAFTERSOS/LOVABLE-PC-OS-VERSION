@@ -22,8 +22,9 @@ import {
 } from "@/components/ui/popover";
 import { Users, Search, CheckSquare, Square, MessageSquare, Zap, Loader2, ClipboardList } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { subDays, format, addDays, differenceInDays } from "date-fns";
+import { subDays, format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { derivePhaseDates, type PhaseLike } from "@/lib/phaseDates";
 import ClientPreviewDialog from "./ClientPreviewDialog";
 import { toast } from "sonner";
 
@@ -313,52 +314,84 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     const ids = clients.map((c) => c.id);
 
     const fetchPhases = async () => {
-      const { data: assignments } = await supabase
-        .from("client_program_assignments")
-        .select("client_id, program_id, current_phase_id, start_date")
-        .in("client_id", ids)
-        .in("status", ["active", "subscribed"]);
+      // Reuse the same date-driven phase resolution the profile Plan view uses
+      // (derivePhaseDates + isCurrent). The denormalized current_phase_id is
+      // not consulted — it's known to go stale on phase transition.
+      const [assignRes, programsRes] = await Promise.allSettled([
+        supabase
+          .from("client_program_assignments")
+          .select("client_id, program_id")
+          .in("client_id", ids)
+          .in("status", ["active", "subscribed"]),
+        Promise.resolve(null), // placeholder, programs fetched after we know IDs
+      ]);
 
+      const assignments = assignRes.status === "fulfilled" ? assignRes.value.data : null;
       if (!assignments?.length) return;
 
       const programIds = [...new Set(assignments.map((a) => a.program_id))];
-      const { data: allPhases } = await supabase
-        .from("program_phases")
-        .select("id, program_id, phase_order, duration_weeks, name")
-        .in("program_id", programIds)
-        .order("phase_order", { ascending: true });
 
+      const [phasesRes, progRes] = await Promise.allSettled([
+        supabase
+          .from("program_phases")
+          .select("id, program_id, phase_order, duration_weeks, name, start_date, end_date")
+          .in("program_id", programIds)
+          .order("phase_order", { ascending: true }),
+        supabase
+          .from("programs")
+          .select("id, start_date")
+          .in("id", programIds),
+      ]);
+
+      const allPhases = phasesRes.status === "fulfilled" ? phasesRes.value.data : null;
+      const programs = progRes.status === "fulfilled" ? progRes.value.data : null;
       if (!allPhases?.length) return;
 
-      const phasesByProgram = new Map<string, typeof allPhases>();
-      allPhases.forEach((p) => {
+      const phasesByProgram = new Map<string, any[]>();
+      allPhases.forEach((p: any) => {
         if (!phasesByProgram.has(p.program_id)) phasesByProgram.set(p.program_id, []);
         phasesByProgram.get(p.program_id)!.push(p);
       });
+      const programStartById = new Map<string, string | null>();
+      (programs || []).forEach((p: any) => programStartById.set(p.id, p.start_date || null));
+
+      const today = new Date();
+      const todayYmd = today.toLocaleDateString("en-CA");
 
       const map: Record<string, PhaseInfo> = {};
       for (const a of assignments) {
         const phases = phasesByProgram.get(a.program_id);
-        if (!phases?.length || !a.current_phase_id) continue;
+        const programStart = programStartById.get(a.program_id);
+        if (!phases?.length || !programStart) continue;
 
-        const currentPhase = phases.find((p) => p.id === a.current_phase_id);
-        if (!currentPhase) continue;
+        const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
-        let totalWeeks = 0;
-        for (const p of phases) {
-          totalWeeks += p.duration_weeks;
-          if (p.id === a.current_phase_id) break;
+        // Primary: phase that contains today.
+        let resolved = phases.find((p: any) => derived[p.id]?.isCurrent);
+        // Fallback: most recent phase by end_date (covers gaps / fully-ended programs).
+        if (!resolved) {
+          resolved = [...phases]
+            .filter((p: any) => derived[p.id]?.end_date)
+            .sort((x: any, y: any) =>
+              (derived[y.id]!.end_date as string).localeCompare(derived[x.id]!.end_date as string)
+            )[0];
         }
+        if (!resolved) continue;
 
-        const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
-        const daysLeft = differenceInDays(endDate, new Date());
-        const totalDays = differenceInDays(endDate, new Date(a.start_date));
+        const dd = derived[resolved.id];
+        if (!dd?.start_date || !dd?.end_date) continue;
+
+        const endDateObj = new Date(`${dd.end_date}T00:00:00`);
+        const startDateObj = new Date(`${dd.start_date}T00:00:00`);
+        const todayObj = new Date(`${todayYmd}T00:00:00`);
+        const daysLeft = differenceInDays(endDateObj, todayObj);
+        const totalDays = Math.max(differenceInDays(endDateObj, startDateObj), 1);
 
         map[a.client_id] = {
-          phaseName: currentPhase.name,
-          endDate: format(endDate, "MMM d"),
+          phaseName: resolved.name,
+          endDate: format(endDateObj, "MMM d"),
           daysLeft,
-          totalDays: Math.max(totalDays, 1),
+          totalDays,
         };
       }
       setPhaseMap(map);
