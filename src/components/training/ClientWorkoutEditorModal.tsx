@@ -155,7 +155,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
           dndId: ex.id || crypto.randomUUID(),
           exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
           thumbnail: ex.exercises?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
-          sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds || 60,
+          sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds ?? 60,
           rir: ex.rir?.toString() || "", rpe: ex.rpe_target?.toString() || "", notes: ex.notes || "",
           groupingType: (ex as any).grouping_type || null, groupingId: (ex as any).grouping_id || null, selected: false,
         }));
@@ -297,7 +297,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
           exercises.map((ex, i) => ({
             workout_id: workoutId, exercise_id: ex.exerciseId, exercise_order: i + 1,
             sets: ex.sets, reps: ex.reps || null, tempo: useTempo ? (ex.tempo || null) : null,
-            rest_seconds: ex.restSeconds || null, rir: ex.rir ? parseInt(ex.rir) : null,
+            rest_seconds: ex.restSeconds ?? null, rir: ex.rir ? parseInt(ex.rir) : null,
             rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
             notes: ex.notes || null, grouping_type: ex.groupingType || null, grouping_id: ex.groupingId || null,
           }))
