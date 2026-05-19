@@ -41,7 +41,7 @@
           var root = document.documentElement;
           root.classList.add(t);
           root.setAttribute('data-theme', t);
-          var bg = t === 'dark' ? '#0a0a0a' : '#ffffff';
+          var bg = t === 'dark' ? '#0a0a0a' : '#f7f6f3';
           root.style.backgroundColor = bg;
           root.style.cssText += ';overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0';
           // Patch the meta theme-color to match before paint.
