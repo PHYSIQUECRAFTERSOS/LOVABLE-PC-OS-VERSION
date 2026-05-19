@@ -328,26 +328,26 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         Promise.resolve(null), // placeholder, programs fetched after we know IDs
       ]);
 
-      const assignments = assignRes.status === "fulfilled" ? assignRes.value.data : null;
-      if (!assignments?.length) return;
+      const assignments = (assignRes.status === "fulfilled" ? assignRes.value.data : null) || [];
 
       const programIds = [...new Set(assignments.map((a) => a.program_id))];
 
-      const [phasesRes, progRes] = await Promise.allSettled([
-        supabase
-          .from("program_phases")
-          .select("id, program_id, phase_order, duration_weeks, name, start_date, end_date")
-          .in("program_id", programIds)
-          .order("phase_order", { ascending: true }),
-        supabase
-          .from("programs")
-          .select("id, start_date")
-          .in("id", programIds),
-      ]);
+      const [phasesRes, progRes] = programIds.length
+        ? await Promise.allSettled([
+            supabase
+              .from("program_phases")
+              .select("id, program_id, phase_order, duration_weeks, name")
+              .in("program_id", programIds)
+              .order("phase_order", { ascending: true }),
+            supabase
+              .from("programs")
+              .select("id, start_date")
+              .in("id", programIds),
+          ])
+        : [{ status: "fulfilled", value: { data: [] } } as any, { status: "fulfilled", value: { data: [] } } as any];
 
-      const allPhases = phasesRes.status === "fulfilled" ? phasesRes.value.data : null;
-      const programs = progRes.status === "fulfilled" ? progRes.value.data : null;
-      if (!allPhases?.length) return;
+      const allPhases = (phasesRes.status === "fulfilled" ? phasesRes.value.data : null) || [];
+      const programs = (progRes.status === "fulfilled" ? progRes.value.data : null) || [];
 
       const phasesByProgram = new Map<string, any[]>();
       allPhases.forEach((p: any) => {
@@ -363,8 +363,12 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       const map: Record<string, PhaseInfo> = {};
       for (const a of assignments) {
         const phases = phasesByProgram.get(a.program_id);
-        const programStart = programStartById.get(a.program_id);
-        if (!phases?.length || !programStart) continue;
+        if (!phases?.length) continue;
+        // Fall back to earliest phase start_date when programs.start_date is null
+        // (common for legacy/imported programs).
+        const sortedPhases = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
+        const programStart = programStartById.get(a.program_id) || sortedPhases[0]?.start_date || null;
+        if (!programStart) continue;
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
