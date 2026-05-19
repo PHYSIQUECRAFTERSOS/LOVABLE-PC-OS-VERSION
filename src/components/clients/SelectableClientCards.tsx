@@ -363,8 +363,12 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       const map: Record<string, PhaseInfo> = {};
       for (const a of assignments) {
         const phases = phasesByProgram.get(a.program_id);
-        const programStart = programStartById.get(a.program_id);
-        if (!phases?.length || !programStart) continue;
+        if (!phases?.length) continue;
+        // Fall back to earliest phase start_date when programs.start_date is null
+        // (common for legacy/imported programs).
+        const sortedPhases = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
+        const programStart = programStartById.get(a.program_id) || sortedPhases[0]?.start_date || null;
+        if (!programStart) continue;
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
