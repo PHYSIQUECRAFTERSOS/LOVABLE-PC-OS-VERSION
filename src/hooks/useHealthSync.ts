@@ -418,42 +418,57 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
 
         // Sleep — best-effort, failure does not block other metrics
-        try {
-          const sleepRes = await pluginTimeout(
-            HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
-            15000, "querySleep"
-          );
-          const sleepRows = (sleepRes.values || [])
-            .filter((s) => s.totalMinutes > 0)
-            .map((s) => ({
-              client_id: user.id,
-              sleep_date: s.date,
-              total_minutes: s.totalMinutes,
-              in_bed_minutes: s.inBedMinutes,
-              asleep_minutes: s.asleepMinutes,
-              deep_minutes: s.deepMinutes,
-              rem_minutes: s.remMinutes,
-              light_minutes: s.lightMinutes,
-              awake_minutes: s.awakeMinutes,
-              bedtime_at: s.bedtimeAt,
-              wake_at: s.wakeAt,
-              source: "apple_health",
-              source_priority: 100,
-              synced_at: new Date().toISOString(),
-            }));
-          if (sleepRows.length > 0) {
-            // Only overwrite rows whose existing source_priority is <= 100 (always true for apple_health)
-            const { error: sleepErr } = await supabase
-              .from("sleep_logs" as any)
-              .upsert(sleepRows, { onConflict: "client_id,sleep_date" });
-            if (sleepErr) console.warn("[HealthSync] Sleep upsert error:", sleepErr);
-            else console.log(`[HealthSync] Sleep synced: ${sleepRows.length} nights`);
+        {
+          const t0 = performance.now();
+          try {
+            const sleepRes = await pluginTimeout(
+              HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
+              15000, "querySleep"
+            );
+            const sleepRows = (sleepRes.values || [])
+              .filter((s) => s.totalMinutes > 0)
+              .map((s) => ({
+                client_id: user.id,
+                sleep_date: s.date,
+                total_minutes: s.totalMinutes,
+                in_bed_minutes: s.inBedMinutes,
+                asleep_minutes: s.asleepMinutes,
+                deep_minutes: s.deepMinutes,
+                rem_minutes: s.remMinutes,
+                light_minutes: s.lightMinutes,
+                awake_minutes: s.awakeMinutes,
+                bedtime_at: s.bedtimeAt,
+                wake_at: s.wakeAt,
+                source: "apple_health",
+                source_priority: 100,
+                synced_at: new Date().toISOString(),
+              }));
+            if (sleepRows.length > 0) {
+              const { error: sleepErr } = await supabase
+                .from("sleep_logs" as any)
+                .upsert(sleepRows, { onConflict: "client_id,sleep_date" });
+              if (sleepErr) console.warn("[HealthSync] Sleep upsert error:", sleepErr);
+              else console.log(`[HealthSync] Sleep synced: ${sleepRows.length} nights`);
+            }
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "querySleep", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `nights=${sleepRows.length}`, platform, isNative,
+            });
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "querySleep",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Sleep query failed (continuing):", err);
+            failedQueries.push(`sleep: ${String(err)}`);
           }
-          anySuccess = true;
-        } catch (err) {
-          console.warn("[HealthSync] Sleep query failed (continuing):", err);
-          failedQueries.push(`sleep: ${String(err)}`);
         }
+
 
         if (!anySuccess) {
           // Include the actual errors in the log for debugging
