@@ -328,26 +328,26 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         Promise.resolve(null), // placeholder, programs fetched after we know IDs
       ]);
 
-      const assignments = assignRes.status === "fulfilled" ? assignRes.value.data : null;
-      if (!assignments?.length) return;
+      const assignments = (assignRes.status === "fulfilled" ? assignRes.value.data : null) || [];
 
       const programIds = [...new Set(assignments.map((a) => a.program_id))];
 
-      const [phasesRes, progRes] = await Promise.allSettled([
-        supabase
-          .from("program_phases")
-          .select("id, program_id, phase_order, duration_weeks, name, start_date, end_date")
-          .in("program_id", programIds)
-          .order("phase_order", { ascending: true }),
-        supabase
-          .from("programs")
-          .select("id, start_date")
-          .in("id", programIds),
-      ]);
+      const [phasesRes, progRes] = programIds.length
+        ? await Promise.allSettled([
+            supabase
+              .from("program_phases")
+              .select("id, program_id, phase_order, duration_weeks, name, start_date, end_date")
+              .in("program_id", programIds)
+              .order("phase_order", { ascending: true }),
+            supabase
+              .from("programs")
+              .select("id, start_date")
+              .in("id", programIds),
+          ])
+        : [{ status: "fulfilled", value: { data: [] } } as any, { status: "fulfilled", value: { data: [] } } as any];
 
-      const allPhases = phasesRes.status === "fulfilled" ? phasesRes.value.data : null;
-      const programs = progRes.status === "fulfilled" ? progRes.value.data : null;
-      if (!allPhases?.length) return;
+      const allPhases = (phasesRes.status === "fulfilled" ? phasesRes.value.data : null) || [];
+      const programs = (progRes.status === "fulfilled" ? progRes.value.data : null) || [];
 
       const phasesByProgram = new Map<string, any[]>();
       allPhases.forEach((p: any) => {
