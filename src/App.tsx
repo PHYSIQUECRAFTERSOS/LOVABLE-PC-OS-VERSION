@@ -45,6 +45,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
 import HealthSyncBootstrap from "./components/HealthSyncBootstrap";
+import SplashGate from "./components/SplashScreen/SplashGate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ const App = () => (
         <RankedXPProvider>
         <Toaster />
         <Sonner />
+        <SplashGate />
         <PWAInstallPrompt />
         <PushNotificationsInit />
         <HealthSyncBootstrap />
