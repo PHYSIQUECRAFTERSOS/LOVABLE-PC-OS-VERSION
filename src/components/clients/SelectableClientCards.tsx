@@ -46,8 +46,10 @@ interface NutritionCompliance {
 interface PhaseInfo {
   phaseName: string;
   endDate: string;
+  startDate: string;
   daysLeft: number;
   totalDays: number;
+  state: "current" | "upcoming" | "none";
 }
 
 interface SelectableClientCardsProps {
