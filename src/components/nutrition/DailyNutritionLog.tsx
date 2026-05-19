@@ -649,9 +649,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                   padding: "8px 20px",
                   fontSize: "13px",
                   fontWeight: isActive ? 700 : 400,
-                  background: isActive ? "#D4A017" : "#1e1e1e",
-                  color: isActive ? "#0a0a0a" : "#FFFFFF",
-                  border: isActive ? "none" : "1px solid #333333",
+                  background: isActive ? "hsl(var(--primary))" : "#1e1e1e",
+                  color: isActive ? "hsl(var(--background))" : "hsl(var(--foreground))",
+                  border: isActive ? "none" : "1px solid hsl(var(--border))",
                   cursor: "pointer",
                   minWidth: "fit-content",
                 }}

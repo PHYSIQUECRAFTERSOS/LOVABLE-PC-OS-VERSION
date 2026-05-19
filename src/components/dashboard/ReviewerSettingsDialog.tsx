@@ -16,7 +16,7 @@ import { Plus, Trash2, Palette, CalendarDays } from "lucide-react";
 
 const PRESET_COLORS = [
   "#FBBF24", "#06B6D4", "#10B981", "#F97316",
-  "#8B5CF6", "#EF4444", "#EC4899", "#D4A017",
+  "#8B5CF6", "hsl(var(--destructive))", "#EC4899", "hsl(var(--primary))",
 ];
 
 const DAY_NAMES = [

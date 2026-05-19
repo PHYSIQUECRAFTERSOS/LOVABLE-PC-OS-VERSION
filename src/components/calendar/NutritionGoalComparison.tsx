@@ -21,7 +21,7 @@ interface NutritionTargets {
 
 const MACRO_COLORS = {
   protein: "#4A9EFF",
-  carbs: "#D4A017",
+  carbs: "hsl(var(--primary))",
   fat: "#FF6B6B",
 };
 
@@ -52,7 +52,7 @@ function MacroProgressBar({
           {Math.round(logged)}g / {Math.round(target)}g
         </span>
       </div>
-      <div className="w-full h-2 rounded" style={{ backgroundColor: "#2a2a2a" }}>
+      <div className="w-full h-2 rounded" style={{ backgroundColor: "hsl(var(--secondary))" }}>
         <div
           className="h-full rounded transition-all duration-300"
           style={{ width: `${pct * 100}%`, backgroundColor: color }}
@@ -63,8 +63,8 @@ function MacroProgressBar({
         <div
           className="absolute z-50 -top-[72px] left-1/2 -translate-x-1/2 pointer-events-none"
           style={{
-            background: "#1a1a1a",
-            border: "1px solid #333333",
+            background: "hsl(var(--card))",
+            border: "1px solid hsl(var(--border))",
             borderRadius: 6,
             padding: "6px 10px",
             fontSize: 12,
@@ -91,20 +91,20 @@ function MacroProgressBar({
 function DiffLabel({ diff, unit = "kcal" }: { diff: number; unit?: string }) {
   if (diff > 0) {
     return (
-      <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "#888888" }}>
+      <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "hsl(var(--muted-foreground))" }}>
         {Math.round(diff)} {unit} remaining
       </p>
     );
   }
   if (diff === 0) {
     return (
-      <p className="text-[11px] mt-0.5 font-semibold" style={{ color: "#D4A017" }}>
+      <p className="text-[11px] mt-0.5 font-semibold" style={{ color: "hsl(var(--primary))" }}>
         Goal met
       </p>
     );
   }
   return (
-    <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "#FF4444" }}>
+    <p className="text-[11px] mt-0.5 tabular-nums" style={{ color: "hsl(var(--destructive))" }}>
       +{Math.round(Math.abs(diff))} {unit} over
     </p>
   );
@@ -137,7 +137,7 @@ function MacroDonut({
             cy={cy}
             r={r}
             fill="none"
-            stroke="#2a2a2a"
+            stroke="hsl(var(--secondary))"
             strokeWidth={strokeWidth}
           />
           <text
@@ -145,7 +145,7 @@ function MacroDonut({
             y={cy}
             textAnchor="middle"
             dominantBaseline="central"
-            fill="#555555"
+            fill="hsl(var(--muted-foreground))"
             fontSize={12}
           >
             No data
@@ -182,7 +182,7 @@ function MacroDonut({
           cy={cy}
           r={r}
           fill="none"
-          stroke="#2a2a2a"
+          stroke="hsl(var(--secondary))"
           strokeWidth={strokeWidth}
         />
         {arcs.map((arc, i) => (
@@ -239,11 +239,11 @@ function GoalSkeleton() {
 function NoGoalPlaceholder() {
   return (
     <div className="flex flex-col items-center justify-center py-8 gap-2">
-      <Target className="h-8 w-8" style={{ color: "#555555" }} />
-      <p className="text-sm font-medium" style={{ color: "#555555" }}>
+      <Target className="h-8 w-8" style={{ color: "hsl(var(--muted-foreground))" }} />
+      <p className="text-sm font-medium" style={{ color: "hsl(var(--muted-foreground))" }}>
         No nutrition goal set
       </p>
-      <p className="text-xs text-center" style={{ color: "#555555" }}>
+      <p className="text-xs text-center" style={{ color: "hsl(var(--muted-foreground))" }}>
         Set a goal in the client's Nutrition tab
       </p>
     </div>
@@ -339,8 +339,8 @@ export default function NutritionGoalComparison({
           className="text-[11px] font-semibold rounded-full px-2.5 py-0.5"
           style={
             targets.dayType === "training_day"
-              ? { backgroundColor: "#D4A017", color: "#1a1a1a" }
-              : { backgroundColor: "#2a2a2a", color: "#ffffff", border: "1px solid #444" }
+              ? { backgroundColor: "hsl(var(--primary))", color: "hsl(var(--card))" }
+              : { backgroundColor: "hsl(var(--secondary))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }
           }
         >
           {targets.dayType === "training_day" ? "Training Day" : "Rest Day"}
@@ -355,10 +355,10 @@ export default function NutritionGoalComparison({
             {Math.round(loggedValues.calories)} / {Math.round(targets.calories)} kcal
           </span>
         </div>
-        <div className="w-full h-2 rounded" style={{ backgroundColor: "#2a2a2a" }}>
+        <div className="w-full h-2 rounded" style={{ backgroundColor: "hsl(var(--secondary))" }}>
           <div
             className="h-full rounded transition-all duration-300"
-            style={{ width: `${calPct * 100}%`, backgroundColor: "#D4A017" }}
+            style={{ width: `${calPct * 100}%`, backgroundColor: "hsl(var(--primary))" }}
           />
         </div>
         <DiffLabel diff={calDiff} unit="kcal" />
@@ -403,7 +403,7 @@ export function getComplianceDot(
 ): { color: string; label: string } | null {
   if (target <= 0) return null;
   const ratio = logged / target;
-  if (ratio >= 0.9 && ratio <= 1.1) return { color: "#D4A017", label: "On target" };
+  if (ratio >= 0.9 && ratio <= 1.1) return { color: "hsl(var(--primary))", label: "On target" };
   if (ratio < 0.9) return { color: "#EAB308", label: "Under target" };
-  return { color: "#FF4444", label: "Over target" };
+  return { color: "hsl(var(--destructive))", label: "Over target" };
 }

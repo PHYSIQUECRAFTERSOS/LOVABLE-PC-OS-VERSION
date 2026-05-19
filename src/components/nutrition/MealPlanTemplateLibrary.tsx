@@ -103,14 +103,14 @@ const MealPlanTemplateLibrary = () => {
     switch (dayType) {
       case "training":
       case "training_day":
-        return { background: "#D4A017", color: "#0a0a0a" };
+        return { background: "hsl(var(--primary))", color: "hsl(var(--background))" };
       case "rest":
       case "rest_day":
-        return { background: "#2a2a2a", color: "#FFFFFF", border: "1px solid #555555" };
+        return { background: "hsl(var(--secondary))", color: "hsl(var(--foreground))", border: "1px solid #555555" };
       case "all_days":
-        return { background: "#FFFFFF", color: "#0a0a0a" };
+        return { background: "hsl(var(--foreground))", color: "hsl(var(--background))" };
       default:
-        return { background: "#3a3a3a", color: "#888888" };
+        return { background: "#3a3a3a", color: "hsl(var(--muted-foreground))" };
     }
   };
 
@@ -550,8 +550,8 @@ const MealPlanTemplateLibrary = () => {
                               onClick={(e) => { e.stopPropagation(); setClassifyOpenId(template.id); }}
                               className="shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity"
                               style={{
-                                background: "#1a1a1a",
-                                color: "#D4A017",
+                                background: "hsl(var(--card))",
+                                color: "hsl(var(--primary))",
                                 border: "1px solid #D4A017",
                                 fontSize: "11px",
                                 padding: "3px 10px",
@@ -565,7 +565,7 @@ const MealPlanTemplateLibrary = () => {
                           <PopoverContent
                             align="end"
                             className="w-40 p-1"
-                            style={{ background: "#1a1a1a", border: "1px solid #333333", borderRadius: "8px" }}
+                            style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
                             onClick={(e) => e.stopPropagation()}
                           >
                             {[
