@@ -394,6 +394,14 @@ const HealthIntegrations = () => {
             Open Steps Log
           </Button>
         </div>
+
+        {/* Version footer — tap 5× within 3s to open the hidden Sync Activity Log */}
+        <p
+          onClick={handleVersionTap}
+          className="select-none pt-2 text-center text-[10px] text-muted-foreground/60"
+        >
+          Version {(pkg as any).version ?? "0.0.0"}
+        </p>
       </CardContent>
     </Card>
   );
