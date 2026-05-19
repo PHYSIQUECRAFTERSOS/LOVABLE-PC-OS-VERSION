@@ -329,15 +329,35 @@ const ThreadChatView = ({
     if (!user || !newMessage.trim()) return;
     setSending(true);
     const messageContent = newMessage.trim();
-    const { data: insertedMsg } = await supabase
+    const { data: insertedMsg, error: insertError } = await supabase
       .from("thread_messages")
       .insert({
         thread_id: threadId,
         sender_id: user.id,
         content: messageContent,
       })
-      .select("id")
+      .select("*")
       .single();
+
+    if (insertError) {
+      toast({
+        title: "Failed to send",
+        description: insertError.message,
+        variant: "destructive",
+      });
+      setSending(false);
+      return;
+    }
+
+    // Optimistically insert into local state so the message appears
+    // immediately, without relying on a realtime round-trip. The realtime
+    // INSERT handler dedupes by id, so this is safe.
+    if (insertedMsg) {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === (insertedMsg as Message).id)) return prev;
+        return [...prev, insertedMsg as unknown as Message];
+      });
+    }
 
     await markThreadSeen();
     setNewMessage("");
