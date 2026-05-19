@@ -27,7 +27,7 @@ function applyToDOM(t: Theme) {
   root.setAttribute("data-theme", t);
 
   // PWA / browser chrome
-  const bg = t === "dark" ? "#0a0a0a" : "#ffffff";
+  const bg = t === "dark" ? "#0a0a0a" : "#f7f6f3";
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", bg);
 
