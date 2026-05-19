@@ -112,6 +112,7 @@ const App = () => (
             <Route path="/admin/repair-saved-meals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminRepairSavedMeals /></ProtectedRoute>} />
             <Route path="/body-stats" element={<ProtectedRoute><BodyStats /></ProtectedRoute>} />
             <Route path="/subscribe" element={<ProtectedRoute><Subscribe /></ProtectedRoute>} />
+            <Route path="/debug/sync-log" element={<ProtectedRoute><SyncLogDebug /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
