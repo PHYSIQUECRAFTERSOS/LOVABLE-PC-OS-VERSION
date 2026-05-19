@@ -194,7 +194,7 @@ const HealthIntegrations = () => {
 
       // Pass connection directly to avoid React state race condition
       try {
-        await healthSync.syncNow(conn);
+        await healthSync.syncNow(conn, "connect");
       } catch (syncErr: any) {
         console.warn("[HealthIntegrations] Initial sync failed (connection succeeded):", syncErr);
         toast({ title: "Sync warning", description: "Connected, but initial sync failed. Try syncing again.", variant: "destructive" });
