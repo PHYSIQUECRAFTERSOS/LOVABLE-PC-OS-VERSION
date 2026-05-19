@@ -5370,6 +5370,7 @@ export type Database = {
           preferred_distance_unit: string
           preferred_measurement_unit: string
           preferred_weight_unit: string
+          theme_preference: string
           timezone: string | null
           updated_at: string
           user_id: string
@@ -5386,6 +5387,7 @@ export type Database = {
           preferred_distance_unit?: string
           preferred_measurement_unit?: string
           preferred_weight_unit?: string
+          theme_preference?: string
           timezone?: string | null
           updated_at?: string
           user_id: string
@@ -5402,6 +5404,7 @@ export type Database = {
           preferred_distance_unit?: string
           preferred_measurement_unit?: string
           preferred_weight_unit?: string
+          theme_preference?: string
           timezone?: string | null
           updated_at?: string
           user_id?: string
