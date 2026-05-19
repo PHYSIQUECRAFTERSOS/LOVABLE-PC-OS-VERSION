@@ -187,7 +187,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
             </div>
 
             {/* Pose Card — white card like Trainerize */}
-            <div className="w-full rounded-2xl bg-white overflow-hidden shadow-xl">
+            <div className="w-full rounded-2xl bg-background overflow-hidden shadow-xl">
               {/* Pose label */}
               <div className="px-5 pt-4 pb-2">
                 <span className="text-lg font-bold text-gray-900">{currentPose.label.split(" ")[0]}</span>
@@ -201,9 +201,9 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                       alt={`${currentPose.label} uploaded`}
                       className="w-full rounded-xl object-cover max-h-[400px]"
                     />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/30 rounded-xl">
                       <div className="h-14 w-14 rounded-full bg-green-500 flex items-center justify-center">
-                        <Check className="h-7 w-7 text-white" />
+                        <Check className="h-7 w-7 text-foreground" />
                       </div>
                     </div>
                   </div>

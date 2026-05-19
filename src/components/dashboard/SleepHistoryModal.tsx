@@ -143,7 +143,7 @@ const SleepHistoryModal = ({ open, onClose, clientId, clientName, readOnly = fal
     if (!active || !payload?.[0]) return null;
     const { date, hours } = payload[0].payload;
     return (
-      <div className="rounded-lg border border-primary/50 bg-[#1a1a1a] px-3 py-1.5 text-xs text-foreground shadow-lg">
+      <div className="rounded-lg border border-primary/50 bg-card px-3 py-1.5 text-xs text-foreground shadow-lg">
         {date} &nbsp; <span className="font-bold">{hours}h</span>
       </div>
     );

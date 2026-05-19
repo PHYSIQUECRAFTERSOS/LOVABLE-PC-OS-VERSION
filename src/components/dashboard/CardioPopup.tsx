@@ -10,13 +10,13 @@ import { XP_VALUES } from "@/utils/rankedXP";
 import { useQueryClient } from "@tanstack/react-query";
 
 const CARDIO_ICONS: Record<string, React.ReactNode> = {
-  walking: <Footprints className="h-6 w-6 text-white" />,
-  "incline walk": <Footprints className="h-6 w-6 text-white" />,
-  running: <Activity className="h-6 w-6 text-white" />,
-  bike: <Bike className="h-6 w-6 text-white" />,
-  cycling: <Bike className="h-6 w-6 text-white" />,
-  stairmaster: <Activity className="h-6 w-6 text-white" />,
-  rowing: <Activity className="h-6 w-6 text-white" />,
+  walking: <Footprints className="h-6 w-6 text-foreground" />,
+  "incline walk": <Footprints className="h-6 w-6 text-foreground" />,
+  running: <Activity className="h-6 w-6 text-foreground" />,
+  bike: <Bike className="h-6 w-6 text-foreground" />,
+  cycling: <Bike className="h-6 w-6 text-foreground" />,
+  stairmaster: <Activity className="h-6 w-6 text-foreground" />,
+  rowing: <Activity className="h-6 w-6 text-foreground" />,
 };
 
 function getCardioIcon(title: string) {
@@ -24,7 +24,7 @@ function getCardioIcon(title: string) {
   for (const [key, icon] of Object.entries(CARDIO_ICONS)) {
     if (lower.includes(key)) return icon;
   }
-  return <Activity className="h-6 w-6 text-white" />;
+  return <Activity className="h-6 w-6 text-foreground" />;
 }
 
 function getCardioTypeName(title: string): string {

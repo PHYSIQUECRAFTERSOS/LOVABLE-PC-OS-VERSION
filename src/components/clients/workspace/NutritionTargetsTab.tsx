@@ -92,13 +92,13 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Macro Split</p>
                 <div className="flex h-4 rounded-full overflow-hidden">
                   <div className="bg-blue-500 transition-all" style={{ width: `${targetPercentages.protein}%` }}>
-                    {targetPercentages.protein >= 12 && <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{targetPercentages.protein}%</span>}
+                    {targetPercentages.protein >= 12 && <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{targetPercentages.protein}%</span>}
                   </div>
                   <div className="bg-amber-500 transition-all" style={{ width: `${targetPercentages.carbs}%` }}>
-                    {targetPercentages.carbs >= 12 && <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{targetPercentages.carbs}%</span>}
+                    {targetPercentages.carbs >= 12 && <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{targetPercentages.carbs}%</span>}
                   </div>
                   <div className="bg-rose-500 transition-all" style={{ width: `${targetPercentages.fat}%` }}>
-                    {targetPercentages.fat >= 12 && <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{targetPercentages.fat}%</span>}
+                    {targetPercentages.fat >= 12 && <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{targetPercentages.fat}%</span>}
                   </div>
                 </div>
                 <div className="flex justify-between">

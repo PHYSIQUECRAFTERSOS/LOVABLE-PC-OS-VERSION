@@ -543,7 +543,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
             <>
               {scanning ? (
                 <div className="space-y-3">
-                  <div className="relative w-full rounded-lg overflow-hidden bg-black">
+                  <div className="relative w-full rounded-lg overflow-hidden bg-background">
                     <video
                       ref={videoRef}
                       className="w-full max-h-[50vh] object-cover"

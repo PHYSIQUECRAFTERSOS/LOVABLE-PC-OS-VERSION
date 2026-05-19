@@ -130,7 +130,7 @@ function MacroEditor({
             {macroBarSegments.map(seg => (
               <div key={seg.label} className={`${seg.color} transition-all duration-75`} style={{ width: `${seg.pct}%` }}>
                 {seg.pct >= 12 && (
-                  <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{seg.pct}%</span>
+                  <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{seg.pct}%</span>
                 )}
               </div>
             ))}

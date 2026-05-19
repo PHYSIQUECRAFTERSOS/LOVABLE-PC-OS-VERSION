@@ -142,8 +142,8 @@ export const SortableWorkoutCard = ({
               >
                 <Dumbbell className="h-5 w-5 text-muted-foreground/30" />
               </div>
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity pointer-events-none">
-                <Play className="h-5 w-5 text-white" />
+              <div className="absolute inset-0 flex items-center justify-center bg-background/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity pointer-events-none">
+                <Play className="h-5 w-5 text-foreground" />
               </div>
             </div>
           ) : (

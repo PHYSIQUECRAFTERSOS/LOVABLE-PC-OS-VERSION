@@ -23,7 +23,7 @@ const SuccessOverlay = ({ planName, onDismiss }: SuccessOverlayProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 animate-fade-in">
       <div className="mx-4 max-w-sm w-full rounded-2xl border border-primary/30 bg-card p-8 text-center space-y-6">
         {/* Animated checkmark */}
         <div className="flex justify-center animate-[bounce-in_0.5s_ease-out_0.2s_both]">

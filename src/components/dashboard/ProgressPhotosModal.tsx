@@ -126,7 +126,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                 {format(new Date(photo.photo_date), "MMM d, yyyy")} — {mapPoseToAngle(photo.pose)}
               </span>
             </div>
-            <div className="flex-1 flex items-center justify-center bg-black/90 overflow-auto p-4 touch-manipulation">
+            <div className="flex-1 flex items-center justify-center bg-background/90 overflow-auto p-4 touch-manipulation">
               <img
                 src={photo.url}
                 alt={`${photo.pose} progress photo`}
@@ -168,7 +168,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                 <X className="h-3.5 w-3.5" /> Exit
               </Button>
             </div>
-            <div className="flex-1 grid grid-cols-2 gap-1 p-2 bg-black/90 overflow-auto">
+            <div className="flex-1 grid grid-cols-2 gap-1 p-2 bg-background/90 overflow-auto">
               {[{ photo: beforePhoto, label: "BEFORE" }, { photo: afterPhoto, label: "AFTER" }].map(({ photo, label }) => (
                 <div key={label} className="relative flex flex-col items-center">
                   <span className={cn(
@@ -269,7 +269,7 @@ const ProgressPhotosModal = ({ open, onClose, clientId, clientName }: ProgressPh
                       loading="lazy"
                     />
                     {/* Angle pill */}
-                    <span className="absolute bottom-8 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-black/60 text-white">
+                    <span className="absolute bottom-8 left-1.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-background/60 text-foreground">
                       {mapPoseToAngle(photo.pose)}
                     </span>
                     {/* Date */}

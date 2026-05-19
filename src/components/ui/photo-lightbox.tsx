@@ -88,7 +88,7 @@ const PhotoLightbox = ({ src, alt = "Photo", open, onClose }: PhotoLightboxProps
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-[81] p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors safe-top"
+        className="absolute top-4 right-4 z-[81] p-2 rounded-full bg-background/60 text-foreground hover:bg-background/80 transition-colors safe-top"
         style={{ marginTop: "env(safe-area-inset-top, 0px)" }}
         aria-label="Close"
       >

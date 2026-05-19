@@ -209,7 +209,7 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
       {/* Backdrop */}
       {expanded && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-40 bg-background/50 backdrop-blur-sm animate-fade-in"
           onClick={() => setExpanded(false)}
         />
       )}
@@ -233,7 +233,7 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
                 }}
               >
                 <div className={cn("flex h-9 w-9 items-center justify-center rounded-full", action.color)}>
-                  <action.icon className="h-4.5 w-4.5 text-white" />
+                  <action.icon className="h-4.5 w-4.5 text-foreground" />
                 </div>
                 <span className="text-sm font-medium text-foreground pr-1">{action.label}</span>
               </button>

@@ -893,7 +893,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                                 className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                                 {item.is_completed ? (
                                   <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                                    <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-white" />
+                                    <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-foreground" />
                                   </div>
                                 ) : (
                                   <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
@@ -1151,7 +1151,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 >
                   {item.is_completed ? (
                     <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                      <Check className="h-2 w-2 text-white" />
+                      <Check className="h-2 w-2 text-foreground" />
                     </div>
                   ) : (
                     <div className={`h-3 w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />

@@ -426,7 +426,7 @@ const EventDetailModal = ({
               </div>
             ) : event.is_completed ? (
               <div className="mt-0.5 h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
-                <Check className="h-5 w-5 text-white" />
+                <Check className="h-5 w-5 text-foreground" />
               </div>
             ) : (
               <div className="mt-0.5 h-8 w-8 rounded-full border-2 border-border flex items-center justify-center shrink-0">

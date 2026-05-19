@@ -81,7 +81,7 @@ const ExercisePreviewModal = ({ exercise, open, onOpenChange, onEdit, onDeleted 
         <DialogContent className="max-w-3xl p-0 gap-0 overflow-hidden">
           <div className="flex flex-col md:flex-row">
             {/* Left: Video */}
-            <div className="md:w-3/5 bg-black flex items-center justify-center min-h-[240px] md:min-h-[360px]">
+            <div className="md:w-3/5 bg-background flex items-center justify-center min-h-[240px] md:min-h-[360px]">
               {embedUrl ? (
                 <iframe
                   src={embedUrl}

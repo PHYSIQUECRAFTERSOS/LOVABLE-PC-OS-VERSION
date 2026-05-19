@@ -139,8 +139,8 @@ const ExerciseLibrary = () => {
                     </div>
                   )}
                   {(thumb || ex.video_url) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play className="h-8 w-8 text-white" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Play className="h-8 w-8 text-foreground" />
                     </div>
                   )}
                 </div>

@@ -643,7 +643,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
             {/* Camera Scanner */}
             {barcodeScanning ? (
               <div className="space-y-3">
-                <div className="relative rounded-xl overflow-hidden bg-black aspect-[4/3]">
+                <div className="relative rounded-xl overflow-hidden bg-background aspect-[4/3]">
                   <video
                     ref={barcodeVideoRef}
                     className="w-full h-full object-cover"

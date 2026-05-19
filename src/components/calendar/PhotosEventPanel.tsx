@@ -138,23 +138,23 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
 
   if (photos.length === 0) {
     return (
-      <div className="my-3 rounded-xl border border-dashed border-[#333333] p-4 text-center">
-        <Camera className="h-8 w-8 text-[#555555] mx-auto mb-2" />
-        <p className="text-sm text-[#555555] font-medium">No photos submitted for this check-in</p>
-        <p className="text-xs text-[#555555] mt-1">Client has not uploaded their progress photos</p>
+      <div className="my-3 rounded-xl border border-dashed border-border p-4 text-center">
+        <Camera className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground font-medium">No photos submitted for this check-in</p>
+        <p className="text-xs text-muted-foreground mt-1">Client has not uploaded their progress photos</p>
       </div>
     );
   }
 
   const renderPhotoGrid = (angleMap: Record<string, Photo | null>, label?: string) => (
     <div className="space-y-1.5">
-      {label && <p className="text-xs text-[#888888] text-center">{label}</p>}
+      {label && <p className="text-xs text-muted-foreground text-center">{label}</p>}
       <div className="grid grid-cols-3 gap-2">
         {ANGLES.map(angle => {
           const photo = angleMap[angle];
           return (
             <div key={angle} className="space-y-1">
-              <p className="text-[11px] text-[#888888] text-center capitalize">{angle}</p>
+              <p className="text-[11px] text-muted-foreground text-center capitalize">{angle}</p>
               {photo?.signedUrl ? (
                 <div
                   className="aspect-[3/4] rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
@@ -171,9 +171,9 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
                   />
                 </div>
               ) : (
-                <div className="aspect-[3/4] rounded-lg border border-dashed border-[#333333] flex flex-col items-center justify-center">
-                  <Camera className="h-5 w-5 text-[#555555]" />
-                  <p className="text-[10px] text-[#555555] mt-1">Not submitted</p>
+                <div className="aspect-[3/4] rounded-lg border border-dashed border-border flex flex-col items-center justify-center">
+                  <Camera className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-[10px] text-muted-foreground mt-1">Not submitted</p>
                 </div>
               )}
             </div>
@@ -187,9 +187,9 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
     <div className="my-3 space-y-3">
       <div>
         <h4 className="text-sm font-semibold text-foreground">Progress Photos</h4>
-        <p className="text-xs text-[#888888]">
+        <p className="text-xs text-muted-foreground">
           {isNearbyDate ? (
-            <span className="text-[#FFAA44]">Nearest submission: {format(new Date(actualDate + "T12:00:00"), "MMMM d, yyyy")}</span>
+            <span className="text-warn">Nearest submission: {format(new Date(actualDate + "T12:00:00"), "MMMM d, yyyy")}</span>
           ) : (
             <>Submitted {format(new Date(actualDate + "T12:00:00"), "MMMM d, yyyy")}</>
           )}
@@ -230,23 +230,23 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
       {/* Lightbox */}
       {lightboxIdx !== null && orderedPhotos[lightboxIdx] && (
         <div
-          className="fixed inset-0 z-[200] bg-black/92 flex items-center justify-center"
+          className="fixed inset-0 z-[200] bg-background/92 flex items-center justify-center"
           onClick={() => setLightboxIdx(null)}
         >
           <button
-            className="absolute top-4 right-4 text-white z-10 p-2"
+            className="absolute top-4 right-4 text-foreground z-10 p-2"
             onClick={(e) => { e.stopPropagation(); setLightboxIdx(null); }}
           >
             <X className="h-6 w-6" />
           </button>
 
-          <p className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-white font-medium capitalize">
+          <p className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-foreground font-medium capitalize">
             {mapPose(orderedPhotos[lightboxIdx].pose)}
           </p>
 
           {lightboxIdx > 0 && (
             <button
-              className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-white/80 hover:text-white z-10"
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-foreground/80 hover:text-foreground z-10"
               onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx - 1); }}
             >
               <ChevronLeft className="h-8 w-8" />
@@ -254,7 +254,7 @@ const PhotosEventPanel = ({ clientId, eventDate }: PhotosEventPanelProps) => {
           )}
           {lightboxIdx < orderedPhotos.length - 1 && (
             <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-white/80 hover:text-white z-10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-foreground/80 hover:text-foreground z-10"
               onClick={(e) => { e.stopPropagation(); setLightboxIdx(lightboxIdx + 1); }}
             >
               <ChevronRight className="h-8 w-8" />

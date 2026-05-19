@@ -177,7 +177,7 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss, evalDateLab
 
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[100] bg-black/60"
+        className="fixed inset-0 z-[100] bg-background/60"
         onClick={handleDismiss}
         style={{
           opacity: stage === "exit" ? 0 : 1,

@@ -65,12 +65,12 @@ const CoachEventNote = ({ eventId, coachId }: CoachEventNoteProps) => {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-[#888888]">Coach Note</p>
+      <p className="text-xs text-muted-foreground">Coach Note</p>
       <Textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Add a note about this check-in..."
-        className="bg-[#1a1a1a] border-[#333333] text-sm resize-none"
+        className="bg-card border-border text-sm resize-none"
         rows={2}
       />
       {note.trim() && (

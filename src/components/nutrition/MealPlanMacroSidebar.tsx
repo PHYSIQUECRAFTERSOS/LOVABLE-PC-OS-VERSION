@@ -444,7 +444,7 @@ const MealPlanMacroSidebar = ({
                     style={{ width: `${seg.pct}%` }}
                   >
                     {seg.pct >= 15 && (
-                      <span className="text-[8px] font-bold text-white flex items-center justify-center h-full">
+                      <span className="text-[8px] font-bold text-foreground flex items-center justify-center h-full">
                         {seg.pct}%
                       </span>
                     )}
@@ -580,7 +580,7 @@ const GoalEditor = ({
               style={{ width: `${seg.pct}%` }}
             >
               {seg.pct >= 12 && (
-                <span className="text-[8px] font-bold text-white flex items-center justify-center h-full">
+                <span className="text-[8px] font-bold text-foreground flex items-center justify-center h-full">
                   {seg.pct}%
                 </span>
               )}

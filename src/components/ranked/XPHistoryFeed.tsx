@@ -106,7 +106,7 @@ const XPHistoryFeed = ({ userId }: XPHistoryFeedProps) => {
                 className={cn(
                   "text-sm font-bold shrink-0",
                   isDailyEval
-                    ? "text-white"
+                    ? "text-foreground"
                     : isCoach
                       ? "text-primary"
                       : isGain

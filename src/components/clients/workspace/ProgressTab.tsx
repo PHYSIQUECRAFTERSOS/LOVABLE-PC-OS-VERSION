@@ -183,8 +183,8 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1">
-                    <p className="text-[10px] text-white/80">
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-1.5 py-1">
+                    <p className="text-[10px] text-foreground/80">
                       {format(new Date(photo.created_at), "MMM d, yyyy")}
                     </p>
                   </div>
