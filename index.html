@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark" style="background-color:#0a0a0a;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -29,10 +29,33 @@
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Pre-paint theme bootstrap: runs before <body> renders to prevent
+         a flash of the wrong theme on cold launch. Resolves to 'dark'
+         for any user with no stored preference. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('pc.theme');
+          if (t !== 'light' && t !== 'dark') t = 'dark';
+          var root = document.documentElement;
+          root.classList.add(t);
+          root.setAttribute('data-theme', t);
+          var bg = t === 'dark' ? '#0a0a0a' : '#ffffff';
+          root.style.backgroundColor = bg;
+          root.style.cssText += ';overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0';
+          // Patch the meta theme-color to match before paint.
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', bg);
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
 
-  <body style="background-color:#0a0a0a;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0">
-    <div id="root" style="background-color:#0a0a0a;position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden"></div>
+  <body>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if (window.Capacitor || (navigator.userAgent && navigator.userAgent.includes('Capacitor'))) {
