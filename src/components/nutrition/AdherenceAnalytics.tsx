@@ -198,10 +198,10 @@ const AdherenceAnalytics = () => {
     <div className="space-y-6">
       {/* Key Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatBadge icon={Zap} label="Calorie Adherence" value={stats.calorieAdherence} unit="%" color="hsl(43 72% 55%)" />
+        <StatBadge icon={Zap} label="Calorie Adherence" value={stats.calorieAdherence} unit="%" color="hsl(var(--primary))" />
         <StatBadge icon={Flame} label="Protein Adherence" value={stats.proteinAdherence} unit="%" color="hsl(0 84% 60%)" />
         <StatBadge icon={Target} label="Weekly Consistency" value={stats.weeklyConsistency} unit="%" color="hsl(180 80% 50%)" />
-        <StatBadge icon={Award} label="Longest Streak" value={stats.longestStreak} unit=" days" color="hsl(120 60% 50%)" />
+        <StatBadge icon={Award} label="Longest Streak" value={stats.longestStreak} unit=" days" color="hsl(var(--success))" />
         <StatBadge icon={TrendingUp} label="Current Streak" value={stats.currentStreak} unit=" days" color="hsl(240 100% 50%)" />
       </div>
 
@@ -220,7 +220,7 @@ const AdherenceAnalytics = () => {
                   <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                   <Tooltip contentStyle={{ backgroundColor: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }} />
                   <Legend />
-                  <Bar dataKey="calAdh" fill="hsl(43 72% 55%)" name="Calorie Adherence" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="calAdh" fill="hsl(var(--primary))" name="Calorie Adherence" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="protAdh" fill="hsl(0 84% 60%)" name="Protein Adherence" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -246,7 +246,7 @@ const AdherenceAnalytics = () => {
                 key={idx}
                 className={`h-8 rounded-sm border border-border flex items-center justify-center text-xs font-medium transition-colors ${
                   day.adherent
-                    ? "bg-green-500/20 border-green-500/50 text-green-700"
+                    ? "bg-success/20 border-success/50 text-success"
                     : "bg-muted border-muted-foreground/20 text-muted-foreground"
                 }`}
                 title={`${day.date}: ${day.calories} cal, ${day.protein}g protein`}
@@ -270,8 +270,8 @@ const AdherenceAnalytics = () => {
               <PieChart>
                 <Pie
                   data={[
-                    { name: "On Track", value: stats.calorieAdherence, fill: "hsl(120 60% 50%)" },
-                    { name: "Off Track", value: 100 - stats.calorieAdherence, fill: "hsl(0 70% 55%)" },
+                    { name: "On Track", value: stats.calorieAdherence, fill: "hsl(var(--success))" },
+                    { name: "Off Track", value: 100 - stats.calorieAdherence, fill: "hsl(var(--macro-protein))" },
                   ]}
                   cx="50%"
                   cy="50%"
@@ -281,7 +281,7 @@ const AdherenceAnalytics = () => {
                   dataKey="value"
                 >
                   {[0, 1].map((i) => (
-                    <Cell key={i} fill={i === 0 ? "hsl(120 60% 50%)" : "hsl(0 70% 55%)"} />
+                    <Cell key={i} fill={i === 0 ? "hsl(var(--success))" : "hsl(var(--macro-protein))"} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ backgroundColor: "hsl(0 0% 10%)", border: "1px solid hsl(0 0% 16%)", borderRadius: 8 }} />

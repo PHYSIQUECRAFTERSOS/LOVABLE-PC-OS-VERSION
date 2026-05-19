@@ -233,7 +233,7 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
 
               {error && (
                 <div className="flex flex-col items-center gap-3 py-4">
-                  <AlertTriangle className="h-8 w-8 text-yellow-500" />
+                  <AlertTriangle className="h-8 w-8 text-warn" />
                   <p className="text-sm text-foreground text-center">{error}</p>
                 </div>
               )}
@@ -267,7 +267,7 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
               )}
 
               <div className="flex items-center gap-2 text-xs">
-                <span className={`px-2 py-0.5 rounded-full ${result.confidence === "high" ? "bg-green-500/20 text-green-400" : result.confidence === "medium" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400"}`}>
+                <span className={`px-2 py-0.5 rounded-full ${result.confidence === "high" ? "bg-success/20 text-success" : result.confidence === "medium" ? "bg-warn/20 text-warn" : "bg-destructive/20 text-destructive"}`}>
                   {result.confidence} confidence
                 </span>
                 {result.notes && <span className="text-muted-foreground">{result.notes}</span>}
@@ -281,9 +281,9 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
                     <div><div className="font-bold text-foreground">{item.calories}</div><div className="text-muted-foreground">Cal</div></div>
-                    <div><div className="font-bold text-red-400">{item.protein}g</div><div className="text-muted-foreground">P</div></div>
-                    <div><div className="font-bold text-blue-400">{item.carbs}g</div><div className="text-muted-foreground">C</div></div>
-                    <div><div className="font-bold text-yellow-400">{item.fat}g</div><div className="text-muted-foreground">F</div></div>
+                    <div><div className="font-bold text-destructive">{item.protein}g</div><div className="text-muted-foreground">P</div></div>
+                    <div><div className="font-bold text-info">{item.carbs}g</div><div className="text-muted-foreground">C</div></div>
+                    <div><div className="font-bold text-warn">{item.fat}g</div><div className="text-muted-foreground">F</div></div>
                   </div>
                 </div>
               ))}
@@ -293,9 +293,9 @@ const MealScanCapture = ({ open, onClose, mealType, logDate, onLogged }: MealSca
                 <div className="text-xs font-semibold text-muted-foreground mb-1 uppercase">Total Estimated</div>
                 <div className="grid grid-cols-4 gap-2 text-center text-xs">
                   <div><div className="font-bold text-foreground">{result.items.reduce((s, i) => s + i.calories, 0)}</div><div className="text-muted-foreground">Cal</div></div>
-                  <div><div className="font-bold text-red-400">{result.items.reduce((s, i) => s + i.protein, 0)}g</div><div className="text-muted-foreground">P</div></div>
-                  <div><div className="font-bold text-blue-400">{result.items.reduce((s, i) => s + i.carbs, 0)}g</div><div className="text-muted-foreground">C</div></div>
-                  <div><div className="font-bold text-yellow-400">{result.items.reduce((s, i) => s + i.fat, 0)}g</div><div className="text-muted-foreground">F</div></div>
+                  <div><div className="font-bold text-destructive">{result.items.reduce((s, i) => s + i.protein, 0)}g</div><div className="text-muted-foreground">P</div></div>
+                  <div><div className="font-bold text-info">{result.items.reduce((s, i) => s + i.carbs, 0)}g</div><div className="text-muted-foreground">C</div></div>
+                  <div><div className="font-bold text-warn">{result.items.reduce((s, i) => s + i.fat, 0)}g</div><div className="text-muted-foreground">F</div></div>
                 </div>
               </div>
 

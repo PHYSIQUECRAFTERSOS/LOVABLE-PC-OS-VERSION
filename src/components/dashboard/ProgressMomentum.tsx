@@ -129,9 +129,9 @@ const ProgressMomentum = () => {
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-sm font-bold text-foreground whitespace-nowrap">{m.value}</span>
               {m.sub && <span className="text-xs text-muted-foreground whitespace-nowrap">{m.sub}</span>}
-              {m.trend === "up" && <TrendingUp className="h-3.5 w-3.5 text-green-500 shrink-0" />}
-              {m.trend === "down" && <TrendingDown className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-              {m.trend === "flat" && <Minus className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
+              {m.trend === "up" && <TrendingUp className="h-3.5 w-3.5 text-success shrink-0" />}
+              {m.trend === "down" && <TrendingDown className="h-3.5 w-3.5 text-destructive shrink-0" />}
+              {m.trend === "flat" && <Minus className="h-3.5 w-3.5 text-warn shrink-0" />}
             </div>
           </div>
         ))}

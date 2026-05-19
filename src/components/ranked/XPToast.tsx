@@ -36,7 +36,7 @@ const XPToast = ({ amount, onDone }: XPToastProps) => {
       >
         <div
           className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${
-            isGain ? "bg-emerald-500/90 text-white" : "bg-red-500/90 text-white"
+            isGain ? "bg-success/90 text-foreground" : "bg-destructive/90 text-foreground"
           }`}
         >
           {isGain ? "+" : ""}

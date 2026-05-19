@@ -176,7 +176,7 @@ const MyRankDashboardCard = () => {
               </span>
             )}
             {todayXP > 0 && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 shrink-0">
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-success/20 text-success shrink-0">
                 +{todayXP} today
               </span>
             )}

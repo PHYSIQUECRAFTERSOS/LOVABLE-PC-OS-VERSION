@@ -329,11 +329,11 @@ const OnboardingTab = ({ clientId }: Props) => {
       {/* Lightbox */}
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-background/90 flex items-center justify-center p-4"
           onClick={() => setLightboxUrl(null)}
         >
           <button
-            className="absolute top-4 right-4 text-white p-2"
+            className="absolute top-4 right-4 text-foreground p-2"
             onClick={() => setLightboxUrl(null)}
           >
             <X className="h-6 w-6" />

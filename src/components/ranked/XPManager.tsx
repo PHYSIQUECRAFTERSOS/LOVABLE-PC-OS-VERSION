@@ -104,7 +104,7 @@ const AtRiskSection = () => {
               {c.lossDays} loss days this week • Streak: {c.current_streak}
             </p>
           </div>
-          <span className="text-xs text-red-400 font-bold">
+          <span className="text-xs text-destructive font-bold">
             {c.lossDays}d loss
           </span>
         </div>
@@ -138,7 +138,7 @@ const TopMoversSection = () => {
               {getDivisionLabel(c.current_tier, c.current_division)}
             </p>
           </div>
-          <span className="text-sm font-bold text-emerald-500">
+          <span className="text-sm font-bold text-success">
             +{c.weekly_xp || 0} XP
           </span>
         </div>
@@ -169,7 +169,7 @@ const StagnantSection = () => {
               {getDivisionLabel(c.current_tier, c.current_division)}
             </p>
           </div>
-          <span className="text-xs text-amber-400 font-bold">
+          <span className="text-xs text-warn font-bold">
             {c.inactive_days}d inactive
           </span>
         </div>
@@ -393,7 +393,7 @@ const ClientLedgerSection = () => {
                 <span
                   className={cn(
                     "text-sm font-bold",
-                    tx.xp_amount > 0 ? "text-emerald-500" : "text-red-500"
+                    tx.xp_amount > 0 ? "text-success" : "text-destructive"
                   )}
                 >
                   {tx.xp_amount > 0 ? "+" : ""}

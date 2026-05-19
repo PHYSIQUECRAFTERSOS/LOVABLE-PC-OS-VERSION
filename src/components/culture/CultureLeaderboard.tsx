@@ -7,7 +7,7 @@ import { Trophy, Crown, Flame, Star, Search, Sparkles, Megaphone } from "lucide-
 import { useState } from "react";
 
 const tierColors: Record<string, string> = {
-  bronze: "text-orange-400 border-orange-400/30",
+  bronze: "text-warn border-warn/30",
   silver: "text-zinc-300 border-zinc-300/30",
   gold: "text-primary border-primary/30",
   elite: "text-primary border-primary/50",
@@ -120,7 +120,7 @@ const CultureLeaderboard = () => {
                 </span>
 
                 <div className="relative">
-                  <Avatar className={`h-9 w-9 ${entry.consistency_active ? "ring-2 ring-green-500" : ""}`}>
+                  <Avatar className={`h-9 w-9 ${entry.consistency_active ? "ring-2 ring-success" : ""}`}>
                     {entry.avatar_url && <AvatarImage src={entry.avatar_url} />}
                     <AvatarFallback className={isTop3 ? "bg-primary/20 text-primary" : "bg-secondary text-foreground"}>
                       {initials}
@@ -143,7 +143,7 @@ const CultureLeaderboard = () => {
                       W: {entry.workout_pct}% · N: {entry.nutrition_pct}%
                     </span>
                     {entry.consistency_active && (
-                      <span className="text-[10px] text-green-400">● Consistent</span>
+                      <span className="text-[10px] text-success">● Consistent</span>
                     )}
                   </div>
                 </div>

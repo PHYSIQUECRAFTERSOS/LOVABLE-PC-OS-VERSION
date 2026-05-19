@@ -973,8 +973,8 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                               {ex.thumbnail ? (
                                 <button onClick={() => setPreviewExerciseIdx(previewExerciseIdx === idx ? null : idx)} className="relative flex-shrink-0">
                                   <img src={ex.thumbnail} alt="" className="w-10 h-7 rounded object-cover bg-secondary" />
-                                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded opacity-0 hover:opacity-100 transition-opacity">
-                                    <Play className="h-3 w-3 text-white" />
+                                  <div className="absolute inset-0 flex items-center justify-center bg-background/40 rounded opacity-0 hover:opacity-100 transition-opacity">
+                                    <Play className="h-3 w-3 text-foreground" />
                                   </div>
                                 </button>
                               ) : (
@@ -993,7 +993,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
                             {/* Video Preview */}
                             {previewExerciseIdx === idx && previewEmbedUrl && (
-                              <div className="relative rounded-md overflow-hidden bg-black aspect-video">
+                              <div className="relative rounded-md overflow-hidden bg-thumb-letterbox aspect-video">
                                 <iframe
                                   src={previewEmbedUrl}
                                   className="w-full h-full"
@@ -1002,9 +1002,9 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                                 />
                                 <button
                                   onClick={() => setPreviewExerciseIdx(null)}
-                                  className="absolute top-2 right-2 bg-black/60 rounded-full p-1 hover:bg-black/80 transition-colors"
+                                  className="absolute top-2 right-2 bg-background/60 rounded-full p-1 hover:bg-background/80 transition-colors"
                                 >
-                                  <X className="h-3 w-3 text-white" />
+                                  <X className="h-3 w-3 text-foreground" />
                                 </button>
                               </div>
                             )}

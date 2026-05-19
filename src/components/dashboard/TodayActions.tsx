@@ -361,7 +361,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
                 {workoutLauncher.loading && action.type === "workout" && !action.completed ? (
                   <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
                 ) : action.completed ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0" />
                 )}

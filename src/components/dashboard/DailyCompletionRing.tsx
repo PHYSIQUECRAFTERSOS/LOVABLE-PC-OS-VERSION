@@ -15,10 +15,10 @@ const DailyCompletionRing = ({ completed, total, streak }: DailyCompletionRingPr
 
   // Color based on percentage
   const ringColor = percentage >= 80
-    ? "hsl(142 71% 45%)" // green
+    ? "hsl(var(--success))" // green
     : percentage >= 50
-      ? "hsl(48 96% 53%)" // yellow
-      : "hsl(0 84% 60%)"; // red
+      ? "hsl(var(--warn))" // yellow
+      : "hsl(var(--destructive))"; // red
 
   return (
     <Card className="overflow-hidden">

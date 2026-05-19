@@ -97,7 +97,7 @@ const TodayCardio = () => {
             <div className="flex items-center gap-2">
               <div
                 className={`h-2 w-2 rounded-full shrink-0 ${
-                  item.completed ? "bg-green-500" : "bg-muted-foreground"
+                  item.completed ? "bg-success" : "bg-muted-foreground"
                 }`}
               />
               <span className={`font-medium ${item.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>

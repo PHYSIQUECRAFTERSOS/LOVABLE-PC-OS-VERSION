@@ -617,9 +617,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         )}
         <div className="flex justify-around">
           <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
-          <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(0 70% 55%)" />
-          <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(200 70% 55%)" />
-          <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(45 80% 55%)" />
+          <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(var(--macro-protein))" />
+          <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
+          <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
         </div>
         {/* Day Type Badge */}
         <div className="flex justify-center mt-3">
@@ -649,9 +649,9 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                   padding: "8px 20px",
                   fontSize: "13px",
                   fontWeight: isActive ? 700 : 400,
-                  background: isActive ? "#D4A017" : "#1e1e1e",
-                  color: isActive ? "#0a0a0a" : "#FFFFFF",
-                  border: isActive ? "none" : "1px solid #333333",
+                  background: isActive ? "hsl(var(--primary))" : "#1e1e1e",
+                  color: isActive ? "hsl(var(--background))" : "hsl(var(--foreground))",
+                  border: isActive ? "none" : "1px solid hsl(var(--border))",
                   cursor: "pointer",
                   minWidth: "fit-content",
                 }}

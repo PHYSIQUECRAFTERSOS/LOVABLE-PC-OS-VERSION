@@ -1175,7 +1175,7 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
           )}
           {saveStatus === "saved" && (
             <span className="text-xs text-muted-foreground flex items-center gap-1.5 animate-in fade-in duration-300">
-              <Check className="h-3 w-3 text-green-500" /> Saved
+              <Check className="h-3 w-3 text-success" /> Saved
             </span>
           )}
           {saveStatus === "failed" && (

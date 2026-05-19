@@ -95,9 +95,9 @@ const Analytics = () => {
 
   const rateIcon = data && data.weightChangeRate < -0.1 ? TrendingDown : data && data.weightChangeRate > 0.1 ? TrendingUp : Minus;
   const rateColor = data?.currentGoal?.goal === "cut"
-    ? (data.weightChangeRate < -0.1 ? "hsl(120 60% 50%)" : "hsl(0 70% 55%)")
+    ? (data.weightChangeRate < -0.1 ? "hsl(var(--success))" : "hsl(var(--macro-protein))")
     : data?.currentGoal?.goal === "lean_gain"
-      ? (data.weightChangeRate > 0.1 ? "hsl(120 60% 50%)" : "hsl(var(--muted-foreground))")
+      ? (data.weightChangeRate > 0.1 ? "hsl(var(--success))" : "hsl(var(--muted-foreground))")
       : "hsl(var(--muted-foreground))";
 
   const chartData = data?.weightHistory.map(w => ({
@@ -213,7 +213,7 @@ const Analytics = () => {
                             <YAxis domain={["dataMin - 1", "dataMax + 1"]} tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                             <Tooltip contentStyle={tooltipStyle} />
                             <Line type="monotone" dataKey="weight" stroke="hsl(0 0% 40%)" strokeWidth={1} dot={{ r: 2, fill: "hsl(0 0% 55%)" }} name="Daily" />
-                            <Line type="monotone" dataKey="avg7" stroke="hsl(43 72% 55%)" strokeWidth={2.5} dot={false} name="7-Day Avg" />
+                            <Line type="monotone" dataKey="avg7" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} name="7-Day Avg" />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
@@ -237,7 +237,7 @@ const Analytics = () => {
                             <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                             <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                             <Tooltip contentStyle={tooltipStyle} />
-                            <Area type="monotone" dataKey="tdee" stroke="hsl(43 72% 55%)" fill="hsl(43 72% 55% / 0.1)" strokeWidth={2} name="TDEE" />
+                            <Area type="monotone" dataKey="tdee" stroke="hsl(var(--primary))" fill="hsl(43 72% 55% / 0.1)" strokeWidth={2} name="TDEE" />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>

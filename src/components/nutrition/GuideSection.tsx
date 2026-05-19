@@ -27,7 +27,7 @@ const MACRO_CATEGORIES = [
   {
     label: "Protein",
     emoji: "🥩",
-    color: "from-red-500/20 to-red-900/10 border-red-500/30",
+    color: "from-destructive/20 to-destructive/10 border-destructive/30",
     items: [
       "Chicken Breast", "Turkey Breast", "Ground Turkey", "Egg Whites",
       "Extra Lean Steak", "Scallops", "Shrimp", "White Fish",
@@ -39,7 +39,7 @@ const MACRO_CATEGORIES = [
   {
     label: "Carbs",
     emoji: "🍚",
-    color: "from-amber-500/20 to-amber-900/10 border-amber-500/30",
+    color: "from-warn/20 to-warn/10 border-warn/30",
     items: [
       "Potatoes (White / Russet / Yellow)", "Sweet Potatoes",
       "Beans & Lentils", "Quinoa", "Bulgur",
@@ -59,7 +59,7 @@ const MACRO_CATEGORIES = [
   {
     label: "Vegetables",
     emoji: "🥦",
-    color: "from-green-500/20 to-green-900/10 border-green-500/30",
+    color: "from-success/20 to-success/10 border-success/30",
     items: [
       "Spinach", "Carrots", "Cauliflower", "Green Beans",
       "Cucumbers", "Mushrooms", "Peppers",
@@ -68,7 +68,7 @@ const MACRO_CATEGORIES = [
   {
     label: "Fats",
     emoji: "🥑",
-    color: "from-yellow-500/20 to-yellow-900/10 border-yellow-500/30",
+    color: "from-warn/20 to-warn/10 border-warn/30",
     items: [
       "Avocados", "Almond Butter", "Peanut Butter", "Sunflower Butter",
       "Cashew Butter", "Eggs (w/ yolk)", "Nuts (Almonds, Cashews)",
@@ -79,7 +79,7 @@ const MACRO_CATEGORIES = [
   {
     label: "Spices",
     emoji: "🧂",
-    color: "from-orange-500/20 to-orange-900/10 border-orange-500/30",
+    color: "from-warn/20 to-warn/10 border-warn/30",
     items: [
       "Salt", "Pepper", "Garlic Powder", "Cinnamon",
     ],

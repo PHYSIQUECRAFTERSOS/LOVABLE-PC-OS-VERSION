@@ -219,8 +219,8 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
                   padding: "6px 16px",
                   fontSize: "13px",
                   fontWeight: isActive ? 600 : 400,
-                  background: isActive ? "#D4A017" : "#2a2a2a",
-                  color: isActive ? "#0a0a0a" : "#FFFFFF",
+                  background: isActive ? "hsl(var(--primary))" : "hsl(var(--secondary))",
+                  color: isActive ? "hsl(var(--background))" : "hsl(var(--foreground))",
                   border: isActive ? "none" : "1px solid #444444",
                   cursor: "pointer",
                 }}
@@ -242,7 +242,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
                 fontSize: "13px",
                 fontWeight: 400,
                 background: "transparent",
-                color: "#888888",
+                color: "hsl(var(--muted-foreground))",
                 border: "1px dashed #555555",
                 cursor: "pointer",
               }}
@@ -265,8 +265,8 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
                     className="text-[10px]"
                     style={
                       activeCard.day_type === "training"
-                        ? { background: "#D4A017", color: "#0a0a0a" }
-                        : { background: "#2a2a2a", color: "#FFFFFF", border: "1px solid #555555" }
+                        ? { background: "hsl(var(--primary))", color: "hsl(var(--background))" }
+                        : { background: "hsl(var(--secondary))", color: "hsl(var(--foreground))", border: "1px solid #555555" }
                     }
                   >
                     {activeCard.day_type_label}
@@ -311,9 +311,9 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">{activeCard.totalCalories} cal</span>
-              <span className="text-red-400">{activeCard.totalProtein}P</span>
-              <span className="text-blue-400">{activeCard.totalCarbs}C</span>
-              <span className="text-yellow-400">{activeCard.totalFat}F</span>
+              <span className="text-destructive">{activeCard.totalProtein}P</span>
+              <span className="text-info">{activeCard.totalCarbs}C</span>
+              <span className="text-warn">{activeCard.totalFat}F</span>
             </div>
           </CardContent>
         </Card>

@@ -92,7 +92,7 @@ const LegalDocumentModal = ({ open, onClose, onAccept, title, content }: LegalDo
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={handleClose} />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Modal */}
       <div className="relative z-10 w-full sm:max-w-lg h-[90vh] sm:h-[80vh] bg-card border border-border rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">

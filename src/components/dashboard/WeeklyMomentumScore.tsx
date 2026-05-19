@@ -48,7 +48,7 @@ const WeeklyMomentumScore = () => {
 
   if (loading) return null;
 
-  const color = (score || 0) >= 80 ? "text-green-500" : (score || 0) >= 50 ? "text-yellow-500" : "text-red-400";
+  const color = (score || 0) >= 80 ? "text-success" : (score || 0) >= 50 ? "text-warn" : "text-destructive";
 
   return (
     <Card className="bg-card overflow-hidden">

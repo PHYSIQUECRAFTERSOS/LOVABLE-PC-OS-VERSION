@@ -330,9 +330,9 @@ const BodyFatEstimation = () => {
                   className="w-full aspect-[3/4] object-cover"
                   loading="lazy"
                 />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1">
-                  <p className="text-[10px] text-white capitalize">{photo.pose.replace("-", " ")}</p>
-                  <p className="text-[9px] text-white/70">{format(new Date(photo.photo_date), "MMM d")}</p>
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-1.5 py-1">
+                  <p className="text-[10px] text-foreground capitalize">{photo.pose.replace("-", " ")}</p>
+                  <p className="text-[9px] text-foreground/70">{format(new Date(photo.photo_date), "MMM d")}</p>
                 </div>
                 {selectedPhotoIds.includes(photo.id) && (
                   <div className="absolute top-1 right-1">

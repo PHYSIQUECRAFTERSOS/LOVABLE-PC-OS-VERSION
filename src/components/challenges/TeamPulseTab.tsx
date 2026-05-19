@@ -22,8 +22,8 @@ const TeamPulseTab = () => {
         </Card>
         <Card className="border-border bg-card">
           <CardContent className="p-3 text-center">
-            <Users className="h-4 w-4 text-blue-400 mx-auto mb-1" />
-            <p className="text-lg font-bold text-blue-400">{totalParticipants}</p>
+            <Users className="h-4 w-4 text-info mx-auto mb-1" />
+            <p className="text-lg font-bold text-info">{totalParticipants}</p>
             <p className="text-[10px] text-muted-foreground">Participants</p>
           </CardContent>
         </Card>

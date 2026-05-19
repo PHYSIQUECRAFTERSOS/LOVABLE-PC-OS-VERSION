@@ -91,10 +91,10 @@ const BodyStatsEventPanel = ({ clientId, eventDate }: BodyStatsEventPanelProps) 
 
   if (!weight) {
     return (
-      <div className="my-3 rounded-xl border border-dashed border-[#333333] p-4 text-center">
-        <Scale className="h-8 w-8 text-[#555555] mx-auto mb-2" />
-        <p className="text-sm text-[#555555] font-medium">No body stats submitted for this date</p>
-        <p className="text-xs text-[#555555] mt-1">Client has not logged their weight for this check-in</p>
+      <div className="my-3 rounded-xl border border-dashed border-border p-4 text-center">
+        <Scale className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground font-medium">No body stats submitted for this date</p>
+        <p className="text-xs text-muted-foreground mt-1">Client has not logged their weight for this check-in</p>
       </div>
     );
   }
@@ -116,9 +116,9 @@ const BodyStatsEventPanel = ({ clientId, eventDate }: BodyStatsEventPanelProps) 
   return (
     <div className="my-3 space-y-3">
       <h4 className="text-sm font-semibold text-foreground">Body Stats</h4>
-      <div className="rounded-xl bg-[#1a1a1a] p-4 text-center">
+      <div className="rounded-xl bg-card p-4 text-center">
         <p className="text-[32px] font-bold text-primary tabular-nums">{Math.round(weight * 10) / 10} lbs</p>
-        <p className="text-xs text-[#888888] mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           {format(new Date(eventDate + "T12:00:00"), "MMMM d, yyyy")}
         </p>
 
@@ -126,15 +126,15 @@ const BodyStatsEventPanel = ({ clientId, eventDate }: BodyStatsEventPanelProps) 
           <div className="flex items-center justify-center gap-1.5 mt-2">
             {change < 0 ? (
               <>
-                <ArrowDown className="h-3.5 w-3.5 text-green-400" />
-                <span className="text-xs text-green-400 font-medium">
+                <ArrowDown className="h-3.5 w-3.5 text-success" />
+                <span className="text-xs text-success font-medium">
                   {Math.abs(Math.round(change * 10) / 10)} lbs since {format(new Date(prevWeight!.logged_at + "T12:00:00"), "MMM d")}
                 </span>
               </>
             ) : change > 0 ? (
               <>
-                <ArrowUp className="h-3.5 w-3.5 text-red-400" />
-                <span className="text-xs text-red-400 font-medium">
+                <ArrowUp className="h-3.5 w-3.5 text-destructive" />
+                <span className="text-xs text-destructive font-medium">
                   +{Math.round(change * 10) / 10} lbs since {format(new Date(prevWeight!.logged_at + "T12:00:00"), "MMM d")}
                 </span>
               </>
@@ -153,7 +153,7 @@ const BodyStatsEventPanel = ({ clientId, eventDate }: BodyStatsEventPanelProps) 
           <div className="mt-3 pt-3 border-t border-border/30 grid grid-cols-3 gap-2 text-left">
             {measurements.map(m => (
               <div key={m.label}>
-                <p className="text-[11px] text-[#888888]">{m.label}</p>
+                <p className="text-[11px] text-muted-foreground">{m.label}</p>
                 <p className="text-sm text-foreground font-medium">{m.val}" </p>
               </div>
             ))}
@@ -161,7 +161,7 @@ const BodyStatsEventPanel = ({ clientId, eventDate }: BodyStatsEventPanelProps) 
         )}
 
         {weightEntry?.notes && (
-          <p className="text-xs text-[#888888] mt-2 text-left">{weightEntry.notes}</p>
+          <p className="text-xs text-muted-foreground mt-2 text-left">{weightEntry.notes}</p>
         )}
       </div>
 

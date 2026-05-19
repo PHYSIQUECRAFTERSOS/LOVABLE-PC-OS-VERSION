@@ -143,22 +143,22 @@ interface CommandCenterData {
 // ── Helpers ──
 
 function complianceColor(pct: number) {
-  if (pct >= 80) return "text-emerald-400";
-  if (pct >= 60) return "text-yellow-400";
+  if (pct >= 80) return "text-success";
+  if (pct >= 60) return "text-warn";
   return "text-destructive";
 }
 
 function complianceBg(pct: number) {
-  if (pct >= 80) return "bg-emerald-400";
-  if (pct >= 60) return "bg-yellow-400";
+  if (pct >= 80) return "bg-success";
+  if (pct >= 60) return "bg-warn";
   return "bg-destructive";
 }
 
 function riskBadge(score: number) {
   if (score >= 81) return { label: "Critical", cls: "bg-destructive/20 text-destructive" };
-  if (score >= 61) return { label: "High", cls: "bg-destructive/10 text-orange-400" };
-  if (score >= 31) return { label: "Moderate", cls: "bg-yellow-400/10 text-yellow-400" };
-  return { label: "Low", cls: "bg-emerald-400/10 text-emerald-400" };
+  if (score >= 61) return { label: "High", cls: "bg-destructive/10 text-warn" };
+  if (score >= 31) return { label: "Moderate", cls: "bg-warn/10 text-warn" };
+  return { label: "Low", cls: "bg-success/10 text-success" };
 }
 
 // ── Main Component ──
@@ -593,7 +593,7 @@ const CoachCommandCenter = () => {
         {actionItems.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
-              <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+              <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">All clients on track. No immediate actions needed.</p>
             </CardContent>
           </Card>
@@ -631,13 +631,13 @@ const CoachCommandCenter = () => {
       {/* ─── SECTION 2: Yesterday's Workout Results ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Completed Yesterday */}
-        <Card className="border-emerald-500/20">
+        <Card className="border-success/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-display flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              <CheckCircle2 className="h-4 w-4 text-success" />
               Completed Yesterday
               {completedYesterday.length > 0 && (
-                <span className="ml-1 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                <span className="ml-1 rounded-full bg-success/20 px-2 py-0.5 text-[10px] font-bold text-success">
                   {completedYesterday.length}
                 </span>
               )}
@@ -657,7 +657,7 @@ const CoachCommandCenter = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2 text-xs text-emerald-400 hover:text-emerald-300"
+                    className="h-7 px-2 text-xs text-success hover:text-success"
                     onClick={() => setQuickMsgClient({ id: client.clientId, name: client.clientName, avatar: client.avatarUrl, prefill: `Great work on "${client.workoutTitle}" yesterday! 💪` })}
                   >
                     <MessageSquare className="h-3.5 w-3.5 mr-1" />
@@ -718,7 +718,7 @@ const CoachCommandCenter = () => {
         {phaseDeadlines.length === 0 ? (
           <Card>
             <CardContent className="py-6 text-center">
-              <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-2" />
+              <CheckCircle2 className="h-7 w-7 text-success mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No phases ending within 7 days.</p>
             </CardContent>
           </Card>
@@ -759,12 +759,12 @@ const CoachCommandCenter = () => {
 
             {/* Due within 7 days */}
             {phaseDeadlines.some((c) => c.daysLeft > 0) && (
-              <Card className="border-amber-500/20">
+              <Card className="border-warn/20">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-display flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-amber-400" />
+                    <Clock className="h-4 w-4 text-warn" />
                     Due Within 7 Days
-                    <span className="ml-1 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                    <span className="ml-1 rounded-full bg-warn/20 px-2 py-0.5 text-[10px] font-bold text-warn">
                       {phaseDeadlines.filter((c) => c.daysLeft > 0).length}
                     </span>
                   </CardTitle>
@@ -781,7 +781,7 @@ const CoachCommandCenter = () => {
                         <p className="text-sm text-foreground truncate">{client.clientName}</p>
                         <p className="text-[10px] text-muted-foreground">{client.phaseName} · ends {client.endDate}</p>
                       </div>
-                      <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-amber-400/20 text-amber-400">
+                      <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-warn/20 text-warn">
                         {client.daysLeft}d left
                       </span>
                     </div>
@@ -806,7 +806,7 @@ const CoachCommandCenter = () => {
           <CardContent className="space-y-1">
             {atRisk.length === 0 ? (
               <div className="py-4 text-center">
-                <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
+                <CheckCircle2 className="h-6 w-6 text-success mx-auto mb-1" />
                 <p className="text-xs text-muted-foreground">No at-risk clients detected.</p>
               </div>
             ) : (
@@ -900,7 +900,7 @@ const CoachCommandCenter = () => {
         {newClients.length === 0 ? (
           <Card>
             <CardContent className="py-6 text-center">
-              <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-2" />
+              <CheckCircle2 className="h-7 w-7 text-success mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No new clients in the last 7 days.</p>
             </CardContent>
           </Card>
@@ -914,13 +914,13 @@ const CoachCommandCenter = () => {
                 {!allReady && (
                   <div className="flex gap-2 mb-3">
                     {missingOnboarding > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-2.5 py-1 text-[11px] font-medium text-warn">
                         <ClipboardList className="h-3 w-3" />
                         {missingOnboarding} missing onboarding
                       </span>
                     )}
                     {missingPhotos > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2.5 py-1 text-[11px] font-medium text-amber-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warn/10 px-2.5 py-1 text-[11px] font-medium text-warn">
                         <Camera className="h-3 w-3" />
                         {missingPhotos} missing photos
                       </span>
@@ -928,9 +928,9 @@ const CoachCommandCenter = () => {
                   </div>
                 )}
                 {allReady && (
-                  <Card className="border-emerald-500/20 mb-3">
+                  <Card className="border-success/20 mb-3">
                     <CardContent className="py-4 text-center">
-                      <CheckCircle2 className="h-7 w-7 text-emerald-400 mx-auto mb-1" />
+                      <CheckCircle2 className="h-7 w-7 text-success mx-auto mb-1" />
                       <p className="text-sm text-muted-foreground">All new clients are set up and ready to go! 🎉</p>
                     </CardContent>
                   </Card>
@@ -959,11 +959,11 @@ const CoachCommandCenter = () => {
                               </span>
                             </div>
                             <div className="flex items-center gap-3 mt-1">
-                              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${client.onboardingComplete ? "text-emerald-400" : "text-amber-400"}`}>
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${client.onboardingComplete ? "text-success" : "text-warn"}`}>
                                 {client.onboardingComplete ? <CheckCircle2 className="h-3 w-3" /> : <ClipboardList className="h-3 w-3" />}
                                 Onboarding
                               </span>
-                              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${client.photoCount >= 3 ? "text-emerald-400" : "text-amber-400"}`}>
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${client.photoCount >= 3 ? "text-success" : "text-warn"}`}>
                                 {client.photoCount >= 3 ? <CheckCircle2 className="h-3 w-3" /> : <Camera className="h-3 w-3" />}
                                 Photos{client.photoCount > 0 && client.photoCount < 3 ? ` (${client.photoCount}/3)` : ""}
                               </span>
@@ -1019,12 +1019,12 @@ const CoachCommandCenter = () => {
           <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
             <CalendarClock className="h-5 w-5 text-primary" />
             Program Renewals
-            <span className="ml-2 rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-bold text-yellow-400">{programRenewals.length}</span>
+            <span className="ml-2 rounded-full bg-warn/20 px-2 py-0.5 text-xs font-bold text-warn">{programRenewals.length}</span>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {programRenewals.map((r) => {
-              const urgBg = r.daysLeft <= 7 ? "border-red-500/40 bg-red-500/5" : r.daysLeft <= 14 ? "border-orange-500/40 bg-orange-500/5" : "border-yellow-500/40 bg-yellow-500/5";
-              const urgText = r.daysLeft <= 7 ? "text-red-400" : r.daysLeft <= 14 ? "text-orange-400" : "text-yellow-400";
+              const urgBg = r.daysLeft <= 7 ? "border-destructive/40 bg-destructive/5" : r.daysLeft <= 14 ? "border-warn/40 bg-warn/5" : "border-warn/40 bg-warn/5";
+              const urgText = r.daysLeft <= 7 ? "text-destructive" : r.daysLeft <= 14 ? "text-warn" : "text-warn";
               return (
                 <Card key={r.clientId} className={`cursor-pointer hover:bg-accent/10 transition-colors ${urgBg}`} onClick={() => navigate(`/clients/${r.clientId}`)}>
                   <CardContent className="p-3 flex items-center gap-3">

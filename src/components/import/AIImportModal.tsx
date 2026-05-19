@@ -870,8 +870,8 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         {/* DONE STEP */}
         {step === "done" && (
           <div className="flex flex-col items-center justify-center py-12 space-y-4">
-            <div className="h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8 text-success" />
             </div>
             <div className="text-center">
               <p className="text-sm font-semibold text-foreground">Import Complete!</p>

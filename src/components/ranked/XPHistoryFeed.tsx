@@ -79,8 +79,8 @@ const XPHistoryFeed = ({ userId }: XPHistoryFeedProps) => {
                     : isCoach
                       ? "bg-primary/10"
                       : isGain
-                        ? "bg-emerald-500/10"
-                        : "bg-red-500/10"
+                        ? "bg-success/10"
+                        : "bg-destructive/10"
                 )}
               >
                 <Icon
@@ -91,8 +91,8 @@ const XPHistoryFeed = ({ userId }: XPHistoryFeedProps) => {
                       : isCoach
                         ? "text-primary"
                         : isGain
-                          ? "text-emerald-500"
-                          : "text-red-500"
+                          ? "text-success"
+                          : "text-destructive"
                   )}
                 />
               </div>
@@ -106,12 +106,12 @@ const XPHistoryFeed = ({ userId }: XPHistoryFeedProps) => {
                 className={cn(
                   "text-sm font-bold shrink-0",
                   isDailyEval
-                    ? "text-white"
+                    ? "text-foreground"
                     : isCoach
                       ? "text-primary"
                       : isGain
-                        ? "text-emerald-500"
-                        : "text-red-500"
+                        ? "text-success"
+                        : "text-destructive"
                 )}
               >
                 {isGain ? "+" : ""}

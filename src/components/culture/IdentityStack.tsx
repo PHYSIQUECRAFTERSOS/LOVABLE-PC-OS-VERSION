@@ -12,15 +12,15 @@ import { toast } from "sonner";
 const badgeIcons: Record<string, { icon: React.ElementType; label: string; color: string }> = {
   weekly_champion: { icon: Crown, label: "Weekly Champion", color: "text-primary" },
   featured_performer: { icon: Sparkles, label: "Featured Performer", color: "text-primary" },
-  most_improved: { icon: ArrowUp, label: "Most Improved", color: "text-green-400" },
-  comeback: { icon: RotateCcw, label: "Comeback", color: "text-blue-400" },
+  most_improved: { icon: ArrowUp, label: "Most Improved", color: "text-success" },
+  comeback: { icon: RotateCcw, label: "Comeback", color: "text-info" },
   reset: { icon: Zap, label: "Reset Complete", color: "text-purple-400" },
   elite_week: { icon: Star, label: "Elite Week", color: "text-primary" },
-  consistency: { icon: Shield, label: "Consistency", color: "text-green-400" },
+  consistency: { icon: Shield, label: "Consistency", color: "text-success" },
 };
 
 const tierConfig: Record<string, { label: string; color: string; bg: string }> = {
-  bronze: { label: "Bronze", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/30" },
+  bronze: { label: "Bronze", color: "text-warn", bg: "bg-warn/10 border-warn/30" },
   silver: { label: "Silver", color: "text-zinc-300", bg: "bg-zinc-300/10 border-zinc-300/30" },
   gold: { label: "Gold", color: "text-primary", bg: "bg-primary/10 border-primary/30" },
   elite: { label: "Elite", color: "text-primary", bg: "bg-primary/15 border-primary/40 glow-gold" },
@@ -59,13 +59,13 @@ const IdentityStack = () => {
         <CardContent className="pt-4 pb-4">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <Avatar className={`h-16 w-16 ${profile.consistency_active ? "ring-2 ring-green-500" : ""}`}>
+              <Avatar className={`h-16 w-16 ${profile.consistency_active ? "ring-2 ring-success" : ""}`}>
                 <AvatarFallback className={`text-lg font-bold ${tier.color} bg-background`}>
                   {tier.label[0]}
                 </AvatarFallback>
               </Avatar>
               {profile.consistency_active && (
-                <span className="absolute -bottom-1 -right-1 text-[10px] bg-green-500/20 text-green-400 rounded-full px-1.5 py-0.5 font-semibold">
+                <span className="absolute -bottom-1 -right-1 text-[10px] bg-success/20 text-success rounded-full px-1.5 py-0.5 font-semibold">
                   ●
                 </span>
               )}
@@ -88,9 +88,9 @@ const IdentityStack = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-2">
         <StatCard icon={Star} label="Elite Weeks" value={profile.total_elite_weeks} color="text-primary" />
-        <StatCard icon={Flame} label="Current Streak" value={`${profile.current_streak}w`} color="text-orange-400" />
-        <StatCard icon={ArrowUp} label="Most Improved" value={profile.most_improved_count} color="text-green-400" />
-        <StatCard icon={RotateCcw} label="Comebacks" value={profile.comeback_count} color="text-blue-400" />
+        <StatCard icon={Flame} label="Current Streak" value={`${profile.current_streak}w`} color="text-warn" />
+        <StatCard icon={ArrowUp} label="Most Improved" value={profile.most_improved_count} color="text-success" />
+        <StatCard icon={RotateCcw} label="Comebacks" value={profile.comeback_count} color="text-info" />
         <StatCard icon={Zap} label="Resets" value={profile.reset_count} color="text-purple-400" />
         <StatCard icon={Trophy} label="Lifetime Avg" value={`${profile.lifetime_avg}%`} color="text-primary" />
       </div>

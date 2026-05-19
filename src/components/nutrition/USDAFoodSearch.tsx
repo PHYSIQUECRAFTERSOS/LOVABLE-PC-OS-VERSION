@@ -139,8 +139,8 @@ const USDAFoodSearch = ({ onImport }: USDAFoodSearchProps) => {
 
   const getSourceBadge = (dataType: string) => {
     if (dataType === "Branded") return <Badge variant="outline" className="text-[10px]">Branded</Badge>;
-    if (dataType === "Foundation") return <Badge className="bg-green-500/20 text-green-400 text-[10px]">Foundation</Badge>;
-    return <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">SR Legacy</Badge>;
+    if (dataType === "Foundation") return <Badge className="bg-success/20 text-success text-[10px]">Foundation</Badge>;
+    return <Badge className="bg-info/20 text-info text-[10px]">SR Legacy</Badge>;
   };
 
   return (

@@ -38,21 +38,21 @@ import { Flag } from "lucide-react";
 import PhaseWeekBanner from "@/components/calendar/PhaseWeekBanner";
 
 const EVENT_TYPES = [
-  { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-blue-500" },
-  { value: "cardio", label: "Cardio", icon: Activity, color: "bg-green-500" },
+  { value: "workout", label: "Workout", icon: Dumbbell, color: "bg-info" },
+  { value: "cardio", label: "Cardio", icon: Activity, color: "bg-success" },
   { value: "checkin", label: "Check-in Form", icon: ClipboardList, color: "bg-purple-500" },
-  { value: "reminder", label: "Appointment", icon: Bell, color: "bg-yellow-500" },
+  { value: "reminder", label: "Appointment", icon: Bell, color: "bg-warn" },
   { value: "custom", label: "Body Stats", icon: FileText, color: "bg-teal-500" },
   { value: "rest", label: "Photos", icon: Camera, color: "bg-pink-500" },
-  { value: "auto_message", label: "Auto Messages", icon: MessageSquare, color: "bg-orange-500" },
-  { value: "nutrition", label: "Nutrition", icon: UtensilsCrossed, color: "bg-red-500" },
+  { value: "auto_message", label: "Auto Messages", icon: MessageSquare, color: "bg-warn" },
+  { value: "nutrition", label: "Nutrition", icon: UtensilsCrossed, color: "bg-destructive" },
 ];
 
 const EVENT_DOT: Record<string, string> = {
-  workout: "bg-blue-500", cardio: "bg-green-500", checkin: "bg-purple-500",
-  reminder: "bg-yellow-500", custom: "bg-teal-500", rest: "bg-pink-500",
-  auto_message: "bg-orange-500", nutrition: "bg-red-500",
-  body_stats: "bg-purple-500", photos: "bg-orange-500", steps: "bg-blue-500",
+  workout: "bg-info", cardio: "bg-success", checkin: "bg-purple-500",
+  reminder: "bg-warn", custom: "bg-teal-500", rest: "bg-pink-500",
+  auto_message: "bg-warn", nutrition: "bg-destructive",
+  body_stats: "bg-purple-500", photos: "bg-warn", steps: "bg-info",
 };
 
 const COMPLETED_LABELS: Record<string, string> = {
@@ -869,9 +869,9 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                                 if (idx > 0) {
                                   const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
                                   if (wEntry.weight < prevWeight) {
-                                    trendArrow = <TrendingDown className="h-2.5 w-2.5 md:h-3 md:w-3 text-green-400 shrink-0" />;
+                                    trendArrow = <TrendingDown className="h-2.5 w-2.5 md:h-3 md:w-3 text-success shrink-0" />;
                                   } else if (wEntry.weight > prevWeight) {
-                                    trendArrow = <TrendingUp className="h-2.5 w-2.5 md:h-3 md:w-3 text-red-400 shrink-0" />;
+                                    trendArrow = <TrendingUp className="h-2.5 w-2.5 md:h-3 md:w-3 text-destructive shrink-0" />;
                                   }
                                 }
                               } else {
@@ -893,7 +893,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                                 className="w-full flex items-center gap-1 cursor-pointer hover:bg-muted/40 rounded px-0.5 text-left">
                                 {item.is_completed ? (
                                   <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                                    <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-white" />
+                                    <Check className="h-1.5 w-1.5 md:h-2 md:w-2 text-foreground" />
                                   </div>
                                 ) : (
                                   <div className={`h-2.5 w-2.5 md:h-3 md:w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />
@@ -1131,8 +1131,8 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                     const idx = sortedDates.indexOf(item.event_date);
                     if (idx > 0) {
                       const prevWeight = weightMap.get(sortedDates[idx - 1])!.weight;
-                      if (wEntry.weight < prevWeight) expandedArrow = <TrendingDown className="h-3.5 w-3.5 text-green-400 shrink-0" />;
-                      else if (wEntry.weight > prevWeight) expandedArrow = <TrendingUp className="h-3.5 w-3.5 text-red-400 shrink-0" />;
+                      if (wEntry.weight < prevWeight) expandedArrow = <TrendingDown className="h-3.5 w-3.5 text-success shrink-0" />;
+                      else if (wEntry.weight > prevWeight) expandedArrow = <TrendingUp className="h-3.5 w-3.5 text-destructive shrink-0" />;
                     }
                   }
                 }
@@ -1151,7 +1151,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                 >
                   {item.is_completed ? (
                     <div className={`h-3 w-3 rounded-full flex items-center justify-center shrink-0 ${dotColor}`}>
-                      <Check className="h-2 w-2 text-white" />
+                      <Check className="h-2 w-2 text-foreground" />
                     </div>
                   ) : (
                     <div className={`h-3 w-3 rounded-full shrink-0 ${dotColor} opacity-40`} />

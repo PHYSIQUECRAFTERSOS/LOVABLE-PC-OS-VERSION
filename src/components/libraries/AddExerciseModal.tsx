@@ -260,7 +260,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
                       {ytFetching ? (
                         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                       ) : (
-                        <Check className="h-3 w-3 text-green-500" />
+                        <Check className="h-3 w-3 text-success" />
                       )}
                       <span className="text-xs text-muted-foreground truncate">{ytFetching ? "Fetching title..." : ytTitle}</span>
                     </div>
@@ -291,7 +291,7 @@ const AddExerciseModal = ({ open, onOpenChange, onCreated, initialData }: Props)
                 {uploading ? (
                   <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Uploading...</>
                 ) : form.video_url ? (
-                  <><Check className="h-4 w-4 mr-2 text-green-500" /> Video uploaded</>
+                  <><Check className="h-4 w-4 mr-2 text-success" /> Video uploaded</>
                 ) : (
                   <><Upload className="h-4 w-4 mr-2" /> Click to upload video</>
                 )}

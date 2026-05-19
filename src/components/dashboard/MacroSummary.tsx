@@ -71,9 +71,9 @@ const MacroSummary = () => {
       <CardContent>
         <div className="grid grid-cols-4 gap-2">
           <MacroRing label="Calories" current={totals.calories} target={targets.calories} color="hsl(var(--primary))" unit="kcal" />
-          <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(0 70% 55%)" />
-          <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(200 70% 55%)" />
-          <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(45 80% 55%)" />
+          <MacroRing label="Protein" current={totals.protein} target={targets.protein} color="hsl(var(--macro-protein))" />
+          <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
+          <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
         </div>
       </CardContent>
     </Card>

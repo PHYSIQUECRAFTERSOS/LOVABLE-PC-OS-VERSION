@@ -31,15 +31,15 @@ const actions = [
     key: "workout" as const,
     icon: Dumbbell,
     label: "Workout",
-    color: "bg-blue-600",
-    ring: "ring-blue-600/30",
+    color: "bg-info",
+    ring: "ring-info/30",
   },
   {
     key: "cardio" as const,
     icon: HeartPulse,
     label: "Cardio",
-    color: "bg-emerald-600",
-    ring: "ring-emerald-600/30",
+    color: "bg-success",
+    ring: "ring-success/30",
   },
   {
     key: "photos" as const,
@@ -209,7 +209,7 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
       {/* Backdrop */}
       {expanded && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-40 bg-background/50 backdrop-blur-sm animate-fade-in"
           onClick={() => setExpanded(false)}
         />
       )}
@@ -233,7 +233,7 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
                 }}
               >
                 <div className={cn("flex h-9 w-9 items-center justify-center rounded-full", action.color)}>
-                  <action.icon className="h-4.5 w-4.5 text-white" />
+                  <action.icon className="h-4.5 w-4.5 text-foreground" />
                 </div>
                 <span className="text-sm font-medium text-foreground pr-1">{action.label}</span>
               </button>

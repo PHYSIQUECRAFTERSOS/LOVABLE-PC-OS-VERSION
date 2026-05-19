@@ -1203,9 +1203,9 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                                 </div>
                                 <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
                                   <span>{Math.round(macros.calories)}cal</span>
-                                  <span className="text-red-400">{Math.round(macros.protein)}P</span>
-                                  <span className="text-blue-400">{Math.round(macros.carbs)}C</span>
-                                  <span className="text-yellow-400">{Math.round(macros.fat)}F</span>
+                                  <span className="text-destructive">{Math.round(macros.protein)}P</span>
+                                  <span className="text-info">{Math.round(macros.carbs)}C</span>
+                                  <span className="text-warn">{Math.round(macros.fat)}F</span>
                                 </div>
                                 <Button
                                   variant="ghost"
@@ -1260,9 +1260,9 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                     <span className="font-semibold text-foreground">Day Total</span>
                     <div className="flex gap-3">
                       <span className="font-bold text-foreground">{Math.round(dayTotals.calories)} cal</span>
-                      <span className="text-red-400 font-medium">{Math.round(dayTotals.protein)}P</span>
-                      <span className="text-blue-400 font-medium">{Math.round(dayTotals.carbs)}C</span>
-                      <span className="text-yellow-400 font-medium">{Math.round(dayTotals.fat)}F</span>
+                      <span className="text-destructive font-medium">{Math.round(dayTotals.protein)}P</span>
+                      <span className="text-info font-medium">{Math.round(dayTotals.carbs)}C</span>
+                      <span className="text-warn font-medium">{Math.round(dayTotals.fat)}F</span>
                       <span className="text-muted-foreground">{Math.round(dayTotals.fiber)}Fi</span>
                       <span className="text-muted-foreground">{Math.round(dayTotals.sugar)}S</span>
                     </div>

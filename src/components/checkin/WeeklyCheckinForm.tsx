@@ -289,7 +289,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
   const renderInput = (q: any) => {
     const qId = q.id;
     const hasError = shouldShowError(qId);
-    const errorBorder = hasError ? "border-[#FF4444] ring-1 ring-[#FF4444]/30" : "";
+    const errorBorder = hasError ? "border-destructive ring-1 ring-destructive/30" : "";
 
     switch (q.question_type) {
       case "text":
@@ -349,7 +349,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         const max = q.scale_max ?? 5;
         const current = answers[qId] ?? 0;
         return (
-          <div className={`flex gap-1 ${hasError ? "p-1 rounded border border-[#FF4444]" : ""}`}>
+          <div className={`flex gap-1 ${hasError ? "p-1 rounded border border-destructive" : ""}`}>
             {Array.from({ length: max }, (_, i) => (
               <button
                 key={i}
@@ -381,7 +381,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
           <RadioGroup
             value={answers[qId] || ""}
             onValueChange={(v) => setAnswers((prev) => ({ ...prev, [qId]: v }))}
-            className={`space-y-2 ${hasError ? "p-2 rounded border border-[#FF4444]" : ""}`}
+            className={`space-y-2 ${hasError ? "p-2 rounded border border-destructive" : ""}`}
           >
             {options.map((opt, i) => (
               <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors">
@@ -396,7 +396,7 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         const options = (q.options as string[]) || [];
         const selected: string[] = answers[qId] || [];
         return (
-          <div className={`space-y-2 ${hasError ? "p-2 rounded border border-[#FF4444]" : ""}`}>
+          <div className={`space-y-2 ${hasError ? "p-2 rounded border border-destructive" : ""}`}>
             {options.map((opt, i) => (
               <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 transition-colors">
                 <Checkbox
@@ -483,8 +483,8 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
         {/* Error banner */}
         {attemptedSubmit && missingRequired.length > 0 && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-            <AlertCircle className="h-4 w-4 text-[#FF4444] mt-0.5 shrink-0" />
-            <p className="text-sm text-[#FF4444]">
+            <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <p className="text-sm text-destructive">
               {missingRequired.length === 1
                 ? `Please complete: ${missingRequired[0].question_text}`
                 : `Please complete: ${missingRequired[0].question_text} and ${missingRequired.length - 1} more required field${missingRequired.length - 1 > 1 ? "s" : ""}`
@@ -501,14 +501,14 @@ const WeeklyCheckinForm = ({ onSubmitted }: { onSubmitted?: () => void }) => {
               ref={(el) => { questionRefs.current[q.id] = el; }}
               className="space-y-2"
             >
-              <Label className={`text-sm leading-relaxed ${hasError ? "text-[#FF4444]" : ""}`}>
+              <Label className={`text-sm leading-relaxed ${hasError ? "text-destructive" : ""}`}>
                 <span className="text-muted-foreground mr-2">{idx + 1}.</span>
                 {q.question_text}
                 {q.is_required && <span className="text-destructive ml-1">*</span>}
               </Label>
               {renderInput(q)}
               {hasError && (
-                <p className="text-[#FF4444] text-xs mt-1">This field is required</p>
+                <p className="text-destructive text-xs mt-1">This field is required</p>
               )}
             </div>
           );

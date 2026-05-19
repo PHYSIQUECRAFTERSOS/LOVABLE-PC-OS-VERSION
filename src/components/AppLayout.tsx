@@ -232,7 +232,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <item.icon className="h-4 w-4" />
       <span className="flex-1">{item.label}</span>
       {item.to === "/messages" && unreadCount > 0 && (
-        <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-primary text-[11px] font-bold text-black px-1.5">
+        <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-primary text-[11px] font-bold text-foreground px-1.5">
           {unreadCount > 99 ? "99+" : unreadCount}
         </span>
       )}
@@ -347,7 +347,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <div className="relative">
                 <item.icon className="h-6 w-6" />
                 {item.to === "/messages" && unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-black px-1">
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-foreground px-1">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}

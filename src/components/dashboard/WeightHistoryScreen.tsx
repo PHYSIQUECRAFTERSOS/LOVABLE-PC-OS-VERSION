@@ -181,7 +181,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     if (!active || !payload?.[0]) return null;
     const { date, weight } = payload[0].payload;
     return (
-      <div className="rounded-lg border border-primary/50 bg-[#1a1a1a] px-3 py-1.5 text-xs text-foreground shadow-lg">
+      <div className="rounded-lg border border-primary/50 bg-card px-3 py-1.5 text-xs text-foreground shadow-lg">
         {date} &nbsp; <span className="font-bold">{weight} {unitLabel}</span>
       </div>
     );
@@ -233,7 +233,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change</p>
                   <p className={cn(
                     "text-lg font-bold tabular-nums",
-                    totalChange && totalChange < 0 ? "text-green-400" : totalChange && totalChange > 0 ? "text-red-400" : "text-foreground"
+                    totalChange && totalChange < 0 ? "text-success" : totalChange && totalChange > 0 ? "text-destructive" : "text-foreground"
                   )}>
                     {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " " + unitLabel : "—"}
                     {totalChange !== null && totalChange !== 0 && (

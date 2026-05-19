@@ -29,14 +29,14 @@ const MyRankTab = () => {
     : 100;
 
   const tierBgMap: Record<string, string> = {
-    Bronze: "bg-orange-400/10 border-orange-400/30",
+    Bronze: "bg-warn/10 border-warn/30",
     Silver: "bg-zinc-300/10 border-zinc-300/30",
     Gold: "bg-primary/10 border-primary/30",
     Elite: "bg-purple-500/15 border-purple-500/40",
   };
 
   const tierTextMap: Record<string, string> = {
-    Bronze: "text-orange-400",
+    Bronze: "text-warn",
     Silver: "text-zinc-300",
     Gold: "text-primary",
     Elite: "text-purple-400",
@@ -81,9 +81,9 @@ const MyRankTab = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-2">
         <StatCard icon={Star} label="Elite Weeks" value={summary?.elite_weeks || 0} color="text-primary" />
-        <StatCard icon={Flame} label="Current Streak" value={`${summary?.current_streak || 0}w`} color="text-orange-400" />
-        <StatCard icon={ArrowUp} label="Longest Streak" value={`${summary?.longest_streak || 0}w`} color="text-green-400" />
-        <StatCard icon={RotateCcw} label="Comebacks" value={summary?.comebacks || 0} color="text-blue-400" />
+        <StatCard icon={Flame} label="Current Streak" value={`${summary?.current_streak || 0}w`} color="text-warn" />
+        <StatCard icon={ArrowUp} label="Longest Streak" value={`${summary?.longest_streak || 0}w`} color="text-success" />
+        <StatCard icon={RotateCcw} label="Comebacks" value={summary?.comebacks || 0} color="text-info" />
         <StatCard icon={Zap} label="Resets" value={summary?.resets || 0} color="text-purple-400" />
         <StatCard icon={Trophy} label="Lifetime Avg" value={`${summary?.lifetime_avg_pct || 0}%`} color="text-primary" />
       </div>

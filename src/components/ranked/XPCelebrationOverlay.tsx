@@ -177,7 +177,7 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss, evalDateLab
 
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[100] bg-black/60"
+        className="fixed inset-0 z-[100] bg-background/60"
         onClick={handleDismiss}
         style={{
           opacity: stage === "exit" ? 0 : 1,
@@ -269,7 +269,7 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss, evalDateLab
                   <span className="text-muted-foreground">{item.label}</span>
                   <span
                     className={`font-bold ${
-                      item.xp >= 0 ? "text-emerald-400" : "text-red-400"
+                      item.xp >= 0 ? "text-success" : "text-destructive"
                     }`}
                   >
                     {item.xp >= 0 ? "+" : ""}{item.xp} XP

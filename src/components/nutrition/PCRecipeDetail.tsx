@@ -146,15 +146,15 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
             <div className="text-[10px] text-muted-foreground uppercase">Calories</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-red-400">{Math.round(totals.protein)}g</div>
+            <div className="text-lg font-bold text-destructive">{Math.round(totals.protein)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Protein</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-blue-400">{Math.round(totals.carbs)}g</div>
+            <div className="text-lg font-bold text-info">{Math.round(totals.carbs)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Carbs</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-yellow-400">{Math.round(totals.fat)}g</div>
+            <div className="text-lg font-bold text-warn">{Math.round(totals.fat)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Fat</div>
           </div>
         </div>

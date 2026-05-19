@@ -250,11 +250,11 @@ const CreateRecipeScreen = ({ onClose, onSaved }: CreateRecipeScreenProps) => {
                 <div className="text-[10px] text-muted-foreground">Per Serving</div>
               </div>
               <div>
-                <div className="text-lg font-bold text-red-400">{perServing.protein}g</div>
+                <div className="text-lg font-bold text-destructive">{perServing.protein}g</div>
                 <div className="text-[10px] text-muted-foreground">Protein</div>
               </div>
               <div>
-                <div className="text-lg font-bold text-blue-400">{perServing.carbs}g</div>
+                <div className="text-lg font-bold text-info">{perServing.carbs}g</div>
                 <div className="text-[10px] text-muted-foreground">Carbs</div>
               </div>
               <div>

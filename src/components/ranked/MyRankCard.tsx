@@ -102,7 +102,7 @@ const MyRankCard = ({ profile }: MyRankCardProps) => {
       {/* Streak + Multiplier */}
       <div className="flex items-center gap-3 sm:gap-4 flex-wrap min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
-          <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+          <Flame className="h-4 w-4 text-warn shrink-0" />
           <span className="text-sm font-semibold whitespace-nowrap">
             {profile.current_streak} day streak
           </span>

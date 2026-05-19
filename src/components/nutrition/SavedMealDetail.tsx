@@ -617,15 +617,15 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
             <div className="text-[10px] text-muted-foreground uppercase">Calories</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-red-400">{Math.round(totals.protein)}g</div>
+            <div className="text-lg font-bold text-destructive">{Math.round(totals.protein)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Protein</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-blue-400">{Math.round(totals.carbs)}g</div>
+            <div className="text-lg font-bold text-info">{Math.round(totals.carbs)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Carbs</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-yellow-400">{Math.round(totals.fat)}g</div>
+            <div className="text-lg font-bold text-warn">{Math.round(totals.fat)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Fat</div>
           </div>
         </div>
@@ -722,9 +722,9 @@ const SavedMealDetail = ({ meal, mealType, mealLabel, logDate, onBack, onLogged,
                           </div>
                           <div className="grid grid-cols-4 gap-2 mt-2 text-center text-xs">
                             <div><span className="font-semibold text-foreground">{Math.round(item.calories)}</span><br /><span className="text-muted-foreground">Cal</span></div>
-                            <div><span className="font-semibold text-red-400">{Math.round(item.protein)}g</span><br /><span className="text-muted-foreground">P</span></div>
-                            <div><span className="font-semibold text-blue-400">{Math.round(item.carbs)}g</span><br /><span className="text-muted-foreground">C</span></div>
-                            <div><span className="font-semibold text-yellow-400">{Math.round(item.fat)}g</span><br /><span className="text-muted-foreground">F</span></div>
+                            <div><span className="font-semibold text-destructive">{Math.round(item.protein)}g</span><br /><span className="text-muted-foreground">P</span></div>
+                            <div><span className="font-semibold text-info">{Math.round(item.carbs)}g</span><br /><span className="text-muted-foreground">C</span></div>
+                            <div><span className="font-semibold text-warn">{Math.round(item.fat)}g</span><br /><span className="text-muted-foreground">F</span></div>
                           </div>
                           <Button
                             size="sm"

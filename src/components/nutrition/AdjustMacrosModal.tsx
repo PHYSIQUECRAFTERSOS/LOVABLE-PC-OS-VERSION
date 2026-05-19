@@ -76,11 +76,11 @@ const calcTotals = (days: DayType[]) => {
 };
 
 const QUICK_PRESETS = [
-  { label: "Cut 15%", factor: 0.85, icon: TrendingDown, color: "text-red-400" },
-  { label: "Cut 10%", factor: 0.90, icon: TrendingDown, color: "text-orange-400" },
-  { label: "Cut 5%", factor: 0.95, icon: TrendingDown, color: "text-yellow-400" },
-  { label: "Bulk 5%", factor: 1.05, icon: TrendingUp, color: "text-green-400" },
-  { label: "Bulk 10%", factor: 1.10, icon: TrendingUp, color: "text-emerald-400" },
+  { label: "Cut 15%", factor: 0.85, icon: TrendingDown, color: "text-destructive" },
+  { label: "Cut 10%", factor: 0.90, icon: TrendingDown, color: "text-warn" },
+  { label: "Cut 5%", factor: 0.95, icon: TrendingDown, color: "text-warn" },
+  { label: "Bulk 5%", factor: 1.05, icon: TrendingUp, color: "text-success" },
+  { label: "Bulk 10%", factor: 1.10, icon: TrendingUp, color: "text-success" },
   { label: "Bulk 15%", factor: 1.15, icon: TrendingUp, color: "text-teal-400" },
 ];
 
@@ -282,9 +282,9 @@ const AdjustMacrosModal = ({ open, onOpenChange, days, onApply }: AdjustMacrosMo
             <div className="grid grid-cols-4 gap-2 text-center">
               {[
                 { label: "Calories", before: current.calories, after: preview.calories, color: "text-foreground" },
-                { label: "Protein", before: current.protein, after: preview.protein, suffix: "g", color: "text-red-400" },
-                { label: "Carbs", before: current.carbs, after: preview.carbs, suffix: "g", color: "text-blue-400" },
-                { label: "Fat", before: current.fat, after: preview.fat, suffix: "g", color: "text-yellow-400" },
+                { label: "Protein", before: current.protein, after: preview.protein, suffix: "g", color: "text-destructive" },
+                { label: "Carbs", before: current.carbs, after: preview.carbs, suffix: "g", color: "text-info" },
+                { label: "Fat", before: current.fat, after: preview.fat, suffix: "g", color: "text-warn" },
               ].map(m => (
                 <div key={m.label}>
                   <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{m.label}</p>

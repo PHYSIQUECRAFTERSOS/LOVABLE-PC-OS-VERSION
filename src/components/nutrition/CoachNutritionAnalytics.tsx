@@ -197,9 +197,9 @@ const CoachNutritionAnalytics = () => {
 
           {/* Phase Alerts */}
           {tdee?.phaseContext.suggestedAction && (
-            <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <Card className="border-warn/30 bg-warn/5">
               <CardContent className="p-4 flex gap-3">
-                <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-warn shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-foreground">Phase Alert</p>
                   <p className="text-sm text-muted-foreground">{tdee.phaseContext.suggestedAction}</p>
@@ -280,8 +280,8 @@ const CoachNutritionAnalytics = () => {
                       <YAxis yAxisId="weight" orientation="left" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} domain={["dataMin - 1", "dataMax + 1"]} />
                       <YAxis yAxisId="cals" orientation="right" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                       <Tooltip contentStyle={tooltipStyle} />
-                      <Line yAxisId="weight" type="monotone" dataKey="weight" stroke="hsl(43 72% 55%)" strokeWidth={2} dot={{ r: 2 }} name="Weight (lb)" />
-                      <Line yAxisId="cals" type="monotone" dataKey="calories" stroke="hsl(0 70% 55%)" strokeWidth={1.5} dot={false} name="Calories" strokeDasharray="4 4" />
+                      <Line yAxisId="weight" type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} name="Weight (lb)" />
+                      <Line yAxisId="cals" type="monotone" dataKey="calories" stroke="hsl(var(--macro-protein))" strokeWidth={1.5} dot={false} name="Calories" strokeDasharray="4 4" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -303,7 +303,7 @@ const CoachNutritionAnalytics = () => {
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                       <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                       <Tooltip contentStyle={tooltipStyle} />
-                      <Bar dataKey="calories" fill="hsl(43 72% 55%)" radius={[3, 3, 0, 0]} name="Calories" />
+                      <Bar dataKey="calories" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} name="Calories" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -353,7 +353,7 @@ const SuggestionCard = ({ suggestion: s, onAction }: { suggestion: any; onAction
   const [notes, setNotes] = useState("");
   const [modCals, setModCals] = useState(String(s.suggested_calories));
 
-  const statusColor = s.status === "accepted" ? "text-green-400" : s.status === "rejected" ? "text-destructive" : "text-yellow-400";
+  const statusColor = s.status === "accepted" ? "text-success" : s.status === "rejected" ? "text-destructive" : "text-warn";
   const StatusIcon = s.status === "accepted" ? CheckCircle2 : s.status === "rejected" ? XCircle : Clock;
 
   return (
@@ -379,7 +379,7 @@ const SuggestionCard = ({ suggestion: s, onAction }: { suggestion: any; onAction
               placeholder="Modified cals"
             />
           </div>
-          <Button size="sm" variant="outline" className="text-green-400 border-green-500/30 h-8"
+          <Button size="sm" variant="outline" className="text-success border-success/30 h-8"
             onClick={() => onAction(s.id, "accepted", parseInt(modCals), notes)}>
             Accept
           </Button>

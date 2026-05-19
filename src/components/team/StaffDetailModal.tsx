@@ -226,7 +226,7 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
                       </p>
                       <Button
                         variant="outline"
-                        className="w-full gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                        className="w-full gap-2 border-warn/30 text-warn hover:bg-warn/10"
                         onClick={() => setDeactivateOpen(true)}
                       >
                         <Ban className="h-4 w-4" />
@@ -271,7 +271,7 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={actionLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeactivate} disabled={actionLoading} className="bg-amber-600 hover:bg-amber-700">
+            <AlertDialogAction onClick={handleDeactivate} disabled={actionLoading} className="bg-warn hover:bg-warn">
               {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Deactivate"}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1355,7 +1355,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           </div>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
             <Button
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+              className="w-full bg-success hover:bg-success text-foreground font-semibold"
               size="lg"
               onClick={() => {
                 setShowFinishModal(false);

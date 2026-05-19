@@ -27,8 +27,8 @@ const AUTO_ACCEPT_SCORE = 80;
 const ConfidenceBadge = ({ score }: { score: number }) => {
   const isHigh = score >= AUTO_ACCEPT_SCORE;
   const cls = isHigh
-    ? "bg-green-500/20 text-green-400 border-green-500/30"
-    : "bg-red-500/20 text-red-400 border-red-500/30";
+    ? "bg-success/20 text-success border-success/30"
+    : "bg-destructive/20 text-destructive border-destructive/30";
   return (
     <Badge variant="outline" className={`text-[10px] ${cls}`}>
       {isHigh ? "High" : "Low"} {Math.round(score)}%

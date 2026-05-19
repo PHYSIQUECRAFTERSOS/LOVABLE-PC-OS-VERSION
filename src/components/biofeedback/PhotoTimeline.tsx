@@ -60,9 +60,9 @@ const PhotoTimeline = () => {
             className="w-full aspect-[3/4] object-cover"
             loading="lazy"
           />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-2">
-            <p className="text-xs font-medium text-white capitalize">{photo.pose.replace("-", " ")}</p>
-            <p className="text-[10px] text-white/70">{format(new Date(photo.photo_date), "MMM d, yyyy")}</p>
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/70 to-transparent px-2 py-2">
+            <p className="text-xs font-medium text-foreground capitalize">{photo.pose.replace("-", " ")}</p>
+            <p className="text-[10px] text-foreground/70">{format(new Date(photo.photo_date), "MMM d, yyyy")}</p>
           </div>
         </div>
       ))}

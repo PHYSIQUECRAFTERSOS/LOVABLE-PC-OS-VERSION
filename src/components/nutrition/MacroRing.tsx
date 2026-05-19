@@ -19,11 +19,11 @@ const MacroRing = ({ label, current, target, color, unit = "g" }: MacroRingProps
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
-  // Color shifts for over-target
+  // Color shifts for over-target — token-driven so they react to theme.
   const ringColor = isWayOver
-    ? "hsl(0 70% 50%)"
+    ? "hsl(var(--destructive))"
     : isOver
-      ? "hsl(15 80% 50%)"
+      ? "hsl(var(--warn))"
       : color;
 
   return (
@@ -46,9 +46,9 @@ const MacroRing = ({ label, current, target, color, unit = "g" }: MacroRingProps
             strokeDashoffset={strokeDashoffset}
             className={cn(
               "transition-all duration-500",
-              isOver && "drop-shadow-[0_0_6px_hsl(0_70%_50%/0.5)]"
+              isOver && "drop-shadow-[0_0_6px_hsl(var(--destructive)/0.5)]"
             )}
-            style={isWayOver ? { filter: "drop-shadow(0 0 8px hsl(0 70% 50% / 0.6))" } : undefined}
+            style={isWayOver ? { filter: "drop-shadow(0 0 8px hsl(var(--destructive) / 0.6))" } : undefined}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">

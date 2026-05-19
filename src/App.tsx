@@ -46,6 +46,7 @@ import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
 import HealthSyncBootstrap from "./components/HealthSyncBootstrap";
 import SplashGate from "./components/SplashScreen/SplashGate";
+import { ThemeProvider } from "./hooks/useTheme";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,6 +66,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
+        <ThemeProvider>
         <SubscriptionProvider>
         <RankedXPProvider>
         <Toaster />
@@ -114,6 +116,7 @@ const App = () => (
         </BrowserRouter>
         </RankedXPProvider>
         </SubscriptionProvider>
+        </ThemeProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

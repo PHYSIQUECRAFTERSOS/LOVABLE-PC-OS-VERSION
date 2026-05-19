@@ -28,11 +28,11 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
-  workout: "bg-amber-500/20 text-amber-400", cardio: "bg-green-500/20 text-green-400",
+  workout: "bg-warn/20 text-warn", cardio: "bg-success/20 text-success",
   checkin: "bg-purple-500/20 text-purple-400", rest: "bg-muted text-muted-foreground",
-  reminder: "bg-yellow-500/20 text-yellow-400", custom: "bg-primary/20 text-primary",
-  auto_message: "bg-orange-500/20 text-orange-400", photos: "bg-purple-500/20 text-purple-400",
-  body_stats: "bg-orange-500/20 text-orange-400", nutrition: "bg-red-500/20 text-red-400",
+  reminder: "bg-warn/20 text-warn", custom: "bg-primary/20 text-primary",
+  auto_message: "bg-warn/20 text-warn", photos: "bg-purple-500/20 text-purple-400",
+  body_stats: "bg-warn/20 text-warn", nutrition: "bg-destructive/20 text-destructive",
 };
 
 const EVENT_ROUTES: Record<string, string> = {
@@ -421,12 +421,12 @@ const EventDetailModal = ({
           {/* Title row with status */}
           <div className="flex items-start gap-3">
             {event.event_type === "nutrition" ? (
-              <div className="mt-0.5 h-8 w-8 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                <UtensilsCrossed className="h-5 w-5 text-red-400" />
+              <div className="mt-0.5 h-8 w-8 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
+                <UtensilsCrossed className="h-5 w-5 text-destructive" />
               </div>
             ) : event.is_completed ? (
-              <div className="mt-0.5 h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
-                <Check className="h-5 w-5 text-white" />
+              <div className="mt-0.5 h-8 w-8 rounded-full bg-success flex items-center justify-center shrink-0">
+                <Check className="h-5 w-5 text-foreground" />
               </div>
             ) : (
               <div className="mt-0.5 h-8 w-8 rounded-full border-2 border-border flex items-center justify-center shrink-0">
@@ -452,7 +452,7 @@ const EventDetailModal = ({
               </Badge>
             )}
             {event.is_completed && (
-              <Badge className="bg-green-500/20 text-green-400 text-xs gap-1">
+              <Badge className="bg-success/20 text-success text-xs gap-1">
                 <Check className="h-3 w-3" /> Done
               </Badge>
             )}
@@ -475,7 +475,7 @@ const EventDetailModal = ({
               ) : null}
               {hasSession && sessionData?.overall_rpe != null && (
                 <span className="flex items-center gap-1">
-                  <Flame className="h-3 w-3 text-orange-400" />
+                  <Flame className="h-3 w-3 text-warn" />
                   RPE {sessionData.overall_rpe}/10 ({getRPELabel(sessionData.overall_rpe)})
                 </span>
               )}
@@ -557,7 +557,7 @@ const EventDetailModal = ({
                           </span>
                           {ex.prescribed.rest_seconds > 0 && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Flame className="h-3 w-3 text-orange-400" />
+                              <Flame className="h-3 w-3 text-warn" />
                               Rest {ex.prescribed.rest_seconds >= 60
                                 ? `${Math.floor(ex.prescribed.rest_seconds / 60)} min`
                                 : `${ex.prescribed.rest_seconds}s`}
@@ -576,7 +576,7 @@ const EventDetailModal = ({
                     )}
                     {ex.prescribed && ex.prescribed.rest_seconds > 0 && (
                       <div className="hidden sm:flex items-center gap-1 shrink-0">
-                        <Flame className="h-3 w-3 text-orange-400" />
+                        <Flame className="h-3 w-3 text-warn" />
                         <span className="text-xs text-muted-foreground">
                           Rest {ex.prescribed.rest_seconds >= 60
                             ? `${Math.floor(ex.prescribed.rest_seconds / 60)} min`

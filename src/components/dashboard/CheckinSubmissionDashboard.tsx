@@ -67,10 +67,10 @@ const DEFAULT_DAY_CONFIGS = [
 
 // Colors/icons for dynamic columns
 const COLUMN_STYLES = [
-  { borderClass: "border-l-emerald-500", badgeColor: "bg-emerald-400/20 text-emerald-400", icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" /> },
-  { borderClass: "border-l-blue-500", badgeColor: "bg-blue-400/20 text-blue-400", icon: <Clock className="h-4 w-4 text-blue-400" /> },
+  { borderClass: "border-l-emerald-500", badgeColor: "bg-success/20 text-success", icon: <CheckCircle2 className="h-4 w-4 text-success" /> },
+  { borderClass: "border-l-blue-500", badgeColor: "bg-info/20 text-info", icon: <Clock className="h-4 w-4 text-info" /> },
   { borderClass: "border-l-violet-500", badgeColor: "bg-violet-400/20 text-violet-400", icon: <CheckCircle2 className="h-4 w-4 text-violet-400" /> },
-  { borderClass: "border-l-amber-500", badgeColor: "bg-amber-400/20 text-amber-400", icon: <Clock className="h-4 w-4 text-amber-400" /> },
+  { borderClass: "border-l-amber-500", badgeColor: "bg-warn/20 text-warn", icon: <Clock className="h-4 w-4 text-warn" /> },
 ];
 
 // ── Types ──
@@ -447,7 +447,7 @@ const CheckinSubmissionDashboard = () => {
           <CardContent className="space-y-1">
             {notSubmitted.length === 0 ? (
               <div className="py-3 text-center">
-                <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto mb-1" />
+                <CheckCircle2 className="h-5 w-5 text-success mx-auto mb-1" />
                 <p className="text-xs text-muted-foreground">All clients submitted!</p>
               </div>
             ) : (

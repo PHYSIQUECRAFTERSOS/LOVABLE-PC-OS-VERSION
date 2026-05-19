@@ -57,8 +57,8 @@ interface NudgeRecord {
 
 const riskColorMap: Record<string, string> = {
   low: "text-primary",
-  moderate: "text-yellow-400",
-  high: "text-orange-400",
+  moderate: "text-warn",
+  high: "text-warn",
   critical: "text-destructive",
 };
 
@@ -247,15 +247,15 @@ const RetentionPanel = () => {
             <p className="text-xs text-muted-foreground">Critical Risk</p>
           </CardContent>
         </Card>
-        <Card className={high.length > 0 ? "border-orange-400/30" : ""}>
+        <Card className={high.length > 0 ? "border-warn/30" : ""}>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-400">{high.length}</p>
+            <p className="text-2xl font-bold text-warn">{high.length}</p>
             <p className="text-xs text-muted-foreground">High Risk</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-yellow-400">{moderate.length}</p>
+            <p className="text-2xl font-bold text-warn">{moderate.length}</p>
             <p className="text-xs text-muted-foreground">Moderate Risk</p>
           </CardContent>
         </Card>
@@ -298,7 +298,7 @@ const RetentionPanel = () => {
                 list.map((client) => (
                   <Card key={client.clientId} className={
                     client.riskLevel === "critical" ? "border-destructive/30" :
-                    client.riskLevel === "high" ? "border-orange-400/20" : ""
+                    client.riskLevel === "high" ? "border-warn/20" : ""
                   }>
                     <div
                       className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-secondary/30 transition-colors rounded-t-lg"

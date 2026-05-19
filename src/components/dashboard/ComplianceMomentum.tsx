@@ -12,9 +12,9 @@ const ComplianceMomentum = ({ data }: ComplianceMomentumProps) => {
   const maxScore = 100;
 
   const getBarColor = (score: number) => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 50) return "bg-yellow-500";
-    if (score >= 0) return "bg-red-400";
+    if (score >= 80) return "bg-success";
+    if (score >= 50) return "bg-warn";
+    if (score >= 0) return "bg-destructive";
     return "bg-muted";
   };
 

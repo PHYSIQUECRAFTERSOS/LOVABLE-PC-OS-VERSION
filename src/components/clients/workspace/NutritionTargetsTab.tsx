@@ -65,9 +65,9 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
 
   const macros = [
     { key: "calories" as const, label: "Calories", unit: "kcal", color: "bg-primary", textColor: "text-primary" },
-    { key: "protein" as const, label: "Protein", unit: "g", color: "bg-blue-500", textColor: "text-blue-400" },
-    { key: "carbs" as const, label: "Carbs", unit: "g", color: "bg-amber-500", textColor: "text-amber-400" },
-    { key: "fat" as const, label: "Fat", unit: "g", color: "bg-rose-500", textColor: "text-rose-400" },
+    { key: "protein" as const, label: "Protein", unit: "g", color: "bg-info", textColor: "text-info" },
+    { key: "carbs" as const, label: "Carbs", unit: "g", color: "bg-warn", textColor: "text-warn" },
+    { key: "fat" as const, label: "Fat", unit: "g", color: "bg-destructive", textColor: "text-destructive" },
   ];
 
   return (
@@ -91,21 +91,21 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Macro Split</p>
                 <div className="flex h-4 rounded-full overflow-hidden">
-                  <div className="bg-blue-500 transition-all" style={{ width: `${targetPercentages.protein}%` }}>
-                    {targetPercentages.protein >= 12 && <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{targetPercentages.protein}%</span>}
+                  <div className="bg-info transition-all" style={{ width: `${targetPercentages.protein}%` }}>
+                    {targetPercentages.protein >= 12 && <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{targetPercentages.protein}%</span>}
                   </div>
-                  <div className="bg-amber-500 transition-all" style={{ width: `${targetPercentages.carbs}%` }}>
-                    {targetPercentages.carbs >= 12 && <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{targetPercentages.carbs}%</span>}
+                  <div className="bg-warn transition-all" style={{ width: `${targetPercentages.carbs}%` }}>
+                    {targetPercentages.carbs >= 12 && <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{targetPercentages.carbs}%</span>}
                   </div>
-                  <div className="bg-rose-500 transition-all" style={{ width: `${targetPercentages.fat}%` }}>
-                    {targetPercentages.fat >= 12 && <span className="text-[9px] font-bold text-white flex items-center justify-center h-full">{targetPercentages.fat}%</span>}
+                  <div className="bg-destructive transition-all" style={{ width: `${targetPercentages.fat}%` }}>
+                    {targetPercentages.fat >= 12 && <span className="text-[9px] font-bold text-foreground flex items-center justify-center h-full">{targetPercentages.fat}%</span>}
                   </div>
                 </div>
                 <div className="flex justify-between">
                   {[
-                    { label: "Protein", g: targets.protein, pct: targetPercentages.protein, color: "text-blue-400", bg: "bg-blue-500/10" },
-                    { label: "Carbs", g: targets.carbs, pct: targetPercentages.carbs, color: "text-amber-400", bg: "bg-amber-500/10" },
-                    { label: "Fat", g: targets.fat, pct: targetPercentages.fat, color: "text-rose-400", bg: "bg-rose-500/10" },
+                    { label: "Protein", g: targets.protein, pct: targetPercentages.protein, color: "text-info", bg: "bg-info/10" },
+                    { label: "Carbs", g: targets.carbs, pct: targetPercentages.carbs, color: "text-warn", bg: "bg-warn/10" },
+                    { label: "Fat", g: targets.fat, pct: targetPercentages.fat, color: "text-destructive", bg: "bg-destructive/10" },
                   ].map(m => (
                     <div key={m.label} className={`text-center px-3 py-2 rounded-lg ${m.bg} flex-1 mx-0.5`}>
                       <p className={`text-lg font-bold ${m.color}`}>{m.g}g</p>
@@ -132,13 +132,13 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                     <div key={m.key} className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Icon className={`h-3 w-3 ${pct >= 90 ? "text-green-400" : pct >= 50 ? "text-amber-400" : "text-rose-400"}`} />
+                          <Icon className={`h-3 w-3 ${pct >= 90 ? "text-success" : pct >= 50 ? "text-warn" : "text-destructive"}`} />
                           <span className="text-sm font-medium">{m.label}</span>
                           {macroPct !== null && (
                             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
-                              m.key === "protein" ? "bg-blue-500/10 text-blue-400" :
-                              m.key === "carbs" ? "bg-amber-500/10 text-amber-400" :
-                              "bg-rose-500/10 text-rose-400"
+                              m.key === "protein" ? "bg-info/10 text-info" :
+                              m.key === "carbs" ? "bg-warn/10 text-warn" :
+                              "bg-destructive/10 text-destructive"
                             }`}>{macroPct}%</span>
                           )}
                         </div>
@@ -151,7 +151,7 @@ const NutritionTargetsTab = ({ clientId }: { clientId: string }) => {
                       <div className="flex justify-between text-[10px] text-muted-foreground">
                         <span>{pct}% consumed</span>
                         {over > 0 ? (
-                          <span className="text-rose-400 font-medium">+{over} {m.unit} over</span>
+                          <span className="text-destructive font-medium">+{over} {m.unit} over</span>
                         ) : (
                           <span>{remaining} {m.unit} remaining</span>
                         )}

@@ -70,11 +70,11 @@ function getSmartStatus(
     return { label: "Not tracked yet", color: "text-muted-foreground", barColor: "", level: 0 };
   }
   const pct = target > 0 ? (intake / target) * 100 : 0;
-  if (pct > 200) return { label: "High intake", color: "text-amber-400", barColor: "bg-amber-500", level: 5 };
-  if (pct >= 100) return { label: "On track", color: "text-emerald-400", barColor: "bg-emerald-500", level: 4 };
-  if (pct >= 75) return { label: "Almost there", color: "text-emerald-300", barColor: "bg-emerald-400/70", level: 3 };
+  if (pct > 200) return { label: "High intake", color: "text-warn", barColor: "bg-warn", level: 5 };
+  if (pct >= 100) return { label: "On track", color: "text-success", barColor: "bg-success", level: 4 };
+  if (pct >= 75) return { label: "Almost there", color: "text-success", barColor: "bg-success/70", level: 3 };
   if (pct >= 25) return { label: "Getting there", color: "text-primary", barColor: "bg-primary", level: 2 };
-  return { label: "Needs attention", color: "text-amber-400", barColor: "bg-amber-500/70", level: 1 };
+  return { label: "Needs attention", color: "text-warn", barColor: "bg-warn/70", level: 1 };
 }
 
 // ═══ Smart Suggestions ═══
@@ -418,7 +418,7 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
             {!hasLoggedToday ? (
               <p className="text-sm text-muted-foreground">Log a meal or supplement to see your priorities</p>
             ) : allAbove75 ? (
-              <div className="flex items-center gap-2 text-emerald-400">
+              <div className="flex items-center gap-2 text-success">
                 <CheckCircle2 className="h-5 w-5" />
                 <span className="text-sm font-medium">Looking good today</span>
               </div>
@@ -650,7 +650,7 @@ const MicronutrientDashboard = ({ date, clientId }: MicronutrientDashboardProps)
                           <span className="text-muted-foreground">{f.label}</span>
                           <Badge variant="outline" className={cn(
                             "text-[10px]",
-                            f.multiplier >= 0.85 ? "text-emerald-400 border-emerald-500/30" :
+                            f.multiplier >= 0.85 ? "text-success border-success/30" :
                             f.multiplier >= 0.7 ? "text-primary border-primary/30" :
                             "text-muted-foreground"
                           )}>
@@ -763,7 +763,7 @@ const NutrientRow = ({
           )}
           <span className="font-medium text-foreground truncate">{config.display_name}</span>
           {hasSupplement && <Pill className="h-3 w-3 text-primary shrink-0" />}
-          {trend === "up" && <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0" />}
+          {trend === "up" && <TrendingUp className="h-3 w-3 text-success shrink-0" />}
           {trend === "down" && <TrendingDown className="h-3 w-3 text-destructive shrink-0" />}
           {trend === "flat" && <Minus className="h-3 w-3 text-muted-foreground shrink-0" />}
         </div>

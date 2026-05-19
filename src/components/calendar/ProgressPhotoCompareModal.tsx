@@ -188,11 +188,11 @@ const ProgressPhotoCompareModal = ({
           "p-0 overflow-hidden flex flex-col gap-0 border-border",
           // Full-screen on mobile, large on desktop
           "max-w-none w-screen h-[100dvh] sm:w-[95vw] sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl",
-          "bg-[#0a0a0a]"
+          "bg-background"
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3 shrink-0 bg-[#0a0a0a]">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3 shrink-0 bg-background">
           <ArrowLeftRight className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-semibold text-foreground truncate flex-1">
             {headerTitle}
@@ -209,7 +209,7 @@ const ProgressPhotoCompareModal = ({
         </div>
 
         {/* Filter pills */}
-        <div className="flex gap-2 px-4 py-2.5 overflow-x-auto shrink-0 border-b border-border bg-[#0a0a0a]">
+        <div className="flex gap-2 px-4 py-2.5 overflow-x-auto shrink-0 border-b border-border bg-background">
           {ANGLE_FILTERS.map((a) => (
             <button
               key={a}
@@ -228,7 +228,7 @@ const ProgressPhotoCompareModal = ({
 
         {/* Date selectors */}
         {!noDates && !onlyOneDate && (
-          <div className="grid grid-cols-2 gap-3 px-4 py-3 shrink-0 border-b border-border bg-[#0a0a0a]">
+          <div className="grid grid-cols-2 gap-3 px-4 py-3 shrink-0 border-b border-border bg-background">
             <div className="space-y-1">
               <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
                 Before
@@ -283,7 +283,7 @@ const ProgressPhotoCompareModal = ({
         )}
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 bg-[#0a0a0a]">
+        <div className="flex-1 overflow-y-auto p-4 bg-background">
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
@@ -354,7 +354,7 @@ const ProgressPhotoCompareModal = ({
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-border shrink-0 bg-[#0a0a0a]">
+        <div className="px-4 py-3 border-t border-border shrink-0 bg-background">
           <Button
             variant="outline"
             size="sm"
@@ -390,7 +390,7 @@ const ComparePhotoCell = ({
       <div
         role="img"
         aria-label="Photo not submitted"
-        className="aspect-[3/4] rounded-lg border border-dashed border-[#333333] flex flex-col items-center justify-center bg-[#111111] relative"
+        className="aspect-[3/4] rounded-lg border border-dashed border-border flex flex-col items-center justify-center bg-card relative"
       >
         <span
           className={cn(
@@ -402,8 +402,8 @@ const ComparePhotoCell = ({
         >
           {label}
         </span>
-        <Camera className="h-7 w-7 text-[#555555]" />
-        <p className="text-[11px] text-[#777777] mt-2 font-medium">
+        <Camera className="h-7 w-7 text-muted-foreground" />
+        <p className="text-[11px] text-muted-foreground mt-2 font-medium">
           {errored && photo ? "Photo unavailable" : "Not submitted"}
         </p>
         <p className="text-[10px] text-muted-foreground mt-1">{dateLabel}</p>
@@ -415,7 +415,7 @@ const ComparePhotoCell = ({
     <button
       type="button"
       onClick={onTap}
-      className="group relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-[#111111] hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer"
+      className="group relative aspect-[3/4] rounded-lg overflow-hidden border border-border bg-card hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer"
     >
       <img
         src={photo.url}
@@ -434,8 +434,8 @@ const ComparePhotoCell = ({
       >
         {label}
       </span>
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 to-transparent px-2 py-1.5">
-        <p className="text-[10px] text-white/90 font-medium">{dateLabel}</p>
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background/85 to-transparent px-2 py-1.5">
+        <p className="text-[10px] text-foreground/90 font-medium">{dateLabel}</p>
       </div>
     </button>
   );
@@ -443,7 +443,7 @@ const ComparePhotoCell = ({
 
 const EmptyState = ({ title, subtitle }: { title: string; subtitle: string }) => (
   <div className="flex flex-col items-center justify-center py-16 text-center">
-    <Camera className="h-12 w-12 text-[#444444] mb-3" />
+    <Camera className="h-12 w-12 text-muted-foreground mb-3" />
     <p className="text-sm font-semibold text-foreground">{title}</p>
     <p className="text-xs text-muted-foreground mt-1 max-w-xs">{subtitle}</p>
   </div>
