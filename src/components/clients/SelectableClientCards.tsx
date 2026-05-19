@@ -336,7 +336,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         ? await Promise.allSettled([
             supabase
               .from("program_phases")
-              .select("id, program_id, phase_order, duration_weeks, name, start_date, end_date")
+              .select("id, program_id, phase_order, duration_weeks, name")
               .in("program_id", programIds)
               .order("phase_order", { ascending: true }),
             supabase
