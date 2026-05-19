@@ -41,6 +41,7 @@ import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
 import Unsubscribe from "./pages/Unsubscribe";
 import ClientTracker from "./pages/ClientTracker";
+import SyncLogDebug from "./pages/SyncLogDebug";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
