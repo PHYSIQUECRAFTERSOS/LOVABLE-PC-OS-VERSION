@@ -311,9 +311,9 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">{activeCard.totalCalories} cal</span>
-              <span className="text-red-400">{activeCard.totalProtein}P</span>
-              <span className="text-blue-400">{activeCard.totalCarbs}C</span>
-              <span className="text-yellow-400">{activeCard.totalFat}F</span>
+              <span className="text-destructive">{activeCard.totalProtein}P</span>
+              <span className="text-info">{activeCard.totalCarbs}C</span>
+              <span className="text-warn">{activeCard.totalFat}F</span>
             </div>
           </CardContent>
         </Card>

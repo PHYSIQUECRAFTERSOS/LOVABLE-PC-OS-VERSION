@@ -246,7 +246,7 @@ const AdherenceAnalytics = () => {
                 key={idx}
                 className={`h-8 rounded-sm border border-border flex items-center justify-center text-xs font-medium transition-colors ${
                   day.adherent
-                    ? "bg-green-500/20 border-green-500/50 text-green-700"
+                    ? "bg-success/20 border-success/50 text-success"
                     : "bg-muted border-muted-foreground/20 text-muted-foreground"
                 }`}
                 title={`${day.date}: ${day.calories} cal, ${day.protein}g protein`}

@@ -36,31 +36,31 @@ export type CalendarEvent = {
 };
 
 const EVENT_COLORS: Record<string, string> = {
-  workout: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  cardio: "bg-green-500/20 text-green-400 border-green-500/30",
+  workout: "bg-warn/20 text-warn border-warn/30",
+  cardio: "bg-success/20 text-success border-success/30",
   checkin: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   rest: "bg-muted text-muted-foreground border-border",
-  reminder: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  reminder: "bg-warn/20 text-warn border-warn/30",
   custom: "bg-primary/20 text-primary border-primary/30",
-  auto_message: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  photos: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  auto_message: "bg-warn/20 text-warn border-warn/30",
+  photos: "bg-warn/20 text-warn border-warn/30",
   body_stats: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  steps: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  nutrition: "bg-red-500/20 text-red-400 border-red-500/30",
+  steps: "bg-info/20 text-info border-info/30",
+  nutrition: "bg-destructive/20 text-destructive border-destructive/30",
 };
 
 const EVENT_DOT_COLORS: Record<string, string> = {
-  workout: "bg-amber-500",
-  cardio: "bg-green-500",
+  workout: "bg-warn",
+  cardio: "bg-success",
   checkin: "bg-purple-500",
   rest: "bg-muted-foreground",
-  reminder: "bg-yellow-500",
+  reminder: "bg-warn",
   custom: "bg-primary",
-  auto_message: "bg-orange-500",
-  photos: "bg-orange-500",
+  auto_message: "bg-warn",
+  photos: "bg-warn",
   body_stats: "bg-purple-500",
-  steps: "bg-blue-500",
-  nutrition: "bg-red-500",
+  steps: "bg-info",
+  nutrition: "bg-destructive",
 };
 
 interface CalendarGridProps {

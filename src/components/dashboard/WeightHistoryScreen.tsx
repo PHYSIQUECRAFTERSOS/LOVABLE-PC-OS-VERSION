@@ -233,7 +233,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change</p>
                   <p className={cn(
                     "text-lg font-bold tabular-nums",
-                    totalChange && totalChange < 0 ? "text-green-400" : totalChange && totalChange > 0 ? "text-red-400" : "text-foreground"
+                    totalChange && totalChange < 0 ? "text-success" : totalChange && totalChange > 0 ? "text-destructive" : "text-foreground"
                   )}>
                     {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " " + unitLabel : "—"}
                     {totalChange !== null && totalChange !== 0 && (

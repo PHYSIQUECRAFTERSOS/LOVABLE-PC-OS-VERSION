@@ -54,7 +54,7 @@ const SubscriptionCard = () => {
           <>
             <div className="flex items-center gap-2">
               <span className="font-medium text-foreground">{tierLabel}</span>
-              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">Active</Badge>
+              <Badge className="bg-success/20 text-success border-success/30 text-[10px]">Active</Badge>
             </div>
             {renewal && <p className="text-xs text-muted-foreground">{renewal}</p>}
             <Button variant="outline" onClick={handleManage} className="w-full border-primary/40 text-primary hover:bg-primary/10">

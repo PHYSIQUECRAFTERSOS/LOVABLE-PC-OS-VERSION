@@ -489,7 +489,7 @@ const MealPlanTemplateLibrary = () => {
                             <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => toggleFavorite(template.id, template.is_favorite)}>
-                            <Star className={cn("h-3.5 w-3.5 mr-2", template.is_favorite && "fill-yellow-400 text-yellow-400")} />
+                            <Star className={cn("h-3.5 w-3.5 mr-2", template.is_favorite && "fill-warn text-warn")} />
                             {template.is_favorite ? "Unfavorite" : "Favorite"}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => duplicateTemplate(template)}>
@@ -515,7 +515,7 @@ const MealPlanTemplateLibrary = () => {
                       </DropdownMenu>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          {template.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 shrink-0" />}
+                          {template.is_favorite && <Star className="h-3 w-3 fill-warn text-warn shrink-0" />}
                           <p className="text-sm font-medium truncate">{template.name}</p>
                         </div>
                         {/* Day Type Badge */}
@@ -625,9 +625,9 @@ const MealPlanTemplateLibrary = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {[
             { label: "Calories", value: selectedTemplate.target_calories, color: "text-foreground" },
-            { label: "Protein", value: selectedTemplate.target_protein, suffix: "g", color: "text-red-400" },
-            { label: "Carbs", value: selectedTemplate.target_carbs, suffix: "g", color: "text-blue-400" },
-            { label: "Fat", value: selectedTemplate.target_fat, suffix: "g", color: "text-yellow-400" },
+            { label: "Protein", value: selectedTemplate.target_protein, suffix: "g", color: "text-destructive" },
+            { label: "Carbs", value: selectedTemplate.target_carbs, suffix: "g", color: "text-info" },
+            { label: "Fat", value: selectedTemplate.target_fat, suffix: "g", color: "text-warn" },
           ].map(m => (
             <Card key={m.label}>
               <CardContent className="p-3 text-center">

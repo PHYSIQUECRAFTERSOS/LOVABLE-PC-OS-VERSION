@@ -214,7 +214,7 @@ const ComplianceStrip = ({
       </div>
       <div className="flex gap-3 mt-1 px-1">
         {[
-          { label: "On target", cls: "bg-green-500" },
+          { label: "On target", cls: "bg-success" },
           { label: "Close", cls: "bg-primary" },
           { label: "Missed", cls: "bg-destructive" },
         ].map(({ label, cls }) => (
@@ -238,13 +238,13 @@ const MacroComparisonChart = ({ averages, targets, daysTracked }: MacroAverages)
   ];
 
   const getBarClasses = (pct: number) => {
-    if (pct >= 0.9 && pct <= 1.1) return "bg-green-500";
+    if (pct >= 0.9 && pct <= 1.1) return "bg-success";
     if (pct >= 0.7 && pct <= 1.3) return "bg-primary";
     return "bg-destructive";
   };
 
   const getBadgeClasses = (pct: number) => {
-    if (pct >= 0.9 && pct <= 1.1) return "bg-green-500/15 text-green-400";
+    if (pct >= 0.9 && pct <= 1.1) return "bg-success/15 text-success";
     if (pct >= 0.7 && pct <= 1.3) return "bg-primary/15 text-primary";
     return "bg-destructive/15 text-destructive";
   };
@@ -807,7 +807,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                 }}
                 className="flex items-center gap-3 py-1.5 w-full text-left hover:bg-secondary/50 rounded-md px-2 -mx-2 transition-colors"
               >
-                {a.is_completed ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" /> : <Circle className="h-5 w-5 text-muted-foreground shrink-0" />}
+                {a.is_completed ? <CheckCircle2 className="h-5 w-5 text-success shrink-0" /> : <Circle className="h-5 w-5 text-muted-foreground shrink-0" />}
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {a.event_type === "workout" && <Dumbbell className="h-3.5 w-3.5 text-primary shrink-0" />}
                   {a.event_type === "nutrition" && <UtensilsCrossed className="h-3.5 w-3.5 text-primary shrink-0" />}
@@ -888,7 +888,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
           </div>
           {data.currentWeight && (
             <div className="flex items-center gap-1 mt-0.5">
-              {data.weightTrend === "down" ? <TrendingDown className="h-3 w-3 text-green-500" /> : data.weightTrend === "up" ? <TrendingUp className="h-3 w-3 text-destructive" /> : <Activity className="h-3 w-3 text-muted-foreground" />}
+              {data.weightTrend === "down" ? <TrendingDown className="h-3 w-3 text-success" /> : data.weightTrend === "up" ? <TrendingUp className="h-3 w-3 text-destructive" /> : <Activity className="h-3 w-3 text-muted-foreground" />}
               <span className="text-[10px] text-muted-foreground capitalize">{data.weightTrend} (7d)</span>
             </div>
           )}
@@ -1082,7 +1082,7 @@ const ClientWorkspaceSummary = ({ clientId }: { clientId: string }) => {
                   <span className="text-sm font-semibold text-foreground">Daily Total</span>
                   {adherencePct !== null && (
                     <Badge className={cn("text-[10px]",
-                      adherencePct >= 90 && adherencePct <= 110 ? "bg-green-500/20 text-green-400 hover:bg-green-500/20"
+                      adherencePct >= 90 && adherencePct <= 110 ? "bg-success/20 text-success hover:bg-success/20"
                         : adherencePct >= 75 ? "bg-primary/20 text-primary hover:bg-primary/20"
                         : "bg-destructive/20 text-destructive hover:bg-destructive/20"
                     )}>

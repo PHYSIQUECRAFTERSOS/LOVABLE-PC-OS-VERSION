@@ -164,9 +164,9 @@ const SupplementReview = ({ extracted, matchResults, onUpdateExtracted }: Supple
                         <Badge
                           variant="outline"
                           className={`text-[9px] shrink-0 ${
-                            match.confidence_level === "green" ? "border-green-500/50 text-green-400" :
-                            match.confidence_level === "yellow" ? "border-yellow-500/50 text-yellow-400" :
-                            "border-red-500/50 text-red-400"
+                            match.confidence_level === "green" ? "border-success/50 text-success" :
+                            match.confidence_level === "yellow" ? "border-warn/50 text-warn" :
+                            "border-destructive/50 text-destructive"
                           }`}
                         >
                           {match.confidence_level === "green" ? "Matched" :

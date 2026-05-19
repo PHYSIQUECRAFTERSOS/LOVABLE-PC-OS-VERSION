@@ -70,7 +70,7 @@ const CurrentWeightCard = ({ onClick, clientId }: CurrentWeightCardProps) => {
               As of {format(new Date(latest.logged_at + "T00:00:00"), "MMM d")}
             </span>
             {diff !== null && diff !== 0 ? (
-              <span className={`text-[10px] font-medium flex items-center gap-0.5 whitespace-nowrap ${diff > 0 ? "text-red-400" : "text-green-400"}`}>
+              <span className={`text-[10px] font-medium flex items-center gap-0.5 whitespace-nowrap ${diff > 0 ? "text-destructive" : "text-success"}`}>
                 {diff > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                 {diff > 0 ? "+" : ""}{diff} {weightLabel}
               </span>

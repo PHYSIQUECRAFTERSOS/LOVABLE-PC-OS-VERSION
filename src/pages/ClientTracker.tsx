@@ -39,10 +39,10 @@ interface ClientOption {
 
 const urgencyColor = (daysLeft: number) => {
   if (daysLeft < 0) return "bg-muted text-muted-foreground line-through";
-  if (daysLeft <= 7) return "bg-red-500/20 text-red-400 border-red-500/30";
-  if (daysLeft <= 14) return "bg-orange-500/20 text-orange-400 border-orange-500/30";
-  if (daysLeft <= 30) return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-  return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+  if (daysLeft <= 7) return "bg-destructive/20 text-destructive border-destructive/30";
+  if (daysLeft <= 14) return "bg-warn/20 text-warn border-warn/30";
+  if (daysLeft <= 30) return "bg-warn/20 text-warn border-warn/30";
+  return "bg-success/20 text-success border-success/30";
 };
 
 const urgencyLabel = (daysLeft: number) => {
@@ -302,8 +302,8 @@ const ClientTracker = () => {
                                 <TableCell colSpan={9} className="py-1 px-4">
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     <div className="flex-1 h-px bg-border" />
-                                    <Repeat className="h-3 w-3 text-blue-400" />
-                                    <span className="text-blue-400 font-medium">Month-to-Month ({m2mCount})</span>
+                                    <Repeat className="h-3 w-3 text-info" />
+                                    <span className="text-info font-medium">Month-to-Month ({m2mCount})</span>
                                     <div className="flex-1 h-px bg-border" />
                                   </div>
                                 </TableCell>
@@ -317,7 +317,7 @@ const ClientTracker = () => {
                               <TableCell className="text-sm">{isM2M ? "—" : format(new Date(row.end_date), "MMM d, yyyy")}</TableCell>
                               <TableCell className="text-center">
                                 {isM2M ? (
-                                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">M2M Active</Badge>
+                                  <Badge className="bg-info/20 text-info border-info/30">M2M Active</Badge>
                                 ) : (
                                   <Badge className={urgencyColor(daysLeft)}>{urgencyLabel(daysLeft)}</Badge>
                                 )}
@@ -329,7 +329,7 @@ const ClientTracker = () => {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className={`h-7 w-7 p-0 ${isM2M ? "text-blue-400" : "text-muted-foreground"}`}
+                                    className={`h-7 w-7 p-0 ${isM2M ? "text-info" : "text-muted-foreground"}`}
                                     onClick={() => handleToggleM2M(row)}
                                     title={isM2M ? "Revert to Committed" : "Convert to Month-to-Month"}
                                   >
@@ -492,9 +492,9 @@ const ClientTracker = () => {
                   <Label>Renewal Note (optional)</Label>
                   <Input value={renewNotes} onChange={(e) => setRenewNotes(e.target.value)} placeholder="6 month renewal PIF" />
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2">
+                <div className="flex items-center justify-between rounded-lg border border-info/30 bg-info/5 px-3 py-2">
                   <div>
-                    <Label className="text-sm font-medium text-blue-400">Convert to Month-to-Month</Label>
+                    <Label className="text-sm font-medium text-info">Convert to Month-to-Month</Label>
                     <p className="text-xs text-muted-foreground">No more countdown after renewal</p>
                   </div>
                   <Switch checked={renewConvertM2M} onCheckedChange={setRenewConvertM2M} />

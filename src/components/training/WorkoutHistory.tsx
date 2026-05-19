@@ -375,7 +375,7 @@ const WorkoutHistory = () => {
                           {format(new Date(session.completed_at!), "MMM d, yyyy · h:mm a")}
                         </span>
                         {session.exerciseModifications.length > 0 && (
-                          <Badge variant="outline" className="text-[10px] border-yellow-500/30 text-yellow-500">
+                          <Badge variant="outline" className="text-[10px] border-warn/30 text-warn">
                             ⚠ {session.exerciseModifications.length} modification{session.exerciseModifications.length !== 1 ? "s" : ""}
                           </Badge>
                         )}
@@ -465,7 +465,7 @@ const WorkoutHistory = () => {
                     {/* Modification details */}
                     {session.exerciseModifications.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-border space-y-1.5">
-                        <p className="text-xs font-medium text-yellow-500">⚠ Exercise Modifications</p>
+                        <p className="text-xs font-medium text-warn">⚠ Exercise Modifications</p>
                         {session.exerciseModifications.map((mod: any, i: number) => (
                           <p key={i} className="text-xs text-muted-foreground">
                             {mod.type === "switch"

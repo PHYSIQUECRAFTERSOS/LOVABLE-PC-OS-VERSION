@@ -205,7 +205,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-foreground">{food.name}</h2>
             {food.source === "usda" && (
-              <ShieldCheck className="h-4 w-4 text-green-500 shrink-0" />
+              <ShieldCheck className="h-4 w-4 text-success shrink-0" />
             )}
           </div>
           {food.brand && (
@@ -242,9 +242,9 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
           </div>
 
           <div className="flex-1 space-y-2">
-            <MacroBar label="Protein" grams={protein} pct={proteinPct} color="bg-green-500" />
-            <MacroBar label="Carbs" grams={carbs} pct={carbsPct} color="bg-blue-500" />
-            <MacroBar label="Fat" grams={fat} pct={fatPct} color="bg-yellow-500" />
+            <MacroBar label="Protein" grams={protein} pct={proteinPct} color="bg-success" />
+            <MacroBar label="Carbs" grams={carbs} pct={carbsPct} color="bg-info" />
+            <MacroBar label="Fat" grams={fat} pct={fatPct} color="bg-warn" />
             {fiber > 0 && (
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Fiber</span>

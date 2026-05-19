@@ -115,7 +115,7 @@ const CardioPopup = ({ open, onClose, eventId, title, description, onCompleted }
     <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
       <DrawerContent>
         <div className="flex flex-col items-center py-8 px-4 space-y-4">
-          <div className="h-16 w-16 rounded-2xl bg-green-500/20 border-2 border-green-500/40 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-2xl bg-success/20 border-2 border-success/40 flex items-center justify-center">
             {getCardioIcon(title)}
           </div>
 

@@ -17,9 +17,9 @@ interface FoodMatchReviewProps {
 
 const ConfidenceBadge = ({ level }: { level: string }) => {
   const colors = {
-    green: "bg-green-500/20 text-green-400 border-green-500/30",
-    yellow: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    red: "bg-red-500/20 text-red-400 border-red-500/30",
+    green: "bg-success/20 text-success border-success/30",
+    yellow: "bg-warn/20 text-warn border-warn/30",
+    red: "bg-destructive/20 text-destructive border-destructive/30",
   };
   const labels = { green: "Matched", yellow: "Partial", red: "Custom Food" };
   return (

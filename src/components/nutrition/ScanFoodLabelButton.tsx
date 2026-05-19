@@ -322,8 +322,8 @@ const ScanFoodLabelButton = ({
     if (!isSuspicious(field, value)) return null;
     return (
       <div className="flex items-center gap-1 mt-0.5">
-        <AlertTriangle className="h-3 w-3 text-amber-500" />
-        <span className="text-[10px] text-amber-500">Please verify this value</span>
+        <AlertTriangle className="h-3 w-3 text-warn" />
+        <span className="text-[10px] text-warn">Please verify this value</span>
       </div>
     );
   };

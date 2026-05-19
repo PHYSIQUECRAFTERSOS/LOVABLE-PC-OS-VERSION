@@ -451,7 +451,7 @@ const Calendar = () => {
                     .slice(0, 5)
                     .map((e) => (
                       <button key={e.id} onClick={() => handleEventClick(e)} className="w-full text-left flex items-center gap-2 p-2 rounded hover:bg-secondary/50 transition-colors">
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${e.event_type === "workout" ? "bg-amber-500" : e.event_type === "cardio" ? "bg-green-500" : e.event_type === "checkin" ? "bg-purple-500" : e.event_type === "rest" ? "bg-muted-foreground" : "bg-primary"}`} />
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${e.event_type === "workout" ? "bg-warn" : e.event_type === "cardio" ? "bg-success" : e.event_type === "checkin" ? "bg-purple-500" : e.event_type === "rest" ? "bg-muted-foreground" : "bg-primary"}`} />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium truncate">{e.title}</p>
                           <p className="text-[10px] text-muted-foreground">{format(new Date(e.event_date), "EEE, MMM d")}{e.event_time && ` • ${e.event_time.slice(0, 5)}`}</p>

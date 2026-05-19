@@ -242,7 +242,7 @@ const AssignTemplateModal = ({ open, onOpenChange, onImport }: AssignTemplateMod
                     onClick={() => loadPreview(template)}
                     className="w-full flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 hover:bg-secondary/50 transition-colors text-left"
                   >
-                    {template.is_favorite && <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 shrink-0" />}
+                    {template.is_favorite && <Star className="h-3.5 w-3.5 fill-warn text-warn shrink-0" />}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{template.name}</p>
                       <div className="flex gap-1 mt-0.5">

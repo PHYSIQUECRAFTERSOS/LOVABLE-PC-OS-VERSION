@@ -269,7 +269,7 @@ const XPCelebrationOverlay = ({ type, totalXP, breakdown, onDismiss, evalDateLab
                   <span className="text-muted-foreground">{item.label}</span>
                   <span
                     className={`font-bold ${
-                      item.xp >= 0 ? "text-emerald-400" : "text-red-400"
+                      item.xp >= 0 ? "text-success" : "text-destructive"
                     }`}
                   >
                     {item.xp >= 0 ? "+" : ""}{item.xp} XP

@@ -604,7 +604,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
           {/* Not found */}
           {notFound && (
             <div className="space-y-3 text-center py-4">
-              <AlertTriangle className="h-8 w-8 mx-auto text-yellow-500" />
+              <AlertTriangle className="h-8 w-8 mx-auto text-warn" />
               <p className="text-sm text-foreground font-medium">Product not found</p>
               <p className="text-xs text-muted-foreground">
                 We couldn't find barcode {notFoundBarcode} in our database.
@@ -641,9 +641,9 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
 
               {/* Macros missing alert for UPC Item DB */}
               {!product.has_macros && macroEntryMode === "auto" && (
-                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-2">
+                <div className="rounded-lg border border-warn/30 bg-warn/5 p-4 space-y-2">
                   <p className="text-sm text-foreground font-medium flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    <AlertTriangle className="h-4 w-4 text-warn" />
                     Nutrition data not available
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -750,16 +750,16 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
                   <div className="text-lg font-bold text-foreground">{nutrition.calories}</div>
                   <div className="text-[10px] text-muted-foreground">cal</div>
                 </div>
-                <div className="rounded-lg bg-red-500/10 p-2">
-                  <div className="text-lg font-bold text-red-400">{nutrition.protein}g</div>
+                <div className="rounded-lg bg-destructive/10 p-2">
+                  <div className="text-lg font-bold text-destructive">{nutrition.protein}g</div>
                   <div className="text-[10px] text-muted-foreground">Protein</div>
                 </div>
-                <div className="rounded-lg bg-blue-500/10 p-2">
-                  <div className="text-lg font-bold text-blue-400">{nutrition.carbs}g</div>
+                <div className="rounded-lg bg-info/10 p-2">
+                  <div className="text-lg font-bold text-info">{nutrition.carbs}g</div>
                   <div className="text-[10px] text-muted-foreground">Carbs</div>
                 </div>
-                <div className="rounded-lg bg-yellow-500/10 p-2">
-                  <div className="text-lg font-bold text-yellow-400">{nutrition.fat}g</div>
+                <div className="rounded-lg bg-warn/10 p-2">
+                  <div className="text-lg font-bold text-warn">{nutrition.fat}g</div>
                   <div className="text-[10px] text-muted-foreground">Fat</div>
                 </div>
               </div>

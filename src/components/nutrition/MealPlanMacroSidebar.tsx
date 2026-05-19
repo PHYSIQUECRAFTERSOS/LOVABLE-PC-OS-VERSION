@@ -71,8 +71,8 @@ const MacroRow = ({
             isOver
               ? "text-destructive"
               : isClose
-              ? "text-yellow-500"
-              : "text-emerald-500"
+              ? "text-warn"
+              : "text-success"
           )}
         >
           {isOver ? "+" : ""}
@@ -268,9 +268,9 @@ const MealPlanMacroSidebar = ({
   };
 
   const macroBarSegments = [
-    { pct: proteinPct, color: "bg-blue-500", label: "Protein" },
-    { pct: carbsPct, color: "bg-amber-500", label: "Carbs" },
-    { pct: fatPct, color: "bg-rose-500", label: "Fat" },
+    { pct: proteinPct, color: "bg-info", label: "Protein" },
+    { pct: carbsPct, color: "bg-warn", label: "Carbs" },
+    { pct: fatPct, color: "bg-destructive", label: "Fat" },
   ];
 
   // Overall calorie progress
@@ -294,13 +294,13 @@ const MealPlanMacroSidebar = ({
                 <span className="text-foreground">
                   {Math.round(current.calories)}/{targets.calories} cal
                 </span>
-                <span className="text-blue-400">
+                <span className="text-info">
                   {Math.round(current.protein)}P
                 </span>
-                <span className="text-amber-400">
+                <span className="text-warn">
                   {Math.round(current.carbs)}C
                 </span>
-                <span className="text-rose-400">
+                <span className="text-destructive">
                   {Math.round(current.fat)}F
                 </span>
               </div>
@@ -592,7 +592,7 @@ const GoalEditor = ({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+              <div className="h-2.5 w-2.5 rounded-full bg-info" />
               <span className="text-xs font-medium">Protein</span>
             </div>
             <div className="text-right">
@@ -608,7 +608,7 @@ const GoalEditor = ({
             min={5}
             max={70}
             step={1}
-            className="[&_[role=slider]]:border-blue-500 [&_span:first-child>span]:bg-blue-500"
+            className="[&_[role=slider]]:border-info [&_span:first-child>span]:bg-info"
           />
         </div>
 
@@ -617,7 +617,7 @@ const GoalEditor = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <div className="h-2.5 w-2.5 rounded-full bg-warn" />
                 <span className="text-xs font-medium">Carbs</span>
               </div>
               <div className="text-right">
@@ -633,7 +633,7 @@ const GoalEditor = ({
               min={5}
               max={70}
               step={1}
-              className="[&_[role=slider]]:border-amber-500 [&_span:first-child>span]:bg-amber-500"
+              className="[&_[role=slider]]:border-warn [&_span:first-child>span]:bg-warn"
             />
           </div>
         )}
@@ -643,7 +643,7 @@ const GoalEditor = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                <div className="h-2.5 w-2.5 rounded-full bg-destructive" />
                 <span className="text-xs font-medium">Fat</span>
               </div>
               <div className="text-right">
@@ -659,7 +659,7 @@ const GoalEditor = ({
               min={5}
               max={60}
               step={1}
-              className="[&_[role=slider]]:border-rose-500 [&_span:first-child>span]:bg-rose-500"
+              className="[&_[role=slider]]:border-destructive [&_span:first-child>span]:bg-destructive"
             />
           </div>
         )}
@@ -675,22 +675,22 @@ const GoalEditor = ({
                 label: "Protein",
                 g: grams.protein,
                 pct: proteinPct,
-                color: "text-blue-400",
-                bg: "bg-blue-500/10",
+                color: "text-info",
+                bg: "bg-info/10",
               },
               {
                 label: "Carbs",
                 g: goalType === "full_macros" ? grams.carbs : "—",
                 pct: goalType === "full_macros" ? carbsPct : "—",
-                color: "text-amber-400",
-                bg: "bg-amber-500/10",
+                color: "text-warn",
+                bg: "bg-warn/10",
               },
               {
                 label: "Fat",
                 g: goalType === "full_macros" ? grams.fat : "—",
                 pct: goalType === "full_macros" ? fatPct : "—",
-                color: "text-rose-400",
-                bg: "bg-rose-500/10",
+                color: "text-destructive",
+                bg: "bg-destructive/10",
               },
             ].map((m) => (
               <div

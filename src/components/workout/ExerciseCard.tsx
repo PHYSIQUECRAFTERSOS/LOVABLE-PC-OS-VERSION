@@ -488,7 +488,7 @@ const ExerciseCard = ({
               </div>
 
               <div className="flex items-center gap-1">
-                {log.isPR && <Trophy className="h-3.5 w-3.5 text-yellow-500 animate-bounce" />}
+                {log.isPR && <Trophy className="h-3.5 w-3.5 text-warn animate-bounce" />}
                 <Button
                   size="sm"
                   className="h-8 px-3"

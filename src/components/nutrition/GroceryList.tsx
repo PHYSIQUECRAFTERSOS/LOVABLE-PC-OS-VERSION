@@ -18,10 +18,10 @@ interface GroceryItem {
 
 const CATEGORY_ORDER = ["Protein", "Carbs", "Fats", "Vegetables", "Fruits"];
 const CATEGORY_COLORS: Record<string, string> = {
-  Protein: "bg-red-500/20 text-red-400",
-  Carbs: "bg-amber-500/20 text-amber-400",
-  Fats: "bg-yellow-500/20 text-yellow-400",
-  Vegetables: "bg-green-500/20 text-green-400",
+  Protein: "bg-destructive/20 text-destructive",
+  Carbs: "bg-warn/20 text-warn",
+  Fats: "bg-warn/20 text-warn",
+  Vegetables: "bg-success/20 text-success",
   Fruits: "bg-purple-500/20 text-purple-400",
 };
 

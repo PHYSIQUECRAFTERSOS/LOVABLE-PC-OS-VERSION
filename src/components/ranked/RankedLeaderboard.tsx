@@ -428,7 +428,7 @@ const DivisionPlayerRow = ({
           {(entry.total_xp || 0).toLocaleString()} XP
         </p>
         {entry.current_streak > 0 && (
-          <p className="text-[9px] text-orange-400 flex items-center gap-0.5 justify-end">
+          <p className="text-[9px] text-warn flex items-center gap-0.5 justify-end">
             <Flame className="h-2.5 w-2.5" />
             {entry.current_streak}
           </p>
@@ -460,7 +460,7 @@ const LeaderboardRow = ({
       className={cn(
         "flex items-center gap-3 px-4 py-3 border-b border-border/50 last:border-0 transition-colors",
         entry.isMe && "bg-primary/5",
-        isChampion && "bg-red-950/20 border-red-900/30"
+        isChampion && "bg-destructive/20 border-destructive/30"
       )}
     >
       <span className="w-8 text-center text-sm font-bold text-foreground">
@@ -500,7 +500,7 @@ const LeaderboardRow = ({
       <div className="text-right">
         <p className="text-sm font-bold">{value}</p>
         {entry.current_streak > 0 && (
-          <p className="text-[10px] text-orange-400 flex items-center gap-0.5 justify-end">
+          <p className="text-[10px] text-warn flex items-center gap-0.5 justify-end">
             <Flame className="h-3 w-3" />
             {entry.current_streak}
           </p>

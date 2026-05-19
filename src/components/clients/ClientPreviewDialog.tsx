@@ -402,7 +402,7 @@ const ClientPreviewDialog = ({
                   <ArrowRightLeft className="h-4 w-4 mr-2" />
                   Transfer Client
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDeactivateOpen(true)} className="text-orange-400">
+                <DropdownMenuItem onClick={() => setDeactivateOpen(true)} className="text-warn">
                   <UserX className="h-4 w-4 mr-2" />
                   Deactivate Client
                 </DropdownMenuItem>
@@ -467,9 +467,9 @@ const ClientPreviewDialog = ({
                 <div className="rounded-lg bg-card border border-border/50 p-3 space-y-2">
                   <p className="text-xs text-muted-foreground font-medium">Today's Macros</p>
                   <MacroBar label="Calories" current={Math.round(data.macrosToday.calories)} target={data.macroTargets.calories} color="bg-primary" />
-                  <MacroBar label="Protein" current={Math.round(data.macrosToday.protein)} target={data.macroTargets.protein} color="bg-blue-500" />
-                  <MacroBar label="Carbs" current={Math.round(data.macrosToday.carbs)} target={data.macroTargets.carbs} color="bg-amber-500" />
-                  <MacroBar label="Fat" current={Math.round(data.macrosToday.fat)} target={data.macroTargets.fat} color="bg-rose-500" />
+                  <MacroBar label="Protein" current={Math.round(data.macrosToday.protein)} target={data.macroTargets.protein} color="bg-info" />
+                  <MacroBar label="Carbs" current={Math.round(data.macrosToday.carbs)} target={data.macroTargets.carbs} color="bg-warn" />
+                  <MacroBar label="Fat" current={Math.round(data.macrosToday.fat)} target={data.macroTargets.fat} color="bg-destructive" />
                 </div>
               )}
 
@@ -515,7 +515,7 @@ const ClientPreviewDialog = ({
             <AlertDialogAction
               onClick={() => handleAction("deactivate")}
               disabled={actionLoading}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-warn hover:bg-warn"
             >
               {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserX className="h-4 w-4 mr-2" />}
               Deactivate

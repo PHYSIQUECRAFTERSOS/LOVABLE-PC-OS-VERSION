@@ -335,9 +335,9 @@ const ClientStructuredMealPlan = ({
           </span>
           <div className="flex items-center gap-3">
             <MacroPill label="Cal" value={dayTotals.calories} color="text-foreground" />
-            <MacroPill label="P" value={dayTotals.protein} color="text-red-400" />
-            <MacroPill label="C" value={dayTotals.carbs} color="text-blue-400" />
-            <MacroPill label="F" value={dayTotals.fat} color="text-yellow-400" />
+            <MacroPill label="P" value={dayTotals.protein} color="text-destructive" />
+            <MacroPill label="C" value={dayTotals.carbs} color="text-info" />
+            <MacroPill label="F" value={dayTotals.fat} color="text-warn" />
           </div>
         </div>
       </div>
@@ -410,9 +410,9 @@ const ClientStructuredMealPlan = ({
                 <div className="px-4 py-2 border-t border-border/30 bg-secondary/20">
                   <div className="flex items-center gap-3 text-xs">
                     <MacroPill label="Cal" value={sectionTotals.calories} color="text-foreground" />
-                    <MacroPill label="P" value={sectionTotals.protein} color="text-red-400" />
-                    <MacroPill label="C" value={sectionTotals.carbs} color="text-blue-400" />
-                    <MacroPill label="F" value={sectionTotals.fat} color="text-yellow-400" />
+                    <MacroPill label="P" value={sectionTotals.protein} color="text-destructive" />
+                    <MacroPill label="C" value={sectionTotals.carbs} color="text-info" />
+                    <MacroPill label="F" value={sectionTotals.fat} color="text-warn" />
                   </div>
                 </div>
 
@@ -427,9 +427,9 @@ const ClientStructuredMealPlan = ({
                           <span className="text-[10px] text-muted-foreground/70">•</span>
                           <span className="text-xs text-muted-foreground">{item.calories} cal</span>
                           <span className="text-[10px] text-muted-foreground/70">•</span>
-                          <span className="text-[10px] text-red-400/80">{item.protein}P</span>
-                          <span className="text-[10px] text-blue-400/80">{item.carbs}C</span>
-                          <span className="text-[10px] text-yellow-400/80">{item.fat}F</span>
+                          <span className="text-[10px] text-destructive/80">{item.protein}P</span>
+                          <span className="text-[10px] text-info/80">{item.carbs}C</span>
+                          <span className="text-[10px] text-warn/80">{item.fat}F</span>
                         </div>
                       </div>
                       <button

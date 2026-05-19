@@ -125,7 +125,7 @@ const HowRankedWorksModal = () => {
             {/* How XP Works */}
             <CollapsibleSection
               title="Earning XP"
-              icon={<TrendingUp className="h-4 w-4 text-green-500" />}
+              icon={<TrendingUp className="h-4 w-4 text-success" />}
             >
               <p className="text-xs text-muted-foreground mb-2">
                 XP is earned instantly when you log actions. Max daily XP from actions: 18 XP.
@@ -135,7 +135,7 @@ const HowRankedWorksModal = () => {
                   <div key={g.action} className="flex items-center gap-2 text-xs py-1.5 border-b border-border/30 last:border-0">
                     <span className="w-5 text-center">{g.icon}</span>
                     <span className="flex-1 text-muted-foreground">{g.action}</span>
-                    <span className="font-bold text-green-500">{g.xp} XP</span>
+                    <span className="font-bold text-success">{g.xp} XP</span>
                   </div>
                 ))}
               </div>
@@ -144,7 +144,7 @@ const HowRankedWorksModal = () => {
             {/* XP Losses */}
             <CollapsibleSection
               title="Losing XP"
-              icon={<TrendingDown className="h-4 w-4 text-red-500" />}
+              icon={<TrendingDown className="h-4 w-4 text-destructive" />}
             >
               <p className="text-xs text-muted-foreground mb-2">
                 Losses apply 24 hours after a missed scheduled event. No penalties on rest days or unscheduled days.
@@ -154,7 +154,7 @@ const HowRankedWorksModal = () => {
                   <div key={l.action} className="flex items-center gap-2 text-xs py-1.5 border-b border-border/30 last:border-0">
                     <span className="w-5 text-center">{l.icon}</span>
                     <span className="flex-1 text-muted-foreground">{l.action}</span>
-                    <span className="font-bold text-red-500">{l.xp} XP</span>
+                    <span className="font-bold text-destructive">{l.xp} XP</span>
                   </div>
                 ))}
               </div>
@@ -163,7 +163,7 @@ const HowRankedWorksModal = () => {
             {/* Streak Multipliers */}
             <CollapsibleSection
               title="Streak Multipliers"
-              icon={<Flame className="h-4 w-4 text-orange-500" />}
+              icon={<Flame className="h-4 w-4 text-warn" />}
             >
               <p className="text-xs text-muted-foreground mb-2">
                 Hit all your daily targets to build a streak. Multipliers apply to XP <strong>gains only</strong>, never losses.
@@ -175,12 +175,12 @@ const HowRankedWorksModal = () => {
                   { range: "Days 30+", mult: "1.5x", desc: "50% bonus on all gains" },
                 ].map((s) => (
                   <div key={s.range} className="flex items-center gap-3 rounded-lg px-3 py-2 bg-secondary/30">
-                    <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+                    <Flame className="h-4 w-4 text-warn shrink-0" />
                     <div className="flex-1">
                       <p className="text-xs font-semibold">{s.range}</p>
                       <p className="text-[10px] text-muted-foreground">{s.desc}</p>
                     </div>
-                    <span className="text-sm font-bold text-orange-400">{s.mult}</span>
+                    <span className="text-sm font-bold text-warn">{s.mult}</span>
                   </div>
                 ))}
               </div>
@@ -193,7 +193,7 @@ const HowRankedWorksModal = () => {
             >
               <div className="space-y-2 text-xs text-muted-foreground">
                 <div className="flex gap-2">
-                  <span className="text-green-500 font-bold">↑</span>
+                  <span className="text-success font-bold">↑</span>
                   <p><strong className="text-foreground">Auto-Promote:</strong> Fill your division's XP bar and you automatically advance to the next division (V → IV → III → II → I) or tier.</p>
                 </div>
                 <div className="flex gap-2">
@@ -201,11 +201,11 @@ const HowRankedWorksModal = () => {
                   <p><strong className="text-foreground">Demotion Shield:</strong> You cannot drop below the floor of your current tier through normal XP loss. Your tier is protected.</p>
                 </div>
                 <div className="flex gap-2">
-                  <span className="text-red-500 font-bold">⚠</span>
+                  <span className="text-destructive font-bold">⚠</span>
                   <p><strong className="text-foreground">Shield Break:</strong> If you have 7+ consecutive days of total inactivity (zero logs), the shield expires and you <em>can</em> drop a full tier.</p>
                 </div>
                 <div className="flex gap-2">
-                  <span className="text-red-500 font-bold">👑</span>
+                  <span className="text-destructive font-bold">👑</span>
                   <p><strong className="text-foreground">Champion:</strong> Reserved for the top 5 clients by total XP. You must climb past Diamond I first. If someone surpasses your XP, you drop back to Diamond I.</p>
                 </div>
               </div>

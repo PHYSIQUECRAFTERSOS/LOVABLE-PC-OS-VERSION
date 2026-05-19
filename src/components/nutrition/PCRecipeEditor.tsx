@@ -357,9 +357,9 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
         <div className="rounded-xl bg-card border border-border/50 p-3">
           <div className="grid grid-cols-4 gap-3 text-center text-xs">
             <div><div className="font-bold text-foreground">{Math.round(totals.calories)}</div>Cal</div>
-            <div><div className="font-bold text-red-400">{Math.round(totals.protein)}g</div>Protein</div>
-            <div><div className="font-bold text-blue-400">{Math.round(totals.carbs)}g</div>Carbs</div>
-            <div><div className="font-bold text-yellow-400">{Math.round(totals.fat)}g</div>Fat</div>
+            <div><div className="font-bold text-destructive">{Math.round(totals.protein)}g</div>Protein</div>
+            <div><div className="font-bold text-info">{Math.round(totals.carbs)}g</div>Carbs</div>
+            <div><div className="font-bold text-warn">{Math.round(totals.fat)}g</div>Fat</div>
           </div>
         </div>
 

@@ -126,15 +126,15 @@ const BodyStatsEventPanel = ({ clientId, eventDate }: BodyStatsEventPanelProps) 
           <div className="flex items-center justify-center gap-1.5 mt-2">
             {change < 0 ? (
               <>
-                <ArrowDown className="h-3.5 w-3.5 text-green-400" />
-                <span className="text-xs text-green-400 font-medium">
+                <ArrowDown className="h-3.5 w-3.5 text-success" />
+                <span className="text-xs text-success font-medium">
                   {Math.abs(Math.round(change * 10) / 10)} lbs since {format(new Date(prevWeight!.logged_at + "T12:00:00"), "MMM d")}
                 </span>
               </>
             ) : change > 0 ? (
               <>
-                <ArrowUp className="h-3.5 w-3.5 text-red-400" />
-                <span className="text-xs text-red-400 font-medium">
+                <ArrowUp className="h-3.5 w-3.5 text-destructive" />
+                <span className="text-xs text-destructive font-medium">
                   +{Math.round(change * 10) / 10} lbs since {format(new Date(prevWeight!.logged_at + "T12:00:00"), "MMM d")}
                 </span>
               </>

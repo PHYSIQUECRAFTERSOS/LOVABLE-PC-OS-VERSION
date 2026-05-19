@@ -131,11 +131,11 @@ const ResetPassword = () => {
               />
               <div className="flex items-center gap-1.5 text-xs">
                 {minLength ? (
-                  <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                  <CheckCircle className="h-3.5 w-3.5 text-success" />
                 ) : (
                   <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
                 )}
-                <span className={minLength ? "text-green-500" : "text-muted-foreground"}>
+                <span className={minLength ? "text-success" : "text-muted-foreground"}>
                   At least 8 characters
                 </span>
               </div>
@@ -154,11 +154,11 @@ const ResetPassword = () => {
               {confirmPassword.length > 0 && (
                 <div className="flex items-center gap-1.5 text-xs">
                   {passwordsMatch ? (
-                    <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                    <CheckCircle className="h-3.5 w-3.5 text-success" />
                   ) : (
                     <XCircle className="h-3.5 w-3.5 text-destructive" />
                   )}
-                  <span className={passwordsMatch ? "text-green-500" : "text-destructive"}>
+                  <span className={passwordsMatch ? "text-success" : "text-destructive"}>
                     {passwordsMatch ? "Passwords match" : "Passwords do not match"}
                   </span>
                 </div>

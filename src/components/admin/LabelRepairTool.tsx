@@ -87,7 +87,7 @@ const LabelRepairTool = () => {
           </div>
 
           {status === "success" && result && (
-            <div className="flex items-center gap-1.5 text-xs text-green-600">
+            <div className="flex items-center gap-1.5 text-xs text-success">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {result.repaired > 0
                 ? `Repaired ${result.repaired} calendar event label${result.repaired !== 1 ? "s" : ""}`

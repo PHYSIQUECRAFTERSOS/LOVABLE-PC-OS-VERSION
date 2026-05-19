@@ -17,29 +17,29 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 };
 
 const TYPE_ACCENT: Record<string, string> = {
-  workout: "border-l-amber-500 bg-amber-500/5",
-  cardio: "border-l-green-500 bg-green-500/5",
+  workout: "border-l-amber-500 bg-warn/5",
+  cardio: "border-l-green-500 bg-success/5",
   photos: "border-l-purple-500 bg-purple-500/5",
-  body_stats: "border-l-blue-500 bg-blue-500/5",
-  steps: "border-l-orange-400 bg-orange-400/5",
+  body_stats: "border-l-blue-500 bg-info/5",
+  steps: "border-l-orange-400 bg-warn/5",
   checkin: "border-l-purple-400 bg-purple-400/5",
   rest: "border-l-muted bg-muted/10",
-  reminder: "border-l-yellow-500 bg-yellow-500/5",
+  reminder: "border-l-yellow-500 bg-warn/5",
   custom: "border-l-primary bg-primary/5",
-  nutrition: "border-l-red-500 bg-red-500/5",
+  nutrition: "border-l-red-500 bg-destructive/5",
 };
 
 const TYPE_ICON_COLOR: Record<string, string> = {
-  workout: "text-amber-500",
-  cardio: "text-green-500",
+  workout: "text-warn",
+  cardio: "text-success",
   photos: "text-purple-500",
-  body_stats: "text-blue-500",
-  steps: "text-orange-400",
+  body_stats: "text-info",
+  steps: "text-warn",
   checkin: "text-purple-400",
   rest: "text-muted-foreground",
-  reminder: "text-yellow-500",
+  reminder: "text-warn",
   custom: "text-primary",
-  nutrition: "text-red-500",
+  nutrition: "text-destructive",
 };
 
 const TYPE_SUBTITLES: Record<string, string> = {
@@ -462,7 +462,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                           {/* Status icon */}
                           <div className="mt-0.5 shrink-0">
                             {event.is_completed ? (
-                              <CheckCircle2 className="h-5 w-5 text-green-500" />
+                              <CheckCircle2 className="h-5 w-5 text-success" />
                             ) : (
                               <Circle className="h-5 w-5 text-muted-foreground/30" />
                             )}
@@ -535,7 +535,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
               </div>
               <div className="mt-0.5 shrink-0">
                 {dragEvent.is_completed ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <CheckCircle2 className="h-5 w-5 text-success" />
                 ) : (
                   <Circle className="h-5 w-5 text-muted-foreground/30" />
                 )}

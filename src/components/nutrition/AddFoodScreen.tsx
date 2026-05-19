@@ -1303,7 +1303,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-medium text-foreground truncate">{recipe.name}</span>
                         {recipe.youtube_url && recipe.youtube_url.trim() !== "" && (
-                          <Youtube className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                          <Youtube className="h-3.5 w-3.5 text-destructive shrink-0" />
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
@@ -1665,7 +1665,7 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
 
   const getSourceBadge = () => {
     if (item.source === "usda" || item.data_source === "usda") {
-      return <Badge className="h-3.5 px-1 text-[8px] bg-green-500/20 text-green-400 border-green-500/30">✓ USDA</Badge>;
+      return <Badge className="h-3.5 px-1 text-[8px] bg-success/20 text-success border-success/30">✓ USDA</Badge>;
     }
     if (item.source === "off" || item.data_source === "open_food_facts") {
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
@@ -1674,7 +1674,7 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
     }
     if (item.is_verified) {
-      return <Badge className="h-3.5 px-1 text-[8px] bg-green-500/20 text-green-400">✓</Badge>;
+      return <Badge className="h-3.5 px-1 text-[8px] bg-success/20 text-success">✓</Badge>;
     }
     return null;
   };
@@ -1752,9 +1752,9 @@ const FoodRow = ({ item, expanded, onToggle, onAdd, servings, onServingsChange, 
             </div>
           </div>
           <div className="grid grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
-            <MacroRow label="Protein" value={`${Math.round(item.protein * multiplier * 10) / 10}g`} color="text-red-400" />
-            <MacroRow label="Carbs" value={`${Math.round(item.carbs * multiplier * 10) / 10}g`} color="text-blue-400" />
-            <MacroRow label="Fat" value={`${Math.round(item.fat * multiplier * 10) / 10}g`} color="text-yellow-400" />
+            <MacroRow label="Protein" value={`${Math.round(item.protein * multiplier * 10) / 10}g`} color="text-destructive" />
+            <MacroRow label="Carbs" value={`${Math.round(item.carbs * multiplier * 10) / 10}g`} color="text-info" />
+            <MacroRow label="Fat" value={`${Math.round(item.fat * multiplier * 10) / 10}g`} color="text-warn" />
             <MacroRow label="Fiber" value={`${Math.round((item.fiber || 0) * multiplier * 10) / 10}g`} />
             <MacroRow label="Sugar" value={`${Math.round((item.sugar || 0) * multiplier * 10) / 10}g`} />
             <MacroRow label="Sodium" value={`${Math.round((item.sodium || 0) * multiplier)}mg`} />

@@ -102,9 +102,9 @@ function MacroEditor({
   const macroCalsTotal = (proteinG * 4) + (carbsG * 4) + (fatG * 9);
 
   const macroBarSegments = [
-    { pct: pcts.protein, color: "bg-blue-500", label: "Protein" },
-    { pct: pcts.carbs, color: "bg-amber-500", label: "Carbs" },
-    { pct: pcts.fat, color: "bg-rose-500", label: "Fat" },
+    { pct: pcts.protein, color: "bg-info", label: "Protein" },
+    { pct: pcts.carbs, color: "bg-warn", label: "Carbs" },
+    { pct: pcts.fat, color: "bg-destructive", label: "Fat" },
   ];
 
   return (
@@ -140,18 +140,18 @@ function MacroEditor({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-blue-500" />
+                <div className="h-3 w-3 rounded-full bg-info" />
                 <span className="text-sm font-medium">Protein</span>
               </div>
               <div className="flex items-center gap-1">
                 <Input inputMode="numeric" value={proteinStr} onChange={e => handleGramInput("protein", e.target.value)}
-                  className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-blue-500" />
+                  className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-info" />
                 <span className="text-sm font-bold">g</span>
                 <span className="text-xs text-muted-foreground ml-1">{pcts.protein}%</span>
               </div>
             </div>
             <Slider value={[sliderPcts.protein]} onValueChange={val => handleSliderChange("protein", val)} min={5} max={70} step={1}
-              className="[&_[role=slider]]:border-blue-500 [&_span:first-child>span]:bg-blue-500" />
+              className="[&_[role=slider]]:border-info [&_span:first-child>span]:bg-info" />
           </div>
 
           {goalType === "full_macros" && (
@@ -160,36 +160,36 @@ function MacroEditor({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-amber-500" />
+                    <div className="h-3 w-3 rounded-full bg-warn" />
                     <span className="text-sm font-medium">Carbs</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Input inputMode="numeric" value={carbsStr} onChange={e => handleGramInput("carbs", e.target.value)}
-                      className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-amber-500" />
+                      className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-warn" />
                     <span className="text-sm font-bold">g</span>
                     <span className="text-xs text-muted-foreground ml-1">{pcts.carbs}%</span>
                   </div>
                 </div>
                 <Slider value={[sliderPcts.carbs]} onValueChange={val => handleSliderChange("carbs", val)} min={5} max={70} step={1}
-                  className="[&_[role=slider]]:border-amber-500 [&_span:first-child>span]:bg-amber-500" />
+                  className="[&_[role=slider]]:border-warn [&_span:first-child>span]:bg-warn" />
               </div>
 
               {/* Fat */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-rose-500" />
+                    <div className="h-3 w-3 rounded-full bg-destructive" />
                     <span className="text-sm font-medium">Fat</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <Input inputMode="numeric" value={fatStr} onChange={e => handleGramInput("fat", e.target.value)}
-                      className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-rose-500" />
+                      className="w-[60px] h-7 text-sm font-bold text-right px-1.5 border-0 border-b border-border rounded-none bg-transparent focus-visible:ring-0 focus-visible:border-destructive" />
                     <span className="text-sm font-bold">g</span>
                     <span className="text-xs text-muted-foreground ml-1">{pcts.fat}%</span>
                   </div>
                 </div>
                 <Slider value={[sliderPcts.fat]} onValueChange={val => handleSliderChange("fat", val)} min={5} max={60} step={1}
-                  className="[&_[role=slider]]:border-rose-500 [&_span:first-child>span]:bg-rose-500" />
+                  className="[&_[role=slider]]:border-destructive [&_span:first-child>span]:bg-destructive" />
               </div>
             </>
           )}
@@ -199,9 +199,9 @@ function MacroEditor({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Live Macro Preview</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Protein", g: proteinG, pct: pcts.protein, color: "text-blue-400", bgColor: "bg-blue-500/10" },
-                { label: "Carbs", g: goalType === "full_macros" ? carbsG : "—", pct: goalType === "full_macros" ? pcts.carbs : "—", color: "text-amber-400", bgColor: "bg-amber-500/10" },
-                { label: "Fat", g: goalType === "full_macros" ? fatG : "—", pct: goalType === "full_macros" ? pcts.fat : "—", color: "text-rose-400", bgColor: "bg-rose-500/10" },
+                { label: "Protein", g: proteinG, pct: pcts.protein, color: "text-info", bgColor: "bg-info/10" },
+                { label: "Carbs", g: goalType === "full_macros" ? carbsG : "—", pct: goalType === "full_macros" ? pcts.carbs : "—", color: "text-warn", bgColor: "bg-warn/10" },
+                { label: "Fat", g: goalType === "full_macros" ? fatG : "—", pct: goalType === "full_macros" ? pcts.fat : "—", color: "text-destructive", bgColor: "bg-destructive/10" },
               ].map(m => (
                 <div key={m.label} className={`text-center p-3 rounded-lg ${m.bgColor}`}>
                   <p className={`text-xl font-bold ${m.color}`}>{m.g}{typeof m.g === "number" ? "g" : ""}</p>
@@ -216,7 +216,7 @@ function MacroEditor({
                 {macroCalsTotal.toLocaleString()}
               </p>
               {macroCalsTotal !== calories && (
-                <p className="text-[10px] text-amber-400 mt-0.5">
+                <p className="text-[10px] text-warn mt-0.5">
                   {macroCalsTotal > calories ? "+" : ""}{macroCalsTotal - calories} vs {calories} target
                 </p>
               )}

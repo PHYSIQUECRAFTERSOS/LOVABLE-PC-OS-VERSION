@@ -15,12 +15,12 @@ interface UpcomingEvent {
 }
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  workout: <Dumbbell className="h-3.5 w-3.5 text-blue-400" />,
-  cardio: <Heart className="h-3.5 w-3.5 text-green-400" />,
+  workout: <Dumbbell className="h-3.5 w-3.5 text-info" />,
+  cardio: <Heart className="h-3.5 w-3.5 text-success" />,
   photos: <Camera className="h-3.5 w-3.5 text-purple-400" />,
-  body_stats: <Activity className="h-3.5 w-3.5 text-orange-400" />,
+  body_stats: <Activity className="h-3.5 w-3.5 text-warn" />,
   checkin: <ClipboardCheck className="h-3.5 w-3.5 text-purple-400" />,
-  reminder: <Bell className="h-3.5 w-3.5 text-yellow-400" />,
+  reminder: <Bell className="h-3.5 w-3.5 text-warn" />,
 };
 
 const UpcomingEvents = () => {

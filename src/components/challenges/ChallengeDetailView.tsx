@@ -104,8 +104,8 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const TypeIcon = isPR ? Trophy : isSteps ? Footprints : SlidersHorizontal;
 
   const statusColor = {
-    active: "bg-green-500/20 text-green-400 border-green-500/30",
-    upcoming: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    active: "bg-success/20 text-success border-success/30",
+    upcoming: "bg-info/20 text-info border-info/30",
     completed: "bg-muted text-muted-foreground border-border",
     draft: "bg-muted text-muted-foreground border-border",
     cancelled: "bg-destructive/20 text-destructive border-destructive/30",

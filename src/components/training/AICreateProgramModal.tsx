@@ -389,7 +389,7 @@ const AICreateProgramModal = ({
                   {(program.conflict_flags?.length || (meta.warnings || []).length) > 0 && (
                     <div className="space-y-1 mt-2">
                       {[...(program.conflict_flags || []), ...(meta.warnings || [])].map((w, i) => (
-                        <div key={i} className="flex items-start gap-2 text-xs text-amber-500">
+                        <div key={i} className="flex items-start gap-2 text-xs text-warn">
                           <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> {w}
                         </div>
                       ))}
@@ -441,8 +441,8 @@ const AICreateProgramModal = ({
                   <div className="flex flex-wrap gap-1.5">
                     {Object.entries(computedVolume).map(([m, sets]) => {
                       const status = volumeStatus(m, sets, null);
-                      const cls = status === "green" ? "bg-emerald-500/15 text-emerald-500" :
-                                  status === "yellow" ? "bg-amber-500/15 text-amber-500" :
+                      const cls = status === "green" ? "bg-success/15 text-success" :
+                                  status === "yellow" ? "bg-warn/15 text-warn" :
                                   "bg-destructive/15 text-destructive";
                       return <Badge key={m} className={`text-[10px] ${cls}`}>{m}: {sets}</Badge>;
                     })}

@@ -71,7 +71,7 @@ const PROGRAM_TYPES = [
 /* ─── Compliance Badge ─── */
 const ComplianceBadge = ({ status, pct }: NutritionCompliance) => {
   const config = {
-    on_target: { cls: "bg-green-500/15 text-green-400", text: `✓ ${pct}%` },
+    on_target: { cls: "bg-success/15 text-success", text: `✓ ${pct}%` },
     close:     { cls: "bg-primary/15 text-primary", text: `${pct}%` },
     missed:    { cls: "bg-destructive/15 text-destructive", text: `${pct}%` },
     no_data:   { cls: "bg-muted text-muted-foreground", text: "—" },
@@ -732,7 +732,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                         </span>
                         <span className={cn(
                           "text-[10px] font-bold whitespace-nowrap ml-2",
-                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-amber-400" : "text-muted-foreground"
+                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-warn" : "text-muted-foreground"
                         )}>
                           {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`}
                         </span>

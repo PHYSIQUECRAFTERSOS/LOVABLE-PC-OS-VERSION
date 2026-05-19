@@ -44,7 +44,7 @@ const ComplianceStreak = ({ events }: ComplianceStreakProps) => {
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Flame className="h-5 w-5 text-orange-400" />
+            <Flame className="h-5 w-5 text-warn" />
             <span className="text-2xl font-bold">{streak}</span>
             <span className="text-xs text-muted-foreground">day streak</span>
           </div>
@@ -64,9 +64,9 @@ const ComplianceStreak = ({ events }: ComplianceStreakProps) => {
                 day === null
                   ? "bg-secondary"
                   : day.pct === 100
-                  ? "bg-green-500"
+                  ? "bg-success"
                   : day.pct > 0
-                  ? "bg-yellow-500"
+                  ? "bg-warn"
                   : "bg-destructive/60"
               }`}
             />

@@ -524,7 +524,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
       return <Badge variant="outline" className="h-3.5 px-1 text-[8px]">Branded</Badge>;
     }
     if (food.is_verified) {
-      return <Badge className="h-3.5 px-1 text-[8px] bg-green-500/20 text-green-400">✓</Badge>;
+      return <Badge className="h-3.5 px-1 text-[8px] bg-success/20 text-success">✓</Badge>;
     }
     return null;
   };
@@ -720,7 +720,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
                   <Star
                     className={cn(
                       "h-3 w-3",
-                      favorites.has(food.id) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+                      favorites.has(food.id) ? "fill-warn text-warn" : "text-muted-foreground"
                     )}
                   />
                 </button>

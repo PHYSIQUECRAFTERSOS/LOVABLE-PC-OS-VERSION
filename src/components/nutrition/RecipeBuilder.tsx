@@ -292,9 +292,9 @@ const RecipeBuilder = () => {
               </div>
               <div className="flex gap-3 text-xs">
                 <span className="font-bold text-foreground">{per100g.calories} cal</span>
-                <span className="text-red-400 font-medium">{per100g.protein}P</span>
-                <span className="text-blue-400 font-medium">{per100g.carbs}C</span>
-                <span className="text-yellow-400 font-medium">{per100g.fat}F</span>
+                <span className="text-destructive font-medium">{per100g.protein}P</span>
+                <span className="text-info font-medium">{per100g.carbs}C</span>
+                <span className="text-warn font-medium">{per100g.fat}F</span>
                 <span className="text-muted-foreground">{per100g.fiber}Fi</span>
                 <span className="text-muted-foreground">{per100g.sugar}S</span>
               </div>

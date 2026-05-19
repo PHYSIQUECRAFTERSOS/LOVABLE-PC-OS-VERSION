@@ -180,7 +180,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                 <div
                   key={p.angle}
                   className={`h-2 w-8 rounded-full transition-colors ${
-                    i < step ? "bg-green-500" : i === step ? "bg-primary" : "bg-muted"
+                    i < step ? "bg-success" : i === step ? "bg-primary" : "bg-muted"
                   }`}
                 />
               ))}
@@ -202,7 +202,7 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
                       className="w-full rounded-xl object-cover max-h-[400px]"
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-background/30 rounded-xl">
-                      <div className="h-14 w-14 rounded-full bg-green-500 flex items-center justify-center">
+                      <div className="h-14 w-14 rounded-full bg-success flex items-center justify-center">
                         <Check className="h-7 w-7 text-foreground" />
                       </div>
                     </div>
@@ -230,13 +230,13 @@ const PhotosPopup = ({ open, onClose, eventId, onCompleted }: PhotosPopupProps) 
               {!previews[currentPose.angle] && (
                 <div className="flex border-t border-gray-200 mt-3">
                   <button
-                    className="flex-1 py-3.5 text-center text-blue-600 font-semibold text-sm border-r border-gray-200 active:bg-gray-50 transition-colors"
+                    className="flex-1 py-3.5 text-center text-info font-semibold text-sm border-r border-gray-200 active:bg-gray-50 transition-colors"
                     onClick={() => { try { setTimeout(() => pickInputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                   >
                     PICK PHOTO
                   </button>
                   <button
-                    className="flex-1 py-3.5 text-center text-blue-600 font-bold text-sm active:bg-gray-50 transition-colors"
+                    className="flex-1 py-3.5 text-center text-info font-bold text-sm active:bg-gray-50 transition-colors"
                     onClick={() => { try { setTimeout(() => cameraInputRef.current?.click(), 0); } catch (e) { console.warn("[PhotosPopup] File picker error:", e); } }}
                   >
                     TAKE NOW

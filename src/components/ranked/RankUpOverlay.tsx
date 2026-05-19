@@ -413,7 +413,7 @@ const RankUpOverlay = ({ tier, division, type, previousTier, placementScore, pla
             <img src={badgeSrc} className="w-full h-full object-contain" alt={tier} draggable={false} />
           </div>
           <h2
-            className="text-2xl font-bold text-red-400 transition-opacity duration-300"
+            className="text-2xl font-bold text-destructive transition-opacity duration-300"
             style={{ opacity: stage >= 2 ? 1 : 0 }}
           >
             {label}
@@ -487,7 +487,7 @@ const RankUpOverlay = ({ tier, division, type, previousTier, placementScore, pla
             {label}
           </h1>
           <p
-            className="text-sm text-emerald-400 transition-opacity duration-300"
+            className="text-sm text-success transition-opacity duration-300"
             style={{ opacity: stage >= 3 ? 1 : 0 }}
           >
             Division promoted! 🎉
