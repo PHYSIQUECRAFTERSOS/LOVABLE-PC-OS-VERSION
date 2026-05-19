@@ -46,8 +46,10 @@ interface NutritionCompliance {
 interface PhaseInfo {
   phaseName: string;
   endDate: string;
+  startDate: string;
   daysLeft: number;
   totalDays: number;
+  state: "current" | "upcoming" | "none";
 }
 
 interface SelectableClientCardsProps {
@@ -366,17 +368,22 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
-        // Primary: phase that contains today.
+        // Resolution: current → upcoming → none. No "most-recent-ended" fallback,
+        // which previously caused new/unstarted clients to render as red Overdue.
         let resolved = phases.find((p: any) => derived[p.id]?.isCurrent);
-        // Fallback: most recent phase by end_date (covers gaps / fully-ended programs).
+        let state: PhaseInfo["state"] = "current";
+
         if (!resolved) {
-          resolved = [...phases]
-            .filter((p: any) => derived[p.id]?.end_date)
-            .sort((x: any, y: any) =>
-              (derived[y.id]!.end_date as string).localeCompare(derived[x.id]!.end_date as string)
-            )[0];
+          const sorted = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
+          const first = sorted[0];
+          const firstStart = first ? derived[first.id]?.start_date : null;
+          if (first && firstStart && todayYmd < firstStart) {
+            resolved = first;
+            state = "upcoming";
+          }
         }
-        if (!resolved) continue;
+
+        if (!resolved) continue; // program fully ended → no bar entry
 
         const dd = derived[resolved.id];
         if (!dd?.start_date || !dd?.end_date) continue;
@@ -390,9 +397,26 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         map[a.client_id] = {
           phaseName: resolved.name,
           endDate: format(endDateObj, "MMM d"),
+          startDate: format(startDateObj, "MMM d"),
           daysLeft,
           totalDays,
+          state,
         };
+      }
+
+      // Ensure every client has an entry so the layout stays consistent
+      // (empty grey bar for "none" state).
+      for (const id of ids) {
+        if (!map[id]) {
+          map[id] = {
+            phaseName: "",
+            endDate: "",
+            startDate: "",
+            daysLeft: 0,
+            totalDays: 1,
+            state: "none",
+          };
+        }
       }
       setPhaseMap(map);
     };
@@ -657,10 +681,43 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                   </div>
                 </div>
                 {phase && (() => {
+                  if (phase.state === "none") {
+                    return (
+                      <div className="mt-2 pt-2 border-t border-border/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-muted-foreground truncate">No active phase</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Progress value={0} className="h-2 flex-1" />
+                          <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">—</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (phase.state === "upcoming") {
+                    const startsInDays = -phase.daysLeft + phase.totalDays; // approx not needed; use startDate label
+                    return (
+                      <div className="mt-2 pt-2 border-t border-border/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            {phase.phaseName} · Starts {phase.startDate}
+                          </span>
+                          <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">
+                            Upcoming
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Progress value={0} className="h-2 flex-1" />
+                          <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">0%</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  // current
                   const elapsedPct = Math.min(100, Math.max(0, Math.round(((phase.totalDays - phase.daysLeft) / phase.totalDays) * 100)));
-                  const barColor = phase.daysLeft <= 0 || elapsedPct > 90
+                  const barColor = phase.daysLeft <= 0
                     ? "hsl(var(--destructive))"
-                    : elapsedPct > 70
+                    : elapsedPct > 80
                       ? "hsl(38 92% 50%)"
                       : "hsl(152 69% 41%)";
                   return (
