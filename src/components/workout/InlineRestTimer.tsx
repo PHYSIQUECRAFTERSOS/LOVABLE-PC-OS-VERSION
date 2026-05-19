@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SkipForward, Check } from "lucide-react";
+import { App, type AppState } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { createTimerWorker } from "@/services/timerWorker";
 import {
   preloadRestTimerAudio,
   playCompletionSound,
   scheduleBackgroundCompletion,
   cancelBackgroundCompletion,
+  ensureNotificationPermission,
 } from "@/utils/restTimerAudio";
 
 interface InlineRestTimerProps {
@@ -14,17 +17,40 @@ interface InlineRestTimerProps {
   onSkip: () => void;
 }
 
+/**
+ * Split-by-app-state rest timer end cue.
+ *
+ *   FOREGROUND (app active): NativeAudio plays the bundled mp3 through
+ *     AVAudioSession (.playback + .mixWithOthers via AudioMixPlugin) so
+ *     Spotify/Apple Music are not interrupted. NO local notification is
+ *     scheduled — no banner, no OS sound, no audio session change.
+ *
+ *   BACKGROUND / LOCKED: a LocalNotification is scheduled IN ADVANCE for
+ *     the timer's exact `endTime`, carrying the bundled sound. This is the
+ *     ONLY mechanism that fires while the JS runtime is suspended.
+ *     Scheduled the moment the app backgrounds (not on timer start),
+ *     cancelled the instant the app foregrounds.
+ *
+ * Transitions are debounced via `notifIdRef` + `hasPlayedRef` so there is
+ * no double-fire (foreground audio + notification).
+ */
 const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: InlineRestTimerProps) => {
   const [timeRemaining, setTimeRemaining] = useState(initialSeconds);
   const workerRef = useRef<Worker | null>(null);
   const hasPlayedRef = useRef(false);
   const notifIdRef = useRef<number | null>(null);
+  const endTimeRef = useRef<number>(0);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
-  // Preload bundled MP3 + warm AVAudioSession on mount (set log = user gesture)
+  // Preload bundled MP3 + warm AVAudioSession on mount (mount = user gesture)
+  // Also request notification permission once so the background path works
+  // the first time the user backgrounds during a rest.
   useEffect(() => {
     void preloadRestTimerAudio();
+    if (Capacitor.isNativePlatform()) {
+      void ensureNotificationPermission();
+    }
   }, []);
 
   useEffect(() => {
@@ -32,35 +58,29 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     hasPlayedRef.current = false;
 
     const endTime = Date.now() + initialSeconds * 1000;
-
-    // Path B: schedule background notification with bundled sound
-    let cancelled = false;
-    void scheduleBackgroundCompletion(endTime).then((id) => {
-      if (cancelled) {
-        if (id != null) void cancelBackgroundCompletion(id);
-        return;
-      }
-      notifIdRef.current = id;
-    });
+    endTimeRef.current = endTime;
 
     const worker = createTimerWorker();
     workerRef.current = worker;
+
+    const cancelPendingNotif = () => {
+      const pendingId = notifIdRef.current;
+      notifIdRef.current = null;
+      if (pendingId != null) void cancelBackgroundCompletion(pendingId);
+    };
 
     const handleDone = () => {
       if (hasPlayedRef.current) return;
       hasPlayedRef.current = true;
       setTimeRemaining(0);
 
-      // Cancel pending background notification BEFORE playing foreground
-      // so a ~1ms race cannot double-play.
-      const pendingId = notifIdRef.current;
-      notifIdRef.current = null;
-      void cancelBackgroundCompletion(pendingId);
+      // Cancel any background notification that might have been scheduled
+      // (e.g. user backgrounded then foregrounded right before zero).
+      cancelPendingNotif();
 
-      // Path A: foreground completion sound (mixes with Spotify/Apple Music)
+      // Foreground completion sound (mixes with Spotify/Apple Music)
       void playCompletionSound();
 
-      // Haptic feedback
       if ("vibrate" in navigator) {
         try { navigator.vibrate([200, 100, 200]); } catch { /* ignore */ }
       }
@@ -70,20 +90,47 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
     worker.onmessage = (e) => {
       const msg = e.data;
-      if (msg.type === "tick") {
-        setTimeRemaining(msg.remaining);
-      }
-      if (msg.type === "done") {
-        handleDone();
-      }
+      if (msg.type === "tick") setTimeRemaining(msg.remaining);
+      if (msg.type === "done") handleDone();
     };
 
     worker.postMessage({ type: "start", endTime });
 
-    // Visibility change handler — recalculate on return
+    // ── App-state branching ──────────────────────────────────────────────
+    // Schedule notification ONLY when app actually backgrounds.
+    // Cancel it the instant the app returns to foreground.
+    let appStateHandle: { remove: () => Promise<void> } | null = null;
+
+    const handleAppState = (state: AppState) => {
+      if (hasPlayedRef.current) return;
+      if (state.isActive) {
+        // Foreground: rely on NativeAudio path. Kill any pending notif so
+        // a delayed banner can never pop after the user reopens the app.
+        cancelPendingNotif();
+      } else {
+        // Backgrounded/locked: schedule the notification for endTime.
+        // If timer has < ~250ms left, scheduleBackgroundCompletion no-ops.
+        if (notifIdRef.current != null) return; // already scheduled
+        void scheduleBackgroundCompletion(endTimeRef.current).then((id) => {
+          if (hasPlayedRef.current) {
+            if (id != null) void cancelBackgroundCompletion(id);
+            return;
+          }
+          notifIdRef.current = id;
+        });
+      }
+    };
+
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener("appStateChange", handleAppState).then((h) => {
+        appStateHandle = h;
+      });
+    }
+
+    // Web/PWA: reconcile on tab visibility return (mirrors prior behavior).
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        const remainingMs = Math.max(0, endTime - Date.now());
+        const remainingMs = Math.max(0, endTimeRef.current - Date.now());
         if (remainingMs <= 0) {
           worker.postMessage({ type: "stop" });
           handleDone();
@@ -93,18 +140,17 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      cancelled = true;
       worker.postMessage({ type: "stop" });
       worker.terminate();
       workerRef.current = null;
       document.removeEventListener("visibilitychange", handleVisibility);
-      // Cancel scheduled notification on unmount IF we haven't fired yet
-      // (so a still-pending notification doesn't ring after the user moves on).
-      if (!hasPlayedRef.current && notifIdRef.current != null) {
-        const pendingId = notifIdRef.current;
-        notifIdRef.current = null;
-        void cancelBackgroundCompletion(pendingId);
+      if (appStateHandle) {
+        void appStateHandle.remove();
+        appStateHandle = null;
       }
+      // Cancel any still-pending notification so it can never ring after
+      // the user has moved on (skipped set, navigated away, etc.).
+      if (!hasPlayedRef.current) cancelPendingNotif();
     };
   }, [initialSeconds]);
 
@@ -117,7 +163,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
     }
     const pendingId = notifIdRef.current;
     notifIdRef.current = null;
-    void cancelBackgroundCompletion(pendingId);
+    if (pendingId != null) void cancelBackgroundCompletion(pendingId);
     onSkip();
   }, [onSkip]);
 
