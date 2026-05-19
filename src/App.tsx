@@ -116,6 +116,7 @@ const App = () => (
         </BrowserRouter>
         </RankedXPProvider>
         </SubscriptionProvider>
+        </ThemeProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
