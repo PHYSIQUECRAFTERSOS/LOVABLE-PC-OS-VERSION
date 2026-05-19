@@ -280,8 +280,8 @@ const CoachNutritionAnalytics = () => {
                       <YAxis yAxisId="weight" orientation="left" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} domain={["dataMin - 1", "dataMax + 1"]} />
                       <YAxis yAxisId="cals" orientation="right" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                       <Tooltip contentStyle={tooltipStyle} />
-                      <Line yAxisId="weight" type="monotone" dataKey="weight" stroke="hsl(43 72% 55%)" strokeWidth={2} dot={{ r: 2 }} name="Weight (lb)" />
-                      <Line yAxisId="cals" type="monotone" dataKey="calories" stroke="hsl(0 70% 55%)" strokeWidth={1.5} dot={false} name="Calories" strokeDasharray="4 4" />
+                      <Line yAxisId="weight" type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} name="Weight (lb)" />
+                      <Line yAxisId="cals" type="monotone" dataKey="calories" stroke="hsl(var(--macro-protein))" strokeWidth={1.5} dot={false} name="Calories" strokeDasharray="4 4" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -303,7 +303,7 @@ const CoachNutritionAnalytics = () => {
                       <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                       <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 55%)" }} />
                       <Tooltip contentStyle={tooltipStyle} />
-                      <Bar dataKey="calories" fill="hsl(43 72% 55%)" radius={[3, 3, 0, 0]} name="Calories" />
+                      <Bar dataKey="calories" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} name="Calories" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

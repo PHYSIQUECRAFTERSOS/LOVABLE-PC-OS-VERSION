@@ -220,7 +220,7 @@ export default function FoodDetailScreen({ food, mealType, mealLabel, onConfirm,
               <circle cx="60" cy="60" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="8" />
               {/* Protein - green */}
               <circle cx="60" cy="60" r={radius} fill="none"
-                stroke="hsl(142, 76%, 36%)" strokeWidth="8"
+                stroke="hsl(var(--success))" strokeWidth="8"
                 strokeDasharray={`${proteinDash} ${circumference - proteinDash}`}
                 strokeDashoffset="0"
                 transform="rotate(-90 60 60)" strokeLinecap="round" />

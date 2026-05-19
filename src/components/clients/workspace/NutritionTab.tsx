@@ -155,7 +155,7 @@ const ClientWorkspaceNutrition = ({ clientId }: { clientId: string }) => {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex justify-around">
           <MacroRing label="Calories" current={Math.round(totals.calories)} target={targets?.calories || 0} color="hsl(var(--primary))" unit="kcal" />
-          <MacroRing label="Protein" current={Math.round(totals.protein)} target={targets?.protein || 0} color="hsl(0 70% 55%)" />
+          <MacroRing label="Protein" current={Math.round(totals.protein)} target={targets?.protein || 0} color="hsl(var(--macro-protein))" />
           <MacroRing label="Carbs" current={Math.round(totals.carbs)} target={targets?.carbs || 0} color="hsl(200 70% 55%)" />
           <MacroRing label="Fat" current={Math.round(totals.fat)} target={targets?.fat || 0} color="hsl(45 80% 55%)" />
         </div>
