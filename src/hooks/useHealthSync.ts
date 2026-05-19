@@ -615,12 +615,12 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       const timeSinceLastSync = Date.now() - globalLastSync;
       if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS) {
         console.log("[HealthSync] Running initial auto-sync…");
-        syncNow().catch((err) => {
+        syncNow(undefined, "startup").catch((err) => {
           console.warn("[HealthSync] Initial auto-sync failed, retrying in 5s:", err);
           setTimeout(() => {
             const retryConn = connectionRef.current;
             if (retryConn?.is_connected && !globalSyncing) {
-              syncNow().catch((retryErr) =>
+              syncNow(undefined, "startup").catch((retryErr) =>
                 console.warn("[HealthSync] Auto-sync retry also failed:", retryErr)
               );
             }
@@ -638,7 +638,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         return;
       }
       console.log("[HealthSync] Running scheduled 2-hour auto-sync…");
-      syncNow().catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
+      syncNow(undefined, "interval").catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
     }, AUTO_SYNC_INTERVAL_MS);
 
     // Foreground resume listener (throttled to 5 min)
@@ -650,7 +650,8 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         const timeSinceLastSync = Date.now() - globalLastSync;
         if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS && !globalSyncing) {
           console.log("[HealthSync] App resumed — running foreground auto-sync…");
-          syncNow().catch((err) => console.warn("[HealthSync] Foreground auto-sync failed:", err));
+          syncNow(undefined, "resume").catch((err) => console.warn("[HealthSync] Foreground auto-sync failed:", err));
+
         } else {
           console.log("[HealthSync] App resumed — skipping sync (last sync was", Math.round(timeSinceLastSync / 60000), "min ago)");
         }
