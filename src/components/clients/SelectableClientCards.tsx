@@ -368,17 +368,22 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
-        // Primary: phase that contains today.
+        // Resolution: current → upcoming → none. No "most-recent-ended" fallback,
+        // which previously caused new/unstarted clients to render as red Overdue.
         let resolved = phases.find((p: any) => derived[p.id]?.isCurrent);
-        // Fallback: most recent phase by end_date (covers gaps / fully-ended programs).
+        let state: PhaseInfo["state"] = "current";
+
         if (!resolved) {
-          resolved = [...phases]
-            .filter((p: any) => derived[p.id]?.end_date)
-            .sort((x: any, y: any) =>
-              (derived[y.id]!.end_date as string).localeCompare(derived[x.id]!.end_date as string)
-            )[0];
+          const sorted = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
+          const first = sorted[0];
+          const firstStart = first ? derived[first.id]?.start_date : null;
+          if (first && firstStart && todayYmd < firstStart) {
+            resolved = first;
+            state = "upcoming";
+          }
         }
-        if (!resolved) continue;
+
+        if (!resolved) continue; // program fully ended → no bar entry
 
         const dd = derived[resolved.id];
         if (!dd?.start_date || !dd?.end_date) continue;
@@ -392,9 +397,26 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         map[a.client_id] = {
           phaseName: resolved.name,
           endDate: format(endDateObj, "MMM d"),
+          startDate: format(startDateObj, "MMM d"),
           daysLeft,
           totalDays,
+          state,
         };
+      }
+
+      // Ensure every client has an entry so the layout stays consistent
+      // (empty grey bar for "none" state).
+      for (const id of ids) {
+        if (!map[id]) {
+          map[id] = {
+            phaseName: "",
+            endDate: "",
+            startDate: "",
+            daysLeft: 0,
+            totalDays: 1,
+            state: "none",
+          };
+        }
       }
       setPhaseMap(map);
     };
