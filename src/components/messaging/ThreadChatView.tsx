@@ -354,7 +354,7 @@ const ThreadChatView = ({
     // INSERT handler dedupes by id, so this is safe.
     if (insertedMsg) {
       setMessages((prev) => {
-        if (prev.some((m) => m.id === (insertedMsg as Message).id)) return prev;
+        if (prev.some((m) => m.id === (insertedMsg as { id: string }).id)) return prev;
         return [...prev, insertedMsg as unknown as Message];
       });
     }
