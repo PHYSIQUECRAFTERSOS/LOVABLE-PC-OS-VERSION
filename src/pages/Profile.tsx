@@ -18,6 +18,7 @@ import ChangePasswordSection from "@/components/settings/ChangePasswordSection";
 import UnitPreferences from "@/components/settings/UnitPreferences";
 import SignatureRecordsTable from "@/components/signing/SignatureRecordsTable";
 import SubscriptionCard from "@/components/subscription/SubscriptionCard";
+import AppearanceSection from "@/components/settings/AppearanceSection";
 
 const Profile = () => {
   const { user, role, roles } = useAuth();
@@ -114,6 +115,7 @@ const Profile = () => {
                 </Button>
               </CardContent>
             </Card>
+            <AppearanceSection />
             <HealthIntegrations />
             <NotificationSettings />
             {role === "client" && <UnitPreferences />}
