@@ -1,0 +1,161 @@
+/* Animated splash overlay — GPU-friendly transform/opacity only. */
+
+.pc-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity var(--pc-fade-out, 350ms) ease-out;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.pc-splash--out {
+  opacity: 0;
+}
+
+.pc-splash__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.pc-splash__mark {
+  width: 88px;
+  height: 44px;
+  color: var(--pc-accent, #D4A017);
+  filter: drop-shadow(0 0 18px rgba(212, 160, 23, 0.25));
+}
+
+.pc-splash__wordmark {
+  display: flex;
+  gap: 0.45em;
+  font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.32em;
+  color: #f5f5f5;
+  text-transform: uppercase;
+}
+
+.pc-splash__wordmark-accent {
+  color: var(--pc-accent, #D4A017);
+}
+
+/* ============ fade_scale (default) ============ */
+.pc-splash--fade_scale .pc-splash__logo {
+  opacity: 0;
+  transform: scale(0.9);
+  transition:
+    opacity 500ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pc-splash--fade_scale.pc-splash--in .pc-splash__logo {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ============ shimmer ============ */
+.pc-splash--shimmer .pc-splash__logo {
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+}
+.pc-splash--shimmer.pc-splash--in .pc-splash__logo {
+  opacity: 1;
+}
+.pc-splash--shimmer.pc-splash--in .pc-splash__wordmark {
+  background: linear-gradient(
+    90deg,
+    #f5f5f5 0%,
+    var(--pc-accent, #D4A017) 50%,
+    #f5f5f5 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: pc-shimmer 1400ms ease-in-out;
+}
+@keyframes pc-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* ============ draw_in ============ */
+.pc-splash--draw_in .pc-splash__mark path {
+  stroke-dasharray: 220;
+  stroke-dashoffset: 220;
+  transition: stroke-dashoffset 900ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.pc-splash--draw_in .pc-splash__wordmark {
+  opacity: 0;
+  transition: opacity 400ms ease-out 500ms;
+}
+.pc-splash--draw_in.pc-splash--in .pc-splash__mark path {
+  stroke-dashoffset: 0;
+}
+.pc-splash--draw_in.pc-splash--in .pc-splash__wordmark {
+  opacity: 1;
+}
+
+/* ============ layered ============ */
+.pc-splash--layered .pc-splash__mark {
+  opacity: 0;
+  transform: translateY(8px) scale(0.92);
+  transition:
+    opacity 450ms ease-out,
+    transform 450ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pc-splash--layered .pc-splash__wordmark {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 450ms ease-out 180ms,
+    transform 450ms cubic-bezier(0.22, 1, 0.36, 1) 180ms;
+}
+.pc-splash--layered.pc-splash--in .pc-splash__mark,
+.pc-splash--layered.pc-splash--in .pc-splash__wordmark {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* ============ reduced motion — plain fade only ============ */
+.pc-splash--reduced .pc-splash__logo,
+.pc-splash--reduced .pc-splash__mark,
+.pc-splash--reduced .pc-splash__wordmark {
+  transform: none !important;
+  transition: opacity 400ms ease-out !important;
+  stroke-dasharray: none !important;
+  stroke-dashoffset: 0 !important;
+  animation: none !important;
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+.pc-splash--reduced .pc-splash__logo,
+.pc-splash--reduced .pc-splash__mark,
+.pc-splash--reduced .pc-splash__wordmark {
+  opacity: 0;
+}
+.pc-splash--reduced.pc-splash--in .pc-splash__logo,
+.pc-splash--reduced.pc-splash--in .pc-splash__mark,
+.pc-splash--reduced.pc-splash--in .pc-splash__wordmark {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-splash .pc-splash__logo,
+  .pc-splash .pc-splash__mark,
+  .pc-splash .pc-splash__wordmark {
+    transform: none !important;
+    transition: opacity 400ms ease-out !important;
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+    animation: none !important;
+  }
+}

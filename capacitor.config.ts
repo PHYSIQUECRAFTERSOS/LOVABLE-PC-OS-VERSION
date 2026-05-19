@@ -28,6 +28,19 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
+    SplashScreen: {
+      // Native OS splash is held until the JS layer explicitly calls
+      // SplashScreen.hide() (see SplashGate). Background matches brand
+      // so the static frame visually matches AnimatedSplash's start state.
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      backgroundColor: '#0a0a0a',
+      androidSplashResourceName: 'splash',
+      androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
   },
 };
 
