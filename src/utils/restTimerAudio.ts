@@ -4,29 +4,26 @@
  * SINGLE SOURCE OF TRUTH for the rest-timer completion sound.
  *
  * Two firing paths — both keyed to a wall-clock `endTime`:
- *   A. Foreground: NativeAudio (iOS/Android) or HTMLAudioElement (web)
- *      plays bundled `public/sounds/rest-timer-complete.mp3` immediately.
+ *   A. Foreground (native): our own AudioMixPlugin plays the bundled
+ *      `rest-timer-complete.mp3` through an AVAudioPlayer that we own,
+ *      with AVAudioSession forced to `.playback + .mixWithOthers`. This
+ *      mixes with Spotify / Apple Music without pausing or ducking.
+ *      Foreground (web): HTMLAudioElement.
  *   B. Background / locked screen: LocalNotifications scheduled at endTime
  *      with the bundled MP3 as notification sound. Cancelled the moment
  *      Path A successfully fires to prevent double-play.
  *
- * NEVER fetched at runtime — file is bundled.
- * Foreground path mixes with Spotify/Apple Music (focus: false on native;
- * AudioMixPlugin already sets AVAudioSession .playback + .mixWithOthers).
+ * We intentionally do NOT use @capacitor-community/native-audio — it
+ * re-asserts AVAudioSession without .mixWithOthers and stops Spotify.
  */
 
 import { Capacitor } from "@capacitor/core";
-import { NativeAudio } from "@capacitor-community/native-audio";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import AudioMixPlugin from "@/plugins/AudioMixPlugin";
 
-const ASSET_ID = "rest-timer-complete";
-// On iOS native, NativeAudio resolves relative paths against the app bundle's
-// `public/` directory (populated by `npx cap copy ios`).
-const NATIVE_ASSET_PATH = "public/sounds/rest-timer-complete.mp3";
 const WEB_ASSET_URL = "/sounds/rest-timer-complete.mp3";
 // LocalNotifications iOS sound name — file must exist at bundle ROOT
-// (ios/App/App/rest-timer-complete.mp3). Lose-free across `cap copy`.
+// (ios/App/App/rest-timer-complete.mp3). Survives `cap copy`.
 const NOTIFICATION_SOUND = "rest-timer-complete.mp3";
 
 let preloaded = false;
@@ -36,7 +33,7 @@ let webAudio: HTMLAudioElement | null = null;
 
 const isNative = () => Capacitor.isNativePlatform();
 
-/** Preload the MP3 + request notification permission. Idempotent. Safe to call from any user gesture. */
+/** Preload the cue. Idempotent. Safe to call from any user gesture. */
 export async function preloadRestTimerAudio(): Promise<void> {
   if (preloaded) return;
   if (preloadPromise) return preloadPromise;
@@ -45,19 +42,8 @@ export async function preloadRestTimerAudio(): Promise<void> {
     try {
       if (isNative()) {
         await AudioMixPlugin.enableMixing().catch(() => undefined);
-        await NativeAudio.preload({
-          assetId: ASSET_ID,
-          assetPath: NATIVE_ASSET_PATH,
-          audioChannelNum: 1,
-          isUrl: false,
-          // CRITICAL: do NOT take audio focus — mix with Spotify/Apple Music
-          
-          volume: 1.0,
-        }).catch((err) => {
-          // Already-loaded errors are fine
-          if (!String(err?.message ?? err).toLowerCase().includes("already")) {
-            console.warn("[RestTimerAudio] NativeAudio preload warning:", err);
-          }
+        await AudioMixPlugin.preloadRestTimerCue().catch((err) => {
+          console.warn("[RestTimerAudio] preloadRestTimerCue failed:", err);
         });
       } else {
         webAudio = new Audio(WEB_ASSET_URL);
@@ -73,7 +59,7 @@ export async function preloadRestTimerAudio(): Promise<void> {
   return preloadPromise;
 }
 
-/** Request local-notification permission (idempotent). Failure does not block foreground audio. */
+/** Request local-notification permission (idempotent). */
 export async function ensureNotificationPermission(): Promise<boolean> {
   if (!isNative()) return false;
   try {
@@ -89,13 +75,10 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   }
 }
 
-/**
- * Schedule a silent local notification (sound only, blank body) to fire at `endTime`.
- * Returns the notification id (or null if scheduling failed / not native / no permission).
- */
+/** Schedule a local notification (with bundled sound) for endTime. */
 export async function scheduleBackgroundCompletion(endTime: number): Promise<number | null> {
   if (!isNative()) return null;
-  if (endTime <= Date.now() + 250) return null; // too soon to schedule reliably
+  if (endTime <= Date.now() + 250) return null;
 
   const granted = await ensureNotificationPermission();
   if (!granted) return null;
@@ -107,7 +90,7 @@ export async function scheduleBackgroundCompletion(endTime: number): Promise<num
         {
           id,
           title: "",
-          body: " ", // iOS requires non-empty body
+          body: " ",
           schedule: { at: new Date(endTime), allowWhileIdle: true },
           sound: NOTIFICATION_SOUND,
           smallIcon: "ic_stat_icon_config_sample",
@@ -136,31 +119,19 @@ export async function playCompletionSound(): Promise<void> {
     if (isNative()) {
       if (!preloaded) await preloadRestTimerAudio();
       await AudioMixPlugin.enableMixing().catch(() => undefined);
-      await NativeAudio.play({ assetId: ASSET_ID }).catch(async (err) => {
-        // If asset wasn't preloaded yet (e.g., user gesture happened later), retry once
-        console.warn("[RestTimerAudio] NativeAudio play retry:", err);
-        await NativeAudio.preload({
-          assetId: ASSET_ID,
-          assetPath: NATIVE_ASSET_PATH,
-          audioChannelNum: 1,
-          isUrl: false,
-          
-          volume: 1.0,
-        }).catch(() => undefined);
-        await NativeAudio.play({ assetId: ASSET_ID });
+      await AudioMixPlugin.playRestTimerCue().catch(async (err) => {
+        console.warn("[RestTimerAudio] playRestTimerCue retry:", err);
+        await AudioMixPlugin.preloadRestTimerCue().catch(() => undefined);
+        await AudioMixPlugin.playRestTimerCue().catch((e) => {
+          console.error("[RestTimerAudio] playRestTimerCue final failure:", e);
+        });
       });
       return;
     }
 
     // Web fallback
-    if (!webAudio) {
-      webAudio = new Audio(WEB_ASSET_URL);
-    }
-    try {
-      webAudio.currentTime = 0;
-    } catch {
-      // ignore
-    }
+    if (!webAudio) webAudio = new Audio(WEB_ASSET_URL);
+    try { webAudio.currentTime = 0; } catch { /* ignore */ }
     await webAudio.play().catch((err) => {
       console.warn("[RestTimerAudio] web play failed:", err);
     });
