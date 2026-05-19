@@ -993,7 +993,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
                             {/* Video Preview */}
                             {previewExerciseIdx === idx && previewEmbedUrl && (
-                              <div className="relative rounded-md overflow-hidden bg-background aspect-video">
+                              <div className="relative rounded-md overflow-hidden bg-thumb-letterbox aspect-video">
                                 <iframe
                                   src={previewEmbedUrl}
                                   className="w-full h-full"
