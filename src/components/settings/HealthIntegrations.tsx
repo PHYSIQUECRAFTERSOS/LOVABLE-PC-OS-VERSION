@@ -33,6 +33,17 @@ const HealthIntegrations = () => {
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
 
+  // Hidden: tap version 5× within 3s to open Sync Activity Log
+  const versionTapsRef = useRef<number[]>([]);
+  const handleVersionTap = () => {
+    const now = Date.now();
+    versionTapsRef.current = [...versionTapsRef.current, now].filter((t) => now - t <= 3000);
+    if (versionTapsRef.current.length >= 5) {
+      versionTapsRef.current = [];
+      navigate("/debug/sync-log");
+    }
+  };
+
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
   // Apple Health hook (used on native iOS)
