@@ -81,67 +81,71 @@
     color-scheme: dark;
   }
 
-  /* Light — high-legibility opt-in */
+  /* Light — warm, legible, premium (Trainerize-grade hierarchy).
+     Page is warm-tinted; cards are pure white and visibly lift off it.
+     Primary itself is darkened to deep gold so every existing
+     text-primary / bg-primary / border-primary call site auto-passes
+     AA on light surfaces without touching component code. */
   .light {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 6%;
+    --background: 40 14% 96%;          /* #F7F6F3 warm-tinted page */
+    --foreground: 60 5% 10%;           /* #1A1A18 primary text */
 
-    --card: 240 5% 96%;
-    --card-foreground: 0 0% 6%;
+    --card: 0 0% 100%;                 /* #FFFFFF clean card lifts off page */
+    --card-foreground: 60 5% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 6%;
+    --popover-foreground: 60 5% 10%;
 
-    --primary: 43 72% 55%;             /* brand gold — large fills only */
-    --primary-foreground: 0 0% 5%;
+    --primary: 44 100% 27%;            /* #8A6500 deep gold — 5.56:1 on white */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 5% 92%;
-    --secondary-foreground: 0 0% 10%;
+    --secondary: 40 12% 92%;
+    --secondary-foreground: 60 5% 15%;
 
-    --muted: 240 5% 92%;
-    --muted-foreground: 240 4% 35%;
+    --muted: 45 14% 94%;               /* #F2F1ED input/pill */
+    --muted-foreground: 45 4% 35%;     /* #5C5A54 readable secondary, 7:1 on white */
 
-    --accent: 43 60% 45%;
-    --accent-foreground: 0 0% 5%;
-    --accent-text: 43 100% 27%;        /* #8A6500 — small gold text/links */
+    --accent: 44 100% 27%;
+    --accent-foreground: 0 0% 100%;
+    --accent-text: 44 100% 27%;
 
-    --destructive: 0 75% 42%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 74% 42%;          /* #B91C1C */
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 142 70% 33%;
+    --success: 142 71% 29%;            /* #15803D */
     --success-foreground: 0 0% 100%;
 
-    --info: 217 91% 45%;
+    --info: 226 76% 48%;               /* #1D4ED8 */
     --info-foreground: 0 0% 100%;
 
-    --warn: 35 90% 35%;
+    --warn: 28 92% 37%;
     --warn-foreground: 0 0% 100%;
 
-    --macro-calories: 43 72% 45%;
-    --macro-protein: 0 70% 45%;
-    --macro-carbs: 217 91% 45%;
-    --macro-fat: 35 90% 38%;
+    --macro-calories: 44 100% 27%;
+    --macro-protein: 0 74% 42%;
+    --macro-carbs: 226 76% 48%;
+    --macro-fat: 28 92% 37%;
 
-    --border: 240 6% 88%;
-    --input: 240 5% 94%;
-    --ring: 43 60% 40%;
+    --border: 0 0% 88%;                /* #E0E0E0 subtle but clearly visible */
+    --input: 45 14% 94%;
+    --ring: 44 100% 27%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 0 0% 10%;
-    --sidebar-primary: 43 60% 45%;
-    --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent: 240 5% 94%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 240 6% 88%;
-    --sidebar-ring: 43 60% 40%;
+    --sidebar-background: 40 14% 96%;
+    --sidebar-foreground: 60 5% 15%;
+    --sidebar-primary: 44 100% 27%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 12% 92%;
+    --sidebar-accent-foreground: 60 5% 10%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 44 100% 27%;
 
-    --gold: 43 100% 27%;
-    --gold-muted: 43 80% 25%;
-    --gold-glow: 43 90% 35%;
+    --gold: 44 100% 27%;
+    --gold-muted: 44 80% 22%;
+    --gold-glow: 44 90% 32%;
 
-    --thumb-letterbox: 240 5% 96%;
+    --thumb-letterbox: 40 10% 90%;
     --overlay: 0 0% 0%;
-    --overlay-opacity: 0.5;
+    --overlay-opacity: 0.45;
 
     color-scheme: light;
   }
