@@ -1,31 +1,47 @@
-## Goal
-Keep the colored phase progress bar on the Clients tab cards, but stop it from incorrectly showing red ("Overdue") for clients who aren't actually mid-phase yet.
-
 ## Root cause
-In `SelectableClientCards.tsx` (phase fetch effect, ~lines 311–401), when no phase contains today (`isCurrent`), the code falls back to the most recent phase by `end_date`. For a brand-new client whose program starts today/in the future, or whose program data is incomplete, that fallback grabs an ended phase → `daysLeft <= 0` → bar renders red and labeled "Overdue."
 
-## Fix (frontend only, single file: `src/components/clients/SelectableClientCards.tsx`)
+Foreground playback currently goes through `@capacitor-community/native-audio`. That plugin's iOS implementation calls `AVAudioSession.setCategory(...)` itself during `preload`/`play` and does **not** pass `.mixWithOthers`. Our `AudioMixPlugin.enableMixing()` sets the right category on app load, but NativeAudio silently overrides it the moment the cue plays — which is exactly why Spotify pauses and stays paused even though the app is in the foreground.
 
-1. **Replace the fallback logic.** Resolve phase strictly as:
-   - **a. Current** — phase where `derived[p.id].isCurrent === true` (today is inside [start, end]).
-   - **b. Upcoming** — if none current and today is *before* the program's first phase start, pick the first phase and mark it as `upcoming`.
-   - **c. None** — otherwise (program fully ended, or no phases/program at all), do **not** set a phase entry. No red bar.
+Calling `enableMixing()` immediately before `NativeAudio.play()` (which we already do) does not help, because NativeAudio re-asserts its own category inside the play call itself.
 
-2. **Extend `PhaseInfo`** with a `state: "current" | "upcoming" | "none"` field (default `"current"`). Always write an entry for every client in `clients`, including a `"none"` placeholder when there's no resolvable phase.
+## Fix strategy
 
-3. **Render rules** in the card (~lines 659–689):
-   - `state === "current"`: existing behavior — green / amber / red by elapsed %, label `"{phaseName} · Ends {endDate}"` + `"{daysLeft}d left"`.
-   - `state === "upcoming"`: grey bar at `0%`, label `"{phaseName} · Starts {startDate}"` + `"Starts in Xd"` in muted text. Never red.
-   - `state === "none"`: empty grey bar at `0%`, label `"No active phase"` in muted text. Never red.
-4. **Cap the red threshold** so it only triggers on truly-current phases that are at/past their end. Remove the `elapsedPct > 90` red trigger — keep red strictly for `daysLeft <= 0 && state === "current"`. Amber stays at `elapsedPct > 80`.
+Stop using `@capacitor-community/native-audio` for the rest-timer cue. Play the bundled MP3 directly from our own Swift plugin, where we fully control `AVAudioSession` and the player instance. This is the only way to guarantee `.mixWithOthers` is in effect at the exact moment the sound is decoded and routed.
 
-## Out of scope
-- No DB changes, no RLS changes, no changes to `derivePhaseDates` or `usePhaseBoundaries`.
-- No changes to compliance, streak, nutrition, or filters.
-- Other pages (Plan view, calendar) unchanged.
+Background (locked / app suspended) path is unchanged: the scheduled `LocalNotification` still fires its bundled sound. Per your answer, a brief Spotify interruption in that case is acceptable since you need the cue.
 
-## Verification
-- New client with program starting today → grey 0% bar, "Starts in 0d" (not red).
-- Client mid-Phase 2 → green/amber bar with correct phase name (regression check from prior fix).
-- Client with no program assigned → empty grey bar, "No active phase".
-- Client whose program has fully ended → empty grey bar (not red Overdue).
+## Changes
+
+### 1. `ios-plugin/AudioMixPlugin.swift` — extend with a player
+- Keep `enableMixing()`.
+- Add `playRestTimerCue()`:
+  - Re-assert `.playback + .mixWithOthers` and `setActive(true)`.
+  - Lazily load `rest-timer-complete.mp3` from the app bundle into a retained `AVAudioPlayer`.
+  - `player.numberOfLoops = 0`, `player.volume = 1.0`, `player.prepareToPlay()` on first load, then `player.play()`.
+  - Do **not** call `setActive(false)` after playback — leaving the session active with `.mixWithOthers` lets Spotify keep streaming.
+- Add `preloadRestTimerCue()` for warm-up on mount.
+
+### 2. `src/plugins/AudioMixPlugin.ts`
+- Add `preloadRestTimerCue()` and `playRestTimerCue()` to the interface.
+
+### 3. `src/utils/restTimerAudio.ts`
+- Remove all `@capacitor-community/native-audio` usage from the foreground path.
+- `preloadRestTimerAudio()` on native → `AudioMixPlugin.enableMixing()` + `AudioMixPlugin.preloadRestTimerCue()`.
+- `playCompletionSound()` on native → `AudioMixPlugin.enableMixing()` then `AudioMixPlugin.playRestTimerCue()`.
+- Web path (HTMLAudioElement) is unchanged.
+- Background `scheduleBackgroundCompletion` / `cancelBackgroundCompletion` are unchanged — still uses `LocalNotifications` with the bundled `rest-timer-complete.mp3`.
+
+### 4. `package.json`
+- Remove `@capacitor-community/native-audio` (no other callers — verified by search; the only references are in `restTimerAudio.ts`).
+
+### 5. Asset wiring
+- Bundle root already includes the mp3 for the notification sound. `AudioMixPlugin.swift` will read it via `Bundle.main.url(forResource: "rest-timer-complete", withExtension: "mp3")`. `post-cap-sync.sh` already restores our custom Swift plugins.
+
+## Acceptance criteria
+1. Spotify playing → start workout → log set → countdown runs → cue plays at 0 → Spotify keeps playing uninterrupted. ✅ primary goal.
+2. App backgrounded mid-timer → cue still fires from `LocalNotification` (brief Spotify duck/pause acceptable per your confirmation).
+3. Skipping a set or unmounting the timer cancels any pending notification — no ghost banners.
+4. No regression to other audio (rank-up, push notifications).
+
+## Post-implementation step required
+After approval, you'll need to run `npx cap sync` and rebuild in Xcode because `AudioMixPlugin.swift` and `package.json` change.
