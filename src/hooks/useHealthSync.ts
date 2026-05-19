@@ -1,3 +1,16 @@
+/**
+ * HealthKit JS sync layer.
+ *
+ * Five invariants — see HEALTH_SYNC_INVARIANTS.md:
+ *   1. Start-of-day: day queries use getLocalDateString() (YYYY-MM-DD), not interval windows.
+ *   2. Wait-for-bridge: no native calls before bridge is ready (no module-top, no first render).
+ *   3. Non-fatal availability: isAvailable() failures degrade gracefully, never block Settings.
+ *   4. allSettled: parallel metric queries use allSettled, never all.
+ *   5. Native is source of truth: don't "fix" sync by editing Swift first.
+ *
+ * Every sync attempt is logged via logSyncEvent (see src/lib/syncActivityLog.ts).
+ * Tap the app version 5× on Connected Devices to view the hidden log.
+ */
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -5,6 +18,12 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import HealthKit from "@/plugins/HealthKitPlugin";
 import { getLocalDateString } from "@/utils/localDate";
+import {
+  logSyncEvent,
+  assertLocalMidnightDateString,
+  type SyncTrigger,
+} from "@/lib/syncActivityLog";
+
 
 export interface HealthConnection {
   id: string;
@@ -158,12 +177,28 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       console.log("[HealthSync] Starting Apple Health connect flow…");
 
       let available = false;
-      try {
-        const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
-        available = result.available;
-      } catch (err) {
-        console.error("[HealthSync] isAvailable failed:", err);
-        throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+      {
+        const t0 = performance.now();
+        try {
+          const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
+          available = result.available;
+          logSyncEvent({
+            trigger: "connect", phase: "isAvailable", status: "success",
+            durationMs: Math.round(performance.now() - t0),
+            detail: `available=${available}`,
+            platform, isNative,
+          });
+        } catch (err: any) {
+          const msg = String(err?.message ?? err);
+          logSyncEvent({
+            trigger: "connect", phase: "isAvailable",
+            status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+            durationMs: Math.round(performance.now() - t0),
+            detail: msg, platform, isNative,
+          });
+          console.error("[HealthSync] isAvailable failed:", err);
+          throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+        }
       }
 
       if (!available) {
@@ -171,12 +206,28 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       }
 
       console.log("[HealthSync] Requesting HealthKit authorization…");
-      try {
-        await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
-      } catch (err) {
-        console.error("[HealthSync] Authorization failed:", err);
-        throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
+      {
+        const t0 = performance.now();
+        try {
+          await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
+          logSyncEvent({
+            trigger: "connect", phase: "requestAuth", status: "success",
+            durationMs: Math.round(performance.now() - t0),
+            detail: "authorized", platform, isNative,
+          });
+        } catch (err: any) {
+          const msg = String(err?.message ?? err);
+          logSyncEvent({
+            trigger: "connect", phase: "requestAuth",
+            status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+            durationMs: Math.round(performance.now() - t0),
+            detail: msg, platform, isNative,
+          });
+          console.error("[HealthSync] Authorization failed:", err);
+          throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
+        }
       }
+
     }
 
     const { data, error } = await supabase
@@ -233,20 +284,32 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
    * Uses a GLOBAL lock so multiple hook instances (StepsCard + HealthSyncBootstrap)
    * cannot query HealthKit concurrently — concurrent native bridge calls cause failures.
    */
-  const syncNow = useCallback(async (connectionOverride?: HealthConnection) => {
+  const syncNow = useCallback(async (
+    connectionOverride?: HealthConnection,
+    trigger: SyncTrigger = "manual",
+  ) => {
     const conn = connectionOverride ?? connectionRef.current;
     if (!user || !conn?.is_connected) {
+      logSyncEvent({
+        trigger, phase: "overall", status: "skipped", durationMs: 0,
+        detail: "no connected health connection", platform, isNative,
+      });
       console.warn("[HealthSync] syncNow skipped — no connected health connection");
       return;
     }
 
     // GLOBAL lock — prevents concurrent HealthKit queries from any hook instance
     if (globalSyncing) {
+      logSyncEvent({
+        trigger, phase: "overall", status: "skipped", durationMs: 0,
+        detail: "global sync lock active", platform, isNative,
+      });
       console.log("[HealthSync] syncNow skipped — another sync is already in progress (global lock)");
       return;
     }
     globalSyncing = true;
     setSyncing(true);
+    const overallT0 = performance.now();
 
     try {
       await supabase
@@ -257,6 +320,10 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       const today = getLocalDateString();
       const weekAgo = new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA");
 
+      // Invariant #1: day-bucketed queries must use start-of-local-day YYYY-MM-DD.
+      assertLocalMidnightDateString(today, "syncNow.today");
+      assertLocalMidnightDateString(weekAgo, "syncNow.weekAgo");
+
       if (isNative && platform === "ios") {
         // ── Query each metric independently for resilience ──
         let stepsValues: { date: string; value: number }[] = [];
@@ -265,82 +332,143 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         let anySuccess = false;
         const failedQueries: string[] = [];
 
-        try {
-          const result = await pluginTimeout(
-            HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
-            15000, "querySteps"
-          );
-          stepsValues = result.values;
-          anySuccess = true;
-          console.log(`[HealthSync] Steps query OK: ${stepsValues.length} days`);
-        } catch (err) {
-          console.warn("[HealthSync] Steps query failed (continuing):", err);
-          failedQueries.push(`steps: ${String(err)}`);
+        {
+          const t0 = performance.now();
+          try {
+            const result = await pluginTimeout(
+              HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
+              15000, "querySteps"
+            );
+            stepsValues = result.values;
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "querySteps", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `days=${stepsValues.length}`, platform, isNative,
+            });
+            console.log(`[HealthSync] Steps query OK: ${stepsValues.length} days`);
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "querySteps",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Steps query failed (continuing):", err);
+            failedQueries.push(`steps: ${String(err)}`);
+          }
         }
 
-        try {
-          const result = await pluginTimeout(
-            HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
-            15000, "queryActiveEnergy"
-          );
-          energyValues = result.values;
-          anySuccess = true;
-          console.log(`[HealthSync] Energy query OK: ${energyValues.length} days`);
-        } catch (err) {
-          console.warn("[HealthSync] Energy query failed (continuing):", err);
-          failedQueries.push(`energy: ${String(err)}`);
+        {
+          const t0 = performance.now();
+          try {
+            const result = await pluginTimeout(
+              HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
+              15000, "queryActiveEnergy"
+            );
+            energyValues = result.values;
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "queryActiveEnergy", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `days=${energyValues.length}`, platform, isNative,
+            });
+            console.log(`[HealthSync] Energy query OK: ${energyValues.length} days`);
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "queryActiveEnergy",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Energy query failed (continuing):", err);
+            failedQueries.push(`energy: ${String(err)}`);
+          }
         }
 
-        try {
-          const result = await pluginTimeout(
-            HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
-            15000, "queryDistance"
-          );
-          distanceValues = result.values;
-          anySuccess = true;
-          console.log(`[HealthSync] Distance query OK: ${distanceValues.length} days`);
-        } catch (err) {
-          console.warn("[HealthSync] Distance query failed (continuing):", err);
-          failedQueries.push(`distance: ${String(err)}`);
+        {
+          const t0 = performance.now();
+          try {
+            const result = await pluginTimeout(
+              HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
+              15000, "queryDistance"
+            );
+            distanceValues = result.values;
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "queryDistance", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `days=${distanceValues.length}`, platform, isNative,
+            });
+            console.log(`[HealthSync] Distance query OK: ${distanceValues.length} days`);
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "queryDistance",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Distance query failed (continuing):", err);
+            failedQueries.push(`distance: ${String(err)}`);
+          }
         }
+
 
         // Sleep — best-effort, failure does not block other metrics
-        try {
-          const sleepRes = await pluginTimeout(
-            HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
-            15000, "querySleep"
-          );
-          const sleepRows = (sleepRes.values || [])
-            .filter((s) => s.totalMinutes > 0)
-            .map((s) => ({
-              client_id: user.id,
-              sleep_date: s.date,
-              total_minutes: s.totalMinutes,
-              in_bed_minutes: s.inBedMinutes,
-              asleep_minutes: s.asleepMinutes,
-              deep_minutes: s.deepMinutes,
-              rem_minutes: s.remMinutes,
-              light_minutes: s.lightMinutes,
-              awake_minutes: s.awakeMinutes,
-              bedtime_at: s.bedtimeAt,
-              wake_at: s.wakeAt,
-              source: "apple_health",
-              source_priority: 100,
-              synced_at: new Date().toISOString(),
-            }));
-          if (sleepRows.length > 0) {
-            // Only overwrite rows whose existing source_priority is <= 100 (always true for apple_health)
-            const { error: sleepErr } = await supabase
-              .from("sleep_logs" as any)
-              .upsert(sleepRows, { onConflict: "client_id,sleep_date" });
-            if (sleepErr) console.warn("[HealthSync] Sleep upsert error:", sleepErr);
-            else console.log(`[HealthSync] Sleep synced: ${sleepRows.length} nights`);
+        {
+          const t0 = performance.now();
+          try {
+            const sleepRes = await pluginTimeout(
+              HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
+              15000, "querySleep"
+            );
+            const sleepRows = (sleepRes.values || [])
+              .filter((s) => s.totalMinutes > 0)
+              .map((s) => ({
+                client_id: user.id,
+                sleep_date: s.date,
+                total_minutes: s.totalMinutes,
+                in_bed_minutes: s.inBedMinutes,
+                asleep_minutes: s.asleepMinutes,
+                deep_minutes: s.deepMinutes,
+                rem_minutes: s.remMinutes,
+                light_minutes: s.lightMinutes,
+                awake_minutes: s.awakeMinutes,
+                bedtime_at: s.bedtimeAt,
+                wake_at: s.wakeAt,
+                source: "apple_health",
+                source_priority: 100,
+                synced_at: new Date().toISOString(),
+              }));
+            if (sleepRows.length > 0) {
+              const { error: sleepErr } = await supabase
+                .from("sleep_logs" as any)
+                .upsert(sleepRows, { onConflict: "client_id,sleep_date" });
+              if (sleepErr) console.warn("[HealthSync] Sleep upsert error:", sleepErr);
+              else console.log(`[HealthSync] Sleep synced: ${sleepRows.length} nights`);
+            }
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "querySleep", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `nights=${sleepRows.length}`, platform, isNative,
+            });
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "querySleep",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Sleep query failed (continuing):", err);
+            failedQueries.push(`sleep: ${String(err)}`);
           }
-          anySuccess = true;
-        } catch (err) {
-          console.warn("[HealthSync] Sleep query failed (continuing):", err);
-          failedQueries.push(`sleep: ${String(err)}`);
         }
+
 
         if (!anySuccess) {
           // Include the actual errors in the log for debugging
@@ -438,14 +566,26 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
       globalLastSync = Date.now();
       await Promise.all([fetchConnection(), fetchMetrics()]);
-    } catch (err) {
+      logSyncEvent({
+        trigger, phase: "overall", status: "success",
+        durationMs: Math.round(performance.now() - overallT0),
+        detail: "sync complete", platform, isNative,
+      });
+    } catch (err: any) {
       console.error("[HealthSync] Sync error:", err);
 
-      const errMsg = String(err);
+      const errMsg = String(err?.message ?? err);
       let userMessage = errMsg;
       if (errMsg.includes("Authorization not determined") || errMsg.includes("not authorized")) {
         userMessage = "HealthKit access not authorized. Please open Settings → Health → Physique Crafters and enable all permissions.";
       }
+
+      logSyncEvent({
+        trigger, phase: "overall",
+        status: /timed out|timeout/i.test(errMsg) ? "timeout" : "failure",
+        durationMs: Math.round(performance.now() - overallT0),
+        detail: errMsg, platform, isNative,
+      });
 
       await supabase
         .from("health_connections")
@@ -459,6 +599,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       globalSyncing = false;
       setSyncing(false);
     }
+
   }, [user, isNative, platform, fetchConnection, fetchMetrics]);
 
   // ── Auto-sync: 30-min interval + foreground resume ──
@@ -474,12 +615,12 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       const timeSinceLastSync = Date.now() - globalLastSync;
       if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS) {
         console.log("[HealthSync] Running initial auto-sync…");
-        syncNow().catch((err) => {
+        syncNow(undefined, "startup").catch((err) => {
           console.warn("[HealthSync] Initial auto-sync failed, retrying in 5s:", err);
           setTimeout(() => {
             const retryConn = connectionRef.current;
             if (retryConn?.is_connected && !globalSyncing) {
-              syncNow().catch((retryErr) =>
+              syncNow(undefined, "startup").catch((retryErr) =>
                 console.warn("[HealthSync] Auto-sync retry also failed:", retryErr)
               );
             }
@@ -497,7 +638,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         return;
       }
       console.log("[HealthSync] Running scheduled 2-hour auto-sync…");
-      syncNow().catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
+      syncNow(undefined, "interval").catch((err) => console.warn("[HealthSync] Scheduled auto-sync failed:", err));
     }, AUTO_SYNC_INTERVAL_MS);
 
     // Foreground resume listener (throttled to 5 min)
@@ -509,7 +650,8 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         const timeSinceLastSync = Date.now() - globalLastSync;
         if (timeSinceLastSync > FOREGROUND_SYNC_THROTTLE_MS && !globalSyncing) {
           console.log("[HealthSync] App resumed — running foreground auto-sync…");
-          syncNow().catch((err) => console.warn("[HealthSync] Foreground auto-sync failed:", err));
+          syncNow(undefined, "resume").catch((err) => console.warn("[HealthSync] Foreground auto-sync failed:", err));
+
         } else {
           console.log("[HealthSync] App resumed — skipping sync (last sync was", Math.round(timeSinceLastSync / 60000), "min ago)");
         }

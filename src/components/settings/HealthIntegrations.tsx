@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
@@ -11,6 +11,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import { getLocalDateString } from "@/utils/localDate";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — vite supports json imports
+import pkg from "../../../package.json";
 
 interface WearableConnection {
   id: string;
@@ -29,6 +32,17 @@ const HealthIntegrations = () => {
   const [wearables, setWearables] = useState<WearableConnection[]>([]);
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+
+  // Hidden: tap version 5× within 3s to open Sync Activity Log
+  const versionTapsRef = useRef<number[]>([]);
+  const handleVersionTap = () => {
+    const now = Date.now();
+    versionTapsRef.current = [...versionTapsRef.current, now].filter((t) => now - t <= 3000);
+    if (versionTapsRef.current.length >= 5) {
+      versionTapsRef.current = [];
+      navigate("/debug/sync-log");
+    }
+  };
 
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
 
@@ -180,7 +194,7 @@ const HealthIntegrations = () => {
 
       // Pass connection directly to avoid React state race condition
       try {
-        await healthSync.syncNow(conn);
+        await healthSync.syncNow(conn, "connect");
       } catch (syncErr: any) {
         console.warn("[HealthIntegrations] Initial sync failed (connection succeeded):", syncErr);
         toast({ title: "Sync warning", description: "Connected, but initial sync failed. Try syncing again.", variant: "destructive" });
@@ -380,6 +394,14 @@ const HealthIntegrations = () => {
             Open Steps Log
           </Button>
         </div>
+
+        {/* Version footer — tap 5× within 3s to open the hidden Sync Activity Log */}
+        <p
+          onClick={handleVersionTap}
+          className="select-none pt-2 text-center text-[10px] text-muted-foreground/60"
+        >
+          Version {(pkg as any).version ?? "0.0.0"}
+        </p>
       </CardContent>
     </Card>
   );

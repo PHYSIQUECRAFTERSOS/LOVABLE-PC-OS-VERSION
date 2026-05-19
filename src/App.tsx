@@ -41,6 +41,7 @@ import Info from "./pages/Info";
 import Pricing from "./pages/Pricing";
 import Unsubscribe from "./pages/Unsubscribe";
 import ClientTracker from "./pages/ClientTracker";
+import SyncLogDebug from "./pages/SyncLogDebug";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
@@ -111,6 +112,7 @@ const App = () => (
             <Route path="/admin/repair-saved-meals" element={<ProtectedRoute allowedRoles={["admin"]}><AdminRepairSavedMeals /></ProtectedRoute>} />
             <Route path="/body-stats" element={<ProtectedRoute><BodyStats /></ProtectedRoute>} />
             <Route path="/subscribe" element={<ProtectedRoute><Subscribe /></ProtectedRoute>} />
+            <Route path="/debug/sync-log" element={<ProtectedRoute><SyncLogDebug /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
