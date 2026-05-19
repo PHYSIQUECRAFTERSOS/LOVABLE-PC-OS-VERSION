@@ -177,12 +177,28 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       console.log("[HealthSync] Starting Apple Health connect flow…");
 
       let available = false;
-      try {
-        const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
-        available = result.available;
-      } catch (err) {
-        console.error("[HealthSync] isAvailable failed:", err);
-        throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+      {
+        const t0 = performance.now();
+        try {
+          const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
+          available = result.available;
+          logSyncEvent({
+            trigger: "connect", phase: "isAvailable", status: "success",
+            durationMs: Math.round(performance.now() - t0),
+            detail: `available=${available}`,
+            platform, isNative,
+          });
+        } catch (err: any) {
+          const msg = String(err?.message ?? err);
+          logSyncEvent({
+            trigger: "connect", phase: "isAvailable",
+            status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+            durationMs: Math.round(performance.now() - t0),
+            detail: msg, platform, isNative,
+          });
+          console.error("[HealthSync] isAvailable failed:", err);
+          throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+        }
       }
 
       if (!available) {
@@ -190,12 +206,28 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       }
 
       console.log("[HealthSync] Requesting HealthKit authorization…");
-      try {
-        await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
-      } catch (err) {
-        console.error("[HealthSync] Authorization failed:", err);
-        throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
+      {
+        const t0 = performance.now();
+        try {
+          await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
+          logSyncEvent({
+            trigger: "connect", phase: "requestAuth", status: "success",
+            durationMs: Math.round(performance.now() - t0),
+            detail: "authorized", platform, isNative,
+          });
+        } catch (err: any) {
+          const msg = String(err?.message ?? err);
+          logSyncEvent({
+            trigger: "connect", phase: "requestAuth",
+            status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+            durationMs: Math.round(performance.now() - t0),
+            detail: msg, platform, isNative,
+          });
+          console.error("[HealthSync] Authorization failed:", err);
+          throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
+        }
       }
+
     }
 
     const { data, error } = await supabase
