@@ -284,20 +284,32 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
    * Uses a GLOBAL lock so multiple hook instances (StepsCard + HealthSyncBootstrap)
    * cannot query HealthKit concurrently — concurrent native bridge calls cause failures.
    */
-  const syncNow = useCallback(async (connectionOverride?: HealthConnection) => {
+  const syncNow = useCallback(async (
+    connectionOverride?: HealthConnection,
+    trigger: SyncTrigger = "manual",
+  ) => {
     const conn = connectionOverride ?? connectionRef.current;
     if (!user || !conn?.is_connected) {
+      logSyncEvent({
+        trigger, phase: "overall", status: "skipped", durationMs: 0,
+        detail: "no connected health connection", platform, isNative,
+      });
       console.warn("[HealthSync] syncNow skipped — no connected health connection");
       return;
     }
 
     // GLOBAL lock — prevents concurrent HealthKit queries from any hook instance
     if (globalSyncing) {
+      logSyncEvent({
+        trigger, phase: "overall", status: "skipped", durationMs: 0,
+        detail: "global sync lock active", platform, isNative,
+      });
       console.log("[HealthSync] syncNow skipped — another sync is already in progress (global lock)");
       return;
     }
     globalSyncing = true;
     setSyncing(true);
+    const overallT0 = performance.now();
 
     try {
       await supabase
@@ -308,6 +320,10 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       const today = getLocalDateString();
       const weekAgo = new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA");
 
+      // Invariant #1: day-bucketed queries must use start-of-local-day YYYY-MM-DD.
+      assertLocalMidnightDateString(today, "syncNow.today");
+      assertLocalMidnightDateString(weekAgo, "syncNow.weekAgo");
+
       if (isNative && platform === "ios") {
         // ── Query each metric independently for resilience ──
         let stepsValues: { date: string; value: number }[] = [];
@@ -316,44 +332,90 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         let anySuccess = false;
         const failedQueries: string[] = [];
 
-        try {
-          const result = await pluginTimeout(
-            HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
-            15000, "querySteps"
-          );
-          stepsValues = result.values;
-          anySuccess = true;
-          console.log(`[HealthSync] Steps query OK: ${stepsValues.length} days`);
-        } catch (err) {
-          console.warn("[HealthSync] Steps query failed (continuing):", err);
-          failedQueries.push(`steps: ${String(err)}`);
+        {
+          const t0 = performance.now();
+          try {
+            const result = await pluginTimeout(
+              HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
+              15000, "querySteps"
+            );
+            stepsValues = result.values;
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "querySteps", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `days=${stepsValues.length}`, platform, isNative,
+            });
+            console.log(`[HealthSync] Steps query OK: ${stepsValues.length} days`);
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "querySteps",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Steps query failed (continuing):", err);
+            failedQueries.push(`steps: ${String(err)}`);
+          }
         }
 
-        try {
-          const result = await pluginTimeout(
-            HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
-            15000, "queryActiveEnergy"
-          );
-          energyValues = result.values;
-          anySuccess = true;
-          console.log(`[HealthSync] Energy query OK: ${energyValues.length} days`);
-        } catch (err) {
-          console.warn("[HealthSync] Energy query failed (continuing):", err);
-          failedQueries.push(`energy: ${String(err)}`);
+        {
+          const t0 = performance.now();
+          try {
+            const result = await pluginTimeout(
+              HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
+              15000, "queryActiveEnergy"
+            );
+            energyValues = result.values;
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "queryActiveEnergy", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `days=${energyValues.length}`, platform, isNative,
+            });
+            console.log(`[HealthSync] Energy query OK: ${energyValues.length} days`);
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "queryActiveEnergy",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Energy query failed (continuing):", err);
+            failedQueries.push(`energy: ${String(err)}`);
+          }
         }
 
-        try {
-          const result = await pluginTimeout(
-            HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
-            15000, "queryDistance"
-          );
-          distanceValues = result.values;
-          anySuccess = true;
-          console.log(`[HealthSync] Distance query OK: ${distanceValues.length} days`);
-        } catch (err) {
-          console.warn("[HealthSync] Distance query failed (continuing):", err);
-          failedQueries.push(`distance: ${String(err)}`);
+        {
+          const t0 = performance.now();
+          try {
+            const result = await pluginTimeout(
+              HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
+              15000, "queryDistance"
+            );
+            distanceValues = result.values;
+            anySuccess = true;
+            logSyncEvent({
+              trigger, phase: "queryDistance", status: "success",
+              durationMs: Math.round(performance.now() - t0),
+              detail: `days=${distanceValues.length}`, platform, isNative,
+            });
+            console.log(`[HealthSync] Distance query OK: ${distanceValues.length} days`);
+          } catch (err: any) {
+            const msg = String(err?.message ?? err);
+            logSyncEvent({
+              trigger, phase: "queryDistance",
+              status: /timed out|timeout/i.test(msg) ? "timeout" : "failure",
+              durationMs: Math.round(performance.now() - t0),
+              detail: msg, platform, isNative,
+            });
+            console.warn("[HealthSync] Distance query failed (continuing):", err);
+            failedQueries.push(`distance: ${String(err)}`);
+          }
         }
+
 
         // Sleep — best-effort, failure does not block other metrics
         try {
