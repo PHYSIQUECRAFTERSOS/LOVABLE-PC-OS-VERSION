@@ -1,3 +1,16 @@
+/**
+ * HealthKit JS sync layer.
+ *
+ * Five invariants — see HEALTH_SYNC_INVARIANTS.md:
+ *   1. Start-of-day: day queries use getLocalDateString() (YYYY-MM-DD), not interval windows.
+ *   2. Wait-for-bridge: no native calls before bridge is ready (no module-top, no first render).
+ *   3. Non-fatal availability: isAvailable() failures degrade gracefully, never block Settings.
+ *   4. allSettled: parallel metric queries use allSettled, never all.
+ *   5. Native is source of truth: don't "fix" sync by editing Swift first.
+ *
+ * Every sync attempt is logged via logSyncEvent (see src/lib/syncActivityLog.ts).
+ * Tap the app version 5× on Connected Devices to view the hidden log.
+ */
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -5,6 +18,12 @@ import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import HealthKit from "@/plugins/HealthKitPlugin";
 import { getLocalDateString } from "@/utils/localDate";
+import {
+  logSyncEvent,
+  assertLocalMidnightDateString,
+  type SyncTrigger,
+} from "@/lib/syncActivityLog";
+
 
 export interface HealthConnection {
   id: string;
