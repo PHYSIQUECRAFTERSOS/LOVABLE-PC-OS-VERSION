@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
@@ -11,6 +11,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 import { getLocalDateString } from "@/utils/localDate";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — vite supports json imports
+import pkg from "../../../package.json";
 
 interface WearableConnection {
   id: string;
