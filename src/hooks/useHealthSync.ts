@@ -566,14 +566,26 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
       globalLastSync = Date.now();
       await Promise.all([fetchConnection(), fetchMetrics()]);
-    } catch (err) {
+      logSyncEvent({
+        trigger, phase: "overall", status: "success",
+        durationMs: Math.round(performance.now() - overallT0),
+        detail: "sync complete", platform, isNative,
+      });
+    } catch (err: any) {
       console.error("[HealthSync] Sync error:", err);
 
-      const errMsg = String(err);
+      const errMsg = String(err?.message ?? err);
       let userMessage = errMsg;
       if (errMsg.includes("Authorization not determined") || errMsg.includes("not authorized")) {
         userMessage = "HealthKit access not authorized. Please open Settings → Health → Physique Crafters and enable all permissions.";
       }
+
+      logSyncEvent({
+        trigger, phase: "overall",
+        status: /timed out|timeout/i.test(errMsg) ? "timeout" : "failure",
+        durationMs: Math.round(performance.now() - overallT0),
+        detail: errMsg, platform, isNative,
+      });
 
       await supabase
         .from("health_connections")
@@ -587,6 +599,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       globalSyncing = false;
       setSyncing(false);
     }
+
   }, [user, isNative, platform, fetchConnection, fetchMetrics]);
 
   // ── Auto-sync: 30-min interval + foreground resume ──
