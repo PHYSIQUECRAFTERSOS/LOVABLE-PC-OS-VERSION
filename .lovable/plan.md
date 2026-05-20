@@ -1,47 +1,92 @@
-## Root cause
+# Fix: HealthKit / StoreKit / Rest-Timer Audio all silently failing on TestFlight
 
-Foreground playback currently goes through `@capacitor-community/native-audio`. That plugin's iOS implementation calls `AVAudioSession.setCategory(...)` itself during `preload`/`play` and does **not** pass `.mixWithOthers`. Our `AudioMixPlugin.enableMixing()` sets the right category on app load, but NativeAudio silently overrides it the moment the cue plays — which is exactly why Spotify pauses and stays paused even though the app is in the foreground.
+## Root cause (single shared bug)
 
-Calling `enableMixing()` immediately before `NativeAudio.play()` (which we already do) does not help, because NativeAudio re-asserts its own category inside the play call itself.
+All three failures have the same cause. In Capacitor 7/8, **local custom Swift plugins added to the App target are NOT auto-discovered**. The `@objc` + `CAPBridgedPlugin` pattern only auto-registers plugins shipped via Cocoapods/SPM. Local plugins must be **manually registered** in a custom `CAPBridgeViewController` subclass via `bridge?.registerPluginInstance(...)` inside `capacitorDidLoad()`. The official Capacitor v7 docs explicitly require this step (https://capacitorjs.com/docs/v7/ios/custom-code#register-the-plugin).
 
-## Fix strategy
+Our repo has three local plugins — `AudioMixPlugin`, `HealthKitPlugin`, `StoreKitPlugin` — and none of them are registered with the bridge. That's why on TestFlight every JS call falls through to the web-fallback `UNIMPLEMENTED` rejection:
 
-Stop using `@capacitor-community/native-audio` for the rest-timer cue. Play the bundled MP3 directly from our own Swift plugin, where we fully control `AVAudioSession` and the player instance. This is the only way to guarantee `.mixWithOthers` is in effect at the exact moment the sound is decoded and routed.
+- `HealthKit.isAvailable()` rejects → JS shows "Make sure HealthKit is enabled in Xcode Capabilities"
+- `StoreKit.getProducts()` rejects/returns empty → "Unable to connect to App Store"
+- `AudioMixPlugin.playRestTimerCue()` rejects silently → zero sound when timer hits 0
 
-Background (locked / app suspended) path is unchanged: the scheduled `LocalNotification` still fires its bundled sound. Per your answer, a brief Spotify interruption in that case is acceptable since you need the cue.
+That also explains why Spotify is no longer being stopped — last round we removed `@capacitor-community/native-audio` so AudioMix is now the *only* path that touches `AVAudioSession`. With it unregistered, nothing native runs at all, so Spotify is untouched but the cue is silent.
 
-## Changes
+## Why your Xcode checks looked correct
 
-### 1. `ios-plugin/AudioMixPlugin.swift` — extend with a player
-- Keep `enableMixing()`.
-- Add `playRestTimerCue()`:
-  - Re-assert `.playback + .mixWithOthers` and `setActive(true)`.
-  - Lazily load `rest-timer-complete.mp3` from the app bundle into a retained `AVAudioPlayer`.
-  - `player.numberOfLoops = 0`, `player.volume = 1.0`, `player.prepareToPlay()` on first load, then `player.play()`.
-  - Do **not** call `setActive(false)` after playback — leaving the session active with `.mixWithOthers` lets Spotify keep streaming.
-- Add `preloadRestTimerCue()` for warm-up on mount.
+Target Membership being ✓ only guarantees the `.swift` files **compile into the binary**. It does NOT register them with the Capacitor JS bridge. Two separate steps. We've only ever done step 1.
 
-### 2. `src/plugins/AudioMixPlugin.ts`
-- Add `preloadRestTimerCue()` and `playRestTimerCue()` to the interface.
+## The fix (3 small additions)
 
-### 3. `src/utils/restTimerAudio.ts`
-- Remove all `@capacitor-community/native-audio` usage from the foreground path.
-- `preloadRestTimerAudio()` on native → `AudioMixPlugin.enableMixing()` + `AudioMixPlugin.preloadRestTimerCue()`.
-- `playCompletionSound()` on native → `AudioMixPlugin.enableMixing()` then `AudioMixPlugin.playRestTimerCue()`.
-- Web path (HTMLAudioElement) is unchanged.
-- Background `scheduleBackgroundCompletion` / `cancelBackgroundCompletion` are unchanged — still uses `LocalNotifications` with the bundled `rest-timer-complete.mp3`.
+### 1. New file: `ios-plugin/MainViewController.swift`
 
-### 4. `package.json`
-- Remove `@capacitor-community/native-audio` (no other callers — verified by search; the only references are in `restTimerAudio.ts`).
+A `CAPBridgeViewController` subclass that registers all three plugin instances on bridge load:
 
-### 5. Asset wiring
-- Bundle root already includes the mp3 for the notification sound. `AudioMixPlugin.swift` will read it via `Bundle.main.url(forResource: "rest-timer-complete", withExtension: "mp3")`. `post-cap-sync.sh` already restores our custom Swift plugins.
+```swift
+import UIKit
+import Capacitor
 
-## Acceptance criteria
-1. Spotify playing → start workout → log set → countdown runs → cue plays at 0 → Spotify keeps playing uninterrupted. ✅ primary goal.
-2. App backgrounded mid-timer → cue still fires from `LocalNotification` (brief Spotify duck/pause acceptable per your confirmation).
-3. Skipping a set or unmounting the timer cancels any pending notification — no ghost banners.
-4. No regression to other audio (rank-up, push notifications).
+class MainViewController: CAPBridgeViewController {
+    override open func capacitorDidLoad() {
+        bridge?.registerPluginInstance(AudioMixPlugin())
+        bridge?.registerPluginInstance(HealthKitPlugin())
+        bridge?.registerPluginInstance(StoreKitPlugin())
+    }
+}
+```
 
-## Post-implementation step required
-After approval, you'll need to run `npx cap sync` and rebuild in Xcode because `AudioMixPlugin.swift` and `package.json` change.
+This is the canonical Capacitor 7/8 pattern. Once registered, the existing JS `registerPlugin("AudioMixPlugin" | "HealthKitPlugin" | "StoreKit")` calls bind to the live native instances.
+
+### 2. Update `scripts/post-cap-sync.sh`
+
+Already copies `ios-plugin/*.swift` to `ios/App/App/Plugins/`, so `MainViewController.swift` rides along automatically. Add an echo reminding the user to also wire the storyboard (one-time step, see #3).
+
+### 3. One-time Xcode wiring (manual, with screenshots in the plan response)
+
+In Xcode (once, then it persists across `cap sync`):
+
+a. Drag `ios/App/App/Plugins/MainViewController.swift` into the App target's Project Navigator (Copy items if needed → ✓, Add to targets: App → ✓). Confirm with your standard 3-plugin check.
+
+b. Open `ios/App/App/Base.lproj/Main.storyboard` → select the **Bridge View Controller** → in the right sidebar (Identity Inspector) change **Class** from `CAPBridgeViewController` to `MainViewController` and **Module** to `App`.
+
+c. Build & run.
+
+That's it for the silent-cue / HealthKit / StoreKit triad. After verifying `MainViewController.capacitorDidLoad()` runs (add a `print("[Caps] Plugins registered")` for the first build), all three flows light up.
+
+## Spotify mixing (confirms the right behavior)
+
+You chose "cue plays OVER Spotify, music never pauses." That's already what `AudioMixPlugin.configureMixing()` requests:
+
+```swift
+session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+```
+
+Once the plugin is actually registered and called, this category is set on the AVAudioSession at preload time, at every `enableMixing()` call from JS, and re-asserted immediately before `playRestTimerCue()`. The cue layers on top of Spotify without ducking or pausing. No further code change needed — only the registration fix above.
+
+For backgrounded/locked rest completion, the existing `LocalNotifications` path with the bundled `rest-timer-complete.mp3` continues to fire (that path was never broken).
+
+## Verification checklist (run on a real device, in order)
+
+1. Fresh `npx cap sync` + Xcode clean build + TestFlight upload.
+2. With Spotify playing in the foreground → background it → open PC OS → start a workout → log a set → wait for rest timer to hit 0.
+   - ✅ Cue plays audibly
+   - ✅ Spotify keeps playing uninterrupted (no pause, no duck)
+3. Settings → Connected Devices → Connect Apple Health.
+   - ✅ iOS native permission sheet appears (no red error toast)
+4. Subscribe screen.
+   - ✅ Both products render with prices (no "Unable to connect to App Store")
+   - ✅ Tap Subscribe → native Apple payment sheet appears
+
+## Required steps after merge
+
+1. `npx cap sync`
+2. Run `./scripts/post-cap-sync.sh`
+3. **One-time** in Xcode: add `MainViewController.swift` to the App target and re-class the storyboard's root VC to `MainViewController` (instructions above)
+4. Archive → TestFlight
+
+## Files touched
+
+- **New**: `ios-plugin/MainViewController.swift`
+- **Edit**: `scripts/post-cap-sync.sh` (echo a reminder about the storyboard re-class step)
+
+No JS/React changes. No database changes. No new dependencies.

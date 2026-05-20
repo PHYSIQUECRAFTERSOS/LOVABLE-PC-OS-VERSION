@@ -24,6 +24,15 @@ echo ""
 echo "⚠️  FIRST TIME ONLY: If these files don't appear in Xcode's sidebar,"
 echo "   drag them from ios/App/App/Plugins/ into the Xcode project navigator"
 echo "   and check 'Copy items if needed' + select the 'App' target."
+echo ""
+echo "⚠️  FIRST TIME ONLY (CRITICAL — required for HealthKit / StoreKit / "
+echo "   AudioMix to actually work on device):"
+echo "     1. Confirm MainViewController.swift is in the App target."
+echo "     2. Open ios/App/App/Base.lproj/Main.storyboard."
+echo "     3. Select the Bridge View Controller scene."
+echo "     4. Identity Inspector → Class: MainViewController, Module: App."
+echo "   Local Swift plugins are NOT auto-discovered in Capacitor 7/8;"
+echo "   MainViewController.capacitorDidLoad() is what binds them to JS."
 
 # ── Rest timer notification sound ─────────────────────────────────────────
 # iOS LocalNotifications resolves `sound: 'rest-timer-complete.mp3'` from the
