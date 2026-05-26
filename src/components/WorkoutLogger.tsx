@@ -697,19 +697,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         isPR,
       };
 
-      // Auto-fill next incomplete set
-      const nextIdx = newExercises[exIdx].logs.findIndex((l, i) => i > setIdx && !l.completed);
-      if (nextIdx !== -1) {
-        if (
-          newExercises[exIdx].logs[nextIdx].weight === undefined ||
-          newExercises[exIdx].logs[nextIdx].weight === null
-        ) {
-          newExercises[exIdx].logs[nextIdx].weight = weight;
-        }
-        if (!newExercises[exIdx].logs[nextIdx].reps) {
-          newExercises[exIdx].logs[nextIdx].reps = logSnapshot.reps;
-        }
-      }
+      // Placeholder-only UX (Strong-style): do NOT pre-fill the next set with
+      // this set's weight/reps. Unlogged sets stay null; the UI shows the
+      // previous-session value as a faded placeholder for reference only.
 
       return newExercises;
     });
@@ -720,11 +710,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const addSet = (exIdx: number) => {
     const newEx = [...exercises];
-    const lastLog = newEx[exIdx].logs[newEx[exIdx].logs.length - 1];
+    // Placeholder-only: new sets start empty so the user explicitly enters values.
     newEx[exIdx].logs.push({
       setNumber: newEx[exIdx].logs.length + 1,
-      weight: lastLog?.weight,
-      reps: lastLog?.reps,
+      weight: undefined,
+      reps: undefined,
       completed: false,
     });
     setExercises(newEx);
