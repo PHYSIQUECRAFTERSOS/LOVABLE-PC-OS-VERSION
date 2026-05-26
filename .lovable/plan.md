@@ -1,53 +1,30 @@
-# Fix: Keith & Julian show "No active phase" on Clients list
+## Goal
+On the Clients page (coach view), make the **Next Phase** column visually mirror the **Current Phase** column with a progress bar, so you can scan the roster and instantly see who has a phase queued vs. who doesn't.
 
-## Root cause (verified against the database)
+## Where
+`src/components/clients/SelectableClientCards.tsx` — `renderNext()` (around lines 788–812) and `renderCurrent()` (725–786) for size parity.
 
-Keith's active assignment points to program `Phase 14 : Standard sets` and Julian's points to `JULIAN LESNEVICH - Phase 15`. **Both of those `programs` rows have `start_date = NULL`.** The corresponding `client_program_assignments` rows do have a valid `start_date` (Keith 2026-04-07, Julian 2026-04-27), which is what their profile Plan view uses to render the phase list.
+## Changes (UI only, no data/logic changes)
 
-The Clients-grid resolver does not use it. In `src/components/clients/SelectableClientCards.tsx` the assignments query is:
+1. **Next Phase — queued state** (when `phase.nextPhaseName` exists):
+   - Top row: phase name (truncated) on left, `"in Xd"` or `"Starts {date}"` on right in muted text.
+   - Bottom row: a `Progress` bar at `value={0}` styled in the **gold/primary** color (`hsl(var(--primary))`) to signal "queued, not started", plus a `Queued` label on the right where the % currently lives in Current Phase. This gold filled-but-empty bar is the visual cue you want for "has a next phase".
 
-```ts
-.from("client_program_assignments")
-.select("client_id, program_id")   // missing start_date
-```
+2. **Next Phase — empty state** (no next queued):
+   - Same two-row structure as above for alignment.
+   - Bar rendered at `value={0}` with **muted** color (or destructive when `isOverdueNoNext`).
+   - Right-side label: `"None"` (muted) or `"Needed"` (destructive) — keeps the existing "Needs new phase" / "No next phase queued" copy directly above the bar.
 
-That row is then fed into `computeClientPhaseStatuses` as:
+3. **Tighten bar height** from `h-2` → `h-1.5` in **both** `renderCurrent()` and `renderNext()` so the two stacked bars fit comfortably without growing card height. Bump label font from `text-[10px]` to stay readable; no other typography changes.
 
-```ts
-{ client_id, program_id, start_date: programStartById.get(a.program_id) || null }
-```
-
-So the "assignment start_date" passed in is actually the program's start_date. When the program's `start_date` is NULL (Keith & Julian's case), the helper has no anchor, `derivePhaseDates` returns nothing, and the card shows "No active phase / No next phase queued". Everyone else on the page has a populated `programs.start_date`, which is why only these two break.
-
-## Fix
-
-Single-file, surgical change to `src/components/clients/SelectableClientCards.tsx`:
-
-1. Add `start_date` to the assignments select so we actually have the per-client anchor.
-2. When building the input to `computeClientPhaseStatuses`, fall back to the assignment's own `start_date` whenever the program's `start_date` is null:
-   ```ts
-   start_date: programStartById.get(a.program_id) || a.start_date || null
-   ```
-3. Apply the same fallback in the local `programStart` computation a few lines below (used for the inline progress bar / next-phase label), so the badge and progress bar agree:
-   ```ts
-   const programStart =
-     programStartById.get(a.program_id) ||
-     (a as any).start_date ||
-     sortedPhases[0]?.start_date ||
-     null;
-   ```
-
-That's the whole change. No schema migration, no RLS change, no behavior change for clients whose programs already have a `start_date`.
-
-## Why not "just backfill `programs.start_date`"
-
-We could `UPDATE programs SET start_date = <assignment.start_date>` for the two affected rows, but:
-- The same bug will silently reappear any time a coach creates a program without a start date and assigns it (which is clearly already happening).
-- The profile Plan view already treats the assignment as the source of truth, so making the Clients list do the same restores parity with the rest of the app.
-
-If you also want me to backfill the two existing NULL `programs.start_date` rows as a one-time data fix, say the word and I'll add that as a separate insert/update step after the code fix lands.
+4. Keep the existing grid (`grid-cols-1 sm:grid-cols-2`) so on the current desktop viewport the two phases sit side-by-side as today; the visual rhythm of two matching bars is what enables fast scanning.
 
 ## Out of scope
-- No changes to `clientPhaseStatus.ts` (its `programStart || a.start_date` fallback is already correct — we just weren't feeding it the assignment date).
-- No changes to dashboard cards, calendar, training tab, or RLS.
-- No edits to coach-set targets, current_phase_id, or any program structure.
+- No changes to `computeClientPhaseStatuses`, queries, RLS, or the phase data model.
+- No change to mobile card layout beyond the height tweak.
+- Empty "No active phase" current state keeps its existing `Progress value={0}` (already there).
+
+## Acceptance
+- Scott Szeto's card shows: Current bar (orange, 95%, "3d left") + Next bar (gold, 0%, "Phase 2: Standard Sets — Starts May 30 / Queued").
+- Clients with no next phase show a muted/destructive flat bar so the *absence* of gold is the scan signal.
+- Card heights stay within ~1–2 px of current.
