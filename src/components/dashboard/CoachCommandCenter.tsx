@@ -602,7 +602,7 @@ const CoachCommandCenter = () => {
         m2mClients.sort((a, b) => a.clientName.localeCompare(b.clientName));
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals, m2mClients };
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, phaseDeadlineSummary, newClients, programRenewals, m2mClients };
     },
   });
 
