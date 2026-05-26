@@ -328,7 +328,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       const [assignRes, programsRes] = await Promise.allSettled([
         supabase
           .from("client_program_assignments")
-          .select("client_id, program_id")
+          .select("client_id, program_id, start_date")
           .in("client_id", ids)
           .in("status", ["active", "subscribed"]),
         Promise.resolve(null), // placeholder, programs fetched after we know IDs
