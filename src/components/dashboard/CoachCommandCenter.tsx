@@ -32,6 +32,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
+import {
+  computeClientPhaseStatuses,
+  isDueWithin,
+  isOverdue,
+} from "@/lib/clientPhaseStatus";
 
 // ── Types ──
 
@@ -98,6 +103,12 @@ interface PhaseDeadlineClient {
   phaseName: string;
   endDate: string;
   daysLeft: number;
+  /** "overdue" | "due" — drives bucketing without relying on daysLeft sign. */
+  kind: "overdue" | "due";
+}
+
+interface PhaseDeadlineSummary {
+  activeClients: number;
 }
 
 interface ProgramRenewal {
@@ -135,6 +146,7 @@ interface CommandCenterData {
   completedYesterday: YesterdayWorkoutClient[];
   missedYesterday: YesterdayWorkoutClient[];
   phaseDeadlines: PhaseDeadlineClient[];
+  phaseDeadlineSummary: PhaseDeadlineSummary;
   newClients: NewClientReadiness[];
   programRenewals: ProgramRenewal[];
   m2mClients: M2MClient[];
@@ -173,7 +185,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -186,7 +198,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
@@ -435,58 +447,81 @@ const CoachCommandCenter = () => {
       }
 
       // ── Section 7: Phase Deadlines ──
+      // Uses the shared computeClientPhaseStatuses() helper so this matches
+      // the Clients list exactly. A client is Overdue only when their
+      // program has ended AND no later phase is queued. A client is Due
+      // Within 7 Days only when the current phase ends in 0..7 days AND no
+      // later phase is queued in the same program.
       const phaseDeadlines: PhaseDeadlineClient[] = [];
+      let phaseDeadlineActiveClients = 0;
       const { data: programAssignments } = await supabase
         .from("client_program_assignments")
-        .select("client_id, program_id, current_phase_id, start_date")
+        .select("client_id, program_id, start_date")
         .in("client_id", clientIds)
         .in("status", ["active", "subscribed"]);
 
       if (programAssignments?.length) {
         const programIds = [...new Set(programAssignments.map((a) => a.program_id))];
-        const { data: allPhases } = await supabase
-          .from("program_phases")
-          .select("id, program_id, phase_order, duration_weeks, name")
-          .in("program_id", programIds)
-          .order("phase_order", { ascending: true });
+        const [phasesRes, programsRes] = await Promise.allSettled([
+          supabase
+            .from("program_phases")
+            .select("id, program_id, phase_order, duration_weeks, name")
+            .in("program_id", programIds)
+            .order("phase_order", { ascending: true }),
+          supabase
+            .from("programs")
+            .select("id, start_date")
+            .in("id", programIds),
+        ]);
 
-        if (allPhases?.length) {
-          const phasesByProgram = new Map<string, typeof allPhases>();
-          allPhases.forEach((p) => {
-            if (!phasesByProgram.has(p.program_id)) phasesByProgram.set(p.program_id, []);
-            phasesByProgram.get(p.program_id)!.push(p);
-          });
+        const allPhases = (phasesRes.status === "fulfilled" ? phasesRes.value.data : null) || [];
+        const allPrograms = (programsRes.status === "fulfilled" ? programsRes.value.data : null) || [];
 
-          for (const a of programAssignments) {
-            const phases = phasesByProgram.get(a.program_id);
-            if (!phases?.length || !a.current_phase_id) continue;
-            const currentPhase = phases.find((p) => p.id === a.current_phase_id);
-            if (!currentPhase) continue;
+        const statuses = computeClientPhaseStatuses(
+          clientIds,
+          programAssignments as any,
+          allPrograms as any,
+          allPhases as any,
+        );
 
-            let totalWeeks = 0;
-            for (const p of phases) {
-              totalWeeks += p.duration_weeks;
-              if (p.id === a.current_phase_id) break;
-            }
+        phaseDeadlineActiveClients = statuses.size;
 
-            const endDate = addDays(new Date(a.start_date), totalWeeks * 7);
-            const daysLeft = differenceInDays(endDate, now);
-            const profile = profileMap.get(a.client_id);
+        for (const status of statuses.values()) {
+          const profile = profileMap.get(status.clientId);
+          const baseRow = {
+            clientId: status.clientId,
+            clientName: profile?.full_name || "Client",
+            avatarUrl: profile?.avatar_url,
+          };
 
-            if (daysLeft <= 7) {
-              phaseDeadlines.push({
-                clientId: a.client_id,
-                clientName: profile?.full_name || "Client",
-                avatarUrl: profile?.avatar_url,
-                phaseName: currentPhase.name,
-                endDate: format(endDate, "MMM d, yyyy"),
-                daysLeft,
-              });
-            }
+          if (isOverdue(status)) {
+            const ended = status.mostRecentEnded || status.current;
+            if (!ended) continue;
+            const endDateObj = new Date(`${ended.end_date}T00:00:00`);
+            const daysLeft = differenceInDays(endDateObj, now);
+            phaseDeadlines.push({
+              ...baseRow,
+              phaseName: ended.name,
+              endDate: format(endDateObj, "MMM d, yyyy"),
+              daysLeft,
+              kind: "overdue",
+            });
+          } else if (isDueWithin(status, 7) && status.current) {
+            const endDateObj = new Date(`${status.current.end_date}T00:00:00`);
+            const daysLeft = Math.max(0, differenceInDays(endDateObj, now));
+            phaseDeadlines.push({
+              ...baseRow,
+              phaseName: status.current.name,
+              endDate: format(endDateObj, "MMM d, yyyy"),
+              daysLeft,
+              kind: "due",
+            });
           }
-          phaseDeadlines.sort((a, b) => a.daysLeft - b.daysLeft);
         }
+        phaseDeadlines.sort((a, b) => a.daysLeft - b.daysLeft);
       }
+      const phaseDeadlineSummary: PhaseDeadlineSummary = { activeClients: phaseDeadlineActiveClients };
+
 
       // ── Section 8: New Clients Readiness ──
       const sevenDaysAgo = format(subDays(now, 7), "yyyy-MM-dd");
@@ -567,7 +602,7 @@ const CoachCommandCenter = () => {
         m2mClients.sort((a, b) => a.clientName.localeCompare(b.clientName));
       }
 
-      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals, m2mClients };
+      return { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, phaseDeadlineSummary, newClients, programRenewals, m2mClients };
     },
   });
 
@@ -575,7 +610,7 @@ const CoachCommandCenter = () => {
   if ((error || timedOut) && !data?.actionItems?.length) return <RetryBanner onRetry={refetch} />;
   if (!data) return null;
 
-  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, newClients, programRenewals = [], m2mClients = [] } = data;
+  const { actionItems, snapshot, leaderboard, atRisk, unreadThreads, completedYesterday, missedYesterday, phaseDeadlines, phaseDeadlineSummary, newClients, programRenewals = [], m2mClients = [] } = data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -711,33 +746,36 @@ const CoachCommandCenter = () => {
 
       {/* ─── SECTION 3: Phase Deadline Alerts ─── */}
       <div>
-        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-1">
           <CalendarClock className="h-5 w-5 text-primary" />
           Training Phase Deadlines
         </h2>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Showing {phaseDeadlines.filter((c) => c.kind === "overdue").length} overdue and {phaseDeadlines.filter((c) => c.kind === "due").length} due within 7 days, out of {phaseDeadlineSummary.activeClients} active coaching clients.
+        </p>
         {phaseDeadlines.length === 0 ? (
           <Card>
             <CardContent className="py-6 text-center">
               <CheckCircle2 className="h-7 w-7 text-success mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No phases ending within 7 days.</p>
+              <p className="text-sm text-muted-foreground">Every client either has time left or has a next phase queued.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Overdue */}
-            {phaseDeadlines.some((c) => c.daysLeft <= 0) && (
+            {phaseDeadlines.some((c) => c.kind === "overdue") && (
               <Card className="border-destructive/30">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-display flex items-center gap-2">
                     <XCircle className="h-4 w-4 text-destructive" />
                     Overdue
                     <span className="ml-1 rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">
-                      {phaseDeadlines.filter((c) => c.daysLeft <= 0).length}
+                      {phaseDeadlines.filter((c) => c.kind === "overdue").length}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  {phaseDeadlines.filter((c) => c.daysLeft <= 0).map((client) => (
+                  {phaseDeadlines.filter((c) => c.kind === "overdue").map((client) => (
                     <div
                       key={client.clientId}
                       className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
@@ -758,19 +796,19 @@ const CoachCommandCenter = () => {
             )}
 
             {/* Due within 7 days */}
-            {phaseDeadlines.some((c) => c.daysLeft > 0) && (
+            {phaseDeadlines.some((c) => c.kind === "due") && (
               <Card className="border-warn/20">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-display flex items-center gap-2">
                     <Clock className="h-4 w-4 text-warn" />
                     Due Within 7 Days
                     <span className="ml-1 rounded-full bg-warn/20 px-2 py-0.5 text-[10px] font-bold text-warn">
-                      {phaseDeadlines.filter((c) => c.daysLeft > 0).length}
+                      {phaseDeadlines.filter((c) => c.kind === "due").length}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  {phaseDeadlines.filter((c) => c.daysLeft > 0).map((client) => (
+                  {phaseDeadlines.filter((c) => c.kind === "due").map((client) => (
                     <div
                       key={client.clientId}
                       className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"

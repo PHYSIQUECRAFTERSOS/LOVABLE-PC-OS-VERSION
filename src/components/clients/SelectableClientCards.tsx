@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { subDays, format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { derivePhaseDates, type PhaseLike } from "@/lib/phaseDates";
+import { computeClientPhaseStatuses } from "@/lib/clientPhaseStatus";
 import ClientPreviewDialog from "./ClientPreviewDialog";
 import { toast } from "sonner";
 
@@ -50,6 +51,11 @@ interface PhaseInfo {
   daysLeft: number;
   totalDays: number;
   state: "current" | "upcoming" | "none";
+  /** Next phase queued in the same program, if any. */
+  nextPhaseName?: string;
+  nextPhaseStartDate?: string;
+  /** True when no current phase covers today (program fully ended). */
+  programEnded?: boolean;
 }
 
 interface SelectableClientCardsProps {
@@ -360,26 +366,34 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       const today = new Date();
       const todayYmd = today.toLocaleDateString("en-CA");
 
+      // Shared helper resolves "next phase queued" identically to the dashboard.
+      const statusMap = computeClientPhaseStatuses(
+        ids,
+        assignments.map((a: any) => ({
+          client_id: a.client_id,
+          program_id: a.program_id,
+          start_date: programStartById.get(a.program_id) || null,
+        })),
+        (programs || []).map((p: any) => ({ id: p.id, start_date: p.start_date })),
+        allPhases as any,
+        todayYmd,
+      );
+
       const map: Record<string, PhaseInfo> = {};
       for (const a of assignments) {
         const phases = phasesByProgram.get(a.program_id);
         if (!phases?.length) continue;
-        // Fall back to earliest phase start_date when programs.start_date is null
-        // (common for legacy/imported programs).
         const sortedPhases = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
         const programStart = programStartById.get(a.program_id) || sortedPhases[0]?.start_date || null;
         if (!programStart) continue;
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
-        // Resolution: current → upcoming → none. No "most-recent-ended" fallback,
-        // which previously caused new/unstarted clients to render as red Overdue.
         let resolved = phases.find((p: any) => derived[p.id]?.isCurrent);
         let state: PhaseInfo["state"] = "current";
 
         if (!resolved) {
-          const sorted = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
-          const first = sorted[0];
+          const first = sortedPhases[0];
           const firstStart = first ? derived[first.id]?.start_date : null;
           if (first && firstStart && todayYmd < firstStart) {
             resolved = first;
@@ -387,7 +401,27 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           }
         }
 
-        if (!resolved) continue; // program fully ended → no bar entry
+        const status = statusMap.get(a.client_id);
+        const nextPhaseName = status?.next?.name;
+        const nextPhaseStartDate = status?.next?.start_date
+          ? format(new Date(`${status.next.start_date}T00:00:00`), "MMM d")
+          : undefined;
+
+        if (!resolved) {
+          // Program fully ended — show "No active phase" but still surface next-phase status.
+          map[a.client_id] = {
+            phaseName: "",
+            endDate: "",
+            startDate: "",
+            daysLeft: 0,
+            totalDays: 1,
+            state: "none",
+            nextPhaseName,
+            nextPhaseStartDate,
+            programEnded: true,
+          };
+          continue;
+        }
 
         const dd = derived[resolved.id];
         if (!dd?.start_date || !dd?.end_date) continue;
@@ -405,6 +439,9 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           daysLeft,
           totalDays,
           state,
+          nextPhaseName,
+          nextPhaseStartDate,
+          programEnded: false,
         };
       }
 
@@ -427,6 +464,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
     fetchPhases();
   }, [clients]);
+
 
   const allTags = useMemo(() => {
     const tags = new Set<string>();
@@ -685,69 +723,102 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                   </div>
                 </div>
                 {phase && (() => {
-                  if (phase.state === "none") {
-                    return (
-                      <div className="mt-2 pt-2 border-t border-border/50">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground truncate">No active phase</span>
+                  const renderCurrent = () => {
+                    if (phase.state === "none") {
+                      return (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
+                          <span className="text-[10px] text-muted-foreground truncate block">No active phase</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Progress value={0} className="h-2 flex-1" />
+                            <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">—</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Progress value={0} className="h-2 flex-1" />
-                          <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">—</span>
+                      );
+                    }
+                    if (phase.state === "upcoming") {
+                      return (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              {phase.phaseName} · Starts {phase.startDate}
+                            </span>
+                            <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">Upcoming</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Progress value={0} className="h-2 flex-1" />
+                            <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">0%</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  }
-                  if (phase.state === "upcoming") {
-                    const startsInDays = -phase.daysLeft + phase.totalDays; // approx not needed; use startDate label
+                      );
+                    }
+                    const elapsedPct = Math.min(100, Math.max(0, Math.round(((phase.totalDays - phase.daysLeft) / phase.totalDays) * 100)));
+                    const barColor = phase.daysLeft <= 0
+                      ? "hsl(var(--destructive))"
+                      : elapsedPct > 80
+                        ? "hsl(38 92% 50%)"
+                        : "hsl(152 69% 41%)";
                     return (
-                      <div className="mt-2 pt-2 border-t border-border/50">
+                      <div>
+                        <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] text-muted-foreground truncate">
-                            {phase.phaseName} · Starts {phase.startDate}
+                            {phase.phaseName} · Ends {phase.endDate}
                           </span>
-                          <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">
-                            Upcoming
+                          <span className={cn(
+                            "text-[10px] font-bold whitespace-nowrap ml-2",
+                            phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-warn" : "text-muted-foreground"
+                          )}>
+                            {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Progress value={0} className="h-2 flex-1" />
-                          <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">0%</span>
+                          <Progress
+                            value={elapsedPct}
+                            className="h-2 flex-1"
+                            style={{ '--progress-color': barColor } as React.CSSProperties}
+                          />
+                          <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">{elapsedPct}%</span>
                         </div>
                       </div>
                     );
-                  }
-                  // current
-                  const elapsedPct = Math.min(100, Math.max(0, Math.round(((phase.totalDays - phase.daysLeft) / phase.totalDays) * 100)));
-                  const barColor = phase.daysLeft <= 0
-                    ? "hsl(var(--destructive))"
-                    : elapsedPct > 80
-                      ? "hsl(38 92% 50%)"
-                      : "hsl(152 69% 41%)";
-                  return (
-                    <div className="mt-2 pt-2 border-t border-border/50">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] text-muted-foreground truncate">
-                          {phase.phaseName} · Ends {phase.endDate}
-                        </span>
+                  };
+
+                  const renderNext = () => {
+                    if (phase.nextPhaseName && phase.nextPhaseStartDate) {
+                      return (
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Next Phase</div>
+                          <span className="text-[10px] text-foreground/90 truncate block">
+                            {phase.nextPhaseName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block mt-0.5">Starts {phase.nextPhaseStartDate}</span>
+                        </div>
+                      );
+                    }
+                    const isOverdueNoNext = phase.programEnded || (phase.state === "current" && phase.daysLeft < 0);
+                    return (
+                      <div>
+                        <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Next Phase</div>
                         <span className={cn(
-                          "text-[10px] font-bold whitespace-nowrap ml-2",
-                          phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-warn" : "text-muted-foreground"
+                          "text-[10px] truncate block font-medium",
+                          isOverdueNoNext ? "text-destructive" : "text-warn"
                         )}>
-                          {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`}
+                          {isOverdueNoNext ? "Needs new phase" : "No next phase queued"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Progress
-                          value={elapsedPct}
-                          className="h-2 flex-1"
-                          style={{ '--progress-color': barColor } as React.CSSProperties}
-                        />
-                        <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">{elapsedPct}%</span>
-                      </div>
+                    );
+                  };
+
+                  return (
+                    <div className="mt-2 pt-2 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {renderCurrent()}
+                      {renderNext()}
                     </div>
                   );
                 })()}
+
               </CardContent>
             </Card>
           );
