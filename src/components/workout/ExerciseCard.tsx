@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
+import NumericKeypad from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { hapticSuccess, hapticCelebrate } from "@/utils/haptics";
 
 interface SetLog {
   setNumber: number;
