@@ -180,7 +180,7 @@ const CoachCommandCenter = () => {
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
     timeout: 5000,
-    fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] },
+    fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
@@ -193,7 +193,7 @@ const CoachCommandCenter = () => {
         .abortSignal(signal);
 
       if (!assignments?.length)
-        return { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], newClients: [], programRenewals: [], m2mClients: [] };
+        return { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] };
 
       const clientIds = assignments.map((a) => a.client_id);
       const now = new Date();
