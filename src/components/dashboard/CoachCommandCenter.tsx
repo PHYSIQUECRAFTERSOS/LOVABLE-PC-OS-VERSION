@@ -770,12 +770,12 @@ const CoachCommandCenter = () => {
                     <XCircle className="h-4 w-4 text-destructive" />
                     Overdue
                     <span className="ml-1 rounded-full bg-destructive/20 px-2 py-0.5 text-[10px] font-bold text-destructive">
-                      {phaseDeadlines.filter((c) => c.daysLeft <= 0).length}
+                      {phaseDeadlines.filter((c) => c.kind === "overdue").length}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  {phaseDeadlines.filter((c) => c.daysLeft <= 0).map((client) => (
+                  {phaseDeadlines.filter((c) => c.kind === "overdue").map((client) => (
                     <div
                       key={client.clientId}
                       className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
@@ -796,19 +796,19 @@ const CoachCommandCenter = () => {
             )}
 
             {/* Due within 7 days */}
-            {phaseDeadlines.some((c) => c.daysLeft > 0) && (
+            {phaseDeadlines.some((c) => c.kind === "due") && (
               <Card className="border-warn/20">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-display flex items-center gap-2">
                     <Clock className="h-4 w-4 text-warn" />
                     Due Within 7 Days
                     <span className="ml-1 rounded-full bg-warn/20 px-2 py-0.5 text-[10px] font-bold text-warn">
-                      {phaseDeadlines.filter((c) => c.daysLeft > 0).length}
+                      {phaseDeadlines.filter((c) => c.kind === "due").length}
                     </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  {phaseDeadlines.filter((c) => c.daysLeft > 0).map((client) => (
+                  {phaseDeadlines.filter((c) => c.kind === "due").map((client) => (
                     <div
                       key={client.clientId}
                       className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 cursor-pointer transition-colors"
