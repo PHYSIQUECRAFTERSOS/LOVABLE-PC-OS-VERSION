@@ -746,21 +746,24 @@ const CoachCommandCenter = () => {
 
       {/* ─── SECTION 3: Phase Deadline Alerts ─── */}
       <div>
-        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+        <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-1">
           <CalendarClock className="h-5 w-5 text-primary" />
           Training Phase Deadlines
         </h2>
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Showing {phaseDeadlines.filter((c) => c.kind === "overdue").length} overdue and {phaseDeadlines.filter((c) => c.kind === "due").length} due within 7 days, out of {phaseDeadlineSummary.activeClients} active coaching clients.
+        </p>
         {phaseDeadlines.length === 0 ? (
           <Card>
             <CardContent className="py-6 text-center">
               <CheckCircle2 className="h-7 w-7 text-success mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No phases ending within 7 days.</p>
+              <p className="text-sm text-muted-foreground">Every client either has time left or has a next phase queued.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Overdue */}
-            {phaseDeadlines.some((c) => c.daysLeft <= 0) && (
+            {phaseDeadlines.some((c) => c.kind === "overdue") && (
               <Card className="border-destructive/30">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-display flex items-center gap-2">
