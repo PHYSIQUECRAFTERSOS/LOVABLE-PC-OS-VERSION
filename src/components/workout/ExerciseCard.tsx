@@ -290,6 +290,16 @@ const ExerciseCard = ({
     }
   }, [keypadField, onUpdateLog]);
 
+  // Trigger PR celebration haptic when any set transitions to isPR=true
+  const prFlagsRef = useRef<boolean[]>([]);
+  useEffect(() => {
+    logs.forEach((l, i) => {
+      const wasPR = prFlagsRef.current[i] === true;
+      if (l.isPR && !wasPR) hapticCelebrate();
+    });
+    prFlagsRef.current = logs.map(l => !!l.isPR);
+  }, [logs]);
+
   const handleTouchStart = useCallback(() => {
     longPressTimer.current = setTimeout(() => {
       setMenuOpen(true);
