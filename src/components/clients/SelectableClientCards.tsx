@@ -366,26 +366,34 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       const today = new Date();
       const todayYmd = today.toLocaleDateString("en-CA");
 
+      // Shared helper resolves "next phase queued" identically to the dashboard.
+      const statusMap = computeClientPhaseStatuses(
+        ids,
+        assignments.map((a: any) => ({
+          client_id: a.client_id,
+          program_id: a.program_id,
+          start_date: programStartById.get(a.program_id) || null,
+        })),
+        (programs || []).map((p: any) => ({ id: p.id, start_date: p.start_date })),
+        allPhases as any,
+        todayYmd,
+      );
+
       const map: Record<string, PhaseInfo> = {};
       for (const a of assignments) {
         const phases = phasesByProgram.get(a.program_id);
         if (!phases?.length) continue;
-        // Fall back to earliest phase start_date when programs.start_date is null
-        // (common for legacy/imported programs).
         const sortedPhases = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
         const programStart = programStartById.get(a.program_id) || sortedPhases[0]?.start_date || null;
         if (!programStart) continue;
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
 
-        // Resolution: current → upcoming → none. No "most-recent-ended" fallback,
-        // which previously caused new/unstarted clients to render as red Overdue.
         let resolved = phases.find((p: any) => derived[p.id]?.isCurrent);
         let state: PhaseInfo["state"] = "current";
 
         if (!resolved) {
-          const sorted = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
-          const first = sorted[0];
+          const first = sortedPhases[0];
           const firstStart = first ? derived[first.id]?.start_date : null;
           if (first && firstStart && todayYmd < firstStart) {
             resolved = first;
@@ -393,7 +401,27 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           }
         }
 
-        if (!resolved) continue; // program fully ended → no bar entry
+        const status = statusMap.get(a.client_id);
+        const nextPhaseName = status?.next?.name;
+        const nextPhaseStartDate = status?.next?.start_date
+          ? format(new Date(`${status.next.start_date}T00:00:00`), "MMM d")
+          : undefined;
+
+        if (!resolved) {
+          // Program fully ended — show "No active phase" but still surface next-phase status.
+          map[a.client_id] = {
+            phaseName: "",
+            endDate: "",
+            startDate: "",
+            daysLeft: 0,
+            totalDays: 1,
+            state: "none",
+            nextPhaseName,
+            nextPhaseStartDate,
+            programEnded: true,
+          };
+          continue;
+        }
 
         const dd = derived[resolved.id];
         if (!dd?.start_date || !dd?.end_date) continue;
@@ -411,6 +439,9 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           daysLeft,
           totalDays,
           state,
+          nextPhaseName,
+          nextPhaseStartDate,
+          programEnded: false,
         };
       }
 
@@ -433,6 +464,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
     fetchPhases();
   }, [clients]);
+
 
   const allTags = useMemo(() => {
     const tags = new Set<string>();
