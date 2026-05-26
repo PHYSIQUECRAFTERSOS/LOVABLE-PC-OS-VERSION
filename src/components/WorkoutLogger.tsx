@@ -710,11 +710,11 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   const addSet = (exIdx: number) => {
     const newEx = [...exercises];
-    const lastLog = newEx[exIdx].logs[newEx[exIdx].logs.length - 1];
+    // Placeholder-only: new sets start empty so the user explicitly enters values.
     newEx[exIdx].logs.push({
       setNumber: newEx[exIdx].logs.length + 1,
-      weight: lastLog?.weight,
-      reps: lastLog?.reps,
+      weight: undefined,
+      reps: undefined,
       completed: false,
     });
     setExercises(newEx);
