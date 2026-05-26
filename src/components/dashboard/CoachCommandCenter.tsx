@@ -141,6 +141,7 @@ interface CommandCenterData {
   completedYesterday: YesterdayWorkoutClient[];
   missedYesterday: YesterdayWorkoutClient[];
   phaseDeadlines: PhaseDeadlineClient[];
+  phaseDeadlineSummary: PhaseDeadlineSummary;
   newClients: NewClientReadiness[];
   programRenewals: ProgramRenewal[];
   m2mClients: M2MClient[];
