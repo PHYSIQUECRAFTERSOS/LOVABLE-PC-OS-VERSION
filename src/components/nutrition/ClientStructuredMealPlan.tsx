@@ -449,7 +449,18 @@ const ClientStructuredMealPlan = ({
                 </div>
 
                 <div className="divide-y divide-border/20">
-                  {sectionItems.map((item) => (
+                  {(() => {
+                    const noteText = selectedDayId
+                      ? (coachMealName ? mealNotes[`${selectedDayId}::name::${coachMealName}`] : null)
+                        || mealNotes[`${selectedDayId}::order::${position - 1}`]
+                      : null;
+                    if (!noteText) return null;
+                    return (
+                      <div className="px-4 py-2.5 bg-primary/5 border-l-2 border-primary/60 text-xs text-foreground/90 whitespace-pre-wrap">
+                        {noteText}
+                      </div>
+                    );
+                  })()}
                     <div key={item.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/10 transition-colors">
                       <FoodIcon name={item.custom_name || ""} size={30} />
                       <div className="flex-1 min-w-0">
