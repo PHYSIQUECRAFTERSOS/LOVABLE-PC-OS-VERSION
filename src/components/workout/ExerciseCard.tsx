@@ -91,17 +91,26 @@ const RPE_LABELS: Record<number, string> = {
   10: "Maximum effort",
 };
 
-// --- RPE Selector Popover ---
+// --- RPE Selector Popover (supports external open control for keypad wiring) ---
 const RPESelector = ({
   currentRPE,
   onSelect,
   children,
+  open: openProp,
+  onOpenChange,
 }: {
   currentRPE?: number;
   onSelect: (rpe: number | undefined) => void;
   children: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (o: boolean) => void;
 }) => {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp !== undefined ? openProp : internalOpen;
+  const setOpen = (o: boolean) => {
+    if (onOpenChange) onOpenChange(o);
+    else setInternalOpen(o);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
