@@ -790,10 +790,22 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                       return (
                         <div>
                           <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Next Phase</div>
-                          <span className="text-[10px] text-foreground/90 truncate block">
-                            {phase.nextPhaseName}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground block mt-0.5">Starts {phase.nextPhaseStartDate}</span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-foreground/90 truncate">
+                              {phase.nextPhaseName}
+                            </span>
+                            <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">
+                              {phase.nextPhaseStartDate}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Progress
+                              value={100}
+                              className="h-1.5 flex-1"
+                              style={{ '--progress-color': 'hsl(var(--primary))' } as React.CSSProperties}
+                            />
+                            <span className="text-[10px] font-bold text-primary w-10 text-right">Queued</span>
+                          </div>
                         </div>
                       );
                     }
@@ -801,12 +813,23 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     return (
                       <div>
                         <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Next Phase</div>
-                        <span className={cn(
-                          "text-[10px] truncate block font-medium",
-                          isOverdueNoNext ? "text-destructive" : "text-warn"
-                        )}>
-                          {isOverdueNoNext ? "Needs new phase" : "No next phase queued"}
-                        </span>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={cn(
+                            "text-[10px] truncate font-medium",
+                            isOverdueNoNext ? "text-destructive" : "text-warn"
+                          )}>
+                            {isOverdueNoNext ? "Needs new phase" : "No next phase queued"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Progress value={0} className="h-1.5 flex-1" />
+                          <span className={cn(
+                            "text-[10px] font-bold w-10 text-right",
+                            isOverdueNoNext ? "text-destructive" : "text-muted-foreground"
+                          )}>
+                            {isOverdueNoNext ? "Needed" : "None"}
+                          </span>
+                        </div>
                       </div>
                     );
                   };
