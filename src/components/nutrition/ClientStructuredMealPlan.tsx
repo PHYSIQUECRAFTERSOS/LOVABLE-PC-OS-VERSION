@@ -56,6 +56,8 @@ const ClientStructuredMealPlan = ({
   const [copyingSection, setCopyingSection] = useState<string | null>(null);
   const [todayIsTraining, setTodayIsTraining] = useState<boolean | null>(null);
 
+  const [mealNotes, setMealNotes] = useState<Record<string, string>>({});
+
   const {
     plans,
     allDays,
@@ -64,6 +66,36 @@ const ClientStructuredMealPlan = ({
     copyMealToTracker,
     copyEntireDayToTracker,
   } = useMealPlanTracker(selectedDate);
+
+  // Fetch coach meal notes for all days across all plans
+  useEffect(() => {
+    const dayIds = (allDays || []).map((d) => d.id);
+    if (dayIds.length === 0) {
+      setMealNotes({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("meal_plan_meal_notes")
+        .select("day_id, meal_name, meal_order, note")
+        .in("day_id", dayIds);
+      if (cancelled) return;
+      if (error) {
+        console.warn("[ClientStructuredMealPlan] meal notes fetch error:", error);
+        setMealNotes({});
+        return;
+      }
+      const map: Record<string, string> = {};
+      (data || []).forEach((n: any) => {
+        if (!n.note || !n.note.trim()) return;
+        map[`${n.day_id}::name::${n.meal_name}`] = n.note;
+        map[`${n.day_id}::order::${n.meal_order}`] = n.note;
+      });
+      setMealNotes(map);
+    })();
+    return () => { cancelled = true; };
+  }, [allDays]);
 
   // Auto-suggest day type based on calendar
   useEffect(() => {
@@ -417,8 +449,21 @@ const ClientStructuredMealPlan = ({
                 </div>
 
                 <div className="divide-y divide-border/20">
+                  {(() => {
+                    const noteText = selectedDayId
+                      ? (coachMealName ? mealNotes[`${selectedDayId}::name::${coachMealName}`] : null)
+                        || mealNotes[`${selectedDayId}::order::${position - 1}`]
+                      : null;
+                    if (!noteText) return null;
+                    return (
+                      <div className="px-4 py-2.5 bg-primary/5 border-l-2 border-primary/60 text-xs text-foreground/90 whitespace-pre-wrap">
+                        {noteText}
+                      </div>
+                    );
+                  })()}
                   {sectionItems.map((item) => (
                     <div key={item.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/10 transition-colors">
+
                       <FoodIcon name={item.custom_name || ""} size={30} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">{item.custom_name}</div>
