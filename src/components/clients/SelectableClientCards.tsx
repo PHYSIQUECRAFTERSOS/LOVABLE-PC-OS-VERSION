@@ -730,7 +730,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                           <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
                           <span className="text-[10px] text-muted-foreground truncate block">No active phase</span>
                           <div className="flex items-center gap-2 mt-1">
-                            <Progress value={0} className="h-2 flex-1" />
+                            <Progress value={0} className="h-1.5 flex-1" />
                             <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">—</span>
                           </div>
                         </div>
@@ -747,7 +747,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                             <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">Upcoming</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Progress value={0} className="h-2 flex-1" />
+                            <Progress value={0} className="h-1.5 flex-1" />
                             <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">0%</span>
                           </div>
                         </div>
@@ -776,7 +776,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                         <div className="flex items-center gap-2">
                           <Progress
                             value={elapsedPct}
-                            className="h-2 flex-1"
+                            className="h-1.5 flex-1"
                             style={{ '--progress-color': barColor } as React.CSSProperties}
                           />
                           <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">{elapsedPct}%</span>
