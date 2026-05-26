@@ -461,7 +461,9 @@ const ClientStructuredMealPlan = ({
                       </div>
                     );
                   })()}
+                  {sectionItems.map((item) => (
                     <div key={item.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-secondary/10 transition-colors">
+
                       <FoodIcon name={item.custom_name || ""} size={30} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">{item.custom_name}</div>
