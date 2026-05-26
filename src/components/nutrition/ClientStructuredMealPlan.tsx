@@ -56,6 +56,8 @@ const ClientStructuredMealPlan = ({
   const [copyingSection, setCopyingSection] = useState<string | null>(null);
   const [todayIsTraining, setTodayIsTraining] = useState<boolean | null>(null);
 
+  const [mealNotes, setMealNotes] = useState<Record<string, string>>({});
+
   const {
     plans,
     allDays,
@@ -64,6 +66,36 @@ const ClientStructuredMealPlan = ({
     copyMealToTracker,
     copyEntireDayToTracker,
   } = useMealPlanTracker(selectedDate);
+
+  // Fetch coach meal notes for all days across all plans
+  useEffect(() => {
+    const dayIds = (allDays || []).map((d) => d.id);
+    if (dayIds.length === 0) {
+      setMealNotes({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("meal_plan_meal_notes")
+        .select("day_id, meal_name, meal_order, note")
+        .in("day_id", dayIds);
+      if (cancelled) return;
+      if (error) {
+        console.warn("[ClientStructuredMealPlan] meal notes fetch error:", error);
+        setMealNotes({});
+        return;
+      }
+      const map: Record<string, string> = {};
+      (data || []).forEach((n: any) => {
+        if (!n.note || !n.note.trim()) return;
+        map[`${n.day_id}::name::${n.meal_name}`] = n.note;
+        map[`${n.day_id}::order::${n.meal_order}`] = n.note;
+      });
+      setMealNotes(map);
+    })();
+    return () => { cancelled = true; };
+  }, [allDays]);
 
   // Auto-suggest day type based on calendar
   useEffect(() => {
