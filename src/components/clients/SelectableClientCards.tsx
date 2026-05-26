@@ -384,7 +384,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         const phases = phasesByProgram.get(a.program_id);
         if (!phases?.length) continue;
         const sortedPhases = [...phases].sort((x: any, y: any) => x.phase_order - y.phase_order);
-        const programStart = programStartById.get(a.program_id) || sortedPhases[0]?.start_date || null;
+        const programStart = programStartById.get(a.program_id) || (a as any).start_date || sortedPhases[0]?.start_date || null;
         if (!programStart) continue;
 
         const derived = derivePhaseDates(programStart, phases as PhaseLike[]);
