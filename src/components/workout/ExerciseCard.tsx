@@ -640,6 +640,52 @@ const ExerciseCard = ({
           <Plus className="h-3 w-3 mr-1" /> Add Set
         </Button>
       </CardContent>
+
+      {/* Custom numeric keypad (mobile only) */}
+      {isMobile && keypadField && (() => {
+        const activeLog = logs[keypadField.setIdx];
+        if (!activeLog) return null;
+        const prev = previousSets.find(p => p.set_number === activeLog.setNumber);
+        const prevStr = prev && prev.weight !== null && prev.weight !== undefined
+          ? `${prev.weight === 0 ? "BW" : displayPrevWeight(prev.weight, prev.weight_unit)} × ${prev.reps}`
+          : null;
+        const weightFilled = activeLog.weight !== undefined && activeLog.weight !== null;
+        const repsFilled = activeLog.reps !== undefined && activeLog.reps !== null && activeLog.reps > 0;
+        const canLog = (weightFilled || isBW) && repsFilled;
+        return (
+          <NumericKeypad
+            open
+            mode={keypadField.field}
+            value={keypadValue}
+            label={`Set ${activeLog.setNumber} · ${keypadField.field === "weight" ? `Weight (${weightLabel})` : "Reps"}`}
+            unit={keypadField.field === "weight" ? weightLabel : "reps"}
+            previous={prevStr}
+            currentRPE={activeLog.rpe}
+            canLog={canLog}
+            onChange={commitKeypadValue}
+            onClose={() => setKeypadField(null)}
+            onNext={keypadField.field === "weight"
+              ? () => openKeypad(keypadField.setIdx, "reps")
+              : () => {
+                  // Advance to next incomplete set's weight, or close
+                  const nextIdx = logs.findIndex((l, i) => i > keypadField.setIdx && !l.completed);
+                  if (nextIdx !== -1) openKeypad(nextIdx, "weight");
+                  else setKeypadField(null);
+                }
+            }
+            onLog={canLog ? () => {
+              hapticSuccess();
+              const idx = keypadField.setIdx;
+              setKeypadField(null);
+              onCompleteSet(idx);
+            } : undefined}
+            onOpenRPE={() => {
+              setKeypadField(null);
+              setRpePopoverSetIdx(keypadField.setIdx);
+            }}
+          />
+        );
+      })()}
     </Card>
   );
 };
