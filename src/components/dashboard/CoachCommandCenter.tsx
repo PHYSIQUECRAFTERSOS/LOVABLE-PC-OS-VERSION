@@ -98,6 +98,12 @@ interface PhaseDeadlineClient {
   phaseName: string;
   endDate: string;
   daysLeft: number;
+  /** "overdue" | "due" — drives bucketing without relying on daysLeft sign. */
+  kind: "overdue" | "due";
+}
+
+interface PhaseDeadlineSummary {
+  activeClients: number;
 }
 
 interface ProgramRenewal {
