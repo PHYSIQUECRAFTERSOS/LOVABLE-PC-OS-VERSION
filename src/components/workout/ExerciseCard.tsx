@@ -245,13 +245,41 @@ const ExerciseCard = ({
   const isBW = isBodyweight(equipment);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const { convertWeight, weightLabel } = useUnitPreferences();
+  const isMobile = useIsMobile();
 
   // Local string state for weight inputs to preserve trailing decimals (e.g. "105.")
   const [weightStrings, setWeightStrings] = useState<Record<number, string>>({});
 
+  // Custom keypad state (mobile-only): which set/field is being edited
+  const [keypadField, setKeypadField] = useState<{ setIdx: number; field: "weight" | "reps" } | null>(null);
+  const [keypadValue, setKeypadValue] = useState("");
+  const [rpePopoverSetIdx, setRpePopoverSetIdx] = useState<number | null>(null);
+
   // Long-press support
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Open the keypad targeted at a specific set/field, prefilling the buffer.
+  const openKeypad = useCallback((setIdx: number, field: "weight" | "reps") => {
+    const log = logs[setIdx];
+    if (!log || log.completed) return;
+    const current = field === "weight" ? log.weight : log.reps;
+    setKeypadValue(current !== undefined && current !== null ? String(current) : "");
+    setKeypadField({ setIdx, field });
+  }, [logs]);
+
+  const commitKeypadValue = useCallback((raw: string) => {
+    if (!keypadField) return;
+    setKeypadValue(raw);
+    if (raw === "" || raw === ".") {
+      onUpdateLog(keypadField.setIdx, keypadField.field, undefined);
+      return;
+    }
+    const num = keypadField.field === "weight" ? parseFloat(raw) : parseInt(raw, 10);
+    if (!isNaN(num) && num >= 0) {
+      onUpdateLog(keypadField.setIdx, keypadField.field, num);
+    }
+  }, [keypadField, onUpdateLog]);
 
   const handleTouchStart = useCallback(() => {
     longPressTimer.current = setTimeout(() => {
