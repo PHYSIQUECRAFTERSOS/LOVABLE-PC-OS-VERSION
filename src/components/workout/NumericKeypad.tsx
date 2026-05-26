@@ -202,6 +202,20 @@ const NumericKeypad = ({
               </button>
             ))}
           </div>
+          {onLog && (
+            <button
+              className={cn(
+                "mt-2 w-full h-11 rounded-xl text-sm font-bold flex items-center justify-center gap-1 shadow-sm transition-colors",
+                canLog
+                  ? "bg-primary text-primary-foreground active:bg-primary/90"
+                  : "bg-primary/40 text-primary-foreground/70 pointer-events-none",
+              )}
+              onClick={handleLog}
+              disabled={!canLog}
+            >
+              <Check className="h-4 w-4" /> Log Set
+            </button>
+          )}
         </div>
       ) : (
         // 4-column grid: cols 1-3 = digits (3 wide), col 4 = side actions
