@@ -657,7 +657,7 @@ const ExerciseCard = ({
             open
             mode={keypadField.field}
             value={keypadValue}
-            label={`Set ${activeLog.setNumber} · ${keypadField.field === "weight" ? `Weight (${weightLabel})` : "Reps"}`}
+            fieldKey={`${keypadField.setIdx}:${keypadField.field}`}
             unit={keypadField.field === "weight" ? weightLabel : "reps"}
             previous={prevStr}
             currentRPE={activeLog.rpe}
@@ -667,7 +667,6 @@ const ExerciseCard = ({
             onNext={keypadField.field === "weight"
               ? () => openKeypad(keypadField.setIdx, "reps")
               : () => {
-                  // Advance to next incomplete set's weight, or close
                   const nextIdx = logs.findIndex((l, i) => i > keypadField.setIdx && !l.completed);
                   if (nextIdx !== -1) openKeypad(nextIdx, "weight");
                   else setKeypadField(null);
@@ -676,11 +675,17 @@ const ExerciseCard = ({
             onLog={canLog ? () => {
               hapticSuccess();
               const idx = keypadField.setIdx;
-              setKeypadField(null);
               onCompleteSet(idx);
+              // Auto-advance keypad to next unlogged set's weight (Strong-style).
+              // Parent's completeSet pre-fills the next empty set with this set's
+              // weight/reps; keypad opens fresh so first digit overwrites.
+              const nextIdx = logs.findIndex((l, i) => i > idx && !l.completed);
+              if (nextIdx !== -1) openKeypad(nextIdx, "weight");
+              else setKeypadField(null);
             } : undefined}
             onSelectRPE={(rpe) => onUpdateLog(keypadField.setIdx, "rpe", rpe)}
           />
+
         );
       })()}
     </Card>

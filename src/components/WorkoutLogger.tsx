@@ -697,12 +697,26 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         isPR,
       };
 
-      // Placeholder-only UX (Strong-style): do NOT pre-fill the next set with
-      // this set's weight/reps. Unlogged sets stay null; the UI shows the
-      // previous-session value as a faded placeholder for reference only.
+      // Strong-style auto-carry: pre-fill the NEXT unlogged set (in this exercise)
+      // with the just-logged weight/reps — but only if that set is currently empty.
+      // Never overwrite a value the user already typed. Coach prescriptions are
+      // not touched (we only fill the live log buffer).
+      const nextIdx = newExercises[exIdx].logs.findIndex(
+        (l, i) => i > setIdx && !l.completed,
+      );
+      if (nextIdx !== -1) {
+        const nextLog = newExercises[exIdx].logs[nextIdx];
+        if (nextLog.weight === undefined || nextLog.weight === null) {
+          nextLog.weight = weight;
+        }
+        if (nextLog.reps === undefined || nextLog.reps === null || nextLog.reps === 0) {
+          nextLog.reps = logSnapshot.reps;
+        }
+      }
 
       return newExercises;
     });
+
 
     // Persist the set independently — uses values captured at click time.
     persistSet(exerciseId, completedLogForPersist);

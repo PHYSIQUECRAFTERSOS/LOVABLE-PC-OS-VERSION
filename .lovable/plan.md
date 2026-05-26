@@ -1,92 +1,68 @@
-# Fix: HealthKit / StoreKit / Rest-Timer Audio all silently failing on TestFlight
+## Workout Keypad v2 — Strong-style Side Layout
 
-## Root cause (single shared bug)
+Three scoped changes to the mobile in-workout set-logger. No DB / no business logic outside the keypad + the `completeSet` carry-over rule.
 
-All three failures have the same cause. In Capacitor 7/8, **local custom Swift plugins added to the App target are NOT auto-discovered**. The `@objc` + `CAPBridgedPlugin` pattern only auto-registers plugins shipped via Cocoapods/SPM. Local plugins must be **manually registered** in a custom `CAPBridgeViewController` subclass via `bridge?.registerPluginInstance(...)` inside `capacitorDidLoad()`. The official Capacitor v7 docs explicitly require this step (https://capacitorjs.com/docs/v7/ios/custom-code#register-the-plugin).
+### 1) Keypad layout & visuals (`src/components/workout/NumericKeypad.tsx`)
 
-Our repo has three local plugins — `AudioMixPlugin`, `HealthKitPlugin`, `StoreKitPlugin` — and none of them are registered with the bridge. That's why on TestFlight every JS call falls through to the web-fallback `UNIMPLEMENTED` rejection:
+Rebuild the layout to mirror Strong exactly:
 
-- `HealthKit.isAvailable()` rejects → JS shows "Make sure HealthKit is enabled in Xcode Capabilities"
-- `StoreKit.getProducts()` rejects/returns empty → "Unable to connect to App Store"
-- `AudioMixPlugin.playRestTimerCue()` rejects silently → zero sound when timer hits 0
-
-That also explains why Spotify is no longer being stopped — last round we removed `@capacitor-community/native-audio` so AudioMix is now the *only* path that touches `AVAudioSession`. With it unregistered, nothing native runs at all, so Spotify is untouched but the cue is silent.
-
-## Why your Xcode checks looked correct
-
-Target Membership being ✓ only guarantees the `.swift` files **compile into the binary**. It does NOT register them with the Capacitor JS bridge. Two separate steps. We've only ever done step 1.
-
-## The fix (3 small additions)
-
-### 1. New file: `ios-plugin/MainViewController.swift`
-
-A `CAPBridgeViewController` subclass that registers all three plugin instances on bridge load:
-
-```swift
-import UIKit
-import Capacitor
-
-class MainViewController: CAPBridgeViewController {
-    override open func capacitorDidLoad() {
-        bridge?.registerPluginInstance(AudioMixPlugin())
-        bridge?.registerPluginInstance(HealthKitPlugin())
-        bridge?.registerPluginInstance(StoreKitPlugin())
-    }
-}
+```text
+┌─────────────────────────────────────┐
+│ 1     2     3   │   RPE             │
+│ 4     5     6   │   Next            │
+│ 7     8     9   │   −     +         │
+│ .     0     ⌫   │   ✓ Log Set       │
+└─────────────────────────────────────┘
 ```
 
-This is the canonical Capacitor 7/8 pattern. Once registered, the existing JS `registerPlugin("AudioMixPlugin" | "HealthKitPlugin" | "StoreKit")` calls bind to the live native instances.
+- 4-column grid: cols 1–3 = digits (bigger, ~h-14 tall, text-2xl), col 4 = side action stack.
+- Side stack rows: `RPE` (opens existing inline RPE picker, unchanged behavior), `Next` (advance field/set), `−  +` split (context-aware adjuster, see below), `Log Set` (gold/primary, full-height).
+- Remove: `Done` button, the `−2 / −1 / +1 / +2` adjuster row, the `Set 1 · Reps` header line, and the small "Prev: …" inline text (Prev already shows in the row above).
+- Keep a single compact header line with the current value + unit (so the user sees what they're typing).
+- Colors: white surface with black digits for max contrast — use semantic tokens (`bg-background` already dark; add a `bg-white text-black` keypad surface with `border-border`). Active/pressed state uses `bg-muted`. Primary `Log Set` keeps gold (`bg-primary text-primary-foreground`).
+- Haptics retained.
 
-### 2. Update `scripts/post-cap-sync.sh`
+### 2) `−` / `+` adjuster behavior (mode-aware)
 
-Already copies `ios-plugin/*.swift` to `ios/App/App/Plugins/`, so `MainViewController.swift` rides along automatically. Add an echo reminding the user to also wire the storyboard (one-time step, see #3).
+- Weight mode: step = **5** (lb or kg per user's display unit — we just apply ±5 to the numeric value).
+- Reps mode: step = **1**.
+- Tapping the adjuster operates on the current buffer value and clears the "fresh" flag so further digit taps append.
 
-### 3. One-time Xcode wiring (manual, with screenshots in the plan response)
+### 3) Tap reps while keypad open → keypad re-targets instantly (bug fix)
 
-In Xcode (once, then it persists across `cap sync`):
+Root cause: `NumericKeypad` renders a full-screen invisible overlay (`fixed inset-0 z-[85]`) that catches the tap on the reps cell, calls `onClose`, and consumes the click — so the reps button needs a second tap to register.
 
-a. Drag `ios/App/App/Plugins/MainViewController.swift` into the App target's Project Navigator (Copy items if needed → ✓, Add to targets: App → ✓). Confirm with your standard 3-plugin check.
+Fix: remove the click-blocking overlay entirely. The keypad stays open until the user taps `Log Set`, `Next`, the row's existing `Log` button, the `×` on a set, or switches exercise/closes the session. Tapping any other weight/reps cell already calls `openKeypad(...)` which atomically re-targets the keypad — no close-then-reopen.
 
-b. Open `ios/App/App/Base.lproj/Main.storyboard` → select the **Bridge View Controller** → in the right sidebar (Identity Inspector) change **Class** from `CAPBridgeViewController` to `MainViewController` and **Module** to `App`.
+No `Done` button is needed (per spec); the keypad auto-closes when the active set is logged or when the user taps a non-input area that doesn't capture clicks. If the user wants a manual dismiss we keep a small chevron-down handle on the header bar.
 
-c. Build & run.
+### 4) Fresh-overwrite typing on every open (already partially in place)
 
-That's it for the silent-cue / HealthKit / StoreKit triad. After verifying `MainViewController.capacitorDidLoad()` runs (add a `print("[Caps] Plugins registered")` for the first build), all three flows light up.
+`freshRef` is already reset to `true` whenever `open` flips or `label` changes. We will additionally reset it when the **field target** changes (setIdx or field) so that after auto-advancing to the next set, the very first digit press wipes the carried-over value — matching Strong.
 
-## Spotify mixing (confirms the right behavior)
+### 5) Auto-carry weight & reps to next set on Log (`src/components/WorkoutLogger.tsx`)
 
-You chose "cue plays OVER Spotify, music never pauses." That's already what `AudioMixPlugin.configureMixing()` requests:
+This reverses a prior decision (memory currently says "unlogged sets stay null"). Per the user's new explicit spec:
 
-```swift
-session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-```
+In `completeSet`, after marking the current set complete, copy the just-logged `weight` and `reps` into the next **unlogged** set in the same exercise (only if that set is currently empty — never overwrite a value the user already typed). Coach-set targets are not touched (we only fill the live log buffer, not program prescriptions).
 
-Once the plugin is actually registered and called, this category is set on the AVAudioSession at preload time, at every `enableMixing()` call from JS, and re-asserted immediately before `playRestTimerCue()`. The cue layers on top of Spotify without ducking or pausing. No further code change needed — only the registration fix above.
+Memory rule "Placeholder-only (Strong-style), unlogged sets stay null" will be replaced with a new memory: *"After Log, auto-carry weight + reps to the next empty set; fresh keypad open overwrites on first digit."*
 
-For backgrounded/locked rest completion, the existing `LocalNotifications` path with the bundled `rest-timer-complete.mp3` continues to fire (that path was never broken).
+### 6) Out of scope (NOT touched)
 
-## Verification checklist (run on a real device, in order)
+- DB schema, RLS, edge functions, persistence path (`persistSet`).
+- RPE selector internals — keypad just opens the existing popover via `onSelectRPE`.
+- Rest timer, PR detection, swipe-to-delete, set add/remove.
+- Desktop set rows (native inputs untouched).
+- Any non-workout screens.
 
-1. Fresh `npx cap sync` + Xcode clean build + TestFlight upload.
-2. With Spotify playing in the foreground → background it → open PC OS → start a workout → log a set → wait for rest timer to hit 0.
-   - ✅ Cue plays audibly
-   - ✅ Spotify keeps playing uninterrupted (no pause, no duck)
-3. Settings → Connected Devices → Connect Apple Health.
-   - ✅ iOS native permission sheet appears (no red error toast)
-4. Subscribe screen.
-   - ✅ Both products render with prices (no "Unable to connect to App Store")
-   - ✅ Tap Subscribe → native Apple payment sheet appears
+### Acceptance
 
-## Required steps after merge
-
-1. `npx cap sync`
-2. Run `./scripts/post-cap-sync.sh`
-3. **One-time** in Xcode: add `MainViewController.swift` to the App target and re-class the storyboard's root VC to `MainViewController` (instructions above)
-4. Archive → TestFlight
-
-## Files touched
-
-- **New**: `ios-plugin/MainViewController.swift`
-- **Edit**: `scripts/post-cap-sync.sh` (echo a reminder about the storyboard re-class step)
-
-No JS/React changes. No database changes. No new dependencies.
+1. Mobile keypad matches the right-side-stack layout in the Strong screenshot.
+2. Digits are visibly larger and on a white surface with black text.
+3. `−` / `+` apply ±5 in weight mode and ±1 in reps mode.
+4. No `Done`, no `−2/−1/+1/+2` row, no `Set 1 · Reps` header bar.
+5. RPE button opens the existing RPE picker and writes back to the active set.
+6. With keypad open on Weight, tapping the Reps cell switches the keypad to Reps in one tap (no double-tap).
+7. After tapping `Log` on Set N, Set N+1's weight and reps are pre-filled from Set N, the keypad auto-opens on Set N+1 weight, and typing any digit replaces the pre-filled value entirely.
+8. Typecheck passes; no other screens regress.
