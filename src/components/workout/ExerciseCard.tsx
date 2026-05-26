@@ -679,10 +679,7 @@ const ExerciseCard = ({
               setKeypadField(null);
               onCompleteSet(idx);
             } : undefined}
-            onOpenRPE={() => {
-              setKeypadField(null);
-              setRpePopoverSetIdx(keypadField.setIdx);
-            }}
+            onSelectRPE={(rpe) => onUpdateLog(keypadField.setIdx, "rpe", rpe)}
           />
         );
       })()}
