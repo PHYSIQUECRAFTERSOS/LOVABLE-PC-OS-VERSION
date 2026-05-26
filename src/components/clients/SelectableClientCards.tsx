@@ -372,7 +372,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         assignments.map((a: any) => ({
           client_id: a.client_id,
           program_id: a.program_id,
-          start_date: programStartById.get(a.program_id) || null,
+          start_date: programStartById.get(a.program_id) || a.start_date || null,
         })),
         (programs || []).map((p: any) => ({ id: p.id, start_date: p.start_date })),
         allPhases as any,
