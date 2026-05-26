@@ -418,9 +418,19 @@ const ExerciseCard = ({
 
         {logs.map((log, setIdx) => {
           const prev = previousSets.find(p => p.set_number === log.setNumber);
+          const prevW = prev && prev.weight !== null && prev.weight !== undefined
+            ? (prev.weight === 0 ? "BW" : String(displayPrevWeight(prev.weight, prev.weight_unit)))
+            : (isBW ? "BW" : "0");
+          const prevR = prev && prev.reps !== null && prev.reps !== undefined ? String(prev.reps) : "0";
           const prevLabel = prev && (prev.weight !== null && prev.weight !== undefined)
             ? `${prev.weight === 0 ? "BW" : displayPrevWeight(prev.weight, prev.weight_unit)}×${prev.reps}${prev.rir != null ? ` @${prev.rir}` : ""}`
             : "—";
+          const isKeypadActiveWeight = keypadField?.setIdx === setIdx && keypadField.field === "weight";
+          const isKeypadActiveReps = keypadField?.setIdx === setIdx && keypadField.field === "reps";
+
+          // Mobile uses a tap-target button that opens the custom keypad; desktop keeps native Inputs.
+          const weightDisplay = log.weight !== undefined && log.weight !== null ? String(log.weight) : "";
+          const repsDisplay = log.reps !== undefined && log.reps !== null ? String(log.reps) : "";
 
           const setRow = (
             <div
@@ -439,63 +449,89 @@ const ExerciseCard = ({
               <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
               <div className="relative">
-                 {/* Weight input — stores RAW value in client's preferred unit (no conversion) */}
-                 <Input
-                   type="text"
-                   inputMode="decimal"
-                   value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : (log.weight !== undefined && log.weight !== null ? String(log.weight) : "")}
-                   onChange={(e) => {
-                     const val = e.target.value;
-                     if (val === "") {
-                       setWeightStrings(prev => ({ ...prev, [setIdx]: "" }));
-                       onUpdateLog(setIdx, "weight", undefined);
-                     } else if (/^\d*\.?\d*$/.test(val)) {
-                       setWeightStrings(prev => ({ ...prev, [setIdx]: val }));
-                       // Commit the raw numeric value (no unit conversion)
-                       if (!val.endsWith(".")) {
-                         const num = parseFloat(val);
-                         if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
-                       }
-                     }
-                   }}
-                   onBlur={() => {
-                     // On blur, commit any trailing-decimal value and clear local string state
-                     const str = weightStrings[setIdx];
-                     if (str !== undefined && str !== "") {
-                       const num = parseFloat(str);
-                       if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
-                     }
-                     setWeightStrings(prev => { const n = { ...prev }; delete n[setIdx]; return n; });
-                   }}
-                   placeholder={isBW ? "BW" : "0"}
-                   className="text-sm h-8"
-                 />
+                {isMobile && !log.completed ? (
+                  <button
+                    type="button"
+                    onClick={() => openKeypad(setIdx, "weight")}
+                    className={cn(
+                      "w-full h-8 px-2 rounded-md border bg-background text-sm text-left tabular-nums transition-colors",
+                      isKeypadActiveWeight ? "border-primary ring-1 ring-primary/40" : "border-input",
+                      !weightDisplay && "text-muted-foreground/50",
+                    )}
+                  >
+                    {weightDisplay || prevW}
+                  </button>
+                ) : (
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    readOnly={log.completed && isMobile}
+                    value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : weightDisplay}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        setWeightStrings(prev => ({ ...prev, [setIdx]: "" }));
+                        onUpdateLog(setIdx, "weight", undefined);
+                      } else if (/^\d*\.?\d*$/.test(val)) {
+                        setWeightStrings(prev => ({ ...prev, [setIdx]: val }));
+                        if (!val.endsWith(".")) {
+                          const num = parseFloat(val);
+                          if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
+                        }
+                      }
+                    }}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => {
+                      const str = weightStrings[setIdx];
+                      if (str !== undefined && str !== "") {
+                        const num = parseFloat(str);
+                        if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "weight", num);
+                      }
+                      setWeightStrings(prev => { const n = { ...prev }; delete n[setIdx]; return n; });
+                    }}
+                    placeholder={prevW}
+                    className="text-sm h-8"
+                  />
+                )}
                 {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
                   <span className="absolute -bottom-3.5 left-0 text-[9px] text-muted-foreground">Bodyweight</span>
                 )}
               </div>
 
-              {/* Reps field — editable even after completion, with RPE selector */}
+              {/* Reps cell — editable. RPE shown inline when completed. */}
               <div className="relative">
                 {log.completed ? (
                   <div className="flex items-center gap-0.5">
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={log.reps ?? ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "") {
-                          onUpdateLog(setIdx, "reps", undefined);
-                        } else {
-                          const num = parseInt(val);
-                          if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
-                        }
-                      }}
-                      className="text-sm h-8 w-[52px] text-center tabular-nums"
-                    />
+                    {isMobile ? (
+                      <button
+                        type="button"
+                        onClick={() => openKeypad(setIdx, "reps")}
+                        className="h-8 w-[52px] rounded-md border border-input bg-background text-sm text-center tabular-nums"
+                      >
+                        {repsDisplay || "—"}
+                      </button>
+                    ) : (
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={repsDisplay}
+                        onFocus={(e) => e.currentTarget.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            onUpdateLog(setIdx, "reps", undefined);
+                          } else {
+                            const num = parseInt(val);
+                            if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
+                          }
+                        }}
+                        className="text-sm h-8 w-[52px] text-center tabular-nums"
+                      />
+                    )}
                     <RPESelector
                       currentRPE={log.rpe}
+                      open={rpePopoverSetIdx === setIdx}
+                      onOpenChange={(o) => setRpePopoverSetIdx(o ? setIdx : null)}
                       onSelect={(rpe) => onUpdateLog(setIdx, "rpe", rpe)}
                     >
                       <button className="h-8 px-1.5 rounded-md border border-border bg-secondary/40 text-[10px] font-semibold flex items-center justify-center hover:bg-secondary transition-colors shrink-0">
@@ -507,11 +543,24 @@ const ExerciseCard = ({
                       </button>
                     </RPESelector>
                   </div>
+                ) : isMobile ? (
+                  <button
+                    type="button"
+                    onClick={() => openKeypad(setIdx, "reps")}
+                    className={cn(
+                      "w-full h-8 px-2 rounded-md border bg-background text-sm text-left tabular-nums transition-colors",
+                      isKeypadActiveReps ? "border-primary ring-1 ring-primary/40" : "border-input",
+                      !repsDisplay && "text-muted-foreground/50",
+                    )}
+                  >
+                    {repsDisplay || prevR}
+                  </button>
                 ) : (
                   <Input
                     type="text"
                     inputMode="numeric"
-                    value={log.reps ?? ""}
+                    value={repsDisplay}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => {
                       const val = e.target.value;
                       if (val === "") {
@@ -521,7 +570,7 @@ const ExerciseCard = ({
                         if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
                       }
                     }}
-                    placeholder="0"
+                    placeholder={prevR}
                     className="text-sm h-8"
                   />
                 )}
@@ -534,7 +583,12 @@ const ExerciseCard = ({
                   className="h-8 px-3"
                   variant={log.completed ? "secondary" : "default"}
                   disabled={log.completed || !canLogSet(log)}
-                  onClick={() => onCompleteSet(setIdx)}
+                  onClick={() => {
+                    if (log.isPR || checkWillBePR(log)) hapticCelebrate();
+                    else hapticSuccess();
+                    setKeypadField(null);
+                    onCompleteSet(setIdx);
+                  }}
                 >
                   {log.completed ? <Check className="h-3.5 w-3.5" /> : "Log"}
                 </Button>
