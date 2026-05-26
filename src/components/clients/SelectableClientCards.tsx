@@ -25,6 +25,7 @@ import { Progress } from "@/components/ui/progress";
 import { subDays, format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { derivePhaseDates, type PhaseLike } from "@/lib/phaseDates";
+import { computeClientPhaseStatuses } from "@/lib/clientPhaseStatus";
 import ClientPreviewDialog from "./ClientPreviewDialog";
 import { toast } from "sonner";
 
