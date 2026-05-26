@@ -584,8 +584,7 @@ const ExerciseCard = ({
                   variant={log.completed ? "secondary" : "default"}
                   disabled={log.completed || !canLogSet(log)}
                   onClick={() => {
-                    if (log.isPR || checkWillBePR(log)) hapticCelebrate();
-                    else hapticSuccess();
+                    hapticSuccess();
                     setKeypadField(null);
                     onCompleteSet(setIdx);
                   }}
