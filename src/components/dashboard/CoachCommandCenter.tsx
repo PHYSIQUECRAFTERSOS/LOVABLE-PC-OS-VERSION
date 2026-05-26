@@ -32,6 +32,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
+import {
+  computeClientPhaseStatuses,
+  isDueWithin,
+  isOverdue,
+} from "@/lib/clientPhaseStatus";
 
 // ── Types ──
 
