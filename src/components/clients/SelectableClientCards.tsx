@@ -51,6 +51,11 @@ interface PhaseInfo {
   daysLeft: number;
   totalDays: number;
   state: "current" | "upcoming" | "none";
+  /** Next phase queued in the same program, if any. */
+  nextPhaseName?: string;
+  nextPhaseStartDate?: string;
+  /** True when no current phase covers today (program fully ended). */
+  programEnded?: boolean;
 }
 
 interface SelectableClientCardsProps {
