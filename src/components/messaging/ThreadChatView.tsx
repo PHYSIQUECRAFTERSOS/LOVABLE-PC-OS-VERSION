@@ -656,6 +656,7 @@ const ThreadChatView = ({
           )}
           {!isRecording && (
             <Textarea
+              ref={textareaRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -663,6 +664,49 @@ const ThreadChatView = ({
               className="flex-1 min-h-[40px] max-h-[120px] text-[15px] resize-none py-2"
               rows={1}
             />
+          )}
+          {!isRecording && (
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="hidden sm:inline-flex shrink-0"
+                  aria-label="Insert emoji"
+                >
+                  <Smile className="h-5 w-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="end"
+                sideOffset={8}
+                className="p-0 w-auto border-none bg-transparent shadow-none"
+              >
+                <EmojiPicker
+                  theme={Theme.DARK}
+                  emojiStyle={EmojiStyle.NATIVE}
+                  lazyLoadEmojis
+                  onEmojiClick={(data) => {
+                    const ta = textareaRef.current;
+                    const emoji = data.emoji;
+                    if (ta && typeof ta.selectionStart === "number") {
+                      const start = ta.selectionStart;
+                      const end = ta.selectionEnd ?? start;
+                      setNewMessage((prev) => prev.slice(0, start) + emoji + prev.slice(end));
+                      requestAnimationFrame(() => {
+                        ta.focus();
+                        const pos = start + emoji.length;
+                        ta.setSelectionRange(pos, pos);
+                      });
+                    } else {
+                      setNewMessage((prev) => prev + emoji);
+                    }
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
           )}
           {newMessage.trim() ? (
             <Button
