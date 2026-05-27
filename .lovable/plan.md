@@ -1,30 +1,19 @@
-## Goal
-On the Clients page (coach view), make the **Next Phase** column visually mirror the **Current Phase** column with a progress bar, so you can scan the roster and instantly see who has a phase queued vs. who doesn't.
+## Add Emoji Picker to Messaging (Desktop Only)
 
-## Where
-`src/components/clients/SelectableClientCards.tsx` — `renderNext()` (around lines 788–812) and `renderCurrent()` (725–786) for size parity.
+Add an emoji picker button to the message composer in `ThreadChatView.tsx`, shown only on desktop (`sm:` and up) so mobile users continue using the native iOS/Android keyboard emoji picker.
 
-## Changes (UI only, no data/logic changes)
+### Changes
 
-1. **Next Phase — queued state** (when `phase.nextPhaseName` exists):
-   - Top row: phase name (truncated) on left, `"in Xd"` or `"Starts {date}"` on right in muted text.
-   - Bottom row: a `Progress` bar at `value={0}` styled in the **gold/primary** color (`hsl(var(--primary))`) to signal "queued, not started", plus a `Queued` label on the right where the % currently lives in Current Phase. This gold filled-but-empty bar is the visual cue you want for "has a next phase".
+**1. Install `emoji-picker-react`**
+Lightweight, themable, has search + categories + recently used — matches the Trainerize-style picker in your screenshot.
 
-2. **Next Phase — empty state** (no next queued):
-   - Same two-row structure as above for alignment.
-   - Bar rendered at `value={0}` with **muted** color (or destructive when `isOverdueNoNext`).
-   - Right-side label: `"None"` (muted) or `"Needed"` (destructive) — keeps the existing "Needs new phase" / "No next phase queued" copy directly above the bar.
+**2. `src/components/messaging/ThreadChatView.tsx`**
+- Add a Smile-icon button between the Textarea and the Send/Voice button, wrapped in `hidden sm:flex` so it only appears on desktop.
+- Wrap it in a Radix `Popover`; click opens the emoji picker anchored above the input.
+- On emoji select: insert the emoji at the current cursor position in `newMessage` (preserve text on both sides), close the popover, refocus the textarea.
+- Use dark theme to match the app (`Theme.DARK`), with `lazyLoadEmojis` for performance.
 
-3. **Tighten bar height** from `h-2` → `h-1.5` in **both** `renderCurrent()` and `renderNext()` so the two stacked bars fit comfortably without growing card height. Bump label font from `text-[10px]` to stay readable; no other typography changes.
-
-4. Keep the existing grid (`grid-cols-1 sm:grid-cols-2`) so on the current desktop viewport the two phases sit side-by-side as today; the visual rhythm of two matching bars is what enables fast scanning.
-
-## Out of scope
-- No changes to `computeClientPhaseStatuses`, queries, RLS, or the phase data model.
-- No change to mobile card layout beyond the height tweak.
-- Empty "No active phase" current state keeps its existing `Progress value={0}` (already there).
-
-## Acceptance
-- Scott Szeto's card shows: Current bar (orange, 95%, "3d left") + Next bar (gold, 0%, "Phase 2: Standard Sets — Starts May 30 / Queued").
-- Clients with no next phase show a muted/destructive flat bar so the *absence* of gold is the scan signal.
-- Card heights stay within ~1–2 px of current.
+### Out of scope
+- No changes to mobile composer.
+- No changes to message send logic, attachments, voice recording, or any DB/RLS.
+- No emoji reactions changes (separate feature already in `EmojiReactions.tsx`).
