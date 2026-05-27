@@ -321,13 +321,18 @@ const ClientCheckinHistory = ({ clientId }: { clientId: string }) => {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <Card className="mt-1 border-primary/20">
-                    <CardContent className="py-4 space-y-3">
+                    <CardContent className="py-4 space-y-5">
                       {subResponses?.map((r: any, idx: number) => (
-                        <div key={r.id} className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground">
-                            {idx + 1}. {r.checkin_questions?.question_text}
-                          </p>
-                          <p className="text-sm text-foreground bg-muted/30 p-2 rounded">
+                        <div key={r.id} className="space-y-2">
+                          <div className="flex items-start gap-2">
+                            <span className="shrink-0 mt-0.5 inline-flex items-center justify-center min-w-[26px] h-[22px] px-1.5 rounded text-[11px] font-bold bg-primary/15 text-primary tracking-wide">
+                              Q{idx + 1}
+                            </span>
+                            <p className="text-sm font-semibold text-primary leading-snug tracking-wide">
+                              {r.checkin_questions?.question_text}
+                            </p>
+                          </div>
+                          <p className="text-[15px] leading-relaxed text-foreground bg-card border border-border/60 border-l-2 border-l-primary/60 p-3 rounded-md whitespace-pre-wrap">
                             {getAnswerDisplay(r)}
                           </p>
                         </div>
