@@ -52,6 +52,7 @@ interface OnboardingData {
 
 interface SignatureRecord {
   id: string;
+  document_template_id: string | null;
   document_version: string;
   signed_name: string;
   signed_at: string;
@@ -60,6 +61,7 @@ interface SignatureRecord {
   pdf_storage_path: string | null;
   document_templates: { title: string } | null;
 }
+
 
 interface Photo {
   id: string;
