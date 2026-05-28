@@ -263,15 +263,23 @@ const OnboardingTab = ({ clientId }: Props) => {
             <div className="space-y-3">
               {/* Onboarding waiver from onboarding_profiles */}
               {profile?.waiver_signed && (
-                <div className="rounded-lg border border-border p-4 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">
+                <button
+                  type="button"
+                  onClick={openWaiverPreview}
+                  className="w-full text-left rounded-lg border border-border p-4 space-y-2 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                         Onboarding Waiver / Disclaimer
                       </p>
                       <p className="text-xs text-muted-foreground">Signed during onboarding</p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">Onboarding</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px]">Onboarding</Badge>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-0.5">
                     {profile.waiver_signature && (
@@ -281,39 +289,38 @@ const OnboardingTab = ({ clientId }: Props) => {
                       <p>Date signed: <span className="text-foreground">{format(new Date(profile.waiver_signed_at), "MMMM d, yyyy 'at' h:mm a")}</span></p>
                     )}
                   </div>
-                </div>
+                </button>
               )}
               {/* Document signatures from client_signatures */}
               {signatures.map((sig) => (
-                <div key={sig.id} className="rounded-lg border border-border p-4 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">
-                        {(sig.document_templates as any)?.title || "Document"}
+                <button
+                  type="button"
+                  key={sig.id}
+                  onClick={() => openSignaturePreview(sig)}
+                  className="w-full text-left rounded-lg border border-border p-4 space-y-2 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        {sig.document_templates?.title || "Document"}
                       </p>
                       <p className="text-xs text-muted-foreground">Version: {sig.document_version}</p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">{sig.tier_at_signing}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px]">{sig.tier_at_signing}</Badge>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-0.5">
                     <p>Signed name: <span className="text-foreground">{sig.signed_name}</span></p>
                     <p>Date signed: <span className="text-foreground">{format(new Date(sig.signed_at), "MMMM d, yyyy 'at' h:mm a")}</span></p>
                     {sig.ip_address && <p>IP: {sig.ip_address}</p>}
                   </div>
-                  {sig.pdf_storage_path && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs border-primary/30 text-primary hover:text-primary"
-                      onClick={() => handleDownloadPdf(sig.pdf_storage_path!)}
-                    >
-                      <Download className="h-3 w-3" />
-                      Download PDF
-                    </Button>
-                  )}
-                </div>
+                </button>
               ))}
             </div>
+
           )}
         </CardContent>
       </Card>
