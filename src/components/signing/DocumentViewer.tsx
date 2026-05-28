@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { renderDocumentBody } from "@/lib/legalDocuments";
+
 
 interface Props {
   title: string;
