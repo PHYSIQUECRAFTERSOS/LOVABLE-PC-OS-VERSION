@@ -85,13 +85,14 @@ const activityLabels: Record<string, string> = {
   moderately_active: "Moderately Active",
   very_active: "Very Active",
 };
-
 const OnboardingTab = ({ clientId }: Props) => {
   const [profile, setProfile] = useState<OnboardingData | null>(null);
+  const [clientFullName, setClientFullName] = useState<string | null>(null);
   const [signatures, setSignatures] = useState<SignatureRecord[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewDocument | null>(null);
 
   useEffect(() => {
     loadAll();
