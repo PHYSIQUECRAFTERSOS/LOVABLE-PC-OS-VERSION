@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { FileText, Download, Camera, AlertTriangle, X } from "lucide-react";
+import { FileText, Camera, AlertTriangle, X, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import SignedDocumentPreviewDialog, {
+  type PreviewDocument,
+} from "@/components/signing/SignedDocumentPreviewDialog";
+import { WAIVER_BODY } from "@/lib/legalDocuments";
+
 
 interface Props {
   clientId: string;
