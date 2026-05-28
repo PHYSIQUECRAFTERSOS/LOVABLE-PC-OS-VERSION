@@ -37,8 +37,6 @@ const DocumentViewer = ({ title, body, onAcknowledge }: Props) => {
   const renderContent = () => renderDocumentBody(body);
 
 
-  };
-
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[calc(100dvh-12rem)] sm:max-h-[70vh]">
       {/* Scroll progress bar */}
