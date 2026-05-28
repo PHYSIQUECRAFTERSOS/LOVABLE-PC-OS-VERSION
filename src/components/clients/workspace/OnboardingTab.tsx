@@ -389,7 +389,14 @@ const OnboardingTab = ({ clientId }: Props) => {
           />
         </div>
       )}
+
+      <SignedDocumentPreviewDialog
+        open={!!preview}
+        onOpenChange={(o) => !o && setPreview(null)}
+        document={preview}
+      />
     </div>
+
   );
 };
 
