@@ -172,7 +172,7 @@ const OnboardingTab = ({ clientId }: Props) => {
     });
   };
 
-  };
+
 
   if (loading) {
     return (
