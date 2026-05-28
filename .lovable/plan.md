@@ -1,23 +1,22 @@
-## Improve Check-In History Readability
+## Improve Onboarding Tab Readability
 
-The questions render as `text-xs text-muted-foreground` (tiny + faded) and answers as `text-sm` on a barely-visible `bg-muted/30`. In dark mode the muted gray on near-black background fails contrast and forces squinting.
+Apply the same readability treatment from `ClientCheckinHistory` to the coach-side Onboarding tab (`src/components/clients/workspace/OnboardingTab.tsx`) so labels and answers pop in dark mode.
 
-### Changes — `src/components/checkin/ClientCheckinHistory.tsx` (lines ~325-335)
+### Changes — `OnboardingTab.tsx` Intake Questionnaire section
 
-**Question label** (`{idx + 1}. {question_text}`)
-- `text-xs text-muted-foreground` → `text-sm font-semibold text-primary` (gold)
-- Add `tracking-wide` and a small uppercase number badge for fast scanning, e.g. `Q1` chip + question text on the same row
-- Slightly wider gap between Q blocks: `space-y-3` → `space-y-4`
+Replace the current cramped two-column row layout (tiny uppercase label left, faded answer right) with a stacked Q/A pattern matching check-ins:
 
-**Answer block** (the paragraph below each question)
-- `text-sm text-foreground bg-muted/30 p-2 rounded` → `text-[15px] leading-relaxed text-foreground bg-card border border-border/60 p-3 rounded-md`
-- Add `whitespace-pre-wrap` so paragraph breaks render
-- Add a subtle gold left border (`border-l-2 border-l-primary/50`) so each answer reads as a quoted response
-
-**Container spacing**
-- Bump per-question vertical rhythm so the gold question stands clearly above the answer card
+- **Label** ("PRIMARY GOAL", "GENDER", etc.)
+  - From: `text-[10px] font-semibold text-muted-foreground uppercase tracking-wider`
+  - To: `text-sm font-semibold text-primary tracking-wide` (gold), paired with a small `bg-primary/15 text-primary` chip showing the field index or a short tag for fast scanning
+- **Answer** value
+  - From: `text-xs text-foreground text-right`
+  - To: `text-[15px] leading-relaxed text-foreground bg-card border border-border/60 border-l-2 border-l-primary/60 p-3 rounded-md whitespace-pre-wrap`
+- **Layout**
+  - Drop the `flex justify-between` row + `Separator` rhythm
+  - Each Q/A becomes a `space-y-2` block, with outer `space-y-5` between blocks (same as check-in history)
 
 ### Out of scope
-- No changes to query, data shape, status badges, summary cards (Compliance / Stress / Weight), submission form, or coach note logic
-- No changes to other check-in components (review dashboard, submission form, form builder)
-- Mobile spacing remains unchanged beyond the font-size bump
+- No changes to data fetching, field mapping, or `questionPairs` logic
+- No changes to Signed Agreements card or Starting Progress Photos card
+- No changes to the client-facing onboarding form components

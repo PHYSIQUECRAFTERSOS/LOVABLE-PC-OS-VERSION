@@ -191,18 +191,20 @@ const OnboardingTab = ({ clientId }: Props) => {
           {questionPairs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No onboarding questionnaire data found for this client.</p>
           ) : (
-            <div className="space-y-0">
+            <div className="space-y-5">
               {questionPairs.map((pair, i) => (
-                <div key={i}>
-                  <div className="flex justify-between items-start py-2.5">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0 max-w-[40%]">
+                <div key={i} className="space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 inline-flex items-center justify-center rounded bg-primary/15 text-primary text-[10px] font-semibold px-1.5 py-0.5 tracking-wide">
+                      Q{i + 1}
+                    </span>
+                    <span className="text-sm font-semibold text-primary tracking-wide">
                       {pair.q}
                     </span>
-                    <span className="text-xs text-foreground text-right max-w-[58%] leading-relaxed">
-                      {pair.a}
-                    </span>
                   </div>
-                  {i < questionPairs.length - 1 && <Separator />}
+                  <div className="text-[15px] leading-relaxed text-foreground bg-card border border-border/60 border-l-2 border-l-primary/60 p-3 rounded-md whitespace-pre-wrap">
+                    {pair.a}
+                  </div>
                 </div>
               ))}
             </div>
