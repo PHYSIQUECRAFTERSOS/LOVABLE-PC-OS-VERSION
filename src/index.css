@@ -320,3 +320,18 @@
     animation: slide-in-right 0.25s ease-out both;
   }
 }
+
+/* Print mode: isolate signed-document preview content */
+@media print {
+  body * { visibility: hidden !important; }
+  #signed-doc-print-area, #signed-doc-print-area * { visibility: visible !important; }
+  #signed-doc-print-area {
+    position: absolute !important;
+    left: 0; top: 0;
+    width: 100%;
+    padding: 24px !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  #signed-doc-print-area * { color: #000 !important; background: transparent !important; }
+}
