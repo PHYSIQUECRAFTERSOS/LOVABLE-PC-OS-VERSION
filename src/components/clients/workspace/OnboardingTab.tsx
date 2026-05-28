@@ -2,11 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { FileText, Download, Camera, AlertTriangle, X } from "lucide-react";
+import { FileText, Camera, AlertTriangle, X, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import SignedDocumentPreviewDialog, {
+  type PreviewDocument,
+} from "@/components/signing/SignedDocumentPreviewDialog";
+import { WAIVER_BODY } from "@/lib/legalDocuments";
+
 
 interface Props {
   clientId: string;
@@ -49,6 +52,7 @@ interface OnboardingData {
 
 interface SignatureRecord {
   id: string;
+  document_template_id: string | null;
   document_version: string;
   signed_name: string;
   signed_at: string;
@@ -57,6 +61,7 @@ interface SignatureRecord {
   pdf_storage_path: string | null;
   document_templates: { title: string } | null;
 }
+
 
 interface Photo {
   id: string;
@@ -80,21 +85,21 @@ const activityLabels: Record<string, string> = {
   moderately_active: "Moderately Active",
   very_active: "Very Active",
 };
-
 const OnboardingTab = ({ clientId }: Props) => {
   const [profile, setProfile] = useState<OnboardingData | null>(null);
+  const [clientFullName, setClientFullName] = useState<string | null>(null);
   const [signatures, setSignatures] = useState<SignatureRecord[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [preview, setPreview] = useState<PreviewDocument | null>(null);
 
   useEffect(() => {
     loadAll();
   }, [clientId]);
-
   const loadAll = async () => {
     setLoading(true);
-    const [profileRes, sigRes, photoRes] = await Promise.all([
+    const [profileRes, sigRes, photoRes, nameRes] = await Promise.all([
       supabase
         .from("onboarding_profiles")
         .select("*")
@@ -111,10 +116,16 @@ const OnboardingTab = ({ clientId }: Props) => {
         .eq("client_id", clientId)
         .order("created_at", { ascending: true })
         .limit(3),
+      supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", clientId)
+        .maybeSingle(),
     ]);
 
     setProfile(profileRes.data as OnboardingData | null);
     setSignatures((sigRes.data as any[]) || []);
+    setClientFullName(((nameRes.data as any)?.full_name as string) || null);
 
     // Get signed URLs for photos
     const photoData = (photoRes.data as any[]) || [];
@@ -133,12 +144,35 @@ const OnboardingTab = ({ clientId }: Props) => {
     setLoading(false);
   };
 
-  const handleDownloadPdf = async (path: string) => {
-    const { data } = await supabase.storage
-      .from("signature-records")
-      .createSignedUrl(path, 3600);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  const openSignaturePreview = (sig: SignatureRecord) => {
+    setPreview({
+      title: sig.document_templates?.title || "Document",
+      document_template_id: sig.document_template_id,
+      pdf_storage_path: sig.pdf_storage_path,
+      signed_name: sig.signed_name,
+      signed_at: sig.signed_at,
+      tier: sig.tier_at_signing,
+      version: sig.document_version,
+      ip_address: sig.ip_address,
+      client_full_name: clientFullName,
+    });
   };
+
+  const openWaiverPreview = () => {
+    if (!profile) return;
+    setPreview({
+      title: "Onboarding Waiver / Disclaimer",
+      body: WAIVER_BODY,
+      pdf_storage_path: null,
+      signed_name: profile.waiver_signature || clientFullName,
+      signed_at: profile.waiver_signed_at,
+      tier: "Onboarding",
+      version: "1",
+      client_full_name: clientFullName,
+    });
+  };
+
+
 
   if (loading) {
     return (
@@ -229,15 +263,23 @@ const OnboardingTab = ({ clientId }: Props) => {
             <div className="space-y-3">
               {/* Onboarding waiver from onboarding_profiles */}
               {profile?.waiver_signed && (
-                <div className="rounded-lg border border-border p-4 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">
+                <button
+                  type="button"
+                  onClick={openWaiverPreview}
+                  className="w-full text-left rounded-lg border border-border p-4 space-y-2 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                         Onboarding Waiver / Disclaimer
                       </p>
                       <p className="text-xs text-muted-foreground">Signed during onboarding</p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">Onboarding</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px]">Onboarding</Badge>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-0.5">
                     {profile.waiver_signature && (
@@ -247,39 +289,38 @@ const OnboardingTab = ({ clientId }: Props) => {
                       <p>Date signed: <span className="text-foreground">{format(new Date(profile.waiver_signed_at), "MMMM d, yyyy 'at' h:mm a")}</span></p>
                     )}
                   </div>
-                </div>
+                </button>
               )}
               {/* Document signatures from client_signatures */}
               {signatures.map((sig) => (
-                <div key={sig.id} className="rounded-lg border border-border p-4 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-foreground">
-                        {(sig.document_templates as any)?.title || "Document"}
+                <button
+                  type="button"
+                  key={sig.id}
+                  onClick={() => openSignaturePreview(sig)}
+                  className="w-full text-left rounded-lg border border-border p-4 space-y-2 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        {sig.document_templates?.title || "Document"}
                       </p>
                       <p className="text-xs text-muted-foreground">Version: {sig.document_version}</p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">{sig.tier_at_signing}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px]">{sig.tier_at_signing}</Badge>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-0.5">
                     <p>Signed name: <span className="text-foreground">{sig.signed_name}</span></p>
                     <p>Date signed: <span className="text-foreground">{format(new Date(sig.signed_at), "MMMM d, yyyy 'at' h:mm a")}</span></p>
                     {sig.ip_address && <p>IP: {sig.ip_address}</p>}
                   </div>
-                  {sig.pdf_storage_path && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs border-primary/30 text-primary hover:text-primary"
-                      onClick={() => handleDownloadPdf(sig.pdf_storage_path!)}
-                    >
-                      <Download className="h-3 w-3" />
-                      Download PDF
-                    </Button>
-                  )}
-                </div>
+                </button>
               ))}
             </div>
+
           )}
         </CardContent>
       </Card>
@@ -348,7 +389,14 @@ const OnboardingTab = ({ clientId }: Props) => {
           />
         </div>
       )}
+
+      <SignedDocumentPreviewDialog
+        open={!!preview}
+        onOpenChange={(o) => !o && setPreview(null)}
+        document={preview}
+      />
     </div>
+
   );
 };
 

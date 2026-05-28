@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { renderDocumentBody } from "@/lib/legalDocuments";
+
 
 interface Props {
   title: string;
@@ -32,65 +34,8 @@ const DocumentViewer = ({ title, body, onAcknowledge }: Props) => {
     const progress = el.scrollTop / (el.scrollHeight - el.clientHeight);
     setScrollProgress(Math.min(progress * 100, 100));
   }, [handleScroll]);
+  const renderContent = () => renderDocumentBody(body);
 
-  const renderContent = () => {
-    const lines = body.split("\n");
-    return lines.map((line, i) => {
-      const trimmed = line.trim();
-      if (!trimmed) return <div key={i} className="h-3" />;
-
-      // Main title
-      if (i === 0 || (trimmed === trimmed.toUpperCase() && trimmed.length > 10 && !trimmed.startsWith("•"))) {
-        return (
-          <h2 key={i} className="text-primary font-display text-lg font-bold mt-6 mb-2 tracking-wide">
-            {trimmed}
-          </h2>
-        );
-      }
-
-      // Numbered sections
-      if (/^\d+\.\s/.test(trimmed)) {
-        return (
-          <h3 key={i} className="text-primary/90 font-display text-base font-semibold mt-5 mb-2">
-            {trimmed}
-          </h3>
-        );
-      }
-
-      // Bullet points
-      if (trimmed.startsWith("•")) {
-        return (
-          <p key={i} className="text-foreground/80 text-sm pl-4 py-0.5">
-            {trimmed}
-          </p>
-        );
-      }
-
-      // Date lines
-      if (trimmed.startsWith("Effective Date:") || trimmed.startsWith("Last Updated:")) {
-        return (
-          <p key={i} className="text-muted-foreground text-xs italic">
-            {trimmed}
-          </p>
-        );
-      }
-
-      // Section headers (bold key terms)
-      if (trimmed.endsWith(":") && trimmed.length < 60) {
-        return (
-          <p key={i} className="text-foreground/90 text-sm font-semibold mt-3 mb-1">
-            {trimmed}
-          </p>
-        );
-      }
-
-      return (
-        <p key={i} className="text-foreground/75 text-sm leading-relaxed">
-          {trimmed}
-        </p>
-      );
-    });
-  };
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col max-h-[calc(100dvh-12rem)] sm:max-h-[70vh]">
