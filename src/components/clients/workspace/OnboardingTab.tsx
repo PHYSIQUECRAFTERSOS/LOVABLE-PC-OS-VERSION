@@ -97,10 +97,9 @@ const OnboardingTab = ({ clientId }: Props) => {
   useEffect(() => {
     loadAll();
   }, [clientId]);
-
   const loadAll = async () => {
     setLoading(true);
-    const [profileRes, sigRes, photoRes] = await Promise.all([
+    const [profileRes, sigRes, photoRes, nameRes] = await Promise.all([
       supabase
         .from("onboarding_profiles")
         .select("*")
@@ -117,10 +116,16 @@ const OnboardingTab = ({ clientId }: Props) => {
         .eq("client_id", clientId)
         .order("created_at", { ascending: true })
         .limit(3),
+      supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", clientId)
+        .maybeSingle(),
     ]);
 
     setProfile(profileRes.data as OnboardingData | null);
     setSignatures((sigRes.data as any[]) || []);
+    setClientFullName(((nameRes.data as any)?.full_name as string) || null);
 
     // Get signed URLs for photos
     const photoData = (photoRes.data as any[]) || [];
@@ -139,11 +144,34 @@ const OnboardingTab = ({ clientId }: Props) => {
     setLoading(false);
   };
 
-  const handleDownloadPdf = async (path: string) => {
-    const { data } = await supabase.storage
-      .from("signature-records")
-      .createSignedUrl(path, 3600);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  const openSignaturePreview = (sig: SignatureRecord) => {
+    setPreview({
+      title: sig.document_templates?.title || "Document",
+      document_template_id: sig.document_template_id,
+      pdf_storage_path: sig.pdf_storage_path,
+      signed_name: sig.signed_name,
+      signed_at: sig.signed_at,
+      tier: sig.tier_at_signing,
+      version: sig.document_version,
+      ip_address: sig.ip_address,
+      client_full_name: clientFullName,
+    });
+  };
+
+  const openWaiverPreview = () => {
+    if (!profile) return;
+    setPreview({
+      title: "Onboarding Waiver / Disclaimer",
+      body: WAIVER_BODY,
+      pdf_storage_path: null,
+      signed_name: profile.waiver_signature || clientFullName,
+      signed_at: profile.waiver_signed_at,
+      tier: "Onboarding",
+      version: "1",
+      client_full_name: clientFullName,
+    });
+  };
+
   };
 
   if (loading) {
