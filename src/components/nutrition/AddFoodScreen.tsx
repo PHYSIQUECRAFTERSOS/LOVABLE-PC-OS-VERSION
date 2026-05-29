@@ -215,7 +215,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
         .in("id", foodIds);
       if (foods) {
-        const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean) as FoodItem[];
+        const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean).map((f: any) => ({ ...f, source: "local" as const })) as FoodItem[];
         setFavoriteFoods(ordered);
       }
     } catch { setFavoriteFoods([]); }
