@@ -42,6 +42,7 @@ import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet"
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
 import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 import ScanFoodLabelButton from "@/components/nutrition/ScanFoodLabelButton";
+import SwipeToDelete from "@/components/nutrition/SwipeToDelete";
 
 interface FoodItem {
   id: string;
@@ -214,7 +215,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat, fiber, sugar, sodium, is_verified, data_source, category")
         .in("id", foodIds);
       if (foods) {
-        const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean) as FoodItem[];
+        const ordered = foodIds.map(id => foods.find(f => f.id === id)).filter(Boolean).map((f: any) => ({ ...f, source: "local" as const })) as FoodItem[];
         setFavoriteFoods(ordered);
       }
     } catch { setFavoriteFoods([]); }
@@ -1408,24 +1409,28 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             ) : (
               <div className="space-y-1">
                 {favoriteFoods.map((item) => (
-                  <FoodRow
+                  <SwipeToDelete
                     key={item.id}
-                    item={item}
-                    expanded={expandedId === item.id}
-                    onToggle={() => openFoodDetail(item)}
-                    onAdd={() => openFoodDetail(item)}
-                    servings={servings[item.id] || getDefaultServings(item)}
-                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                    servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
-                    onServingUnitChange={(u) => {
-                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
-                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
-                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
-                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
-                    }}
-                    isFavorite={true}
-                    onToggleFavorite={() => handleToggleFavorite(item.id, item)}
-                  />
+                    onDelete={() => handleToggleFavorite(item.id, item)}
+                  >
+                    <FoodRow
+                      item={item}
+                      expanded={expandedId === item.id}
+                      onToggle={() => openFoodDetail(item)}
+                      onAdd={() => openFoodDetail(item)}
+                      servings={servings[item.id] || getDefaultServings(item)}
+                      onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                      servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
+                      onServingUnitChange={(u) => {
+                        setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                        if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                        else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                        else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                      }}
+                      isFavorite={true}
+                      onToggleFavorite={() => handleToggleFavorite(item.id, item)}
+                    />
+                  </SwipeToDelete>
                 ))}
               </div>
             )}
