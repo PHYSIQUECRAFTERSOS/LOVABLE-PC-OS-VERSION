@@ -42,6 +42,7 @@ import CopyPreviousMealSheet from "@/components/nutrition/CopyPreviousMealSheet"
 import PCRecipeDetail from "@/components/nutrition/PCRecipeDetail";
 import CreateFoodScreen from "@/components/nutrition/CreateFoodScreen";
 import ScanFoodLabelButton from "@/components/nutrition/ScanFoodLabelButton";
+import SwipeToDelete from "@/components/nutrition/SwipeToDelete";
 
 interface FoodItem {
   id: string;
