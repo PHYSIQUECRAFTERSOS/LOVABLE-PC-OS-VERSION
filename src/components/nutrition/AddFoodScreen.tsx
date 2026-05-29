@@ -1409,24 +1409,28 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
             ) : (
               <div className="space-y-1">
                 {favoriteFoods.map((item) => (
-                  <FoodRow
+                  <SwipeToDelete
                     key={item.id}
-                    item={item}
-                    expanded={expandedId === item.id}
-                    onToggle={() => openFoodDetail(item)}
-                    onAdd={() => openFoodDetail(item)}
-                    servings={servings[item.id] || getDefaultServings(item)}
-                    onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
-                    servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
-                    onServingUnitChange={(u) => {
-                      setServingUnits(prev => ({ ...prev, [item.id]: u }));
-                      if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
-                      else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
-                      else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
-                    }}
-                    isFavorite={true}
-                    onToggleFavorite={() => handleToggleFavorite(item.id, item)}
-                  />
+                    onDelete={() => handleToggleFavorite(item.id, item)}
+                  >
+                    <FoodRow
+                      item={item}
+                      expanded={expandedId === item.id}
+                      onToggle={() => openFoodDetail(item)}
+                      onAdd={() => openFoodDetail(item)}
+                      servings={servings[item.id] || getDefaultServings(item)}
+                      onServingsChange={(v) => setServings(prev => ({ ...prev, [item.id]: v }))}
+                      servingUnit={servingUnits[item.id] || getDefaultUnit(item)}
+                      onServingUnitChange={(u) => {
+                        setServingUnits(prev => ({ ...prev, [item.id]: u }));
+                        if (u === "serving") setServings(prev => ({ ...prev, [item.id]: "1" }));
+                        else if (u === "g") setServings(prev => ({ ...prev, [item.id]: String(item.serving_size) }));
+                        else if (u === "oz") setServings(prev => ({ ...prev, [item.id]: String(Math.round(item.serving_size / 28.3495 * 10) / 10) }));
+                      }}
+                      isFavorite={true}
+                      onToggleFavorite={() => handleToggleFavorite(item.id, item)}
+                    />
+                  </SwipeToDelete>
                 ))}
               </div>
             )}
