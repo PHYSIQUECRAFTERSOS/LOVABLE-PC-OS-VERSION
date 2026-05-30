@@ -169,7 +169,7 @@ const Info = () => {
             </div>
           </div>
           <div className="flex flex-col items-start gap-2 border-t border-border/40 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <span>Nutrition data powered by FatSecret Platform API.</span>
+            <span>Nutrition data powered by fatsecret Platform API.</span>
             <a
               href="https://platform.fatsecret.com"
               target="_blank"
