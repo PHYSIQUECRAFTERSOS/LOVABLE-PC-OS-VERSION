@@ -101,7 +101,7 @@ const ProgressWidgetGrid = () => {
         const todayRow = data.find((d: any) => d.metric_date === today);
         setDbSteps(todayRow?.steps ?? null);
         setDbDistance(todayRow?.walking_running_distance_km ?? null);
-        if (todayRow?.step_goal) setStepGoal(todayRow.step_goal);
+        if (todayRow?.step_goal) setDbStepGoal(todayRow.step_goal);
 
         const sSpark: SparkData[] = [];
         const dSpark: SparkData[] = [];
