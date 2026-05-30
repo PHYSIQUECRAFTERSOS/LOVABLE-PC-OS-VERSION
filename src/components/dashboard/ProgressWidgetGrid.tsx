@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
+import { useCoachStepGoal } from "@/hooks/useCoachStepGoal";
 import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { Footprints, Camera, Flame, MapPin } from "lucide-react";
