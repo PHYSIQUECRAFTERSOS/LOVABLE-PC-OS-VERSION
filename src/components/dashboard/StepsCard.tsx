@@ -6,6 +6,7 @@ import { Footprints, RefreshCw, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { getLocalDateString } from "@/utils/localDate";
+import { useCoachStepGoal } from "@/hooks/useCoachStepGoal";
 
 const StepsCard = () => {
   const {
