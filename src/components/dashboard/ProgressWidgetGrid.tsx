@@ -176,6 +176,7 @@ const ProgressWidgetGrid = () => {
   const liveDistance = isConnected ? todayMetrics?.walking_running_distance_km ?? null : null;
   const finalDistance = Math.max(dbDistance ?? 0, liveDistance ?? 0);
   const hasDistance = (dbDistance !== null && dbDistance > 0) || (liveDistance !== null && liveDistance > 0);
+  const stepGoal = useCoachStepGoal(dbStepGoal);
 
   const stepPct = stepGoal > 0 ? Math.min(100, Math.round((finalSteps / stepGoal) * 100)) : 0;
 
