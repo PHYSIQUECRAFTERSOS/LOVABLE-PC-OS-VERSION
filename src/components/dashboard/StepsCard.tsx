@@ -19,6 +19,7 @@ const StepsCard = () => {
     syncNow,
   } = useHealthSync();
   const navigate = useNavigate();
+  const goal = useCoachStepGoal(todayMetrics?.step_goal);
 
   if (loading) {
     return (
