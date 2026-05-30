@@ -14,6 +14,7 @@ import DistanceTrendModal from "./DistanceTrendModal";
 import ProgressPhotosModal from "./ProgressPhotosModal";
 import SleepCard from "./SleepCard";
 import SleepHistoryModal from "./SleepHistoryModal";
+import { getLocalDateString } from "@/utils/localDate";
 
 interface SparkData {
   value: number;
@@ -70,7 +71,7 @@ const ProgressWidgetGrid = () => {
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
   const [sleepHistoryOpen, setSleepHistoryOpen] = useState(false);
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = getLocalDateString();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Listen for photo/weight updates to refresh instantly
@@ -98,7 +99,7 @@ const ProgressWidgetGrid = () => {
         .order("metric_date", { ascending: true });
 
       if (data) {
-        const todayRow = data.find((d: any) => d.metric_date === today);
+        const todayRow = data.find((d) => d.metric_date === today);
         setDbSteps(todayRow?.steps ?? null);
         setDbDistance(todayRow?.walking_running_distance_km ?? null);
         if (todayRow?.step_goal) setDbStepGoal(todayRow.step_goal);
@@ -107,7 +108,7 @@ const ProgressWidgetGrid = () => {
         const dSpark: SparkData[] = [];
         for (let i = 6; i >= 0; i--) {
           const d = format(subDays(new Date(), i), "yyyy-MM-dd");
-          const row = data.find((r: any) => r.metric_date === d);
+          const row = data.find((r) => r.metric_date === d);
           sSpark.push({ value: row?.steps ?? 0 });
           dSpark.push({ value: row?.walking_running_distance_km ?? 0 });
         }
