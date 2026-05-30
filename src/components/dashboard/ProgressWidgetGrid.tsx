@@ -14,6 +14,7 @@ import DistanceTrendModal from "./DistanceTrendModal";
 import ProgressPhotosModal from "./ProgressPhotosModal";
 import SleepCard from "./SleepCard";
 import SleepHistoryModal from "./SleepHistoryModal";
+import { getLocalDateString } from "@/utils/localDate";
 
 interface SparkData {
   value: number;
@@ -70,7 +71,7 @@ const ProgressWidgetGrid = () => {
   const [photosModalOpen, setPhotosModalOpen] = useState(false);
   const [sleepHistoryOpen, setSleepHistoryOpen] = useState(false);
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = getLocalDateString();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Listen for photo/weight updates to refresh instantly
