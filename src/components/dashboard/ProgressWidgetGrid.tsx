@@ -63,7 +63,7 @@ const ProgressWidgetGrid = () => {
   const [dbDistance, setDbDistance] = useState<number | null>(null);
   const [stepsSpark, setStepsSpark] = useState<SparkData[]>([]);
   const [distanceSpark, setDistanceSpark] = useState<SparkData[]>([]);
-  const [stepGoal, setStepGoal] = useState(10000);
+  const [dbStepGoal, setDbStepGoal] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
