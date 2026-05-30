@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 import { useAuth } from "@/hooks/useAuth";
 import { useHealthSync } from "@/hooks/useHealthSync";
+import { useCoachStepGoal } from "@/hooks/useCoachStepGoal";
 import { useNavigate } from "react-router-dom";
 import { format, subDays } from "date-fns";
 import { Footprints, Camera, Flame, MapPin } from "lucide-react";
@@ -62,7 +63,7 @@ const ProgressWidgetGrid = () => {
   const [dbDistance, setDbDistance] = useState<number | null>(null);
   const [stepsSpark, setStepsSpark] = useState<SparkData[]>([]);
   const [distanceSpark, setDistanceSpark] = useState<SparkData[]>([]);
-  const [stepGoal, setStepGoal] = useState(10000);
+  const [dbStepGoal, setDbStepGoal] = useState<number | null>(null);
   const [weightHistoryOpen, setWeightHistoryOpen] = useState(false);
   const [stepTrendOpen, setStepTrendOpen] = useState(false);
   const [distanceTrendOpen, setDistanceTrendOpen] = useState(false);
@@ -100,7 +101,7 @@ const ProgressWidgetGrid = () => {
         const todayRow = data.find((d: any) => d.metric_date === today);
         setDbSteps(todayRow?.steps ?? null);
         setDbDistance(todayRow?.walking_running_distance_km ?? null);
-        if (todayRow?.step_goal) setStepGoal(todayRow.step_goal);
+        if (todayRow?.step_goal) setDbStepGoal(todayRow.step_goal);
 
         const sSpark: SparkData[] = [];
         const dSpark: SparkData[] = [];
@@ -175,6 +176,7 @@ const ProgressWidgetGrid = () => {
   const liveDistance = isConnected ? todayMetrics?.walking_running_distance_km ?? null : null;
   const finalDistance = Math.max(dbDistance ?? 0, liveDistance ?? 0);
   const hasDistance = (dbDistance !== null && dbDistance > 0) || (liveDistance !== null && liveDistance > 0);
+  const stepGoal = useCoachStepGoal(dbStepGoal);
 
   const stepPct = stepGoal > 0 ? Math.min(100, Math.round((finalSteps / stepGoal) * 100)) : 0;
 

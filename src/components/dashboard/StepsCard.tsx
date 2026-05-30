@@ -6,6 +6,7 @@ import { Footprints, RefreshCw, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { getLocalDateString } from "@/utils/localDate";
+import { useCoachStepGoal } from "@/hooks/useCoachStepGoal";
 
 const StepsCard = () => {
   const {
@@ -18,6 +19,7 @@ const StepsCard = () => {
     syncNow,
   } = useHealthSync();
   const navigate = useNavigate();
+  const goal = useCoachStepGoal(todayMetrics?.step_goal);
 
   if (loading) {
     return (
@@ -34,7 +36,7 @@ const StepsCard = () => {
 
   const isConnected = isNative && connection?.is_connected;
   const steps = todayMetrics?.steps ?? 0;
-  const goal = todayMetrics?.step_goal ?? 10000;
+  
   const progressPct = Math.min((steps / goal) * 100, 100);
 
   // 7-day data for mini trend
