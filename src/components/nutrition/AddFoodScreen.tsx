@@ -1208,7 +1208,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
       {/* Tabs - styled with gold active indicator */}
       <div className="px-4 pb-2 sticky top-0 z-10">
         <div className="flex">
-          {TABS.map((tab) => (
+          {(pickMode ? ALL_TABS.filter(t => t.key !== "my-meals" && t.key !== "pc-recipes") : ALL_TABS).map((tab) => (
             <button
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); if (search.length >= 2) handleSearch(search); }}
