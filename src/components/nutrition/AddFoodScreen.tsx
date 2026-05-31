@@ -533,7 +533,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
 
   const logFood = async (item: FoodItem) => {
     if (!user || logFoodRef.current) return;
+    if (pickMode) { openFoodDetail(item); return; }
     logFoodRef.current = true;
+
 
     let foodToLog = item;
     let foodItemId: string | null = null;
