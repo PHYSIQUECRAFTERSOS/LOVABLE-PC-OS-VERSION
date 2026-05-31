@@ -80,12 +80,16 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
             Object.entries(microsMap[ing.food_item_id]).map(([k, v]) => [k, Math.round(v * servings * 100) / 100])
           )
         : {};
+      const unit = (ing.serving_unit || "g").toString();
+      const isGramLike = unit.toLowerCase() === "g" || unit.toLowerCase() === "grams" || unit.toLowerCase() === "ml";
       return {
         client_id: user.id,
         food_item_id: ing.food_item_id || null,
         custom_name: ing.food_item_id ? null : `🍳 ${ing.food_name}`,
         meal_type: mealType,
         servings,
+        quantity_display: isGramLike ? servings : servings,
+        quantity_unit: isGramLike ? "g" : unit,
         calories: Math.round((ing.calories || 0) * S),
         protein: Math.round((ing.protein || 0) * S),
         carbs: Math.round((ing.carbs || 0) * S),
