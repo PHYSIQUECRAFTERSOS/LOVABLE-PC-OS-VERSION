@@ -704,6 +704,28 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
 
   const logCustomFood = async (food: any, quantity?: number) => {
     if (!user) return;
+    if (pickMode) {
+      // Route through FoodDetailScreen so user can pick quantity, then onPick fires
+      openFoodDetail({
+        id: `custom-${food.id}`,
+        name: food.name + (food.brand ? ` (${food.brand})` : ""),
+        brand: food.brand || null,
+        serving_size: parseFloat(food.serving_size) || 100,
+        serving_unit: food.serving_unit || "g",
+        calories: food.calories || 0,
+        protein: food.protein || 0,
+        carbs: food.carbs || 0,
+        fat: food.fat || 0,
+        fiber: food.fiber || 0,
+        sugar: food.sugar || 0,
+        sodium: food.sodium || 0,
+        source: "local",
+        is_verified: false,
+        data_source: "custom",
+      } as FoodItem);
+      return;
+    }
+
     const ss = parseFloat(food.serving_size) || 100;
     const servingUnit = food.serving_unit || "serving";
     const qty = quantity ?? 1;
