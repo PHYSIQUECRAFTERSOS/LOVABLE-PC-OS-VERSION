@@ -905,7 +905,26 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
 
   const handleDetailConfirm = async (entry: FoodDetailEntry) => {
     if (!user || detailLoggingRef.current) return;
+    if (pickMode && onPick) {
+      const foodSnap = detailFood;
+      const useGrams = (entry as any).useGrams;
+      const quantity = useGrams ? entry.totalGrams : entry.quantity;
+      const serving_unit = useGrams ? "g" : (entry.servingDescription || foodSnap?.serving_unit || "serving");
+      onPick({
+        food_item_id: foodSnap?.source === "local" ? foodSnap.id : undefined,
+        food_name: entry.food.name,
+        quantity,
+        serving_unit,
+        calories: Math.round(entry.calories),
+        protein: Math.round(entry.protein),
+        carbs: Math.round(entry.carbs),
+        fat: Math.round(entry.fat),
+      });
+      setDetailFood(null);
+      return;
+    }
     detailLoggingRef.current = true;
+
 
     // Capture detailFood before clearing
     const foodSnapshot = detailFood;
