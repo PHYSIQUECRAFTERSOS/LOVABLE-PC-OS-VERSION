@@ -493,8 +493,11 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
+    </>
   );
+
 };
 
 export default PCRecipeEditor;
