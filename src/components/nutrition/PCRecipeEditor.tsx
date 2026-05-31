@@ -458,7 +458,7 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border md:absolute md:bottom-0 md:left-0 md:right-0">
         <Button
           onClick={save}
           disabled={saving || !name.trim()}
