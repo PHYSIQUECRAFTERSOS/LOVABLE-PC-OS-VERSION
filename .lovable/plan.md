@@ -1,49 +1,86 @@
-## Problem
+## Goal
 
-Master Libraries → PC Recipes → Create Recipe (`PCRecipeEditor.tsx`) currently uses `fixed inset-0` — a full-screen mobile sheet — even on desktop, which looks stretched and unbalanced at 1050px+ widths (your screenshot shows huge empty space, edge-to-edge content).
+Fix PC recipe logging so clients can log a real-world portion (e.g. "1 of 8 muffins" or "1/4 of the batch") and get the correct macros in their diary, with one clean summary row instead of fanned-out ingredients.
 
-Also, its built-in "Add Ingredient" search (lines 281-318) is a stripped-down list: tiny `search_foods` RPC results showing only name + macros. It is missing everything the meals "Add Food" panel has (the `AddFoodScreen` used by `DailyNutritionLog`): All / ★ Favs / Recent / Custom Foods / Branded / Generic / Saved Meals tabs, `+ Custom`, recently used, barcode scan, food emoji, brand line, etc.
+## Math model
 
-## Fix
+- `pc_recipes.servings` (yield) is treated as the **total batch yield** — e.g. 8 muffins.
+- Sum of all `pc_recipe_ingredients` macros = **full batch totals** (584 cal for the whole muffin tray).
+- **Per-serving** macros = batch totals / yield.
+- Client picks `portionsEaten` (default 1). Logged macros = perServing × portionsEaten.
+- Live macro card on the detail screen always shows what will be logged for the current portion selection.
 
-### 1. Desktop layout for `PCRecipeEditor.tsx` (and matching food-search overlay)
+## 1. `PCRecipeDetail.tsx` — portion picker UI
 
-Keep the existing full-screen layout on mobile. On desktop (`md:` and up), render the editor as a centered modal card:
+Replace the current `−  1 Servings  +` stepper (which currently multiplies the whole batch) with a portion-of-batch picker.
 
-- Outer wrapper: `fixed inset-0 z-[55] bg-black/60 backdrop-blur-sm md:flex md:items-center md:justify-center md:p-6`
-- Inner card on desktop: `md:relative md:inset-auto md:w-full md:max-w-3xl md:h-[88vh] md:max-h-[900px] md:rounded-2xl md:border md:border-border md:shadow-2xl md:overflow-hidden` — body becomes a single scroll container, the sticky Save bar is pinned to the **card** bottom (not the viewport) via `md:absolute md:bottom-0 md:left-0 md:right-0` on the footer instead of the current `fixed bottom-0 left-0 right-0`.
-- Inside the card, switch the content area at `md:` to a two-column grid: left column (Name, Description, Servings, Macro preview, Published toggle, YouTube preview) and right column (Ingredients list + Instructions). Mobile remains single-column stacked. Use `md:grid md:grid-cols-[1fr_1.2fr] md:gap-6 md:px-6 md:pt-5`.
-- Increase desktop input sizing (`md:h-10`), give the macro preview card a fixed `md:p-4`, and constrain the YouTube preview to `md:max-w-md`.
-- Close affordance on desktop: add an `X` button in the top-right of the card header (in addition to the existing `ArrowLeft`), and clicking the dimmed backdrop triggers the same "discard?" guard as the back arrow.
+Layout (top of screen, under recipe name):
 
-Apply the same desktop modal treatment to the inner "Add Ingredient" overlay (currently also `fixed inset-0 z-[60]`) so it appears as a centered card above the editor instead of taking the entire screen.
+```text
+  Makes 8 muffins                ← small muted label from recipe.servings
+  ┌──────────────────────────────────────────┐
+  │  Portion                                 │
+  │  [1/8] [1/6] [1/4] [1/2] [1] [2]   ← chips (gold when active)
+  │                                          │
+  │  or enter exact:  [ 1      ] portions    │
+  │                       ↑ tap-to-type, accepts "0.5", "1.5", "1/3"
+  └──────────────────────────────────────────┘
 
-### 2. Replace the stripped-down ingredient search with the full picker
+  73 cal     8g P    11g C    1g F           ← live, = perServing × portion
+  CALORIES  PROTEIN  CARBS   FAT
+```
 
-Reuse the existing `AddFoodScreen` experience (tabs, favs, recent, custom, branded, generic, saved meals, barcode, "+ Custom") for "Add Ingredient" — but `AddFoodScreen` is hard-wired to log directly into `nutrition_logs` (`mealType`, `logDate`, `onLogged`), so we cannot drop it in unchanged. Two-part change:
+Behavior:
+- Quick chips snap the portion to that exact value; manual input overrides.
+- Fraction parser accepts `1/3`, `0.5`, `1.5`, `.25`; rejects negatives and >recipe.servings × 2 (sanity cap).
+- Subtitle on the macro card: "1 of 8 (per portion) · 73 cal" so the math is transparent.
+- Bottom CTA stays `Add to Meal X`.
 
-**a. Add a "picker mode" to `AddFoodScreen.tsx`:**
+Ingredient list display:
+- Ingredients still render below the macro card for reference, but now scaled to the chosen portion (so 130g egg whites at 1/8 portion shows "16g · 9 cal") — purely informational; they are not logged individually anymore (see §3).
+- Add a tiny "× 1/8 of batch" tag on the section header so the rescaling is obvious.
 
-- New optional prop `mode?: "log" | "pick"` (default `"log"` to keep all existing call sites untouched) and `onPick?: (payload: { food_item_id?: string; food_name: string; quantity: number; serving_unit: string; calories: number; protein: number; carbs: number; fat: number }) => void`.
-- When `mode === "pick"`:
-  - Hide the "Save to diary" / meal-type chrome, hide barcode-auto-log behavior, hide Saved-Meal "log all" button (Saved Meals tab can simply be omitted in pick mode for v1 to keep scope tight — confirm if you want it kept).
-  - The existing food detail / quantity editor (`FoodDetailScreen`) is reused; on its primary action, instead of inserting into `nutrition_logs`, call `onPick(payload)` and close.
-  - Header label becomes "Add Ingredient" instead of the meal label.
-- All search/tab/favorite/recent logic is shared — no duplication.
+## 2. Recipe editor — make yield first-class
 
-**b. Update `PCRecipeEditor.tsx`:**
+In `PCRecipeEditor.tsx`, the existing `servings` field exists but is buried. Promote it:
 
-- Delete the local `showFoodSearch` overlay block (lines 281-318), the `searchFoods` function, and `searchQuery`/`searchResults`/`searching` state.
-- Render `<AddFoodScreen mode="pick" open={showFoodSearch} onClose={() => setShowFoodSearch(false)} onPick={(p) => { setIngredients(prev => [...prev, { ...p, base_quantity: p.quantity, base_calories: p.calories, base_protein: p.protein, base_carbs: p.carbs, base_fat: p.fat }]); setShowFoodSearch(false); }} mealType="" mealLabel="Add Ingredient" />`
-- `AddFoodScreen` already styles itself as a full-screen sheet on mobile and (after change #1's pattern applied there too, if desired) can render as a centered modal on desktop — but since #1 only touches the editor card, the picker can keep its own current `fixed inset-0` and simply sit above it. If you'd like the picker to also be a centered desktop modal, say so and I'll apply the same wrapper.
+- Rename the UI label from "Servings" to **"Yield (this recipe makes)"** with helper text: *"Enter the total number of finished portions the full recipe produces — e.g. 8 muffins."*
+- Show a live preview: *"Per portion: 73 cal · 8g P · 11g C · 1g F"* under the macro panel so the coach sees what the client will see.
+- Default yield = 1 (unchanged) for backwards compatibility.
 
-### 3. Out of scope
+No schema change needed — `pc_recipes.servings` already stores this.
 
-- No DB schema changes.
-- No changes to the client-side `Nutrition` page or the existing meals "Add Food" flow — those keep using `mode="log"` (the default).
-- No changes to `CreateRecipeScreen.tsx` (a separate, unused-here component for client recipes).
+## 3. `PCRecipeDetail.addToLog` — single summary row
 
-## Open questions
+Currently the function fans out one `nutrition_logs` row per ingredient. Replace with **one** row representing the whole portion eaten, matching the user's chosen display:
 
-1. In pick mode for "Add Ingredient", do you want the **Saved Meals** and **PC Recipes** tabs to appear? They make sense for diary logging, but adding a whole saved meal as a single recipe ingredient is unusual — default would be to hide both in pick mode. ( hide PC recipes and saved meals in this section ) 
-2. Should the "Add Ingredient" picker itself also become a centered desktop modal (matching #1), or keep it full-bleed when opened from the editor?( matching #1) 
+Inserted row:
+- `client_id`, `meal_type`, `logged_at`, `tz_corrected: true`
+- `food_item_id: null`, `custom_name: "🍳 {recipe.name}"`
+- `servings: portionsEaten` (numeric, supports fractions)
+- `quantity_display: portionsEaten`, `quantity_unit: "portion"` (so `formatServingDisplay` renders as `"1 portion"` / `"0.5 portions"`)
+- `calories/protein/carbs/fat`: full batch totals × (portionsEaten / yield), rounded
+- Micronutrients: summed across ingredients, then scaled by the same factor (preserves existing micro behavior)
+- Optional new tag in `custom_name`: when yield > 1, format as `"🍳 Protein Banana Muffin (1/8 batch)"` so the meal list shows context at a glance.
+
+Diary row result (matches user's chosen example):
+`🍳 Protein Banana Muffin (1/8 batch) · 1 portion · 73 cal · 8P · 11C · 1F`
+
+## 4. Edge cases
+
+- **Legacy recipes with yield = 1**: math collapses to current behavior (no break). Picker shows chips `[1/2] [1] [2] [3]` and no "of batch" label.
+- **Yield = 0 / null**: treat as 1.
+- **Manual input invalid**: keep last valid value, gentle red border, no toast spam.
+- **Editing in coach view**: if a coach changes yield from 4 → 8 on an existing recipe, only future logs are affected; historical `nutrition_logs` rows are untouched.
+
+## Files touched
+
+- `src/components/nutrition/PCRecipeDetail.tsx` — picker UI, scaled ingredient display, new `addToLog` logic
+- `src/components/nutrition/PCRecipeEditor.tsx` — promote `servings` field, add per-portion preview
+- (no migration, no changes to `formatServingDisplay`, no changes to `AddFoodScreen`)
+
+## Out of scope
+
+- Re-verifying existing recipe yields (you confirmed stored macros = full batch — math just works).
+- Saving custom default portions per client.
+- Fan-out to per-ingredient rows (replaced by single summary row).
