@@ -1678,12 +1678,8 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
         )}
       </div>
 
-    {pickMode ? <>
-        </div>
-      </div>
-    </> : <>
-    </>}
     </div></OverlayPortal>
+
 
 
     {/* Render dialogs OUTSIDE the z-60 overlay so they stack correctly */}
