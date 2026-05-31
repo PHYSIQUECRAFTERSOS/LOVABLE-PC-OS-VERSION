@@ -133,7 +133,7 @@ const ALL_TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
 ];
 
 
-const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
+const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, pickMode = false, onPick }: AddFoodScreenProps) => {
   const effectiveDate = logDate || new Date().toLocaleDateString("en-CA");
   const { user } = useAuth();
   const { toast } = useToast();
