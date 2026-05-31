@@ -301,19 +301,37 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
         </div>
 
         <div>
-          <Label>Servings *</Label>
+          <Label>Yield (this recipe makes) *</Label>
           <Input type="number" min={1} value={servings} onChange={e => setServings(parseInt(e.target.value) || 1)} className="mt-1 w-24" />
+          <p className="text-xs text-muted-foreground mt-1">
+            Total finished portions the full recipe produces — e.g. 8 muffins, 4 servings.
+          </p>
         </div>
 
-        {/* Macro Preview */}
-        <div className="rounded-xl bg-card border border-border/50 p-3">
-          <div className="grid grid-cols-4 gap-3 text-center text-xs">
-            <div><div className="font-bold text-foreground">{Math.round(totals.calories)}</div>Cal</div>
-            <div><div className="font-bold text-destructive">{Math.round(totals.protein)}g</div>Protein</div>
-            <div><div className="font-bold text-info">{Math.round(totals.carbs)}g</div>Carbs</div>
-            <div><div className="font-bold text-warn">{Math.round(totals.fat)}g</div>Fat</div>
+        {/* Macro Preview — full batch + per portion */}
+        <div className="rounded-xl bg-card border border-border/50 p-3 space-y-2">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Full recipe</div>
+            <div className="grid grid-cols-4 gap-3 text-center text-xs">
+              <div><div className="font-bold text-foreground">{Math.round(totals.calories)}</div>Cal</div>
+              <div><div className="font-bold text-destructive">{Math.round(totals.protein)}g</div>Protein</div>
+              <div><div className="font-bold text-info">{Math.round(totals.carbs)}g</div>Carbs</div>
+              <div><div className="font-bold text-warn">{Math.round(totals.fat)}g</div>Fat</div>
+            </div>
           </div>
+          {servings > 1 && (
+            <div className="pt-2 border-t border-border/50">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Per portion (÷ {servings})</div>
+              <div className="grid grid-cols-4 gap-3 text-center text-xs">
+                <div><div className="font-bold text-foreground">{Math.round(totals.calories / servings)}</div>Cal</div>
+                <div><div className="font-bold text-destructive">{Math.round(totals.protein / servings)}g</div>Protein</div>
+                <div><div className="font-bold text-info">{Math.round(totals.carbs / servings)}g</div>Carbs</div>
+                <div><div className="font-bold text-warn">{Math.round(totals.fat / servings)}g</div>Fat</div>
+              </div>
+            </div>
+          )}
         </div>
+
 
         {/* Ingredients */}
         <div>
