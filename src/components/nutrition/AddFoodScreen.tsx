@@ -1208,7 +1208,10 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
     : pcRecipes;
 
   return (
-    <><OverlayPortal><div ref={overlayRef} className="overlay-fullscreen z-[60] animate-fade-in overflow-hidden">
+    <><OverlayPortal>{pickMode ? (
+      <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex md:items-center md:justify-center md:p-6 animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div ref={overlayRef} className="relative w-full h-full bg-background flex flex-col overflow-hidden md:rounded-2xl md:border md:border-border md:shadow-2xl md:w-full md:max-w-3xl md:h-[85vh] md:max-h-[860px]">
+
       {/* Header */}
       <div className="flex items-center gap-3 px-4 safe-top pb-3 border-b border-border">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
