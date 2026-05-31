@@ -1272,13 +1272,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {/* Quick Actions (All tab only) */}
         {search.length < 2 && activeTab === "all" && (
-          <div className="grid grid-cols-4 gap-2 py-3">
-            <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
-            <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} />
-            <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
+          <div className={cn("grid gap-2 py-3", pickMode ? "grid-cols-1" : "grid-cols-4")}>
+            {!pickMode && <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />}
+            {!pickMode && <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} />}
+            {!pickMode && <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />}
             <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
           </div>
         )}
+
 
 
         {/* ═══ MY MEALS TAB ═══ */}
