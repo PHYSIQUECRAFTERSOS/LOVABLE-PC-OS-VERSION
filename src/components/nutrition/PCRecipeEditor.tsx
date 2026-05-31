@@ -8,12 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, X, Search, Loader2, GripVertical, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, GripVertical, Trash2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import AddFoodScreen from "./AddFoodScreen";
+import { cn } from "@/lib/utils";
+
 
 interface StagedIngredient {
   food_item_id?: string;
