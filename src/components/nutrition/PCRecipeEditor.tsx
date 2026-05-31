@@ -207,7 +207,7 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
 
       // Insert ingredients
       if (ingredients.length > 0) {
-        await supabase.from("pc_recipe_ingredients" as any).insert(
+        const { error: ingErr } = await supabase.from("pc_recipe_ingredients" as any).insert(
           ingredients.map((ing, i) => ({
             recipe_id: recipeId,
             food_item_id: ing.food_item_id || null,
@@ -221,6 +221,7 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
             sort_order: i,
           }))
         );
+        if (ingErr) throw ingErr;
       }
 
       // Insert instructions

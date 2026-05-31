@@ -910,8 +910,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
       const useGrams = (entry as any).useGrams;
       const quantity = useGrams ? entry.totalGrams : entry.quantity;
       const serving_unit = useGrams ? "g" : (entry.servingDescription || foodSnap?.serving_unit || "serving");
+      const isRealFoodItem = foodSnap?.source === "local" && !!foodSnap.id && !foodSnap.id.startsWith("custom-");
       onPick({
-        food_item_id: foodSnap?.source === "local" ? foodSnap.id : undefined,
+        food_item_id: isRealFoodItem ? foodSnap!.id : undefined,
         food_name: entry.food.name,
         quantity,
         serving_unit,
