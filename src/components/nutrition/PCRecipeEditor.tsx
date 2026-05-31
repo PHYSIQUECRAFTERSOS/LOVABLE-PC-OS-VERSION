@@ -88,9 +88,6 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
   const [showDiscard, setShowDiscard] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showFoodSearch, setShowFoodSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     if (editRecipe) loadExisting();
