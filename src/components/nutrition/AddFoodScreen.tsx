@@ -80,6 +80,17 @@ interface FoodItem {
   _micros_per_100g?: Record<string, number | null>;
 }
 
+export interface PickedFoodPayload {
+  food_item_id?: string;
+  food_name: string;
+  quantity: number;
+  serving_unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 interface AddFoodScreenProps {
   mealType: string;
   mealLabel: string;
@@ -87,6 +98,9 @@ interface AddFoodScreenProps {
   open: boolean;
   onClose: () => void;
   onLogged: () => void;
+  /** When true, food selections are returned via onPick instead of logged to nutrition_logs. */
+  pickMode?: boolean;
+  onPick?: (payload: PickedFoodPayload) => void;
 }
 
 type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
@@ -110,13 +124,14 @@ function getDefaultServings(item: FoodItem): string {
   return item.serving_size > 0 ? String(item.serving_size) : "1";
 }
 
-const TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
+const ALL_TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
   { key: "all", label: "All" },
   { key: "favorites", label: "★ Favs" },
   { key: "my-meals", label: "My\nMeals", stackedLabel: "My\nMeals" },
   { key: "custom", label: "Custom Foods" },
   { key: "pc-recipes", label: "PC Recipes" },
 ];
+
 
 const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
   const effectiveDate = logDate || new Date().toLocaleDateString("en-CA");
