@@ -283,51 +283,25 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
     }
   };
 
-  if (showFoodSearch) {
-    return (
-      <div className="fixed inset-0 z-[60] bg-background flex flex-col animate-fade-in">
-        <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
-          <button onClick={() => setShowFoodSearch(false)} className="p-1.5 rounded-lg hover:bg-secondary">
-            <ArrowLeft className="h-5 w-5 text-foreground" />
-          </button>
-          <h1 className="text-base font-semibold text-foreground">Add Ingredient</h1>
-        </div>
-        <div className="px-4 pt-3 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search foods..."
-              value={searchQuery}
-              onChange={e => searchFoods(e.target.value)}
-              className="pl-10 h-11 rounded-xl bg-secondary border-0"
-              autoFocus
-            />
-            {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />}
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4">
-          {searchResults.map((food: any) => (
-            <button
-              key={food.id}
-              onClick={() => addIngredient(food)}
-              className="w-full text-left rounded-xl bg-card border border-border/50 px-4 py-3 mb-1.5 hover:bg-secondary transition-colors"
-            >
-              <div className="text-sm font-medium text-foreground truncate">{food.name}</div>
-              <div className="text-xs text-muted-foreground">
-                {food.calories} cal · {food.protein}P · {food.carbs}C · {food.fat}F
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="fixed inset-0 z-[55] bg-background flex flex-col animate-fade-in">
+    <>
+    {showFoodSearch && (
+      <AddFoodScreen
+        open={showFoodSearch}
+        onClose={() => setShowFoodSearch(false)}
+        onLogged={() => {}}
+        mealType=""
+        mealLabel="Add Ingredient"
+        pickMode
+        onPick={handlePickIngredient}
+      />
+    )}
+    <div className="fixed inset-0 z-[55] bg-background flex flex-col animate-fade-in md:bg-black/60 md:backdrop-blur-sm md:items-center md:justify-center md:p-6 md:flex">
+      <div className="flex flex-col flex-1 w-full md:flex-none md:w-full md:max-w-3xl md:h-[88vh] md:max-h-[900px] md:bg-background md:rounded-2xl md:border md:border-border md:shadow-2xl md:overflow-hidden md:relative">
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-border">
         <button onClick={() => {
           if (name.trim() || ingredients.length > 0) setShowDiscard(true);
+
           else onClose();
         }} className="p-1.5 rounded-lg hover:bg-secondary">
           <ArrowLeft className="h-5 w-5 text-foreground" />
