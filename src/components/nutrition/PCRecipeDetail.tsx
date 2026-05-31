@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useIOSOverlayRepaint, OverlayPortal } from "@/hooks/useIOSOverlayRepaint";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Minus, Plus } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 interface PCRecipeDetailProps {
   recipe: any;
@@ -15,18 +16,49 @@ interface PCRecipeDetailProps {
   onLogged: () => void;
 }
 
+// Parse "1/3", "0.5", ".25", "1.5" → number; null if invalid
+function parsePortion(raw: string): number | null {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  if (s.includes("/")) {
+    const [a, b] = s.split("/").map(x => parseFloat(x));
+    if (!isFinite(a) || !isFinite(b) || b === 0) return null;
+    return a / b;
+  }
+  const n = parseFloat(s);
+  return isFinite(n) ? n : null;
+}
+
+// Format a fraction nicely for display: 0.125 → "1/8", 0.5 → "1/2", 1 → "1", else decimal
+function formatPortion(n: number): string {
+  const known: Array<[number, string]> = [
+    [1/8, "1/8"], [1/6, "1/6"], [1/4, "1/4"], [1/3, "1/3"],
+    [1/2, "1/2"], [2/3, "2/3"], [3/4, "3/4"],
+  ];
+  for (const [v, label] of known) {
+    if (Math.abs(n - v) < 0.005) return label;
+  }
+  if (Math.abs(n - Math.round(n)) < 0.005) return String(Math.round(n));
+  return (Math.round(n * 100) / 100).toString();
+}
+
 const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged }: PCRecipeDetailProps) => {
   useIOSOverlayRepaint();
   const { user } = useAuth();
   const { toast } = useToast();
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [instructions, setInstructions] = useState<any[]>([]);
-  const [servingsSelected, setServingsSelected] = useState(1);
+  const [portion, setPortion] = useState<number>(1);
+  const [portionInput, setPortionInput] = useState<string>("1");
+  const [inputValid, setInputValid] = useState(true);
   const [loading, setLoading] = useState(true);
   const [logging, setLogging] = useState(false);
 
+  const yieldN = Math.max(1, Number(recipe.servings) || 1);
+
   useEffect(() => {
     fetchDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe.id]);
 
   const fetchDetails = async () => {
@@ -40,22 +72,54 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
     setLoading(false);
   };
 
-  const S = servingsSelected;
+  // Batch totals = sum of ingredient macros (stored as full-recipe totals)
+  const batchTotals = useMemo(() => ingredients.reduce((acc, ing) => ({
+    calories: acc.calories + (Number(ing.calories) || 0),
+    protein: acc.protein + (Number(ing.protein) || 0),
+    carbs: acc.carbs + (Number(ing.carbs) || 0),
+    fat: acc.fat + (Number(ing.fat) || 0),
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 }), [ingredients]);
 
-  const totals = ingredients.reduce((acc, ing) => ({
-    calories: acc.calories + (ing.calories || 0) * S,
-    protein: acc.protein + (ing.protein || 0) * S,
-    carbs: acc.carbs + (ing.carbs || 0) * S,
-    fat: acc.fat + (ing.fat || 0) * S,
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  // factor scales batch → eaten portion
+  const factor = portion / yieldN;
+
+  const scaled = {
+    calories: batchTotals.calories * factor,
+    protein: batchTotals.protein * factor,
+    carbs: batchTotals.carbs * factor,
+    fat: batchTotals.fat * factor,
+  };
+
+  // Quick chips depend on yield: when batch makes >1, offer fractions; else whole numbers
+  const chipValues: number[] = yieldN > 1
+    ? Array.from(new Set([1, 2, ...(yieldN >= 2 ? [1/2] : []), ...(yieldN >= 3 ? [1/3] : []), ...(yieldN >= 4 ? [1/4] : []), ...(yieldN >= 6 ? [1/6] : []), ...(yieldN >= 8 ? [1/8] : [])]))
+        .sort((a, b) => a - b)
+    : [0.5, 1, 2, 3];
+
+  const setPortionValue = (v: number) => {
+    setPortion(v);
+    setPortionInput(formatPortion(v));
+    setInputValid(true);
+  };
+
+  const onInputChange = (raw: string) => {
+    setPortionInput(raw);
+    const parsed = parsePortion(raw);
+    if (parsed === null || parsed <= 0 || parsed > yieldN * 5) {
+      setInputValid(false);
+      return;
+    }
+    setInputValid(true);
+    setPortion(parsed);
+  };
 
   const addToLog = async () => {
-    if (!user || ingredients.length === 0) return;
+    if (!user || ingredients.length === 0 || !inputValid) return;
     setLogging(true);
 
-    // Fetch micros for ingredients with food_item_ids
+    // Sum micros across ingredients with food_item_ids, scaled by factor
     const foodItemIds = ingredients.filter(i => i.food_item_id).map(i => i.food_item_id);
-    const microsMap: Record<string, Record<string, number>> = {};
+    const aggregatedMicros: Record<string, number> = {};
     if (foodItemIds.length > 0) {
       try {
         const { extractMicros } = await import("@/utils/micronutrientHelper");
@@ -64,8 +128,16 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
           .select("*")
           .in("id", foodItemIds);
         if (foodItems) {
-          foodItems.forEach((fi: any) => {
-            microsMap[fi.id] = extractMicros(fi, 1);
+          const byId: Record<string, any> = {};
+          foodItems.forEach((fi: any) => { byId[fi.id] = fi; });
+          ingredients.forEach((ing: any) => {
+            const fi = ing.food_item_id ? byId[ing.food_item_id] : null;
+            if (!fi) return;
+            // ing.quantity is the batch quantity in serving_unit; micros stored per serving in food_items
+            const micros = extractMicros(fi, Number(ing.quantity) || 0);
+            Object.entries(micros).forEach(([k, v]) => {
+              aggregatedMicros[k] = (aggregatedMicros[k] || 0) + (v as number);
+            });
           });
         }
       } catch (err) {
@@ -73,34 +145,29 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
       }
     }
 
-    const entries = ingredients.map(ing => {
-      const servings = Math.round(ing.quantity * S * 100) / 100;
-      const itemMicros = ing.food_item_id && microsMap[ing.food_item_id]
-        ? Object.fromEntries(
-            Object.entries(microsMap[ing.food_item_id]).map(([k, v]) => [k, Math.round(v * servings * 100) / 100])
-          )
-        : {};
-      const unit = (ing.serving_unit || "g").toString();
-      const isGramLike = unit.toLowerCase() === "g" || unit.toLowerCase() === "grams" || unit.toLowerCase() === "ml";
-      return {
-        client_id: user.id,
-        food_item_id: ing.food_item_id || null,
-        custom_name: ing.food_item_id ? null : `🍳 ${ing.food_name}`,
-        meal_type: mealType,
-        servings,
-        quantity_display: isGramLike ? servings : servings,
-        quantity_unit: isGramLike ? "g" : unit,
-        calories: Math.round((ing.calories || 0) * S),
-        protein: Math.round((ing.protein || 0) * S),
-        carbs: Math.round((ing.carbs || 0) * S),
-        fat: Math.round((ing.fat || 0) * S),
-        logged_at: logDate,
-        tz_corrected: true,
-        ...itemMicros,
-      };
-    });
+    const scaledMicros = Object.fromEntries(
+      Object.entries(aggregatedMicros).map(([k, v]) => [k, Math.round((v as number) * factor * 100) / 100])
+    );
 
-    const { error } = await supabase.from("nutrition_logs").insert(entries);
+    const tag = yieldN > 1 ? ` (${formatPortion(portion)}/${yieldN} batch)` : "";
+    const entry: any = {
+      client_id: user.id,
+      food_item_id: null,
+      custom_name: `🍳 ${recipe.name}${tag}`,
+      meal_type: mealType,
+      servings: Math.round(portion * 1000) / 1000,
+      quantity_display: Math.round(portion * 1000) / 1000,
+      quantity_unit: "portion",
+      calories: Math.round(scaled.calories),
+      protein: Math.round(scaled.protein),
+      carbs: Math.round(scaled.carbs),
+      fat: Math.round(scaled.fat),
+      logged_at: logDate,
+      tz_corrected: true,
+      ...scaledMicros,
+    };
+
+    const { error } = await supabase.from("nutrition_logs").insert(entry);
     if (error) {
       console.error("[PCRecipeDetail] Log error:", error);
       toast({ title: "Couldn't log recipe." });
@@ -120,48 +187,74 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
         <h1 className="flex-1 text-base font-semibold text-foreground truncate">{recipe.name}</h1>
       </div>
 
-      {/* Servings Adjuster */}
-      <div className="px-4 py-3 border-b border-border">
-        <div className="flex items-center justify-center gap-4">
-          <button
-            onClick={() => setServingsSelected(Math.max(1, S - 1))}
-            className="h-9 w-9 rounded-full border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-foreground">{S}</div>
-            <div className="text-xs text-muted-foreground">Servings</div>
+      {/* Yield label + Portion picker */}
+      <div className="px-4 py-3 border-b border-border space-y-3">
+        {yieldN > 1 && (
+          <div className="text-xs text-muted-foreground text-center">
+            Recipe makes <span className="text-foreground font-medium">{yieldN}</span> portions
           </div>
-          <button
-            onClick={() => setServingsSelected(Math.min(20, S + 1))}
-            className="h-9 w-9 rounded-full border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+        )}
+
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Portion you ate</div>
+          <div className="flex flex-wrap gap-1.5">
+            {chipValues.map(v => {
+              const active = Math.abs(portion - v) < 0.005;
+              return (
+                <button
+                  key={v}
+                  onClick={() => setPortionValue(v)}
+                  className={`px-3 h-8 rounded-full text-xs font-medium border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-secondary text-foreground border-border hover:bg-secondary/70"
+                  }`}
+                >
+                  {formatPortion(v)}{yieldN > 1 ? ` of ${yieldN}` : ""}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs text-muted-foreground">or enter:</span>
+            <Input
+              inputMode="decimal"
+              value={portionInput}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder="1 or 1/3"
+              className={`h-8 w-24 text-sm text-center ${!inputValid ? "border-destructive" : ""}`}
+            />
+            <span className="text-xs text-muted-foreground">portions</span>
+          </div>
         </div>
       </div>
 
-      {/* Macro Summary */}
+      {/* Live Macro Summary (= what will be logged) */}
       <div className="px-4 py-3 border-b border-border">
         <div className="grid grid-cols-4 gap-3 text-center">
           <div>
-            <div className="text-lg font-bold text-foreground">{Math.round(totals.calories)}</div>
+            <div className="text-lg font-bold text-foreground">{Math.round(scaled.calories)}</div>
             <div className="text-[10px] text-muted-foreground uppercase">Calories</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-destructive">{Math.round(totals.protein)}g</div>
+            <div className="text-lg font-bold text-destructive">{Math.round(scaled.protein)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Protein</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-info">{Math.round(totals.carbs)}g</div>
+            <div className="text-lg font-bold text-info">{Math.round(scaled.carbs)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Carbs</div>
           </div>
           <div>
-            <div className="text-lg font-bold text-warn">{Math.round(totals.fat)}g</div>
+            <div className="text-lg font-bold text-warn">{Math.round(scaled.fat)}g</div>
             <div className="text-[10px] text-muted-foreground uppercase">Fat</div>
           </div>
         </div>
+        {yieldN > 1 && (
+          <div className="text-[10px] text-muted-foreground text-center mt-1.5">
+            {formatPortion(portion)} of {yieldN} portions · full batch {Math.round(batchTotals.calories)} cal
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-32">
@@ -173,19 +266,31 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
           <>
             {/* Ingredients */}
             <div className="py-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Ingredients</h2>
+              <div className="flex items-baseline justify-between mb-2">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ingredients</h2>
+                {yieldN > 1 && (
+                  <span className="text-[10px] text-muted-foreground">scaled × {formatPortion(portion)}/{yieldN}</span>
+                )}
+              </div>
               <div className="space-y-1.5">
-                {ingredients.map((ing: any) => (
-                  <div key={ing.id} className="rounded-xl bg-card border border-border/50 px-4 py-3">
-                    <div className="text-sm font-medium text-foreground">{ing.food_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {Math.round(ing.quantity * S * 10) / 10} {ing.serving_unit} · {Math.round((ing.calories || 0) * S)} cal
+                {ingredients.map((ing: any) => {
+                  const q = (Number(ing.quantity) || 0) * factor;
+                  const cal = (Number(ing.calories) || 0) * factor;
+                  const p = (Number(ing.protein) || 0) * factor;
+                  const c = (Number(ing.carbs) || 0) * factor;
+                  const f = (Number(ing.fat) || 0) * factor;
+                  return (
+                    <div key={ing.id} className="rounded-xl bg-card border border-border/50 px-4 py-3">
+                      <div className="text-sm font-medium text-foreground">{ing.food_name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {Math.round(q * 10) / 10} {ing.serving_unit} · {Math.round(cal)} cal
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {Math.round(p)}P · {Math.round(c)}C · {Math.round(f)}F
+                      </div>
                     </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {Math.round((ing.protein || 0) * S)}P · {Math.round((ing.carbs || 0) * S)}C · {Math.round((ing.fat || 0) * S)}F
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -241,7 +346,7 @@ const PCRecipeDetail = ({ recipe, mealType, mealLabel, logDate, onBack, onLogged
       <div className="fixed bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-background border-t border-border z-[60]">
         <Button
           onClick={addToLog}
-          disabled={logging || ingredients.length === 0}
+          disabled={logging || ingredients.length === 0 || !inputValid}
           className="w-full h-[52px] text-base font-semibold bg-primary text-primary-foreground rounded-xl"
         >
           {logging ? "Adding..." : `Add to ${mealLabel}`}
