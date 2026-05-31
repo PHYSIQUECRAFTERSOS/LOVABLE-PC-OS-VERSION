@@ -125,23 +125,25 @@ const PCRecipeEditor = ({ editRecipe, onClose, onSaved }: PCRecipeEditorProps) =
     })));
   };
 
-  const searchFoods = async (q: string) => {
-    setSearchQuery(q);
-    if (q.length < 2) { setSearchResults([]); return; }
-    setSearching(true);
-    const { data, error } = await supabase.rpc("search_foods", { search_query: q, result_limit: 15 });
-    if (!error && data) {
-      setSearchResults(data);
-    } else {
-      const { data: fallback } = await supabase
-        .from("food_items")
-        .select("id, name, brand, serving_size, serving_unit, calories, protein, carbs, fat")
-        .ilike("name", `%${q}%`)
-        .limit(10);
-      setSearchResults(fallback || []);
-    }
-    setSearching(false);
+  const handlePickIngredient = (p: { food_item_id?: string; food_name: string; quantity: number; serving_unit: string; calories: number; protein: number; carbs: number; fat: number }) => {
+    setIngredients(prev => [...prev, {
+      food_item_id: p.food_item_id,
+      food_name: p.food_name,
+      quantity: p.quantity,
+      serving_unit: p.serving_unit,
+      calories: p.calories,
+      protein: p.protein,
+      carbs: p.carbs,
+      fat: p.fat,
+      base_quantity: p.quantity,
+      base_calories: p.calories,
+      base_protein: p.protein,
+      base_carbs: p.carbs,
+      base_fat: p.fat,
+    }]);
+    setShowFoodSearch(false);
   };
+
 
   const addIngredient = (food: any) => {
     const qty = food.serving_size || 100;
