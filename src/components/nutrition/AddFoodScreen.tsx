@@ -80,6 +80,17 @@ interface FoodItem {
   _micros_per_100g?: Record<string, number | null>;
 }
 
+export interface PickedFoodPayload {
+  food_item_id?: string;
+  food_name: string;
+  quantity: number;
+  serving_unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
 interface AddFoodScreenProps {
   mealType: string;
   mealLabel: string;
@@ -87,6 +98,9 @@ interface AddFoodScreenProps {
   open: boolean;
   onClose: () => void;
   onLogged: () => void;
+  /** When true, food selections are returned via onPick instead of logged to nutrition_logs. */
+  pickMode?: boolean;
+  onPick?: (payload: PickedFoodPayload) => void;
 }
 
 type TabKey = "all" | "favorites" | "my-meals" | "custom" | "pc-recipes";
@@ -110,7 +124,7 @@ function getDefaultServings(item: FoodItem): string {
   return item.serving_size > 0 ? String(item.serving_size) : "1";
 }
 
-const TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
+const ALL_TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
   { key: "all", label: "All" },
   { key: "favorites", label: "★ Favs" },
   { key: "my-meals", label: "My\nMeals", stackedLabel: "My\nMeals" },
@@ -118,7 +132,8 @@ const TABS: { key: TabKey; label: string; stackedLabel?: string }[] = [
   { key: "pc-recipes", label: "PC Recipes" },
 ];
 
-const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }: AddFoodScreenProps) => {
+
+const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, pickMode = false, onPick }: AddFoodScreenProps) => {
   const effectiveDate = logDate || new Date().toLocaleDateString("en-CA");
   const { user } = useAuth();
   const { toast } = useToast();
@@ -518,7 +533,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const logFood = async (item: FoodItem) => {
     if (!user || logFoodRef.current) return;
+    if (pickMode) { openFoodDetail(item); return; }
     logFoodRef.current = true;
+
 
     let foodToLog = item;
     let foodItemId: string | null = null;
@@ -687,6 +704,28 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const logCustomFood = async (food: any, quantity?: number) => {
     if (!user) return;
+    if (pickMode) {
+      // Route through FoodDetailScreen so user can pick quantity, then onPick fires
+      openFoodDetail({
+        id: `custom-${food.id}`,
+        name: food.name + (food.brand ? ` (${food.brand})` : ""),
+        brand: food.brand || null,
+        serving_size: parseFloat(food.serving_size) || 100,
+        serving_unit: food.serving_unit || "g",
+        calories: food.calories || 0,
+        protein: food.protein || 0,
+        carbs: food.carbs || 0,
+        fat: food.fat || 0,
+        fiber: food.fiber || 0,
+        sugar: food.sugar || 0,
+        sodium: food.sodium || 0,
+        source: "local",
+        is_verified: false,
+        data_source: "custom",
+      } as FoodItem);
+      return;
+    }
+
     const ss = parseFloat(food.serving_size) || 100;
     const servingUnit = food.serving_unit || "serving";
     const qty = quantity ?? 1;
@@ -866,7 +905,26 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
 
   const handleDetailConfirm = async (entry: FoodDetailEntry) => {
     if (!user || detailLoggingRef.current) return;
+    if (pickMode && onPick) {
+      const foodSnap = detailFood;
+      const useGrams = (entry as any).useGrams;
+      const quantity = useGrams ? entry.totalGrams : entry.quantity;
+      const serving_unit = useGrams ? "g" : (entry.servingDescription || foodSnap?.serving_unit || "serving");
+      onPick({
+        food_item_id: foodSnap?.source === "local" ? foodSnap.id : undefined,
+        food_name: entry.food.name,
+        quantity,
+        serving_unit,
+        calories: Math.round(entry.calories),
+        protein: Math.round(entry.protein),
+        carbs: Math.round(entry.carbs),
+        fat: Math.round(entry.fat),
+      });
+      setDetailFood(null);
+      return;
+    }
     detailLoggingRef.current = true;
+
 
     // Capture detailFood before clearing
     const foodSnapshot = detailFood;
@@ -1150,7 +1208,22 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
     : pcRecipes;
 
   return (
-    <><OverlayPortal><div ref={overlayRef} className="overlay-fullscreen z-[60] animate-fade-in overflow-hidden">
+    <><OverlayPortal><div
+      ref={overlayRef}
+      onClick={pickMode ? (e) => { if (e.target === e.currentTarget) onClose(); } : undefined}
+      className={cn(
+        "z-[60] animate-fade-in overflow-hidden",
+        pickMode
+          ? "fixed inset-0 bg-black/60 backdrop-blur-sm flex md:items-center md:justify-center md:p-6"
+          : "overlay-fullscreen"
+      )}
+    >
+      <div className={cn(
+        "flex flex-col w-full h-full",
+        pickMode && "bg-background md:rounded-2xl md:border md:border-border md:shadow-2xl md:max-w-3xl md:h-[85vh] md:max-h-[860px] overflow-hidden"
+      )}>
+
+
       {/* Header */}
       <div className="flex items-center gap-3 px-4 safe-top pb-3 border-b border-border">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-secondary transition-colors">
@@ -1193,7 +1266,7 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       {/* Tabs - styled with gold active indicator */}
       <div className="px-4 pb-2 sticky top-0 z-10">
         <div className="flex">
-          {TABS.map((tab) => (
+          {(pickMode ? ALL_TABS.filter(t => t.key !== "my-meals" && t.key !== "pc-recipes") : ALL_TABS).map((tab) => (
             <button
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); if (search.length >= 2) handleSearch(search); }}
@@ -1214,13 +1287,14 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
       <div className="flex-1 overflow-y-auto px-4 pb-24">
         {/* Quick Actions (All tab only) */}
         {search.length < 2 && activeTab === "all" && (
-          <div className="grid grid-cols-4 gap-2 py-3">
-            <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />
-            <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} />
-            <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />
+          <div className={cn("grid gap-2 py-3", pickMode ? "grid-cols-1" : "grid-cols-4")}>
+            {!pickMode && <QuickActionCard icon={ScanBarcode} label="Barcode" onClick={() => setBarcodeOpen(true)} />}
+            {!pickMode && <QuickActionCard icon={Camera} label="Scan Label" onClick={() => setScanLabelOpen(true)} />}
+            {!pickMode && <QuickActionCard icon={Camera} label="Meal Scan" onClick={() => setMealScanOpen(true)} />}
             <QuickActionCard icon={UtensilsCrossed} label="Custom" onClick={() => setShowCreateFood(true)} />
           </div>
         )}
+
 
 
         {/* ═══ MY MEALS TAB ═══ */}
@@ -1616,7 +1690,9 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged }
         )}
       </div>
 
-    </div></OverlayPortal>
+    </div></div></OverlayPortal>
+
+
 
     {/* Render dialogs OUTSIDE the z-60 overlay so they stack correctly */}
     <BarcodeScanner open={barcodeOpen} onOpenChange={setBarcodeOpen} defaultMealType={mealType} onLogged={() => { setBarcodeOpen(false); onLogged(); }} />
