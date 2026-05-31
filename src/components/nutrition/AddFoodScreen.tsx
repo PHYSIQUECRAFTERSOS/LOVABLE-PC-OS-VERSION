@@ -1208,9 +1208,21 @@ const AddFoodScreen = ({ mealType, mealLabel, logDate, open, onClose, onLogged, 
     : pcRecipes;
 
   return (
-    <><OverlayPortal>{pickMode ? (
-      <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex md:items-center md:justify-center md:p-6 animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div ref={overlayRef} className="relative w-full h-full bg-background flex flex-col overflow-hidden md:rounded-2xl md:border md:border-border md:shadow-2xl md:w-full md:max-w-3xl md:h-[85vh] md:max-h-[860px]">
+    <><OverlayPortal><div
+      ref={overlayRef}
+      onClick={pickMode ? (e) => { if (e.target === e.currentTarget) onClose(); } : undefined}
+      className={cn(
+        "z-[60] animate-fade-in overflow-hidden",
+        pickMode
+          ? "fixed inset-0 bg-black/60 backdrop-blur-sm flex md:items-center md:justify-center md:p-6"
+          : "overlay-fullscreen"
+      )}
+    >
+      <div className={cn(
+        "flex flex-col w-full h-full",
+        pickMode && "bg-background md:rounded-2xl md:border md:border-border md:shadow-2xl md:max-w-3xl md:h-[85vh] md:max-h-[860px] overflow-hidden"
+      )}>
+
 
       {/* Header */}
       <div className="flex items-center gap-3 px-4 safe-top pb-3 border-b border-border">
