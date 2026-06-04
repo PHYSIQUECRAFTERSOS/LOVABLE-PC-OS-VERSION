@@ -355,6 +355,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         if (!editWorkoutId) {
           setWorkoutName("");
           setInstructions("");
+          setIsAccessory(false);
           setExercises([]);
           setUseRpe(false);
           setUseTempo(false);
