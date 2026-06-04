@@ -1024,7 +1024,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // STEP 4: Non-critical background work (PRs, calendar, XP) — fire-and-forget
       const backgroundWork = async () => {
         try {
-          for (const alert of prAlerts) {
+          for (const alert of finalPRs) {
             const ex = exercises.find(e => e.name === alert.exerciseName);
             if (ex) {
               await supabase.rpc("update_personal_record", {
