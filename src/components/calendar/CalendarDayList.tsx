@@ -535,7 +535,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
         >
           <div className={cn(
             "rounded-xl border-l-[3px] p-3 shadow-2xl shadow-black/40 backdrop-blur-sm bg-card/95 border border-border",
-            TYPE_ACCENT[dragEvent.event_type] || TYPE_ACCENT.custom,
+            TYPE_ACCENT[displayType(dragEvent)] || TYPE_ACCENT.custom,
           )}>
             <div className="flex items-start gap-3 min-w-0">
               <div className="mt-1 shrink-0 text-primary">
@@ -548,8 +548,8 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                   <Circle className="h-5 w-5 text-muted-foreground/30" />
                 )}
               </div>
-              <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[dragEvent.event_type] || TYPE_ICON_COLOR.custom)}>
-                {TYPE_ICONS[dragEvent.event_type] || TYPE_ICONS.reminder}
+              <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[displayType(dragEvent)] || TYPE_ICON_COLOR.custom)}>
+                {TYPE_ICONS[displayType(dragEvent)] || TYPE_ICONS.reminder}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">{dragEvent.title}</p>
