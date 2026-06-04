@@ -412,6 +412,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         lastPersistedSnapshotRef.current = JSON.stringify({
           workoutName: loadedDraft.workoutName,
           instructions: loadedDraft.instructions,
+          isAccessory: loadedDraft.isAccessory,
           exercises: loadedExercises.map(({ selected, ...exercise }) => ({ ...exercise, selected: false })),
           useRpe: loadedDraft.useRpe,
           useTempo: loadedDraft.useTempo,
