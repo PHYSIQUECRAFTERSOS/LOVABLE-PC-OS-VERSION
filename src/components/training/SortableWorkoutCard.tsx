@@ -170,6 +170,11 @@ export const SortableWorkoutCard = ({
                 Day {displayPosition}
               </Badge>
             ) : null}
+            {isAccessory && (
+              <Badge className="text-[10px] px-1.5 bg-primary/20 text-primary border-primary/40 gap-1">
+                <Sparkles className="h-2.5 w-2.5" /> Accessory
+              </Badge>
+            )}
           </div>
           <button
             className="text-sm font-semibold truncate text-left hover:text-primary transition-colors block w-full"
