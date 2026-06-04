@@ -496,7 +496,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   // Clear state only after a successful save/close — never on tab switch or focus loss.
   useEffect(() => {
     if (!open && savedSuccessfullyRef.current) {
-      setWorkoutName(""); setInstructions(""); setExercises([]);
+      setWorkoutName(""); setInstructions(""); setIsAccessory(false); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
       setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
       setPreviewExerciseIdx(null);
