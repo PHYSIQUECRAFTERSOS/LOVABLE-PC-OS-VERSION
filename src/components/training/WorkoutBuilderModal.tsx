@@ -840,6 +840,20 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={isAccessory ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsAccessory(!isAccessory)}
+                className={isAccessory
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary"
+                  : "border-dashed"
+                }
+                title="Mark this as a low-intensity activity (stretches, mobility, vacuums). No XP, no training-day macros, no Day N: numbering."
+              >
+                {isAccessory ? <Check className="h-3.5 w-3.5 mr-1" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                {isAccessory ? "Accessory Activity" : "Mark as Accessory"}
+              </Button>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Switch checked={useRpe} onCheckedChange={setUseRpe} className="scale-75" />
                 <span>RPE</span>
