@@ -363,7 +363,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
         const { data: workout, error: workoutErr } = await supabase
           .from("workouts")
-          .select("name, instructions")
+          .select("name, instructions, is_accessory")
           .eq("id", editWorkoutId)
           .single();
         if (workoutErr) throw workoutErr;
