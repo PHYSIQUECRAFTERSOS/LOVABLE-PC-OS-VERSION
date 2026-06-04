@@ -98,27 +98,31 @@ const Calendar = () => {
         if (phaseId) {
           const { data: pws } = await supabase
             .from("program_workouts")
-            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name, is_accessory)")
             .eq("phase_id", phaseId)
             .order("sort_order", { ascending: true });
 
+          // Accessory workouts are excluded from sequential "Day N" numbering.
           const positioned = withDisplayPositions(
             (pws || []).map((pw: any) => ({
               id: pw.workout_id,
               sort_order: pw.sort_order,
-              exclude_from_numbering: pw.exclude_from_numbering || false,
+              exclude_from_numbering: pw.exclude_from_numbering || !!(pw.workouts as any)?.is_accessory,
               custom_tag: pw.custom_tag || null,
               name: (pw.workouts as any)?.name || "Workout",
+              is_accessory: !!(pw.workouts as any)?.is_accessory,
             }))
           );
 
           positioned.forEach((w: any) => {
             const cleanName = normalizeWorkoutName(w.name);
-            const label = w.exclude_from_numbering && w.custom_tag
-              ? `${w.custom_tag}: ${cleanName}`
-              : w.displayPosition != null
-                ? formatWorkoutDayLabel(w.displayPosition, cleanName)
-                : cleanName;
+            const label = w.is_accessory
+              ? cleanName
+              : w.exclude_from_numbering && w.custom_tag
+                ? `${w.custom_tag}: ${cleanName}`
+                : w.displayPosition != null
+                  ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+                  : cleanName;
             workoutLabelMap.set(w.id, label);
           });
         }
