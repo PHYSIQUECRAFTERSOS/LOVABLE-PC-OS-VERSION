@@ -198,19 +198,27 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       const items: ActionItem[] = [];
 
       const workoutNameMap = new Map<string, string>();
+      const workoutAccessoryMap = new Map<string, boolean>();
       (workoutNamesRes.data || []).forEach((w: any) => {
         workoutNameMap.set(w.id, w.name);
+        workoutAccessoryMap.set(w.id, !!w.is_accessory);
       });
 
       (calRes.data || []).forEach((e) => {
         let completed = e.is_completed;
         let title = e.title;
+        let isAccessory = false;
 
         if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s: any) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
           const directName = workoutNameMap.get(e.linked_workout_id);
           if (directName) title = directName;
+          isAccessory = workoutAccessoryMap.get(e.linked_workout_id) === true;
+          // Strip any leftover "Day N:" prefix from accessory titles
+          if (isAccessory) {
+            title = title.replace(/^[Dd]ay\s*\d+\s*[:\-–]\s*/, "").trim();
+          }
         }
         if (e.event_type === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
@@ -220,10 +228,11 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
         items.push({
           id: e.id,
           title,
-          type: e.event_type,
+          type: isAccessory ? "activity" : e.event_type,
           completed,
           description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
+          isAccessory,
         });
       });
 
