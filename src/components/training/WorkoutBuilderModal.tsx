@@ -544,7 +544,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const discardAndClose = () => {
     try { sessionStorage.removeItem(draftKey); } catch {}
     // Reset state immediately since user is intentionally discarding
-    setWorkoutName(""); setInstructions(""); setExercises([]);
+    setWorkoutName(""); setInstructions(""); setIsAccessory(false); setExercises([]);
     setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
     setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
     setPreviewExerciseIdx(null);
