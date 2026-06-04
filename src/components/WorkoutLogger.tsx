@@ -979,7 +979,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         duration_seconds: durationSeconds,
         total_volume: totalVolume,
         sets_completed: completedSets,
-        pr_count: prAlerts.length,
+        pr_count: finalPRs.length,
         status: "completed",
         had_unlogged_sets: hadUnlogged,
         exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
