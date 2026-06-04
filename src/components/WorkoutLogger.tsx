@@ -504,8 +504,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     newEx[exIdx].logs[setIdx] = updatedLog;
     setExercises(newEx);
 
-    // If RPE or reps is updated on a completed set, re-persist immediately
-    if ((field === "rpe" || field === "reps") && updatedLog.completed) {
+    // If weight/reps/RPE is edited on a completed set, re-persist immediately
+    if ((field === "rpe" || field === "reps" || field === "weight") && updatedLog.completed) {
       persistSet(newEx[exIdx].id, updatedLog);
     }
   };
@@ -888,6 +888,43 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     // so the banner will NOT appear even if we navigate before DB writes commit.
     window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId: activeSessionId } }));
 
+    // Re-evaluate PRs from FINAL completed-set values (user may have edited
+    // weight/reps after the initial log). For each exercise pick the best
+    // completed set, then compare against existing personal_records and
+    // historical bests. This makes the PR badge reflect the actual lift.
+    const finalPRs: PRAlert[] = [];
+    for (const ex of exercises) {
+      let best: { weightLbs: number; reps: number } | null = null;
+      for (const log of ex.logs) {
+        if (!log.completed || !log.reps || log.reps <= 0) continue;
+        const wLbs = weightToLbs(log.weight ?? 0, clientWeightUnit);
+        if (wLbs <= 0) continue;
+        if (!best || wLbs > best.weightLbs || (wLbs === best.weightLbs && log.reps > best.reps)) {
+          best = { weightLbs: wLbs, reps: log.reps };
+        }
+      }
+      if (!best) continue;
+      const existingPR = personalRecords.find(pr => pr.exercise_id === ex.id);
+      if (existingPR) {
+        const beats = best.weightLbs > existingPR.weight ||
+          (best.weightLbs === existingPR.weight && best.reps > existingPR.reps);
+        if (!beats) continue;
+      }
+      const historical = allTimeBests[ex.id] || [];
+      let beatsHistory = true;
+      for (const prev of historical) {
+        if (prev.weight > best.weightLbs || (prev.weight === best.weightLbs && prev.reps >= best.reps)) {
+          beatsHistory = false;
+          break;
+        }
+      }
+      if (!beatsHistory) continue;
+      const type: "weight" | "rep" =
+        !existingPR || best.weightLbs > (existingPR?.weight || 0) ? "weight" : "rep";
+      finalPRs.push({ exerciseName: ex.name, weight: best.weightLbs, reps: best.reps, type });
+    }
+    setPrAlerts(finalPRs);
+
     try {
       // STEP 1: Save all exercise logs to DB (critical — must complete before teardown)
       const logsToUpsert = exercises.flatMap((ex) =>
@@ -942,7 +979,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         duration_seconds: durationSeconds,
         total_volume: totalVolume,
         sets_completed: completedSets,
-        pr_count: prAlerts.length,
+        pr_count: finalPRs.length,
         status: "completed",
         had_unlogged_sets: hadUnlogged,
         exercise_modifications: exerciseModifications.length > 0 ? exerciseModifications : undefined,
@@ -987,7 +1024,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // STEP 4: Non-critical background work (PRs, calendar, XP) — fire-and-forget
       const backgroundWork = async () => {
         try {
-          for (const alert of prAlerts) {
+          for (const alert of finalPRs) {
             const ex = exercises.find(e => e.name === alert.exerciseName);
             if (ex) {
               await supabase.rpc("update_personal_record", {
@@ -1042,8 +1079,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             const actions: { type: string; count: number }[] = [
               { type: "workout_completed", count: 1 },
             ];
-            if (prAlerts.length > 0) {
-              actions.push({ type: "personal_best", count: prAlerts.length });
+            if (finalPRs.length > 0) {
+              actions.push({ type: "personal_best", count: finalPRs.length });
             }
             await autoScoreChallengePoints(user.id, actions);
           } catch (e) {

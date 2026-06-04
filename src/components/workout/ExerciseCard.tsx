@@ -271,7 +271,9 @@ const ExerciseCard = ({
   // Open the keypad targeted at a specific set/field, prefilling the buffer.
   const openKeypad = useCallback((setIdx: number, field: "weight" | "reps") => {
     const log = logs[setIdx];
-    if (!log || log.completed) return;
+    if (!log) return;
+    // Allow editing even after a set is logged — users can correct weight/reps;
+    // PR detection re-evaluates on Finish from the final values.
     const current = field === "weight" ? log.weight : log.reps;
     setKeypadValue(current !== undefined && current !== null ? String(current) : "");
     setKeypadField({ setIdx, field });
@@ -459,7 +461,7 @@ const ExerciseCard = ({
               <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
               <div className="relative">
-                {isMobile && !log.completed ? (
+                {isMobile ? (
                   <button
                     type="button"
                     onClick={() => openKeypad(setIdx, "weight")}
@@ -475,7 +477,6 @@ const ExerciseCard = ({
                   <Input
                     type="text"
                     inputMode="decimal"
-                    readOnly={log.completed && isMobile}
                     value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : weightDisplay}
                     onChange={(e) => {
                       const val = e.target.value;
