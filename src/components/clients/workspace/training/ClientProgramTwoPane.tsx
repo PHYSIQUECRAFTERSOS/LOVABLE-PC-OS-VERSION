@@ -520,6 +520,8 @@ export const ClientProgramTwoPane = ({
                                 customTag={isExcluded ? pw.custom_tag : null}
                                 meta={meta[pw.workout_id]}
                                 dragDisabled={dragDisabled}
+                                isAccessory={!!accessoryMap[pw.workout_id]}
+                                onToggleAccessory={(next) => handleToggleAccessory(pw.workout_id, next)}
                                 onPrimaryClick={() => onOpenWorkout(pw)}
                                 onEdit={() => onEditWorkout(pw)}
                                 onDuplicate={() => onDuplicateWorkout(pw, selectedPhase.id)}
