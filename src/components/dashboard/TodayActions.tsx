@@ -51,6 +51,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 const TYPE_DESCRIPTIONS: Record<string, string> = {
   workout: "Complete your scheduled workout",
+  activity: "Scheduled activity",
   cardio: "Scheduled cardio session",
   nutrition: "Log your meals for today",
   steps: "Reach your step goal",
