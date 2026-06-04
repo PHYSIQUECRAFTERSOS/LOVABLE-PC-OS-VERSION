@@ -222,6 +222,19 @@ export const SortableWorkoutCard = ({
               {onDuplicate && (
                 <DropdownMenuItem onClick={onDuplicate}><Copy className="h-3 w-3 mr-2" /> Duplicate</DropdownMenuItem>
               )}
+              {onToggleAccessory && (
+                <DropdownMenuItem
+                  onClick={() => onToggleAccessory(!isAccessory)}
+                  className={isAccessory ? "text-primary focus:text-primary" : ""}
+                >
+                  {isAccessory ? (
+                    <Check className="h-3 w-3 mr-2" />
+                  ) : (
+                    <Sparkles className="h-3 w-3 mr-2" />
+                  )}
+                  {isAccessory ? "Unmark as Accessory" : "Mark as Accessory"}
+                </DropdownMenuItem>
+              )}
               {onMoveToPhase && (
                 <DropdownMenuItem onClick={onMoveToPhase}><GripVertical className="h-3 w-3 mr-2" /> Move to phase…</DropdownMenuItem>
               )}
