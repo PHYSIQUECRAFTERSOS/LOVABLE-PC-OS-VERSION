@@ -245,7 +245,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
     const { error: updateErr } = await supabase
       .from("workouts")
-      .update({ name: trimmedName, instructions: instructions || null })
+      .update({ name: trimmedName, instructions: instructions || null, is_accessory: isAccessory } as any)
       .eq("id", editWorkoutId);
     if (updateErr) throw updateErr;
 
