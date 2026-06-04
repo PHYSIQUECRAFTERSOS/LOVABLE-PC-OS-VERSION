@@ -2,10 +2,11 @@ import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { format, isToday, isTomorrow, isYesterday, parseISO, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarGrid";
-import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell, UtensilsCrossed, GripVertical } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell, UtensilsCrossed, GripVertical, Sparkles } from "lucide-react";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   workout: <Dumbbell className="h-5 w-5" />,
+  activity: <Sparkles className="h-5 w-5" />,
   cardio: <Heart className="h-5 w-5" />,
   photos: <Camera className="h-5 w-5" />,
   body_stats: <Activity className="h-5 w-5" />,
@@ -18,6 +19,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 const TYPE_ACCENT: Record<string, string> = {
   workout: "border-l-amber-500 bg-warn/5",
+  activity: "border-l-muted-foreground/40 bg-muted/20",
   cardio: "border-l-green-500 bg-success/5",
   photos: "border-l-purple-500 bg-purple-500/5",
   body_stats: "border-l-blue-500 bg-info/5",
@@ -31,6 +33,7 @@ const TYPE_ACCENT: Record<string, string> = {
 
 const TYPE_ICON_COLOR: Record<string, string> = {
   workout: "text-warn",
+  activity: "text-muted-foreground",
   cardio: "text-success",
   photos: "text-purple-500",
   body_stats: "text-info",
@@ -44,6 +47,7 @@ const TYPE_ICON_COLOR: Record<string, string> = {
 
 const TYPE_SUBTITLES: Record<string, string> = {
   workout: "Complete your scheduled workout",
+  activity: "Activity · not counted as a workout",
   cardio: "Scheduled cardio session",
   photos: "Take your progress photos",
   body_stats: "Log body measurements",
@@ -53,6 +57,10 @@ const TYPE_SUBTITLES: Record<string, string> = {
   reminder: "Scheduled reminder",
   nutrition: "Daily nutrition intake",
 };
+
+/** Resolve the display type — accessory workouts render as a distinct "activity" style. */
+const displayType = (event: CalendarEvent): string =>
+  event.is_accessory ? "activity" : event.event_type;
 
 interface CalendarDayListProps {
   events: CalendarEvent[];
