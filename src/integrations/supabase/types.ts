@@ -7603,6 +7603,7 @@ export type Database = {
           estimated_duration: number | null
           id: string
           instructions: string | null
+          is_accessory: boolean
           is_template: boolean
           name: string
           notes: string | null
@@ -7620,6 +7621,7 @@ export type Database = {
           estimated_duration?: number | null
           id?: string
           instructions?: string | null
+          is_accessory?: boolean
           is_template?: boolean
           name: string
           notes?: string | null
@@ -7637,6 +7639,7 @@ export type Database = {
           estimated_duration?: number | null
           id?: string
           instructions?: string | null
+          is_accessory?: boolean
           is_template?: boolean
           name?: string
           notes?: string | null
