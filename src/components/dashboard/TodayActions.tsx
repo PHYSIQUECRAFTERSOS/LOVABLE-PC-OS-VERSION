@@ -26,6 +26,7 @@ export interface ActionItem {
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   workout: <Dumbbell className="h-4 w-4" />,
+  activity: <Sparkles className="h-4 w-4" />,
   cardio: <Heart className="h-4 w-4" />,
   nutrition: <UtensilsCrossed className="h-4 w-4" />,
   steps: <Footprints className="h-4 w-4" />,
