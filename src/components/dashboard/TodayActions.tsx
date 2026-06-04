@@ -247,12 +247,30 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
         }
       });
 
-      // Deduplicate workout items
-      const workoutItems = items.filter(i => i.type === "workout");
-      if (workoutItems.length > 1) {
-        const named = workoutItems.find(w => w.title !== "Workout") || workoutItems[0];
-        const duplicateIds = new Set(workoutItems.filter(w => w.id !== named.id).map(w => w.id));
-        const filtered = items.filter(i => !duplicateIds.has(i.id));
+      // Deduplicate only true duplicates: multiple calendar events pointing to the
+      // SAME linked workout. Distinct workouts (and accessories) on the same day stay.
+      const seenByLinkedId = new Map<string, ActionItem>();
+      const dropIds = new Set<string>();
+      for (const it of items) {
+        if ((it.type === "workout" || it.type === "activity") && it.linkedWorkoutId) {
+          const existing = seenByLinkedId.get(it.linkedWorkoutId);
+          if (!existing) {
+            seenByLinkedId.set(it.linkedWorkoutId, it);
+          } else {
+            // Keep the named one; drop the generic "Workout" placeholder
+            const existingIsGeneric = existing.title === "Workout";
+            const currentIsGeneric = it.title === "Workout";
+            if (existingIsGeneric && !currentIsGeneric) {
+              dropIds.add(existing.id);
+              seenByLinkedId.set(it.linkedWorkoutId, it);
+            } else {
+              dropIds.add(it.id);
+            }
+          }
+        }
+      }
+      if (dropIds.size > 0) {
+        const filtered = items.filter(i => !dropIds.has(i.id));
         items.length = 0;
         items.push(...filtered);
       }
