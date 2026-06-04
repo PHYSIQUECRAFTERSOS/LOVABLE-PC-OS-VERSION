@@ -380,16 +380,17 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
               <button
                 key={action.id}
                 onClick={() => handleActionClick(action)}
-                disabled={workoutLauncher.loading && action.type === "workout"}
+                disabled={workoutLauncher.loading && (action.type === "workout" || action.type === "activity")}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors w-full text-left border-l-[3px]",
                   TYPE_COLORS[action.type] || "border-l-muted",
+                  action.type === "activity" && !action.completed && "bg-muted/10",
                   action.completed
                     ? "bg-primary/5 opacity-70"
                     : "hover:bg-secondary/50"
                 )}
               >
-                {workoutLauncher.loading && action.type === "workout" && !action.completed ? (
+                {workoutLauncher.loading && (action.type === "workout" || action.type === "activity") && !action.completed ? (
                   <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
                 ) : action.completed ? (
                   <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
