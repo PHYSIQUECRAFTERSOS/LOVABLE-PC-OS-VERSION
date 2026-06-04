@@ -115,6 +115,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const { toast } = useToast();
   const [workoutName, setWorkoutName] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [isAccessory, setIsAccessory] = useState(false);
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -191,15 +192,17 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const buildDraftSnapshot = useCallback(() => JSON.stringify({
     workoutName,
     instructions,
+    isAccessory,
     exercises: exercises.map(({ selected, ...exercise }) => ({ ...exercise, selected: false })),
     useRpe,
     useTempo,
     useRir,
-  }), [workoutName, instructions, exercises, useRpe, useTempo, useRir]);
+  }), [workoutName, instructions, isAccessory, exercises, useRpe, useTempo, useRir]);
 
   const applyDraftState = useCallback((draft: any) => {
     setWorkoutName(draft.workoutName || "");
     setInstructions(draft.instructions || "");
+    setIsAccessory(Boolean(draft.isAccessory));
     setExercises(Array.isArray(draft.exercises)
       ? draft.exercises.map((exercise: WorkoutExercise, index: number) => ({
           ...exercise,
@@ -242,7 +245,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
     const { error: updateErr } = await supabase
       .from("workouts")
-      .update({ name: trimmedName, instructions: instructions || null })
+      .update({ name: trimmedName, instructions: instructions || null, is_accessory: isAccessory } as any)
       .eq("id", editWorkoutId);
     if (updateErr) throw updateErr;
 
@@ -352,6 +355,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         if (!editWorkoutId) {
           setWorkoutName("");
           setInstructions("");
+          setIsAccessory(false);
           setExercises([]);
           setUseRpe(false);
           setUseTempo(false);
@@ -362,7 +366,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
         const { data: workout, error: workoutErr } = await supabase
           .from("workouts")
-          .select("name, instructions")
+          .select("name, instructions, is_accessory")
           .eq("id", editWorkoutId)
           .single();
         if (workoutErr) throw workoutErr;
@@ -398,6 +402,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         const loadedDraft = {
           workoutName: workout?.name || "",
           instructions: workout?.instructions || "",
+          isAccessory: !!(workout as any)?.is_accessory,
           exercises: loadedExercises,
           useRpe: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.rpe)),
           useTempo: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.tempo)),
@@ -408,6 +413,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         lastPersistedSnapshotRef.current = JSON.stringify({
           workoutName: loadedDraft.workoutName,
           instructions: loadedDraft.instructions,
+          isAccessory: loadedDraft.isAccessory,
           exercises: loadedExercises.map(({ selected, ...exercise }) => ({ ...exercise, selected: false })),
           useRpe: loadedDraft.useRpe,
           useTempo: loadedDraft.useTempo,
@@ -490,7 +496,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   // Clear state only after a successful save/close — never on tab switch or focus loss.
   useEffect(() => {
     if (!open && savedSuccessfullyRef.current) {
-      setWorkoutName(""); setInstructions(""); setExercises([]);
+      setWorkoutName(""); setInstructions(""); setIsAccessory(false); setExercises([]);
       setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
       setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
       setPreviewExerciseIdx(null);
@@ -538,7 +544,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const discardAndClose = () => {
     try { sessionStorage.removeItem(draftKey); } catch {}
     // Reset state immediately since user is intentionally discarding
-    setWorkoutName(""); setInstructions(""); setExercises([]);
+    setWorkoutName(""); setInstructions(""); setIsAccessory(false); setExercises([]);
     setSearchQuery(""); setFilterMuscle("all"); setFilterEquipment("all");
     setUseRpe(false); setUseTempo(false); setUseRir(false); setSelectionMode(false);
     setPreviewExerciseIdx(null);
@@ -742,7 +748,8 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             instructions: instructions || null,
             is_template: true,
             workout_type: "regular",
-          })
+            is_accessory: isAccessory,
+          } as any)
           .select()
           .single();
         if (workoutErr) throw workoutErr;
@@ -884,6 +891,17 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                 <div className="space-y-1.5">
                   <Label className="text-xs">Instructions (optional)</Label>
                   <Textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Warm up notes, focus areas..." rows={2} className="text-xs resize-none" />
+                </div>
+                <div className="flex items-start gap-3 rounded-md border border-border bg-muted/20 p-2.5">
+                  <Switch checked={isAccessory} onCheckedChange={setIsAccessory} className="mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <Label className="text-xs font-medium cursor-pointer" onClick={() => setIsAccessory(!isAccessory)}>
+                      Accessory / Activity
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                      Low-intensity items like stretches, mobility, or vacuums. Excluded from "Day N:" numbering, XP, streaks, and training-day nutrition macros.
+                    </p>
+                  </div>
                 </div>
               </div>
 

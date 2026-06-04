@@ -21,10 +21,12 @@ export interface ActionItem {
   detail?: string;
   description?: string | null;
   linkedWorkoutId?: string | null;
+  isAccessory?: boolean;
 }
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   workout: <Dumbbell className="h-4 w-4" />,
+  activity: <Sparkles className="h-4 w-4" />,
   cardio: <Heart className="h-4 w-4" />,
   nutrition: <UtensilsCrossed className="h-4 w-4" />,
   steps: <Footprints className="h-4 w-4" />,
@@ -38,6 +40,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 const TYPE_COLORS: Record<string, string> = {
   workout: "border-l-blue-500",
+  activity: "border-l-muted-foreground/40",
   cardio: "border-l-green-500",
   nutrition: "border-l-yellow-500",
   steps: "border-l-orange-400",
@@ -48,6 +51,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 const TYPE_DESCRIPTIONS: Record<string, string> = {
   workout: "Complete your scheduled workout",
+  activity: "Scheduled activity",
   cardio: "Scheduled cardio session",
   nutrition: "Log your meals for today",
   steps: "Reach your step goal",
@@ -185,7 +189,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
         calWorkoutIds.length > 0
           ? supabase
               .from("workouts")
-              .select("id, name")
+              .select("id, name, is_accessory")
               .in("id", calWorkoutIds)
               .abortSignal(signal)
           : Promise.resolve({ data: [] as any[], error: null }),
@@ -194,19 +198,27 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
       const items: ActionItem[] = [];
 
       const workoutNameMap = new Map<string, string>();
+      const workoutAccessoryMap = new Map<string, boolean>();
       (workoutNamesRes.data || []).forEach((w: any) => {
         workoutNameMap.set(w.id, w.name);
+        workoutAccessoryMap.set(w.id, !!w.is_accessory);
       });
 
       (calRes.data || []).forEach((e) => {
         let completed = e.is_completed;
         let title = e.title;
+        let isAccessory = false;
 
         if (e.event_type === "workout" && e.linked_workout_id) {
           const session = sessRes.data?.find((s: any) => s.workout_id === e.linked_workout_id);
           if (session?.completed_at) completed = true;
           const directName = workoutNameMap.get(e.linked_workout_id);
           if (directName) title = directName;
+          isAccessory = workoutAccessoryMap.get(e.linked_workout_id) === true;
+          // Strip any leftover "Day N:" prefix from accessory titles
+          if (isAccessory) {
+            title = title.replace(/^[Dd]ay\s*\d+\s*[:\-–]\s*/, "").trim();
+          }
         }
         if (e.event_type === "cardio") {
           const log = cardioRes.data?.find((c) => c.title === e.title);
@@ -216,10 +228,11 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
         items.push({
           id: e.id,
           title,
-          type: e.event_type,
+          type: isAccessory ? "activity" : e.event_type,
           completed,
           description: (e as any).description || null,
           linkedWorkoutId: e.linked_workout_id,
+          isAccessory,
         });
       });
 
@@ -234,12 +247,30 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
         }
       });
 
-      // Deduplicate workout items
-      const workoutItems = items.filter(i => i.type === "workout");
-      if (workoutItems.length > 1) {
-        const named = workoutItems.find(w => w.title !== "Workout") || workoutItems[0];
-        const duplicateIds = new Set(workoutItems.filter(w => w.id !== named.id).map(w => w.id));
-        const filtered = items.filter(i => !duplicateIds.has(i.id));
+      // Deduplicate only true duplicates: multiple calendar events pointing to the
+      // SAME linked workout. Distinct workouts (and accessories) on the same day stay.
+      const seenByLinkedId = new Map<string, ActionItem>();
+      const dropIds = new Set<string>();
+      for (const it of items) {
+        if ((it.type === "workout" || it.type === "activity") && it.linkedWorkoutId) {
+          const existing = seenByLinkedId.get(it.linkedWorkoutId);
+          if (!existing) {
+            seenByLinkedId.set(it.linkedWorkoutId, it);
+          } else {
+            // Keep the named one; drop the generic "Workout" placeholder
+            const existingIsGeneric = existing.title === "Workout";
+            const currentIsGeneric = it.title === "Workout";
+            if (existingIsGeneric && !currentIsGeneric) {
+              dropIds.add(existing.id);
+              seenByLinkedId.set(it.linkedWorkoutId, it);
+            } else {
+              dropIds.add(it.id);
+            }
+          }
+        }
+      }
+      if (dropIds.size > 0) {
+        const filtered = items.filter(i => !dropIds.has(i.id));
         items.length = 0;
         items.push(...filtered);
       }
@@ -279,8 +310,8 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   const handleActionClick = (action: ActionItem) => {
     const effectiveType = resolveActionType(action);
 
-    // Workout: open popup if there's a linked workout
-    if (effectiveType === "workout" && action.linkedWorkoutId && !action.completed) {
+    // Workout or accessory activity: open popup if there's a linked workout
+    if ((effectiveType === "workout" || effectiveType === "activity") && action.linkedWorkoutId && !action.completed) {
       setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title, calendarEventId: action.id });
       return;
     }
@@ -349,16 +380,17 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
               <button
                 key={action.id}
                 onClick={() => handleActionClick(action)}
-                disabled={workoutLauncher.loading && action.type === "workout"}
+                disabled={workoutLauncher.loading && (action.type === "workout" || action.type === "activity")}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors w-full text-left border-l-[3px]",
                   TYPE_COLORS[action.type] || "border-l-muted",
+                  action.type === "activity" && !action.completed && "bg-muted/10",
                   action.completed
                     ? "bg-primary/5 opacity-70"
                     : "hover:bg-secondary/50"
                 )}
               >
-                {workoutLauncher.loading && action.type === "workout" && !action.completed ? (
+                {workoutLauncher.loading && (action.type === "workout" || action.type === "activity") && !action.completed ? (
                   <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
                 ) : action.completed ? (
                   <CheckCircle2 className="h-5 w-5 text-success shrink-0" />

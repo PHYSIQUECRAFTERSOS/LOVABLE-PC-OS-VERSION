@@ -1073,45 +1073,60 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
           clearRetryQueue();
 
-          // Auto-score challenge points
+          // Check if this is an accessory workout — skip XP/challenge/streak impact
+          let isAccessoryWorkout = false;
           try {
-            const { autoScoreChallengePoints } = await import("@/utils/challengeAutoScore");
-            const actions: { type: string; count: number }[] = [
-              { type: "workout_completed", count: 1 },
-            ];
-            if (finalPRs.length > 0) {
-              actions.push({ type: "personal_best", count: finalPRs.length });
+            const { data: wRow } = await supabase
+              .from("workouts")
+              .select("is_accessory")
+              .eq("id", workoutId)
+              .maybeSingle();
+            isAccessoryWorkout = !!(wRow as any)?.is_accessory;
+          } catch {}
+
+          // Auto-score challenge points (skip for accessories)
+          if (!isAccessoryWorkout) {
+            try {
+              const { autoScoreChallengePoints } = await import("@/utils/challengeAutoScore");
+              const actions: { type: string; count: number }[] = [
+                { type: "workout_completed", count: 1 },
+              ];
+              if (finalPRs.length > 0) {
+                actions.push({ type: "personal_best", count: finalPRs.length });
+              }
+              await autoScoreChallengePoints(user.id, actions);
+            } catch (e) {
+              console.error("[WorkoutLogger] Challenge auto-score error:", e);
             }
-            await autoScoreChallengePoints(user.id, actions);
-          } catch (e) {
-            console.error("[WorkoutLogger] Challenge auto-score error:", e);
           }
 
-          // Award Ranked XP
-          try {
-            const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
-            const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
-            const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
-            if (xpResult) {
-              setSummaryRankData({
-                xpEarned: xpResult.xpAwarded,
-                tier: xpResult.tier,
-                division: xpResult.division,
-                divisionXP: xpResult.divisionXP,
-                xpNeeded: xpResult.xpNeeded,
-                totalXP: xpResult.newTotal,
-              });
-              const { data: freshProfile } = await (supabase as any)
-                .from("ranked_profiles")
-                .select("*")
-                .eq("user_id", user.id)
-                .maybeSingle();
-              if (freshProfile) {
-                checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+          // Award Ranked XP (skip for accessory workouts)
+          if (!isAccessoryWorkout) {
+            try {
+              const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
+              const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+              const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
+              if (xpResult) {
+                setSummaryRankData({
+                  xpEarned: xpResult.xpAwarded,
+                  tier: xpResult.tier,
+                  division: xpResult.division,
+                  divisionXP: xpResult.divisionXP,
+                  xpNeeded: xpResult.xpNeeded,
+                  totalXP: xpResult.newTotal,
+                });
+                const { data: freshProfile } = await (supabase as any)
+                  .from("ranked_profiles")
+                  .select("*")
+                  .eq("user_id", user.id)
+                  .maybeSingle();
+                if (freshProfile) {
+                  checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+                }
               }
+            } catch (e) {
+              console.error("[WorkoutLogger] Ranked XP error:", e);
             }
-          } catch (e) {
-            console.error("[WorkoutLogger] Ranked XP error:", e);
           }
         } catch (bgError) {
           console.error("[WorkoutLogger] Background work error:", bgError);
