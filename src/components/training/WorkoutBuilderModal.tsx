@@ -115,6 +115,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const { toast } = useToast();
   const [workoutName, setWorkoutName] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [isAccessory, setIsAccessory] = useState(false);
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
