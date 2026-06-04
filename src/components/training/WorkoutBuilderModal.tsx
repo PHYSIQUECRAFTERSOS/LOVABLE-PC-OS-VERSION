@@ -192,15 +192,17 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
   const buildDraftSnapshot = useCallback(() => JSON.stringify({
     workoutName,
     instructions,
+    isAccessory,
     exercises: exercises.map(({ selected, ...exercise }) => ({ ...exercise, selected: false })),
     useRpe,
     useTempo,
     useRir,
-  }), [workoutName, instructions, exercises, useRpe, useTempo, useRir]);
+  }), [workoutName, instructions, isAccessory, exercises, useRpe, useTempo, useRir]);
 
   const applyDraftState = useCallback((draft: any) => {
     setWorkoutName(draft.workoutName || "");
     setInstructions(draft.instructions || "");
+    setIsAccessory(Boolean(draft.isAccessory));
     setExercises(Array.isArray(draft.exercises)
       ? draft.exercises.map((exercise: WorkoutExercise, index: number) => ({
           ...exercise,
