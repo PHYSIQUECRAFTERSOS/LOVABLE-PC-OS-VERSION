@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dumbbell, MoreHorizontal, Pencil, Trash2, Copy, GripVertical, Clock, Play, Users, Library, CalendarPlus, Sparkles, Check,
 } from "lucide-react";
-import { Badge as BadgeUI } from "@/components/ui/badge";
+
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { WorkoutMeta } from "@/lib/workoutMeta";
