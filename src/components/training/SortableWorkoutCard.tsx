@@ -66,6 +66,7 @@ export const SortableWorkoutCard = ({
   onToggleCustomTag, initialExcludeFromNumbering,
   selectionMode, selected, onToggleSelected,
   onPrimaryClick, onEdit, onDuplicate, onDelete, onSchedule, onCopyToClient, onCopyToMaster, onMoveToPhase,
+  isAccessory, onToggleAccessory,
   dragDisabled,
 }: SortableWorkoutCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
