@@ -189,7 +189,7 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
         calWorkoutIds.length > 0
           ? supabase
               .from("workouts")
-              .select("id, name")
+              .select("id, name, is_accessory")
               .in("id", calWorkoutIds)
               .abortSignal(signal)
           : Promise.resolve({ data: [] as any[], error: null }),
