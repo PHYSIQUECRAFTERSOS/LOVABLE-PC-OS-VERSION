@@ -399,6 +399,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         const loadedDraft = {
           workoutName: workout?.name || "",
           instructions: workout?.instructions || "",
+          isAccessory: !!(workout as any)?.is_accessory,
           exercises: loadedExercises,
           useRpe: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.rpe)),
           useTempo: loadedExercises.some((exercise: WorkoutExercise) => Boolean(exercise.tempo)),
