@@ -33,6 +33,8 @@ export type CalendarEvent = {
   is_recurring: boolean;
   recurrence_pattern?: string | null;
   user_id: string;
+  /** When the linked workout is flagged as accessory (vacuum/stretch/mobility). */
+  is_accessory?: boolean;
 };
 
 const EVENT_COLORS: Record<string, string> = {
