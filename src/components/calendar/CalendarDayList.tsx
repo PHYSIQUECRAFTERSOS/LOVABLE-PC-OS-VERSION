@@ -453,7 +453,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                         onClick={() => handleClick(event)}
                         className={cn(
                           "w-full text-left rounded-xl border-l-[3px] p-3 transition-all cursor-pointer select-none",
-                          TYPE_ACCENT[event.event_type] || TYPE_ACCENT.custom,
+                          TYPE_ACCENT[displayType(event)] || TYPE_ACCENT.custom,
                           event.is_completed ? "opacity-60" : "hover:bg-secondary/40",
                           beingDragged && "opacity-30 scale-95",
                           canDrag && !dragEvent && "active:scale-[0.98]"
@@ -477,8 +477,8 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                           </div>
 
                           {/* Type icon */}
-                          <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[event.event_type] || TYPE_ICON_COLOR.custom)}>
-                            {TYPE_ICONS[event.event_type] || TYPE_ICONS.reminder}
+                          <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[displayType(event)] || TYPE_ICON_COLOR.custom)}>
+                            {TYPE_ICONS[displayType(event)] || TYPE_ICONS.reminder}
                           </div>
 
                           {/* Content */}
@@ -495,7 +495,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                               </p>
                             ) : (
                               <p className="text-xs text-muted-foreground/70 mt-0.5">
-                                {TYPE_SUBTITLES[event.event_type] || "Scheduled task"}
+                                {TYPE_SUBTITLES[displayType(event)] || "Scheduled task"}
                               </p>
                             )}
                             {event.event_time && (
