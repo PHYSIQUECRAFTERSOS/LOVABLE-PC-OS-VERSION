@@ -461,7 +461,7 @@ const ExerciseCard = ({
               <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
 
               <div className="relative">
-                {isMobile && !log.completed ? (
+                {isMobile ? (
                   <button
                     type="button"
                     onClick={() => openKeypad(setIdx, "weight")}
@@ -477,7 +477,6 @@ const ExerciseCard = ({
                   <Input
                     type="text"
                     inputMode="decimal"
-                    readOnly={log.completed && isMobile}
                     value={weightStrings[setIdx] !== undefined ? weightStrings[setIdx] : weightDisplay}
                     onChange={(e) => {
                       const val = e.target.value;
