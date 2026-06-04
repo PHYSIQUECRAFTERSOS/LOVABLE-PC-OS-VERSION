@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dumbbell, MoreHorizontal, Pencil, Trash2, Copy, GripVertical, Clock, Play, Users, Library, CalendarPlus,
+  Dumbbell, MoreHorizontal, Pencil, Trash2, Copy, GripVertical, Clock, Play, Users, Library, CalendarPlus, Sparkles, Check,
 } from "lucide-react";
+
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { WorkoutMeta } from "@/lib/workoutMeta";
@@ -53,6 +54,9 @@ export interface SortableWorkoutCardProps {
   onCopyToClient?: () => void;
   onCopyToMaster?: () => void;
   onMoveToPhase?: () => void;
+  /** Show & wire the "Mark as Accessory" toggle in the dropdown. */
+  isAccessory?: boolean;
+  onToggleAccessory?: (next: boolean) => void;
   /** Disable drag listener (when card is read-only). */
   dragDisabled?: boolean;
 }
@@ -62,6 +66,7 @@ export const SortableWorkoutCard = ({
   onToggleCustomTag, initialExcludeFromNumbering,
   selectionMode, selected, onToggleSelected,
   onPrimaryClick, onEdit, onDuplicate, onDelete, onSchedule, onCopyToClient, onCopyToMaster, onMoveToPhase,
+  isAccessory, onToggleAccessory,
   dragDisabled,
 }: SortableWorkoutCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -165,6 +170,11 @@ export const SortableWorkoutCard = ({
                 Day {displayPosition}
               </Badge>
             ) : null}
+            {isAccessory && (
+              <Badge className="text-[10px] px-1.5 bg-primary/20 text-primary border-primary/40 gap-1">
+                <Sparkles className="h-2.5 w-2.5" /> Accessory
+              </Badge>
+            )}
           </div>
           <button
             className="text-sm font-semibold truncate text-left hover:text-primary transition-colors block w-full"
@@ -216,6 +226,19 @@ export const SortableWorkoutCard = ({
               )}
               {onDuplicate && (
                 <DropdownMenuItem onClick={onDuplicate}><Copy className="h-3 w-3 mr-2" /> Duplicate</DropdownMenuItem>
+              )}
+              {onToggleAccessory && (
+                <DropdownMenuItem
+                  onClick={() => onToggleAccessory(!isAccessory)}
+                  className={isAccessory ? "text-primary focus:text-primary" : ""}
+                >
+                  {isAccessory ? (
+                    <Check className="h-3 w-3 mr-2" />
+                  ) : (
+                    <Sparkles className="h-3 w-3 mr-2" />
+                  )}
+                  {isAccessory ? "Unmark as Accessory" : "Mark as Accessory"}
+                </DropdownMenuItem>
               )}
               {onMoveToPhase && (
                 <DropdownMenuItem onClick={onMoveToPhase}><GripVertical className="h-3 w-3 mr-2" /> Move to phase…</DropdownMenuItem>

@@ -132,6 +132,38 @@ export const ClientProgramTwoPane = ({
     fetchWorkoutMeta(ids).then(setMeta).catch(() => { /* non-fatal */ });
   }, [phases]);
 
+  // Track which workouts are flagged as accessory so we can render the gold
+  // badge and toggle from the three-dot menu without refetching the program.
+  const [accessoryMap, setAccessoryMap] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const ids = Array.from(new Set(phases.flatMap(p => p.directWorkouts.map(w => w.workout_id))));
+    if (ids.length === 0) return;
+    let cancelled = false;
+    supabase.from("workouts").select("id, is_accessory").in("id", ids).then(({ data }) => {
+      if (cancelled || !data) return;
+      const map: Record<string, boolean> = {};
+      for (const w of data as any[]) map[w.id] = !!w.is_accessory;
+      setAccessoryMap(map);
+    });
+    return () => { cancelled = true; };
+  }, [phases]);
+
+  const handleToggleAccessory = async (workoutId: string, next: boolean) => {
+    // Optimistic
+    setAccessoryMap(prev => ({ ...prev, [workoutId]: next }));
+    const { error } = await supabase
+      .from("workouts")
+      .update({ is_accessory: next })
+      .eq("id", workoutId);
+    if (error) {
+      setAccessoryMap(prev => ({ ...prev, [workoutId]: !next }));
+      toast({ title: "Failed to update", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: next ? "Marked as Accessory" : "Removed accessory flag" });
+    window.dispatchEvent(new Event("calendar-event-added"));
+  };
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
@@ -488,6 +520,8 @@ export const ClientProgramTwoPane = ({
                                 customTag={isExcluded ? pw.custom_tag : null}
                                 meta={meta[pw.workout_id]}
                                 dragDisabled={dragDisabled}
+                                isAccessory={!!accessoryMap[pw.workout_id]}
+                                onToggleAccessory={(next) => handleToggleAccessory(pw.workout_id, next)}
                                 onPrimaryClick={() => onOpenWorkout(pw)}
                                 onEdit={() => onEditWorkout(pw)}
                                 onDuplicate={() => onDuplicateWorkout(pw, selectedPhase.id)}
