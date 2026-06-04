@@ -21,6 +21,7 @@ export interface ActionItem {
   detail?: string;
   description?: string | null;
   linkedWorkoutId?: string | null;
+  isAccessory?: boolean;
 }
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
