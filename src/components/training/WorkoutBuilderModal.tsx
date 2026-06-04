@@ -892,6 +892,17 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                   <Label className="text-xs">Instructions (optional)</Label>
                   <Textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Warm up notes, focus areas..." rows={2} className="text-xs resize-none" />
                 </div>
+                <div className="flex items-start gap-3 rounded-md border border-border bg-muted/20 p-2.5">
+                  <Switch checked={isAccessory} onCheckedChange={setIsAccessory} className="mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <Label className="text-xs font-medium cursor-pointer" onClick={() => setIsAccessory(!isAccessory)}>
+                      Accessory / Activity
+                    </Label>
+                    <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
+                      Low-intensity items like stretches, mobility, or vacuums. Excluded from "Day N:" numbering, XP, streaks, and training-day nutrition macros.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Grouping toolbar */}
