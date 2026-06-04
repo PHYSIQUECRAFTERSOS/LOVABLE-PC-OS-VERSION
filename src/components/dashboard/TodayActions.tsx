@@ -40,6 +40,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 const TYPE_COLORS: Record<string, string> = {
   workout: "border-l-blue-500",
+  activity: "border-l-muted-foreground/40",
   cardio: "border-l-green-500",
   nutrition: "border-l-yellow-500",
   steps: "border-l-orange-400",
