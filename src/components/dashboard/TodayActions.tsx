@@ -310,8 +310,8 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   const handleActionClick = (action: ActionItem) => {
     const effectiveType = resolveActionType(action);
 
-    // Workout: open popup if there's a linked workout
-    if (effectiveType === "workout" && action.linkedWorkoutId && !action.completed) {
+    // Workout or accessory activity: open popup if there's a linked workout
+    if ((effectiveType === "workout" || effectiveType === "activity") && action.linkedWorkoutId && !action.completed) {
       setWorkoutPopup({ workoutId: action.linkedWorkoutId, workoutName: action.title, calendarEventId: action.id });
       return;
     }
