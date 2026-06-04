@@ -54,6 +54,9 @@ export interface SortableWorkoutCardProps {
   onCopyToClient?: () => void;
   onCopyToMaster?: () => void;
   onMoveToPhase?: () => void;
+  /** Show & wire the "Mark as Accessory" toggle in the dropdown. */
+  isAccessory?: boolean;
+  onToggleAccessory?: (next: boolean) => void;
   /** Disable drag listener (when card is read-only). */
   dragDisabled?: boolean;
 }
