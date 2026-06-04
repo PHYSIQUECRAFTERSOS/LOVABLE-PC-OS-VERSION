@@ -1100,31 +1100,33 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             }
           }
 
-          // Award Ranked XP
-          try {
-            const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
-            const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
-            const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
-            if (xpResult) {
-              setSummaryRankData({
-                xpEarned: xpResult.xpAwarded,
-                tier: xpResult.tier,
-                division: xpResult.division,
-                divisionXP: xpResult.divisionXP,
-                xpNeeded: xpResult.xpNeeded,
-                totalXP: xpResult.newTotal,
-              });
-              const { data: freshProfile } = await (supabase as any)
-                .from("ranked_profiles")
-                .select("*")
-                .eq("user_id", user.id)
-                .maybeSingle();
-              if (freshProfile) {
-                checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+          // Award Ranked XP (skip for accessory workouts)
+          if (!isAccessoryWorkout) {
+            try {
+              const { awardXP: directAwardXP, calculateTierAndDivision } = await import("@/utils/rankedXP");
+              const xpResult = await directAwardXP(user.id, "workout_completed", XP_VALUES.workout_completed, "Completed workout: " + workoutName);
+              const { checkAndAwardBadges } = await import("@/utils/badgeChecker");
+              if (xpResult) {
+                setSummaryRankData({
+                  xpEarned: xpResult.xpAwarded,
+                  tier: xpResult.tier,
+                  division: xpResult.division,
+                  divisionXP: xpResult.divisionXP,
+                  xpNeeded: xpResult.xpNeeded,
+                  totalXP: xpResult.newTotal,
+                });
+                const { data: freshProfile } = await (supabase as any)
+                  .from("ranked_profiles")
+                  .select("*")
+                  .eq("user_id", user.id)
+                  .maybeSingle();
+                if (freshProfile) {
+                  checkAndAwardBadges(user.id, freshProfile, "workout_completed").catch(console.error);
+                }
               }
+            } catch (e) {
+              console.error("[WorkoutLogger] Ranked XP error:", e);
             }
-          } catch (e) {
-            console.error("[WorkoutLogger] Ranked XP error:", e);
           }
         } catch (bgError) {
           console.error("[WorkoutLogger] Background work error:", bgError);
