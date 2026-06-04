@@ -1079,8 +1079,8 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             const actions: { type: string; count: number }[] = [
               { type: "workout_completed", count: 1 },
             ];
-            if (prAlerts.length > 0) {
-              actions.push({ type: "personal_best", count: prAlerts.length });
+            if (finalPRs.length > 0) {
+              actions.push({ type: "personal_best", count: finalPRs.length });
             }
             await autoScoreChallengePoints(user.id, actions);
           } catch (e) {
