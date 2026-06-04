@@ -906,16 +906,22 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                   <Label className="text-xs">Instructions (optional)</Label>
                   <Textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Warm up notes, focus areas..." rows={2} className="text-xs resize-none" />
                 </div>
-                <div className="flex items-start gap-3 rounded-md border border-border bg-muted/20 p-2.5">
-                  <Switch checked={isAccessory} onCheckedChange={setIsAccessory} className="mt-0.5" />
+                <div className={`flex items-start gap-3 rounded-md border-l-4 p-3 transition-colors ${
+                  isAccessory
+                    ? "border-l-primary border-y border-r border-primary/30 bg-primary/10"
+                    : "border-l-muted-foreground/40 border-y border-r border-border bg-muted/20"
+                }`}>
+                  <Sparkles className={`h-4 w-4 mt-0.5 shrink-0 ${isAccessory ? "text-primary" : "text-muted-foreground"}`} />
                   <div className="flex-1 min-w-0">
-                    <Label className="text-xs font-medium cursor-pointer" onClick={() => setIsAccessory(!isAccessory)}>
+                    <Label className="text-xs font-semibold cursor-pointer flex items-center gap-2" onClick={() => setIsAccessory(!isAccessory)}>
                       Accessory / Activity
+                      {isAccessory && <span className="text-[10px] font-medium text-primary">ON</span>}
                     </Label>
                     <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">
                       Low-intensity items like stretches, mobility, or vacuums. Excluded from "Day N:" numbering, XP, streaks, and training-day nutrition macros.
                     </p>
                   </div>
+                  <Switch checked={isAccessory} onCheckedChange={setIsAccessory} />
                 </div>
               </div>
 
