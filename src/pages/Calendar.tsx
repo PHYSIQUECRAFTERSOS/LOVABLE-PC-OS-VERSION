@@ -130,7 +130,7 @@ const Calendar = () => {
 
       const calendarPromise = supabase
         .from("calendar_events")
-        .select("*, workouts:linked_workout_id(name), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
+        .select("*, workouts:linked_workout_id(name, is_accessory), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
         .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
         .gte("event_date", startStr)
         .lte("event_date", endStr)
