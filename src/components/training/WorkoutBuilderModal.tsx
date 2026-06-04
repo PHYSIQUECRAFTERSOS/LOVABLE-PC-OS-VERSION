@@ -748,7 +748,8 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
             instructions: instructions || null,
             is_template: true,
             workout_type: "regular",
-          })
+            is_accessory: isAccessory,
+          } as any)
           .select()
           .single();
         if (workoutErr) throw workoutErr;
