@@ -6,9 +6,10 @@ export type DayType = "training_day" | "rest_day";
 /**
  * Single source of truth for determining if a given date is a training day
  * or rest day for a client. Checks calendar_events for workout events.
- * 
- * Uses `user_id` on calendar_events (not client_id) since that's how the
- * table is structured. For coach-side queries, pass the client's user ID.
+ *
+ * Workouts flagged as `is_accessory` (vacuums, stretches, mobility) DO NOT
+ * count as training — the day stays "rest_day" so nutrition macros use
+ * rest-day targets.
  *
  * Defaults to 'training_day' on error (fail-safe).
  */
@@ -20,18 +21,24 @@ export async function resolveDayType(
 
   const { data, error } = await supabase
     .from("calendar_events")
-    .select("id")
+    .select("id, linked_workout_id, workouts:linked_workout_id(is_accessory)")
     .or(`user_id.eq.${clientId},target_client_id.eq.${clientId}`)
     .eq("event_type", "workout")
-    .eq("event_date", localDate)
-    .limit(1);
+    .eq("event_date", localDate);
 
   if (error) {
     console.error("[resolveDayType] Error:", error);
     return "training_day"; // fail safe
   }
 
-  return data && data.length > 0 ? "training_day" : "rest_day";
+  const hasRealWorkout = (data || []).some((e: any) => {
+    // Manual workout event with no linked workout: treat as real workout.
+    if (!e.linked_workout_id) return true;
+    // Linked accessory workouts don't count toward training-day status.
+    return !e.workouts?.is_accessory;
+  });
+
+  return hasRealWorkout ? "training_day" : "rest_day";
 }
 
 /**

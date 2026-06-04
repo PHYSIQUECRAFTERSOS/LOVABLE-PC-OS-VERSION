@@ -98,27 +98,31 @@ const Calendar = () => {
         if (phaseId) {
           const { data: pws } = await supabase
             .from("program_workouts")
-            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+            .select("workout_id, sort_order, exclude_from_numbering, custom_tag, workouts(name, is_accessory)")
             .eq("phase_id", phaseId)
             .order("sort_order", { ascending: true });
 
+          // Accessory workouts are excluded from sequential "Day N" numbering.
           const positioned = withDisplayPositions(
             (pws || []).map((pw: any) => ({
               id: pw.workout_id,
               sort_order: pw.sort_order,
-              exclude_from_numbering: pw.exclude_from_numbering || false,
+              exclude_from_numbering: pw.exclude_from_numbering || !!(pw.workouts as any)?.is_accessory,
               custom_tag: pw.custom_tag || null,
               name: (pw.workouts as any)?.name || "Workout",
+              is_accessory: !!(pw.workouts as any)?.is_accessory,
             }))
           );
 
           positioned.forEach((w: any) => {
             const cleanName = normalizeWorkoutName(w.name);
-            const label = w.exclude_from_numbering && w.custom_tag
-              ? `${w.custom_tag}: ${cleanName}`
-              : w.displayPosition != null
-                ? formatWorkoutDayLabel(w.displayPosition, cleanName)
-                : cleanName;
+            const label = w.is_accessory
+              ? cleanName
+              : w.exclude_from_numbering && w.custom_tag
+                ? `${w.custom_tag}: ${cleanName}`
+                : w.displayPosition != null
+                  ? formatWorkoutDayLabel(w.displayPosition, cleanName)
+                  : cleanName;
             workoutLabelMap.set(w.id, label);
           });
         }
@@ -126,7 +130,7 @@ const Calendar = () => {
 
       const calendarPromise = supabase
         .from("calendar_events")
-        .select("*, workouts:linked_workout_id(name), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
+        .select("*, workouts:linked_workout_id(name, is_accessory), cardio_assignments:linked_cardio_id(title, cardio_type, target_duration_min, description, notes)")
         .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
         .gte("event_date", startStr)
         .lte("event_date", endStr)
@@ -218,6 +222,8 @@ const Calendar = () => {
           }
         }
 
+        const isAccessory = e.event_type === "workout" && !!e.workouts?.is_accessory;
+
         if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
           title = workoutLabelMap.get(e.linked_workout_id)!;
         } else if (e.event_type === "workout" && e.workouts?.name) {
@@ -242,7 +248,7 @@ const Calendar = () => {
             format(new Date(s.created_at), "yyyy-MM-dd") === e.event_date
           );
           if (session?.completed_at) {
-            return { ...e, title, description, is_completed: true, completed_at: session.completed_at, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+            return { ...e, title, description, is_completed: true, completed_at: session.completed_at, is_accessory: isAccessory, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
           }
         }
 
@@ -250,11 +256,11 @@ const Calendar = () => {
         if (e.event_type === "cardio" && !e.is_completed) {
           const log = cardioRes.data?.find((c: any) => c.title === title && c.logged_at === e.event_date);
           if (log?.completed) {
-            return { ...e, title, description, is_completed: true, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+            return { ...e, title, description, is_completed: true, is_accessory: isAccessory, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
           }
         }
 
-        return { ...e, title, description, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+        return { ...e, title, description, is_accessory: isAccessory, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
       });
 
       // Merge workout sessions not already in calendar

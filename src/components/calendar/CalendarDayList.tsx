@@ -2,10 +2,11 @@ import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import { format, isToday, isTomorrow, isYesterday, parseISO, eachDayOfInterval, subDays, addDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarEvent } from "./CalendarGrid";
-import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell, UtensilsCrossed, GripVertical } from "lucide-react";
+import { CheckCircle2, Circle, Dumbbell, Heart, Camera, Activity, Footprints, ClipboardCheck, Moon, Bell, UtensilsCrossed, GripVertical, Sparkles } from "lucide-react";
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   workout: <Dumbbell className="h-5 w-5" />,
+  activity: <Sparkles className="h-5 w-5" />,
   cardio: <Heart className="h-5 w-5" />,
   photos: <Camera className="h-5 w-5" />,
   body_stats: <Activity className="h-5 w-5" />,
@@ -18,6 +19,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 const TYPE_ACCENT: Record<string, string> = {
   workout: "border-l-amber-500 bg-warn/5",
+  activity: "border-l-muted-foreground/40 bg-muted/20",
   cardio: "border-l-green-500 bg-success/5",
   photos: "border-l-purple-500 bg-purple-500/5",
   body_stats: "border-l-blue-500 bg-info/5",
@@ -31,6 +33,7 @@ const TYPE_ACCENT: Record<string, string> = {
 
 const TYPE_ICON_COLOR: Record<string, string> = {
   workout: "text-warn",
+  activity: "text-muted-foreground",
   cardio: "text-success",
   photos: "text-purple-500",
   body_stats: "text-info",
@@ -44,6 +47,7 @@ const TYPE_ICON_COLOR: Record<string, string> = {
 
 const TYPE_SUBTITLES: Record<string, string> = {
   workout: "Complete your scheduled workout",
+  activity: "Activity · not counted as a workout",
   cardio: "Scheduled cardio session",
   photos: "Take your progress photos",
   body_stats: "Log body measurements",
@@ -53,6 +57,10 @@ const TYPE_SUBTITLES: Record<string, string> = {
   reminder: "Scheduled reminder",
   nutrition: "Daily nutrition intake",
 };
+
+/** Resolve the display type — accessory workouts render as a distinct "activity" style. */
+const displayType = (event: CalendarEvent): string =>
+  event.is_accessory ? "activity" : event.event_type;
 
 interface CalendarDayListProps {
   events: CalendarEvent[];
@@ -445,7 +453,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                         onClick={() => handleClick(event)}
                         className={cn(
                           "w-full text-left rounded-xl border-l-[3px] p-3 transition-all cursor-pointer select-none",
-                          TYPE_ACCENT[event.event_type] || TYPE_ACCENT.custom,
+                          TYPE_ACCENT[displayType(event)] || TYPE_ACCENT.custom,
                           event.is_completed ? "opacity-60" : "hover:bg-secondary/40",
                           beingDragged && "opacity-30 scale-95",
                           canDrag && !dragEvent && "active:scale-[0.98]"
@@ -469,8 +477,8 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                           </div>
 
                           {/* Type icon */}
-                          <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[event.event_type] || TYPE_ICON_COLOR.custom)}>
-                            {TYPE_ICONS[event.event_type] || TYPE_ICONS.reminder}
+                          <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[displayType(event)] || TYPE_ICON_COLOR.custom)}>
+                            {TYPE_ICONS[displayType(event)] || TYPE_ICONS.reminder}
                           </div>
 
                           {/* Content */}
@@ -487,7 +495,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                               </p>
                             ) : (
                               <p className="text-xs text-muted-foreground/70 mt-0.5">
-                                {TYPE_SUBTITLES[event.event_type] || "Scheduled task"}
+                                {TYPE_SUBTITLES[displayType(event)] || "Scheduled task"}
                               </p>
                             )}
                             {event.event_time && (
@@ -527,7 +535,7 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
         >
           <div className={cn(
             "rounded-xl border-l-[3px] p-3 shadow-2xl shadow-black/40 backdrop-blur-sm bg-card/95 border border-border",
-            TYPE_ACCENT[dragEvent.event_type] || TYPE_ACCENT.custom,
+            TYPE_ACCENT[displayType(dragEvent)] || TYPE_ACCENT.custom,
           )}>
             <div className="flex items-start gap-3 min-w-0">
               <div className="mt-1 shrink-0 text-primary">
@@ -540,8 +548,8 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
                   <Circle className="h-5 w-5 text-muted-foreground/30" />
                 )}
               </div>
-              <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[dragEvent.event_type] || TYPE_ICON_COLOR.custom)}>
-                {TYPE_ICONS[dragEvent.event_type] || TYPE_ICONS.reminder}
+              <div className={cn("mt-0.5 shrink-0", TYPE_ICON_COLOR[displayType(dragEvent)] || TYPE_ICON_COLOR.custom)}>
+                {TYPE_ICONS[displayType(dragEvent)] || TYPE_ICONS.reminder}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate">{dragEvent.title}</p>
