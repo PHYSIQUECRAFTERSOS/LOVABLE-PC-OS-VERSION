@@ -222,6 +222,8 @@ const Calendar = () => {
           }
         }
 
+        const isAccessory = e.event_type === "workout" && !!e.workouts?.is_accessory;
+
         if (e.event_type === "workout" && e.linked_workout_id && workoutLabelMap.has(e.linked_workout_id)) {
           title = workoutLabelMap.get(e.linked_workout_id)!;
         } else if (e.event_type === "workout" && e.workouts?.name) {
@@ -246,7 +248,7 @@ const Calendar = () => {
             format(new Date(s.created_at), "yyyy-MM-dd") === e.event_date
           );
           if (session?.completed_at) {
-            return { ...e, title, description, is_completed: true, completed_at: session.completed_at, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+            return { ...e, title, description, is_completed: true, completed_at: session.completed_at, is_accessory: isAccessory, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
           }
         }
 
@@ -254,11 +256,11 @@ const Calendar = () => {
         if (e.event_type === "cardio" && !e.is_completed) {
           const log = cardioRes.data?.find((c: any) => c.title === title && c.logged_at === e.event_date);
           if (log?.completed) {
-            return { ...e, title, description, is_completed: true, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+            return { ...e, title, description, is_completed: true, is_accessory: isAccessory, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
           }
         }
 
-        return { ...e, title, description, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
+        return { ...e, title, description, is_accessory: isAccessory, workouts: undefined, cardio_assignments: undefined } as CalendarEvent;
       });
 
       // Merge workout sessions not already in calendar
