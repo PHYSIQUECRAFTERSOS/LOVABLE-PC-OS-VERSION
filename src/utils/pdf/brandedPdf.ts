@@ -218,9 +218,11 @@ export async function savePdf(doc: jsPDF, filename: string) {
     // Dynamic so web builds don't require the modules
     const capCore: any = (window as any).Capacitor;
     if (capCore?.isNativePlatform?.()) {
+      // Hide specifier from TS module resolution + Vite static analysis
+      const dynImport: (s: string) => Promise<any> = (s) => (new Function("s", "return import(s)")(s));
       const [fsMod, shareMod]: any[] = await Promise.all([
-        import(/* @vite-ignore */ "@capacitor/filesystem").catch(() => null),
-        import(/* @vite-ignore */ "@capacitor/share").catch(() => null),
+        dynImport("@capacitor/filesystem").catch(() => null),
+        dynImport("@capacitor/share").catch(() => null),
       ]);
       const Filesystem = fsMod?.Filesystem;
       const Directory = fsMod?.Directory;
