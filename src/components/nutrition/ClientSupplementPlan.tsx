@@ -260,11 +260,14 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
             {isCoachView ? "Client Supplement Plan" : "My Supplement Plan"}
           </h3>
         </div>
-        {isCoachView && (
-          <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary" onClick={() => setImportOpen(true)}>
-            <PackagePlus className="h-3 w-3 mr-1" /> Import from Library
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {viewerId && <ExportPdfButton kind="supplements" clientId={viewerId} />}
+          {isCoachView && (
+            <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary" onClick={() => setImportOpen(true)}>
+              <PackagePlus className="h-3 w-3 mr-1" /> Import from Library
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Timing Groups */}
