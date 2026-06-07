@@ -90,10 +90,14 @@ export async function exportSupplementsPdf(clientId: string): Promise<{ ok: bool
     grouped.get(slot)!.push(it);
   }
 
-  const orderedSlots = [
-    "morning", "pre_workout", "intra_workout", "post_workout",
-    "with_meal", "evening", "before_bed", "any_time",
-  ].filter((s) => grouped.has(s));
+  const orderedSlots = [...grouped.keys()].sort((a, b) => {
+    const ai = SLOT_ORDER.indexOf(a);
+    const bi = SLOT_ORDER.indexOf(b);
+    const av = ai === -1 ? 999 : ai;
+    const bv = bi === -1 ? 999 : bi;
+    if (av !== bv) return av - bv;
+    return a.localeCompare(b);
+  });
 
   const doc = createBrandedDoc();
   drawCoverPage(doc, {
