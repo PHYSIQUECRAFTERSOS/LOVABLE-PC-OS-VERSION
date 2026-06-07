@@ -744,6 +744,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   return (
     <div className="space-y-4">
+      {/* Header actions */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Training Program</h3>
+        <ExportPdfButton kind="training" clientId={clientId} variant="labeled" />
+      </div>
       {/* Two-pane Trainerize-style layout (replaces stacked phase Cards) */}
       <ClientProgramTwoPane
         programName={program.name}
