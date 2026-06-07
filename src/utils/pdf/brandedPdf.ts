@@ -218,10 +218,13 @@ export async function savePdf(doc: jsPDF, filename: string) {
     // Dynamic so web builds don't require the modules
     const capCore: any = (window as any).Capacitor;
     if (capCore?.isNativePlatform?.()) {
-      const [{ Filesystem, Directory }, { Share }] = await Promise.all([
-        import("@capacitor/filesystem").catch(() => ({} as any)),
-        import("@capacitor/share").catch(() => ({} as any)),
+      const [fsMod, shareMod]: any[] = await Promise.all([
+        import(/* @vite-ignore */ "@capacitor/filesystem").catch(() => null),
+        import(/* @vite-ignore */ "@capacitor/share").catch(() => null),
       ]);
+      const Filesystem = fsMod?.Filesystem;
+      const Directory = fsMod?.Directory;
+      const Share = shareMod?.Share;
       if (Filesystem && Directory && Share) {
         const dataUri = doc.output("datauristring");
         const base64 = dataUri.split(",")[1];
