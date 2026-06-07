@@ -55,7 +55,7 @@ function fmt(n: number | null | undefined, suffix = "") {
 async function fetchPlanContent(plan: MealPlanRow) {
   const { data: days } = await supabase
     .from("meal_plan_days")
-    .select("id, day_label, day_order")
+    .select("id, day_type, day_order")
     .eq("meal_plan_id", plan.id)
     .order("day_order");
 
@@ -73,6 +73,13 @@ async function fetchPlanContent(plan: MealPlanRow) {
   ]);
 
   return { days: days || [], items: (items || []) as ItemRow[], notes: (notes || []) as NoteRow[] };
+}
+
+function dayTypeLabel(dayType: string | null | undefined): string {
+  if (!dayType) return "Meal Plan";
+  if (dayType === "training") return "Training Day";
+  if (dayType === "rest") return "Rest Day";
+  return dayType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) + " Day";
 }
 
 function renderPlanSection(
