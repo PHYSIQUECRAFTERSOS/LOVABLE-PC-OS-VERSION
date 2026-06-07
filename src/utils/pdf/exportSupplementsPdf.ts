@@ -6,15 +6,37 @@ import {
 import { loadClientContext } from "./pdfShared";
 
 const TIMING_LABELS: Record<string, string> = {
+  fasted: "Fasted / Morning",
   morning: "Morning",
   pre_workout: "Pre-Workout",
   intra_workout: "Intra-Workout",
   post_workout: "Post-Workout",
+  meal_1: "With Meal 1",
+  meal_2: "With Meal 2",
+  meal_3: "With Meal 3",
+  meal_4: "With Meal 4",
+  meal_5: "With Meal 5",
+  meal_6: "With Meal 6",
   with_meal: "With Meal",
   evening: "Evening",
   before_bed: "Before Bed",
+  pre_bed: "Before Bed",
   any_time: "Any Time",
 };
+
+const SLOT_ORDER = [
+  "fasted", "morning",
+  "pre_workout", "intra_workout", "post_workout",
+  "meal_1", "meal_2", "meal_3", "meal_4", "meal_5", "meal_6",
+  "with_meal", "evening", "before_bed", "pre_bed", "any_time",
+];
+
+function humanizeSlot(slot: string): string {
+  if (TIMING_LABELS[slot]) return TIMING_LABELS[slot];
+  return slot
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export async function exportSupplementsPdf(clientId: string): Promise<{ ok: boolean; reason?: string }> {
   const ctx = await loadClientContext(clientId);
