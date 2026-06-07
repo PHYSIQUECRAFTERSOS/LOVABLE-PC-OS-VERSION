@@ -230,6 +230,12 @@ const Calendar = () => {
           title = normalizeWorkoutName(e.workouts.name);
         }
 
+        // Accessories never display a "Day N:" prefix — strip any leftover from legacy stored titles
+        if (isAccessory && typeof title === "string") {
+          title = title.replace(/^[Dd]ay\s*\d+\s*[:\-–]\s*/, "").trim();
+          description = "Recovery task";
+        }
+
         if (e.event_type === "cardio" && e.cardio_assignments) {
           const ca = e.cardio_assignments;
           title = ca.title || ca.cardio_type || title;
