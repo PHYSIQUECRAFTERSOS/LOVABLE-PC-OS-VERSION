@@ -1,62 +1,100 @@
 ## Goal
 
-Accessory workouts (vacuums, stretches, mobility) should:
-- ✅ Still appear in Today's Actions and be loggable
-- ❌ Never flip the day to "Training Day" for nutrition macros
-- ❌ Never award XP or count for challenges (already done)
-- ❌ Never display a "Day N:" prefix on the Calendar — even on legacy events
+Add a printer icon to three sections that exports a branded **Physique Crafters** PDF of the client's currently assigned plan:
 
-## Root causes found
+- **Nutrition → Meal Plan tab** — exports BOTH Training Day and Rest Day plans combined
+- **Nutrition → Supplements tab** — exports full active supplement stack
+- **Training section** — exports every phase, every workout, every exercise (sets × reps × weight/RIR, notes)
 
-1. **"Training Day" still shows on accessory-only days** — Most `Vaccum` workout rows in the database still have `is_accessory = false`. The day-type logic is correct; the data flag just isn't set on every duplicate template. Marking one "Vaccum" template as accessory doesn't propagate to the other duplicates.
-2. **"Day 6: Vaccum" on Calendar** — Calendar.tsx strips the "Day N:" prefix for accessories when *recomputing* labels from the active phase, but legacy `calendar_events.title` rows still contain the old "Day N: Vaccum" string. When the workout isn't in the currently-active phase's program_workouts (because it was a one-off schedule or older phase), the code falls back to `event.title` and shows the stale label.
+Visible to both coaches (on the client they're viewing) and clients (their own plan).
 
-## Changes
+## UX
 
-### 1. Data migration — flag all accessory-like workouts
+- A small `Printer` icon button (gold-on-black, lucide `Printer`) in the top-right of each section's header.
+- Tap → spinner state ("Generating PDF…") → browser save dialog with filename:
+  - `{ClientFirstName}-MealPlan-{YYYY-MM-DD}.pdf`
+  - `{ClientFirstName}-Supplements-{YYYY-MM-DD}.pdf`
+  - `{ClientFirstName}-TrainingProgram-{YYYY-MM-DD}.pdf`
+- Toast on success / error.
+- iOS/Android Capacitor: trigger native share sheet so it can be saved to Files or AirDropped.
 
-Run a one-time migration to set `is_accessory = true` on all workouts whose name matches accessory patterns (vacuum/vaccum/stretch/mobility/foam roll/posture). This catches the duplicates that were never manually flagged.
+## PDF Design (consistent across all 3)
 
-```sql
-UPDATE public.workouts
-SET is_accessory = true
-WHERE is_accessory = false
-  AND (
-    name ILIKE '%vacuum%' OR name ILIKE '%vaccum%' OR
-    name ILIKE '%stretch%' OR name ILIKE '%mobility%' OR
-    name ILIKE '%foam roll%' OR name ILIKE '%posture%'
-  );
+```text
+┌─────────────────────────────────────────┐
+│  ███ PHYSIQUE CRAFTERS                  │  ← Cover page
+│                                         │
+│       [Section Name]                    │
+│       Prepared for: Kevin Wu            │
+│       Date: June 7, 2026                │
+│       Coach: Aaron                      │
+│                                         │
+│       physiquecrafters.com              │
+└─────────────────────────────────────────┘
 ```
 
-You'll be able to review the migration before it runs.
+- Black band header (#0a0a0a) with gold "PHYSIQUE CRAFTERS" wordmark on every page
+- Gold accent rule (#D4A017) under section titles
+- Clean white body, black text — readable when printed
+- Footer: page number + client name + generated date
+- Letter size, 1" margins
 
-### 2. Calendar — always strip "Day N:" prefix from accessory events
+## Section-by-section content
 
-In `src/pages/Calendar.tsx` (around line 225-263), when an event resolves to `isAccessory = true`, override the title to just the clean workout name regardless of what's stored in `event.title` or whether the workout is in the current phase's label map. This fixes legacy events with stale "Day 6: Vaccum" titles.
+### Meal Plan PDF
+- Cover page
+- Section 1: **Training Day** — daily macro targets (cals/P/C/F), then each meal as a table: Meal name → foods (qty + macros per row) → meal totals
+- Section 2: **Rest Day** — same structure
+- Section 3: **Coach Notes** (if any meal-level notes exist)
 
-Also change the description from "Complete your scheduled workout" → "Recovery task" for accessory events so it visually reads as a non-training item (matches the Photos / Recovery day style in your screenshot).
+### Supplements PDF
+- Cover page
+- Table per timing slot (Morning / Pre-workout / Post-workout / Evening / etc.): Name | Dose | Form | Notes
+- "Why this stack" coach notes section if present
 
-### 3. TodayActions — same title cleanup for accessories
+### Training Program PDF
+- Cover page
+- One section per **Phase** (Phase 1, Phase 2…): phase name, duration, notes
+- Within each phase, one block per **Workout** ("Day 1: Push", etc., skip accessory "Day N:" — show clean name)
+- Workout block = table of exercises: Exercise | Sets | Reps | Target Weight | RIR | Tempo | Rest | Notes
+- Accessory workouts labeled "Accessory — [name]" not "Day N"
+- Page break between phases
 
-In `src/components/dashboard/TodayActions.tsx`, mirror the same logic: when `workoutAccessoryMap.get(workoutId)` is true, drop any "Day N:" prefix from the displayed title and use "Recovery task" subtitle.
+## Technical approach
 
-### 4. (Optional polish) Visual differentiation
+**Library:** `jspdf` + `jspdf-autotable` (already small, works client-side, no server roundtrip).
+- Pure client-side generation → instant, no edge function cost
+- `jspdf-autotable` handles long tables with auto page breaks
+- Capacitor `@capacitor/filesystem` + `@capacitor/share` for native save on mobile (fallback to browser blob download on web)
 
-Render accessory workout cards on the Calendar with the same muted/recovery styling as the "Photos — Recovery day" item (no gold workout border), so they read as activities rather than training days.
+**New files:**
+- `src/utils/pdf/brandedPdf.ts` — shared PDF builder (cover page, header band, footer, palette tokens, file saving / native share helper)
+- `src/utils/pdf/exportMealPlanPdf.ts` — fetches both day-type meal plans + meal_plan_items for `clientId`, builds PDF
+- `src/utils/pdf/exportSupplementsPdf.ts` — fetches supplement plan + items for `clientId`
+- `src/utils/pdf/exportTrainingPdf.ts` — fetches active program → phases → program_workouts → workouts → workout_exercises (and sets/reps/weight/RIR) for `clientId`
+- `src/components/common/ExportPdfButton.tsx` — reusable gold printer-icon button with loading state and toast
 
-## Files touched
+**Edits:**
+- `src/pages/Nutrition.tsx` — add `<ExportPdfButton kind="meal-plan" clientId={user.id} />` in the Meal Plan tab header and `kind="supplements"` in the Supplements tab header
+- `src/components/clients/workspace/MealPlanTab.tsx` — same buttons (coach side, pass viewed client's id)
+- `src/components/nutrition/ClientSupplementPlan.tsx` — supplements export button in its header
+- `src/components/clients/workspace/TrainingTab.tsx` and `src/components/clients/workspace/training/ClientProgramTwoPane.tsx` — training export button
+- `src/pages/Training.tsx` (or equivalent client training entry) — same button for client-side
 
-- `supabase/migrations/...` — bulk-flag accessory workouts (migration tool)
-- `src/pages/Calendar.tsx` — force accessory title override + recovery subtitle
-- `src/components/dashboard/TodayActions.tsx` — same title/subtitle treatment
-- `src/components/calendar/CalendarDayList.tsx` — accessory styling (if needed)
+**Data fetching:** all queries respect existing RLS — coach sees only their assigned clients, client sees only own data. No new policies needed.
 
-## What's NOT changing
+**No backend / no migrations.** All client-side. No new secrets.
 
-- `resolveDayType` (already correct)
-- XP / challenge scoring (already skips accessories)
-- Workout logging behavior — accessories still log via the normal flow
+## What's NOT in scope
 
-## Open question
+- Exporting master library templates (only the client's assigned plan)
+- Customizing brand colors / logo per coach (single Physique Crafters brand)
+- Editing PDF after export
+- Scheduling automated email delivery of the PDF
 
-Do you want **future** workouts named like vacuum/stretch/mobility to be **auto-flagged as accessory on creation**? If yes, I'll add a trigger or a default in the workout builder. If you'd rather keep it manual, I'll leave creation as-is.
+## Verification
+
+- Coach view: open a client, export each of the 3 PDFs, open in viewer, confirm content matches what's on screen
+- Client view: same on their own dashboard
+- Mobile iOS PWA: confirm native share sheet opens
+- Empty states: client with no meal plan / no supplements / no program → button is disabled with tooltip "No plan to export yet"
