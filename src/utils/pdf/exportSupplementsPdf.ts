@@ -116,7 +116,7 @@ export async function exportSupplementsPdf(clientId: string): Promise<{ ok: bool
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(212, 160, 23);
-    doc.text(TIMING_LABELS[slot] || slot, PAGE.marginX, y);
+    doc.text(humanizeSlot(slot), PAGE.marginX, y);
     y += 8;
 
     const body = grouped.get(slot)!.map((it: any) => {
