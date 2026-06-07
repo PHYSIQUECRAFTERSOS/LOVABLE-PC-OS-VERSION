@@ -93,7 +93,7 @@ export async function exportTrainingPdf(clientId: string): Promise<{ ok: boolean
 
     let dayCounter = 0;
     for (const pw of phaseWorkouts) {
-      const w = pw.workouts || {};
+      const w: any = pw.workouts || {};
       const isAccessory = !!w.is_accessory || pw.exclude_from_numbering;
       let title = w.name || "Workout";
       if (isAccessory) {
