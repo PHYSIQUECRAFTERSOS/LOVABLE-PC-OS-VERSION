@@ -88,9 +88,10 @@ function renderPlanSection(
   plan: MealPlanRow,
   items: ItemRow[],
   notes: NoteRow[],
+  sectionTitle?: string,
 ): number {
   let y = startY;
-  y = drawSectionTitle(doc, plan.day_type_label || plan.name, y);
+  y = drawSectionTitle(doc, sectionTitle || plan.day_type_label || plan.name, y);
 
   // Targets row
   const totals = items.reduce(
