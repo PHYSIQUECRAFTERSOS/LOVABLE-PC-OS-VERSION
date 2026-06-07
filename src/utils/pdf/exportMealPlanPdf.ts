@@ -55,7 +55,7 @@ function fmt(n: number | null | undefined, suffix = "") {
 async function fetchPlanContent(plan: MealPlanRow) {
   const { data: days } = await supabase
     .from("meal_plan_days")
-    .select("id, day_label, day_order")
+    .select("id, day_type, day_order")
     .eq("meal_plan_id", plan.id)
     .order("day_order");
 
@@ -75,15 +75,23 @@ async function fetchPlanContent(plan: MealPlanRow) {
   return { days: days || [], items: (items || []) as ItemRow[], notes: (notes || []) as NoteRow[] };
 }
 
+function dayTypeLabel(dayType: string | null | undefined): string {
+  if (!dayType) return "Meal Plan";
+  if (dayType === "training") return "Training Day";
+  if (dayType === "rest") return "Rest Day";
+  return dayType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) + " Day";
+}
+
 function renderPlanSection(
   doc: any,
   startY: number,
   plan: MealPlanRow,
   items: ItemRow[],
   notes: NoteRow[],
+  sectionTitle?: string,
 ): number {
   let y = startY;
-  y = drawSectionTitle(doc, plan.day_type_label || plan.name, y);
+  y = drawSectionTitle(doc, sectionTitle || plan.day_type_label || plan.name, y);
 
   // Targets row
   const totals = items.reduce(
@@ -208,12 +216,26 @@ export async function exportMealPlanPdf(clientId: string): Promise<{ ok: boolean
     coachName: ctx.coachName,
   });
 
-  let isFirstSection = true;
   for (const plan of planList) {
-    const { items, notes } = await fetchPlanContent(plan);
-    const y = newContentPage(doc);
-    renderPlanSection(doc, y, plan, items, notes);
-    isFirstSection = false;
+    const { days, items, notes } = await fetchPlanContent(plan);
+
+    if (days.length > 0) {
+      // Order days: training first, then rest, then others by day_order
+      const sortedDays = [...days].sort((a: any, b: any) => {
+        const rank = (t: string) => (t === "training" ? 0 : t === "rest" ? 1 : 2);
+        return rank(a.day_type) - rank(b.day_type) || (a.day_order ?? 0) - (b.day_order ?? 0);
+      });
+      for (const day of sortedDays as any[]) {
+        const dayItems = items.filter((it) => it.day_id === day.id);
+        if (!dayItems.length) continue;
+        const dayNotes = notes.filter((n) => n.day_id === day.id);
+        const y = newContentPage(doc);
+        renderPlanSection(doc, y, plan, dayItems, dayNotes, dayTypeLabel(day.day_type));
+      }
+    } else {
+      const y = newContentPage(doc);
+      renderPlanSection(doc, y, plan, items, notes);
+    }
   }
 
   finalizePages(doc, { clientName: ctx.clientName, coverFirstPage: true });

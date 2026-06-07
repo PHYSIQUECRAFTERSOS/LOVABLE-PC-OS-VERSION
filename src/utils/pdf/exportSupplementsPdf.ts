@@ -6,15 +6,37 @@ import {
 import { loadClientContext } from "./pdfShared";
 
 const TIMING_LABELS: Record<string, string> = {
+  fasted: "Fasted / Morning",
   morning: "Morning",
   pre_workout: "Pre-Workout",
   intra_workout: "Intra-Workout",
   post_workout: "Post-Workout",
+  meal_1: "With Meal 1",
+  meal_2: "With Meal 2",
+  meal_3: "With Meal 3",
+  meal_4: "With Meal 4",
+  meal_5: "With Meal 5",
+  meal_6: "With Meal 6",
   with_meal: "With Meal",
   evening: "Evening",
   before_bed: "Before Bed",
+  pre_bed: "Before Bed",
   any_time: "Any Time",
 };
+
+const SLOT_ORDER = [
+  "fasted", "morning",
+  "pre_workout", "intra_workout", "post_workout",
+  "meal_1", "meal_2", "meal_3", "meal_4", "meal_5", "meal_6",
+  "with_meal", "evening", "before_bed", "pre_bed", "any_time",
+];
+
+function humanizeSlot(slot: string): string {
+  if (TIMING_LABELS[slot]) return TIMING_LABELS[slot];
+  return slot
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export async function exportSupplementsPdf(clientId: string): Promise<{ ok: boolean; reason?: string }> {
   const ctx = await loadClientContext(clientId);
@@ -68,10 +90,14 @@ export async function exportSupplementsPdf(clientId: string): Promise<{ ok: bool
     grouped.get(slot)!.push(it);
   }
 
-  const orderedSlots = [
-    "morning", "pre_workout", "intra_workout", "post_workout",
-    "with_meal", "evening", "before_bed", "any_time",
-  ].filter((s) => grouped.has(s));
+  const orderedSlots = [...grouped.keys()].sort((a, b) => {
+    const ai = SLOT_ORDER.indexOf(a);
+    const bi = SLOT_ORDER.indexOf(b);
+    const av = ai === -1 ? 999 : ai;
+    const bv = bi === -1 ? 999 : bi;
+    if (av !== bv) return av - bv;
+    return a.localeCompare(b);
+  });
 
   const doc = createBrandedDoc();
   drawCoverPage(doc, {
@@ -90,7 +116,7 @@ export async function exportSupplementsPdf(clientId: string): Promise<{ ok: bool
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(212, 160, 23);
-    doc.text(TIMING_LABELS[slot] || slot, PAGE.marginX, y);
+    doc.text(humanizeSlot(slot), PAGE.marginX, y);
     y += 8;
 
     const body = grouped.get(slot)!.map((it: any) => {
