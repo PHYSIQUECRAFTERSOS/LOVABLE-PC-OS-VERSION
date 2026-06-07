@@ -31,6 +31,7 @@ import {
   type MealPlanData,
 } from "@/hooks/useMealPlanTracker";
 import { toLocalDateString } from "@/utils/localDate";
+import ExportPdfButton from "@/components/common/ExportPdfButton";
 
 interface ClientStructuredMealPlanProps {
   selectedDate?: Date;
