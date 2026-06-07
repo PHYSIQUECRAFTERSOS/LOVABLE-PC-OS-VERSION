@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ImportSupplementDialog from "./ImportSupplementDialog";
+import ExportPdfButton from "@/components/common/ExportPdfButton";
 
 const TIMING_ORDER = ["fasted", "meal_1", "meal_2", "pre_workout", "post_workout", "with_meal", "before_bed", "any_time"];
 const TIMING_LABELS: Record<string, string> = {
