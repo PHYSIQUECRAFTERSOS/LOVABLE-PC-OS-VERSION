@@ -31,6 +31,7 @@ import {
   type MealPlanData,
 } from "@/hooks/useMealPlanTracker";
 import { toLocalDateString } from "@/utils/localDate";
+import ExportPdfButton from "@/components/common/ExportPdfButton";
 
 interface ClientStructuredMealPlanProps {
   selectedDate?: Date;
@@ -278,6 +279,13 @@ const ClientStructuredMealPlan = ({
 
   return (
     <div className="space-y-4">
+      {/* Export PDF row */}
+      {plans.length > 0 && user?.id && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">My Meal Plan</h3>
+          <ExportPdfButton kind="meal-plan" clientId={user.id} variant="labeled" />
+        </div>
+      )}
       {/* Day Type Switcher — only show when multiple plans exist */}
       {plans.length > 1 && (
         <div className="space-y-2">

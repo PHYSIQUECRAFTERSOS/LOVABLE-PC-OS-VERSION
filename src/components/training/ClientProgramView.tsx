@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import WorkoutPreviewModal from "./WorkoutPreviewModal";
 import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
+import ExportPdfButton from "@/components/common/ExportPdfButton";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -307,6 +308,12 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
   return (
     <>
       <div className="space-y-4">
+        {userId && assignments.length > 0 && (
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">My Training Program</h3>
+            <ExportPdfButton kind="training" clientId={userId} variant="labeled" />
+          </div>
+        )}
         {assignments.map((assignment) => (
           <Card key={assignment.id} className="overflow-hidden">
             <div
