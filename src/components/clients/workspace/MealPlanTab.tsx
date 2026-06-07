@@ -202,6 +202,11 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
 
   return (
     <div className="space-y-4">
+      {/* Header actions */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Meal Plan</h3>
+        <ExportPdfButton kind="meal-plan" clientId={clientId} variant="labeled" />
+      </div>
       {/* Pill Navigation Row */}
       <div className="flex items-center gap-2">
         {PILL_SLOTS.map((slot) => {
