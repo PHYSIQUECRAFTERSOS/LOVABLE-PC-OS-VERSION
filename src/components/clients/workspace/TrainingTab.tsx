@@ -39,6 +39,7 @@ import { derivePhaseDates } from "@/lib/phaseDates";
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
   duration_weeks: number; training_style: string | null; intensity_system: string | null; progression_rule: string | null;
+  start_date?: string | null;
   directWorkouts: ProgramWorkout[];
 }
 
