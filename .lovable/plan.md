@@ -1,60 +1,82 @@
-# Workout Player: Group-Aware Visuals + Rest Timer
 
-Make supersets, circuits, and giant sets immediately recognizable in the client's workout tracker, and fix rest-timer behavior so only the last exercise in a group fires a rest timer.
+## Goal
+When a coach subscribes a master program or copies a phase to a client who already has an active program, the previous program should be **truncated**, not erased. The new program starts on a coach-chosen date, the old program ends the day before, and conflicting future calendar events are removed. Mirrors Trainerize.
 
-## What changes for the client
+## Changes
 
-- Any exercises sharing a `grouping_id` (superset, circuit, or giant set) are visually paired:
-  - Gold border around each card in the group.
-  - A continuous gold rail on the left side that visually connects every card in the group (single rail, spans from the top of the first card to the bottom of the last).
-  - A small gold pill on each card: `SUPERSET A · 1 of 2`, `CIRCUIT B · 2 of 3`, `GIANT SET A · 3 of 4`. Letter increments per group within the workout; "1 of N" indicates position inside the group.
-- Rest timer behavior inside a group:
-  - When the client logs a set on a non-last exercise in the group, no rest timer fires — they move straight into the next paired exercise.
-  - When the client logs a set on the last exercise in the group, the rest timer fires using that last exercise's `rest_seconds`.
-  - Solo (ungrouped) exercises behave exactly as today.
+### 1. Unified "Assign Program to Client" dialog
+Apply to both entry points:
+- `src/components/training/ProgramList.tsx` (Master Libraries → Subscribe)
+- `src/components/clients/workspace/TrainingTab.tsx` `AssignDialog` (workspace Change/Assign)
+- `src/components/training/ProgramDetailView.tsx` Copy-Phase-to-Client (single phase copy)
 
-## Technical changes
+Add to all three:
+- **Start date picker** (shadcn `Calendar` in `Popover`, `pointer-events-auto`).
+  - Default: **day after the client's current active program's computed end date**. If client has no active program, default to today.
+  - Live helper text: `Current program: <name> · ends <date> · this will be cut short on <newStart - 1 day> if you choose an earlier date.`
+- Subscribe vs Import toggle (already exists in two of three; add to TrainingTab's dialog).
+- Auto-Advance Phases toggle (already exists in ProgramList; mirror in others).
 
-**Data plumbing**
-- `src/pages/Training.tsx` → `loadWorkoutExercises`: include `grouping_type` and `grouping_id` on each `exerciseLogs` entry (already returned by `fetchWorkoutExerciseDetails`).
-- `src/components/WorkoutLogger.tsx` `ExerciseLogForm`: add `groupingType?: string | null` and `groupingId?: string | null`.
+### 2. New helper: `assignProgramWithMerge`
+New file `src/lib/programAssignment.ts` exporting one function used by all three call sites:
 
-**Group metadata derivation (WorkoutLogger)**
-- Build a memoized `groupMeta` map keyed by `exIdx`:
-  - `groupId`, `groupingType`, `letter` (A, B, … assigned in order of first appearance), `indexInGroup` (1-based), `groupSize`, `isFirst`, `isLast`.
-- A "group" requires both `groupingType` and `groupingId` and at least 2 members; lone members render as solo.
+```text
+assignProgramWithMerge({
+  clientId, coachId, masterProgramId | phaseSource, startDate,
+  mode: "subscribe" | "import",
+  autoAdvance, isPhaseOnly
+})
+```
 
-**Rest timer fix (`completeSet`)**
-- If `groupMeta[exIdx].isLast === false` → skip `setRestTimer(...)` entirely (still complete + persist the set).
-- If last (or solo) → fire with that exercise's own `restSeconds` (unchanged from today).
+Steps inside (sequential, awaited):
 
-**Visual pairing**
-- `ExerciseCard` accepts new props: `groupLabel?: string` (e.g. "SUPERSET A"), `groupPosition?: { index: number; total: number }`, `groupPosition` rail flags: `isFirstInGroup`, `isLastInGroup`, `isInGroup`.
-- Card root: when `isInGroup`, apply `border-[#D4A017]` (replacing default border) and `relative` positioning.
-- Render the pill at the top of the card: `SUPERSET A · 1 of 2` styled `bg-[#D4A017]/15 text-[#D4A017] border border-[#D4A017]/40` rounded-full, uppercase tracking-wide.
-- Connecting rail: absolutely positioned 3px-wide gold bar on the left edge of the card.
-  - Top is flush with card top when not first; otherwise rounded.
-  - Bottom is flush with card bottom when not last; otherwise rounded.
-  - Extends 8px below the card (`-bottom-2`) on non-last cards so it visually bridges the gap between stacked cards (cards in `WorkoutLogger` are stacked in a vertical flex; gap is consistent).
-- Label text per `grouping_type`: `superset` → "SUPERSET", `circuit` → "CIRCUIT", `giant` / `giant_set` → "GIANT SET", any other value → uppercased value.
+1. **Find current active assignment** for `clientId` (`status in active|subscribed`, newest).
+2. **Compute its true end date** using `derivePhaseDates` over its phases (last phase end). If `startDate > endDate`, no truncation needed — old program is left alone and will naturally complete.
+3. **If `startDate ≤ endDate`** (overlap), truncate:
+   - Identify the phase containing `startDate`. Set its `duration_weeks` so it ends on `startDate − 1`. If `startDate` lands inside week 1 of phase 1, mark the old assignment `status='completed'` outright with no phases retained beyond what's already completed.
+   - For all later phases of the old program, leave the rows but ensure they don't extend past the new start by clearing explicit `start_date` (cascading is handled by `derivePhaseDates`). Truncating the containing phase is enough since later phases derive from it.
+   - Update old `client_program_assignments`: set `status='completed'` and (new column) `ended_on = startDate - 1`.
+4. **Delete ALL future calendar events from the OLD program** (completed or not) on/after `startDate`:
+   - Pull `program_workouts.workout_id` for every workout in the old program (across all phases/weeks).
+   - `DELETE FROM calendar_events WHERE target_client_id = clientId AND event_date >= startDate AND linked_workout_id IN (...oldWorkoutIds)`.
+   - Also delete `event_type IN ('workout','cardio')` rows with `target_client_id = clientId` and `event_date >= startDate` AND `linked_workout_id IS NULL` only if explicitly tied to the old program via cardio_assignments — keep it scoped to workouts to avoid wiping unrelated events. (Cardio cleanup deferred unless we discover a link.)
+5. **Clone the new program/phase** to the client (existing logic moved here unchanged from `cloneProgramToClient` / `handleCopyPhaseToClient` / `handleAssignProgram`).
+6. **Insert new `client_program_assignments`** with `start_date = startDate`, `current_phase_id = firstPhaseId`, `status='active'`, `is_linked_to_master`, `auto_advance`, etc.
+7. Return `{ newProgramId, truncatedOldAssignmentId, deletedEventsCount, cloneSummary }` for the toast.
 
-**Resume sessions**
-- `loadWorkoutExercises` already runs the same path on resume, so grouping props flow through naturally.
+### 3. Schema migration
+Add to `client_program_assignments` (additive only):
+- `ended_on date NULL` — actual end date when truncated early.
 
-**No DB or RLS changes.** Read-only use of existing `grouping_type` / `grouping_id` columns.
+Triggered by migration tool. No RLS changes needed (existing policies still apply).
+
+### 4. Previous Programs section
+In `src/components/clients/workspace/TrainingTab.tsx`:
+- Below the active program card, render a collapsible **"Previous Programs"** accordion when the client has any `client_program_assignments` with `status='completed'` (excluding the active one).
+- Each row: program name, `start_date – ended_on (or computed end)`, badge `Truncated` if `ended_on` is non-null AND earlier than the original derived end, link to view (read-only modal reusing existing `PhaseListSidebar` + workout list, no edit buttons).
+- Implementation: lightweight read-only viewer modal `PreviousProgramViewer.tsx` opened from the list. Reuses `usePhaseBoundaries` + `derivePhaseDates`.
+
+### 5. Toast and confirmation
+Before running the merge, if `startDate ≤ currentEnd`, show an `AlertDialog`:
+> "<Client> is on <old program> until <old end>. This will cut that program short on <startDate − 1>, delete <N> future calendar events, and start the new program on <startDate>. Continue?"
+
+`N` is pre-counted with a SELECT count(*) before the mutation runs. Coach confirms → run.
+
+### 6. Verification (after build)
+- Subscribe a master program from Master Libraries to a client with an active program, start date inside the active program → confirm old shows in "Previous Programs" with truncated end, new is active starting on that date, calendar future events from old program are gone.
+- Subscribe to a client with no active program → behaves like today (no truncation step).
+- Copy a single phase from `ProgramDetailView` → same merge behavior.
+- Mark old program's PAST calendar events (before start date) untouched, completed workouts preserved (history intact).
 
 ## Files touched
+- `src/lib/programAssignment.ts` (new)
+- `src/components/training/ProgramList.tsx` (route subscribe through new helper)
+- `src/components/clients/workspace/TrainingTab.tsx` (add date+toggles to `AssignDialog`, route through helper, render Previous Programs accordion)
+- `src/components/training/ProgramDetailView.tsx` (route Copy-Phase-to-Client through helper)
+- `src/components/clients/workspace/training/PreviousProgramViewer.tsx` (new)
+- Migration: add `ended_on date` to `client_program_assignments`.
 
-- `src/lib/workoutExerciseQueries.ts` — no change (already selects grouping fields).
-- `src/pages/Training.tsx` — map `grouping_type` / `grouping_id` into `exerciseLogs`.
-- `src/components/WorkoutLogger.tsx` — extend `ExerciseLogForm`, compute `groupMeta`, gate rest timer, pass new props to `ExerciseCard`.
-- `src/components/workout/ExerciseCard.tsx` — new props, gold border, pill, left rail.
-
-## Verification
-
-1. Open a workout that has a superset (e.g., the screenshot's "machine seated tricep pushdown" + "Close Grip Push Ups").
-2. Confirm both cards show gold border, pill `SUPERSET A · 1 of 2` and `· 2 of 2`, and a continuous gold rail connecting them.
-3. Log a set on the tricep pushdown → no rest timer appears, client can immediately log the push-up set.
-4. Log a set on Close Grip Push Ups → rest timer fires with the push-up's `rest_seconds` (e.g., 90s).
-5. Solo exercises still fire a rest timer using their own `rest_seconds`.
-6. A 3-exercise giant set behaves the same: only the 3rd exercise fires rest.
+## Non-goals (this pass)
+- No changes to cardio_assignments cleanup; only `workout` events linked to the old program are removed.
+- No re-generation of new calendar events for the new program (calendar event creation remains coach-driven, matching current behavior).
+- No changes to the active program's phase-date editor (recently shipped).

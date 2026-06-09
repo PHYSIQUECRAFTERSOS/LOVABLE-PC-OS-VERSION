@@ -1,0 +1,1 @@
+ALTER TABLE public.client_program_assignments ADD COLUMN IF NOT EXISTS ended_on date;

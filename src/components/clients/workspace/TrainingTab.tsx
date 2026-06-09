@@ -35,6 +35,14 @@ import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
 import { copyPhaseToMasterProgram, copyPhaseToClientProgram } from "@/lib/copyPhaseHelpers";
 import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 import { derivePhaseDates } from "@/lib/phaseDates";
+import { previewMerge, applyMerge, type MergePreview } from "@/lib/programMerge";
+
+const addDaysLocal = (ymd: string, days: number) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  return dt.toLocaleDateString("en-CA");
+};
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
@@ -133,6 +141,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [masterPrograms, setMasterPrograms] = useState<any[]>([]);
   const [selectedMaster, setSelectedMaster] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [assignStartDate, setAssignStartDate] = useState<string>(() => new Date().toLocaleDateString("en-CA"));
+  const [assignStartTouched, setAssignStartTouched] = useState(false);
+  const [assignMergePreview, setAssignMergePreview] = useState<MergePreview | null>(null);
+  const [assignAutoAdvance, setAssignAutoAdvance] = useState(true);
 
   // Detach confirm
   const [showDetach, setShowDetach] = useState(false);
@@ -242,8 +254,27 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     const { data } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
       .eq("coach_id", user!.id).eq("is_template", true).order("name");
     setMasterPrograms(data || []);
+    setAssignStartTouched(false);
+    setAssignStartDate(new Date().toLocaleDateString("en-CA"));
     setShowAssign(true);
   };
+
+  // Refresh merge preview when client's existing program is known.
+  useEffect(() => {
+    if (!showAssign) { setAssignMergePreview(null); return; }
+    let cancelled = false;
+    previewMerge(clientId, assignStartDate).then((p) => {
+      if (cancelled) return;
+      setAssignMergePreview(p);
+      if (!assignStartTouched && p.oldProgramEnd) {
+        const after = addDaysLocal(p.oldProgramEnd, 1);
+        if (after !== assignStartDate) setAssignStartDate(after);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [showAssign, clientId, assignStartDate, assignStartTouched]);
+
+
 
   // ── Clone workout helper (uses shared sequential logic) ──
   const cloneWorkoutToClientTracked = async (sourceWorkoutId: string) => {
@@ -267,6 +298,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       const { data: clientProg, error: progErr } = await supabase.from("programs").insert({
         coach_id: user.id, client_id: clientId, name: master.name, description: null,
         goal_type: master.goal_type, is_template: false, is_master: false,
+        start_date: assignStartDate,
         duration_weeks: master.duration_weeks, version_number: master.version_number || 1,
       } as any).select().single();
       if (progErr) throw progErr;
@@ -323,16 +355,25 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }
       }
 
-      await supabase.from("client_program_assignments").update({ status: "completed" })
-        .eq("client_id", clientId).eq("status", "active");
+      // Truncate the client's previous active program (if any) instead of erasing it.
+      const mergeResult = await applyMerge(clientId, assignStartDate, assignMergePreview || undefined);
 
       await supabase.from("client_program_assignments").insert({
         client_id: clientId, coach_id: user.id, program_id: clientProg.id,
         current_phase_id: firstPhaseId, current_week_number: 1,
+        start_date: assignStartDate,
         forked_from_program_id: selectedMaster, status: "active",
+        auto_advance: assignAutoAdvance,
         is_linked_to_master: isLinked, master_version_number: master.version_number || 1,
         last_synced_at: new Date().toISOString(),
-      });
+      } as any);
+
+      if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
+        toast({
+          title: "Previous program truncated",
+          description: `Cut short on ${addDaysLocal(assignStartDate, -1)}. ${mergeResult.deletedEvents} future calendar event${mergeResult.deletedEvents === 1 ? "" : "s"} removed.`,
+        });
+      }
 
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);

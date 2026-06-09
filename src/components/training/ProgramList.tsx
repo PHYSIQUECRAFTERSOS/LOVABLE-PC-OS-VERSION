@@ -13,6 +13,14 @@ import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unli
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
+import { previewMerge, applyMerge, type MergePreview } from "@/lib/programMerge";
+
+const addDaysLocal = (ymd: string, days: number) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  return dt.toLocaleDateString("en-CA");
+};
 import { useAuth } from "@/hooks/useAuth";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import ProgramBuilder from "./ProgramBuilder";
@@ -50,6 +58,9 @@ const ProgramList = () => {
   const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [assigning, setAssigning] = useState(false);
+  const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [startDateTouched, setStartDateTouched] = useState(false);
 
   // Push update dialog
   const [showPushDialog, setShowPushDialog] = useState(false);
@@ -147,6 +158,34 @@ const ProgramList = () => {
 
   useEffect(() => { loadPrograms(); loadClients(); }, [userId]);
 
+  // Refresh merge preview whenever the selected client / start date changes.
+  useEffect(() => {
+    if (!showAssignDialog || !selectedClientId) {
+      setMergePreview(null);
+      return;
+    }
+    let cancelled = false;
+    setMergeLoading(true);
+    previewMerge(selectedClientId, startDate).then((p) => {
+      if (cancelled) return;
+      setMergePreview(p);
+      setMergeLoading(false);
+      // If user hasn't touched the date, default it to day-after current end.
+      if (!startDateTouched && p.oldProgramEnd) {
+        const after = addDaysLocal(p.oldProgramEnd, 1);
+        if (after !== startDate) setStartDate(after);
+      }
+    }).catch(() => { if (!cancelled) setMergeLoading(false); });
+    return () => { cancelled = true; };
+  }, [showAssignDialog, selectedClientId, startDate, startDateTouched]);
+
+  // Reset the "touched" flag when the dialog re-opens or the client changes.
+  useEffect(() => {
+    if (!showAssignDialog) setStartDateTouched(false);
+  }, [showAssignDialog]);
+  useEffect(() => { setStartDateTouched(false); }, [selectedClientId]);
+
+
   const cloneProgramToClient = async (masterProgramId: string, clientId: string, isLinked: boolean) => {
     if (!user) throw new Error("Not authenticated");
 
@@ -199,9 +238,9 @@ const ProgramList = () => {
       }
     }
 
-    // 3. Deactivate old assignments
-    await supabase.from("client_program_assignments").update({ status: "completed" })
-      .eq("client_id", clientId).eq("status", "active");
+    // 3. Merge with existing active program (truncate + delete future events)
+    //    instead of erasing it. Mirrors Trainerize.
+    const mergeResult = await applyMerge(clientId, startDate);
 
     // 4. Create assignment
     await supabase.from("client_program_assignments").insert({
@@ -210,6 +249,13 @@ const ProgramList = () => {
       forked_from_program_id: masterProgramId, is_linked_to_master: isLinked,
       master_version_number: source.version_number, last_synced_at: new Date().toISOString(),
     });
+
+    if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
+      toast({
+        title: "Previous program truncated",
+        description: `Cut short on ${addDaysLocal(startDate, -1)}. ${mergeResult.deletedEvents} future calendar event${mergeResult.deletedEvents === 1 ? "" : "s"} removed.`,
+      });
+    }
 
     // 5. Show summary
     const summary = buildImportSummary(allCloneResults);
@@ -592,7 +638,30 @@ const ProgramList = () => {
 
             <div className="space-y-2">
               <Label>Start Date</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => { setStartDate(e.target.value); setStartDateTouched(true); }}
+              />
+              {mergeLoading && (
+                <p className="text-[11px] text-muted-foreground">Checking client's current program…</p>
+              )}
+              {!mergeLoading && mergePreview?.oldProgramId && !mergePreview.hasOverlap && (
+                <p className="text-[11px] text-muted-foreground">
+                  Client's current program ends {mergePreview.oldProgramEnd ?? "—"}. New program will start cleanly after.
+                </p>
+              )}
+              {!mergeLoading && mergePreview?.hasOverlap && (
+                <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-2.5 text-[11px] text-yellow-100/90 space-y-1">
+                  <p className="font-medium text-yellow-200">Overlaps current program</p>
+                  <p>
+                    <span className="text-foreground/80">{mergePreview.oldProgramName ?? "Current program"}</span> runs through {mergePreview.oldProgramEnd}. It will be cut short on <span className="font-mono">{addDaysLocal(startDate, -1)}</span> and saved to Previous Programs.
+                  </p>
+                  {mergePreview.futureEventCount > 0 && (
+                    <p>{mergePreview.futureEventCount} future calendar event{mergePreview.futureEventCount === 1 ? "" : "s"} from the old program will be removed.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between">
