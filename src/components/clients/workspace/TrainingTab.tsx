@@ -1172,19 +1172,24 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Change phase duration */}
-      {changeDurationPhase && (
-        <ChangeDurationDialog
-          open={!!changeDurationPhase}
-          onOpenChange={(o) => { if (!o) setChangeDurationPhase(null); }}
-          initialWeeks={changeDurationPhase.duration_weeks}
-          phaseName={changeDurationPhase.name}
-          onSave={async (weeks) => {
-            await changePhaseDuration(changeDurationPhase.id, weeks);
-            setChangeDurationPhase(null);
-          }}
-        />
-      )}
+      {/* Edit training phase (start/end/weeks) */}
+      {changeDurationPhase && (() => {
+        const dates = derivePhaseDates((program as any)?.start_date || null, phases as any);
+        const resolvedStart = dates[changeDurationPhase.id]?.start_date || null;
+        return (
+          <ChangeDurationDialog
+            open={!!changeDurationPhase}
+            onOpenChange={(o) => { if (!o) setChangeDurationPhase(null); }}
+            initialWeeks={changeDurationPhase.duration_weeks}
+            initialStartDate={resolvedStart}
+            phaseName={changeDurationPhase.name}
+            onSave={async (payload) => {
+              await savePhaseDates(changeDurationPhase.id, payload);
+              setChangeDurationPhase(null);
+            }}
+          />
+        );
+      })()}
 
       {/* Copy phase to master program */}
       {copyToMasterPhase && user && (
