@@ -56,6 +56,8 @@ export function useWorkoutLauncher() {
           notes: we.notes,
           videoUrl: we.video_override || we.exercise?.youtube_url || we.exercise?.video_url || null,
           equipment,
+          groupingType: we.grouping_type,
+          groupingId: we.grouping_id,
           progression: {
             progressionType: we.progression_type || "double",
             weightIncrement: we.weight_increment || 5,

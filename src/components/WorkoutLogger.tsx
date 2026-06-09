@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus, RotateCcw, X, Zap, Check, AlertTriangle, Cloud } from "lucide-react";
@@ -53,6 +53,8 @@ interface ExerciseLogForm {
   notes: string;
   videoUrl?: string | null;
   equipment?: string | null;
+  groupingType?: string | null;
+  groupingId?: string | null;
   progression?: ProgressionSettings;
   logs: {
     setNumber: number;
@@ -181,6 +183,68 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
 
   // Inline rest timer state: which exercise index + which set index the timer appears after
   const [restTimer, setRestTimer] = useState<{ exIdx: number; setIdx: number; seconds: number; startedAt: number } | null>(null);
+
+  // Group metadata per exercise index — used for visual pairing + rest timer suppression
+  // inside supersets / circuits / giant sets. A group requires >=2 members sharing a grouping_id.
+  const groupMeta = useMemo(() => {
+    const meta: Record<number, {
+      groupId: string;
+      groupingType: string;
+      letter: string;
+      indexInGroup: number; // 1-based
+      groupSize: number;
+      isFirst: boolean;
+      isLast: boolean;
+      label: string; // e.g. "SUPERSET A"
+    }> = {};
+
+    // Tally group sizes
+    const sizes = new Map<string, number>();
+    exercises.forEach((ex) => {
+      if (ex.groupingType && ex.groupingId) {
+        sizes.set(ex.groupingId, (sizes.get(ex.groupingId) ?? 0) + 1);
+      }
+    });
+
+    const letterByGroup = new Map<string, string>();
+    const positionByGroup = new Map<string, number>();
+    let nextLetterCode = 65; // 'A'
+
+    exercises.forEach((ex, idx) => {
+      if (!ex.groupingType || !ex.groupingId) return;
+      const size = sizes.get(ex.groupingId) ?? 0;
+      if (size < 2) return; // singleton groups render as solo
+
+      let letter = letterByGroup.get(ex.groupingId);
+      if (!letter) {
+        letter = String.fromCharCode(nextLetterCode++);
+        letterByGroup.set(ex.groupingId, letter);
+      }
+      const pos = (positionByGroup.get(ex.groupingId) ?? 0) + 1;
+      positionByGroup.set(ex.groupingId, pos);
+
+      const typeRaw = ex.groupingType.toLowerCase();
+      const typeLabel =
+        typeRaw === "superset" ? "SUPERSET"
+        : typeRaw === "circuit" ? "CIRCUIT"
+        : typeRaw === "giant" || typeRaw === "giant_set" ? "GIANT SET"
+        : ex.groupingType.toUpperCase();
+
+      meta[idx] = {
+        groupId: ex.groupingId,
+        groupingType: ex.groupingType,
+        letter,
+        indexInGroup: pos,
+        groupSize: size,
+        isFirst: pos === 1,
+        isLast: pos === size,
+        label: `${typeLabel} ${letter}`,
+      };
+    });
+
+    return meta;
+  }, [exercises]);
+
 
   // Save status
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -668,8 +732,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     // ── Path A (display): fire timer IMMEDIATELY, before any state update ──
     // This runs in the same React event-handler tick. Wrapped in try/catch so a
     // theoretical setState failure cannot block the save path below.
+    // Suppress rest timer for non-last exercises inside a group (superset/circuit/giant set) —
+    // the client moves straight into the next paired exercise. Rest only fires after the
+    // LAST exercise of the group using that last exercise's coach-configured rest_seconds.
+    const gm = groupMeta[exIdx];
+    const suppressTimer = !!gm && !gm.isLast;
     try {
-      if (restSecs > 0) {
+      if (restSecs > 0 && !suppressTimer) {
         setRestTimer({ exIdx, setIdx, seconds: restSecs, startedAt: Date.now() });
       }
     } catch (timerErr) {
@@ -1309,7 +1378,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       )}
 
       {/* Exercise Cards */}
-      {exercises.map((exercise, exIdx) => (
+      {exercises.map((exercise, exIdx) => {
+        const gm = groupMeta[exIdx];
+        return (
         <ExerciseCard
           key={`${exercise.id}-${exIdx}`}
           name={exercise.name}
@@ -1339,8 +1410,16 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onDeleteSet={(setIdx) => deleteSet(exIdx, setIdx)}
           onDeleteExercise={() => deleteExercise(exIdx)}
           onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
+          groupLabel={gm?.label}
+          groupIndex={gm?.indexInGroup}
+          groupSize={gm?.groupSize}
+          isInGroup={!!gm}
+          isFirstInGroup={gm?.isFirst}
+          isLastInGroup={gm?.isLast}
+          suppressRestAfterSet={!!gm && !gm.isLast}
         />
-      ))}
+        );
+      })}
 
       {/* Inline Action Buttons */}
       <div className="mt-6 space-y-3 pb-4">

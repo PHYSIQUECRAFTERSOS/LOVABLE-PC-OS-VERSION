@@ -1,75 +1,60 @@
-# Trainerize-style phase date editor
+# Workout Player: Group-Aware Visuals + Rest Timer
 
-Goal: replace the current weeks-only "Change Duration" dialog with one that lets the coach edit **Start date, End date, and Weeks** for any training phase, with a real calendar popover (like Trainerize). All three fields stay in sync; later phases cascade automatically.
+Make supersets, circuits, and giant sets immediately recognizable in the client's workout tracker, and fix rest-timer behavior so only the last exercise in a group fires a rest timer.
 
-## UX
+## What changes for the client
 
-Dialog title: **Edit Training Phase** (replaces "Change Duration").
+- Any exercises sharing a `grouping_id` (superset, circuit, or giant set) are visually paired:
+  - Gold border around each card in the group.
+  - A continuous gold rail on the left side that visually connects every card in the group (single rail, spans from the top of the first card to the bottom of the last).
+  - A small gold pill on each card: `SUPERSET A · 1 of 2`, `CIRCUIT B · 2 of 3`, `GIANT SET A · 3 of 4`. Letter increments per group within the workout; "1 of N" indicates position inside the group.
+- Rest timer behavior inside a group:
+  - When the client logs a set on a non-last exercise in the group, no rest timer fires — they move straight into the next paired exercise.
+  - When the client logs a set on the last exercise in the group, the rest timer fires using that last exercise's `rest_seconds`.
+  - Solo (ungrouped) exercises behave exactly as today.
 
-Layout (matches the second screenshot you shared):
+## Technical changes
 
-```text
-Edit Training Phase
-┌─────────────────────────────────────┐
-│ [ Start on  9 Jun 2026 📅 ]         │
-│ [ until    3 Aug 2026 📅 ]          │
-│ Duration: [ 8 ] weeks               │
-│                                     │
-│ This phase will end on 3 Aug 2026   │
-│ (Monday).                           │
-└─────────────────────────────────────┘
-            [ Cancel ]  [ Save ]
-```
+**Data plumbing**
+- `src/pages/Training.tsx` → `loadWorkoutExercises`: include `grouping_type` and `grouping_id` on each `exerciseLogs` entry (already returned by `fetchWorkoutExerciseDetails`).
+- `src/components/WorkoutLogger.tsx` `ExerciseLogForm`: add `groupingType?: string | null` and `groupingId?: string | null`.
 
-- Start / End use shadcn `Popover` + `Calendar` (single-date), styled in our matte black + gold theme.
-- All three fields are editable; editing any one recomputes the others live:
-  - Change **Start** → keep weeks, recompute End.
-  - Change **End** → recompute Weeks (and clamp 1–52).
-  - Change **Weeks** → keep Start, recompute End.
-- Helper line shows the resolved end date + weekday, like Trainerize.
-- Validation: End ≥ Start; Weeks 1–52. Inline error if violated.
+**Group metadata derivation (WorkoutLogger)**
+- Build a memoized `groupMeta` map keyed by `exIdx`:
+  - `groupId`, `groupingType`, `letter` (A, B, … assigned in order of first appearance), `indexInGroup` (1-based), `groupSize`, `isFirst`, `isLast`.
+- A "group" requires both `groupingType` and `groupingId` and at least 2 members; lone members render as solo.
 
-## Cascade rules (per your answers)
+**Rest timer fix (`completeSet`)**
+- If `groupMeta[exIdx].isLast === false` → skip `setRestTimer(...)` entirely (still complete + persist the set).
+- If last (or solo) → fire with that exercise's own `restSeconds` (unchanged from today).
 
-- **Edit this phase only**, later phases slide to stay sequential (no gaps, no overlaps).
-- If the edited phase is **Phase 1** and its Start moves, the program's `start_date` shifts with it so later phases cascade from the new origin.
-- Earlier phases are never touched.
-- **Calendar events are left untouched** (safest). The dialog shows a small note: "Scheduled workouts on the calendar are not moved automatically." Coach can drag-reschedule as needed.
+**Visual pairing**
+- `ExerciseCard` accepts new props: `groupLabel?: string` (e.g. "SUPERSET A"), `groupPosition?: { index: number; total: number }`, `groupPosition` rail flags: `isFirstInGroup`, `isLastInGroup`, `isInGroup`.
+- Card root: when `isInGroup`, apply `border-[#D4A017]` (replacing default border) and `relative` positioning.
+- Render the pill at the top of the card: `SUPERSET A · 1 of 2` styled `bg-[#D4A017]/15 text-[#D4A017] border border-[#D4A017]/40` rounded-full, uppercase tracking-wide.
+- Connecting rail: absolutely positioned 3px-wide gold bar on the left edge of the card.
+  - Top is flush with card top when not first; otherwise rounded.
+  - Bottom is flush with card bottom when not last; otherwise rounded.
+  - Extends 8px below the card (`-bottom-2`) on non-last cards so it visually bridges the gap between stacked cards (cards in `WorkoutLogger` are stacked in a vertical flex; gap is consistent).
+- Label text per `grouping_type`: `superset` → "SUPERSET", `circuit` → "CIRCUIT", `giant` / `giant_set` → "GIANT SET", any other value → uppercased value.
 
-## Technical details
+**Resume sessions**
+- `loadWorkoutExercises` already runs the same path on resume, so grouping props flow through naturally.
 
-### Schema (one additive migration)
-- Add nullable `start_date date` to `program_phases`. (`end_date` stays derived from `start_date + duration_weeks * 7 - 1`; `derivePhaseDates` already honors an explicit `start_date` when present, so existing flows keep working.)
-- No data backfill — null means "derive sequentially from program.start_date", which is today's behavior.
+**No DB or RLS changes.** Read-only use of existing `grouping_type` / `grouping_id` columns.
 
-### Save logic (`TrainingTab.tsx` → new `savePhaseDates`)
-Given edited phase P with new `{ startDate, weeks }`:
-1. Compute `endDate = startDate + weeks*7 - 1`.
-2. If P is `phase_order === 1` and `startDate !== program.start_date` → update `programs.start_date` to `startDate` and clear any explicit `start_date` on later phases (so they cascade).
-3. Update P: `{ start_date: startDate, duration_weeks: weeks }`.
-4. For every phase with `phase_order > P.phase_order` whose explicit `start_date` is now inconsistent with the new cascade, clear it (`start_date = null`) so `derivePhaseDates` reflows them from P's new end.
-5. `loadClientProgram()` to refresh; toast "Phase updated".
+## Files touched
 
-All writes use `.select()` to verify per project rules. Wrapped in `Promise.allSettled` where independent.
+- `src/lib/workoutExerciseQueries.ts` — no change (already selects grouping fields).
+- `src/pages/Training.tsx` — map `grouping_type` / `grouping_id` into `exerciseLogs`.
+- `src/components/WorkoutLogger.tsx` — extend `ExerciseLogForm`, compute `groupMeta`, gate rest timer, pass new props to `ExerciseCard`.
+- `src/components/workout/ExerciseCard.tsx` — new props, gold border, pill, left rail.
 
-### Component changes
-- Rewrite `src/components/clients/workspace/training/ChangeDurationDialog.tsx`:
-  - Rename export stays `ChangeDurationDialog` (call sites unchanged) but title/UX becomes "Edit Training Phase".
-  - New props: `initialStartDate: string | null`, `programStartDate: string | null`, `onSave({ startDate, weeks })`.
-  - Uses shadcn `Calendar` inside `Popover` with `pointer-events-auto`.
-- `TrainingTab.tsx`:
-  - Pass `initialStartDate` (from `derivePhaseDates` result) and `programStartDate`.
-  - Replace `changePhaseDuration(weeks)` call with new `savePhaseDates({ startDate, weeks })`.
+## Verification
 
-### Files touched
-- `src/components/clients/workspace/training/ChangeDurationDialog.tsx` (rewrite)
-- `src/components/clients/workspace/TrainingTab.tsx` (props + save handler)
-- 1 migration: `ALTER TABLE program_phases ADD COLUMN start_date date`
-
-### Verification
-- Edit Phase 2 start → Phase 2 shifts, Phase 3 follows; Phase 1 unchanged.
-- Edit Phase 1 start → program start moves; all phases shift.
-- Edit End date → Weeks updates correctly.
-- Set Weeks → End date updates correctly.
-- Calendar view (`usePhaseBoundaries`) reflects new boundaries since it already reads `derivePhaseDates`.
-- Mobile 375px: calendar popover stays inside viewport.
+1. Open a workout that has a superset (e.g., the screenshot's "machine seated tricep pushdown" + "Close Grip Push Ups").
+2. Confirm both cards show gold border, pill `SUPERSET A · 1 of 2` and `· 2 of 2`, and a continuous gold rail connecting them.
+3. Log a set on the tricep pushdown → no rest timer appears, client can immediately log the push-up set.
+4. Log a set on Close Grip Push Ups → rest timer fires with the push-up's `rest_seconds` (e.g., 90s).
+5. Solo exercises still fire a rest timer using their own `rest_seconds`.
+6. A 3-exercise giant set behaves the same: only the 3rd exercise fires rest.

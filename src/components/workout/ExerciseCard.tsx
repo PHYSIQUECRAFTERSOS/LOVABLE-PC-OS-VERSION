@@ -63,6 +63,14 @@ interface ExerciseCardProps {
   onDeleteSet?: (setIdx: number) => void;
   onDeleteExercise?: () => void;
   onSwitchExercise?: () => void;
+  // Grouping (superset / circuit / giant set) visual + behavior props
+  groupLabel?: string;       // e.g. "SUPERSET A"
+  groupIndex?: number;       // 1-based position within the group
+  groupSize?: number;        // total members in the group
+  isInGroup?: boolean;
+  isFirstInGroup?: boolean;
+  isLastInGroup?: boolean;
+  suppressRestAfterSet?: boolean; // informational; parent already gates timer
 }
 
 function getYouTubeId(url: string): string | null {
@@ -248,6 +256,13 @@ const ExerciseCard = ({
   onDeleteSet,
   onDeleteExercise,
   onSwitchExercise,
+  groupLabel,
+  groupIndex,
+  groupSize,
+  isInGroup,
+  isFirstInGroup,
+  isLastInGroup,
+  suppressRestAfterSet,
 }: ExerciseCardProps) => {
   const allDone = logs.every(l => l.completed);
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
@@ -334,11 +349,45 @@ const ExerciseCard = ({
 
   return (
     <Card
-      className={`transition-colors ${allDone ? "border-primary/30 bg-primary/5" : ""}`}
+      className={cn(
+        "transition-colors relative",
+        allDone && !isInGroup && "border-primary/30 bg-primary/5",
+        isInGroup && "border-[#D4A017] border-2",
+        isInGroup && allDone && "bg-primary/5",
+        isInGroup && !isFirstInGroup && "rounded-t-md",
+      )}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
     >
+      {/* Group rail — continuous gold connector on the left edge spanning all cards in the group. */}
+      {isInGroup && (
+        <>
+          <div
+            aria-hidden
+            className="absolute left-0 w-[3px] bg-[#D4A017] pointer-events-none"
+            style={{
+              top: isFirstInGroup ? 8 : -12,
+              bottom: isLastInGroup ? 8 : -12,
+              borderTopLeftRadius: isFirstInGroup ? 9999 : 0,
+              borderBottomLeftRadius: isLastInGroup ? 9999 : 0,
+            }}
+          />
+          {/* Group pill — sits at the top of every card in the group. */}
+          <div className="px-4 pt-3">
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#D4A017]/15 text-[#D4A017] border border-[#D4A017]/40">
+              {groupLabel}
+              {typeof groupIndex === "number" && typeof groupSize === "number" && (
+                <span className="opacity-80">· {groupIndex} of {groupSize}</span>
+              )}
+              {suppressRestAfterSet && (
+                <span className="opacity-70 normal-case tracking-normal">· no rest</span>
+              )}
+            </span>
+          </div>
+        </>
+      )}
+
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2 flex-1 min-w-0">
