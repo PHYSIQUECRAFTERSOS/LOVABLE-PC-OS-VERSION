@@ -58,6 +58,9 @@ const ProgramList = () => {
   const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [assigning, setAssigning] = useState(false);
+  const [mergePreview, setMergePreview] = useState<MergePreview | null>(null);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [startDateTouched, setStartDateTouched] = useState(false);
 
   // Push update dialog
   const [showPushDialog, setShowPushDialog] = useState(false);
