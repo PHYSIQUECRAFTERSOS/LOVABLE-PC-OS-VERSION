@@ -1378,7 +1378,9 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       )}
 
       {/* Exercise Cards */}
-      {exercises.map((exercise, exIdx) => (
+      {exercises.map((exercise, exIdx) => {
+        const gm = groupMeta[exIdx];
+        return (
         <ExerciseCard
           key={`${exercise.id}-${exIdx}`}
           name={exercise.name}
@@ -1408,8 +1410,16 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
           onDeleteSet={(setIdx) => deleteSet(exIdx, setIdx)}
           onDeleteExercise={() => deleteExercise(exIdx)}
           onSwitchExercise={() => { setSwitchingExIdx(exIdx); setShowAddExercise(true); }}
+          groupLabel={gm?.label}
+          groupIndex={gm?.indexInGroup}
+          groupSize={gm?.groupSize}
+          isInGroup={!!gm}
+          isFirstInGroup={gm?.isFirst}
+          isLastInGroup={gm?.isLast}
+          suppressRestAfterSet={!!gm && !gm.isLast}
         />
-      ))}
+        );
+      })}
 
       {/* Inline Action Buttons */}
       <div className="mt-6 space-y-3 pb-4">
