@@ -795,7 +795,10 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         });
       }
 
-      // 5. Create assignment
+      // 5. Truncate the client's previous active program (if any) instead of erasing it.
+      const mergeResult = await applyMerge(selectedCopyClient, startDate);
+
+      // 6. Create assignment
       const { error: assignErr } = await supabase
         .from("client_program_assignments")
         .insert({
@@ -813,6 +816,12 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
 
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
+      if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
+        toast({
+          title: "Previous program truncated",
+          description: `${mergeResult.deletedEvents} future calendar event${mergeResult.deletedEvents === 1 ? "" : "s"} removed.`,
+        });
+      }
       toast({ title: msg.isWarning ? msg.title : "Phase copied to client", description: msg.isWarning ? msg.description : `${phase.name} assigned with ${summary.totalExercises} exercises.`, variant: msg.isWarning ? "destructive" : undefined });
       setShowCopyToClientDialog(false);
     } catch (err: any) {
