@@ -638,7 +638,30 @@ const ProgramList = () => {
 
             <div className="space-y-2">
               <Label>Start Date</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => { setStartDate(e.target.value); setStartDateTouched(true); }}
+              />
+              {mergeLoading && (
+                <p className="text-[11px] text-muted-foreground">Checking client's current program…</p>
+              )}
+              {!mergeLoading && mergePreview?.oldProgramId && !mergePreview.hasOverlap && (
+                <p className="text-[11px] text-muted-foreground">
+                  Client's current program ends {mergePreview.oldProgramEnd ?? "—"}. New program will start cleanly after.
+                </p>
+              )}
+              {!mergeLoading && mergePreview?.hasOverlap && (
+                <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-2.5 text-[11px] text-yellow-100/90 space-y-1">
+                  <p className="font-medium text-yellow-200">Overlaps current program</p>
+                  <p>
+                    <span className="text-foreground/80">{mergePreview.oldProgramName ?? "Current program"}</span> runs through {mergePreview.oldProgramEnd}. It will be cut short on <span className="font-mono">{addDaysLocal(startDate, -1)}</span> and saved to Previous Programs.
+                  </p>
+                  {mergePreview.futureEventCount > 0 && (
+                    <p>{mergePreview.futureEventCount} future calendar event{mergePreview.futureEventCount === 1 ? "" : "s"} from the old program will be removed.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between">
