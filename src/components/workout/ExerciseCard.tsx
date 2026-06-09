@@ -256,6 +256,13 @@ const ExerciseCard = ({
   onDeleteSet,
   onDeleteExercise,
   onSwitchExercise,
+  groupLabel,
+  groupIndex,
+  groupSize,
+  isInGroup,
+  isFirstInGroup,
+  isLastInGroup,
+  suppressRestAfterSet,
 }: ExerciseCardProps) => {
   const allDone = logs.every(l => l.completed);
   const videoId = videoUrl ? getYouTubeId(videoUrl) : null;
