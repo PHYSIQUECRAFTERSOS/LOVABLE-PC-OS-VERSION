@@ -889,7 +889,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       {/* Assign Dialog */}
       <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
         selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
-        loading={assigning} mode={assignMode} onModeChange={setAssignMode} />
+        loading={assigning} mode={assignMode} onModeChange={setAssignMode}
+        startDate={assignStartDate}
+        onStartDateChange={(v) => { setAssignStartTouched(true); setAssignStartDate(v); }}
+        mergePreview={assignMergePreview} />
+
 
       {/* Detach Confirmation */}
       <AlertDialog open={showDetach} onOpenChange={setShowDetach}>
