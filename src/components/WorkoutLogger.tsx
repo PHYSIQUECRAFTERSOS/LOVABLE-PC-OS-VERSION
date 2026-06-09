@@ -184,6 +184,68 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   // Inline rest timer state: which exercise index + which set index the timer appears after
   const [restTimer, setRestTimer] = useState<{ exIdx: number; setIdx: number; seconds: number; startedAt: number } | null>(null);
 
+  // Group metadata per exercise index — used for visual pairing + rest timer suppression
+  // inside supersets / circuits / giant sets. A group requires >=2 members sharing a grouping_id.
+  const groupMeta = useMemo(() => {
+    const meta: Record<number, {
+      groupId: string;
+      groupingType: string;
+      letter: string;
+      indexInGroup: number; // 1-based
+      groupSize: number;
+      isFirst: boolean;
+      isLast: boolean;
+      label: string; // e.g. "SUPERSET A"
+    }> = {};
+
+    // Tally group sizes
+    const sizes = new Map<string, number>();
+    exercises.forEach((ex) => {
+      if (ex.groupingType && ex.groupingId) {
+        sizes.set(ex.groupingId, (sizes.get(ex.groupingId) ?? 0) + 1);
+      }
+    });
+
+    const letterByGroup = new Map<string, string>();
+    const positionByGroup = new Map<string, number>();
+    let nextLetterCode = 65; // 'A'
+
+    exercises.forEach((ex, idx) => {
+      if (!ex.groupingType || !ex.groupingId) return;
+      const size = sizes.get(ex.groupingId) ?? 0;
+      if (size < 2) return; // singleton groups render as solo
+
+      let letter = letterByGroup.get(ex.groupingId);
+      if (!letter) {
+        letter = String.fromCharCode(nextLetterCode++);
+        letterByGroup.set(ex.groupingId, letter);
+      }
+      const pos = (positionByGroup.get(ex.groupingId) ?? 0) + 1;
+      positionByGroup.set(ex.groupingId, pos);
+
+      const typeRaw = ex.groupingType.toLowerCase();
+      const typeLabel =
+        typeRaw === "superset" ? "SUPERSET"
+        : typeRaw === "circuit" ? "CIRCUIT"
+        : typeRaw === "giant" || typeRaw === "giant_set" ? "GIANT SET"
+        : ex.groupingType.toUpperCase();
+
+      meta[idx] = {
+        groupId: ex.groupingId,
+        groupingType: ex.groupingType,
+        letter,
+        indexInGroup: pos,
+        groupSize: size,
+        isFirst: pos === 1,
+        isLast: pos === size,
+        label: `${typeLabel} ${letter}`,
+      };
+    });
+
+    return meta;
+  }, [exercises]);
+
+
   // Save status
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
