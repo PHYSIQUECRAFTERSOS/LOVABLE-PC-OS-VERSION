@@ -158,6 +158,34 @@ const ProgramList = () => {
 
   useEffect(() => { loadPrograms(); loadClients(); }, [userId]);
 
+  // Refresh merge preview whenever the selected client / start date changes.
+  useEffect(() => {
+    if (!showAssignDialog || !selectedClientId) {
+      setMergePreview(null);
+      return;
+    }
+    let cancelled = false;
+    setMergeLoading(true);
+    previewMerge(selectedClientId, startDate).then((p) => {
+      if (cancelled) return;
+      setMergePreview(p);
+      setMergeLoading(false);
+      // If user hasn't touched the date, default it to day-after current end.
+      if (!startDateTouched && p.oldProgramEnd) {
+        const after = addDaysLocal(p.oldProgramEnd, 1);
+        if (after !== startDate) setStartDate(after);
+      }
+    }).catch(() => { if (!cancelled) setMergeLoading(false); });
+    return () => { cancelled = true; };
+  }, [showAssignDialog, selectedClientId, startDate, startDateTouched]);
+
+  // Reset the "touched" flag when the dialog re-opens or the client changes.
+  useEffect(() => {
+    if (!showAssignDialog) setStartDateTouched(false);
+  }, [showAssignDialog]);
+  useEffect(() => { setStartDateTouched(false); }, [selectedClientId]);
+
+
   const cloneProgramToClient = async (masterProgramId: string, clientId: string, isLinked: boolean) => {
     if (!user) throw new Error("Not authenticated");
 
