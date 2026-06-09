@@ -146,6 +146,35 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [assignMergePreview, setAssignMergePreview] = useState<MergePreview | null>(null);
   const [assignAutoAdvance, setAssignAutoAdvance] = useState(true);
 
+  // Previous (completed) program assignments
+  const [previousPrograms, setPreviousPrograms] = useState<Array<{
+    id: string; program_id: string; name: string; start_date: string | null; ended_on: string | null;
+  }>>([]);
+  const [showPrevious, setShowPrevious] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("client_program_assignments")
+        .select("id, program_id, start_date, ended_on, programs:program_id(name)")
+        .eq("client_id", clientId)
+        .eq("status", "completed")
+        .order("ended_on", { ascending: false, nullsFirst: false })
+        .limit(20);
+      if (cancelled) return;
+      setPreviousPrograms(
+        (data || []).map((r: any) => ({
+          id: r.id, program_id: r.program_id,
+          name: r.programs?.name || "Unnamed program",
+          start_date: r.start_date, ended_on: r.ended_on,
+        })),
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [clientId, assigning]);
+
+
   // Detach confirm
   const [showDetach, setShowDetach] = useState(false);
 
