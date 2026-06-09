@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
+import { applyMerge } from "@/lib/programMerge";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
 import SortableWorkoutCard from "./SortableWorkoutCard";
