@@ -53,6 +53,8 @@ interface ExerciseLogForm {
   notes: string;
   videoUrl?: string | null;
   equipment?: string | null;
+  groupingType?: string | null;
+  groupingId?: string | null;
   progression?: ProgressionSettings;
   logs: {
     setNumber: number;
