@@ -298,6 +298,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       const { data: clientProg, error: progErr } = await supabase.from("programs").insert({
         coach_id: user.id, client_id: clientId, name: master.name, description: null,
         goal_type: master.goal_type, is_template: false, is_master: false,
+        start_date: assignStartDate,
         duration_weeks: master.duration_weeks, version_number: master.version_number || 1,
       } as any).select().single();
       if (progErr) throw progErr;
@@ -354,16 +355,25 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         }
       }
 
-      await supabase.from("client_program_assignments").update({ status: "completed" })
-        .eq("client_id", clientId).eq("status", "active");
+      // Truncate the client's previous active program (if any) instead of erasing it.
+      const mergeResult = await applyMerge(clientId, assignStartDate, assignMergePreview || undefined);
 
       await supabase.from("client_program_assignments").insert({
         client_id: clientId, coach_id: user.id, program_id: clientProg.id,
         current_phase_id: firstPhaseId, current_week_number: 1,
+        start_date: assignStartDate,
         forked_from_program_id: selectedMaster, status: "active",
+        auto_advance: assignAutoAdvance,
         is_linked_to_master: isLinked, master_version_number: master.version_number || 1,
         last_synced_at: new Date().toISOString(),
-      });
+      } as any);
+
+      if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
+        toast({
+          title: "Previous program truncated",
+          description: `Cut short on ${addDaysLocal(assignStartDate, -1)}. ${mergeResult.deletedEvents} future calendar event${mergeResult.deletedEvents === 1 ? "" : "s"} removed.`,
+        });
+      }
 
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
