@@ -63,6 +63,14 @@ interface ExerciseCardProps {
   onDeleteSet?: (setIdx: number) => void;
   onDeleteExercise?: () => void;
   onSwitchExercise?: () => void;
+  // Grouping (superset / circuit / giant set) visual + behavior props
+  groupLabel?: string;       // e.g. "SUPERSET A"
+  groupIndex?: number;       // 1-based position within the group
+  groupSize?: number;        // total members in the group
+  isInGroup?: boolean;
+  isFirstInGroup?: boolean;
+  isLastInGroup?: boolean;
+  suppressRestAfterSet?: boolean; // informational; parent already gates timer
 }
 
 function getYouTubeId(url: string): string | null {
