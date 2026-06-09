@@ -1,31 +1,75 @@
-## Problems Found
+# Trainerize-style phase date editor
 
-**Supplements PDF — missing supplements**
-`exportSupplementsPdf.ts` groups items by `timing_slot`, then only renders slots in a hardcoded list: `morning, pre_workout, intra_workout, post_workout, with_meal, evening, before_bed, any_time`. Jack's plan also uses `fasted` and `meal_1` — those buckets (10 of 17 items, including Creatine, Glutamine, Psyllium, Iodine, Yohimbine, Caffeine, Triumph, Vitamin D3, Fish Oils, Magnesium) are silently dropped.
+Goal: replace the current weeks-only "Change Duration" dialog with one that lets the coach edit **Start date, End date, and Weeks** for any training phase, with a real calendar popover (like Trainerize). All three fields stay in sync; later phases cascade automatically.
 
-**Meal Plan PDF — missing rest day**
-Jack has one `meal_plans` row with two `meal_plan_days` (training + rest) — not two separate plans. `exportMealPlanPdf.ts` only iterates `meal_plans` rows and groups items by `meal_order`, mixing both days into a single section. The rest day never renders.
+## UX
 
-## Fix Plan
+Dialog title: **Edit Training Phase** (replaces "Change Duration").
 
-### `src/utils/pdf/exportSupplementsPdf.ts`
-1. Expand `TIMING_LABELS` to include every slot used in the app: add `fasted` ("Fasted / Morning"), `meal_1`…`meal_6` ("With Meal 1"…"With Meal 6"), `pre_bed` (alias), plus existing labels.
-2. Replace the hardcoded `orderedSlots` filter with: take all keys in `grouped`, sort by a preferred-order map, and append any unknown slots at the end with a humanized label (`slot.replace(/_/g, " ")` title-cased) so nothing is ever dropped.
-3. Preferred order: `fasted, morning, pre_workout, intra_workout, post_workout, meal_1, meal_2, meal_3, meal_4, meal_5, meal_6, with_meal, evening, before_bed, pre_bed, any_time`.
+Layout (matches the second screenshot you shared):
 
-### `src/utils/pdf/exportMealPlanPdf.ts`
-1. For each meal plan, fetch `meal_plan_days` (`id, day_type, day_order`) ordered by `day_order`.
-2. If days exist: render one section per day (Training Day → Rest Day order via day_type rank), filtering items by `day_id`. Section title uses day_type label ("Training Day" / "Rest Day"). Each day starts on a new content page.
-3. If a plan has no days (legacy data), fall back to current behavior (single section, all items).
-4. Macro target row still pulls from the parent `meal_plans` row (targets are stored there); meal totals are computed per-day from filtered items.
-5. Cover page subtitle stays "Training Day & Rest Day Macros".
+```text
+Edit Training Phase
+┌─────────────────────────────────────┐
+│ [ Start on  9 Jun 2026 📅 ]         │
+│ [ until    3 Aug 2026 📅 ]          │
+│ Duration: [ 8 ] weeks               │
+│                                     │
+│ This phase will end on 3 Aug 2026   │
+│ (Monday).                           │
+└─────────────────────────────────────┘
+            [ Cancel ]  [ Save ]
+```
 
-### Out of scope
-- No DB schema changes.
-- No edits to the print buttons or UI.
-- Training PDF untouched.
+- Start / End use shadcn `Popover` + `Calendar` (single-date), styled in our matte black + gold theme.
+- All three fields are editable; editing any one recomputes the others live:
+  - Change **Start** → keep weeks, recompute End.
+  - Change **End** → recompute Weeks (and clamp 1–52).
+  - Change **Weeks** → keep Start, recompute End.
+- Helper line shows the resolved end date + weekday, like Trainerize.
+- Validation: End ≥ Start; Weeks 1–52. Inline error if violated.
+
+## Cascade rules (per your answers)
+
+- **Edit this phase only**, later phases slide to stay sequential (no gaps, no overlaps).
+- If the edited phase is **Phase 1** and its Start moves, the program's `start_date` shifts with it so later phases cascade from the new origin.
+- Earlier phases are never touched.
+- **Calendar events are left untouched** (safest). The dialog shows a small note: "Scheduled workouts on the calendar are not moved automatically." Coach can drag-reschedule as needed.
+
+## Technical details
+
+### Schema (one additive migration)
+- Add nullable `start_date date` to `program_phases`. (`end_date` stays derived from `start_date + duration_weeks * 7 - 1`; `derivePhaseDates` already honors an explicit `start_date` when present, so existing flows keep working.)
+- No data backfill — null means "derive sequentially from program.start_date", which is today's behavior.
+
+### Save logic (`TrainingTab.tsx` → new `savePhaseDates`)
+Given edited phase P with new `{ startDate, weeks }`:
+1. Compute `endDate = startDate + weeks*7 - 1`.
+2. If P is `phase_order === 1` and `startDate !== program.start_date` → update `programs.start_date` to `startDate` and clear any explicit `start_date` on later phases (so they cascade).
+3. Update P: `{ start_date: startDate, duration_weeks: weeks }`.
+4. For every phase with `phase_order > P.phase_order` whose explicit `start_date` is now inconsistent with the new cascade, clear it (`start_date = null`) so `derivePhaseDates` reflows them from P's new end.
+5. `loadClientProgram()` to refresh; toast "Phase updated".
+
+All writes use `.select()` to verify per project rules. Wrapped in `Promise.allSettled` where independent.
+
+### Component changes
+- Rewrite `src/components/clients/workspace/training/ChangeDurationDialog.tsx`:
+  - Rename export stays `ChangeDurationDialog` (call sites unchanged) but title/UX becomes "Edit Training Phase".
+  - New props: `initialStartDate: string | null`, `programStartDate: string | null`, `onSave({ startDate, weeks })`.
+  - Uses shadcn `Calendar` inside `Popover` with `pointer-events-auto`.
+- `TrainingTab.tsx`:
+  - Pass `initialStartDate` (from `derivePhaseDates` result) and `programStartDate`.
+  - Replace `changePhaseDuration(weeks)` call with new `savePhaseDates({ startDate, weeks })`.
+
+### Files touched
+- `src/components/clients/workspace/training/ChangeDurationDialog.tsx` (rewrite)
+- `src/components/clients/workspace/TrainingTab.tsx` (props + save handler)
+- 1 migration: `ALTER TABLE program_phases ADD COLUMN start_date date`
 
 ### Verification
-After edits, re-export for Jack Fisher and confirm:
-- Supplements PDF lists all 17 items across Fasted, Meal 1, Pre-Workout, With Meal, Before Bed, Any Time sections.
-- Meal Plan PDF shows two clearly separated sections — Training Day and Rest Day — each with its own meals and totals.
+- Edit Phase 2 start → Phase 2 shifts, Phase 3 follows; Phase 1 unchanged.
+- Edit Phase 1 start → program start moves; all phases shift.
+- Edit End date → Weeks updates correctly.
+- Set Weeks → End date updates correctly.
+- Calendar view (`usePhaseBoundaries`) reflects new boundaries since it already reads `derivePhaseDates`.
+- Mobile 375px: calendar popover stays inside viewport.

@@ -1,0 +1,1 @@
+ALTER TABLE public.program_phases ADD COLUMN IF NOT EXISTS start_date date;
