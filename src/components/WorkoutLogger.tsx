@@ -732,8 +732,13 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
     // ── Path A (display): fire timer IMMEDIATELY, before any state update ──
     // This runs in the same React event-handler tick. Wrapped in try/catch so a
     // theoretical setState failure cannot block the save path below.
+    // Suppress rest timer for non-last exercises inside a group (superset/circuit/giant set) —
+    // the client moves straight into the next paired exercise. Rest only fires after the
+    // LAST exercise of the group using that last exercise's coach-configured rest_seconds.
+    const gm = groupMeta[exIdx];
+    const suppressTimer = !!gm && !gm.isLast;
     try {
-      if (restSecs > 0) {
+      if (restSecs > 0 && !suppressTimer) {
         setRestTimer({ exIdx, setIdx, seconds: restSecs, startedAt: Date.now() });
       }
     } catch (timerErr) {
