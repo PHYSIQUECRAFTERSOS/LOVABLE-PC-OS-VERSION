@@ -199,9 +199,9 @@ const ProgramList = () => {
       }
     }
 
-    // 3. Deactivate old assignments
-    await supabase.from("client_program_assignments").update({ status: "completed" })
-      .eq("client_id", clientId).eq("status", "active");
+    // 3. Merge with existing active program (truncate + delete future events)
+    //    instead of erasing it. Mirrors Trainerize.
+    const mergeResult = await applyMerge(clientId, startDate);
 
     // 4. Create assignment
     await supabase.from("client_program_assignments").insert({
@@ -210,6 +210,13 @@ const ProgramList = () => {
       forked_from_program_id: masterProgramId, is_linked_to_master: isLinked,
       master_version_number: source.version_number, last_synced_at: new Date().toISOString(),
     });
+
+    if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
+      toast({
+        title: "Previous program truncated",
+        description: `Cut short on ${addDaysLocal(startDate, -1)}. ${mergeResult.deletedEvents} future calendar event${mergeResult.deletedEvents === 1 ? "" : "s"} removed.`,
+      });
+    }
 
     // 5. Show summary
     const summary = buildImportSummary(allCloneResults);
