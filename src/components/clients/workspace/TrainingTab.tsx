@@ -1302,11 +1302,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 };
 
 // ── Assign Dialog ──
-const AssignDialog = ({ open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange }: {
+const AssignDialog = ({
+  open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange,
+  startDate, onStartDateChange, mergePreview,
+}: {
   open: boolean; onOpenChange: (v: boolean) => void;
   programs: any[]; selected: string; onSelect: (v: string) => void;
   onAssign: () => void; loading: boolean;
   mode: "subscribe" | "import"; onModeChange: (m: "subscribe" | "import") => void;
+  startDate?: string; onStartDateChange?: (v: string) => void;
+  mergePreview?: MergePreview | null;
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-md">
@@ -1348,6 +1353,34 @@ const AssignDialog = ({ open, onOpenChange, programs, selected, onSelect, onAssi
             </Select>
           )}
         </div>
+        {onStartDateChange && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Start Date</Label>
+            <Input
+              type="date"
+              value={startDate || ""}
+              onChange={(e) => onStartDateChange(e.target.value)}
+            />
+            {mergePreview?.oldProgramName && !mergePreview.hasOverlap && (
+              <p className="text-[11px] text-muted-foreground">
+                Defaults to the day after "{mergePreview.oldProgramName}" ends ({mergePreview.oldProgramEnd}).
+              </p>
+            )}
+          </div>
+        )}
+        {mergePreview?.hasOverlap && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-1">
+            <p className="font-semibold text-amber-300">Overlaps existing program</p>
+            <p className="text-muted-foreground">
+              "{mergePreview.oldProgramName}" will be cut short and marked completed on {addDaysLocal(startDate || "", -1)}.
+            </p>
+            {mergePreview.futureEventCount > 0 && (
+              <p className="text-muted-foreground">
+                {mergePreview.futureEventCount} scheduled workout{mergePreview.futureEventCount === 1 ? "" : "s"} on/after the new start date will be removed from the calendar.
+              </p>
+            )}
+          </div>
+        )}
         <Button className="w-full" disabled={!selected || loading} onClick={onAssign}>
           {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {mode === "subscribe" ? "Subscribe Client" : "Import Program"}
