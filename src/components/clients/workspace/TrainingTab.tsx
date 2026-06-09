@@ -914,6 +914,35 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         onDetach={isLinked ? () => setShowDetach(true) : undefined}
       />
 
+      {/* Previous Programs */}
+      {previousPrograms.length > 0 && (
+        <Collapsible open={showPrevious} onOpenChange={setShowPrevious}>
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Previous Programs ({previousPrograms.length})
+              </span>
+              {showPrevious ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-2">
+            {previousPrograms.map((pp) => (
+              <div key={pp.id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-card/40">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{pp.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {pp.start_date || "—"} → {pp.ended_on || "ended"}
+                    {pp.ended_on && <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[10px]">Truncated</span>}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+
+
 
       {/* Assign Dialog */}
       <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
