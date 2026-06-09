@@ -381,19 +381,19 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
     // 1. Update the edited phase.
     writes.push(
-      supabase.from("program_phases")
+      Promise.resolve(supabase.from("program_phases")
         .update({ start_date: startDate, duration_weeks: weeks })
         .eq("id", phaseId)
-        .select()
+        .select())
     );
 
     // 2. If Phase 1, also move program start.
     if (edited.phase_order === 1 && (program as any).start_date !== startDate) {
       writes.push(
-        supabase.from("programs")
+        Promise.resolve(supabase.from("programs")
           .update({ start_date: startDate })
           .eq("id", program.id)
-          .select()
+          .select())
       );
     }
 
@@ -403,10 +403,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       .map(p => p.id);
     if (laterIds.length > 0) {
       writes.push(
-        supabase.from("program_phases")
+        Promise.resolve(supabase.from("program_phases")
           .update({ start_date: null })
           .in("id", laterIds)
-          .select()
+          .select())
       );
     }
 
