@@ -364,6 +364,64 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     loadClientProgram();
   };
 
+  /**
+   * Save phase dates: explicit start_date + duration_weeks.
+   * - If phase_order === 1 and start changes, also update programs.start_date so later
+   *   phases cascade from the new origin.
+   * - Clear explicit start_date on later phases so derivePhaseDates reflows them
+   *   sequentially after the edited phase's new end.
+   * - Earlier phases are never touched.
+   */
+  const savePhaseDates = async (phaseId: string, payload: { startDate: string; weeks: number }) => {
+    const edited = phases.find(p => p.id === phaseId);
+    if (!edited || !program) return;
+    const { startDate, weeks } = payload;
+
+    const writes: Promise<any>[] = [];
+
+    // 1. Update the edited phase.
+    writes.push(
+      supabase.from("program_phases")
+        .update({ start_date: startDate, duration_weeks: weeks })
+        .eq("id", phaseId)
+        .select()
+    );
+
+    // 2. If Phase 1, also move program start.
+    if (edited.phase_order === 1 && (program as any).start_date !== startDate) {
+      writes.push(
+        supabase.from("programs")
+          .update({ start_date: startDate })
+          .eq("id", program.id)
+          .select()
+      );
+    }
+
+    // 3. Clear explicit start_date on later phases so they cascade automatically.
+    const laterIds = phases
+      .filter(p => p.phase_order > edited.phase_order && p.start_date)
+      .map(p => p.id);
+    if (laterIds.length > 0) {
+      writes.push(
+        supabase.from("program_phases")
+          .update({ start_date: null })
+          .in("id", laterIds)
+          .select()
+      );
+    }
+
+    const results = await Promise.allSettled(writes);
+    const failures = results.filter(r => r.status === "rejected" || (r.status === "fulfilled" && (r.value as any)?.error));
+    if (failures.length > 0) {
+      console.error("[savePhaseDates] failures:", failures);
+      toast({ title: "Failed to update phase", description: "Some changes did not save. Please try again.", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Phase updated", description: `${edited.name} set to ${weeks} week${weeks !== 1 ? "s" : ""}.` });
+    loadClientProgram();
+  };
+
   const handleAddPhase = async () => {
     if (!program) return;
     await supabase.from("program_phases").insert({
