@@ -133,6 +133,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [masterPrograms, setMasterPrograms] = useState<any[]>([]);
   const [selectedMaster, setSelectedMaster] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [assignStartDate, setAssignStartDate] = useState<string>(() => new Date().toLocaleDateString("en-CA"));
+  const [assignStartTouched, setAssignStartTouched] = useState(false);
+  const [assignMergePreview, setAssignMergePreview] = useState<MergePreview | null>(null);
+  const [assignAutoAdvance, setAssignAutoAdvance] = useState(true);
 
   // Detach confirm
   const [showDetach, setShowDetach] = useState(false);
