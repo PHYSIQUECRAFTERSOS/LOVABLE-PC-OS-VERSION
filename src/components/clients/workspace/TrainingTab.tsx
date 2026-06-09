@@ -146,6 +146,35 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [assignMergePreview, setAssignMergePreview] = useState<MergePreview | null>(null);
   const [assignAutoAdvance, setAssignAutoAdvance] = useState(true);
 
+  // Previous (completed) program assignments
+  const [previousPrograms, setPreviousPrograms] = useState<Array<{
+    id: string; program_id: string; name: string; start_date: string | null; ended_on: string | null;
+  }>>([]);
+  const [showPrevious, setShowPrevious] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("client_program_assignments")
+        .select("id, program_id, start_date, ended_on, programs:program_id(name)")
+        .eq("client_id", clientId)
+        .eq("status", "completed")
+        .order("ended_on", { ascending: false, nullsFirst: false })
+        .limit(20);
+      if (cancelled) return;
+      setPreviousPrograms(
+        (data || []).map((r: any) => ({
+          id: r.id, program_id: r.program_id,
+          name: r.programs?.name || "Unnamed program",
+          start_date: r.start_date, ended_on: r.ended_on,
+        })),
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [clientId, assigning]);
+
+
   // Detach confirm
   const [showDetach, setShowDetach] = useState(false);
 
@@ -835,7 +864,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           </div>
           <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
             selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
-            loading={assigning} mode={assignMode} onModeChange={setAssignMode} />
+            loading={assigning} mode={assignMode} onModeChange={setAssignMode}
+            startDate={assignStartDate}
+            onStartDateChange={(v) => { setAssignStartTouched(true); setAssignStartDate(v); }}
+            mergePreview={assignMergePreview} />
         </CardContent>
       </Card>
     );
@@ -882,11 +914,44 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         onDetach={isLinked ? () => setShowDetach(true) : undefined}
       />
 
+      {/* Previous Programs */}
+      {previousPrograms.length > 0 && (
+        <Collapsible open={showPrevious} onOpenChange={setShowPrevious}>
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Previous Programs ({previousPrograms.length})
+              </span>
+              {showPrevious ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-2">
+            {previousPrograms.map((pp) => (
+              <div key={pp.id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-card/40">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{pp.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {pp.start_date || "—"} → {pp.ended_on || "ended"}
+                    {pp.ended_on && <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[10px]">Truncated</span>}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+
+
 
       {/* Assign Dialog */}
       <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
         selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
-        loading={assigning} mode={assignMode} onModeChange={setAssignMode} />
+        loading={assigning} mode={assignMode} onModeChange={setAssignMode}
+        startDate={assignStartDate}
+        onStartDateChange={(v) => { setAssignStartTouched(true); setAssignStartDate(v); }}
+        mergePreview={assignMergePreview} />
+
 
       {/* Detach Confirmation */}
       <AlertDialog open={showDetach} onOpenChange={setShowDetach}>
@@ -1302,11 +1367,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 };
 
 // ── Assign Dialog ──
-const AssignDialog = ({ open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange }: {
+const AssignDialog = ({
+  open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange,
+  startDate, onStartDateChange, mergePreview,
+}: {
   open: boolean; onOpenChange: (v: boolean) => void;
   programs: any[]; selected: string; onSelect: (v: string) => void;
   onAssign: () => void; loading: boolean;
   mode: "subscribe" | "import"; onModeChange: (m: "subscribe" | "import") => void;
+  startDate?: string; onStartDateChange?: (v: string) => void;
+  mergePreview?: MergePreview | null;
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-md">
@@ -1348,6 +1418,34 @@ const AssignDialog = ({ open, onOpenChange, programs, selected, onSelect, onAssi
             </Select>
           )}
         </div>
+        {onStartDateChange && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Start Date</Label>
+            <Input
+              type="date"
+              value={startDate || ""}
+              onChange={(e) => onStartDateChange(e.target.value)}
+            />
+            {mergePreview?.oldProgramName && !mergePreview.hasOverlap && (
+              <p className="text-[11px] text-muted-foreground">
+                Defaults to the day after "{mergePreview.oldProgramName}" ends ({mergePreview.oldProgramEnd}).
+              </p>
+            )}
+          </div>
+        )}
+        {mergePreview?.hasOverlap && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-1">
+            <p className="font-semibold text-amber-300">Overlaps existing program</p>
+            <p className="text-muted-foreground">
+              "{mergePreview.oldProgramName}" will be cut short and marked completed on {addDaysLocal(startDate || "", -1)}.
+            </p>
+            {mergePreview.futureEventCount > 0 && (
+              <p className="text-muted-foreground">
+                {mergePreview.futureEventCount} scheduled workout{mergePreview.futureEventCount === 1 ? "" : "s"} on/after the new start date will be removed from the calendar.
+              </p>
+            )}
+          </div>
+        )}
         <Button className="w-full" disabled={!selected || loading} onClick={onAssign}>
           {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {mode === "subscribe" ? "Subscribe Client" : "Import Program"}
