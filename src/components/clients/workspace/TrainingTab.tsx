@@ -35,6 +35,14 @@ import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
 import { copyPhaseToMasterProgram, copyPhaseToClientProgram } from "@/lib/copyPhaseHelpers";
 import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 import { derivePhaseDates } from "@/lib/phaseDates";
+import { previewMerge, applyMerge, type MergePreview } from "@/lib/programMerge";
+
+const addDaysLocal = (ymd: string, days: number) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  return dt.toLocaleDateString("en-CA");
+};
 
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
