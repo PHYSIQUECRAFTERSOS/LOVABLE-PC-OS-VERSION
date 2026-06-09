@@ -1626,6 +1626,7 @@ export type Database = {
           created_at: string
           current_phase_id: string | null
           current_week_number: number
+          ended_on: string | null
           forked_from_program_id: string | null
           id: string
           is_linked_to_master: boolean
@@ -1643,6 +1644,7 @@ export type Database = {
           created_at?: string
           current_phase_id?: string | null
           current_week_number?: number
+          ended_on?: string | null
           forked_from_program_id?: string | null
           id?: string
           is_linked_to_master?: boolean
@@ -1660,6 +1662,7 @@ export type Database = {
           created_at?: string
           current_phase_id?: string | null
           current_week_number?: number
+          ended_on?: string | null
           forked_from_program_id?: string | null
           id?: string
           is_linked_to_master?: boolean
