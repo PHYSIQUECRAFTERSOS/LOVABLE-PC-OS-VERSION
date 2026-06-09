@@ -81,7 +81,7 @@ export const usePhaseBoundaries = (
 
     const { data: rawPhases, error: phasesErr } = await supabase
       .from("program_phases")
-      .select("id, name, phase_order, duration_weeks")
+      .select("id, name, phase_order, duration_weeks, start_date")
       .eq("program_id", programId)
       .order("phase_order", { ascending: true });
 
