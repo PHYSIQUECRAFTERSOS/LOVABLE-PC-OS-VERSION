@@ -13,6 +13,14 @@ import { Loader2, Plus, Copy, Trash2, Edit, Users, Calendar, Layers, Link2, Unli
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cloneWorkoutWithExercises, buildImportSummary, formatImportSummary } from "@/lib/cloneWorkoutHelpers";
+import { previewMerge, applyMerge, type MergePreview } from "@/lib/programMerge";
+
+const addDaysLocal = (ymd: string, days: number) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + days);
+  return dt.toLocaleDateString("en-CA");
+};
 import { useAuth } from "@/hooks/useAuth";
 import SearchableClientSelect from "@/components/ui/searchable-client-select";
 import ProgramBuilder from "./ProgramBuilder";
