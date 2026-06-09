@@ -254,8 +254,27 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     const { data } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
       .eq("coach_id", user!.id).eq("is_template", true).order("name");
     setMasterPrograms(data || []);
+    setAssignStartTouched(false);
+    setAssignStartDate(new Date().toLocaleDateString("en-CA"));
     setShowAssign(true);
   };
+
+  // Refresh merge preview when client's existing program is known.
+  useEffect(() => {
+    if (!showAssign) { setAssignMergePreview(null); return; }
+    let cancelled = false;
+    previewMerge(clientId, assignStartDate).then((p) => {
+      if (cancelled) return;
+      setAssignMergePreview(p);
+      if (!assignStartTouched && p.oldProgramEnd) {
+        const after = addDaysLocal(p.oldProgramEnd, 1);
+        if (after !== assignStartDate) setAssignStartDate(after);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [showAssign, clientId, assignStartDate, assignStartTouched]);
+
+
 
   // ── Clone workout helper (uses shared sequential logic) ──
   const cloneWorkoutToClientTracked = async (sourceWorkoutId: string) => {
