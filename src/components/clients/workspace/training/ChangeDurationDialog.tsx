@@ -1,21 +1,31 @@
 /**
- * ChangeDurationDialog — toggle between Weeks input and End Date picker.
- * Both modes ultimately call onSave(weeks) so business logic is unchanged.
+ * ChangeDurationDialog — Trainerize-style phase editor.
+ * Coach edits Start date, End date, and Weeks. All three fields stay in sync:
+ *  - Change Start → keep weeks, recompute End.
+ *  - Change End   → recompute Weeks (clamped 1–52).
+ *  - Change Weeks → keep Start, recompute End.
+ *
+ * onSave passes back { startDate, weeks }. Cascade of later phases is handled
+ * by the caller (TrainingTab.savePhaseDates).
  */
 import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialWeeks: number;
+  /** Resolved current start date (YYYY-MM-DD). May come from explicit phase.start_date or derived. */
+  initialStartDate: string | null;
   phaseName: string;
-  /** Phase start date (YYYY-MM-DD). Required for End Date mode. */
-  phaseStartDate?: string | null;
-  onSave: (weeks: number) => Promise<void> | void;
+  onSave: (payload: { startDate: string; weeks: number }) => Promise<void> | void;
 }
 
 function parseLocal(d: string): Date {
@@ -32,131 +42,186 @@ function addDays(ymd: string, days: number): string {
 }
 function formatPretty(ymd: string): string {
   const d = parseLocal(ymd);
-  return `${String(d.getDate()).padStart(2, "0")} ${d.toLocaleDateString("en-US", { month: "short" })} ${d.getFullYear()}`;
+  return `${d.getDate()} ${d.toLocaleDateString("en-US", { month: "short" })} ${d.getFullYear()}`;
+}
+function weekdayName(ymd: string): string {
+  return parseLocal(ymd).toLocaleDateString("en-US", { weekday: "long" });
+}
+function daysBetweenInclusive(startYmd: string, endYmd: string): number {
+  const start = parseLocal(startYmd);
+  const end = parseLocal(endYmd);
+  return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
 }
 
-export const ChangeDurationDialog = ({ open, onOpenChange, initialWeeks, phaseName, phaseStartDate, onSave }: Props) => {
-  const [mode, setMode] = useState<"weeks" | "endDate">("weeks");
-  const [weeks, setWeeks] = useState(String(initialWeeks));
-  const [endDate, setEndDate] = useState("");
+export const ChangeDurationDialog = ({ open, onOpenChange, initialWeeks, initialStartDate, phaseName, onSave }: Props) => {
+  const today = toLocalYMD(new Date());
+  const [startDate, setStartDate] = useState<string>(initialStartDate || today);
+  const [weeks, setWeeks] = useState<string>(String(initialWeeks));
+  const [endDate, setEndDate] = useState<string>(addDays(initialStartDate || today, initialWeeks * 7 - 1));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
+      const s = initialStartDate || today;
+      setStartDate(s);
       setWeeks(String(initialWeeks));
+      setEndDate(addDays(s, initialWeeks * 7 - 1));
       setError("");
-      setMode("weeks");
-      if (phaseStartDate) {
-        setEndDate(addDays(phaseStartDate, initialWeeks * 7 - 1));
-      }
     }
-  }, [open, initialWeeks, phaseStartDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialStartDate, initialWeeks]);
 
-  // Live conversion preview
-  const computedFromEndDate = useMemo(() => {
-    if (mode !== "endDate" || !phaseStartDate || !endDate) return null;
-    if (endDate < phaseStartDate) return { weeks: null, error: "End date must be after the phase start." };
-    const start = parseLocal(phaseStartDate);
-    const end = parseLocal(endDate);
-    const days = Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-    const w = Math.max(1, Math.min(52, Math.ceil(days / 7)));
-    return { weeks: w, error: "" };
-  }, [mode, phaseStartDate, endDate]);
-
-  const computedFromWeeks = useMemo(() => {
-    if (mode !== "weeks" || !phaseStartDate) return null;
+  // Handlers: edit one field, recompute the others.
+  const onStartChange = (ymd: string) => {
+    setStartDate(ymd);
     const n = parseInt(weeks, 10);
-    if (!Number.isFinite(n) || n < 1) return null;
-    return addDays(phaseStartDate, n * 7 - 1);
-  }, [mode, phaseStartDate, weeks]);
+    if (Number.isFinite(n) && n >= 1) {
+      setEndDate(addDays(ymd, n * 7 - 1));
+    }
+    setError("");
+  };
+  const onEndChange = (ymd: string) => {
+    setEndDate(ymd);
+    if (ymd < startDate) {
+      setError("End date must be on or after the start date.");
+      return;
+    }
+    const days = daysBetweenInclusive(startDate, ymd);
+    const w = Math.max(1, Math.min(52, Math.ceil(days / 7)));
+    setWeeks(String(w));
+    setError("");
+  };
+  const onWeeksChange = (v: string) => {
+    setWeeks(v);
+    const n = parseInt(v, 10);
+    if (Number.isFinite(n) && n >= 1) {
+      setEndDate(addDays(startDate, n * 7 - 1));
+      setError("");
+    }
+  };
+
+  const endHelper = useMemo(() => {
+    if (!endDate) return "";
+    return `This phase will end on ${formatPretty(endDate)} (${weekdayName(endDate)}).`;
+  }, [endDate]);
 
   const handleSave = async () => {
-    let n: number | null = null;
-    if (mode === "weeks") {
-      n = parseInt(weeks, 10);
-    } else if (computedFromEndDate) {
-      if (computedFromEndDate.error) { setError(computedFromEndDate.error); return; }
-      n = computedFromEndDate.weeks;
-    }
-    if (!n || !Number.isInteger(n) || n < 1 || n > 52) {
+    const n = parseInt(weeks, 10);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 52) {
       setError("Duration must be between 1 and 52 weeks.");
+      return;
+    }
+    if (endDate < startDate) {
+      setError("End date must be on or after the start date.");
       return;
     }
     setSaving(true);
     try {
-      await onSave(n);
+      await onSave({ startDate, weeks: n });
       onOpenChange(false);
     } finally {
       setSaving(false);
     }
   };
 
-  const canUseEndDate = !!phaseStartDate;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Change Duration</DialogTitle>
-          <DialogDescription>Update the duration of "{phaseName}".</DialogDescription>
+          <DialogTitle>Edit Training Phase</DialogTitle>
+          <DialogDescription>Update the start, end, or duration of "{phaseName}".</DialogDescription>
         </DialogHeader>
 
-        {/* Mode toggle */}
-        {canUseEndDate && (
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-md bg-muted">
-            <button
-              type="button"
-              onClick={() => { setMode("weeks"); setError(""); }}
-              className={`text-xs font-medium py-1.5 rounded transition-colors ${mode === "weeks" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >Weeks</button>
-            <button
-              type="button"
-              onClick={() => { setMode("endDate"); setError(""); }}
-              className={`text-xs font-medium py-1.5 rounded transition-colors ${mode === "endDate" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >End Date</button>
-          </div>
-        )}
+        <div className="space-y-4">
+          {/* Start + End side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Start on</Label>
+              <Popover open={startOpen} onOpenChange={setStartOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-9",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? formatPretty(startDate) : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[90]" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseLocal(startDate)}
+                    onSelect={(d) => {
+                      if (d) {
+                        onStartChange(toLocalYMD(d));
+                        setStartOpen(false);
+                      }
+                    }}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-        <div className="space-y-2">
-          {mode === "weeks" ? (
-            <>
-              <Label htmlFor="duration-weeks" className="text-xs">Duration (weeks)</Label>
-              <Input
-                id="duration-weeks"
-                type="number"
-                min={1}
-                max={52}
-                value={weeks}
-                onChange={(e) => { setWeeks(e.target.value); setError(""); }}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-                autoFocus
-              />
-              {phaseStartDate && computedFromWeeks && (
-                <p className="text-[11px] text-muted-foreground">
-                  Ends <span className="text-foreground font-medium">{formatPretty(computedFromWeeks)}</span>
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <Label htmlFor="end-date" className="text-xs">End Date</Label>
-              <Input
-                id="end-date"
-                type="date"
-                min={phaseStartDate || undefined}
-                value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); setError(""); }}
-                autoFocus
-              />
-              {computedFromEndDate?.weeks && (
-                <p className="text-[11px] text-muted-foreground">
-                  ≈ <span className="text-foreground font-medium">{computedFromEndDate.weeks} week{computedFromEndDate.weeks > 1 ? "s" : ""}</span>
-                  {phaseStartDate && ` (${formatPretty(phaseStartDate)} – ${formatPretty(endDate)})`}
-                </p>
-              )}
-            </>
-          )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Until</Label>
+              <Popover open={endOpen} onOpenChange={setEndOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-9",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? formatPretty(endDate) : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-[90]" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseLocal(endDate)}
+                    onSelect={(d) => {
+                      if (d) {
+                        onEndChange(toLocalYMD(d));
+                        setEndOpen(false);
+                      }
+                    }}
+                    disabled={(d) => toLocalYMD(d) < startDate}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Weeks */}
+          <div className="space-y-1.5">
+            <Label htmlFor="duration-weeks" className="text-xs">Duration (weeks)</Label>
+            <Input
+              id="duration-weeks"
+              type="number"
+              min={1}
+              max={52}
+              value={weeks}
+              onChange={(e) => onWeeksChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+            />
+          </div>
+
+          {endHelper && <p className="text-[11px] text-muted-foreground">{endHelper}</p>}
+          <p className="text-[11px] text-muted-foreground">
+            Later phases will shift to stay sequential. Scheduled workouts on the calendar are not moved automatically.
+          </p>
           {error && <p className="text-[11px] text-destructive">{error}</p>}
         </div>
 

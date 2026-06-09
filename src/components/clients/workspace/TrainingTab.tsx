@@ -39,6 +39,7 @@ import { derivePhaseDates } from "@/lib/phaseDates";
 interface Phase {
   id: string; name: string; description: string | null; phase_order: number;
   duration_weeks: number; training_style: string | null; intensity_system: string | null; progression_rule: string | null;
+  start_date?: string | null;
   directWorkouts: ProgramWorkout[];
 }
 
@@ -360,6 +361,64 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const changePhaseDuration = async (phaseId: string, weeks: number) => {
     await supabase.from("program_phases").update({ duration_weeks: weeks }).eq("id", phaseId);
     toast({ title: "Duration updated", description: `Phase set to ${weeks} week${weeks !== 1 ? "s" : ""}.` });
+    loadClientProgram();
+  };
+
+  /**
+   * Save phase dates: explicit start_date + duration_weeks.
+   * - If phase_order === 1 and start changes, also update programs.start_date so later
+   *   phases cascade from the new origin.
+   * - Clear explicit start_date on later phases so derivePhaseDates reflows them
+   *   sequentially after the edited phase's new end.
+   * - Earlier phases are never touched.
+   */
+  const savePhaseDates = async (phaseId: string, payload: { startDate: string; weeks: number }) => {
+    const edited = phases.find(p => p.id === phaseId);
+    if (!edited || !program) return;
+    const { startDate, weeks } = payload;
+
+    const writes: Promise<any>[] = [];
+
+    // 1. Update the edited phase.
+    writes.push(
+      Promise.resolve(supabase.from("program_phases")
+        .update({ start_date: startDate, duration_weeks: weeks })
+        .eq("id", phaseId)
+        .select())
+    );
+
+    // 2. If Phase 1, also move program start.
+    if (edited.phase_order === 1 && (program as any).start_date !== startDate) {
+      writes.push(
+        Promise.resolve(supabase.from("programs")
+          .update({ start_date: startDate })
+          .eq("id", program.id)
+          .select())
+      );
+    }
+
+    // 3. Clear explicit start_date on later phases so they cascade automatically.
+    const laterIds = phases
+      .filter(p => p.phase_order > edited.phase_order && p.start_date)
+      .map(p => p.id);
+    if (laterIds.length > 0) {
+      writes.push(
+        Promise.resolve(supabase.from("program_phases")
+          .update({ start_date: null })
+          .in("id", laterIds)
+          .select())
+      );
+    }
+
+    const results = await Promise.allSettled(writes);
+    const failures = results.filter(r => r.status === "rejected" || (r.status === "fulfilled" && (r.value as any)?.error));
+    if (failures.length > 0) {
+      console.error("[savePhaseDates] failures:", failures);
+      toast({ title: "Failed to update phase", description: "Some changes did not save. Please try again.", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Phase updated", description: `${edited.name} set to ${weeks} week${weeks !== 1 ? "s" : ""}.` });
     loadClientProgram();
   };
 
@@ -1113,19 +1172,24 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Change phase duration */}
-      {changeDurationPhase && (
-        <ChangeDurationDialog
-          open={!!changeDurationPhase}
-          onOpenChange={(o) => { if (!o) setChangeDurationPhase(null); }}
-          initialWeeks={changeDurationPhase.duration_weeks}
-          phaseName={changeDurationPhase.name}
-          onSave={async (weeks) => {
-            await changePhaseDuration(changeDurationPhase.id, weeks);
-            setChangeDurationPhase(null);
-          }}
-        />
-      )}
+      {/* Edit training phase (start/end/weeks) */}
+      {changeDurationPhase && (() => {
+        const dates = derivePhaseDates((program as any)?.start_date || null, phases as any);
+        const resolvedStart = dates[changeDurationPhase.id]?.start_date || null;
+        return (
+          <ChangeDurationDialog
+            open={!!changeDurationPhase}
+            onOpenChange={(o) => { if (!o) setChangeDurationPhase(null); }}
+            initialWeeks={changeDurationPhase.duration_weeks}
+            initialStartDate={resolvedStart}
+            phaseName={changeDurationPhase.name}
+            onSave={async (payload) => {
+              await savePhaseDates(changeDurationPhase.id, payload);
+              setChangeDurationPhase(null);
+            }}
+          />
+        );
+      })()}
 
       {/* Copy phase to master program */}
       {copyToMasterPhase && user && (

@@ -5425,6 +5425,7 @@ export type Database = {
           phase_order: number
           program_id: string
           progression_rule: string | null
+          start_date: string | null
           training_style: string | null
           updated_at: string
         }
@@ -5439,6 +5440,7 @@ export type Database = {
           phase_order?: number
           program_id: string
           progression_rule?: string | null
+          start_date?: string | null
           training_style?: string | null
           updated_at?: string
         }
@@ -5453,6 +5455,7 @@ export type Database = {
           phase_order?: number
           program_id?: string
           progression_rule?: string | null
+          start_date?: string | null
           training_style?: string | null
           updated_at?: string
         }
