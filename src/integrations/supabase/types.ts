@@ -1954,6 +1954,7 @@ export type Database = {
       }
       client_supplement_assignments: {
         Row: {
+          archived_at: string | null
           assigned_at: string
           assigned_by: string
           client_id: string
@@ -1963,6 +1964,7 @@ export type Database = {
           plan_id: string
         }
         Insert: {
+          archived_at?: string | null
           assigned_at?: string
           assigned_by: string
           client_id: string
@@ -1972,6 +1974,7 @@ export type Database = {
           plan_id: string
         }
         Update: {
+          archived_at?: string | null
           assigned_at?: string
           assigned_by?: string
           client_id?: string
@@ -4294,6 +4297,8 @@ export type Database = {
       }
       meal_plans: {
         Row: {
+          archive_group_id: string | null
+          archived_at: string | null
           category: string | null
           client_id: string | null
           coach_id: string
@@ -4315,6 +4320,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archive_group_id?: string | null
+          archived_at?: string | null
           category?: string | null
           client_id?: string | null
           coach_id: string
@@ -4336,6 +4343,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archive_group_id?: string | null
+          archived_at?: string | null
           category?: string | null
           client_id?: string | null
           coach_id?: string
