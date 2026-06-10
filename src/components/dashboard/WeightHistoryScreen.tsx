@@ -21,6 +21,24 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Ruler } from "lucide-react";
+
+const MEASUREMENT_OPTIONS: { key: string; label: string }[] = [
+  { key: "neck", label: "Neck" },
+  { key: "shoulders", label: "Shoulders" },
+  { key: "chest", label: "Chest" },
+  { key: "left_arm", label: "Left Arm" },
+  { key: "right_arm", label: "Right Arm" },
+  { key: "forearm", label: "Forearm" },
+  { key: "waist", label: "Waist" },
+  { key: "hips", label: "Hips" },
+  { key: "left_thigh", label: "Left Thigh" },
+  { key: "right_thigh", label: "Right Thigh" },
+  { key: "left_calf", label: "Left Calf" },
+  { key: "right_calf", label: "Right Calf" },
+  { key: "body_fat_pct", label: "Body Fat %" },
+];
 
 interface WeightEntry {
   id: string;
@@ -80,7 +98,7 @@ function dedupeByDate(rows: WeightEntry[]): WeightEntry[] {
 const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { convertWeight, parseWeightInput, weightLabel, weightUnit } = useUnitPreferences();
+  const { convertWeight, parseWeightInput, weightLabel, weightUnit, measurementLabel } = useUnitPreferences();
   const targetId = clientId || user?.id;
 
   const [entries, setEntries] = useState<WeightEntry[]>([]);
@@ -92,6 +110,11 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const [logNotes, setLogNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Measurements tracker state
+  const [measurementsEnabled, setMeasurementsEnabled] = useState(false);
+  const [selectedMeasurement, setSelectedMeasurement] = useState<string>("waist");
+  const [measurementRows, setMeasurementRows] = useState<Array<Record<string, any>>>([]);
 
   const convert = (lbs: number) => convertWeight(lbs);
   const unitLabel = weightLabel;
@@ -132,6 +155,41 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   useEffect(() => {
     if (open) fetchEntries();
   }, [open, fetchEntries]);
+
+  // Load measurements_enabled and rows
+  useEffect(() => {
+    if (!open || !targetId) return;
+    const load = async () => {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("measurements_enabled")
+        .eq("user_id", targetId)
+        .maybeSingle();
+      setMeasurementsEnabled(prof?.measurements_enabled === true);
+
+      let mq = supabase
+        .from("body_measurements")
+        .select(
+          "measured_at, neck, shoulders, chest, left_arm, right_arm, forearm, waist, hips, left_thigh, right_thigh, left_calf, right_calf, body_fat_pct"
+        )
+        .eq("client_id", targetId)
+        .order("measured_at", { ascending: true });
+
+      const range = RANGE_FILTERS[rangeIdx];
+      if (range.months > 0) {
+        mq = mq.gte("measured_at", format(subMonths(new Date(), range.months), "yyyy-MM-dd"));
+      } else if (range.days > 0) {
+        mq = mq.gte("measured_at", format(new Date(Date.now() - range.days * 86400000), "yyyy-MM-dd"));
+      }
+      const { data } = await mq.limit(1000);
+      setMeasurementRows(data || []);
+    };
+    load();
+    const onLogged = () => load();
+    window.addEventListener("measurements-logged", onLogged);
+    return () => window.removeEventListener("measurements-logged", onLogged);
+  }, [open, targetId, rangeIdx]);
+
 
   const handleSave = async () => {
     if (!targetId || !logWeight) return;
@@ -284,6 +342,116 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                 Log your weight regularly to see your trend here
               </div>
             )}
+
+            {/* Measurements Tracker — only when coach has enabled measurements */}
+            {measurementsEnabled && (() => {
+              const rows = (measurementRows as any[])
+                .map((r) => ({ ...r, _v: r[selectedMeasurement] }))
+                .filter((r) => r._v !== null && r._v !== undefined && !isNaN(Number(r._v)));
+              const startVal = rows.length > 0 ? Number(rows[0]._v) : null;
+              const currVal = rows.length > 0 ? Number(rows[rows.length - 1]._v) : null;
+              const change = startVal !== null && currVal !== null ? Number((currVal - startVal).toFixed(1)) : null;
+              const unit = selectedMeasurement === "body_fat_pct" ? "%" : measurementLabel;
+              const chartRows = rows.map((r) => ({
+                date: format(new Date(r.measured_at), "MMM d"),
+                value: Number(r._v),
+              }));
+              const label = MEASUREMENT_OPTIONS.find((o) => o.key === selectedMeasurement)?.label || "";
+
+              return (
+                <div className="space-y-3 pt-3 border-t border-border/40">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Ruler className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold text-foreground">Measurements</h3>
+                    </div>
+                    <Select value={selectedMeasurement} onValueChange={setSelectedMeasurement}>
+                      <SelectTrigger className="h-8 w-[140px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MEASUREMENT_OPTIONS.map((o) => (
+                          <SelectItem key={o.key} value={o.key} className="text-xs">{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {startVal !== null && currVal !== null && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Starting</p>
+                        <p className="text-base font-bold text-foreground tabular-nums">{startVal} {unit}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current</p>
+                        <p className="text-base font-bold text-foreground tabular-nums">{currVal} {unit}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change</p>
+                        <p className={cn(
+                          "text-base font-bold tabular-nums",
+                          change && change < 0 ? "text-success" : change && change > 0 ? "text-destructive" : "text-foreground"
+                        )}>
+                          {change !== null ? (change > 0 ? "+" : "") + change + " " + unit : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {chartRows.length >= 2 ? (
+                    <div className="h-[220px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={chartRows}>
+                          <defs>
+                            <linearGradient id="measGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.18} />
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                            tickLine={false} axisLine={false}
+                            interval={Math.max(0, Math.floor(chartRows.length / 6) - 1)}
+                          />
+                          <YAxis
+                            domain={["dataMin - 1", "dataMax + 1"]}
+                            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                            tickLine={false} axisLine={false} width={40}
+                          />
+                          <Tooltip
+                            cursor={false}
+                            content={({ active, payload }: any) => {
+                              if (!active || !payload?.[0]) return null;
+                              const p = payload[0].payload;
+                              return (
+                                <div className="rounded-lg border border-primary/50 bg-card px-3 py-1.5 text-xs text-foreground shadow-lg">
+                                  {p.date} &nbsp; <span className="font-bold">{p.value} {unit}</span>
+                                </div>
+                              );
+                            }}
+                          />
+                          <Area
+                            type="monotone" dataKey="value"
+                            stroke="hsl(var(--primary))" strokeWidth={2.5}
+                            fill="url(#measGrad)" dot={false}
+                            activeDot={{ r: 4, fill: "hsl(var(--primary))" }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      <Ruler className="h-7 w-7 mx-auto mb-2 text-muted-foreground/40" />
+                      Log {label.toLowerCase()} at least twice to see a trend.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+
 
             {/* Recent Entries (always last 5, unfiltered) */}
             <div className="space-y-1">

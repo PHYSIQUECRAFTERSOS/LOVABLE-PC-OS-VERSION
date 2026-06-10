@@ -9,17 +9,27 @@ import { Separator } from "@/components/ui/separator";
 import { Save } from "lucide-react";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
 
-const MEASUREMENT_FIELDS = [
-  { key: "neck_in", label: "Neck" },
-  { key: "shoulders_in", label: "Shoulders" },
-  { key: "chest_in", label: "Chest" },
-  { key: "bicep_in", label: "Bicep" },
-  { key: "forearm_in", label: "Forearm" },
-  { key: "waist_in", label: "Waist" },
-  { key: "hips_in", label: "Hips" },
-  { key: "thigh_in", label: "Thigh" },
-  { key: "calf_in", label: "Calf" },
-] as const;
+// Measurement fields (stored in inches/cm via parseMeasurementInput → DB column)
+const MEASUREMENT_FIELDS: { key: string; label: string }[] = [
+  { key: "neck", label: "Neck" },
+  { key: "shoulders", label: "Shoulders" },
+  { key: "chest", label: "Chest" },
+  { key: "left_arm", label: "Left Arm" },
+  { key: "right_arm", label: "Right Arm" },
+  { key: "forearm", label: "Forearm" },
+  { key: "waist", label: "Waist" },
+  { key: "hips", label: "Hips" },
+  { key: "left_thigh", label: "Left Thigh" },
+  { key: "right_thigh", label: "Right Thigh" },
+  { key: "left_calf", label: "Left Calf" },
+  { key: "right_calf", label: "Right Calf" },
+];
+
+const HEALTH_FIELDS: { key: string; label: string; unit?: string; isInt?: boolean }[] = [
+  { key: "body_fat_pct", label: "Body Fat", unit: "%" },
+  { key: "blood_pressure_systolic", label: "BP Systolic", unit: "mmHg", isInt: true },
+  { key: "blood_pressure_diastolic", label: "BP Diastolic", unit: "mmHg", isInt: true },
+];
 
 const BodyStats = () => {
   const { user } = useAuth();
@@ -30,13 +40,12 @@ const BodyStats = () => {
   const eventId = searchParams.get("eventId");
 
   const [bodyWeight, setBodyWeight] = useState("");
-  const [measurements, setMeasurements] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>({});
   const [measurementsEnabled, setMeasurementsEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [weightError, setWeightError] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // Check if measurements are enabled for this client
   useEffect(() => {
     if (!user) return;
     const load = async () => {
@@ -52,12 +61,10 @@ const BodyStats = () => {
     load();
   }, [user]);
 
-  const hasAnyInput = bodyWeight || Object.values(measurements).some(v => v);
+  const hasAnyInput = bodyWeight || Object.values(values).some((v) => v);
 
   const handleCancel = () => {
-    if (hasAnyInput) {
-      if (!window.confirm("Discard changes?")) return;
-    }
+    if (hasAnyInput && !window.confirm("Discard changes?")) return;
     navigate("/dashboard");
   };
 
@@ -72,51 +79,63 @@ const BodyStats = () => {
 
     try {
       const logDate = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
+      const weightLbs = parseWeightInput(parseFloat(bodyWeight));
 
-      const record: Record<string, any> = {
-        client_id: user.id,
-        log_date: logDate,
-        body_weight_lbs: parseWeightInput(parseFloat(bodyWeight)),
-      };
-
-      // Add measurement values if any
-      MEASUREMENT_FIELDS.forEach(({ key }) => {
-        const val = measurements[key];
-        if (val && !isNaN(parseFloat(val))) {
-          record[key] = parseMeasurementInput(parseFloat(val));
-        }
-      });
-
-      // Upsert by client_id + log_date
-      const { error } = await supabase
-        .from("body_stats")
-        .upsert(record as any, { onConflict: "client_id,log_date" })
+      // Save weight to weight_logs (always)
+      const { error: wErr } = await supabase
+        .from("weight_logs")
+        .upsert(
+          {
+            client_id: user.id,
+            weight: Number(weightLbs.toFixed(1)),
+            logged_at: logDate,
+            source: "body_stats_page",
+          },
+          { onConflict: "client_id,logged_at" }
+        )
         .select();
+      if (wErr) throw wErr;
 
-      if (error) throw error;
+      // Save measurements + health stats (only if enabled and any value provided)
+      const hasMeasurements =
+        measurementsEnabled &&
+        [...MEASUREMENT_FIELDS, ...HEALTH_FIELDS].some(({ key }) => {
+          const v = values[key];
+          return v && !isNaN(parseFloat(v));
+        });
 
-      // Also save to weight_logs for compatibility with existing weight tracking
-      await supabase.from("weight_logs").upsert(
-        {
-          client_id: user.id,
-          weight: parseWeightInput(parseFloat(bodyWeight)),
-          logged_at: logDate,
-          source: "body_stats_page",
-        },
-        { onConflict: "client_id,logged_at" }
-      ).select();
-
-      window.dispatchEvent(new Event("weight-logged"));
-      if (eventId) {
-        await supabase.from("calendar_events").update({
-          is_completed: true,
-          completed_at: new Date().toISOString(),
-        }).eq("id", eventId);
+      if (hasMeasurements) {
+        const record: Record<string, any> = { client_id: user.id };
+        MEASUREMENT_FIELDS.forEach(({ key }) => {
+          const v = values[key];
+          if (v && !isNaN(parseFloat(v))) {
+            record[key] = parseMeasurementInput(parseFloat(v));
+          }
+        });
+        HEALTH_FIELDS.forEach(({ key, isInt }) => {
+          const v = values[key];
+          if (v && !isNaN(parseFloat(v))) {
+            record[key] = isInt ? parseInt(v) : parseFloat(v);
+          }
+        });
+        const { error: mErr } = await supabase
+          .from("body_measurements")
+          .insert(record as any)
+          .select();
+        if (mErr) throw mErr;
       }
 
-      // Invalidate dashboard cache so the task shows as completed immediately
-      invalidateCache(`today-actions-${user.id}-${logDate}`);
+      window.dispatchEvent(new Event("weight-logged"));
+      window.dispatchEvent(new Event("measurements-logged"));
 
+      if (eventId) {
+        await supabase
+          .from("calendar_events")
+          .update({ is_completed: true, completed_at: new Date().toISOString() })
+          .eq("id", eventId);
+      }
+
+      invalidateCache(`today-actions-${user.id}-${logDate}`);
       toast({ title: "Body stats saved! 📊" });
       navigate("/dashboard");
     } catch (err: any) {
@@ -128,18 +147,14 @@ const BodyStats = () => {
 
   return (
     <div className="h-full overflow-y-auto bg-background flex flex-col">
-      {/* Header — title only */}
       <div className="flex items-center justify-center px-4 py-3 safe-top border-b border-border">
         <h1 className="text-base font-bold text-foreground">Today</h1>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
-        {/* Body Weight — always visible */}
+        {/* Body Weight */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-semibold text-foreground">Body Weight</label>
-          </div>
+          <label className="text-sm font-semibold text-foreground">Body Weight</label>
           <div className="flex items-center gap-3">
             <Input
               type="text"
@@ -156,12 +171,10 @@ const BodyStats = () => {
             />
             <span className="text-sm text-muted-foreground font-medium w-8">{weightLabel}</span>
           </div>
-          {weightError && (
-            <p className="text-xs text-destructive">{weightError}</p>
-          )}
+          {weightError && <p className="text-xs text-destructive">{weightError}</p>}
         </div>
 
-        {/* Cancel / Save buttons */}
+        {/* Cancel / Save */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleCancel}
@@ -179,7 +192,7 @@ const BodyStats = () => {
           </button>
         </div>
 
-        {/* Measurements Section — coach-controlled */}
+        {/* Measurements + Health (coach-controlled) */}
         {!loadingProfile && measurementsEnabled && (
           <>
             <Separator className="bg-border/50" />
@@ -188,20 +201,42 @@ const BodyStats = () => {
               <div className="space-y-1">
                 {MEASUREMENT_FIELDS.map(({ key, label }) => (
                   <div key={key} className="flex items-center justify-between gap-3 py-1.5">
-                    <span className="text-sm text-foreground min-w-[90px]">{label}</span>
+                    <span className="text-sm text-foreground min-w-[100px]">{label}</span>
                     <div className="flex items-center gap-2 flex-1 max-w-[160px]">
                       <Input
                         type="text"
                         inputMode="decimal"
-                        value={measurements[key] || ""}
-                        onChange={(e) =>
-                          setMeasurements((prev) => ({ ...prev, [key]: e.target.value }))
-                        }
+                        value={values[key] || ""}
+                        onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.value }))}
                         onFocus={(e) => e.target.select()}
                         placeholder="—"
                         className="text-right text-sm h-9 bg-secondary/30 border-border"
                       />
-                      <span className="text-xs text-muted-foreground w-4">{measurementLabel}</span>
+                      <span className="text-xs text-muted-foreground w-6">{measurementLabel}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Separator className="bg-border/50" />
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Health Stats</p>
+              <div className="space-y-1">
+                {HEALTH_FIELDS.map(({ key, label, unit }) => (
+                  <div key={key} className="flex items-center justify-between gap-3 py-1.5">
+                    <span className="text-sm text-foreground min-w-[100px]">{label}</span>
+                    <div className="flex items-center gap-2 flex-1 max-w-[160px]">
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={values[key] || ""}
+                        onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.value }))}
+                        onFocus={(e) => e.target.select()}
+                        placeholder="—"
+                        className="text-right text-sm h-9 bg-secondary/30 border-border"
+                      />
+                      <span className="text-xs text-muted-foreground w-10">{unit}</span>
                     </div>
                   </div>
                 ))}

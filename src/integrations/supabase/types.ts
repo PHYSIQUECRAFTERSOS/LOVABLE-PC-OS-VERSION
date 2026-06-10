@@ -312,6 +312,7 @@ export type Database = {
           chest: number | null
           client_id: string
           created_at: string
+          forearm: number | null
           hips: number | null
           id: string
           left_arm: number | null
@@ -323,6 +324,7 @@ export type Database = {
           right_arm: number | null
           right_calf: number | null
           right_thigh: number | null
+          shoulders: number | null
           sleep_hours: number | null
           steps: number | null
           waist: number | null
@@ -334,6 +336,7 @@ export type Database = {
           chest?: number | null
           client_id: string
           created_at?: string
+          forearm?: number | null
           hips?: number | null
           id?: string
           left_arm?: number | null
@@ -345,6 +348,7 @@ export type Database = {
           right_arm?: number | null
           right_calf?: number | null
           right_thigh?: number | null
+          shoulders?: number | null
           sleep_hours?: number | null
           steps?: number | null
           waist?: number | null
@@ -356,6 +360,7 @@ export type Database = {
           chest?: number | null
           client_id?: string
           created_at?: string
+          forearm?: number | null
           hips?: number | null
           id?: string
           left_arm?: number | null
@@ -367,6 +372,7 @@ export type Database = {
           right_arm?: number | null
           right_calf?: number | null
           right_thigh?: number | null
+          shoulders?: number | null
           sleep_hours?: number | null
           steps?: number | null
           waist?: number | null
