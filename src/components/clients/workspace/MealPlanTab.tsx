@@ -33,7 +33,6 @@ import CoachGroceryList from "./CoachGroceryList";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 import { useNavigate } from "react-router-dom";
 import {
-  archiveActiveMealPlans,
   restoreMealPlanGroup,
   deleteArchivedMealPlanGroup,
 } from "@/lib/clientPlanArchive";
