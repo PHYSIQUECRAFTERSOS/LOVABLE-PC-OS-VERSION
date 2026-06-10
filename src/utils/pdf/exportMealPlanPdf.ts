@@ -189,7 +189,7 @@ function renderPlanSection(
   return y;
 }
 
-export async function exportMealPlanPdf(clientId: string): Promise<{ ok: boolean; reason?: string }> {
+export async function exportMealPlanPdf(clientId: string, opts: { preWin?: Window | null } = {}): Promise<{ ok: boolean; reason?: string }> {
   const ctx = await loadClientContext(clientId);
 
   const { data: plans } = await supabase
