@@ -240,6 +240,6 @@ export async function exportMealPlanPdf(clientId: string, opts: { preWin?: Windo
   }
 
   finalizePages(doc, { clientName: ctx.clientName, coverFirstPage: true });
-  await savePdf(doc, `${nameSlug(ctx.clientName)}-MealPlan-${todayStamp()}.pdf`);
+  await savePdf(doc, `${nameSlug(ctx.clientName)}-MealPlan-${todayStamp()}.pdf`, opts);
   return { ok: true };
 }
