@@ -10,10 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Pill, Check, Minus, Plus, ExternalLink, Tag, Pencil, Trash2, Undo2, Save, X, PackagePlus,
+  Archive, RotateCcw, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ImportSupplementDialog from "./ImportSupplementDialog";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { restoreSupplementAssignment, deleteArchivedSupplementAssignment } from "@/lib/clientPlanArchive";
 
 const TIMING_ORDER = ["fasted", "meal_1", "meal_2", "pre_workout", "post_workout", "with_meal", "before_bed", "any_time"];
 const TIMING_LABELS: Record<string, string> = {
