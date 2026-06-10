@@ -154,6 +154,6 @@ export async function exportSupplementsPdf(clientId: string, opts: { preWin?: Wi
   }
 
   finalizePages(doc, { clientName: ctx.clientName, coverFirstPage: true });
-  await savePdf(doc, `${nameSlug(ctx.clientName)}-Supplements-${todayStamp()}.pdf`);
+  await savePdf(doc, `${nameSlug(ctx.clientName)}-Supplements-${todayStamp()}.pdf`, opts);
   return { ok: true };
 }
