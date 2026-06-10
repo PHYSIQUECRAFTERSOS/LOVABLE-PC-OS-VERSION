@@ -40,12 +40,13 @@ const BodyStats = () => {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("measurements_enabled")
         .eq("user_id", user.id)
-        .single();
-      setMeasurementsEnabled(data?.measurements_enabled ?? false);
+        .maybeSingle();
+      if (error) console.error("[BodyStats] profile load error:", error);
+      setMeasurementsEnabled(data?.measurements_enabled === true);
       setLoadingProfile(false);
     };
     load();
