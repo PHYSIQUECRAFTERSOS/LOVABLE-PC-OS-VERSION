@@ -66,6 +66,10 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const [builderKey, setBuilderKey] = useState(0);
   const [detachConfirmId, setDetachConfirmId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [archived, setArchived] = useState<Array<{ group_id: string; archived_at: string; plans: Array<{ id: string; name: string; day_type: string; day_type_label: string }> }>>([]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [restoreConfirmGroup, setRestoreConfirmGroup] = useState<string | null>(null);
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
