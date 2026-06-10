@@ -23,11 +23,20 @@ import {
   UtensilsCrossed,
   Unlink,
   Link,
+  Archive,
+  RotateCcw,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
 import CoachGroceryList from "./CoachGroceryList";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 import { useNavigate } from "react-router-dom";
+import {
+  archiveActiveMealPlans,
+  restoreMealPlanGroup,
+  deleteArchivedMealPlanGroup,
+} from "@/lib/clientPlanArchive";
 
 interface PlanCard {
   id: string;
