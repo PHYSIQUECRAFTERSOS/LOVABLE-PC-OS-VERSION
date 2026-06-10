@@ -345,11 +345,17 @@ const Calendar = () => {
   const handleNext = () => setCurrentDate((d) => (view === "week" ? addWeeks(d, 1) : addMonths(d, 1)));
 
   const handleEventClick = (event: CalendarEvent) => {
-    // Body stats events open the weight history modal
+    // Body stats events: clients open the entry form (same as dashboard's
+    // /body-stats page — Body Weight + Measurements if coach has enabled them).
+    // Coaches viewing their own calendar see the weight history graph instead.
     const tl = event.title.toLowerCase();
     const isBS = event.event_type === "body_stats" || (event.event_type === "custom" && (tl.includes("body stat") || tl.includes("bodystats"))) || tl.includes("lbs");
     if (isBS) {
-      setWeightHistoryOpen(true);
+      if (isCoach) {
+        setWeightHistoryOpen(true);
+      } else {
+        navigate(`/body-stats?eventId=${event.id}`);
+      }
       return;
     }
     // Cardio events open the same bottom sheet used by the dashboard — not the generic modal
