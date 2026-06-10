@@ -70,6 +70,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
       .select("id, name, day_type, day_type_label, sort_order, source_template_id")
       .eq("client_id", clientId)
       .eq("is_template", false)
+      .is("archived_at", null)
       .order("sort_order");
 
     const plans = plansRes.data || [];
