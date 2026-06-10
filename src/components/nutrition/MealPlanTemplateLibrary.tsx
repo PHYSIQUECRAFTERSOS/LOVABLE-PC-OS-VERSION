@@ -290,6 +290,10 @@ const MealPlanTemplateLibrary = () => {
       }
 
       const clientName = clients.find(c => c.id === selectedClientId)?.full_name || "client";
+      // Invalidate the client's meal-plan cache so the new plan shows immediately
+      queryClient.invalidateQueries({ queryKey: ["client-all-meal-plans", selectedClientId] });
+      queryClient.invalidateQueries({ queryKey: ["meal-plan-days-all"] });
+      queryClient.invalidateQueries({ queryKey: ["meal-plan-items-all"] });
       toast({
         title: archivedGroupId
           ? `Assigned to ${clientName}. Previous plan archived.`
