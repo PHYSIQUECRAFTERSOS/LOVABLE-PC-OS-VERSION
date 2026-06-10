@@ -60,10 +60,11 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
         return;
       }
 
-      if (res.saveResult?.mode === "preview") {
+      const saveResult = res.saveResult;
+      if (saveResult?.mode === "preview") {
         setPdfAsset((prev) => {
           if (prev?.url) URL.revokeObjectURL(prev.url);
-          return res.saveResult.asset;
+          return saveResult.asset;
         });
         setPreviewOpen(true);
         return;
