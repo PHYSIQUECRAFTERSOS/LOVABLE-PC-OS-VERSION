@@ -71,6 +71,23 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
+  const loadArchived = useCallback(async () => {
+    if (!viewerId || !isCoachView) return;
+    const { data } = await (supabase as any)
+      .from("client_supplement_assignments")
+      .select("id, plan_id, archived_at, supplement_plans(name), supplement_plan_items!supplement_plan_items_plan_id_fkey(id)")
+      .eq("client_id", viewerId)
+      .not("archived_at", "is", null)
+      .order("archived_at", { ascending: false });
+    setArchivedAssignments(((data as any[]) || []).map((r: any) => ({
+      id: r.id,
+      plan_id: r.plan_id,
+      archived_at: r.archived_at,
+      plan_name: r.supplement_plans?.name || "Stack",
+      item_count: Array.isArray(r.supplement_plan_items) ? r.supplement_plan_items.length : 0,
+    })));
+  }, [viewerId, isCoachView]);
+
   const load = useCallback(async () => {
     if (!viewerId) return;
     setLoading(true);
@@ -83,6 +100,8 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
       .order("assigned_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    await loadArchived();
 
     if (!assignData) {
       setAssignment(null);
@@ -116,7 +135,29 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
     });
     setTodayLogs(logMap);
     setLoading(false);
-  }, [viewerId, today]);
+  }, [viewerId, today, loadArchived]);
+
+  const handleRestoreStack = async (id: string) => {
+    if (!viewerId) return;
+    try {
+      await restoreSupplementAssignment(viewerId, id);
+      toast({ title: "Stack restored. Previous stack archived." });
+      load();
+    } catch (err: any) {
+      toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteStack = async (id: string) => {
+    try {
+      await deleteArchivedSupplementAssignment(id);
+      toast({ title: "Archived stack deleted" });
+      load();
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    }
+  };
+
 
   useEffect(() => { load(); }, [load]);
 
