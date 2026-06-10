@@ -65,6 +65,10 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
   const [editForm, setEditForm] = useState({ dosage: "", dosageUnit: "", timing: "", note: "" });
   const [showRemoved, setShowRemoved] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [archivedAssignments, setArchivedAssignments] = useState<Array<{ id: string; plan_id: string; archived_at: string; plan_name: string; item_count: number }>>([]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [restoreId, setRestoreId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
 
   const load = useCallback(async () => {
