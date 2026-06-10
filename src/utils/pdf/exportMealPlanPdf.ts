@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   createBrandedDoc, drawCoverPage, newContentPage, drawSectionTitle, drawParagraph,
-  drawStatsRow, pcTable, finalizePages, savePdf, nameSlug, todayStamp, PAGE,
+  drawStatsRow, pcTable, finalizePages, savePdf, nameSlug, todayStamp, PAGE, type PdfSaveResult,
 } from "./brandedPdf";
 import { loadClientContext } from "./pdfShared";
 
@@ -189,7 +189,7 @@ function renderPlanSection(
   return y;
 }
 
-export async function exportMealPlanPdf(clientId: string, opts: { preWin?: Window | null } = {}): Promise<{ ok: boolean; reason?: string }> {
+export async function exportMealPlanPdf(clientId: string, opts: { preWin?: Window | null; returnAsset?: boolean } = {}): Promise<{ ok: boolean; reason?: string; saveResult?: PdfSaveResult }> {
   const ctx = await loadClientContext(clientId);
 
   const { data: plans } = await supabase
@@ -240,6 +240,6 @@ export async function exportMealPlanPdf(clientId: string, opts: { preWin?: Windo
   }
 
   finalizePages(doc, { clientName: ctx.clientName, coverFirstPage: true });
-  await savePdf(doc, `${nameSlug(ctx.clientName)}-MealPlan-${todayStamp()}.pdf`, opts);
-  return { ok: true };
+  const saveResult = await savePdf(doc, `${nameSlug(ctx.clientName)}-MealPlan-${todayStamp()}.pdf`, opts);
+  return { ok: true, saveResult };
 }
