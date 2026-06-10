@@ -38,7 +38,10 @@ serve(async (req) => {
       .from("meal_plans")
       .select("id")
       .eq("client_id", client_id)
-      .eq("is_template", false);
+      .eq("is_template", false)
+      .is("archived_at", null);
+
+
 
     if (planErr) throw planErr;
 

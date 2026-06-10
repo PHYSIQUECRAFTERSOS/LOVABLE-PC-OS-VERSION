@@ -1,61 +1,38 @@
-# Plan: Fix Client Meal Plan Sync + Duplicate Day Pills + PDF Workaround
+## Two fixes, no native rebuild required
 
-## Root Causes Found
+### 1. Grocery list pulls foods from archived (old) meal plans
 
-**1. Client sees old meal plan + duplicate "Training Day" pills**
-`src/hooks/useMealPlanTracker.ts` (line 162-177) fetches the client's meal plans but **does not filter `archived_at IS NULL`**. Every plan ever assigned (including archived ones from the new Master Library "archive-and-swap" flow) keeps appearing. Result:
-- Old plan still visible after a new assign.
-- Two "Training Day" pills (old + new, both `day_type='training'`).
-- The "Daily Total" / macros row also pulls from the wrong (old) plan.
+**Root cause:** `supabase/functions/generate-grocery-list/index.ts` queries `meal_plans` with `client_id` + `is_template = false` but does NOT filter `archived_at IS NULL`. Since the new Master Library "assign" flow archives old plans rather than deleting them, every food the client ever had stays in the AI input forever. That's why "Ground Turkey" and "Yellow Flesh Potatoes" appear even though they aren't in the active plan.
 
-**2. Three "Training Day" indicators on the Tracker tab** (`DailyNutritionLog.tsx`)
-- A "Training Day" pill inside the macro-ring card (line ~631).
-- Two pills below it (one per assigned plan — same bug as above, will become one once #1 is fixed).
-- After fix #1 there will still be **two**: the pill inside the ring card + the single plan pill below. User wants only **one**.
+**Fix:** Add `.is("archived_at", null)` to the `meal_plans` query in the edge function (line 37-41). Redeploy. Next "Regenerate" click will only see the current active plan(s). No client code or DB schema changes.
 
-**3. Master Library copy can create duplicates**
-`MealPlanTemplateLibrary.tsx` `handleCopyToClient` archives existing plans, but if the template itself contains multiple days (Training + Rest), the assign creates one `meal_plans` row with `day_type='training'` (or whatever was picked) regardless. That's fine — duplicate pills are purely the archive-filter bug above.
+### 2. Export PDF doesn't work on iPhone PWA
 
-**4. PDF "rebuild" concern**
-The current `exportMealPlanPdf` is **pure client-side jsPDF** — no native build required, the PDF already generates in-browser and downloads via `savePdf` → `Blob` URL. On iOS PWA / Capacitor the `Blob` download may silently fail (Safari restriction), which is likely what the user means by "needs a full build." Workaround: add an **"Email me the PDF"** option that uploads the generated PDF to storage and triggers an edge function to email the client a download link — no native rebuild.
+**Root cause:** `savePdf()` in `src/utils/pdf/brandedPdf.ts` (mobile-web branch, line 299-316) calls `window.open(blobURL, "_blank")` **after** an `await` chain. iOS Safari treats this as a non-gesture popup and blocks it (or opens a blank tab that immediately closes). The `window.location.href = url` fallback also fails because iOS Safari can't navigate to a `blob:` URL in a PWA standalone context.
 
-## Changes
+**Fix (no rebuild needed):**
+- Open the new tab **synchronously at the start of the click handler** (`window.open("", "_blank")`) — this keeps the user-gesture chain. Pass that pre-opened window handle down into `savePdf` and, once the PDF blob is generated, set `preopenedWin.location.href = blobURL`. If the user blocked popups, fall back to a hidden `<a download>` click which iOS PWA does honor for blobs.
+- As an additional iOS PWA safety net, generate the PDF as a **data URI** (`doc.output("dataurlstring")`) instead of a blob URL — iOS Safari is more reliable opening data URIs in-tab from a PWA than blob URLs.
+- Touched files:
+  - `src/utils/pdf/brandedPdf.ts` — refactor `savePdf` to accept an optional pre-opened window and use data-URI for iOS web path; keep native + desktop branches unchanged.
+  - `src/components/common/ExportPdfButton.tsx` — open the placeholder tab synchronously inside `handleClick` before any `await`, then hand it to `savePdf` via the existing export functions (thread one optional arg through `exportMealPlanPdf` / `exportSupplementsPdf` / `exportTrainingPdf`).
 
-### A. Filter archived plans everywhere on the client side
-- `src/hooks/useMealPlanTracker.ts` — add `.is("archived_at", null)` to the `meal_plans` query.
-- Drop `staleTime` to 0 (or invalidate on assign) so a freshly assigned plan shows up immediately when the client refreshes.
-- Audit other reads of `meal_plans` for `client_id = X` and add the same archive filter where missing:
-  - `src/utils/pdf/exportMealPlanPdf.ts`
-  - `src/components/nutrition/ClientStructuredMealPlan.tsx` (via hook — already covered)
-  - Any other consumer surfaced by a quick `rg` pass.
+No Capacitor changes, no new edge function, no native build, no new dependencies.
 
-### B. Collapse the Tracker "Training Day" indicators to one
-In `DailyNutritionLog.tsx`:
-- Remove the inline "Training Day / Rest Day" pill rendered **inside** the macro-ring card (line ~631).
-- Keep the single row of day-type pills below the card (one button per available plan), restoring the original aesthetic.
+### Technical detail (for the engineer)
 
-### C. Master Library assign — invalidate client query
-After a successful copy in `MealPlanTemplateLibrary.tsx`, call `queryClient.invalidateQueries({ queryKey: ["client-all-meal-plans", clientId] })` so the client's view refreshes the next time they open Nutrition (and so the coach preview is fresh too).
+```text
+ExportPdfButton.handleClick
+   ├── const preWin = isIOSWeb ? window.open("about:blank", "_blank") : null  // synchronous
+   ├── await exportXxxPdf(clientId, { preWin })
+   │       └── savePdf(doc, filename, { preWin })
+   │              ├── native: existing Filesystem branch
+   │              ├── mobile web + preWin: preWin.location.href = dataUri
+   │              ├── mobile web no preWin: anchor.download fallback
+   │              └── desktop: doc.save()
+```
 
-### D. PDF workaround — "Email PDF" option (no native rebuild)
-- Extend `ExportPdfButton` with a dropdown: **Download** (existing) and **Email to me**.
-- "Email to me" path:
-  1. Generate the same jsPDF Blob in-browser (reuse `exportMealPlanPdf` / `exportSupplementsPdf` / `exportTrainingPdf`, return the Blob instead of saving).
-  2. Upload the Blob to a new Storage bucket `plan-pdfs` (private, signed-url access) at path `{userId}/{kind}-{timestamp}.pdf`.
-  3. Create a 7-day signed URL.
-  4. Call existing transactional email pipeline (`send-transactional-email`) with a new template `plan-pdf-link` that emails the logged-in user a download link.
-- No changes to the iOS/Capacitor build are required — pure web + edge function.
-
-## Technical Notes
-- Archive filter is a one-line query change; the real fix.
-- `meal_plans.archived_at` and `archive_group_id` columns already exist (used by `clientPlanArchive.ts`) — no migration needed.
-- Storage bucket `plan-pdfs` needs RLS: insert/select restricted to `auth.uid() = owner`.
-- Email template can reuse the existing transactional-email scaffold; one new `.tsx` template under `supabase/functions/_shared/transactional-email-templates/`.
-
-## Out of Scope
-- Re-architecting how meal plans are stored.
-- Changing the Master Library archive-and-swap logic itself (it works; the client view just wasn't honoring `archived_at`).
-- Any iOS / Capacitor native code.
-
-## One Question Before I Build
-**For the "Email PDF" workaround — do you want it to (a) replace the current Download button entirely on mobile, or (b) be an additional option alongside Download (dropdown / second button)?** I'd recommend (b) so desktop coaches keep the instant download.
+### Out of scope
+- No changes to meal-plan archive/assign logic (already fixed last turn).
+- No changes to grocery-list UI, AI categorization prompt, or DB schema.
+- No "email me the PDF" path — only added if the above still fails on the user's device.

@@ -31,26 +31,52 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
       toast.error("Plan not loaded yet — try again in a moment.");
       return;
     }
+
+    // CRITICAL: open the placeholder tab synchronously inside the user-gesture.
+    // iOS Safari (esp. PWA standalone) blocks window.open after any `await`.
+    // We hand this pre-opened window down to savePdf which will navigate it to
+    // a data: URI once the PDF is generated. Desktop/native ignore it.
+    const ua = navigator.userAgent || "";
+    const capCore: any = (window as any).Capacitor;
+    const isNative = !!capCore?.isNativePlatform?.();
+    const isMobileWeb = !isNative && /iPhone|iPad|iPod|Android/i.test(ua);
+    let preWin: Window | null = null;
+    if (isMobileWeb) {
+      try {
+        preWin = window.open("about:blank", "_blank");
+        if (preWin) {
+          try {
+            preWin.document.write(
+              '<title>Generating PDF…</title><body style="background:#0a0a0a;color:#D4A017;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">Generating PDF…</body>'
+            );
+          } catch { /* cross-origin or sandbox — ignore */ }
+        }
+      } catch { /* popup blocked */ }
+    }
+
     setLoading(true);
     try {
       const res =
         kind === "meal-plan"
-          ? await exportMealPlanPdf(clientId)
+          ? await exportMealPlanPdf(clientId, { preWin })
           : kind === "supplements"
-          ? await exportSupplementsPdf(clientId)
-          : await exportTrainingPdf(clientId);
+          ? await exportSupplementsPdf(clientId, { preWin })
+          : await exportTrainingPdf(clientId, { preWin });
       if (!res.ok) {
+        try { preWin?.close(); } catch { /* noop */ }
         toast.error(res.reason || "Nothing to export yet.");
         return;
       }
       toast.success(`${KIND_LABEL[kind]} PDF ready.`);
     } catch (err: any) {
+      try { preWin?.close(); } catch { /* noop */ }
       console.error("[ExportPdfButton]", err);
       toast.error("Could not generate PDF. Try again.");
     } finally {
       setLoading(false);
     }
   };
+
 
   const button =
     variant === "labeled" ? (

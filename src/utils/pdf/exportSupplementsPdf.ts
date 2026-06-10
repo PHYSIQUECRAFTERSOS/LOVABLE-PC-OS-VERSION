@@ -38,7 +38,7 @@ function humanizeSlot(slot: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export async function exportSupplementsPdf(clientId: string): Promise<{ ok: boolean; reason?: string }> {
+export async function exportSupplementsPdf(clientId: string, opts: { preWin?: Window | null } = {}): Promise<{ ok: boolean; reason?: string }> {
   const ctx = await loadClientContext(clientId);
 
   const { data: assign } = await supabase
@@ -154,6 +154,6 @@ export async function exportSupplementsPdf(clientId: string): Promise<{ ok: bool
   }
 
   finalizePages(doc, { clientName: ctx.clientName, coverFirstPage: true });
-  await savePdf(doc, `${nameSlug(ctx.clientName)}-Supplements-${todayStamp()}.pdf`);
+  await savePdf(doc, `${nameSlug(ctx.clientName)}-Supplements-${todayStamp()}.pdf`, opts);
   return { ok: true };
 }
