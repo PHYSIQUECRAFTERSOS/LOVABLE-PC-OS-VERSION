@@ -132,7 +132,7 @@ const WeightTracker = () => {
   const change = latestWeight && startWeight ? (latestWeight - startWeight).toFixed(1) : null;
 
   // Measurement derived values
-  const measRows = measurementRows
+  const measRows: Array<Record<string, any>> = measurementRows
     .map((r) => ({ ...r, _v: (r as any)[selectedMeasurement] }))
     .filter((r) => r._v !== null && r._v !== undefined && !isNaN(Number(r._v)));
   const measStart = measRows.length > 0 ? Number(measRows[0]._v) : null;
