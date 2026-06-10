@@ -621,16 +621,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
           <MacroRing label="Carbs" current={totals.carbs} target={targets.carbs} color="hsl(var(--macro-carbs))" />
           <MacroRing label="Fat" current={totals.fat} target={targets.fat} color="hsl(var(--macro-fat))" />
         </div>
-        {/* Day Type Badge */}
-        <div className="flex justify-center mt-3">
-          <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-            dayType === "training_day"
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary border border-border text-foreground"
-          }`}>
-            {dayType === "training_day" ? "Training Day" : "Rest Day"}
-          </span>
-        </div>
+        {/* Day type indicator moved to the single pill below — keeps one clean indicator */}
       </div>
 
       {/* Plan Pill Navigation (only if 2+ plans) */}

@@ -159,7 +159,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
   const queryClient = useQueryClient();
   const dateStr = selectedDate ? toLocalDateString(selectedDate) : getLocalDateString();
 
-  // Fetch ALL active meal plans for this client
+  // Fetch ALL active meal plans for this client (exclude archived)
   const { data: plans } = useQuery({
     queryKey: ["client-all-meal-plans", user?.id],
     queryFn: async () => {
@@ -168,12 +168,13 @@ export function useMealPlanTracker(selectedDate?: Date) {
         .select("id, name, flexibility_mode, coach_id, updated_at, day_type, day_type_label, sort_order")
         .eq("client_id", user!.id)
         .eq("is_template", false)
+        .is("archived_at", null)
         .order("sort_order");
 
       return (data || []) as MealPlanData[];
     },
     enabled: !!user,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
   });
 
   // Fetch days for ALL plans in one query

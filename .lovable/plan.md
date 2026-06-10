@@ -1,35 +1,61 @@
-## Problem
+# Plan: Fix Client Meal Plan Sync + Duplicate Day Pills + PDF Workaround
 
-When assigning a meal plan template from Master Libraries to a client, three fields are silently dropped:
+## Root Causes Found
 
-1. **Serving unit** — items copy `gram_amount` and `servings` but skip `serving_unit` and `serving_size`. Eggs (`2 units`) and Caramel rice cakes (`2 units`) render as `2 g` on the client.
-2. **Per-item note** — the `note` column on `meal_plan_items` isn't copied.
-3. **Per-meal coach note** — those live in a separate table `meal_plan_meal_notes` (one row per `day_id` + `meal_order`) and aren't copied at all, so Meal 1's "add 1/4 tsp salt + dash black pepper" is lost.
+**1. Client sees old meal plan + duplicate "Training Day" pills**
+`src/hooks/useMealPlanTracker.ts` (line 162-177) fetches the client's meal plans but **does not filter `archived_at IS NULL`**. Every plan ever assigned (including archived ones from the new Master Library "archive-and-swap" flow) keeps appearing. Result:
+- Old plan still visible after a new assign.
+- Two "Training Day" pills (old + new, both `day_type='training'`).
+- The "Daily Total" / macros row also pulls from the wrong (old) plan.
 
-## Fix
+**2. Three "Training Day" indicators on the Tracker tab** (`DailyNutritionLog.tsx`)
+- A "Training Day" pill inside the macro-ring card (line ~631).
+- Two pills below it (one per assigned plan — same bug as above, will become one once #1 is fixed).
+- After fix #1 there will still be **two**: the pill inside the ring card + the single plan pill below. User wants only **one**.
 
-Edit `handleCopyToClient` in `src/components/nutrition/MealPlanTemplateLibrary.tsx`:
+**3. Master Library copy can create duplicates**
+`MealPlanTemplateLibrary.tsx` `handleCopyToClient` archives existing plans, but if the template itself contains multiple days (Training + Rest), the assign creates one `meal_plans` row with `day_type='training'` (or whatever was picked) regardless. That's fine — duplicate pills are purely the archive-filter bug above.
 
-1. When inserting into `meal_plan_items`, add the missing columns to the mapped row:
-   - `serving_unit: item.serving_unit`
-   - `serving_size: item.serving_size`
-   - `note: item.note`
+**4. PDF "rebuild" concern**
+The current `exportMealPlanPdf` is **pure client-side jsPDF** — no native build required, the PDF already generates in-browser and downloads via `savePdf` → `Blob` URL. On iOS PWA / Capacitor the `Blob` download may silently fail (Safari restriction), which is likely what the user means by "needs a full build." Workaround: add an **"Email me the PDF"** option that uploads the generated PDF to storage and triggers an edge function to email the client a download link — no native rebuild.
 
-2. After all days + items are inserted, copy the per-meal notes:
-   - Fetch all `meal_plan_meal_notes` rows whose `day_id` is in the source template's day IDs.
-   - For each row, look up the corresponding new `day_id` (built from the old→new day map already established in the loop) and insert a fresh row with the new `day_id`, same `meal_order`, `meal_name`, and `note`.
+## Changes
 
-3. Track the old→new `day_id` mapping in a `Record<string,string>` inside the existing day loop instead of relying on filter-by-id.
+### A. Filter archived plans everywhere on the client side
+- `src/hooks/useMealPlanTracker.ts` — add `.is("archived_at", null)` to the `meal_plans` query.
+- Drop `staleTime` to 0 (or invalidate on assign) so a freshly assigned plan shows up immediately when the client refreshes.
+- Audit other reads of `meal_plans` for `client_id = X` and add the same archive filter where missing:
+  - `src/utils/pdf/exportMealPlanPdf.ts`
+  - `src/components/nutrition/ClientStructuredMealPlan.tsx` (via hook — already covered)
+  - Any other consumer surfaced by a quick `rg` pass.
 
-No DB changes, no RLS changes — `meal_plan_meal_notes` already has policies and the columns already exist. Existing archive-on-assign behavior is untouched.
+### B. Collapse the Tracker "Training Day" indicators to one
+In `DailyNutritionLog.tsx`:
+- Remove the inline "Training Day / Rest Day" pill rendered **inside** the macro-ring card (line ~631).
+- Keep the single row of day-type pills below the card (one button per available plan), restoring the original aesthetic.
 
-## Files touched
+### C. Master Library assign — invalidate client query
+After a successful copy in `MealPlanTemplateLibrary.tsx`, call `queryClient.invalidateQueries({ queryKey: ["client-all-meal-plans", clientId] })` so the client's view refreshes the next time they open Nutrition (and so the coach preview is fresh too).
 
-- `src/components/nutrition/MealPlanTemplateLibrary.tsx` — one function (`handleCopyToClient`).
+### D. PDF workaround — "Email PDF" option (no native rebuild)
+- Extend `ExportPdfButton` with a dropdown: **Download** (existing) and **Email to me**.
+- "Email to me" path:
+  1. Generate the same jsPDF Blob in-browser (reuse `exportMealPlanPdf` / `exportSupplementsPdf` / `exportTrainingPdf`, return the Blob instead of saving).
+  2. Upload the Blob to a new Storage bucket `plan-pdfs` (private, signed-url access) at path `{userId}/{kind}-{timestamp}.pdf`.
+  3. Create a 7-day signed URL.
+  4. Call existing transactional email pipeline (`send-transactional-email`) with a new template `plan-pdf-link` that emails the logged-in user a download link.
+- No changes to the iOS/Capacitor build are required — pure web + edge function.
 
-## Verification
+## Technical Notes
+- Archive filter is a one-line query change; the real fix.
+- `meal_plans.archived_at` and `archive_group_id` columns already exist (used by `clientPlanArchive.ts`) — no migration needed.
+- Storage bucket `plan-pdfs` needs RLS: insert/select restricted to `auth.uid() = owner`.
+- Email template can reuse the existing transactional-email scaffold; one new `.tsx` template under `supabase/functions/_shared/transactional-email-templates/`.
 
-After the fix, reassign the same template to Kevin and confirm on the client meal-plan view:
-- Eggs show `2 units`, Caramel rice cakes show `2 units`.
-- Meal 1 displays "add 1/4 tsp salt + dash black pepper".
-- Item-level notes (the small note icon next to each food) carry over.
+## Out of Scope
+- Re-architecting how meal plans are stored.
+- Changing the Master Library archive-and-swap logic itself (it works; the client view just wasn't honoring `archived_at`).
+- Any iOS / Capacitor native code.
+
+## One Question Before I Build
+**For the "Email PDF" workaround — do you want it to (a) replace the current Download button entirely on mobile, or (b) be an additional option alongside Download (dropdown / second button)?** I'd recommend (b) so desktop coaches keep the instant download.

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -73,6 +74,7 @@ interface ItemPreview {
 const MealPlanTemplateLibrary = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -288,6 +290,10 @@ const MealPlanTemplateLibrary = () => {
       }
 
       const clientName = clients.find(c => c.id === selectedClientId)?.full_name || "client";
+      // Invalidate the client's meal-plan cache so the new plan shows immediately
+      queryClient.invalidateQueries({ queryKey: ["client-all-meal-plans", selectedClientId] });
+      queryClient.invalidateQueries({ queryKey: ["meal-plan-days-all"] });
+      queryClient.invalidateQueries({ queryKey: ["meal-plan-items-all"] });
       toast({
         title: archivedGroupId
           ? `Assigned to ${clientName}. Previous plan archived.`
