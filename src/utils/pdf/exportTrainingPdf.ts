@@ -172,6 +172,6 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
   }
 
   finalizePages(doc, { clientName: ctx.clientName, coverFirstPage: true });
-  await savePdf(doc, `${nameSlug(ctx.clientName)}-TrainingProgram-${todayStamp()}.pdf`);
+  await savePdf(doc, `${nameSlug(ctx.clientName)}-TrainingProgram-${todayStamp()}.pdf`, opts);
   return { ok: true };
 }
