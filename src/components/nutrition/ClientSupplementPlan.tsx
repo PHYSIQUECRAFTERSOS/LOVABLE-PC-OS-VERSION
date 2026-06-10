@@ -575,6 +575,33 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
           onImported={load}
         />
       )}
+
+      {archivedSection}
+
+      <AlertDialog open={!!restoreId} onOpenChange={(o) => !o && setRestoreId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore this stack?</AlertDialogTitle>
+            <AlertDialogDescription>The currently active stack will be archived and this one will become active.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (restoreId) { handleRestoreStack(restoreId); setRestoreId(null); } }}>Restore</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete archived stack?</AlertDialogTitle>
+            <AlertDialogDescription>This permanently deletes the archived stack. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleteId) { handleDeleteStack(deleteId); setDeleteId(null); } }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
