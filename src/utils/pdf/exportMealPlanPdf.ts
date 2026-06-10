@@ -197,6 +197,7 @@ export async function exportMealPlanPdf(clientId: string): Promise<{ ok: boolean
     .select("id, name, day_type, day_type_label, target_calories, target_protein, target_carbs, target_fat, description, sort_order")
     .eq("client_id", clientId)
     .eq("is_template", false)
+    .is("archived_at", null)
     .order("sort_order");
 
   const planList = (plans || []) as MealPlanRow[];
