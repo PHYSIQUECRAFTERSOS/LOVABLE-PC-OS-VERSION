@@ -216,13 +216,19 @@ export function finalizePages(
  * On mobile web (PWA) opens the PDF blob in a new tab so the user can save.
  * On desktop browsers, uses jsPDF's anchor download.
  */
-export async function savePdf(doc: jsPDF, filename: string) {
+export async function savePdf(
+  doc: jsPDF,
+  filename: string,
+  opts: { preWin?: Window | null } = {}
+) {
   const capCore: any = (window as any).Capacitor;
   const isNative = !!capCore?.isNativePlatform?.();
   const platform: string = capCore?.getPlatform?.() || "web";
+  const preWin = opts.preWin || null;
 
   // ---------- Native (iOS / Android) ----------
   if (isNative) {
+    try { preWin?.close(); } catch { /* noop */ }
     try {
       const dynImport: (s: string) => Promise<any> = (s) =>
         new Function("s", "return import(s)")(s);
@@ -252,7 +258,6 @@ export async function savePdf(doc: jsPDF, filename: string) {
           recursive: true,
         });
       } catch (e) {
-        // Android may lack ExternalStorage permission — fall back to Documents
         if (platform === "android") {
           written = await Filesystem.writeFile({
             path: filename,
@@ -265,7 +270,6 @@ export async function savePdf(doc: jsPDF, filename: string) {
         }
       }
 
-      // Toast with an "Open" action that uses Share to preview/move the file.
       try {
         const { toast } = await import("sonner");
         const location =
@@ -296,28 +300,46 @@ export async function savePdf(doc: jsPDF, filename: string) {
     }
   }
 
-  // ---------- Mobile web (PWA) ----------
+  // ---------- Mobile web (PWA / iOS Safari) ----------
   const ua = navigator.userAgent || "";
   const isMobileWeb = /iPhone|iPad|iPod|Android/i.test(ua);
   if (isMobileWeb) {
     try {
+      // iOS Safari (esp. standalone PWA) opens data URIs in-tab more reliably
+      // than blob: URLs. Use data URI when we have a pre-opened tab (user gesture).
+      const dataUri = doc.output("dataurlstring");
+      if (preWin && !preWin.closed) {
+        try {
+          preWin.location.href = dataUri;
+          return;
+        } catch (e) {
+          console.warn("[brandedPdf] preWin navigate failed:", e);
+        }
+      }
+      // No pre-opened window (or it was closed): try anchor download fallback.
       const blob = doc.output("blob");
       const url = URL.createObjectURL(blob);
-      const win = window.open(url, "_blank");
-      if (!win) {
-        // Popup blocked — navigate current tab
-        window.location.href = url;
-      }
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       return;
     } catch (err) {
       console.warn("[brandedPdf] mobile web fallback failed:", err);
+      try { preWin?.close(); } catch { /* noop */ }
     }
   }
 
   // ---------- Desktop browser ----------
+  try { preWin?.close(); } catch { /* noop */ }
   doc.save(filename);
 }
+
 
 
 /** Build a safe filename slug from a name. */
