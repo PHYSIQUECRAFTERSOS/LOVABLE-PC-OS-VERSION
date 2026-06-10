@@ -211,39 +211,114 @@ export function finalizePages(
   }
 }
 
-/** Trigger save. Tries Capacitor share on native, falls back to blob download. */
+/**
+ * Trigger save. On native (Capacitor) writes directly to Files/Downloads.
+ * On mobile web (PWA) opens the PDF blob in a new tab so the user can save.
+ * On desktop browsers, uses jsPDF's anchor download.
+ */
 export async function savePdf(doc: jsPDF, filename: string) {
-  // Try Capacitor share if available (mobile)
-  try {
-    // Dynamic so web builds don't require the modules
-    const capCore: any = (window as any).Capacitor;
-    if (capCore?.isNativePlatform?.()) {
-      // Hide specifier from TS module resolution + Vite static analysis
-      const dynImport: (s: string) => Promise<any> = (s) => (new Function("s", "return import(s)")(s));
+  const capCore: any = (window as any).Capacitor;
+  const isNative = !!capCore?.isNativePlatform?.();
+  const platform: string = capCore?.getPlatform?.() || "web";
+
+  // ---------- Native (iOS / Android) ----------
+  if (isNative) {
+    try {
+      const dynImport: (s: string) => Promise<any> = (s) =>
+        new Function("s", "return import(s)")(s);
       const [fsMod, shareMod]: any[] = await Promise.all([
-        dynImport("@capacitor/filesystem").catch(() => null),
+        dynImport("@capacitor/filesystem"),
         dynImport("@capacitor/share").catch(() => null),
       ]);
-      const Filesystem = fsMod?.Filesystem;
-      const Directory = fsMod?.Directory;
+      const { Filesystem, Directory } = fsMod;
       const Share = shareMod?.Share;
-      if (Filesystem && Directory && Share) {
-        const dataUri = doc.output("datauristring");
-        const base64 = dataUri.split(",")[1];
-        const written = await Filesystem.writeFile({
-          path: filename,
-          data: base64,
-          directory: Directory.Cache,
-        });
-        await Share.share({ title: filename, url: written.uri, dialogTitle: "Save or share PDF" });
-        return;
+
+      const dataUri = doc.output("datauristring");
+      const base64 = dataUri.split(",")[1];
+
+      let writePath = filename;
+      let directory = Directory.Documents;
+      if (platform === "android") {
+        writePath = `Download/${filename}`;
+        directory = Directory.ExternalStorage;
       }
+
+      let written: any;
+      try {
+        written = await Filesystem.writeFile({
+          path: writePath,
+          data: base64,
+          directory,
+          recursive: true,
+        });
+      } catch (e) {
+        // Android may lack ExternalStorage permission — fall back to Documents
+        if (platform === "android") {
+          written = await Filesystem.writeFile({
+            path: filename,
+            data: base64,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      // Toast with an "Open" action that uses Share to preview/move the file.
+      try {
+        const { toast } = await import("sonner");
+        const location =
+          platform === "android" ? "Downloads folder" : "Files app";
+        toast.success(`Saved to ${location}`, {
+          description: filename,
+          action: Share
+            ? {
+                label: "Open",
+                onClick: () => {
+                  Share.share({
+                    title: filename,
+                    url: written.uri,
+                    dialogTitle: "Open PDF",
+                  }).catch(() => {});
+                },
+              }
+            : undefined,
+          duration: 6000,
+        });
+      } catch {
+        /* toast optional */
+      }
+      return;
+    } catch (err) {
+      console.error("[brandedPdf] native save failed:", err);
+      // fall through to web fallback
     }
-  } catch (err) {
-    console.warn("[brandedPdf] native share fallback:", err);
   }
+
+  // ---------- Mobile web (PWA) ----------
+  const ua = navigator.userAgent || "";
+  const isMobileWeb = /iPhone|iPad|iPod|Android/i.test(ua);
+  if (isMobileWeb) {
+    try {
+      const blob = doc.output("blob");
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      if (!win) {
+        // Popup blocked — navigate current tab
+        window.location.href = url;
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return;
+    } catch (err) {
+      console.warn("[brandedPdf] mobile web fallback failed:", err);
+    }
+  }
+
+  // ---------- Desktop browser ----------
   doc.save(filename);
 }
+
 
 /** Build a safe filename slug from a name. */
 export function nameSlug(name: string | null | undefined, fallback = "Client"): string {
