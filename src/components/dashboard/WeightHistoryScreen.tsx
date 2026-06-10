@@ -98,7 +98,7 @@ function dedupeByDate(rows: WeightEntry[]): WeightEntry[] {
 const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = false }: WeightHistoryScreenProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { convertWeight, parseWeightInput, weightLabel, weightUnit } = useUnitPreferences();
+  const { convertWeight, parseWeightInput, weightLabel, weightUnit, measurementLabel } = useUnitPreferences();
   const targetId = clientId || user?.id;
 
   const [entries, setEntries] = useState<WeightEntry[]>([]);
