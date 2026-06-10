@@ -118,13 +118,13 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
             checked={measurementsEnabled}
             onCheckedChange={async (checked) => {
               setMeasurementsEnabled(checked);
-              const { error } = await supabase
-                .from("profiles")
-                .update({ measurements_enabled: checked } as any)
-                .eq("user_id", clientId);
+              const { error } = await supabase.rpc(
+                "set_client_measurements_enabled" as any,
+                { _client_id: clientId, _enabled: checked } as any
+              );
               if (error) {
                 setMeasurementsEnabled(!checked);
-                toast({ title: "Failed to update setting", variant: "destructive" });
+                toast({ title: "Failed to update setting", description: error.message, variant: "destructive" });
               } else {
                 toast({ title: checked ? "Measurements enabled" : "Measurements disabled" });
               }
