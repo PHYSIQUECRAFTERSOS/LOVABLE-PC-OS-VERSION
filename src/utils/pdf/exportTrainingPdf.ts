@@ -5,7 +5,7 @@ import {
 } from "./brandedPdf";
 import { loadClientContext } from "./pdfShared";
 
-export async function exportTrainingPdf(clientId: string): Promise<{ ok: boolean; reason?: string }> {
+export async function exportTrainingPdf(clientId: string, opts: { preWin?: Window | null } = {}): Promise<{ ok: boolean; reason?: string }> {
   const ctx = await loadClientContext(clientId);
 
   // 1. Active assignment
