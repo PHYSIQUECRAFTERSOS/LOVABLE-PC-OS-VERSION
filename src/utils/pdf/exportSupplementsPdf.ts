@@ -38,7 +38,7 @@ function humanizeSlot(slot: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export async function exportSupplementsPdf(clientId: string): Promise<{ ok: boolean; reason?: string }> {
+export async function exportSupplementsPdf(clientId: string, opts: { preWin?: Window | null } = {}): Promise<{ ok: boolean; reason?: string }> {
   const ctx = await loadClientContext(clientId);
 
   const { data: assign } = await supabase
