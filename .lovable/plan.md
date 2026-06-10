@@ -1,38 +1,42 @@
-## Two fixes, no native rebuild required
+## Root cause
 
-### 1. Grocery list pulls foods from archived (old) meal plans
+The coach's "Enable Body Measurements" toggle is **silently failing** because of Row-Level Security:
 
-**Root cause:** `supabase/functions/generate-grocery-list/index.ts` queries `meal_plans` with `client_id` + `is_template = false` but does NOT filter `archived_at IS NULL`. Since the new Master Library "assign" flow archives old plans rather than deleting them, every food the client ever had stays in the AI input forever. That's why "Ground Turkey" and "Yellow Flesh Potatoes" appear even though they aren't in the active plan.
+- `src/components/clients/workspace/ProgressTab.tsx` (line 121-130) does `UPDATE profiles SET measurements_enabled=true WHERE user_id = clientId`.
+- The only UPDATE policy on `public.profiles` is `Users can update own profile` with `auth.uid() = user_id`.
+- Result: the coach is updating *another user's* row, RLS blocks it, **PostgREST returns no error and zero rows affected**, the toast says "Measurements enabled", but `profiles.measurements_enabled` stays `false`.
 
-**Fix:** Add `.is("archived_at", null)` to the `meal_plans` query in the edge function (line 37-41). Redeploy. Next "Regenerate" click will only see the current active plan(s). No client code or DB schema changes.
+Verified directly: both Kevin profiles in the DB still show `measurements_enabled = false` even after the coach toggled it on.
 
-### 2. Export PDF doesn't work on iPhone PWA
+So when the client opens Body Stats, `src/pages/BodyStats.tsx` reads `measurements_enabled = false` and hides the measurement section — exactly what the screenshot shows.
 
-**Root cause:** `savePdf()` in `src/utils/pdf/brandedPdf.ts` (mobile-web branch, line 299-316) calls `window.open(blobURL, "_blank")` **after** an `await` chain. iOS Safari treats this as a non-gesture popup and blocks it (or opens a blank tab that immediately closes). The `window.location.href = url` fallback also fails because iOS Safari can't navigate to a `blob:` URL in a PWA standalone context.
+## Fix
 
-**Fix (no rebuild needed):**
-- Open the new tab **synchronously at the start of the click handler** (`window.open("", "_blank")`) — this keeps the user-gesture chain. Pass that pre-opened window handle down into `savePdf` and, once the PDF blob is generated, set `preopenedWin.location.href = blobURL`. If the user blocked popups, fall back to a hidden `<a download>` click which iOS PWA does honor for blobs.
-- As an additional iOS PWA safety net, generate the PDF as a **data URI** (`doc.output("dataurlstring")`) instead of a blob URL — iOS Safari is more reliable opening data URIs in-tab from a PWA than blob URLs.
-- Touched files:
-  - `src/utils/pdf/brandedPdf.ts` — refactor `savePdf` to accept an optional pre-opened window and use data-URI for iOS web path; keep native + desktop branches unchanged.
-  - `src/components/common/ExportPdfButton.tsx` — open the placeholder tab synchronously inside `handleClick` before any `await`, then hand it to `savePdf` via the existing export functions (thread one optional arg through `exportMealPlanPdf` / `exportSupplementsPdf` / `exportTrainingPdf`).
+### 1. Server: add a `SECURITY DEFINER` RPC + permissive policy combo
 
-No Capacitor changes, no new edge function, no native build, no new dependencies.
+Create a SECURITY DEFINER function `public.set_client_measurements_enabled(_client_id uuid, _enabled boolean)` that:
+- Verifies the caller has `admin` or `coach` role (via existing `has_role()`).
+- For coaches (non-admin), verifies an active `coach_clients` link exists between caller and `_client_id`.
+- Updates `profiles.measurements_enabled` for that client.
+- Raises an exception on access denial so the UI sees a real error.
 
-### Technical detail (for the engineer)
+Grant `EXECUTE` to `authenticated`. No new tables, no schema changes beyond this function.
 
-```text
-ExportPdfButton.handleClick
-   ├── const preWin = isIOSWeb ? window.open("about:blank", "_blank") : null  // synchronous
-   ├── await exportXxxPdf(clientId, { preWin })
-   │       └── savePdf(doc, filename, { preWin })
-   │              ├── native: existing Filesystem branch
-   │              ├── mobile web + preWin: preWin.location.href = dataUri
-   │              ├── mobile web no preWin: anchor.download fallback
-   │              └── desktop: doc.save()
-```
+### 2. Client: call the RPC instead of direct UPDATE
 
-### Out of scope
-- No changes to meal-plan archive/assign logic (already fixed last turn).
-- No changes to grocery-list UI, AI categorization prompt, or DB schema.
-- No "email me the PDF" path — only added if the above still fails on the user's device.
+In `ProgressTab.tsx`, replace the `supabase.from("profiles").update(...)` block with `supabase.rpc("set_client_measurements_enabled", { _client_id: clientId, _enabled: checked })`. Keep the optimistic UI + revert-on-error pattern.
+
+### 3. Client read path: defensive defaults
+
+In `src/pages/BodyStats.tsx`, no functional change needed — once the DB value is actually `true`, the measurements section will render. (Optional polish: replace `.single()` with `.maybeSingle()` so a missing profile row doesn't throw.)
+
+## Files touched
+
+- New migration: `set_client_measurements_enabled` SECURITY DEFINER function.
+- `src/components/clients/workspace/ProgressTab.tsx` — switch toggle to RPC, surface real errors.
+- (optional) `src/pages/BodyStats.tsx` — `.maybeSingle()` hardening.
+
+## Out of scope
+- No new measurement fields, no UI redesign of the client Body Stats page.
+- No change to `body_stats` table or save logic.
+- No change to other `profiles` UPDATE permissions — coaches still cannot directly UPDATE profiles, only this one column via the RPC.
