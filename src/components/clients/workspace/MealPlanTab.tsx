@@ -23,11 +23,19 @@ import {
   UtensilsCrossed,
   Unlink,
   Link,
+  Archive,
+  RotateCcw,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import MealPlanBuilder from "@/components/nutrition/MealPlanBuilder";
 import CoachGroceryList from "./CoachGroceryList";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 import { useNavigate } from "react-router-dom";
+import {
+  restoreMealPlanGroup,
+  deleteArchivedMealPlanGroup,
+} from "@/lib/clientPlanArchive";
 
 interface PlanCard {
   id: string;
@@ -58,6 +66,10 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
   const [builderKey, setBuilderKey] = useState(0);
   const [detachConfirmId, setDetachConfirmId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [archived, setArchived] = useState<Array<{ group_id: string; archived_at: string; plans: Array<{ id: string; name: string; day_type: string; day_type_label: string }> }>>([]);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [restoreConfirmGroup, setRestoreConfirmGroup] = useState<string | null>(null);
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -70,6 +82,7 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
       .select("id, name, day_type, day_type_label, sort_order, source_template_id")
       .eq("client_id", clientId)
       .eq("is_template", false)
+      .is("archived_at", null)
       .order("sort_order");
 
     const plans = plansRes.data || [];
@@ -115,7 +128,47 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
       const training = cards.find(c => c.day_type === "training");
       setActiveDayType(training ? "training" : cards[0]?.day_type || "training");
     }
+
+    // Load archived snapshots
+    const { data: archivedRows } = await (supabase as any)
+      .from("meal_plans")
+      .select("id, name, day_type, day_type_label, archive_group_id, archived_at")
+      .eq("client_id", clientId)
+      .eq("is_template", false)
+      .not("archived_at", "is", null)
+      .order("archived_at", { ascending: false });
+
+    const groups = new Map<string, { group_id: string; archived_at: string; plans: any[] }>();
+    for (const row of (archivedRows || [])) {
+      const gid = row.archive_group_id || row.id;
+      if (!groups.has(gid)) {
+        groups.set(gid, { group_id: gid, archived_at: row.archived_at, plans: [] });
+      }
+      groups.get(gid)!.plans.push({ id: row.id, name: row.name, day_type: row.day_type, day_type_label: row.day_type_label });
+    }
+    setArchived(Array.from(groups.values()));
+
     setLoading(false);
+  };
+
+  const handleRestoreGroup = async (groupId: string) => {
+    try {
+      await restoreMealPlanGroup(clientId, groupId);
+      toast({ title: "Meal plan restored. Previous plan archived." });
+      loadAll();
+    } catch (err: any) {
+      toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await deleteArchivedMealPlanGroup(clientId, groupId);
+      toast({ title: "Archived plan deleted" });
+      loadAll();
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    }
   };
 
   const handleEmptySlotClick = (dayType: string) => {
@@ -335,8 +388,128 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         </Card>
       )}
 
+      {/* Previous Plans */}
+      {archived.length > 0 && (
+        <div className="rounded-xl border border-border bg-card/40">
+          <button
+            type="button"
+            onClick={() => setArchivedOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-foreground hover:bg-card/70 transition-colors rounded-xl"
+          >
+            <span className="flex items-center gap-2">
+              <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+              Previous Plans
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{archived.length}</Badge>
+            </span>
+            {archivedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+          {archivedOpen && (
+            <div className="px-3 pb-3 space-y-2">
+              {archived.map(grp => (
+                <div key={grp.group_id} className="rounded-lg border border-border bg-background/40 p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1 mb-1">
+                        {grp.plans.map(p => (
+                          <Badge
+                            key={p.id}
+                            variant="secondary"
+                            className="text-[10px]"
+                            style={p.day_type === "training"
+                              ? { background: "hsl(var(--primary) / 0.15)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary) / 0.4)" }
+                              : { background: "hsl(var(--secondary))", color: "hsl(var(--foreground))", border: "1px solid #444" }}
+                          >
+                            {p.day_type_label || (p.day_type === "training" ? "Training Day" : "Rest Day")}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {[...new Set(grp.plans.map(p => p.name))].join(" / ")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Archived {new Date(grp.archived_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                        onClick={() => setRestoreConfirmGroup(grp.group_id)}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" /> Restore
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteGroupConfirm(grp.group_id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Full Grocery List */}
       <CoachGroceryList clientId={clientId} />
+
+      {/* Restore confirmation */}
+      <AlertDialog open={!!restoreConfirmGroup} onOpenChange={(open) => !open && setRestoreConfirmGroup(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore this meal plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The currently active meal plan(s) will be archived, and this snapshot will become active. You can swap back anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (restoreConfirmGroup) {
+                  handleRestoreGroup(restoreConfirmGroup);
+                  setRestoreConfirmGroup(null);
+                }
+              }}
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete archived group confirmation */}
+      <AlertDialog open={!!deleteGroupConfirm} onOpenChange={(open) => !open && setDeleteGroupConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete archived plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the archived meal plan snapshot. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteGroupConfirm) {
+                  handleDeleteGroup(deleteGroupConfirm);
+                  setDeleteGroupConfirm(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>

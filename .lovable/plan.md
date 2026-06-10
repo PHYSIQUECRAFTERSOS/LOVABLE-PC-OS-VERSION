@@ -1,82 +1,82 @@
+# Meal Plan & Supplement Stack — Archive & Swap System
 
-## Goal
-When a coach subscribes a master program or copies a phase to a client who already has an active program, the previous program should be **truncated**, not erased. The new program starts on a coach-chosen date, the old program ends the day before, and conflicting future calendar events are removed. Mirrors Trainerize.
+## Why
+- Subscribing a meal plan from the master library currently fails: `duplicate key value violates unique constraint` (unique index on `meal_plans (client_id, day_type)` for non-templates). Coaches cannot override an existing client plan.
+- No history is kept of previous plans/stacks, so reverting a client to an earlier setup means rebuilding it by hand.
 
-## Changes
+## What you'll get
+- Subscribing/copying a meal plan or supplement stack from the master library **always succeeds**. Any existing active plan(s) for that client are archived (not deleted).
+- A **Previous Plans** collapsible in the Meal Plan tab + **Previous Stacks** collapsible in the Supplements tab — each row shows the name, archived date, day type/macros (meals) or item count (supps), and a one-click **Restore** action.
+- Restore is a **swap**: the currently active plan/stack is archived; the chosen archived one becomes active. Fully reversible.
+- All historical nutrition_logs / supplement_logs stay untouched.
 
-### 1. Unified "Assign Program to Client" dialog
-Apply to both entry points:
-- `src/components/training/ProgramList.tsx` (Master Libraries → Subscribe)
-- `src/components/clients/workspace/TrainingTab.tsx` `AssignDialog` (workspace Change/Assign)
-- `src/components/training/ProgramDetailView.tsx` Copy-Phase-to-Client (single phase copy)
+## Behavior rules (per your choices)
+1. **Meals — archive scope:** When a new meal plan is subscribed to a client, **both** of the client's currently active plans (Training Day + Rest Day) are archived together as a single snapshot, so restoring brings the full pair back.
+2. **Supps — archive scope:** When a new stack is subscribed, the single currently active assignment is archived.
+3. **Restore = swap.** Current → archived. Archived → active.
+4. **Logs:** Untouched. Archived rows keep their IDs; `nutrition_logs.meal_plan_id` (if/when set) still resolves.
+5. Coach can also **delete an archived snapshot** permanently (trash icon w/ confirm).
 
-Add to all three:
-- **Start date picker** (shadcn `Calendar` in `Popover`, `pointer-events-auto`).
-  - Default: **day after the client's current active program's computed end date**. If client has no active program, default to today.
-  - Live helper text: `Current program: <name> · ends <date> · this will be cut short on <newStart - 1 day> if you choose an earlier date.`
-- Subscribe vs Import toggle (already exists in two of three; add to TrainingTab's dialog).
-- Auto-Advance Phases toggle (already exists in ProgramList; mirror in others).
+## Technical Plan
 
-### 2. New helper: `assignProgramWithMerge`
-New file `src/lib/programAssignment.ts` exporting one function used by all three call sites:
+### Database
 
-```text
-assignProgramWithMerge({
-  clientId, coachId, masterProgramId | phaseSource, startDate,
-  mode: "subscribe" | "import",
-  autoAdvance, isPhaseOnly
-})
+Migration 1 — add archived state (additive only, no drops):
+```sql
+ALTER TABLE public.meal_plans
+  ADD COLUMN IF NOT EXISTS archived_at        timestamptz,
+  ADD COLUMN IF NOT EXISTS archive_group_id   uuid;  -- pairs Training+Rest in one snapshot
+
+ALTER TABLE public.client_supplement_assignments
+  ADD COLUMN IF NOT EXISTS archived_at        timestamptz;
+
+-- Fix the duplicate-key error: unique index must ignore archived plans.
+DROP INDEX IF EXISTS public.idx_meal_plans_unique_client_day_type;
+CREATE UNIQUE INDEX idx_meal_plans_unique_client_day_type
+  ON public.meal_plans (client_id, day_type)
+  WHERE client_id IS NOT NULL
+    AND is_template = false
+    AND archived_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_meal_plans_client_archived
+  ON public.meal_plans (client_id, archived_at DESC)
+  WHERE client_id IS NOT NULL AND archived_at IS NOT NULL;
 ```
 
-Steps inside (sequential, awaited):
+No RLS change needed — existing coach/client policies still apply (archived rows have the same coach/client ids).
 
-1. **Find current active assignment** for `clientId` (`status in active|subscribed`, newest).
-2. **Compute its true end date** using `derivePhaseDates` over its phases (last phase end). If `startDate > endDate`, no truncation needed — old program is left alone and will naturally complete.
-3. **If `startDate ≤ endDate`** (overlap), truncate:
-   - Identify the phase containing `startDate`. Set its `duration_weeks` so it ends on `startDate − 1`. If `startDate` lands inside week 1 of phase 1, mark the old assignment `status='completed'` outright with no phases retained beyond what's already completed.
-   - For all later phases of the old program, leave the rows but ensure they don't extend past the new start by clearing explicit `start_date` (cascading is handled by `derivePhaseDates`). Truncating the containing phase is enough since later phases derive from it.
-   - Update old `client_program_assignments`: set `status='completed'` and (new column) `ended_on = startDate - 1`.
-4. **Delete ALL future calendar events from the OLD program** (completed or not) on/after `startDate`:
-   - Pull `program_workouts.workout_id` for every workout in the old program (across all phases/weeks).
-   - `DELETE FROM calendar_events WHERE target_client_id = clientId AND event_date >= startDate AND linked_workout_id IN (...oldWorkoutIds)`.
-   - Also delete `event_type IN ('workout','cardio')` rows with `target_client_id = clientId` and `event_date >= startDate` AND `linked_workout_id IS NULL` only if explicitly tied to the old program via cardio_assignments — keep it scoped to workouts to avoid wiping unrelated events. (Cardio cleanup deferred unless we discover a link.)
-5. **Clone the new program/phase** to the client (existing logic moved here unchanged from `cloneProgramToClient` / `handleCopyPhaseToClient` / `handleAssignProgram`).
-6. **Insert new `client_program_assignments`** with `start_date = startDate`, `current_phase_id = firstPhaseId`, `status='active'`, `is_linked_to_master`, `auto_advance`, etc.
-7. Return `{ newProgramId, truncatedOldAssignmentId, deletedEventsCount, cloneSummary }` for the toast.
+### New helper `src/lib/clientPlanArchive.ts`
+- `archiveActiveMealPlans(clientId)` → stamps both active client meal_plans with the same `archive_group_id` + `archived_at = now()`. Returns the group id.
+- `restoreMealPlanGroup(clientId, archiveGroupId)` → in a single transactional sequence: archives any currently active plans (new group id), then unsets `archived_at`/`archive_group_id` on the chosen group's rows.
+- `archiveActiveSupplementAssignment(clientId)` → sets `is_active = false`, `archived_at = now()` on the active row.
+- `restoreSupplementAssignment(clientId, assignmentId)` → archives current active assignment, then sets the chosen one to `is_active = true, archived_at = null`.
+- `deleteArchivedMealPlanGroup(archiveGroupId)` / `deleteArchivedSupplementAssignment(id)` — hard delete (cascades via existing FKs).
 
-### 3. Schema migration
-Add to `client_program_assignments` (additive only):
-- `ended_on date NULL` — actual end date when truncated early.
+### Code changes
+- `src/components/nutrition/MealPlanTemplateLibrary.tsx` — in `handleCopyToClient`, call `archiveActiveMealPlans(selectedClientId)` before inserting the new client plan. Surface a toast "Previous plan archived". Removes the duplicate-key error.
+- `src/components/clients/workspace/MealPlanTab.tsx` — add **Previous Plans** collapsible below the existing pill row. Lists archived snapshots grouped by `archive_group_id`, newest first; each shows name(s), day-type badges, kcal/macros, archived date, **Restore** + **Delete** actions. Restore confirms via existing `AlertDialog`.
+- `src/components/libraries/SupplementLibrary.tsx` (assign-to-client flow) — call `archiveActiveSupplementAssignment(clientId)` before inserting the new `client_supplement_assignments` row.
+- `src/components/nutrition/ClientSupplementPlan.tsx` (coach view) — add **Previous Stacks** collapsible mirroring the meal pattern: stack name, item count, archived date, Restore + Delete.
+- Read paths already filter to active rows via `is_active = true` (supps) and the meal-plan tab's existing query. We'll add `.is("archived_at", null)` defensively where the meal plan tab queries `meal_plans`.
 
-Triggered by migration tool. No RLS changes needed (existing policies still apply).
+### UI (matches existing matte-black + gold aesthetic)
+```text
+Meal Plan tab
+─────────────────────────────────────
+[ Training Day ] [ Rest Day ]   ⓘ pill row
+[ Active plan card …                ]
+[ Grocery list …                    ]
+▾ Previous Plans (3)              ← new collapsible
+   • Cutting 1900 — Training+Rest   archived Jun 8     [Restore] [🗑]
+   • Maintenance 2400 — Training    archived May 12    [Restore] [🗑]
+```
 
-### 4. Previous Programs section
-In `src/components/clients/workspace/TrainingTab.tsx`:
-- Below the active program card, render a collapsible **"Previous Programs"** accordion when the client has any `client_program_assignments` with `status='completed'` (excluding the active one).
-- Each row: program name, `start_date – ended_on (or computed end)`, badge `Truncated` if `ended_on` is non-null AND earlier than the original derived end, link to view (read-only modal reusing existing `PhaseListSidebar` + workout list, no edit buttons).
-- Implementation: lightweight read-only viewer modal `PreviousProgramViewer.tsx` opened from the list. Reuses `usePhaseBoundaries` + `derivePhaseDates`.
+## Non-goals
+- No change to template-side meal plans or master stacks.
+- No edits to nutrition_logs / supplement_logs.
+- No new permission model — uses existing RLS.
 
-### 5. Toast and confirmation
-Before running the merge, if `startDate ≤ currentEnd`, show an `AlertDialog`:
-> "<Client> is on <old program> until <old end>. This will cut that program short on <startDate − 1>, delete <N> future calendar events, and start the new program on <startDate>. Continue?"
-
-`N` is pre-counted with a SELECT count(*) before the mutation runs. Coach confirms → run.
-
-### 6. Verification (after build)
-- Subscribe a master program from Master Libraries to a client with an active program, start date inside the active program → confirm old shows in "Previous Programs" with truncated end, new is active starting on that date, calendar future events from old program are gone.
-- Subscribe to a client with no active program → behaves like today (no truncation step).
-- Copy a single phase from `ProgramDetailView` → same merge behavior.
-- Mark old program's PAST calendar events (before start date) untouched, completed workouts preserved (history intact).
-
-## Files touched
-- `src/lib/programAssignment.ts` (new)
-- `src/components/training/ProgramList.tsx` (route subscribe through new helper)
-- `src/components/clients/workspace/TrainingTab.tsx` (add date+toggles to `AssignDialog`, route through helper, render Previous Programs accordion)
-- `src/components/training/ProgramDetailView.tsx` (route Copy-Phase-to-Client through helper)
-- `src/components/clients/workspace/training/PreviousProgramViewer.tsx` (new)
-- Migration: add `ended_on date` to `client_program_assignments`.
-
-## Non-goals (this pass)
-- No changes to cardio_assignments cleanup; only `workout` events linked to the old program are removed.
-- No re-generation of new calendar events for the new program (calendar event creation remains coach-driven, matching current behavior).
-- No changes to the active program's phase-date editor (recently shipped).
+## Risk / safety
+- All schema changes are additive (`IF NOT EXISTS`). Dropping the unique index is replaced atomically in the same migration with a stricter partial version that excludes archived rows — no row data lost.
+- Helpers wrap multi-step operations and check `{ error }` after every Supabase call (per project rules).
+- Restore is reversible, so a mis-click is recoverable in two clicks.

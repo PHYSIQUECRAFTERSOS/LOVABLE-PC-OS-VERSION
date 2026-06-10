@@ -174,6 +174,10 @@ const MealPlanTemplateLibrary = () => {
     if (!copyTemplate || !selectedClientId || !user) return;
     setCopying(true);
     try {
+      // Archive any currently-active meal plans for this client (Training + Rest as one snapshot)
+      const { archiveActiveMealPlans } = await import("@/lib/clientPlanArchive");
+      const archivedGroupId = await archiveActiveMealPlans(selectedClientId);
+
       // Get full template data
       const { data: days } = await supabase
         .from("meal_plan_days")
@@ -208,6 +212,7 @@ const MealPlanTemplateLibrary = () => {
         .single();
 
       if (error) throw error;
+      void archivedGroupId; // archived snapshot is restorable from the client workspace
 
       // Copy days and items
       for (const day of (days || [])) {
