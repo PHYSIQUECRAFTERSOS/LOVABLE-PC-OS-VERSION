@@ -372,12 +372,19 @@ const SupplementLibrary = () => {
       const { error } = await supabase.from("client_supplement_assignments").insert({
         client_id: selectedClientId, plan_id: assignPlanId, assigned_by: user.id,
       });
-      if (error) throw error;
+      if (error) {
+        console.error("[SupplementAssign] insert failed:", error);
+        throw error;
+      }
       toast({ title: "Stack assigned. Previous stack archived." });
+      setShowAssign(false);
+      setSelectedClientId("");
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      console.error("[SupplementAssign] failed:", err);
+      const detail = err?.message || err?.details || err?.hint || String(err);
+      toast({ title: "Failed to assign stack", description: detail, variant: "destructive" });
     }
-    setAssigning(false); setShowAssign(false); setSelectedClientId("");
+    setAssigning(false);
   };
 
 

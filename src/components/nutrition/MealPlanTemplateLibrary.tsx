@@ -178,6 +178,14 @@ const MealPlanTemplateLibrary = () => {
       const { archiveActiveMealPlans } = await import("@/lib/clientPlanArchive");
       const archivedGroupId = await archiveActiveMealPlans(selectedClientId);
 
+      // Map copyPlanType → DB day_type / label (DB stores 'training' | 'rest' | 'all_days')
+      const newDayType =
+        copyPlanType === "rest_day" ? "rest" :
+        copyPlanType === "all_days" ? "all_days" : "training";
+      const newDayLabel =
+        newDayType === "rest" ? "Rest Day" :
+        newDayType === "all_days" ? "All Days" : "Training Day";
+
       // Get full template data
       const { data: days } = await supabase
         .from("meal_plan_days")
@@ -207,12 +215,16 @@ const MealPlanTemplateLibrary = () => {
           target_fat: copyTemplate.target_fat,
           flexibility_mode: false,
           source_template_id: copyTemplate.id,
+          day_type: newDayType,
+          day_type_label: newDayLabel,
         })
         .select("id")
         .single();
 
-      if (error) throw error;
-      void archivedGroupId; // archived snapshot is restorable from the client workspace
+      if (error) {
+        console.error("[MealPlan assign] insert failed:", error);
+        throw error;
+      }
 
       // Copy days and items
       for (const day of (days || [])) {
@@ -248,10 +260,20 @@ const MealPlanTemplateLibrary = () => {
       }
 
       const clientName = clients.find(c => c.id === selectedClientId)?.full_name || "client";
-      toast({ title: `Meal plan copied to ${clientName} successfully` });
+      toast({
+        title: archivedGroupId
+          ? `Assigned to ${clientName}. Previous plan archived.`
+          : `Meal plan copied to ${clientName} successfully`,
+      });
       setCopyModalOpen(false);
     } catch (err: any) {
-      toast({ title: "Failed to copy meal plan", description: err.message, variant: "destructive" });
+      console.error("[MealPlan assign] failed:", err);
+      const detail = err?.message || err?.details || err?.hint || String(err);
+      toast({
+        title: "Failed to assign meal plan",
+        description: detail,
+        variant: "destructive",
+      });
     } finally {
       setCopying(false);
     }
