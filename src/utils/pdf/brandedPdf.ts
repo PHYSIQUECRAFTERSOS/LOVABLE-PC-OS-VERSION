@@ -26,6 +26,18 @@ export const PAGE = {
   marginBottom: 54,
 };
 
+export interface PdfPreviewAsset {
+  filename: string;
+  blob: Blob;
+  url: string;
+  file?: File;
+  shareSupported?: boolean;
+}
+
+export type PdfSaveResult =
+  | { mode: "preview"; asset: PdfPreviewAsset }
+  | { mode: "native" | "download" | "opened" };
+
 export function createBrandedDoc(): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   return doc;
@@ -219,12 +231,29 @@ export function finalizePages(
 export async function savePdf(
   doc: jsPDF,
   filename: string,
-  opts: { preWin?: Window | null } = {}
-) {
+  opts: { preWin?: Window | null; returnAsset?: boolean } = {}
+): Promise<PdfSaveResult> {
   const capCore: any = (window as any).Capacitor;
   const isNative = !!capCore?.isNativePlatform?.();
   const platform: string = capCore?.getPlatform?.() || "web";
   const preWin = opts.preWin || null;
+
+  if (opts.returnAsset) {
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    const file = typeof File !== "undefined" ? new File([blob], filename, { type: "application/pdf" }) : undefined;
+    const nav: any = navigator;
+    const shareSupported = !!file && typeof nav.share === "function" && (!nav.canShare || nav.canShare({ files: [file] }));
+    console.info("[brandedPdf] preview asset created", {
+      filename,
+      size: blob.size,
+      type: blob.type,
+      platform,
+      isNative,
+      shareSupported,
+    });
+    return { mode: "preview", asset: { filename, blob, url, file, shareSupported } };
+  }
 
   // ---------- Native (iOS / Android) ----------
   if (isNative) {
@@ -293,7 +322,7 @@ export async function savePdf(
       } catch {
         /* toast optional */
       }
-      return;
+      return { mode: "native" };
     } catch (err) {
       console.error("[brandedPdf] native save failed:", err);
       // fall through to web fallback
@@ -311,7 +340,7 @@ export async function savePdf(
       if (preWin && !preWin.closed) {
         try {
           preWin.location.href = dataUri;
-          return;
+          return { mode: "opened" };
         } catch (e) {
           console.warn("[brandedPdf] preWin navigate failed:", e);
         }
@@ -328,7 +357,7 @@ export async function savePdf(
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      return;
+      return { mode: "download" };
     } catch (err) {
       console.warn("[brandedPdf] mobile web fallback failed:", err);
       try { preWin?.close(); } catch { /* noop */ }
@@ -338,6 +367,7 @@ export async function savePdf(
   // ---------- Desktop browser ----------
   try { preWin?.close(); } catch { /* noop */ }
   doc.save(filename);
+  return { mode: "download" };
 }
 
 
