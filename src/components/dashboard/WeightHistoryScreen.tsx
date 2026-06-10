@@ -21,6 +21,24 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Ruler } from "lucide-react";
+
+const MEASUREMENT_OPTIONS: { key: string; label: string }[] = [
+  { key: "neck", label: "Neck" },
+  { key: "shoulders", label: "Shoulders" },
+  { key: "chest", label: "Chest" },
+  { key: "left_arm", label: "Left Arm" },
+  { key: "right_arm", label: "Right Arm" },
+  { key: "forearm", label: "Forearm" },
+  { key: "waist", label: "Waist" },
+  { key: "hips", label: "Hips" },
+  { key: "left_thigh", label: "Left Thigh" },
+  { key: "right_thigh", label: "Right Thigh" },
+  { key: "left_calf", label: "Left Calf" },
+  { key: "right_calf", label: "Right Calf" },
+  { key: "body_fat_pct", label: "Body Fat %" },
+];
 
 interface WeightEntry {
   id: string;
