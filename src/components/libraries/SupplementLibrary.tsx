@@ -366,17 +366,20 @@ const SupplementLibrary = () => {
   const assignPlan = async () => {
     if (!assignPlanId || !selectedClientId || !user) return;
     setAssigning(true);
-    await supabase.from("client_supplement_assignments").update({ is_active: false }).eq("client_id", selectedClientId).eq("is_active", true);
-    const { error } = await supabase.from("client_supplement_assignments").insert({
-      client_id: selectedClientId, plan_id: assignPlanId, assigned_by: user.id,
-    });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Plan assigned to client" });
+    try {
+      const { archiveActiveSupplementAssignment } = await import("@/lib/clientPlanArchive");
+      await archiveActiveSupplementAssignment(selectedClientId);
+      const { error } = await supabase.from("client_supplement_assignments").insert({
+        client_id: selectedClientId, plan_id: assignPlanId, assigned_by: user.id,
+      });
+      if (error) throw error;
+      toast({ title: "Stack assigned. Previous stack archived." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
     setAssigning(false); setShowAssign(false); setSelectedClientId("");
   };
+
 
   const suppMap = new Map(supplements.map(s => [s.id, s]));
 
