@@ -75,16 +75,28 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
     if (!viewerId || !isCoachView) return;
     const { data } = await (supabase as any)
       .from("client_supplement_assignments")
-      .select("id, plan_id, archived_at, supplement_plans(name), supplement_plan_items!supplement_plan_items_plan_id_fkey(id)")
+      .select("id, plan_id, archived_at, supplement_plans(name)")
       .eq("client_id", viewerId)
       .not("archived_at", "is", null)
       .order("archived_at", { ascending: false });
-    setArchivedAssignments(((data as any[]) || []).map((r: any) => ({
+    const rows = (data as any[]) || [];
+    const planIds = [...new Set(rows.map(r => r.plan_id).filter(Boolean))];
+    let countMap = new Map<string, number>();
+    if (planIds.length) {
+      const { data: itemRows } = await supabase
+        .from("supplement_plan_items")
+        .select("plan_id")
+        .in("plan_id", planIds);
+      for (const it of (itemRows as any[]) || []) {
+        countMap.set(it.plan_id, (countMap.get(it.plan_id) || 0) + 1);
+      }
+    }
+    setArchivedAssignments(rows.map((r: any) => ({
       id: r.id,
       plan_id: r.plan_id,
       archived_at: r.archived_at,
       plan_name: r.supplement_plans?.name || "Stack",
-      item_count: Array.isArray(r.supplement_plan_items) ? r.supplement_plan_items.length : 0,
+      item_count: countMap.get(r.plan_id) || 0,
     })));
   }, [viewerId, isCoachView]);
 
