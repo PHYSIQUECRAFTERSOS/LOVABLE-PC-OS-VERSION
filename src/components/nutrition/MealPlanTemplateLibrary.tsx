@@ -226,7 +226,8 @@ const MealPlanTemplateLibrary = () => {
         throw error;
       }
 
-      // Copy days and items
+      // Copy days and items; track old->new day_id mapping for per-meal notes
+      const dayIdMap: Record<string, string> = {};
       for (const day of (days || [])) {
         const { data: newDay } = await supabase
           .from("meal_plan_days")
@@ -235,6 +236,7 @@ const MealPlanTemplateLibrary = () => {
           .single();
 
         if (newDay) {
+          dayIdMap[day.id] = newDay.id;
           const dayItems = (items || []).filter((i: any) => i.day_id === day.id);
           if (dayItems.length > 0) {
             await supabase.from("meal_plan_items").insert(
@@ -247,6 +249,9 @@ const MealPlanTemplateLibrary = () => {
                 meal_type: item.meal_type,
                 gram_amount: item.gram_amount,
                 servings: item.servings,
+                serving_unit: item.serving_unit,
+                serving_size: item.serving_size,
+                note: item.note,
                 calories: item.calories,
                 protein: item.protein,
                 carbs: item.carbs,
@@ -255,6 +260,29 @@ const MealPlanTemplateLibrary = () => {
                 meal_order: item.meal_order,
               }))
             );
+          }
+        }
+      }
+
+      // Copy per-meal coach notes
+      const oldDayIds = (days || []).map((d: any) => d.id);
+      if (oldDayIds.length > 0) {
+        const { data: mealNotes } = await supabase
+          .from("meal_plan_meal_notes")
+          .select("day_id, meal_order, meal_name, note")
+          .in("day_id", oldDayIds);
+
+        if (mealNotes && mealNotes.length > 0) {
+          const noteRows = mealNotes
+            .filter((n: any) => dayIdMap[n.day_id])
+            .map((n: any) => ({
+              day_id: dayIdMap[n.day_id],
+              meal_order: n.meal_order,
+              meal_name: n.meal_name,
+              note: n.note,
+            }));
+          if (noteRows.length > 0) {
+            await supabase.from("meal_plan_meal_notes").insert(noteRows);
           }
         }
       }
