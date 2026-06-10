@@ -1,28 +1,35 @@
-## Why Export PDF silently fails on mobile
+## Problem
 
-`savePdf()` in `src/utils/pdf/brandedPdf.ts` already tries a Capacitor branch, but **`@capacitor/filesystem` and `@capacitor/share` are not installed**. So on the native build the dynamic `import()` returns `null`, the code silently falls through to `doc.save()` (jsPDF's anchor-click), which is a no-op inside WKWebView/Android WebView — the toast says "PDF ready" but no file lands anywhere.
+When assigning a meal plan template from Master Libraries to a client, three fields are silently dropped:
 
-Same fix applies to all three buttons (`meal-plan`, `supplements`, `training`) because they all funnel through `savePdf()`.
+1. **Serving unit** — items copy `gram_amount` and `servings` but skip `serving_unit` and `serving_size`. Eggs (`2 units`) and Caramel rice cakes (`2 units`) render as `2 g` on the client.
+2. **Per-item note** — the `note` column on `meal_plan_items` isn't copied.
+3. **Per-meal coach note** — those live in a separate table `meal_plan_meal_notes` (one row per `day_id` + `meal_order`) and aren't copied at all, so Meal 1's "add 1/4 tsp salt + dash black pepper" is lost.
 
-## What I'll change
+## Fix
 
-1. **Install plugins**: `@capacitor/filesystem` and `@capacitor/share`.
-2. **Rewrite `savePdf()`** to write the PDF directly to a user-visible folder, no share sheet:
-   - **iOS** → `Directory.Documents` (shows up in **Files app → On My iPhone → Physique Crafters**).
-   - **Android** → `Directory.ExternalStorage` at path `Download/<filename>.pdf` (shows up in **Files / Downloads folder**).
-   - After writing, show a toast: *"Saved to Files: Kevin-MealPlan-2026-06-10.pdf"* with a **"Open"** action that calls `Share.share({ url })` so the user can preview/move it if they want (optional, not a share sheet on save).
-3. **Web fallback unchanged** (`doc.save()` works fine in desktop browsers).
-4. **PWA-on-mobile fallback** (non-native browsers): build a blob, open via `window.open(URL.createObjectURL(blob))` so iOS Safari / Android Chrome render the PDF and the user can hit the browser's Save button. This avoids the broken anchor-download path inside standalone PWA mode.
-5. **Native sync reminder**: after the install, you'll need to `git pull` and run `npx cap sync` locally so the new plugins are linked into the Xcode/Android Studio projects before rebuilding the native app.
+Edit `handleCopyToClient` in `src/components/nutrition/MealPlanTemplateLibrary.tsx`:
+
+1. When inserting into `meal_plan_items`, add the missing columns to the mapped row:
+   - `serving_unit: item.serving_unit`
+   - `serving_size: item.serving_size`
+   - `note: item.note`
+
+2. After all days + items are inserted, copy the per-meal notes:
+   - Fetch all `meal_plan_meal_notes` rows whose `day_id` is in the source template's day IDs.
+   - For each row, look up the corresponding new `day_id` (built from the old→new day map already established in the loop) and insert a fresh row with the new `day_id`, same `meal_order`, `meal_name`, and `note`.
+
+3. Track the old→new `day_id` mapping in a `Record<string,string>` inside the existing day loop instead of relying on filter-by-id.
+
+No DB changes, no RLS changes — `meal_plan_meal_notes` already has policies and the columns already exist. Existing archive-on-assign behavior is untouched.
 
 ## Files touched
 
-- `src/utils/pdf/brandedPdf.ts` — replace the `savePdf` body with the new tiered logic.
-- `package.json` / lockfile — add two Capacitor plugins.
+- `src/components/nutrition/MealPlanTemplateLibrary.tsx` — one function (`handleCopyToClient`).
 
-No DB changes. No RLS changes. No edits to the three exporter files (`exportMealPlanPdf.ts`, `exportSupplementsPdf.ts`, `exportTrainingPdf.ts`) — they already share `savePdf()`.
+## Verification
 
-## Non-goals
-
-- No share sheet on Android (per your choice). Share is only exposed as an optional toast action after the file is saved.
-- No new permissions prompts beyond what Capacitor Filesystem already declares.
+After the fix, reassign the same template to Kevin and confirm on the client meal-plan view:
+- Eggs show `2 units`, Caramel rice cakes show `2 units`.
+- Meal 1 displays "add 1/4 tsp salt + dash black pepper".
+- Item-level notes (the small note icon next to each food) carry over.
