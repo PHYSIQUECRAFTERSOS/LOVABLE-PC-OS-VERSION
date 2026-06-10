@@ -113,18 +113,15 @@ const PdfExportPreviewDialog = ({ open, onOpenChange, asset, label }: PdfExportP
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-          <Button type="button" variant="default" onClick={sharePdf} disabled={!asset} className="gap-2">
-            <Share2 className="h-4 w-4" /> Share
-          </Button>
-          <Button type="button" variant="outline" onClick={openPdf} disabled={!asset} className="gap-2">
-            <ExternalLink className="h-4 w-4" /> Open
-          </Button>
-          <Button type="button" variant="outline" onClick={downloadPdf} disabled={!asset} className="gap-2">
-            <Download className="h-4 w-4" /> Download
-          </Button>
-          <Button type="button" variant="outline" onClick={printPdf} disabled={!asset} className="gap-2">
-            <Printer className="h-4 w-4" /> Print
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="default"
+            onClick={sharePdf}
+            disabled={!asset}
+            className="h-14 w-full max-w-md gap-3 text-base font-semibold"
+          >
+            <Share2 className="h-5 w-5" /> Share PDF
           </Button>
         </div>
       </DialogContent>
