@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Printer, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { exportMealPlanPdf } from "@/utils/pdf/exportMealPlanPdf";
 import { exportSupplementsPdf } from "@/utils/pdf/exportSupplementsPdf";
 import { exportTrainingPdf } from "@/utils/pdf/exportTrainingPdf";
+import PdfExportPreviewDialog, { type PdfPreviewAsset } from "@/components/common/PdfExportPreviewDialog";
 
 type Kind = "meal-plan" | "supplements" | "training";
 
@@ -25,6 +26,14 @@ interface Props {
 
 const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pdfAsset, setPdfAsset] = useState<PdfPreviewAsset | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pdfAsset?.url) URL.revokeObjectURL(pdfAsset.url);
+    };
+  }, [pdfAsset]);
 
   const handleClick = async () => {
     if (!clientId) {
@@ -32,44 +41,36 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
       return;
     }
 
-    // CRITICAL: open the placeholder tab synchronously inside the user-gesture.
-    // iOS Safari (esp. PWA standalone) blocks window.open after any `await`.
-    // We hand this pre-opened window down to savePdf which will navigate it to
-    // a data: URI once the PDF is generated. Desktop/native ignore it.
     const ua = navigator.userAgent || "";
     const capCore: any = (window as any).Capacitor;
     const isNative = !!capCore?.isNativePlatform?.();
-    const isMobileWeb = !isNative && /iPhone|iPad|iPod|Android/i.test(ua);
-    let preWin: Window | null = null;
-    if (isMobileWeb) {
-      try {
-        preWin = window.open("about:blank", "_blank");
-        if (preWin) {
-          try {
-            preWin.document.write(
-              '<title>Generating PDF…</title><body style="background:#0a0a0a;color:#D4A017;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">Generating PDF…</body>'
-            );
-          } catch { /* cross-origin or sandbox — ignore */ }
-        }
-      } catch { /* popup blocked */ }
-    }
+    const isMobileDevice = isNative || /iPhone|iPad|iPod|Android/i.test(ua) || window.matchMedia?.("(pointer: coarse)")?.matches;
+    console.info("[ExportPdfButton] export requested", { kind, clientId, isNative, isMobileDevice, ua });
 
     setLoading(true);
     try {
       const res =
         kind === "meal-plan"
-          ? await exportMealPlanPdf(clientId, { preWin })
+          ? await exportMealPlanPdf(clientId, { returnAsset: isMobileDevice })
           : kind === "supplements"
-          ? await exportSupplementsPdf(clientId, { preWin })
-          : await exportTrainingPdf(clientId, { preWin });
+          ? await exportSupplementsPdf(clientId, { returnAsset: isMobileDevice })
+          : await exportTrainingPdf(clientId, { returnAsset: isMobileDevice });
       if (!res.ok) {
-        try { preWin?.close(); } catch { /* noop */ }
         toast.error(res.reason || "Nothing to export yet.");
         return;
       }
+
+      if (res.saveResult?.mode === "preview") {
+        setPdfAsset((prev) => {
+          if (prev?.url) URL.revokeObjectURL(prev.url);
+          return res.saveResult.asset;
+        });
+        setPreviewOpen(true);
+        return;
+      }
+
       toast.success(`${KIND_LABEL[kind]} PDF ready.`);
     } catch (err: any) {
-      try { preWin?.close(); } catch { /* noop */ }
       console.error("[ExportPdfButton]", err);
       toast.error("Could not generate PDF. Try again.");
     } finally {
@@ -104,12 +105,20 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
     );
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>{button}</TooltipTrigger>
-        <TooltipContent side="bottom">Download {KIND_LABEL[kind]} as PDF</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent side="bottom">Download {KIND_LABEL[kind]} as PDF</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <PdfExportPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        asset={pdfAsset}
+        label={KIND_LABEL[kind]}
+      />
+    </>
   );
 };
 
