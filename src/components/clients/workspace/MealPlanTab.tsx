@@ -388,8 +388,128 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
         </Card>
       )}
 
+      {/* Previous Plans */}
+      {archived.length > 0 && (
+        <div className="rounded-xl border border-border bg-card/40">
+          <button
+            type="button"
+            onClick={() => setArchivedOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-foreground hover:bg-card/70 transition-colors rounded-xl"
+          >
+            <span className="flex items-center gap-2">
+              <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+              Previous Plans
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{archived.length}</Badge>
+            </span>
+            {archivedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+          {archivedOpen && (
+            <div className="px-3 pb-3 space-y-2">
+              {archived.map(grp => (
+                <div key={grp.group_id} className="rounded-lg border border-border bg-background/40 p-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1 mb-1">
+                        {grp.plans.map(p => (
+                          <Badge
+                            key={p.id}
+                            variant="secondary"
+                            className="text-[10px]"
+                            style={p.day_type === "training"
+                              ? { background: "hsl(var(--primary) / 0.15)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary) / 0.4)" }
+                              : { background: "hsl(var(--secondary))", color: "hsl(var(--foreground))", border: "1px solid #444" }}
+                          >
+                            {p.day_type_label || (p.day_type === "training" ? "Training Day" : "Rest Day")}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {[...new Set(grp.plans.map(p => p.name))].join(" / ")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Archived {new Date(grp.archived_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                        onClick={() => setRestoreConfirmGroup(grp.group_id)}
+                      >
+                        <RotateCcw className="h-3 w-3 mr-1" /> Restore
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeleteGroupConfirm(grp.group_id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Full Grocery List */}
       <CoachGroceryList clientId={clientId} />
+
+      {/* Restore confirmation */}
+      <AlertDialog open={!!restoreConfirmGroup} onOpenChange={(open) => !open && setRestoreConfirmGroup(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore this meal plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The currently active meal plan(s) will be archived, and this snapshot will become active. You can swap back anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (restoreConfirmGroup) {
+                  handleRestoreGroup(restoreConfirmGroup);
+                  setRestoreConfirmGroup(null);
+                }
+              }}
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete archived group confirmation */}
+      <AlertDialog open={!!deleteGroupConfirm} onOpenChange={(open) => !open && setDeleteGroupConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete archived plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the archived meal plan snapshot. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteGroupConfirm) {
+                  handleDeleteGroup(deleteGroupConfirm);
+                  setDeleteGroupConfirm(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
