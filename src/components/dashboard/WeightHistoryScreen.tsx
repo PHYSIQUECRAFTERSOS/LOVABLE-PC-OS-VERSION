@@ -111,6 +111,11 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Measurements tracker state
+  const [measurementsEnabled, setMeasurementsEnabled] = useState(false);
+  const [selectedMeasurement, setSelectedMeasurement] = useState<string>("waist");
+  const [measurementRows, setMeasurementRows] = useState<Array<Record<string, any>>>([]);
+
   const convert = (lbs: number) => convertWeight(lbs);
   const unitLabel = weightLabel;
 
