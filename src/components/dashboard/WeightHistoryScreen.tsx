@@ -345,7 +345,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
 
             {/* Measurements Tracker — only when coach has enabled measurements */}
             {measurementsEnabled && (() => {
-              const rows = measurementRows
+              const rows = (measurementRows as any[])
                 .map((r) => ({ ...r, _v: r[selectedMeasurement] }))
                 .filter((r) => r._v !== null && r._v !== undefined && !isNaN(Number(r._v)));
               const startVal = rows.length > 0 ? Number(rows[0]._v) : null;
