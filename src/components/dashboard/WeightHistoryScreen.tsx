@@ -156,6 +156,41 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     if (open) fetchEntries();
   }, [open, fetchEntries]);
 
+  // Load measurements_enabled and rows
+  useEffect(() => {
+    if (!open || !targetId) return;
+    const load = async () => {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("measurements_enabled")
+        .eq("user_id", targetId)
+        .maybeSingle();
+      setMeasurementsEnabled(prof?.measurements_enabled === true);
+
+      let mq = supabase
+        .from("body_measurements")
+        .select(
+          "measured_at, neck, shoulders, chest, left_arm, right_arm, forearm, waist, hips, left_thigh, right_thigh, left_calf, right_calf, body_fat_pct"
+        )
+        .eq("client_id", targetId)
+        .order("measured_at", { ascending: true });
+
+      const range = RANGE_FILTERS[rangeIdx];
+      if (range.months > 0) {
+        mq = mq.gte("measured_at", format(subMonths(new Date(), range.months), "yyyy-MM-dd"));
+      } else if (range.days > 0) {
+        mq = mq.gte("measured_at", format(new Date(Date.now() - range.days * 86400000), "yyyy-MM-dd"));
+      }
+      const { data } = await mq.limit(1000);
+      setMeasurementRows(data || []);
+    };
+    load();
+    const onLogged = () => load();
+    window.addEventListener("measurements-logged", onLogged);
+    return () => window.removeEventListener("measurements-logged", onLogged);
+  }, [open, targetId, rangeIdx]);
+
+
   const handleSave = async () => {
     if (!targetId || !logWeight) return;
     setSaving(true);
