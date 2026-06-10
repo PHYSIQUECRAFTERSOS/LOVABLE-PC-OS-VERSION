@@ -128,7 +128,47 @@ const MealPlanTab = ({ clientId }: { clientId: string }) => {
       const training = cards.find(c => c.day_type === "training");
       setActiveDayType(training ? "training" : cards[0]?.day_type || "training");
     }
+
+    // Load archived snapshots
+    const { data: archivedRows } = await (supabase as any)
+      .from("meal_plans")
+      .select("id, name, day_type, day_type_label, archive_group_id, archived_at")
+      .eq("client_id", clientId)
+      .eq("is_template", false)
+      .not("archived_at", "is", null)
+      .order("archived_at", { ascending: false });
+
+    const groups = new Map<string, { group_id: string; archived_at: string; plans: any[] }>();
+    for (const row of (archivedRows || [])) {
+      const gid = row.archive_group_id || row.id;
+      if (!groups.has(gid)) {
+        groups.set(gid, { group_id: gid, archived_at: row.archived_at, plans: [] });
+      }
+      groups.get(gid)!.plans.push({ id: row.id, name: row.name, day_type: row.day_type, day_type_label: row.day_type_label });
+    }
+    setArchived(Array.from(groups.values()));
+
     setLoading(false);
+  };
+
+  const handleRestoreGroup = async (groupId: string) => {
+    try {
+      await restoreMealPlanGroup(clientId, groupId);
+      toast({ title: "Meal plan restored. Previous plan archived." });
+      loadAll();
+    } catch (err: any) {
+      toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await deleteArchivedMealPlanGroup(clientId, groupId);
+      toast({ title: "Archived plan deleted" });
+      loadAll();
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    }
   };
 
   const handleEmptySlotClick = (dayType: string) => {
