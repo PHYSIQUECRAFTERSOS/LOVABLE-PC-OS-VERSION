@@ -50,10 +50,13 @@ const ClientWorkspaceProgress = ({ clientId }: { clientId: string }) => {
           .from("profiles")
           .select("measurements_enabled")
           .eq("user_id", clientId)
-          .single(),
+          .maybeSingle(),
       ]);
       setMeasurements(measRes.data || []);
-      setMeasurementsEnabled(profileRes.data?.measurements_enabled ?? false);
+      if (profileRes.error) {
+        console.error("[ProgressTab] Failed to load profile:", profileRes.error);
+      }
+      setMeasurementsEnabled(profileRes.data?.measurements_enabled === true);
 
       const photoData = (photoRes.data || []) as Photo[];
       // Get signed URLs
