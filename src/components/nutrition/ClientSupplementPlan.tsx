@@ -284,7 +284,84 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
     );
   }
 
-  if (!assignment) return null;
+  const showArchivedOnly = !assignment && isCoachView && archivedAssignments.length > 0;
+  if (!assignment && !showArchivedOnly) return null;
+
+  const archivedSection = isCoachView && archivedAssignments.length > 0 ? (
+    <div className="rounded-xl border border-border bg-card/40">
+      <button
+        type="button"
+        onClick={() => setArchivedOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-foreground hover:bg-card/70 transition-colors rounded-xl"
+      >
+        <span className="flex items-center gap-2">
+          <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+          Previous Stacks
+          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{archivedAssignments.length}</Badge>
+        </span>
+        {archivedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+      </button>
+      {archivedOpen && (
+        <div className="px-3 pb-3 space-y-2">
+          {archivedAssignments.map(a => (
+            <div key={a.id} className="rounded-lg border border-border bg-background/40 p-2.5 flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-foreground truncate">{a.plan_name}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {a.item_count} item{a.item_count === 1 ? "" : "s"} • Archived {new Date(a.archived_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-primary hover:text-primary hover:bg-primary/10" onClick={() => setRestoreId(a.id)}>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Restore
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(a.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  if (showArchivedOnly) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Pill className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">Client Supplement Plan</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">No active stack. Restore a previous one or assign from the library.</p>
+        {archivedSection}
+        <AlertDialog open={!!restoreId} onOpenChange={(o) => !o && setRestoreId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Restore this stack?</AlertDialogTitle>
+              <AlertDialogDescription>The currently active stack will be archived and this one will become active.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { if (restoreId) { handleRestoreStack(restoreId); setRestoreId(null); } }}>Restore</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete archived stack?</AlertDialogTitle>
+              <AlertDialogDescription>This permanently deletes the archived stack. This cannot be undone.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleteId) { handleDeleteStack(deleteId); setDeleteId(null); } }}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    );
+  }
 
   // Build enriched items
   const enrichedItems = items.map(i => {
