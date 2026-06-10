@@ -7915,6 +7915,10 @@ export type Database = {
           sugar: number
         }[]
       }
+      set_client_measurements_enabled: {
+        Args: { _client_id: string; _enabled: boolean }
+        Returns: boolean
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       toggle_food_favorite: {
