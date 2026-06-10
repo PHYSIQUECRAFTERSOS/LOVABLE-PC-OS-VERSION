@@ -91,13 +91,13 @@ const PdfExportPreviewDialog = ({ open, onOpenChange, asset, label }: PdfExportP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[92dvh] w-[96vw] max-w-4xl grid-rows-[auto_1fr_auto] gap-3 overflow-hidden border-border bg-background p-3 sm:h-[88vh] sm:p-4">
+      <DialogContent className="flex h-[92dvh] w-[96vw] max-w-4xl flex-col gap-3 overflow-hidden border-border bg-background p-3 sm:h-[88vh] sm:p-4">
         <DialogHeader className="pr-8 text-left">
           <DialogTitle className="text-base text-foreground">{label} PDF</DialogTitle>
           <DialogDescription className="text-xs">{asset?.filename || "PDF export"}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 overflow-hidden rounded-lg border border-border bg-card">
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
           {asset ? (
             <iframe
               ref={frameRef}
