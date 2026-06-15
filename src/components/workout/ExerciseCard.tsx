@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
+import PersonalExerciseNote from "@/components/workout/PersonalExerciseNote";
 import NumericKeypad from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
