@@ -391,28 +391,42 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   };
 
   const handleCopyFromPlan = async (mealKey: string) => {
-    if (!activeDayId) {
-      console.warn("[handleCopyFromPlan] No activeDayId — meal plan may not have loaded yet");
-      toast({ title: "Meal plan not loaded yet", description: "Please wait and try again.", variant: "destructive" });
-      return;
-    }
-    if (!mealPlanItems) {
-      toast({ title: "Meal plan items not available", variant: "destructive" });
+    if (!copySourceDayId || !copySourceItems || !copySourcePlanData.plan) {
+      toast({
+        title: "No meal plan available",
+        description: "Your coach hasn't set up a meal plan yet.",
+        variant: "destructive",
+      });
       return;
     }
     setCopyingMeal(mealKey);
 
-    const planItems = getItemsForMealSection(activeDayId, mealKey, mealPlanItems as any);
+    const planItems = getItemsForMealSection(copySourceDayId, mealKey, copySourceItems as any);
     if (planItems.length === 0) {
       toast({ title: `No items in your meal plan for this section` });
       setCopyingMeal(null);
       return;
     }
 
+    // Warn if we're falling back to the opposite day's plan
+    if (copySourcePlanData.source === "opposite") {
+      const wanted = copySourcePlanData.wantKey === "rest" ? "Rest Day" : "Training Day";
+      const used = copySourcePlanData.wantKey === "rest" ? "Training Day" : "Rest Day";
+      toast({
+        title: `No ${wanted} meal plan`,
+        description: `Copying from your ${used} plan instead.`,
+      });
+    }
+
     const success = await copyMealToTracker(planItems, mealKey);
     if (success) {
-      const label = activePlanDayType === "rest" ? "Rest Day" : "Training Day";
-      toast({ title: `${label} plan loaded · ${planItems.length} items` });
+      const usedLabel =
+        copySourcePlanData.plan.day_type === "rest"
+          ? "Rest Day"
+          : copySourcePlanData.plan.day_type === "training"
+            ? "Training Day"
+            : copySourcePlanData.plan.day_type_label || "Meal";
+      toast({ title: `${usedLabel} plan loaded · ${planItems.length} items` });
       await fetchLogs();
       refreshSuggestions();
     } else {
@@ -421,10 +435,10 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     setCopyingMeal(null);
   };
 
-  // Check if a meal section has plan items
+  // Check if a meal section has plan items (uses the day-type-resolved source plan)
   const hasPlanItems = (mealKey: string) => {
-    if (!activeDayId || !mealPlanItems) return false;
-    return getItemsForMealSection(activeDayId, mealKey, mealPlanItems as any).length > 0;
+    if (!copySourceDayId || !copySourceItems) return false;
+    return getItemsForMealSection(copySourceDayId, mealKey, copySourceItems as any).length > 0;
   };
 
   const toggleSelectId = (id: string) => {
