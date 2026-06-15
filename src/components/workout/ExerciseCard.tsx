@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import InlineRestTimer from "@/components/workout/InlineRestTimer";
+import PersonalExerciseNote from "@/components/workout/PersonalExerciseNote";
 import NumericKeypad from "@/components/workout/NumericKeypad";
 import { cn } from "@/lib/utils";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
@@ -467,6 +468,9 @@ const ExerciseCard = ({
         {notes && (
           <div className="p-2 rounded bg-secondary/50 text-xs text-muted-foreground">{notes}</div>
         )}
+
+        <PersonalExerciseNote exerciseId={exerciseId} />
+
 
         {/* Header row */}
         <div className="grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 px-1 items-center">
