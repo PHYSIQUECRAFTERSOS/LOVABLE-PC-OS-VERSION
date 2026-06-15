@@ -138,6 +138,33 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   // Prevents the training plan's "(pre workout)" tags leaking onto rest days via fallback.
   const subtitleItems = mealPlan && mealPlan.day_type === dayTypeKey ? mealPlanItems : [];
 
+  /**
+   * Source plan used by "Copy from meal plan" — driven STRICTLY by the calendar
+   * resolved dayType, independent of the user's browsing pill (`activePlanDayType`).
+   * Lookup order:
+   *   1. Plan matching the resolved day (training or rest)
+   *   2. "all_days" plan
+   *   3. Opposite-day plan (with warning toast on copy)
+   */
+  const copySourcePlanData = useMemo(() => {
+    const wantKey = dayType === "training_day" ? "training" : "rest";
+    const direct = getPlanByDayType(wantKey);
+    if (direct.plan) return { ...direct, source: "direct" as const, wantKey };
+
+    const allDays = getPlanByDayType("all_days");
+    if (allDays.plan) return { ...allDays, source: "all_days" as const, wantKey };
+
+    const oppositeKey = wantKey === "training" ? "rest" : "training";
+    const opposite = getPlanByDayType(oppositeKey);
+    if (opposite.plan) return { ...opposite, source: "opposite" as const, wantKey };
+
+    return { plan: null, days: [], items: [], source: "none" as const, wantKey };
+  }, [dayType, getPlanByDayType]);
+
+  const copySourceDayId = copySourcePlanData.days?.[0]?.id || null;
+  const copySourceItems = copySourcePlanData.items;
+
+
 
   // Determine available plan pills (only show pills if 2+ plans exist)
   const availablePlanPills = useMemo(() => {
