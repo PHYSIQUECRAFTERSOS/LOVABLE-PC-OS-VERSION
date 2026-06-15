@@ -469,6 +469,9 @@ const ExerciseCard = ({
           <div className="p-2 rounded bg-secondary/50 text-xs text-muted-foreground">{notes}</div>
         )}
 
+        <PersonalExerciseNote exerciseId={exerciseId} />
+
+
         {/* Header row */}
         <div className="grid grid-cols-[2rem_1fr_1fr_1fr_auto] gap-1.5 px-1 items-center">
           <span className="text-[10px] font-medium text-muted-foreground uppercase">Set</span>
