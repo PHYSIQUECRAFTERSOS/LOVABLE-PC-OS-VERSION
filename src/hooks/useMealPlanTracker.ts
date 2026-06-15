@@ -253,20 +253,34 @@ export function useMealPlanTracker(selectedDate?: Date) {
     [items]
   );
 
-  /** Position-based items lookup. mealKey is "meal-1".."meal-6". */
+  /**
+   * Items lookup for tracker slot.
+   * Priority:
+   *   1. Exact-name match: tracker "meal-3" ⇒ items whose meal_name maps to "meal-3"
+   *      (handles "Meal 3", "Meal 3 (Pre-Workout)", "meal-3", legacy keys).
+   *   2. Fallback: position-based ordering for plans that use custom meal names
+   *      ("Breakfast", "Lunch") without numbered prefixes.
+   */
   const getItemsForMealSection = useCallback(
     (dayId: string, mealKey: string, planItems?: MealPlanFood[]): MealPlanFood[] => {
       const src = planItems || items || [];
-      const match = mealKey.match(/^meal-([1-6])$/);
-      if (!match) {
-        return src.filter(
-          (i) => i.day_id === dayId && mapMealNameToKey(i.meal_name) === mealKey
-        );
-      }
-      const position = Number(match[1]);
       const dayItems = src.filter((i) => i.day_id === dayId);
+
+      // Path 1: name-based map (works for both numbered and legacy names)
+      const named = dayItems.filter(
+        (i) => mapMealNameToKey(i.meal_name) === mealKey
+      );
+      if (named.length > 0) return named;
+
+      // Path 2: position fallback for "meal-N" keys
+      const match = mealKey.match(/^meal-([1-6])$/);
+      if (!match) return [];
+      const position = Number(match[1]);
       const coachName = getCoachMealNameForPosition(dayItems as any, dayId, position);
       if (!coachName) return [];
+      // Avoid double-claiming: only return position items if no other slot already owns this name by exact match.
+      const nameKey = mapMealNameToKey(coachName);
+      if (/^meal-[1-6]$/.test(nameKey) && nameKey !== mealKey) return [];
       return dayItems.filter((i) => i.meal_name === coachName);
     },
     [items]
@@ -277,6 +291,12 @@ export function useMealPlanTracker(selectedDate?: Date) {
     (dayId: string, position: number, planItems?: MealPlanFood[]): string | null => {
       const src = planItems || items || [];
       const dayItems = src.filter((i) => i.day_id === dayId);
+
+      // Prefer exact-name match: find the first item whose name maps to meal-<position>.
+      const targetKey = `meal-${position}`;
+      const direct = dayItems.find((i) => mapMealNameToKey(i.meal_name) === targetKey);
+      if (direct) return direct.meal_name;
+
       return getCoachMealNameForPosition(dayItems as any, dayId, position);
     },
     [items]
