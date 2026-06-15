@@ -1340,6 +1340,41 @@ export type Database = {
         }
         Relationships: []
       }
+      client_exercise_notes: {
+        Row: {
+          client_id: string
+          created_at: string
+          exercise_id: string
+          id: string
+          note: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          exercise_id: string
+          id?: string
+          note?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          note?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_exercise_notes_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_goals: {
         Row: {
           aggressiveness: number | null
