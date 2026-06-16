@@ -308,12 +308,22 @@ const WorkoutHistory = () => {
             {exerciseTrends.map(trend => (
               <div key={trend.exerciseId} className="space-y-2">
                 <h4 className="text-sm font-medium text-foreground">{trend.exerciseName}</h4>
-                <div className="h-40">
+                <div className="h-44">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trend.data}>
+                    <LineChart data={trend.data} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
-                      <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+                      <YAxis
+                        yAxisId="left"
+                        tick={{ fontSize: 9, fill: "hsl(200 70% 55%)" }}
+                        width={40}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tick={{ fontSize: 9, fill: "hsl(var(--primary))" }}
+                        width={36}
+                      />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "hsl(var(--card))",
@@ -324,6 +334,7 @@ const WorkoutHistory = () => {
                       />
                       <Legend wrapperStyle={{ fontSize: 10 }} />
                       <Line
+                        yAxisId="right"
                         type="monotone"
                         dataKey="maxWeight"
                         name="Max Weight"
@@ -332,6 +343,7 @@ const WorkoutHistory = () => {
                         dot={{ r: 2 }}
                       />
                       <Line
+                        yAxisId="left"
                         type="monotone"
                         dataKey="volume"
                         name="Volume"
@@ -342,6 +354,7 @@ const WorkoutHistory = () => {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
+
               </div>
             ))}
           </CardContent>
