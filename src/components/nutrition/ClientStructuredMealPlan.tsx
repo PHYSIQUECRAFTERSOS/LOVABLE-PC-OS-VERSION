@@ -195,10 +195,12 @@ const ClientStructuredMealPlan = ({
       custom_name: item.custom_name,
       meal_type: mealKey,
       servings: 1,
-      calories: Math.round(Number(item.calories) || 0),
-      protein: Math.round(Number(item.protein) || 0),
-      carbs: Math.round(Number(item.carbs) || 0),
-      fat: Math.round(Number(item.fat) || 0),
+      // Store RAW float macros (round only at display) to keep tracker totals
+      // aligned with the plan target — prevents per-item rounding drift.
+      calories: Number(item.calories) || 0,
+      protein: Number(item.protein) || 0,
+      carbs: Number(item.carbs) || 0,
+      fat: Number(item.fat) || 0,
       logged_at: dateStr,
       tz_corrected: true,
       quantity_display: item.gram_amount || item.serving_size || null,
