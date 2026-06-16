@@ -195,10 +195,12 @@ const ClientStructuredMealPlan = ({
       custom_name: item.custom_name,
       meal_type: mealKey,
       servings: 1,
-      calories: Math.round(Number(item.calories) || 0),
-      protein: Math.round(Number(item.protein) || 0),
-      carbs: Math.round(Number(item.carbs) || 0),
-      fat: Math.round(Number(item.fat) || 0),
+      // Store RAW float macros (round only at display) to keep tracker totals
+      // aligned with the plan target — prevents per-item rounding drift.
+      calories: Number(item.calories) || 0,
+      protein: Number(item.protein) || 0,
+      carbs: Number(item.carbs) || 0,
+      fat: Number(item.fat) || 0,
       logged_at: dateStr,
       tz_corrected: true,
       quantity_display: item.gram_amount || item.serving_size || null,
@@ -440,7 +442,7 @@ const ClientStructuredMealPlan = ({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground tabular-nums">{sectionTotals.calories} cal</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{Math.round(sectionTotals.calories)} cal</span>
                 {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </div>
             </button>
@@ -478,11 +480,11 @@ const ClientStructuredMealPlan = ({
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs text-muted-foreground">{item.gram_amount}g</span>
                           <span className="text-[10px] text-muted-foreground/70">•</span>
-                          <span className="text-xs text-muted-foreground">{item.calories} cal</span>
+                          <span className="text-xs text-muted-foreground">{Math.round(Number(item.calories) || 0)} cal</span>
                           <span className="text-[10px] text-muted-foreground/70">•</span>
-                          <span className="text-[10px] text-destructive/80">{item.protein}P</span>
-                          <span className="text-[10px] text-info/80">{item.carbs}C</span>
-                          <span className="text-[10px] text-warn/80">{item.fat}F</span>
+                          <span className="text-[10px] text-destructive/80">{Math.round(Number(item.protein) || 0)}P</span>
+                          <span className="text-[10px] text-info/80">{Math.round(Number(item.carbs) || 0)}C</span>
+                          <span className="text-[10px] text-warn/80">{Math.round(Number(item.fat) || 0)}F</span>
                         </div>
                       </div>
                       <button
