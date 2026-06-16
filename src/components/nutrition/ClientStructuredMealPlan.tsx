@@ -442,7 +442,7 @@ const ClientStructuredMealPlan = ({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground tabular-nums">{sectionTotals.calories} cal</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{Math.round(sectionTotals.calories)} cal</span>
                 {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </div>
             </button>
