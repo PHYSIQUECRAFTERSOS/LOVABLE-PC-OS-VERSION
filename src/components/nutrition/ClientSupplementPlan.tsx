@@ -127,11 +127,14 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
 
     setAssignment(assignData);
 
-    const [{ data: planItems }, { data: overrideData }, { data: logs }] = await Promise.all([
+    const [{ data: planItems }, { data: overrideData }, { data: logs }, { data: planRow }] = await Promise.all([
       supabase.from("supplement_plan_items").select("*").eq("plan_id", assignData.plan_id).order("timing_slot").order("sort_order"),
       supabase.from("client_supplement_overrides").select("*").eq("assignment_id", assignData.id),
       supabase.from("supplement_logs").select("*").eq("client_id", viewerId).eq("logged_at", today),
+      supabase.from("supplement_plans").select("id, name, is_master, coach_id").eq("id", assignData.plan_id).maybeSingle(),
     ]);
+
+    setPlanInfo(planRow as any);
 
     const itemList = (planItems as any[]) || [];
     setItems(itemList);
