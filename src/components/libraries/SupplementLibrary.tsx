@@ -475,6 +475,9 @@ const SupplementLibrary = () => {
               {isOwner && (
                 <>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => startRenamePlan(plan)}>
+                    <Edit className="h-3.5 w-3.5 mr-2" /> Rename
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => togglePlanShared(plan)}>
                     {plan.is_master
                       ? <><Lock className="h-3.5 w-3.5 mr-2" /> Make Private</>
