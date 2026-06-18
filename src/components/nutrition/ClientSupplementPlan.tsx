@@ -176,6 +176,61 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
     }
   };
 
+  const handleUnlinkFromMaster = async () => {
+    if (!assignment || !viewerId || !user || !planInfo) return;
+    setUnlinking(true);
+    try {
+      // Bake overrides into a fresh private copy
+      const overrideArr = Array.from(overrides.values()) as any[];
+      const overrideByItem = new Map(overrideArr.map(o => [o.plan_item_id, o]));
+      const removedSet = new Set(overrideArr.filter(o => o.is_removed).map(o => o.plan_item_id));
+
+      const { data: newPlan, error: e1 } = await supabase.from("supplement_plans").insert({
+        coach_id: user.id,
+        name: `${planInfo.name} (Client Copy)`,
+        is_master: false,
+      } as any).select().single();
+      if (e1 || !newPlan) throw e1 || new Error("Failed to create copy");
+
+      const newItems = items
+        .filter(i => !removedSet.has(i.id))
+        .map((i, idx) => {
+          const o: any = overrideByItem.get(i.id);
+          return {
+            plan_id: (newPlan as any).id,
+            master_supplement_id: i.master_supplement_id,
+            dosage: o?.dosage_override || i.dosage,
+            dosage_unit: i.dosage_unit,
+            timing_slot: o?.timing_override || i.timing_slot,
+            sort_order: idx,
+            coach_note: o?.coach_note_override || i.coach_note,
+            link_url_override: i.link_url_override,
+            discount_code_override: i.discount_code_override,
+          };
+        });
+
+      if (newItems.length > 0) {
+        const { error: e2 } = await supabase.from("supplement_plan_items").insert(newItems);
+        if (e2) throw e2;
+      }
+
+      const { error: e3 } = await supabase
+        .from("client_supplement_assignments")
+        .update({ plan_id: (newPlan as any).id } as any)
+        .eq("id", assignment.id);
+      if (e3) throw e3;
+
+      await supabase.from("client_supplement_overrides").delete().eq("assignment_id", assignment.id);
+
+      toast({ title: "Unlinked from master stack", description: "Edits here no longer affect the master." });
+      setConfirmUnlink(false);
+      load();
+    } catch (err: any) {
+      toast({ title: "Unlink failed", description: err?.message || String(err), variant: "destructive" });
+    }
+    setUnlinking(false);
+  };
+
 
   useEffect(() => { load(); }, [load]);
 
