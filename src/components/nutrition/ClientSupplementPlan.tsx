@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Pill, Check, Minus, Plus, ExternalLink, Tag, Pencil, Trash2, Undo2, Save, X, PackagePlus,
-  Archive, RotateCcw, ChevronDown, ChevronRight,
+  Archive, RotateCcw, ChevronDown, ChevronRight, Unlink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ImportSupplementDialog from "./ImportSupplementDialog";
@@ -61,6 +61,9 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
   const [supplements, setSupplements] = useState<Map<string, any>>(new Map());
   const [overrides, setOverrides] = useState<Map<string, any>>(new Map());
   const [todayLogs, setTodayLogs] = useState<Map<string, any>>(new Map());
+  const [planInfo, setPlanInfo] = useState<{ id: string; name: string; is_master: boolean; coach_id: string } | null>(null);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ dosage: "", dosageUnit: "", timing: "", note: "" });
   const [showRemoved, setShowRemoved] = useState(false);
@@ -124,11 +127,14 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
 
     setAssignment(assignData);
 
-    const [{ data: planItems }, { data: overrideData }, { data: logs }] = await Promise.all([
+    const [{ data: planItems }, { data: overrideData }, { data: logs }, { data: planRow }] = await Promise.all([
       supabase.from("supplement_plan_items").select("*").eq("plan_id", assignData.plan_id).order("timing_slot").order("sort_order"),
       supabase.from("client_supplement_overrides").select("*").eq("assignment_id", assignData.id),
       supabase.from("supplement_logs").select("*").eq("client_id", viewerId).eq("logged_at", today),
+      supabase.from("supplement_plans").select("id, name, is_master, coach_id").eq("id", assignData.plan_id).maybeSingle(),
     ]);
+
+    setPlanInfo(planRow as any);
 
     const itemList = (planItems as any[]) || [];
     setItems(itemList);
@@ -168,6 +174,61 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
     } catch (err: any) {
       toast({ title: "Delete failed", description: err.message, variant: "destructive" });
     }
+  };
+
+  const handleUnlinkFromMaster = async () => {
+    if (!assignment || !viewerId || !user || !planInfo) return;
+    setUnlinking(true);
+    try {
+      // Bake overrides into a fresh private copy
+      const overrideArr = Array.from(overrides.values()) as any[];
+      const overrideByItem = new Map(overrideArr.map(o => [o.plan_item_id, o]));
+      const removedSet = new Set(overrideArr.filter(o => o.is_removed).map(o => o.plan_item_id));
+
+      const { data: newPlan, error: e1 } = await supabase.from("supplement_plans").insert({
+        coach_id: user.id,
+        name: `${planInfo.name} (Client Copy)`,
+        is_master: false,
+      } as any).select().single();
+      if (e1 || !newPlan) throw e1 || new Error("Failed to create copy");
+
+      const newItems = items
+        .filter(i => !removedSet.has(i.id))
+        .map((i, idx) => {
+          const o: any = overrideByItem.get(i.id);
+          return {
+            plan_id: (newPlan as any).id,
+            master_supplement_id: i.master_supplement_id,
+            dosage: o?.dosage_override || i.dosage,
+            dosage_unit: i.dosage_unit,
+            timing_slot: o?.timing_override || i.timing_slot,
+            sort_order: idx,
+            coach_note: o?.coach_note_override || i.coach_note,
+            link_url_override: i.link_url_override,
+            discount_code_override: i.discount_code_override,
+          };
+        });
+
+      if (newItems.length > 0) {
+        const { error: e2 } = await supabase.from("supplement_plan_items").insert(newItems);
+        if (e2) throw e2;
+      }
+
+      const { error: e3 } = await supabase
+        .from("client_supplement_assignments")
+        .update({ plan_id: (newPlan as any).id } as any)
+        .eq("id", assignment.id);
+      if (e3) throw e3;
+
+      await supabase.from("client_supplement_overrides").delete().eq("assignment_id", assignment.id);
+
+      toast({ title: "Unlinked from master stack", description: "Edits here no longer affect the master." });
+      setConfirmUnlink(false);
+      load();
+    } catch (err: any) {
+      toast({ title: "Unlink failed", description: err?.message || String(err), variant: "destructive" });
+    }
+    setUnlinking(false);
   };
 
 
@@ -403,6 +464,17 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
         </div>
         <div className="flex items-center gap-2">
           {viewerId && <ExportPdfButton kind="supplements" clientId={viewerId} />}
+          {isCoachView && assignment && planInfo?.is_master && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-warn/40 text-warn hover:bg-warn/10"
+              onClick={() => setConfirmUnlink(true)}
+              title="Detach from the master stack so edits here only affect this client"
+            >
+              <Unlink className="h-3 w-3 mr-1" /> Unlink from Master
+            </Button>
+          )}
           {isCoachView && (
             <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary" onClick={() => setImportOpen(true)}>
               <PackagePlus className="h-3 w-3 mr-1" /> Import from Library
@@ -410,6 +482,23 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
           )}
         </div>
       </div>
+
+      <AlertDialog open={confirmUnlink} onOpenChange={(o) => !unlinking && setConfirmUnlink(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink from master stack?</AlertDialogTitle>
+            <AlertDialogDescription>
+              We'll create a private copy of "{planInfo?.name}" just for this client, with all current edits baked in. Future edits here will only affect this client and won't touch the master stack.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unlinking}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnlinkFromMaster} disabled={unlinking}>
+              {unlinking ? "Unlinking…" : "Unlink"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Timing Groups */}
       {grouped.map(group => (

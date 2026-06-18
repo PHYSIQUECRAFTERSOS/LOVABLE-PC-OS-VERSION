@@ -142,6 +142,10 @@ const SupplementLibrary = () => {
   const [editNote, setEditNote] = useState("");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Rename plan state
+  const [renamingPlanId, setRenamingPlanId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
   const canEdit = useCallback((item: { coach_id: string }) => {
     return item.coach_id === user?.id || isAdmin;
   }, [user?.id, isAdmin]);
@@ -309,6 +313,30 @@ const SupplementLibrary = () => {
     loadData();
   };
 
+  const startRenamePlan = (plan: SupplementPlan) => {
+    setSelectedPlanId(plan.id);
+    setRenamingPlanId(plan.id);
+    setRenameDraft(plan.name);
+  };
+
+  const saveRenamePlan = async () => {
+    if (!renamingPlanId) return;
+    const newName = renameDraft.trim();
+    if (!newName) { setRenamingPlanId(null); return; }
+    const original = plans.find(p => p.id === renamingPlanId);
+    if (original && original.name === newName) { setRenamingPlanId(null); return; }
+    // Optimistic
+    setPlans(prev => prev.map(p => p.id === renamingPlanId ? { ...p, name: newName } : p));
+    const { error } = await supabase.from("supplement_plans").update({ name: newName }).eq("id", renamingPlanId);
+    if (error) {
+      toast({ title: "Rename failed", description: error.message, variant: "destructive" });
+      loadData();
+    } else {
+      toast({ title: "Renamed" });
+    }
+    setRenamingPlanId(null);
+  };
+
   const togglePlanShared = async (plan: SupplementPlan) => {
     const { error } = await supabase.from("supplement_plans").update({ is_master: !plan.is_master } as any).eq("id", plan.id);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
@@ -447,6 +475,9 @@ const SupplementLibrary = () => {
               {isOwner && (
                 <>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => startRenamePlan(plan)}>
+                    <Edit className="h-3.5 w-3.5 mr-2" /> Rename
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => togglePlanShared(plan)}>
                     {plan.is_master
                       ? <><Lock className="h-3.5 w-3.5 mr-2" /> Make Private</>
@@ -681,7 +712,30 @@ const SupplementLibrary = () => {
             <div className="p-4 sm:p-6 space-y-6">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base sm:text-lg font-bold text-foreground truncate">{selectedPlan.name}</h2>
+                  {renamingPlanId === selectedPlan.id ? (
+                    <Input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={saveRenamePlan}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); saveRenamePlan(); }
+                        if (e.key === "Escape") { setRenamingPlanId(null); }
+                      }}
+                      className="h-9 text-base sm:text-lg font-bold"
+                    />
+                  ) : (
+                    <h2
+                      className={cn(
+                        "text-base sm:text-lg font-bold text-foreground truncate",
+                        canEditSelectedPlan && "cursor-text hover:bg-muted/40 -mx-1 px-1 rounded transition-colors"
+                      )}
+                      title={canEditSelectedPlan ? "Click to rename" : undefined}
+                      onClick={() => { if (canEditSelectedPlan) startRenamePlan(selectedPlan); }}
+                    >
+                      {selectedPlan.name}
+                    </h2>
+                  )}
                   {selectedPlan.description && <p className="text-sm text-muted-foreground">{selectedPlan.description}</p>}
                   {selectedPlan.coach_id !== user?.id && creatorNames[selectedPlan.coach_id] && (
                     <p className="text-xs text-muted-foreground/70 mt-0.5">by {creatorNames[selectedPlan.coach_id]}</p>
