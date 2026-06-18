@@ -142,6 +142,10 @@ const SupplementLibrary = () => {
   const [editNote, setEditNote] = useState("");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Rename plan state
+  const [renamingPlanId, setRenamingPlanId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
   const canEdit = useCallback((item: { coach_id: string }) => {
     return item.coach_id === user?.id || isAdmin;
   }, [user?.id, isAdmin]);
