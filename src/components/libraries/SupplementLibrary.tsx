@@ -313,6 +313,29 @@ const SupplementLibrary = () => {
     loadData();
   };
 
+  const startRenamePlan = (plan: SupplementPlan) => {
+    setSelectedPlanId(plan.id);
+    setRenamingPlanId(plan.id);
+    setRenameDraft(plan.name);
+  };
+
+  const saveRenamePlan = async () => {
+    if (!renamingPlanId) return;
+    const newName = renameDraft.trim();
+    if (!newName) { setRenamingPlanId(null); return; }
+    const original = plans.find(p => p.id === renamingPlanId);
+    if (original && original.name === newName) { setRenamingPlanId(null); return; }
+    // Optimistic
+    setPlans(prev => prev.map(p => p.id === renamingPlanId ? { ...p, name: newName } : p));
+    const { error } = await supabase.from("supplement_plans").update({ name: newName }).eq("id", renamingPlanId);
+    if (error) {
+      toast({ title: "Rename failed", description: error.message, variant: "destructive" });
+      loadData();
+    } else {
+      toast({ title: "Renamed" });
+    }
+    setRenamingPlanId(null);
+
   const togglePlanShared = async (plan: SupplementPlan) => {
     const { error } = await supabase.from("supplement_plans").update({ is_master: !plan.is_master } as any).eq("id", plan.id);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
