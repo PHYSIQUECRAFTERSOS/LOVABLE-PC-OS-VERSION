@@ -61,6 +61,9 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
   const [supplements, setSupplements] = useState<Map<string, any>>(new Map());
   const [overrides, setOverrides] = useState<Map<string, any>>(new Map());
   const [todayLogs, setTodayLogs] = useState<Map<string, any>>(new Map());
+  const [planInfo, setPlanInfo] = useState<{ id: string; name: string; is_master: boolean; coach_id: string } | null>(null);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ dosage: "", dosageUnit: "", timing: "", note: "" });
   const [showRemoved, setShowRemoved] = useState(false);
