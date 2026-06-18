@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Pill, Check, Minus, Plus, ExternalLink, Tag, Pencil, Trash2, Undo2, Save, X, PackagePlus,
-  Archive, RotateCcw, ChevronDown, ChevronRight,
+  Archive, RotateCcw, ChevronDown, ChevronRight, Unlink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ImportSupplementDialog from "./ImportSupplementDialog";
