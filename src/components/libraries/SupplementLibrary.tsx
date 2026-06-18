@@ -712,7 +712,30 @@ const SupplementLibrary = () => {
             <div className="p-4 sm:p-6 space-y-6">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base sm:text-lg font-bold text-foreground truncate">{selectedPlan.name}</h2>
+                  {renamingPlanId === selectedPlan.id ? (
+                    <Input
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={saveRenamePlan}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); saveRenamePlan(); }
+                        if (e.key === "Escape") { setRenamingPlanId(null); }
+                      }}
+                      className="h-9 text-base sm:text-lg font-bold"
+                    />
+                  ) : (
+                    <h2
+                      className={cn(
+                        "text-base sm:text-lg font-bold text-foreground truncate",
+                        canEditSelectedPlan && "cursor-text hover:bg-muted/40 -mx-1 px-1 rounded transition-colors"
+                      )}
+                      title={canEditSelectedPlan ? "Click to rename" : undefined}
+                      onClick={() => { if (canEditSelectedPlan) startRenamePlan(selectedPlan); }}
+                    >
+                      {selectedPlan.name}
+                    </h2>
+                  )}
                   {selectedPlan.description && <p className="text-sm text-muted-foreground">{selectedPlan.description}</p>}
                   {selectedPlan.coach_id !== user?.id && creatorNames[selectedPlan.coach_id] && (
                     <p className="text-xs text-muted-foreground/70 mt-0.5">by {creatorNames[selectedPlan.coach_id]}</p>
