@@ -335,6 +335,7 @@ const SupplementLibrary = () => {
       toast({ title: "Renamed" });
     }
     setRenamingPlanId(null);
+  };
 
   const togglePlanShared = async (plan: SupplementPlan) => {
     const { error } = await supabase.from("supplement_plans").update({ is_master: !plan.is_master } as any).eq("id", plan.id);
