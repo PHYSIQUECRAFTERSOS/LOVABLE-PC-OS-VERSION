@@ -464,6 +464,17 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
         </div>
         <div className="flex items-center gap-2">
           {viewerId && <ExportPdfButton kind="supplements" clientId={viewerId} />}
+          {isCoachView && assignment && planInfo?.is_master && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-warn/40 text-warn hover:bg-warn/10"
+              onClick={() => setConfirmUnlink(true)}
+              title="Detach from the master stack so edits here only affect this client"
+            >
+              <Unlink className="h-3 w-3 mr-1" /> Unlink from Master
+            </Button>
+          )}
           {isCoachView && (
             <Button size="sm" variant="outline" className="h-7 text-xs border-primary/30 text-primary" onClick={() => setImportOpen(true)}>
               <PackagePlus className="h-3 w-3 mr-1" /> Import from Library
@@ -471,6 +482,23 @@ const ClientSupplementPlan = ({ clientId }: ClientSupplementPlanProps) => {
           )}
         </div>
       </div>
+
+      <AlertDialog open={confirmUnlink} onOpenChange={(o) => !unlinking && setConfirmUnlink(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink from master stack?</AlertDialogTitle>
+            <AlertDialogDescription>
+              We'll create a private copy of "{planInfo?.name}" just for this client, with all current edits baked in. Future edits here will only affect this client and won't touch the master stack.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unlinking}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleUnlinkFromMaster} disabled={unlinking}>
+              {unlinking ? "Unlinking…" : "Unlink"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Timing Groups */}
       {grouped.map(group => (
