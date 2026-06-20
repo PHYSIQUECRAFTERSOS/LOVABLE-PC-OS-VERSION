@@ -1,50 +1,61 @@
-## The Problem (Root Cause Confirmed)
+## Goal
+Make the workout rest timer behave like Strong: the sound plays only when the countdown reaches zero, never early, never randomly, and does not stop Spotify/Apple Music.
 
-When you save a meal plan, every food's macros are **rounded to integers before being stored** in the database. Auto Track then copies those already-rounded values into the nutrition tracker.
+## What I found
+- The uploaded MP3 is already the exact same file currently bundled as `public/sounds/rest-timer-complete.mp3`.
+- The app already has the right native strategy in place: a lightweight `AudioMixPlugin` using iOS `AVAudioSession` with `.mixWithOthers`, not a third-party audio kit.
+- The risky part is timer/event management: stale worker messages, app foreground/background transitions, and old scheduled notifications can cause early, late, or duplicate sounds.
 
-Example from Kevin's plan (from the DB):
-- Egg White 200g → stored as `104 cal, 22P, 1C, 0F` (real value is ~104.0 cal / 21.6P / 1.44C / 0.3F)
-- Blueberries 100g → stored as `57 cal, 1P, 14C, 0F` (real value ~57 / 0.7 / 14.5 / 0.3)
+## Recommended solution
 
-Each row loses up to ~1 cal / 1 g per macro to rounding. Sum 25 foods and you get a ±5–90 cal drift vs the daily target — exactly the "-7 cal, -2g C" and "-88 cal" your clients are reporting.
+### 1. Keep one sound path for each app state
+- Foreground app: play the MP3 through the existing `AudioMixPlugin` on native, or `HTMLAudioElement` on web/PWA.
+- Background/locked app: schedule a local notification only when the app actually goes into the background, for the exact timer end time.
+- Cancel any pending background notification immediately when the app returns to foreground, when the timer is skipped, or when the workout/timer unmounts.
 
-The display target (3267) was computed from the same rounded items, but when copied to the tracker the rounding gap shows up as "calories off."
+### 2. Add a stricter timer “run ID” guard
+Update `InlineRestTimer.tsx` so every rest timer instance has a unique run ID.
+- Worker `done` messages from an older timer are ignored.
+- The sound can only fire if the active run ID matches.
+- The sound can only fire when `Date.now()` is at or past the stored `endTime`.
+- `hasPlayedRef` remains the final one-shot lock so the sound cannot double-play.
 
-This also violates the existing project memory **"Meal Plan Math Integrity — Raw float accumulation, UI-only rounding to prevent drift"** — the builder is currently breaking that rule on save.
+This directly targets the “plays at 30 seconds / 50 seconds” problem.
 
-## The Fix
+### 3. Tighten worker completion semantics
+Update `timerWorker.ts` to send a single `done` event per timer run and stop itself immediately after completion.
+- Keep wall-clock timing based on `endTime`, not decrementing state.
+- Include the timer run ID in tick/done messages.
+- Ignore any late message after stop/reset.
 
-Store the **true float** macros in the database; round **only at the moment of rendering**. The DB columns are already `numeric` so no migration is needed.
+### 4. Harden audio preload/playback
+Update `restTimerAudio.ts` to:
+- Keep preload idempotent.
+- Reuse the same audio object.
+- Reset playback to `0` only at the actual zero event.
+- Keep the native audio session mixing path intact so music continues playing.
+- Avoid notification scheduling if the timer is already too close to zero or already completed.
 
-### 1. `src/components/nutrition/MealPlanBuilder.tsx`
-- In the save payload (currently lines ~612–615), remove `Math.round()` around `calories / protein / carbs / fat`. Store the precise `cal_per_100 * gram_amount / 100` floats.
-- Compute the plan's `target_calories / target_protein / target_carbs / target_fat` from the **raw float** sum of all items (no per-item rounding), then `Math.round()` only the final stored target. This makes the target consistent with what tracker totals will display.
-- In the builder UI, wrap every macro readout in `Math.round(...)` at render time (Meal headers, per-item `104cal 22P 1C 0F`, day totals, Nutrition Goal "left" pills). The user explicitly required: never show decimals.
+### 5. Add regression tests
+Update `inlineRestTimer.test.tsx` to verify:
+- No sound/vibration on normal ticks like 30s or 50s remaining.
+- Sound/vibration happens once on `done`.
+- Duplicate `done` messages do not double-fire.
+- Stale/old timer messages are ignored after a new timer starts.
+- Skipping cancels the path and prevents later sound.
 
-### 2. `src/hooks/useMealPlanTracker.ts` (`copyMealToTracker` + `copyEntireDayToTracker`)
-- No logic change needed — already passes `Number(item.calories)` through. Once the source stores floats, the tracker receives floats automatically.
-- Keep the existing `quantity_display / quantity_unit` mapping (per Meal Plan → Tracker Integration memory).
+## Files affected
+- `src/components/workout/InlineRestTimer.tsx`
+- `src/services/timerWorker.ts`
+- `src/utils/restTimerAudio.ts`
+- `src/test/inlineRestTimer.test.tsx`
 
-### 3. `src/components/nutrition/DailyNutritionLog.tsx` (Tracker view)
-- Audit the "Daily Total", "Remaining", and per-meal subtotals: ensure they sum the **raw floats** from `nutrition_logs` and call `Math.round()` only at render. Per-food line items (e.g. "104 cal · 22P") also render via `Math.round()`.
-- "Remaining" = `Math.round(target) − Math.round(sum_raw)` → 0/0/0/0 when the user fully tracks the plan as written.
+## What I will not change
+- No database changes.
+- No new edge functions.
+- No new third-party audio kit.
+- No rewrite of the workout logger.
+- No new Xcode-native feature unless you later want background/lock-screen behavior improved beyond what local notifications can do.
 
-### 4. Backfill existing Kevin Wu / Keith / Andrew plans (one-shot)
-For meal plan items where `food_item_id` is set, recompute `calories/protein/carbs/fat` from `food_items.{calories,protein,carbs,fat}` (per `serving_size`) × `gram_amount`, storing the floats. For custom-name-only items (no `food_item_id`, like the ones in Kevin's plan above) we cannot recover the lost decimals — they stay as the existing integers, but **all future edits/additions will be stored as floats**. Clients with active plans can be fixed by you simply re-saving the plan once in the builder (every row recomputes from per-100g source).
-
-Optionally I can also re-derive `cal_per_100` etc. for legacy custom items from existing rounded values and re-multiply by gram_amount to at least keep them internally consistent — let me know if you want that.
-
-### Out of scope (not changing)
-- The food database itself (FatSecret/USDA values are upstream truth).
-- The nutrition goal editor / macro sliders.
-- Supplements meal handling.
-- No new tables, no RLS changes, no schema migration.
-
-## Why this fully solves both client complaints
-- **Andrew (-88 cal "macros perfect but cal off")**: macros and calories were each independently rounded per item, so the relationship `4P + 4C + 9F = cal` broke at the daily level. Floats preserve the relationship; rounding only at display means the visible totals still read as whole numbers AND add up.
-- **Keith ("copying from plan but calories off")**: target was rounded ints summed from rounded items; tracker sum was the same rounded ints — but the **target editor** and **plan editor** rounded at different stages. After the fix, target = round(raw sum), tracker = raw sum → "0 left" when fully tracked.
-
-## Clarifying questions before I build
-1. **Backfill scope:** Should I re-derive integer-stored legacy items (no `food_item_id`) by treating their stored integers as the source of truth and just leaving them alone (drift persists for old plans until you re-save), OR run a one-shot script that re-saves every active plan's items by recomputing from `gram_amount * (storedValue / gram_amount)` (no real precision gained — same result)? Realistically the only true fix for legacy custom items is **you re-open and save each active plan once**. Confirm you're OK with that.
-2. **Decimal display:** Confirm `Math.round()` (nearest integer) everywhere — not `Math.floor` or 1-decimal. The screenshots all show whole numbers so I'll assume round-to-nearest.
-3. Anything else besides Tracker, Meal Plan builder, and "My Meal Plan" client view that needs the same display rounding pass?
+## Important native note
+For the native iOS app, avoiding Spotify interruption depends on the existing `AudioMixPlugin` already being included in the app target. I can avoid changing the Swift plugin, so you should not need a new native audio approach. But any previously released native app build that does not already include that plugin still cannot gain iOS audio-session behavior from web code alone; it would need the normal app update process.
