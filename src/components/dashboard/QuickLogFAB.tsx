@@ -215,7 +215,11 @@ const QuickLogFAB = ({ clientId }: QuickLogFABProps) => {
       )}
 
       {/* FAB + Action Buttons */}
-      <div className="fixed bottom-20 right-5 z-50 flex flex-col-reverse items-center gap-3 md:bottom-6 md:right-6">
+      <div
+        className="fixed right-5 z-50 flex flex-col-reverse items-center gap-3 md:bottom-6 md:right-6"
+        style={{ bottom: "calc(7rem + env(safe-area-inset-bottom))" }}
+      >
+
         {expanded && (
           <div className="flex flex-col gap-2.5 animate-fade-in">
             {actions.map((action, i) => (
