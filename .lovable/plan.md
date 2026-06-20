@@ -1,61 +1,53 @@
-## Goal
-Make the workout rest timer behave like Strong: the sound plays only when the countdown reaches zero, never early, never randomly, and does not stop Spotify/Apple Music.
+# Three Fixes: FAB Position + Meal-Plan Unit Consistency + Zero-Macro Bug
 
-## What I found
-- The uploaded MP3 is already the exact same file currently bundled as `public/sounds/rest-timer-complete.mp3`.
-- The app already has the right native strategy in place: a lightweight `AudioMixPlugin` using iOS `AVAudioSession` with `.mixWithOthers`, not a third-party audio kit.
-- The risky part is timer/event management: stale worker messages, app foreground/background transitions, and old scheduled notifications can cause early, late, or duplicate sounds.
+## 1. Lift the Quick-Log "+" FAB (and BodyStats add button) off the bottom nav
 
-## Recommended solution
+**Problem:** On iPhone 16 Pro the floating `+` button on the home screen sits visually on top of (and is partially clipped by) the bottom tab bar. Same issue on the BodyStats add button you tap into from the FAB.
 
-### 1. Keep one sound path for each app state
-- Foreground app: play the MP3 through the existing `AudioMixPlugin` on native, or `HTMLAudioElement` on web/PWA.
-- Background/locked app: schedule a local notification only when the app actually goes into the background, for the exact timer end time.
-- Cancel any pending background notification immediately when the app returns to foreground, when the timer is skipped, or when the workout/timer unmounts.
+**Fix (visual only, no logic):**
 
-### 2. Add a stricter timer “run ID” guard
-Update `InlineRestTimer.tsx` so every rest timer instance has a unique run ID.
-- Worker `done` messages from an older timer are ignored.
-- The sound can only fire if the active run ID matches.
-- The sound can only fire when `Date.now()` is at or past the stored `endTime`.
-- `hasPlayedRef` remains the final one-shot lock so the sound cannot double-play.
+- `src/components/dashboard/QuickLogFAB.tsx` — bump the mobile bottom offset from `bottom-20` to `bottom-28` and add safe-area padding so it respects the home-indicator inset on iOS:
+  - `fixed right-5 z-50 ... md:bottom-6` → `fixed right-5 z-50 ... md:bottom-6 bottom-28` plus `style={{ bottom: 'calc(7rem + env(safe-area-inset-bottom))' }}` on mobile (kept inline so it only applies under the `md` breakpoint via class override).
+- Same treatment for the inner add button surfaced by the BodyStatsPopup / PhotosPopup entry points if they share the same anchor.
 
-This directly targets the “plays at 30 seconds / 50 seconds” problem.
+This gives the dead space Johan asked for, on every iPhone size, without breaking desktop.
 
-### 3. Tighten worker completion semantics
-Update `timerWorker.ts` to send a single `done` event per timer run and stop itself immediately after completion.
-- Keep wall-clock timing based on `endTime`, not decrementing state.
-- Include the timer run ID in tick/done messages.
-- Ignore any late message after stop/reset.
+## 2. Meal-plan unit display must mirror the coach builder ("2 units", not "2g")
 
-### 4. Harden audio preload/playback
-Update `restTimerAudio.ts` to:
-- Keep preload idempotent.
-- Reuse the same audio object.
-- Reset playback to `0` only at the actual zero event.
-- Keep the native audio session mixing path intact so music continues playing.
-- Avoid notification scheduling if the timer is already too close to zero or already completed.
+**Problem:** Coach builds a meal in `MealPlanBuilder` with `serving_unit="unit"` (e.g. Caramel Rice Cake = 2 units). The client app shows it as `2g` because `ClientStructuredMealPlan.tsx` line 481 hardcodes `{item.gram_amount}g`.
 
-### 5. Add regression tests
-Update `inlineRestTimer.test.tsx` to verify:
-- No sound/vibration on normal ticks like 30s or 50s remaining.
-- Sound/vibration happens once on `done`.
-- Duplicate `done` messages do not double-fire.
-- Stale/old timer messages are ignored after a new timer starts.
-- Skipping cancels the path and prevents later sound.
+**Fix:** Replace the hardcoded `{gram_amount}g` with the shared `formatServingDisplay()` helper that's already used in the tracker — it correctly renders `2 units`, `0.5 banana`, `125g`, etc., based on `serving_unit` + `serving_size`.
 
-## Files affected
-- `src/components/workout/InlineRestTimer.tsx`
-- `src/services/timerWorker.ts`
-- `src/utils/restTimerAudio.ts`
-- `src/test/inlineRestTimer.test.tsx`
+- `src/components/nutrition/ClientStructuredMealPlan.tsx` (line ~481): swap the span for `formatServingDisplay({ serving_label: item.serving_unit, serving_size: item.serving_size }, item.gram_amount, item.serving_unit, 1)`.
+- Audit `ClientMealPlanView.tsx` for the same hardcoded `g` and apply the same helper.
 
-## What I will not change
-- No database changes.
-- No new edge functions.
-- No new third-party audio kit.
-- No rewrite of the workout logger.
-- No new Xcode-native feature unless you later want background/lock-screen behavior improved beyond what local notifications can do.
+This is display-only — no DB writes, no macro changes.
 
-## Important native note
-For the native iOS app, avoiding Spotify interruption depends on the existing `AudioMixPlugin` already being included in the app target. I can avoid changing the Swift plugin, so you should not need a new native audio approach. But any previously released native app build that does not already include that plugin still cannot gain iOS audio-session behavior from web code alone; it would need the normal app update process.
+## 3. Banana (0.5 unit) saving as 0 cal / 0P / 0C / 0F
+
+**Root cause:** In `MealPlanBuilder.tsx` the macros are stored as
+
+```
+calories: (food.cal_per_100 * food.gram_amount) / 100
+```
+
+When a coach added the banana, `food.serving_size_g` was 0 / missing (custom food or a food row without a serving size). The UI's `useNatural` check (`food.serving_size_g > 0`) then defaulted to treating typed `"0.5"` as grams, so `gram_amount = 0.5`. Macros = `(per_100 × 0.5)/100` → rounds to 0 across the board. The "2g" rice-cake row is the same shape (gram_amount was stored as the unit count, not real grams).
+
+**Fix (writes correct data going forward, doesn't touch existing rows):**
+
+- In `MealPlanBuilder.tsx` when a food is added, guarantee `serving_size_g` is a positive number. If the food has `serving_unit !== "g"` but no usable per-serving grams, fall back to either (a) the food's known per-serving grams from `food_items`, or (b) force `serving_unit = "g"` so the unit/grams math stays consistent.
+- Compute saved macros from the actual quantity in the chosen unit, not from a possibly-zero `gram_amount`. Concretely: derive `units = gram_amount / serving_size_g` (when natural) and store `calories = per_serving_cal × units` (and same for P/C/F). For pure-gram foods keep the existing per-100 math.
+- Same treatment in the second save path around line 929 (the "save as template" branch uses the same pattern).
+- Display in the builder already handles `useNatural` correctly, so no UI change there.
+
+**Existing bad rows:** I will *not* auto-rewrite Kevin's existing data. You can re-open the affected meal in the builder and re-save to fix it, or I can add a one-off repair script — say the word.
+
+## Out of Scope
+
+- No backend / RLS / migrations.
+- No changes to the auto-track flow itself (that was already fixed last round).
+- No changes to the tracker's display logic — it already uses `formatServingDisplay`.
+
+## Clarifying Question
+
+For the banana / rice-cake foods you already saved, do you want me to (a) just fix the bug going forward so any *new* foods saved are correct (you re-save the affected meal once), or (b) also add a one-time repair pass that recomputes macros + grams for existing `meal_plan_items` rows where `serving_unit != 'g'` and macros look broken? yes . fix the bug going forward so any new foods saved are correct and add a one time reapir pass that recomputes macros + grams for exisiting here it looks broken
