@@ -33,6 +33,23 @@ import {
 import { toLocalDateString } from "@/utils/localDate";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
 
+/**
+ * Renders the meal-plan quantity exactly the way the coach typed it in the builder.
+ * "2 units", "0.5 banana", "125g" — never falsely "2g" for a unit-based food.
+ */
+function formatMealPlanQty(item: MealPlanFood): string {
+  const unit = (item.serving_unit || "g").trim();
+  const ss = Number(item.serving_size) || 0;
+  const grams = Number(item.gram_amount) || 0;
+  const isNatural = unit && unit.toLowerCase() !== "g" && ss > 0;
+  if (isNatural) {
+    const count = Math.round((grams / ss) * 10) / 10;
+    const label = count === 1 ? unit : `${unit}${/s$/i.test(unit) ? "" : "s"}`;
+    return `${count} ${label}`;
+  }
+  return `${Math.round(grams * 10) / 10}g`;
+}
+
 interface ClientStructuredMealPlanProps {
   selectedDate?: Date;
   onLogged?: () => void;
