@@ -819,27 +819,40 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         if (dayErr || !dayRow) throw dayErr;
 
         const items = day.meals.flatMap((meal, mi) =>
-          meal.foods.map((food, fi) => ({
-            meal_plan_id: planId!,
-            day_id: dayRow.id,
-            food_item_id: null, // Always null to avoid FK violations — food identity stored in custom_name
-            custom_name: food.food_name,
-            meal_name: meal.name,
-            meal_type: "custom",
-            gram_amount: food.gram_amount,
-            servings: 1,
-            // Store RAW float macros — round only at display. Prevents per-item
-            // rounding drift summing to ±5-90 cal vs daily target in the tracker.
-            calories: (food.cal_per_100 * food.gram_amount) / 100,
-            protein: (food.protein_per_100 * food.gram_amount) / 100,
-            carbs: (food.carbs_per_100 * food.gram_amount) / 100,
-            fat: (food.fat_per_100 * food.gram_amount) / 100,
-            serving_unit: food.serving_unit || "g",
-            serving_size: food.serving_size_g || food.gram_amount || 100,
-            item_order: fi,
-            meal_order: mi,
-            note: food.note?.trim() ? food.note.trim() : null,
-          }))
+          meal.foods.map((food, fi) => {
+            const ssg = Number(food.serving_size_g) > 0 ? Number(food.serving_size_g) : 0;
+            const unit = food.serving_unit || "g";
+            // If the food is a natural-unit food (e.g. "unit", "banana") with a valid
+            // per-serving gram weight, ensure gram_amount is REAL GRAMS, not the unit
+            // count. Without this, a banana entered as 0.5 units could be stored as
+            // gram_amount=0.5 and macros would round to 0. We treat gram_amount<ssg
+            // as a unit count and convert to grams.
+            let gramAmount = Number(food.gram_amount) || 0;
+            if (unit !== "g" && ssg > 0 && gramAmount > 0 && gramAmount < ssg) {
+              gramAmount = gramAmount * ssg;
+            }
+            return {
+              meal_plan_id: planId!,
+              day_id: dayRow.id,
+              food_item_id: null, // Always null to avoid FK violations — food identity stored in custom_name
+              custom_name: food.food_name,
+              meal_name: meal.name,
+              meal_type: "custom",
+              gram_amount: gramAmount,
+              servings: 1,
+              // Store RAW float macros — round only at display. Prevents per-item
+              // rounding drift summing to ±5-90 cal vs daily target in the tracker.
+              calories: (food.cal_per_100 * gramAmount) / 100,
+              protein: (food.protein_per_100 * gramAmount) / 100,
+              carbs: (food.carbs_per_100 * gramAmount) / 100,
+              fat: (food.fat_per_100 * gramAmount) / 100,
+              serving_unit: unit,
+              serving_size: ssg > 0 ? ssg : (gramAmount || 100),
+              item_order: fi,
+              meal_order: mi,
+              note: food.note?.trim() ? food.note.trim() : null,
+            };
+          })
         );
 
         if (items.length > 0) {
@@ -919,24 +932,34 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
           .single();
         if (dayErr || !dayRow) throw dayErr;
         const items = day.meals.flatMap((meal, mi) =>
-          meal.foods.map((food, fi) => ({
-            meal_plan_id: plan.id,
-            day_id: dayRow.id,
-            food_item_id: null,
-            custom_name: food.food_name,
-            meal_name: meal.name,
-            meal_type: "custom",
-            gram_amount: food.gram_amount,
-            servings: 1,
-            // Store RAW float macros — round only at display (see handleSave).
-            calories: (food.cal_per_100 * food.gram_amount) / 100,
-            protein: (food.protein_per_100 * food.gram_amount) / 100,
-            carbs: (food.carbs_per_100 * food.gram_amount) / 100,
-            fat: (food.fat_per_100 * food.gram_amount) / 100,
-            item_order: fi,
-            meal_order: mi,
-            note: food.note?.trim() ? food.note.trim() : null,
-          }))
+          meal.foods.map((food, fi) => {
+            const ssg = Number(food.serving_size_g) > 0 ? Number(food.serving_size_g) : 0;
+            const unit = food.serving_unit || "g";
+            let gramAmount = Number(food.gram_amount) || 0;
+            if (unit !== "g" && ssg > 0 && gramAmount > 0 && gramAmount < ssg) {
+              gramAmount = gramAmount * ssg;
+            }
+            return {
+              meal_plan_id: plan.id,
+              day_id: dayRow.id,
+              food_item_id: null,
+              custom_name: food.food_name,
+              meal_name: meal.name,
+              meal_type: "custom",
+              gram_amount: gramAmount,
+              servings: 1,
+              // Store RAW float macros — round only at display (see handleSave).
+              calories: (food.cal_per_100 * gramAmount) / 100,
+              protein: (food.protein_per_100 * gramAmount) / 100,
+              carbs: (food.carbs_per_100 * gramAmount) / 100,
+              fat: (food.fat_per_100 * gramAmount) / 100,
+              serving_unit: unit,
+              serving_size: ssg > 0 ? ssg : (gramAmount || 100),
+              item_order: fi,
+              meal_order: mi,
+              note: food.note?.trim() ? food.note.trim() : null,
+            };
+          })
         );
         if (items.length > 0) {
           const { error: itemErr } = await supabase.from("meal_plan_items").insert(items);
