@@ -26,7 +26,7 @@ vi.mock("@/services/timerWorker", () => ({
 
 vi.mock("@/utils/restTimerAudio", () => ({
   preloadRestTimerAudio: vi.fn(async () => {}),
-  playCompletionSound: (...args: unknown[]) => mocks.playCompletionSound(...args),
+  playCompletionSound: () => mocks.playCompletionSound(),
   scheduleBackgroundCompletion: vi.fn(async () => null),
   cancelBackgroundCompletion: vi.fn(async () => {}),
   ensureNotificationPermission: vi.fn(async () => false),
