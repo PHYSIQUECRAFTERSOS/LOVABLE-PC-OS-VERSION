@@ -34,12 +34,15 @@ interface InlineRestTimerProps {
  * Transitions are debounced via `notifIdRef` + `hasPlayedRef` so there is
  * no double-fire (foreground audio + notification).
  */
+let REST_TIMER_RUN_SEQ = 0;
+
 const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: InlineRestTimerProps) => {
   const [timeRemaining, setTimeRemaining] = useState(initialSeconds);
   const workerRef = useRef<Worker | null>(null);
   const hasPlayedRef = useRef(false);
   const notifIdRef = useRef<number | null>(null);
   const endTimeRef = useRef<number>(0);
+  const runIdRef = useRef<number>(0);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
@@ -59,6 +62,8 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
     const endTime = Date.now() + initialSeconds * 1000;
     endTimeRef.current = endTime;
+    const runId = ++REST_TIMER_RUN_SEQ;
+    runIdRef.current = runId;
 
     const worker = createTimerWorker();
     workerRef.current = worker;
@@ -71,14 +76,15 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
     const handleDone = () => {
       if (hasPlayedRef.current) return;
+      // Hard guard: only fire when wall-clock has actually reached endTime.
+      // Catches any stale `done` produced by a previous run that somehow
+      // raced past the runId check.
+      if (Date.now() < endTimeRef.current - 100) return;
       hasPlayedRef.current = true;
       setTimeRemaining(0);
 
-      // Cancel any background notification that might have been scheduled
-      // (e.g. user backgrounded then foregrounded right before zero).
       cancelPendingNotif();
 
-      // Foreground completion sound (mixes with Spotify/Apple Music)
       void playCompletionSound();
 
       if ("vibrate" in navigator) {
@@ -90,29 +96,25 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
 
     worker.onmessage = (e) => {
       const msg = e.data;
+      // Ignore messages from any previous timer run.
+      if (msg.runId !== runId) return;
       if (msg.type === "tick") setTimeRemaining(msg.remaining);
       if (msg.type === "done") handleDone();
     };
 
-    worker.postMessage({ type: "start", endTime });
+    worker.postMessage({ type: "start", endTime, runId });
 
     // ── App-state branching ──────────────────────────────────────────────
-    // Schedule notification ONLY when app actually backgrounds.
-    // Cancel it the instant the app returns to foreground.
     let appStateHandle: { remove: () => Promise<void> } | null = null;
 
     const handleAppState = (state: AppState) => {
       if (hasPlayedRef.current) return;
       if (state.isActive) {
-        // Foreground: rely on NativeAudio path. Kill any pending notif so
-        // a delayed banner can never pop after the user reopens the app.
         cancelPendingNotif();
       } else {
-        // Backgrounded/locked: schedule the notification for endTime.
-        // If timer has < ~250ms left, scheduleBackgroundCompletion no-ops.
-        if (notifIdRef.current != null) return; // already scheduled
+        if (notifIdRef.current != null) return;
         void scheduleBackgroundCompletion(endTimeRef.current).then((id) => {
-          if (hasPlayedRef.current) {
+          if (hasPlayedRef.current || runIdRef.current !== runId) {
             if (id != null) void cancelBackgroundCompletion(id);
             return;
           }
@@ -127,7 +129,7 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
       });
     }
 
-    // Web/PWA: reconcile on tab visibility return (mirrors prior behavior).
+    // Web/PWA: reconcile on tab visibility return.
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         const remainingMs = Math.max(0, endTimeRef.current - Date.now());
@@ -148,11 +150,11 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         void appStateHandle.remove();
         appStateHandle = null;
       }
-      // Cancel any still-pending notification so it can never ring after
-      // the user has moved on (skipped set, navigated away, etc.).
       if (!hasPlayedRef.current) cancelPendingNotif();
     };
   }, [initialSeconds]);
+
+
 
   const handleSkip = useCallback(() => {
     hasPlayedRef.current = true; // prevent any pending fire
