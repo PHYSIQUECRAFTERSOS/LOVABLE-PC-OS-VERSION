@@ -78,6 +78,7 @@ interface Props {
   onCopyPhaseToClient: (phase: Phase) => void;
   onAICreatePhase?: (phase: Phase) => void;
   onChangeProgram: () => void;
+  onRenameProgram?: (newName: string) => Promise<void> | void;
   onDetach?: () => void;
 }
 
