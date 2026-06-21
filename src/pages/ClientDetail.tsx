@@ -319,6 +319,28 @@ const ClientDetail = () => {
                   {tag}
                 </Badge>
               ))}
+              {/* Calendar look-ahead: how many days into the future this
+                  client can see on their own calendar/training views. */}
+              <div className="inline-flex items-center gap-1 ml-1">
+                <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                <select
+                  value={lookaheadDays}
+                  onChange={(e) => handleLookaheadChange(Number(e.target.value))}
+                  className="text-[10px] bg-transparent border border-border rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                  title="How many days into the future this client can see on their calendar"
+                >
+                  {LOOKAHEAD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      Sees {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* placeholder closing for original tags map */}
+              {false && (
+                <Badge>placeholder</Badge>
+              )}
+              ))}
             </div>
           </div>
         </div>
