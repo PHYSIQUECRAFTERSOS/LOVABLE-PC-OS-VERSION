@@ -255,7 +255,40 @@ export const ClientProgramTwoPane = ({
         <CardContent className="pt-4 pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="font-semibold text-foreground text-base truncate">{programName}</h3>
+              {renamingProgram && onRenameProgram ? (
+                <Input
+                  autoFocus
+                  value={programNameValue}
+                  onChange={(e) => setProgramNameValue(e.target.value)}
+                  onBlur={async () => {
+                    const trimmed = programNameValue.trim();
+                    if (trimmed && trimmed !== programName) {
+                      await onRenameProgram(trimmed);
+                    }
+                    setRenamingProgram(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") setRenamingProgram(false);
+                  }}
+                  className="h-7 text-base font-semibold"
+                />
+              ) : (
+                <h3
+                  className={cn(
+                    "font-semibold text-foreground text-base truncate",
+                    onRenameProgram && "cursor-text hover:text-primary transition-colors",
+                  )}
+                  title={onRenameProgram ? "Click to rename program" : undefined}
+                  onClick={() => {
+                    if (!onRenameProgram) return;
+                    setProgramNameValue(programName);
+                    setRenamingProgram(true);
+                  }}
+                >
+                  {programName}
+                </h3>
+              )}
               {programRange.start && programRange.end && (
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {formatPhaseDateRange(programRange.start, programRange.end)}
