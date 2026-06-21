@@ -88,7 +88,7 @@ export const ClientProgramTwoPane = ({
   phases, loading,
   onNewWorkout, onImport, onOpenWorkout, onEditWorkout, onDuplicateWorkout, onDeleteWorkout,
   onAddPhase, onRenamePhase, onChangeDuration, onDuplicatePhase, onDeletePhase,
-  onCopyPhaseToMaster, onCopyPhaseToClient, onAICreatePhase, onChangeProgram, onDetach,
+  onCopyPhaseToMaster, onCopyPhaseToClient, onAICreatePhase, onChangeProgram, onRenameProgram, onDetach,
 }: Props) => {
   const { toast } = useToast();
   const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
