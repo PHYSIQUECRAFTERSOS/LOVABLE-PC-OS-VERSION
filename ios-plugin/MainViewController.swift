@@ -25,6 +25,8 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AudioMixPlugin())
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(StoreKitPlugin())
-        print("[Caps] AudioMixPlugin + HealthKitPlugin + StoreKitPlugin registered")
+        bridge?.registerPluginInstance(PdfPreviewPlugin())
+        print("[Caps] AudioMixPlugin + HealthKitPlugin + StoreKitPlugin + PdfPreviewPlugin registered")
     }
 }
+
