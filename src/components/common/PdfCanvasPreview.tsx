@@ -50,15 +50,20 @@ const PdfCanvasPreview = ({ blob }: Props) => {
           if (cancelled) return;
           const page = await pdfDoc.getPage(i);
           const baseViewport = page.getViewport({ scale: 1 });
-          const scale = (containerWidth - 16) / baseViewport.width;
-          const viewport = page.getViewport({ scale: scale * dpr });
+          let scale = ((containerWidth - 16) / baseViewport.width) * dpr;
+          // Clamp so width * height stays under MAX_CANVAS_PIXELS
+          const projectedPixels = baseViewport.width * scale * baseViewport.height * scale;
+          if (projectedPixels > MAX_CANVAS_PIXELS) {
+            scale *= Math.sqrt(MAX_CANVAS_PIXELS / projectedPixels);
+          }
+          const viewport = page.getViewport({ scale });
 
           const wrapper = document.createElement("div");
           wrapper.className = "relative mb-3 rounded-md bg-white shadow-sm";
 
           const canvas = document.createElement("canvas");
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
           canvas.style.width = "100%";
           canvas.style.height = "auto";
           canvas.style.display = "block";
@@ -74,7 +79,9 @@ const PdfCanvasPreview = ({ blob }: Props) => {
 
           const ctx = canvas.getContext("2d");
           if (!ctx) continue;
-          await page.render({ canvasContext: ctx, viewport }).promise;
+          // pdfjs v6: pass `canvas` explicitly (canvasContext-only is deprecated
+          // and throws on iOS WKWebView).
+          await page.render({ canvas, canvasContext: ctx, viewport } as any).promise;
         }
         if (!cancelled) setLoading(false);
       } catch (err: any) {
