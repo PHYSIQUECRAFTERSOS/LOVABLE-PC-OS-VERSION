@@ -7,6 +7,8 @@ import { exportMealPlanPdf } from "@/utils/pdf/exportMealPlanPdf";
 import { exportSupplementsPdf } from "@/utils/pdf/exportSupplementsPdf";
 import { exportTrainingPdf } from "@/utils/pdf/exportTrainingPdf";
 import PdfExportPreviewDialog, { type PdfPreviewAsset } from "@/components/common/PdfExportPreviewDialog";
+import { isNativePdfPreviewAvailable, previewPdfNative } from "@/lib/nativePdfPreview";
+
 
 type Kind = "meal-plan" | "supplements" | "training";
 
