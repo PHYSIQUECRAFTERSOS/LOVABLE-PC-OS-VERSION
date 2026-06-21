@@ -1145,7 +1145,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           <Input
                             value={meal.name}
                             onChange={(e) => renameMeal(day.id, meal.id, e.target.value)}
-                            className="h-6 w-36 text-xs font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
+                            className="h-7 w-44 text-sm font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
                           />
                         </div>
                         <div className="flex items-center gap-1">
