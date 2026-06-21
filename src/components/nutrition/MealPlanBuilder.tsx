@@ -43,6 +43,7 @@ import {
   ArrowDown,
   Send,
   StickyNote,
+  Tag,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
