@@ -41,6 +41,15 @@ interface ClientProfile {
   phone: string | null;
 }
 
+const LOOKAHEAD_OPTIONS: { value: number; label: string }[] = [
+  { value: 7, label: "1 week ahead" },
+  { value: 14, label: "2 weeks ahead" },
+  { value: 21, label: "3 weeks ahead" },
+  { value: 28, label: "4 weeks ahead" },
+  { value: 42, label: "6 weeks ahead" },
+  { value: 56, label: "8 weeks ahead" },
+];
+
 const VALID_TABS = new Set([
   "dash", "checkins", "onboarding", "calendar", "training",
   "nutrition", "mealplan", "supps", "plan", "progress", "messaging",
@@ -68,6 +77,7 @@ const ClientDetail = () => {
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [pendingBannerDismissed, setPendingBannerDismissed] = useState(false);
+  const [lookaheadDays, setLookaheadDays] = useState<number>(14);
   const previousTabRef = useRef<string>(initialTab);
 
   // Detect touch-only devices (skip context menu on mobile)
@@ -151,15 +161,32 @@ const ClientDetail = () => {
         .eq("status", "active")
         .limit(1)
         .maybeSingle(),
-      supabase.from("coach_clients").select("program_type, status").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
+      supabase.from("coach_clients").select("program_type, status, calendar_lookahead_days").eq("client_id", clientId).eq("coach_id", userId).maybeSingle(),
     ]);
     setProfile(profileRes.data as ClientProfile | null);
     setTags((tagsRes.data || []).map((t: any) => t.tag));
     setProgramName((programRes.data as any)?.programs?.name || null);
     setProgramType((coachClientRes.data as any)?.program_type || null);
     setIsPending((coachClientRes.data as any)?.status === "pending");
+    const la = (coachClientRes.data as any)?.calendar_lookahead_days;
+    if (typeof la === "number" && la > 0) setLookaheadDays(la);
     setLoading(false);
   }, [clientId, userId]);
+
+  const handleLookaheadChange = async (newDays: number) => {
+    if (!clientId || !userId) return;
+    const prev = lookaheadDays;
+    setLookaheadDays(newDays); // optimistic
+    const { error } = await supabase
+      .from("coach_clients")
+      .update({ calendar_lookahead_days: newDays })
+      .eq("client_id", clientId)
+      .eq("coach_id", userId);
+    if (error) {
+      console.error("[ClientDetail] lookahead update failed:", error);
+      setLookaheadDays(prev);
+    }
+  };
 
   useEffect(() => { loadClientData(); }, [loadClientData]);
 
