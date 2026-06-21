@@ -585,43 +585,33 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
     setSavingMealLoading(true);
     try {
       const totalMacros = getMealTotals(meal);
-      const { data: savedMeal, error: smErr } = await supabase
-        .from("saved_meals")
-        .insert({
-          client_id: user.id,
-          name: saveMealName.trim(),
-          meal_type: "custom",
-          calories: Math.round(totalMacros.calories),
-          protein: Math.round(totalMacros.protein),
-          carbs: Math.round(totalMacros.carbs),
-          fat: Math.round(totalMacros.fat),
-          fiber: Math.round(totalMacros.fiber),
-          sugar: Math.round(totalMacros.sugar),
-          servings: 1,
-        })
-        .select("id")
-        .single();
-      if (smErr || !savedMeal) throw smErr;
-
       const items = meal.foods.map((food) => ({
-        saved_meal_id: savedMeal.id,
-        food_item_id: food.food_item_id || null,
+        food_item_id: food.food_item_id || "",
         food_name: food.food_name,
         quantity: food.gram_amount,
         serving_unit: food.serving_unit || "g",
+        serving_size_g: food.serving_size_g || food.gram_amount,
         calories: Math.round((food.cal_per_100 * food.gram_amount) / 100),
         protein: Math.round((food.protein_per_100 * food.gram_amount) / 100),
         carbs: Math.round((food.carbs_per_100 * food.gram_amount) / 100),
         fat: Math.round((food.fat_per_100 * food.gram_amount) / 100),
-        serving_size_g: food.serving_size_g || food.gram_amount,
         calories_per_100g: food.cal_per_100,
         protein_per_100g: food.protein_per_100,
         carbs_per_100g: food.carbs_per_100,
         fat_per_100g: food.fat_per_100,
       }));
 
-      const { error: itemErr } = await supabase.from("saved_meal_items").insert(items);
-      if (itemErr) throw itemErr;
+      const { error: rpcErr } = await supabase.rpc("save_meal_with_items" as any, {
+        p_name: saveMealName.trim(),
+        p_meal_type: "custom",
+        p_calories: Math.round(totalMacros.calories),
+        p_protein: Math.round(totalMacros.protein),
+        p_carbs: Math.round(totalMacros.carbs),
+        p_fat: Math.round(totalMacros.fat),
+        p_servings: 1,
+        p_items: items as any,
+      });
+      if (rpcErr) throw rpcErr;
 
       toast({ title: "Meal saved to library!" });
       setSaveMealDialogOpen(false);
@@ -632,6 +622,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
       setSavingMealLoading(false);
     }
   };
+
 
   const addSavedMealFoods = (dayId: string, mealId: string, foods: FoodResult[]) => {
     setDays((prev) =>
