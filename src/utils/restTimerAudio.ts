@@ -23,8 +23,11 @@ import AudioMixPlugin from "@/plugins/AudioMixPlugin";
 
 const WEB_ASSET_URL = "/sounds/rest-timer-complete.mp3";
 // LocalNotifications iOS sound name — file must exist at bundle ROOT
-// (ios/App/App/rest-timer-complete.mp3). Survives `cap copy`.
-const NOTIFICATION_SOUND = "rest-timer-complete.mp3";
+// (ios/App/App/rest-timer-complete.caf). Survives `cap copy`.
+// MUST be a .caf/.aiff/.wav with PCM/IMA4/μ-law/a-law under 30s — iOS
+// silently drops MP3 notification sounds, which is why the previous
+// rest-timer-complete.mp3 reference was inaudible in background.
+const NOTIFICATION_SOUND = "rest-timer-complete.caf";
 
 let preloaded = false;
 let preloadPromise: Promise<void> | null = null;
@@ -89,8 +92,10 @@ export async function scheduleBackgroundCompletion(endTime: number): Promise<num
       notifications: [
         {
           id,
-          title: "",
-          body: " ",
+          // Non-empty title/body required — some iOS versions suppress the
+          // custom sound when both are blank.
+          title: "Rest complete",
+          body: "Time for your next set 💪",
           schedule: { at: new Date(endTime), allowWhileIdle: true },
           sound: NOTIFICATION_SOUND,
           smallIcon: "ic_stat_icon_config_sample",

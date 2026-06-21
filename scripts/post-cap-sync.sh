@@ -35,16 +35,25 @@ echo "   Local Swift plugins are NOT auto-discovered in Capacitor 7/8;"
 echo "   MainViewController.capacitorDidLoad() is what binds them to JS."
 
 # ── Rest timer notification sound ─────────────────────────────────────────
-# iOS LocalNotifications resolves `sound: 'rest-timer-complete.mp3'` from the
-# app bundle ROOT (not from public/). Copy it there too. The file at
-# ios/App/App/public/sounds/rest-timer-complete.mp3 is for in-app NativeAudio
-# playback; the bundle-root copy is for the lock-screen notification sound.
-SOUND_SRC="public/sounds/rest-timer-complete.mp3"
-SOUND_DST="ios/App/App/rest-timer-complete.mp3"
-if [ -f "$SOUND_SRC" ] && [ -d "ios/App/App" ]; then
-  cp -v "$SOUND_SRC" "$SOUND_DST"
-  echo "✅ Rest timer notification sound copied to iOS bundle root"
-  echo "   ⚠️  FIRST TIME ONLY: in Xcode, drag $SOUND_DST into the App target"
-  echo "      ('Copy items if needed' + 'Add to targets: App') so iOS can"
-  echo "      resolve it as a notification sound. Subsequent cap syncs are fine."
+# iOS LocalNotifications resolves the `sound:` filename from the app bundle
+# ROOT (not from public/). Two files are needed:
+#   - rest-timer-complete.mp3  → in-app foreground AVAudioPlayer cue
+#   - rest-timer-complete.caf  → lock-screen / background notification sound
+#                                (iOS REJECTS mp3 for notification sounds —
+#                                 must be CAF/AIFF/WAV with PCM/IMA4 codec)
+SOUND_MP3_SRC="public/sounds/rest-timer-complete.mp3"
+SOUND_MP3_DST="ios/App/App/rest-timer-complete.mp3"
+SOUND_CAF_SRC="public/sounds/rest-timer-complete.caf"
+SOUND_CAF_DST="ios/App/App/rest-timer-complete.caf"
+if [ -d "ios/App/App" ]; then
+  if [ -f "$SOUND_MP3_SRC" ]; then
+    cp -v "$SOUND_MP3_SRC" "$SOUND_MP3_DST"
+  fi
+  if [ -f "$SOUND_CAF_SRC" ]; then
+    cp -v "$SOUND_CAF_SRC" "$SOUND_CAF_DST"
+    echo "✅ Rest timer .caf (background notification sound) copied to iOS bundle root"
+    echo "   ⚠️  FIRST TIME ONLY: in Xcode, drag $SOUND_CAF_DST into the App target"
+    echo "      ('Copy items if needed' + 'Add to targets: App') so iOS can"
+    echo "      resolve it as a notification sound. Subsequent cap syncs are fine."
+  fi
 fi
