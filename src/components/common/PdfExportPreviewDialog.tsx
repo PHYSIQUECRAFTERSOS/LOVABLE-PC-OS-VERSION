@@ -1,5 +1,4 @@
-import { useMemo, useRef } from "react";
-import { Download, ExternalLink, Printer, Share2 } from "lucide-react";
+import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import PdfCanvasPreview from "@/components/common/PdfCanvasPreview";
 
 export interface PdfPreviewAsset {
   filename: string;
@@ -27,8 +27,25 @@ interface PdfExportPreviewDialogProps {
 }
 
 const PdfExportPreviewDialog = ({ open, onOpenChange, asset, label }: PdfExportPreviewDialogProps) => {
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const previewUrl = useMemo(() => (asset ? `${asset.url}#toolbar=1&navpanes=0` : ""), [asset]);
+  const openPdf = () => {
+    if (!asset) return;
+    const opened = window.open(asset.url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.href = asset.url;
+    }
+  };
+
+  const downloadPdf = () => {
+    if (!asset) return;
+    const anchor = document.createElement("a");
+    anchor.href = asset.url;
+    anchor.download = asset.filename;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    toast.success(`${label} PDF ready.`);
+  };
 
   const sharePdf = async () => {
     if (!asset) return;
@@ -45,47 +62,14 @@ const PdfExportPreviewDialog = ({ open, onOpenChange, asset, label }: PdfExportP
         toast.success(`${label} PDF shared.`);
         return;
       }
-      openPdf();
+      // Fallback: trigger a normal download (matches prior behavior on desktop).
+      downloadPdf();
     } catch (err: any) {
       if (err?.name !== "AbortError") {
         console.warn("[PdfExportPreview] share failed", err);
         toast.error("Share failed. Try Open PDF instead.");
+        openPdf();
       }
-    }
-  };
-
-  const openPdf = () => {
-    if (!asset) return;
-    console.info("[PdfExportPreview] open requested", { filename: asset.filename, size: asset.blob.size });
-    const opened = window.open(asset.url, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      console.warn("[PdfExportPreview] popup blocked; navigating current tab to PDF");
-      window.location.href = asset.url;
-    }
-  };
-
-  const downloadPdf = () => {
-    if (!asset) return;
-    console.info("[PdfExportPreview] download requested", { filename: asset.filename, size: asset.blob.size });
-    const anchor = document.createElement("a");
-    anchor.href = asset.url;
-    anchor.download = asset.filename;
-    anchor.rel = "noopener";
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    toast.success(`${label} PDF ready.`);
-  };
-
-  const printPdf = () => {
-    if (!asset) return;
-    console.info("[PdfExportPreview] print requested", { filename: asset.filename, size: asset.blob.size });
-    try {
-      frameRef.current?.contentWindow?.focus();
-      frameRef.current?.contentWindow?.print();
-    } catch (err) {
-      console.warn("[PdfExportPreview] iframe print failed", err);
-      openPdf();
     }
   };
 
@@ -99,13 +83,7 @@ const PdfExportPreviewDialog = ({ open, onOpenChange, asset, label }: PdfExportP
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
           {asset ? (
-            <iframe
-              ref={frameRef}
-              title={`${label} PDF preview`}
-              src={previewUrl}
-              className="h-full min-h-[55dvh] w-full bg-background"
-              onLoad={() => console.info("[PdfExportPreview] iframe loaded", { filename: asset.filename })}
-            />
+            <PdfCanvasPreview blob={asset.blob} />
           ) : (
             <div className="flex h-full min-h-[55dvh] items-center justify-center text-sm text-muted-foreground">
               Preparing PDF...
