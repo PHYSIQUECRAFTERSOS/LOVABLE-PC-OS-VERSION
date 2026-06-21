@@ -1259,8 +1259,8 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                             onSelectSavedMeal={(foods) => addSavedMealFoods(day.id, meal.id, foods)}
                           />
                         ) : (
-                          <Button variant="ghost" size="sm" className="h-7 text-xs w-full" onClick={() => setSearchingMealId(`${day.id}::${meal.id}`)}>
-                            <Plus className="h-3 w-3 mr-1" /> Add Food
+                          <Button variant="ghost" size="sm" className="h-8 text-sm w-full" onClick={() => setSearchingMealId(`${day.id}::${meal.id}`)}>
+                            <Plus className="h-4 w-4 mr-1" /> Add Food
                           </Button>
                         )}
                       </div>
