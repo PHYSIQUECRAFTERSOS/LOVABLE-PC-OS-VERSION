@@ -99,6 +99,8 @@ export const ClientProgramTwoPane = ({
   const [meta, setMeta] = useState<Record<string, WorkoutMeta>>({});
   const [renamingPhase, setRenamingPhase] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [renamingProgram, setRenamingProgram] = useState(false);
+  const [programNameValue, setProgramNameValue] = useState("");
   const [localWorkouts, setLocalWorkouts] = useState<Record<string, ProgramWorkout[]>>({});
   const dragInFlightRef = useRef(false);
 
