@@ -17,7 +17,7 @@ const MAX_DURATION = 120; // 2 minutes max
 const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: VoiceMessageRecorderProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [state, setState] = useState<"idle" | "recording" | "preview" | "uploading">("idle");
+  const [state, setState] = useState<"idle" | "recording" | "preview" | "converting" | "uploading">("idle");
   const [duration, setDuration] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -119,15 +119,46 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
 
   const sendVoiceMessage = async () => {
     if (!user || !blobRef.current) return;
-    setState("uploading");
 
     try {
-      const ext = blobRef.current.type.includes("mp4") ? "m4a" : "webm";
+      let uploadBlob = blobRef.current;
+      let ext: "m4a" | "mp3" | "webm";
+      let contentType: string;
+
+      const sourceType = uploadBlob.type.toLowerCase();
+      const isIosNative = sourceType.includes("mp4") || sourceType.includes("m4a") || sourceType.includes("aac");
+
+      if (isIosNative) {
+        // iOS-recorded audio is already AAC in an mp4 container — plays everywhere natively.
+        ext = "m4a";
+        contentType = "audio/mp4";
+      } else {
+        // Desktop Chrome (and most non-iOS browsers) produce webm/opus, which iOS Safari + WKWebView
+        // cannot decode. Transcode to MP3 in-browser so every recipient can play it.
+        setState("converting");
+        try {
+          const { transcodeToMp3 } = await import("@/lib/audioTranscode");
+          uploadBlob = await transcodeToMp3(blobRef.current);
+          ext = "mp3";
+          contentType = "audio/mpeg";
+        } catch (convErr: any) {
+          console.error("Voice transcode failed, uploading original:", convErr);
+          toast({
+            title: "Voice note may not play on iPhone",
+            description: "Conversion failed; sending original file.",
+            variant: "destructive",
+          });
+          ext = "webm";
+          contentType = uploadBlob.type || "audio/webm";
+        }
+      }
+
+      setState("uploading");
       const path = `${threadId}/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("chat-attachments")
-        .upload(path, blobRef.current, { contentType: blobRef.current.type });
+        .upload(path, uploadBlob, { contentType });
 
       if (uploadError) throw uploadError;
 
@@ -178,12 +209,14 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
     );
   }
 
-  // Uploading
-  if (state === "uploading") {
+  // Converting / Uploading
+  if (state === "uploading" || state === "converting") {
     return (
       <div className="flex items-center gap-2 flex-1">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">Sending voice message...</span>
+        <span className="text-xs text-muted-foreground">
+          {state === "converting" ? "Converting for iPhone..." : "Sending voice message..."}
+        </span>
       </div>
     );
   }
