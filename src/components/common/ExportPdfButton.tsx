@@ -7,6 +7,8 @@ import { exportMealPlanPdf } from "@/utils/pdf/exportMealPlanPdf";
 import { exportSupplementsPdf } from "@/utils/pdf/exportSupplementsPdf";
 import { exportTrainingPdf } from "@/utils/pdf/exportTrainingPdf";
 import PdfExportPreviewDialog, { type PdfPreviewAsset } from "@/components/common/PdfExportPreviewDialog";
+import { isNativePdfPreviewAvailable, previewPdfNative } from "@/lib/nativePdfPreview";
+
 
 type Kind = "meal-plan" | "supplements" | "training";
 
@@ -45,16 +47,18 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
     const capCore: any = (window as any).Capacitor;
     const isNative = !!capCore?.isNativePlatform?.();
     const isMobileDevice = isNative || /iPhone|iPad|iPod|Android/i.test(ua) || window.matchMedia?.("(pointer: coarse)")?.matches;
-    console.info("[ExportPdfButton] export requested", { kind, clientId, isNative, isMobileDevice, ua });
+    const wantsNativePreview = isNativePdfPreviewAvailable();
+    const wantsAsset = isMobileDevice || wantsNativePreview;
+    console.info("[ExportPdfButton] export requested", { kind, clientId, isNative, isMobileDevice, wantsNativePreview, ua });
 
     setLoading(true);
     try {
       const res =
         kind === "meal-plan"
-          ? await exportMealPlanPdf(clientId, { returnAsset: isMobileDevice })
+          ? await exportMealPlanPdf(clientId, { returnAsset: wantsAsset })
           : kind === "supplements"
-          ? await exportSupplementsPdf(clientId, { returnAsset: isMobileDevice })
-          : await exportTrainingPdf(clientId, { returnAsset: isMobileDevice });
+          ? await exportSupplementsPdf(clientId, { returnAsset: wantsAsset })
+          : await exportTrainingPdf(clientId, { returnAsset: wantsAsset });
       if (!res.ok) {
         toast.error(res.reason || "Nothing to export yet.");
         return;
@@ -62,6 +66,15 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
 
       const saveResult = res.saveResult;
       if (saveResult?.mode === "preview") {
+        // On native iOS, present QLPreviewController so all pages are
+        // scrollable — WKWebView's <iframe> renderer only paints page 1.
+        if (wantsNativePreview) {
+          const presented = await previewPdfNative(saveResult.asset.blob, saveResult.asset.filename);
+          if (presented) {
+            URL.revokeObjectURL(saveResult.asset.url);
+            return;
+          }
+        }
         setPdfAsset((prev) => {
           if (prev?.url) URL.revokeObjectURL(prev.url);
           return saveResult.asset;
@@ -71,6 +84,7 @@ const ExportPdfButton = ({ kind, clientId, variant = "icon", className }: Props)
       }
 
       toast.success(`${KIND_LABEL[kind]} PDF ready.`);
+
     } catch (err: any) {
       console.error("[ExportPdfButton]", err);
       toast.error("Could not generate PDF. Try again.");
