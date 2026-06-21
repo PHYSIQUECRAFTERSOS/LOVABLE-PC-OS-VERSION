@@ -59,7 +59,7 @@ export async function transcodeToMp3(input: Blob): Promise<Blob> {
       "output.mp3"
     );
     const data = ff.FS("readFile", "output.mp3");
-    return new Blob([data.buffer], { type: "audio/mpeg" });
+    return new Blob([data.buffer as ArrayBuffer], { type: "audio/mpeg" });
   } finally {
     try { ff.FS("unlink", inputName); } catch { /* ignore */ }
     try { ff.FS("unlink", "output.mp3"); } catch { /* ignore */ }
