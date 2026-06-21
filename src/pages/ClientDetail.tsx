@@ -336,11 +336,6 @@ const ClientDetail = () => {
                   ))}
                 </select>
               </div>
-              {/* placeholder closing for original tags map */}
-              {false && (
-                <Badge>placeholder</Badge>
-              )}
-              ))}
             </div>
           </div>
         </div>
