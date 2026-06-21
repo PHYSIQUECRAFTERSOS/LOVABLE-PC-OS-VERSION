@@ -1,32 +1,29 @@
-# Fix "Could not render PDF preview" on iOS PWA
+# Increase meal-plan builder readability
 
-## Problem
-The dialog loads the PDF (it correctly shows "Page 1 / 5"), but `page.render(...)` throws on iOS WKWebView, so all canvases stay blank and the red error banner appears. Two root causes:
+Visual-only change to `src/components/nutrition/MealPlanBuilder.tsx`. No layout restructuring, no functional changes.
 
-1. We import from `pdfjs-dist` (modern build), which in v6 uses JS features (e.g. `Promise.withResolvers`, modern module worker) that older iOS Safari / WKWebView versions don't fully support during rendering.
-2. In `pdfjs-dist` v6, `page.render({ canvasContext, viewport })` is deprecated — the canvas must be passed explicitly. On iOS this fails hard instead of falling back.
+## Type-size bumps (within food rows and meal headers)
 
-## Fix (web-only — no native rebuild, no App Store submission)
-
-### 1. `src/components/common/PdfCanvasPreview.tsx`
-- Import from the **legacy** build:
-  - `import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs"`
-  - `import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"`
-- Set `GlobalWorkerOptions.workerSrc = pdfWorkerUrl` once at module load.
-- In the render loop:
-  - Create the canvas as today.
-  - Call `page.render({ canvas, canvasContext: ctx, viewport }).promise` (pass both for safety).
-  - Clamp `scale * dpr` so the final canvas area stays under ~16,000,000 pixels to avoid iOS canvas-memory errors on long/high-DPI pages.
-- Keep the existing loader, per-page "Page X / N" label, error banner, and cleanup (`pdfDoc.destroy()`, `cancelled` flag) unchanged.
-
-### 2. No other files change
-- `PdfExportPreviewDialog.tsx`, `ExportPdfButton.tsx`, the native `PdfPreviewPlugin.swift`, and `capacitor.config.ts` are untouched.
-- Share / Download / Open behavior is identical to today.
-
-## Verification
-- In the Lovable preview at mobile viewport, open Coach → a client → Meal Plan → Export PDF: all 5 pages should render stacked and scroll.
-- Same check for Supplements (3 pages) and Training program.
-- Share PDF still produces the same file as before.
+| Element | Current | New |
+|---|---|---|
+| Food name (L1203) | `text-xs font-medium` | `text-sm font-semibold` |
+| Brand label (L1204) | `text-[10px]` | `text-xs` |
+| Quantity input (L1217) | `h-6 w-16 text-[11px]` | `h-7 w-16 text-sm` |
+| Unit label (L1219) | `text-[10px] w-10` | `text-xs w-12` |
+| Macro pills row (L1221–1225) | `text-[10px]` | `text-xs font-medium` |
+| Note/Delete icon buttons (L1230, 1236) | `h-5 w-5` with `h-3 w-3` icons | `h-7 w-7` with `h-4 w-4` icons |
+| Food note textarea (L1246) | `text-[11px]` | `text-sm` |
+| Meal-header cal/macro summary (L1152) | `text-[10px]` | `text-xs` |
+| Meal name input (L1148) | `h-6 w-36 text-xs` | `h-7 w-44 text-sm` |
+| Coach note textarea (L1185) | `text-[11px] min-h-[44px]` | `text-sm min-h-[48px]` |
+| "Add Food" button (L1262) | `h-7 text-xs` | `h-8 text-sm` with `h-4 w-4` plus icon |
+| Row vertical padding (L1199) | `py-2` | `py-2.5` (slightly more breathing room) |
 
 ## Out of scope
-No changes to PDF generation, file names, native iOS plugin, Capacitor config, or backend.
+- No changes to data, queries, save logic, or PDF export.
+- No changes to the left "Nutrition Goal" sidebar (already legible).
+- No restructuring of the row layout — only sizes and weights.
+
+## Verification
+- Open Master Libraries → Meal Plan Builder, expand a Training Day, confirm food names, brand, units, macro pills, and Add Food button are noticeably larger and easier to read.
+- Confirm row still fits on desktop without wrapping; on mobile the macro pills already hide via `hidden sm:flex` and continue to do so.
