@@ -1149,7 +1149,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           />
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground mr-2">
+                          <span className="text-xs text-muted-foreground mr-2">
                             {Math.round(mealTotals.calories)}cal · {Math.round(mealTotals.protein)}P · {Math.round(mealTotals.carbs)}C · {Math.round(mealTotals.fat)}F
                           </span>
                           {/* 3-dot menu */}
