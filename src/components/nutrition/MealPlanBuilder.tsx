@@ -1196,12 +1196,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           const displayUnit = useNatural ? food.serving_unit : "g";
                           const noteOpen = !!(food.note && food.note.length > 0) || expandedFoodNote === food.id;
                           return (
-                            <div key={food.id} className="px-3 py-2 space-y-1.5">
+                            <div key={food.id} className="px-3 py-2.5 space-y-1.5">
                               <div className="flex items-center gap-2">
                                 <FoodIcon name={food.food_name} size={28} />
                                 <div className="flex-1 min-w-0">
-                                  <span className="text-xs font-medium text-foreground truncate block">{food.food_name}</span>
-                                  {food.brand && <span className="text-[10px] text-muted-foreground">{food.brand}</span>}
+                                  <span className="text-sm font-semibold text-foreground truncate block">{food.food_name}</span>
+                                  {food.brand && <span className="text-xs text-muted-foreground">{food.brand}</span>}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                   <Input
@@ -1214,11 +1214,11 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                                       const grams = useNatural ? val * food.serving_size_g : val;
                                       updateGrams(day.id, meal.id, food.id, grams);
                                     }}
-                                    className="h-6 w-16 text-[11px] text-center bg-secondary border-0 rounded"
+                                    className="h-7 w-16 text-sm text-center bg-secondary border-0 rounded"
                                   />
-                                  <span className="text-[10px] text-muted-foreground w-10 truncate">{displayUnit}</span>
+                                  <span className="text-xs text-muted-foreground w-12 truncate">{displayUnit}</span>
                                 </div>
-                                <div className="hidden sm:flex items-center gap-2 text-[10px] text-muted-foreground">
+                                <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-muted-foreground">
                                   <span>{Math.round(macros.calories)}cal</span>
                                   <span className="text-destructive">{Math.round(macros.protein)}P</span>
                                   <span className="text-info">{Math.round(macros.carbs)}C</span>
@@ -1227,14 +1227,14 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-5 w-5"
+                                  className="h-7 w-7"
                                   onClick={() => setExpandedFoodNote(expandedFoodNote === food.id ? null : food.id)}
                                   title={food.note ? "Edit note" : "Add note"}
                                 >
-                                  <StickyNote className={cn("h-3 w-3", food.note ? "text-primary" : "text-muted-foreground")} />
+                                  <StickyNote className={cn("h-4 w-4", food.note ? "text-primary" : "text-muted-foreground")} />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFood(day.id, meal.id, food.id)}>
-                                  <Trash2 className="h-3 w-3" />
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFood(day.id, meal.id, food.id)}>
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                               {noteOpen && (
@@ -1243,7 +1243,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                                   onChange={(e) => updateFoodNote(day.id, meal.id, food.id, e.target.value)}
                                   placeholder="Note for this food (e.g. Mix with greek yogurt)"
                                   rows={1}
-                                  className="text-[11px] min-h-[32px] bg-secondary/30 border-border/40 placeholder:text-muted-foreground/60 resize-y ml-9"
+                                  className="text-sm min-h-[36px] bg-secondary/30 border-border/40 placeholder:text-muted-foreground/60 resize-y ml-9"
                                 />
                               )}
                             </div>
