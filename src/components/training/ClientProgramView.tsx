@@ -24,6 +24,7 @@ interface ProgramAssignment {
   program_id: string;
   start_date: string;
   status: string;
+  current_phase_id?: string | null;
   program: {
     id: string;
     name: string;
@@ -69,7 +70,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
       try {
       const { data: cpa, error: cpaErr } = await supabase
         .from("client_program_assignments")
-        .select("id, program_id, start_date, status")
+        .select("id, program_id, start_date, status, current_phase_id")
         .eq("client_id", userId)
         .in("status", ["active", "subscribed"])
         .order("created_at", { ascending: false });
@@ -144,12 +145,26 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
     setLoadingDetails(programId);
 
     try {
-    const { data: phases, error: phaseErr } = await supabase
+    // Clients only see their CURRENT phase — never future phases.
+    const assignment = assignments.find(a => a.program_id === programId);
+    const currentPhaseId = assignment?.current_phase_id || null;
+
+    const { data: phasesRaw, error: phaseErr } = await supabase
       .from("program_phases")
       .select("id, name, phase_order")
       .eq("program_id", programId)
       .order("phase_order");
     if (phaseErr) { console.error("[ClientProgramView] phases error:", phaseErr); setPhaseDetails(prev => ({ ...prev, [programId]: [] })); setLoadingDetails(null); return; }
+
+    // Restrict to the active phase. Fallback to the first phase if no
+    // current_phase_id is set yet (newly-assigned client).
+    let phases = phasesRaw || [];
+    if (phases.length > 0) {
+      const active = currentPhaseId
+        ? phases.find(p => p.id === currentPhaseId)
+        : phases[0];
+      phases = active ? [active] : [phases[0]];
+    }
 
     const buildDetails = async (rawPhases: any[], allPwRows: any[]) => {
       const workoutIds = [...new Set(allPwRows.map(pw => pw.workout_id))];

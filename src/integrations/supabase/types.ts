@@ -2195,6 +2195,7 @@ export type Database = {
       coach_clients: {
         Row: {
           assigned_at: string
+          calendar_lookahead_days: number
           client_id: string
           coach_id: string
           id: string
@@ -2205,6 +2206,7 @@ export type Database = {
         }
         Insert: {
           assigned_at?: string
+          calendar_lookahead_days?: number
           client_id: string
           coach_id: string
           id?: string
@@ -2215,6 +2217,7 @@ export type Database = {
         }
         Update: {
           assigned_at?: string
+          calendar_lookahead_days?: number
           client_id?: string
           coach_id?: string
           id?: string

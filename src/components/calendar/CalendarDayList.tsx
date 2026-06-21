@@ -66,6 +66,8 @@ interface CalendarDayListProps {
   events: CalendarEvent[];
   onEventClick: (event: CalendarEvent) => void;
   onEventMoved?: (eventId: string, newDate: string) => void;
+  /** Cap how many days into the future the list renders. Default 90. */
+  maxFutureDays?: number;
 }
 
 function getDateLabel(dateStr: string): { label: string; isHighlighted: boolean; isDimmed: boolean } {
@@ -97,7 +99,7 @@ const AUTO_SCROLL_ZONE = 60; // px from edge
 const AUTO_SCROLL_SPEED = 6; // px per frame
 const MIN_DRAG_DISTANCE = 30; // px — must drag at least this far from start to accept a different drop target
 
-const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayListProps) => {
+const CalendarDayList = ({ events, onEventClick, onEventMoved, maxFutureDays = 90 }: CalendarDayListProps) => {
   const todayRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dayHeaderRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -118,9 +120,9 @@ const CalendarDayList = ({ events, onEventClick, onEventMoved }: CalendarDayList
   const today = new Date();
   const allDays = useMemo(() => {
     const start = subDays(today, 30);
-    const end = addDays(today, 90);
+    const end = addDays(today, Math.max(0, maxFutureDays));
     return eachDayOfInterval({ start, end }).map(d => format(d, "yyyy-MM-dd"));
-  }, []);
+  }, [maxFutureDays]);
 
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};

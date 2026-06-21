@@ -41,11 +41,33 @@ const Calendar = () => {
 
   const isCoach = role === "coach" || role === "admin";
 
-  // Clients get a wide rolling window; coaches get their grid-specific range
+  // Per-client coach-set cap on how many days ahead the client can see.
+  // Default 14d. Coach configures via dropdown on ClientDetail.
+  const [lookaheadDays, setLookaheadDays] = useState<number>(14);
+  useEffect(() => {
+    if (!user || isCoach) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("coach_clients")
+        .select("calendar_lookahead_days")
+        .eq("client_id", user.id)
+        .in("status", ["active", "subscribed"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      const v = (data as any)?.calendar_lookahead_days;
+      if (typeof v === "number" && v > 0) setLookaheadDays(v);
+    })();
+    return () => { cancelled = true; };
+  }, [user, isCoach]);
+
+  // Clients get a rolling window capped by the coach's look-ahead setting.
   const dateRange = useMemo(() => {
     if (!isCoach) {
-      // Client: 30 days back + 90 days forward
-      return { start: subDays(new Date(), 31), end: addDays(new Date(), 91) };
+      // Client: 30 days back + lookaheadDays forward (default 14)
+      return { start: subDays(new Date(), 31), end: addDays(new Date(), lookaheadDays + 1) };
     }
     if (view === "week") {
       const start = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -55,7 +77,7 @@ const Calendar = () => {
     const start = startOfMonth(currentDate);
     const end = endOfMonth(currentDate);
     return { start: subDays(startOfWeek(start, { weekStartsOn: 1 }), 1), end: addDays(endOfWeek(end, { weekStartsOn: 1 }), 1) };
-  }, [isCoach, view, currentDate]);
+  }, [isCoach, view, currentDate, lookaheadDays]);
 
   const startStr = format(dateRange.start, "yyyy-MM-dd");
   const endStr = format(dateRange.end, "yyyy-MM-dd");
@@ -484,8 +506,8 @@ const Calendar = () => {
             </div>
           </div>
         ) : (
-          /* Client: vertical day list */
-          <CalendarDayList events={events} onEventClick={handleEventClick} onEventMoved={handleEventMoved} />
+          /* Client: vertical day list capped by coach-set look-ahead */
+          <CalendarDayList events={events} onEventClick={handleEventClick} onEventMoved={handleEventMoved} maxFutureDays={lookaheadDays} />
         )}
       </div>
 
