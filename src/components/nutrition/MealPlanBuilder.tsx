@@ -1070,10 +1070,8 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         return (
           <Card
             key={day.id}
-            className={cn(
-              "overflow-hidden border-l-4 transition-colors",
-              isExpanded ? "border-l-gold" : "border-l-gold/40"
-            )}
+            className="overflow-hidden border-l-4 transition-colors"
+            style={{ borderLeftColor: isExpanded ? "hsl(var(--gold))" : "hsl(var(--gold) / 0.4)" }}
           >
             <button
               onClick={() => setExpandedDay(isExpanded ? null : day.id)}
