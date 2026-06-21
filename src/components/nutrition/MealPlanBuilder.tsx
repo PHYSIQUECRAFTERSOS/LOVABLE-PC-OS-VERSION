@@ -1068,25 +1068,32 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         const isExpanded = expandedDay === day.id;
 
         return (
-          <Card key={day.id} className="overflow-hidden">
+          <Card
+            key={day.id}
+            className={cn(
+              "overflow-hidden border-l-4 transition-colors",
+              isExpanded ? "border-l-gold" : "border-l-gold/40"
+            )}
+          >
             <button
               onClick={() => setExpandedDay(isExpanded ? null : day.id)}
               className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                <Tag className="h-4 w-4 text-gold flex-shrink-0" />
                 <Input
                   value={day.type}
                   onChange={(e) => { e.stopPropagation(); renameDayType(day.id, e.target.value); }}
                   onClick={(e) => e.stopPropagation()}
-                  className="h-7 w-40 text-sm font-semibold bg-transparent border-0 p-0 focus-visible:ring-1"
+                  className="h-7 w-40 text-sm font-semibold bg-transparent border-0 p-0 focus-visible:ring-1 text-gold"
                 />
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-muted-foreground hidden sm:inline">
                   {Math.round(dayTotals.calories)} cal · {Math.round(dayTotals.protein)}P · {Math.round(dayTotals.carbs)}C · {Math.round(dayTotals.fat)}F
                 </span>
-                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {isExpanded ? <ChevronUp className="h-4 w-4 text-gold" /> : <ChevronDown className="h-4 w-4" />}
               </div>
             </button>
 
