@@ -1182,7 +1182,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           onChange={(e) => updateMealNote(day.id, meal.id, e.target.value)}
                           placeholder="Coach note for this meal (e.g. Have ½ tsp potassium salt + 500ml water after this meal)"
                           rows={2}
-                          className="text-[11px] min-h-[44px] bg-secondary/40 border-border/40 placeholder:text-muted-foreground/60 resize-y"
+                          className="text-sm min-h-[48px] bg-secondary/40 border-border/40 placeholder:text-muted-foreground/60 resize-y"
                         />
                       </div>
 
