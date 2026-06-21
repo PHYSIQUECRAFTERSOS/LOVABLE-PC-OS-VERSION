@@ -1,52 +1,32 @@
-## Goal
+# Fix "Could not render PDF preview" on iOS PWA
 
-Make the Training (and Meal Plan / Supplements) PDF preview show **every page** scrollable inside the existing in-app preview dialog — no Xcode rebuild, no App Store submission required. Save / Share / Download stay exactly as they work today.
+## Problem
+The dialog loads the PDF (it correctly shows "Page 1 / 5"), but `page.render(...)` throws on iOS WKWebView, so all canvases stay blank and the red error banner appears. Two root causes:
 
-## Why the current preview only shows page 1
+1. We import from `pdfjs-dist` (modern build), which in v6 uses JS features (e.g. `Promise.withResolvers`, modern module worker) that older iOS Safari / WKWebView versions don't fully support during rendering.
+2. In `pdfjs-dist` v6, `page.render({ canvasContext, viewport })` is deprecated — the canvas must be passed explicitly. On iOS this fails hard instead of falling back.
 
-`PdfExportPreviewDialog` renders the PDF via `<iframe src={blob}>`. On iOS Safari and inside the iOS WKWebView (the PWA), the built-in PDF viewer only paints the first page of a blob-URL PDF inside an iframe. Desktop Chrome happens to render all pages, which is why it looked fine there.
+## Fix (web-only — no native rebuild, no App Store submission)
 
-The native `QLPreviewController` plugin already fixes this, but it requires the Xcode rebuild + TestFlight/App Store cycle. To stay 100% web/PWA, we render the pages ourselves with **pdf.js** into a scrollable column of canvases.
+### 1. `src/components/common/PdfCanvasPreview.tsx`
+- Import from the **legacy** build:
+  - `import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs"`
+  - `import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"`
+- Set `GlobalWorkerOptions.workerSrc = pdfWorkerUrl` once at module load.
+- In the render loop:
+  - Create the canvas as today.
+  - Call `page.render({ canvas, canvasContext: ctx, viewport }).promise` (pass both for safety).
+  - Clamp `scale * dpr` so the final canvas area stays under ~16,000,000 pixels to avoid iOS canvas-memory errors on long/high-DPI pages.
+- Keep the existing loader, per-page "Page X / N" label, error banner, and cleanup (`pdfDoc.destroy()`, `cancelled` flag) unchanged.
 
-## Plan
+### 2. No other files change
+- `PdfExportPreviewDialog.tsx`, `ExportPdfButton.tsx`, the native `PdfPreviewPlugin.swift`, and `capacitor.config.ts` are untouched.
+- Share / Download / Open behavior is identical to today.
 
-### 1. Add pdf.js
-- Install `pdfjs-dist` (already a transitive dep of some PDF tooling; add it explicitly).
-- Configure the worker via Vite-friendly `?url` import so it works in the Lovable preview and the published PWA without extra build config.
-
-### 2. New component: `PdfCanvasPreview`
-- Path: `src/components/common/PdfCanvasPreview.tsx`.
-- Props: `{ blob: Blob }`.
-- Behavior:
-  - Loads the blob with `pdfjsLib.getDocument`.
-  - Iterates every page, renders each into its own `<canvas>` at device-pixel-ratio scale.
-  - Stacks them vertically in a scroll container with page numbers.
-  - Shows a small loader while pages render; logs errors to console and shows an inline fallback message.
-  - Cleans up the PDF document on unmount.
-
-### 3. Update `PdfExportPreviewDialog`
-- Replace the `<iframe>` block with `<PdfCanvasPreview blob={asset.blob} />`.
-- Keep the dialog chrome, title, description, and the **Share PDF** button exactly as-is.
-- Keep `sharePdf`, `openPdf`, `downloadPdf` logic untouched so saving works identically to today (Web Share API with file → fallback to opening / downloading the blob URL).
-- Remove the iframe-based `printPdf` path (it relied on the iframe) — keep Share as the single primary action, matching current UI. No other call sites change.
-
-### 4. Leave the native iOS path alone
-- `ExportPdfButton` still calls `previewPdfNative` first when running inside the native shell. That code stays so a future native build keeps the QuickLook experience. In the browser PWA (what you want now), `isNativePdfPreviewAvailable()` is false, so it falls straight through to the new canvas preview.
-
-### 5. Verification
-- Open a client → Training → Export PDF in the Lovable preview at mobile viewport: confirm all pages scroll.
-- Repeat for Meal Plan and Supplements: confirm preview still shows all pages and Share/Download still saves the same file you get today.
-- Confirm no regression on desktop.
-
-## Files
-
-- `package.json` — add `pdfjs-dist`.
-- `src/components/common/PdfCanvasPreview.tsx` — new.
-- `src/components/common/PdfExportPreviewDialog.tsx` — swap iframe for `PdfCanvasPreview`, drop the print-via-iframe helper.
-- No changes to `ExportPdfButton.tsx`, the export utilities, or the native plugin files.
+## Verification
+- In the Lovable preview at mobile viewport, open Coach → a client → Meal Plan → Export PDF: all 5 pages should render stacked and scroll.
+- Same check for Supplements (3 pages) and Training program.
+- Share PDF still produces the same file as before.
 
 ## Out of scope
-
-- No changes to PDF generation, filenames, or saving logic.
-- No changes to the native iOS plugin or Capacitor config — nothing to rebuild in Xcode.
-- No new database or backend work.
+No changes to PDF generation, file names, native iOS plugin, Capacitor config, or backend.
