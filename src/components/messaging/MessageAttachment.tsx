@@ -2,6 +2,8 @@ import { useState } from "react";
 import { FileText, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PhotoLightbox from "@/components/ui/photo-lightbox";
+import VoiceNotePlayer from "@/components/messaging/VoiceNotePlayer";
+
 
 interface MessageAttachmentProps {
   url: string;
@@ -49,20 +51,15 @@ const MessageAttachment = ({ url, type, name, isOwn }: MessageAttachmentProps) =
 
   if (type === "audio") {
     return (
-      <div className="min-w-[200px]">
-        <audio
-          src={url}
-          controls
-          preload="metadata"
-          className="w-full max-w-[280px] h-10"
-          controlsList="nodownload"
-        />
+      <div>
+        <VoiceNotePlayer url={url} isOwn={isOwn} />
         {name && !name.startsWith("voice-message") && (
           <span className="text-[10px] opacity-70 mt-0.5 block truncate">{name}</span>
         )}
       </div>
     );
   }
+
 
   if (type === "pdf") {
     return (

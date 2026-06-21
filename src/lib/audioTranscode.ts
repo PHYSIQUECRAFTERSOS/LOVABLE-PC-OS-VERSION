@@ -1,67 +1,88 @@
-// Lazy-loaded ffmpeg.wasm singleton for transcoding voice notes to MP3.
-// Using 0.11.x which does NOT require SharedArrayBuffer / COOP-COEP headers.
-// Core files are loaded from unpkg CDN (~24MB wasm, cached by browser after first load).
+// Browser-native WAV encoder for voice notes.
+// No wasm, no CDN — uses Web Audio API only. Output plays everywhere
+// (iOS Safari, WKWebView, Chrome, Firefox, Android).
+//
+// Voice-optimized: mono, 16 kHz, 16-bit PCM (~32 KB/s → ~2 MB per 2-min note).
 
-import type { FFmpeg } from "@ffmpeg/ffmpeg";
+const TARGET_SAMPLE_RATE = 16000;
 
-let ffmpegInstance: FFmpeg | null = null;
-let loadPromise: Promise<FFmpeg> | null = null;
+async function decodeBlob(input: Blob): Promise<AudioBuffer> {
+  const arrayBuffer = await input.arrayBuffer();
+  const AC: typeof AudioContext =
+    (window.AudioContext as typeof AudioContext) ||
+    ((window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+  if (!AC) throw new Error("AudioContext not supported");
+  const ctx = new AC();
+  try {
+    // Safari requires the callback form for older versions; promise form is fine in all modern.
+    return await ctx.decodeAudioData(arrayBuffer.slice(0));
+  } finally {
+    try { await ctx.close(); } catch { /* ignore */ }
+  }
+}
 
-const CORE_VERSION = "0.11.0";
-const CORE_PATH = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/ffmpeg-core.js`;
+async function resampleToMono(buffer: AudioBuffer, targetRate: number): Promise<Float32Array> {
+  const duration = buffer.duration;
+  const frames = Math.ceil(duration * targetRate);
+  const OAC: typeof OfflineAudioContext =
+    (window.OfflineAudioContext as typeof OfflineAudioContext) ||
+    ((window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext }).webkitOfflineAudioContext);
+  if (!OAC) throw new Error("OfflineAudioContext not supported");
 
-async function getFFmpeg(): Promise<FFmpeg> {
-  if (ffmpegInstance) return ffmpegInstance;
-  if (loadPromise) return loadPromise;
+  const offline = new OAC(1, frames, targetRate);
+  const src = offline.createBufferSource();
+  src.buffer = buffer;
+  src.connect(offline.destination);
+  src.start(0);
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0);
+}
 
-  loadPromise = (async () => {
-    const { createFFmpeg } = await import("@ffmpeg/ffmpeg");
-    const ff = createFFmpeg({
-      log: false,
-      corePath: CORE_PATH,
-    });
-    await ff.load();
-    ffmpegInstance = ff;
-    return ff;
-  })();
+function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+  const bytesPerSample = 2;
+  const blockAlign = 1 * bytesPerSample; // mono
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = samples.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
 
-  return loadPromise;
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);          // fmt chunk size
+  view.setUint16(20, 1, true);           // PCM
+  view.setUint16(22, 1, true);           // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);          // bits per sample
+  writeStr(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+
+  return new Blob([buffer], { type: "audio/wav" });
 }
 
 /**
- * Transcode an arbitrary audio Blob (webm/opus, ogg, etc.) to MP3.
- * iOS Safari / WKWebView cannot play webm — MP3 plays everywhere.
- * Voice-optimized: 64 kbps mono.
+ * Encode an arbitrary audio Blob (webm/opus, ogg, mp4, etc.) to a mono 16-bit
+ * 16 kHz WAV blob. WAV plays natively on every browser and on iOS WKWebView.
  */
-export async function transcodeToMp3(input: Blob): Promise<Blob> {
-  const ff = await getFFmpeg();
-  const { fetchFile } = await import("@ffmpeg/ffmpeg");
-
-  // Pick an input extension hint ffmpeg can sniff.
-  const t = input.type.toLowerCase();
-  const inputName = t.includes("webm")
-    ? "input.webm"
-    : t.includes("ogg")
-      ? "input.ogg"
-      : t.includes("mp4") || t.includes("m4a") || t.includes("aac")
-        ? "input.m4a"
-        : "input.bin";
-
-  ff.FS("writeFile", inputName, await fetchFile(input));
-
-  try {
-    await ff.run(
-      "-i", inputName,
-      "-vn",
-      "-acodec", "libmp3lame",
-      "-ac", "1",
-      "-b:a", "64k",
-      "output.mp3"
-    );
-    const data = ff.FS("readFile", "output.mp3");
-    return new Blob([data.buffer as ArrayBuffer], { type: "audio/mpeg" });
-  } finally {
-    try { ff.FS("unlink", inputName); } catch { /* ignore */ }
-    try { ff.FS("unlink", "output.mp3"); } catch { /* ignore */ }
-  }
+export async function encodeToWav(input: Blob): Promise<Blob> {
+  const decoded = await decodeBlob(input);
+  const mono = await resampleToMono(decoded, TARGET_SAMPLE_RATE);
+  return encodeWav(mono, TARGET_SAMPLE_RATE);
 }
+
+// Backwards-compat alias for any lingering imports.
+export const transcodeToMp3 = encodeToWav;

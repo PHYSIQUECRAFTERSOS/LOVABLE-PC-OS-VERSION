@@ -122,7 +122,7 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
 
     try {
       let uploadBlob = blobRef.current;
-      let ext: "m4a" | "mp3" | "webm";
+      let ext: "m4a" | "wav";
       let contentType: string;
 
       const sourceType = uploadBlob.type.toLowerCase();
@@ -133,23 +133,24 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
         ext = "m4a";
         contentType = "audio/mp4";
       } else {
-        // Desktop Chrome (and most non-iOS browsers) produce webm/opus, which iOS Safari + WKWebView
-        // cannot decode. Transcode to MP3 in-browser so every recipient can play it.
+        // Desktop Chrome/Firefox produce webm/opus, which iOS Safari + WKWebView
+        // cannot decode. Encode to WAV in-browser (Web Audio only, no wasm/CDN)
+        // so every recipient can play it.
         setState("converting");
         try {
-          const { transcodeToMp3 } = await import("@/lib/audioTranscode");
-          uploadBlob = await transcodeToMp3(blobRef.current);
-          ext = "mp3";
-          contentType = "audio/mpeg";
+          const { encodeToWav } = await import("@/lib/audioTranscode");
+          uploadBlob = await encodeToWav(blobRef.current);
+          ext = "wav";
+          contentType = "audio/wav";
         } catch (convErr: any) {
-          console.error("Voice transcode failed, uploading original:", convErr);
+          console.error("Voice encode failed:", convErr);
           toast({
-            title: "Voice note may not play on iPhone",
-            description: "Conversion failed; sending original file.",
+            title: "Couldn't process voice note",
+            description: "Please try recording again.",
             variant: "destructive",
           });
-          ext = "webm";
-          contentType = uploadBlob.type || "audio/webm";
+          setState("preview");
+          return;
         }
       }
 
@@ -188,6 +189,7 @@ const VoiceMessageRecorder = ({ threadId, onSent, onRecordingStateChange }: Voic
       setState("preview");
     }
   };
+
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
