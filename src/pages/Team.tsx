@@ -46,7 +46,7 @@ const roleColors: Record<string, string> = {
 };
 
 const Team = () => {
-  const { user, role } = useAuth();
+  const { user, role, hasRole } = useAuth();
   const { toast } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -61,6 +61,9 @@ const Team = () => {
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
   const isAdmin = role === "admin";
+  const isManager = hasRole("manager");
+  const canManageStaff = isAdmin || isManager;
+
 
   const fetchStaff = useCallback(async () => {
     setLoading(true);
