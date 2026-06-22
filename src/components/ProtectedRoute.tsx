@@ -8,7 +8,7 @@ import ReSignPrompt from "@/components/signing/ReSignPrompt";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ("admin" | "coach" | "client")[];
+  allowedRoles?: ("admin" | "coach" | "client" | "manager")[];
 }
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
