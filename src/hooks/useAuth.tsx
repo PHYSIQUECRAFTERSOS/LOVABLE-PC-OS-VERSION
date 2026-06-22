@@ -303,11 +303,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const role: AppRole | null = roles.includes("admin")
     ? "admin"
-    : roles.includes("coach")
-      ? "coach"
-      : roles.includes("client")
-        ? "client"
-        : null;
+    : roles.includes("manager")
+      ? "manager"
+      : roles.includes("coach")
+        ? "coach"
+        : roles.includes("client")
+          ? "client"
+          : null;
 
   const hasRole = useCallback((r: AppRole) => roles.includes(r), [roles]);
 
