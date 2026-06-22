@@ -92,6 +92,17 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
     fetchClients();
   }, [member, open]);
 
+  useEffect(() => {
+    if (member && open) {
+      const r = member.roles.includes("admin")
+        ? "admin"
+        : member.roles.includes("manager")
+          ? "manager"
+          : "coach";
+      setNewRole(r);
+    }
+  }, [member, open]);
+
   const initials = (name: string) =>
     name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
