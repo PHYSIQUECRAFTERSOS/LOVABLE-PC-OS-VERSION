@@ -271,7 +271,7 @@ const Team = () => {
               staff.map((member) => {
                 const memberRole = primaryRole(member.roles);
                 const isCurrentUser = member.user_id === user?.id;
-                const canClick = isAdmin && !isCurrentUser;
+                const canClick = canManageStaff && !isCurrentUser;
                 return (
                   <div
                     key={member.user_id}
