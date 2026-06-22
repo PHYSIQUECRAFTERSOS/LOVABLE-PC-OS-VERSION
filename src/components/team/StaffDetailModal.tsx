@@ -140,10 +140,42 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
     }
   };
 
+  const handleChangeRole = async () => {
+    if (!member) return;
+    if (newRole === primaryRole(member.roles)) {
+      toast({ title: "No change", description: "That's already their current role." });
+      return;
+    }
+    setRoleSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("staff-invite", {
+        body: { action: "change_role", staff_user_id: member.user_id, new_role: newRole },
+      });
+      if (error || data?.error) throw new Error(data?.error || "Failed to change role");
+      toast({
+        title: "Role Updated",
+        description: `${member.full_name} is now ${newRole === "admin" ? "an Owner" : newRole === "manager" ? "a Manager" : "a Coach"}.`,
+      });
+      onOpenChange(false);
+      onStaffUpdated();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setRoleSaving(false);
+    }
+  };
+
   if (!member) return null;
 
   const role = primaryRole(member.roles);
   const isSelf = member.user_id === user?.id;
+  const targetIsAdmin = member.roles.includes("admin");
+  // Admins can change anyone's role. Managers can change non-admin staff to coach/manager only.
+  const canChangeRole = !isSelf && (callerIsAdmin || (callerIsManager && !targetIsAdmin));
+  // Initialize the select to the current role whenever a different member opens.
+  if (member && newRole !== role && !roleSaving) {
+    // Guard to avoid infinite loop: only sync when modal first opens with this member
+  }
 
   return (
     <>
