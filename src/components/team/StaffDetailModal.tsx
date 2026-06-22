@@ -44,7 +44,7 @@ interface StaffDetailModalProps {
 }
 
 const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffDetailModalProps) => {
-  const { user } = useAuth();
+  const { user, role: callerRole, hasRole } = useAuth();
   const { toast } = useToast();
   const [clients, setClients] = useState<StaffClient[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
@@ -52,6 +52,11 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [newRole, setNewRole] = useState<string>("coach");
+  const [roleSaving, setRoleSaving] = useState(false);
+
+  const callerIsAdmin = callerRole === "admin";
+  const callerIsManager = hasRole("manager");
 
   useEffect(() => {
     if (!member || !open) return;
