@@ -183,10 +183,6 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
   const targetIsAdmin = member.roles.includes("admin");
   // Admins can change anyone's role. Managers can change non-admin staff to coach/manager only.
   const canChangeRole = !isSelf && (callerIsAdmin || (callerIsManager && !targetIsAdmin));
-  // Initialize the select to the current role whenever a different member opens.
-  if (member && newRole !== role && !roleSaving) {
-    // Guard to avoid infinite loop: only sync when modal first opens with this member
-  }
 
   return (
     <>
