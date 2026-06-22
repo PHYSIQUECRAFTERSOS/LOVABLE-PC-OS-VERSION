@@ -10,7 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-type AppRole = "admin" | "coach" | "client";
+type AppRole = "admin" | "coach" | "client" | "manager";
 
 interface AuthContextValue {
   user: User | null;
@@ -301,9 +301,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [resolveSession]);
 
+  // Managers are treated as elevated coaches for UI gating; use hasRole('manager')
+  // to detect manager-specific permissions (e.g. staff management).
   const role: AppRole | null = roles.includes("admin")
     ? "admin"
-    : roles.includes("coach")
+    : roles.includes("coach") || roles.includes("manager")
       ? "coach"
       : roles.includes("client")
         ? "client"

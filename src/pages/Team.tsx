@@ -46,7 +46,7 @@ const roleColors: Record<string, string> = {
 };
 
 const Team = () => {
-  const { user, role } = useAuth();
+  const { user, role, hasRole } = useAuth();
   const { toast } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
@@ -61,6 +61,9 @@ const Team = () => {
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
 
   const isAdmin = role === "admin";
+  const isManager = hasRole("manager");
+  const canManageStaff = isAdmin || isManager;
+
 
   const fetchStaff = useCallback(async () => {
     setLoading(true);
@@ -268,7 +271,7 @@ const Team = () => {
               staff.map((member) => {
                 const memberRole = primaryRole(member.roles);
                 const isCurrentUser = member.user_id === user?.id;
-                const canClick = isAdmin && !isCurrentUser;
+                const canClick = canManageStaff && !isCurrentUser;
                 return (
                   <div
                     key={member.user_id}
@@ -385,7 +388,7 @@ const Team = () => {
                 <SelectContent>
                   <SelectItem value="coach">Coach</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Owner</SelectItem>
+                  {isAdmin && <SelectItem value="admin">Owner</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

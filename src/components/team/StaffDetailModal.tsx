@@ -15,7 +15,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, Crown, Ban, Trash2, Loader2 } from "lucide-react";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Users, Crown, Ban, Trash2, Loader2, ShieldCheck } from "lucide-react";
 
 interface StaffMember {
   user_id: string;
@@ -41,7 +44,7 @@ interface StaffDetailModalProps {
 }
 
 const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffDetailModalProps) => {
-  const { user } = useAuth();
+  const { user, role: callerRole, hasRole } = useAuth();
   const { toast } = useToast();
   const [clients, setClients] = useState<StaffClient[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
@@ -49,6 +52,11 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [newRole, setNewRole] = useState<string>("coach");
+  const [roleSaving, setRoleSaving] = useState(false);
+
+  const callerIsAdmin = callerRole === "admin";
+  const callerIsManager = hasRole("manager");
 
   useEffect(() => {
     if (!member || !open) return;
@@ -82,6 +90,17 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
       setLoadingClients(false);
     };
     fetchClients();
+  }, [member, open]);
+
+  useEffect(() => {
+    if (member && open) {
+      const r = member.roles.includes("admin")
+        ? "admin"
+        : member.roles.includes("manager")
+          ? "manager"
+          : "coach";
+      setNewRole(r);
+    }
   }, [member, open]);
 
   const initials = (name: string) =>
@@ -132,10 +151,38 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
     }
   };
 
+  const handleChangeRole = async () => {
+    if (!member) return;
+    if (newRole === primaryRole(member.roles)) {
+      toast({ title: "No change", description: "That's already their current role." });
+      return;
+    }
+    setRoleSaving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("staff-invite", {
+        body: { action: "change_role", staff_user_id: member.user_id, new_role: newRole },
+      });
+      if (error || data?.error) throw new Error(data?.error || "Failed to change role");
+      toast({
+        title: "Role Updated",
+        description: `${member.full_name} is now ${newRole === "admin" ? "an Owner" : newRole === "manager" ? "a Manager" : "a Coach"}.`,
+      });
+      onOpenChange(false);
+      onStaffUpdated();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setRoleSaving(false);
+    }
+  };
+
   if (!member) return null;
 
   const role = primaryRole(member.roles);
   const isSelf = member.user_id === user?.id;
+  const targetIsAdmin = member.roles.includes("admin");
+  // Admins can change anyone's role. Managers can change non-admin staff to coach/manager only.
+  const canChangeRole = !isSelf && (callerIsAdmin || (callerIsManager && !targetIsAdmin));
 
   return (
     <>
@@ -217,7 +264,43 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
 
             {!isSelf && (
               <TabsContent value="actions" className="mt-4 space-y-4">
+                {canChangeRole && (
+                  <Card className="border-primary/30 bg-card">
+                    <CardContent className="pt-4 space-y-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                          Change Role
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Managers can add clients, assign them to any teammate, and invite/manage other staff. Owners have full control.
+                        </p>
+                        <div className="flex gap-2">
+                          <Select value={newRole} onValueChange={setNewRole}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="coach">Coach</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                              {callerIsAdmin && <SelectItem value="admin">Owner</SelectItem>}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            onClick={handleChangeRole}
+                            disabled={roleSaving || newRole === role}
+                            className="gap-1.5"
+                          >
+                            {roleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
                 <Card className="border-border bg-card">
+
                   <CardContent className="pt-4 space-y-3">
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-1">Deactivate Staff</h4>
