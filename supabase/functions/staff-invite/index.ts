@@ -283,11 +283,22 @@ serve(async (req) => {
       if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
 
       const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", caller.id);
-      if (!(callerRoles || []).some((r: any) => r.role === "admin")) return json({ error: "Only admins can deactivate staff" }, 403);
+      const callerSet = new Set((callerRoles || []).map((r: any) => r.role));
+      if (!callerSet.has("admin") && !callerSet.has("manager")) {
+        return json({ error: "Only owners or managers can deactivate staff" }, 403);
+      }
 
       const { staff_user_id } = body;
       if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
       if (staff_user_id === caller.id) return json({ error: "Cannot deactivate yourself" }, 400);
+
+      // Managers cannot deactivate an owner
+      if (!callerSet.has("admin")) {
+        const { data: targetRoles } = await supabase.from("user_roles").select("role").eq("user_id", staff_user_id);
+        if ((targetRoles || []).some((r: any) => r.role === "admin")) {
+          return json({ error: "Only owners can deactivate another owner" }, 403);
+        }
+      }
 
       await supabase.auth.admin.updateUserById(staff_user_id, { ban_duration: "876000h" });
       await supabase.from("user_roles").delete().eq("user_id", staff_user_id);
@@ -304,11 +315,22 @@ serve(async (req) => {
       if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
 
       const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", caller.id);
-      if (!(callerRoles || []).some((r: any) => r.role === "admin")) return json({ error: "Only admins can delete staff" }, 403);
+      const callerSet = new Set((callerRoles || []).map((r: any) => r.role));
+      if (!callerSet.has("admin") && !callerSet.has("manager")) {
+        return json({ error: "Only owners or managers can delete staff" }, 403);
+      }
 
       const { staff_user_id } = body;
       if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
       if (staff_user_id === caller.id) return json({ error: "Cannot delete yourself" }, 400);
+
+      // Managers cannot delete an owner
+      if (!callerSet.has("admin")) {
+        const { data: targetRoles } = await supabase.from("user_roles").select("role").eq("user_id", staff_user_id);
+        if ((targetRoles || []).some((r: any) => r.role === "admin")) {
+          return json({ error: "Only owners can delete another owner" }, 403);
+        }
+      }
 
       await supabase.from("user_roles").delete().eq("user_id", staff_user_id);
       await supabase.from("profiles").delete().eq("user_id", staff_user_id);
@@ -316,6 +338,65 @@ serve(async (req) => {
       await supabase.auth.admin.deleteUser(staff_user_id);
 
       return json({ success: true });
+    }
+
+    // ── CHANGE ROLE ──
+    if (action === "change_role") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) return json({ error: "Unauthorized" }, 401);
+      const { data: { user: caller }, error: authErr } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
+
+      const { data: callerRoles } = await supabase.from("user_roles").select("role").eq("user_id", caller.id);
+      const callerSet = new Set((callerRoles || []).map((r: any) => r.role));
+      const callerIsAdmin = callerSet.has("admin");
+      const callerIsManager = callerSet.has("manager");
+      if (!callerIsAdmin && !callerIsManager) {
+        return json({ error: "Only owners or managers can change roles" }, 403);
+      }
+
+      const { staff_user_id, new_role } = body;
+      if (!staff_user_id) return json({ error: "staff_user_id required" }, 400);
+      if (!["coach", "manager", "admin"].includes(new_role)) {
+        return json({ error: "new_role must be coach, manager, or admin" }, 400);
+      }
+      if (staff_user_id === caller.id) {
+        return json({ error: "Cannot change your own role" }, 400);
+      }
+
+      // Only admins can promote to admin or demote an admin
+      const { data: targetRoles } = await supabase.from("user_roles").select("role").eq("user_id", staff_user_id);
+      const targetIsAdmin = (targetRoles || []).some((r: any) => r.role === "admin");
+
+      if (!callerIsAdmin) {
+        if (new_role === "admin") {
+          return json({ error: "Only owners can promote to owner" }, 403);
+        }
+        if (targetIsAdmin) {
+          return json({ error: "Only owners can change another owner's role" }, 403);
+        }
+      }
+
+      // Replace any existing staff role rows for this user with the new role
+      const { error: delErr } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", staff_user_id)
+        .in("role", ["admin", "manager", "coach"]);
+      if (delErr) {
+        console.error("[staff-invite] change_role delete error:", delErr);
+        return json({ error: "Failed to update role" }, 500);
+      }
+
+      const { error: insErr } = await supabase
+        .from("user_roles")
+        .upsert({ user_id: staff_user_id, role: new_role }, { onConflict: "user_id,role" });
+      if (insErr) {
+        console.error("[staff-invite] change_role insert error:", insErr);
+        return json({ error: "Failed to assign new role" }, 500);
+      }
+
+      return json({ success: true, new_role });
     }
 
     return json({ error: "Invalid action" }, 400);
