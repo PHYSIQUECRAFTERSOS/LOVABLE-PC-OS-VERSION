@@ -10,7 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-type AppRole = "admin" | "coach" | "client";
+type AppRole = "admin" | "coach" | "client" | "manager";
 
 interface AuthContextValue {
   user: User | null;
