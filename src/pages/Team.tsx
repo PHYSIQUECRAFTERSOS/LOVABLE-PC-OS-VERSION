@@ -388,7 +388,7 @@ const Team = () => {
                 <SelectContent>
                   <SelectItem value="coach">Coach</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Owner</SelectItem>
+                  {isAdmin && <SelectItem value="admin">Owner</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
