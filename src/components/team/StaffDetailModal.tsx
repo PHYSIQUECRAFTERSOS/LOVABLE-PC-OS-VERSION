@@ -264,7 +264,43 @@ const StaffDetailModal = ({ member, open, onOpenChange, onStaffUpdated }: StaffD
 
             {!isSelf && (
               <TabsContent value="actions" className="mt-4 space-y-4">
+                {canChangeRole && (
+                  <Card className="border-primary/30 bg-card">
+                    <CardContent className="pt-4 space-y-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                          Change Role
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">
+                          Managers can add clients, assign them to any teammate, and invite/manage other staff. Owners have full control.
+                        </p>
+                        <div className="flex gap-2">
+                          <Select value={newRole} onValueChange={setNewRole}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="coach">Coach</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                              {callerIsAdmin && <SelectItem value="admin">Owner</SelectItem>}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            onClick={handleChangeRole}
+                            disabled={roleSaving || newRole === role}
+                            className="gap-1.5"
+                          >
+                            {roleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
                 <Card className="border-border bg-card">
+
                   <CardContent className="pt-4 space-y-3">
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-1">Deactivate Staff</h4>
