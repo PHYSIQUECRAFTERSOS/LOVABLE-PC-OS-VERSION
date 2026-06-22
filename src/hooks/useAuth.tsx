@@ -301,15 +301,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [resolveSession]);
 
+  // Managers are treated as elevated coaches for UI gating; use hasRole('manager')
+  // to detect manager-specific permissions (e.g. staff management).
   const role: AppRole | null = roles.includes("admin")
     ? "admin"
-    : roles.includes("manager")
-      ? "manager"
-      : roles.includes("coach")
-        ? "coach"
-        : roles.includes("client")
-          ? "client"
-          : null;
+    : roles.includes("coach") || roles.includes("manager")
+      ? "coach"
+      : roles.includes("client")
+        ? "client"
+        : null;
 
   const hasRole = useCallback((r: AppRole) => roles.includes(r), [roles]);
 
