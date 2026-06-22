@@ -79,17 +79,24 @@ serve(async (req) => {
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
-      const isAdmin = (roles || []).some((r: any) => r.role === "admin");
-      if (!isAdmin) return json({ error: "Only admins can invite staff" }, 403);
+      const callerRoleSet = new Set((roles || []).map((r: any) => r.role));
+      const isAdmin = callerRoleSet.has("admin");
+      const isManager = callerRoleSet.has("manager");
+      if (!isAdmin && !isManager) return json({ error: "Only owners or managers can invite staff" }, 403);
 
       const { email, role, first_name, last_name } = body;
       if (!email) return json({ error: "Email is required" }, 400);
       if (!first_name?.trim() || !last_name?.trim()) {
         return json({ error: "First and last name are required" }, 400);
       }
-      if (!["coach", "admin"].includes(role)) {
-        return json({ error: "Role must be coach or admin" }, 400);
+      if (!["coach", "manager", "admin"].includes(role)) {
+        return json({ error: "Role must be coach, manager, or admin" }, 400);
       }
+      // Managers cannot invite admins (owners)
+      if (!isAdmin && role === "admin") {
+        return json({ error: "Only owners can invite another owner" }, 403);
+      }
+
 
       const { data: existing } = await supabase
         .from("staff_invites")
