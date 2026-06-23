@@ -1,59 +1,51 @@
 ## Goal
 
-Replace the current generic milestone popup with the three on-brand designs shown in the reference images (Workout / Cardio / Nutrition), where every number, label, and stat dynamically matches the milestone the client just unlocked (1, 7, 50, 350, etc.).
+Replace the markdown-rendered "Eating Out Cheat Sheet" and "Eating Out Examples" guide sections with structured, on-brand cards — matte black + gold with subtle section tints, vertical numbered step cards for the "How to approach it" flow — visually distinct from the Macro Replacement Chart so clients don't confuse the two.
 
-## What changes
+## Implementation
 
-### 1. New popup component: `MilestoneCelebrationV2.tsx`
-Three variants driven off `unlock.category`, all sharing the same matte-black gradient background, "PHYSIQUE CRAFTERS" header, close button, confetti, and gold CTA at the bottom.
+### New component: `src/components/nutrition/EatingOutCheatSheet.tsx`
 
-**Workout variant** (`workout_count`)
-- Big gold shield with laurel wreath, dynamic number (1, 7, 25, 50, 100, 350…) and a dumbbell icon underneath
-- Title: `WORKOUT` / `MILESTONE UNLOCKED!`
-- Copy: `You've crushed {N} workout{s}! Let's keep it going.` (singular when N=1)
-- Stat row (3 cells): **{N} Workouts Completed** · **{prs} New PRs** · **100% Dedication**
-- CTA: `KEEP CRUSHING IT!`
+Hardcoded layout (mirrors how `MacroCheatSheetGrid` lives inside `GuideSection.tsx`). Wrapped in the same outer `Card` shell `GuideSection` already uses, so the section header (`🍽️ Eating Out Cheat Sheet`) stays consistent with the rest of the feed.
 
-**Cardio variant** (`cardio_count`)
-- Same gold shield + laurel, dynamic number, heart-with-pulse icon
-- Title: `CARDIO SESSIONS` / `CARDIO MILESTONE UNLOCKED!`
-- Copy: `You've completed {N} cardio session{s}! We're proud of you.`
-- Single stat tile: **{N} Sessions Completed** with heart icon
-- CTA: `CONTINUE`
+Structure top → bottom:
 
-**Nutrition variant** (`nutrition_total` and `nutrition_streak`)
-- Same gold shield + laurel, dynamic number, apple icon
-- Title: `NUTRITION TRACKING` / `NUTRITION MILESTONE UNLOCKED!`
-- Copy total: `You've completed {N} day{s} of tracking! We're proud of you.`
-- Copy streak: `You're on a {N}-day tracking streak! Keep it rolling.`
-- Single stat tile: **{N} Days Tracked** (or `Day Streak`) with apple icon
-- CTA: `CONTINUE`
+1. **Sides** — `bg-success/5 border-success/20` tint. Pill-tag rows for each item with the qualifier in muted text (e.g. `Rice` · small gray `ask for plain`).
+2. **All Orders** — single highlight tile: `Ask for sauce on side — use sparingly` with a gold sauce icon.
+3. **Fats** — `bg-warn/5 border-warn/20` tint, short paragraph.
+4. **Protein** — `bg-destructive/5 border-destructive/20` tint, split into two clearly labeled sub-blocks:
+   - `MORE POPULAR` (gold left bar): Chicken, Shrimp, Extra lean steak, White fish — each rendered as a pill chip with optional qualifier line underneath
+   - `LESS POPULAR` (muted left bar): Bison, Tuna, Egg whites, Turkey, Salmon
+5. **How To Approach It** — three vertical numbered cards. Each card: gold circular `01` / `02` / `03` numeral on the left, instruction text on the right. Subtle gold-tinted card background `bg-[hsl(var(--primary))]/5 border-[hsl(var(--primary))]/20`. Highlighted keywords (`protein`, `side`, `sauce on side`) stay gold.
+6. **Tip callout** — gold-bordered blockquote with `Tip:` label, identical position/spacing to current.
 
-The shield + laurel + confetti are built with inline SVG + framer-motion (not a baked image) so the number is always crisp and dynamic. The number uses the existing `CountUp` animation from `MilestoneShield`. Gold gradient `from-[#8a6b13] via-[#D4A017] to-[#f5e6a8]` (already in `TIER_RING`).
+Icons via Lucide (`UtensilsCrossed`, `Salad`, `Droplets`, `Beef`, `ListChecks`, `Lightbulb`) — keeps it distinct from the Macro Chart which uses emoji + bold per-macro colors.
 
-### 2. PR stat for workout popup (only stat that needs data)
-For workout milestones, fetch the count of `personal_records` rows the client has, **scoped to the workout session that triggered the milestone**:
-- After the unlock loads, query the latest completed `workout_sessions` row for `user.id` ordered by `completed_at desc limit 1`
-- Count `personal_records` rows where `session_id` = that session id (and `user_id` = client)
-- Cache per `unlock.id` so re-renders don't refetch
-- "Dedication" is a static `100%` (visual celebration only) — confirmed by the reference design
+### New component: `src/components/nutrition/EatingOutExamples.tsx`
 
-Cardio and nutrition variants have no async stats; everything renders from `unlock.threshold`.
+Same visual language as the cheat sheet (subtle tints, gold accents, Lucide icons) so they feel like a matched pair. The current Examples content (parsed once from DB to capture structure) becomes hardcoded example cards — restaurant name + recommended order + macro estimate per card. If structure is non-uniform after inspection, fall back to numbered example cards (`Example 1`, `Example 2` …) with the body text formatted in the new card style.
 
-### 3. Wire into existing flow
-- `MilestoneRoot.tsx` swaps `MilestoneCelebration` → `MilestoneCelebrationV2`. No changes to `useMilestoneWatcher`, no DB changes, no migration.
-- `MilestoneCelebration.tsx` and `MilestoneShield.tsx` stay in repo (TrophyRoom still uses `MilestoneShield`).
-- Singular/plural handled inline (`workout` vs `workouts`, `session` vs `sessions`, `day` vs `days`).
+### Wire-in: `src/components/nutrition/GuideSection.tsx`
+
+Add two new branches alongside the existing `macro_cheat_sheet` check:
+
+```
+if (sectionKey === 'eating_out_cheat_sheet') return <EatingOutCheatSheet />
+if (sectionKey === 'eating_out_examples')   return <EatingOutExamples />
+```
+
+Both render inside the same `Card` shell so the outer header/border styling stays consistent.
+
+The DB rows for these two sections are left untouched (so coach overrides don't crash anything), but the markdown body is ignored in favor of the hardcoded layout — matching how `macro_cheat_sheet` already works.
 
 ## Files touched
 
-- `src/components/milestones/MilestoneCelebrationV2.tsx` — new, the three-variant popup
-- `src/components/milestones/MilestoneRoot.tsx` — swap import
-- `src/utils/milestoneDefinitions.ts` — add `CATEGORY_META[*].titleLine1/titleLine2/cta/copyTemplate` so the three variants share one config
+- `src/components/nutrition/EatingOutCheatSheet.tsx` — new
+- `src/components/nutrition/EatingOutExamples.tsx` — new
+- `src/components/nutrition/GuideSection.tsx` — add two `sectionKey` branches and skip the empty-content early return for these keys
 
 ## Out of scope
 
-- No DB/migration changes
-- No changes to backfill logic or `recompute_milestones`
-- No share-to-Instagram button (per earlier decision)
-- TrophyRoom keeps the existing shield component
+- No database/migration changes
+- No coach-side guide editor changes (coaches keep editing the markdown; it just won't render on the client side for these two keys, same pattern as the Macro Chart today)
+- No changes to other guide sections
