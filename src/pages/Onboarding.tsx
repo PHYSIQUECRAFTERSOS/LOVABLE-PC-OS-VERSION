@@ -398,6 +398,17 @@ const Onboarding = () => {
     if (!saved) return; // Don't proceed — user can retry
 
     if (user) {
+      // Mirror date_of_birth to profiles so coach-side queries (birthday auto-msg) can read it.
+      if (data.date_of_birth) {
+        (async () => {
+          const { error } = await supabase
+            .from("profiles")
+            .update({ date_of_birth: data.date_of_birth })
+            .eq("user_id", user.id);
+          if (error) console.error("[Onboarding] DOB profile sync error:", error);
+        })();
+      }
+
       // Sync onboarding weight to weight_logs (non-blocking, fire-and-forget)
       if (data.weight_lb && data.weight_lb > 0) {
         const today = new Date().toISOString().split("T")[0];
@@ -414,6 +425,7 @@ const Onboarding = () => {
           if (error) console.error("[Onboarding] weight sync error:", error);
         })();
       }
+
 
       // Send auto-message to coach (non-blocking, fire-and-forget)
       (async () => {
