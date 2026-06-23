@@ -384,7 +384,7 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                               const isExcluded = pw.exclude_from_numbering;
                               const pos = isExcluded ? null : dayCounter++;
                               return (
-                                <div key={pw.id} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
+                                <div key={pw.id} className="flex items-start gap-3 p-3 border rounded-lg bg-card/50">
                                   {/* Thumbnail — clickable to preview */}
                                   <button
                                     className="h-14 w-14 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary/40 transition-all"
