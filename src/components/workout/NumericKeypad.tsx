@@ -20,6 +20,7 @@ interface NumericKeypadProps {
   onLog?: () => void;
   onSelectRPE?: (rpe: number | undefined) => void;
   canLog?: boolean;
+  logLabel?: string;
 }
 
 const RPE_VALUES = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
