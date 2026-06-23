@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
+import EatingOutCheatSheet from "./EatingOutCheatSheet";
+import EatingOutExamples from "./EatingOutExamples";
 
 interface GuideSectionProps {
   title: string;
@@ -194,9 +196,12 @@ const premiumComponents: Components = {
 };
 
 const GuideSection = ({ title, content, icon, sectionKey }: GuideSectionProps) => {
-  if (!content?.trim() && sectionKey !== "macro_cheat_sheet") return null;
-
   const isMacroSheet = sectionKey === "macro_cheat_sheet";
+  const isEatingOutCheat = sectionKey === "eating_out_cheat_sheet";
+  const isEatingOutExamples = sectionKey === "eating_out_examples";
+  const isStructured = isMacroSheet || isEatingOutCheat || isEatingOutExamples;
+
+  if (!content?.trim() && !isStructured) return null;
 
   return (
     <Card className="border-border/50 border-l-2 border-l-[hsl(var(--primary))]/60 hover:border-l-[hsl(var(--primary))] transition-all duration-300 hover:shadow-[0_0_20px_-8px_hsl(var(--primary)/0.15)] overflow-hidden">
@@ -209,6 +214,10 @@ const GuideSection = ({ title, content, icon, sectionKey }: GuideSectionProps) =
       <CardContent>
         {isMacroSheet ? (
           <MacroCheatSheetGrid />
+        ) : isEatingOutCheat ? (
+          <EatingOutCheatSheet />
+        ) : isEatingOutExamples ? (
+          <EatingOutExamples />
         ) : (
           <div className="max-w-none">
             <ReactMarkdown components={premiumComponents}>{content}</ReactMarkdown>
