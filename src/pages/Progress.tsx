@@ -128,6 +128,12 @@ const Progress = () => {
             <StepsScreen />
           </TabsContent>
 
+          {!isCoach && (
+            <TabsContent value="trophies" className="mt-4">
+              <TrophyRoom />
+            </TabsContent>
+          )}
+
         </Tabs>
       </div>
 
