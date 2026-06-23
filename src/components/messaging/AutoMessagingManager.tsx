@@ -499,7 +499,7 @@ const AutoMessagingManager = () => {
                     <Select value={trigType} onValueChange={setTrigType}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {TRIGGER_TYPES.map((t) => (
+                        {TRIGGER_TYPES.filter((t) => !LIFECYCLE_TYPES.has(t.value as any)).map((t) => (
                           <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                         ))}
                       </SelectContent>
