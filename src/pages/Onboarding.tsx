@@ -29,6 +29,7 @@ export interface OnboardingData {
   primary_goal: string;
   gender: string;
   age: number | null;
+  date_of_birth: string | null; // YYYY-MM-DD
   height_feet: number | null;
   height_inches: number | null;
   height_cm: number | null;
@@ -36,6 +37,7 @@ export interface OnboardingData {
   current_weight_kg: number | null;
   estimated_body_fat_pct: number | null;
   activity_level: string;
+
   // Nutrition history (existing)
   tracked_macros_before: boolean | null;
   food_intolerances: string[];
