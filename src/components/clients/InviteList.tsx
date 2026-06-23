@@ -292,7 +292,7 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
                   </div>
 
 
-                  <div className="ml-3 flex shrink-0 items-center gap-1.5 flex-wrap justify-end">
+                  <div className="flex shrink-0 items-center gap-1.5 flex-wrap sm:ml-3 sm:justify-end">
                     {canCopySetupLink && (
                       <Button size="sm" variant="outline" onClick={() => handleCopySetupLink(invite)} className="gap-1.5 text-xs">
                         {isCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
