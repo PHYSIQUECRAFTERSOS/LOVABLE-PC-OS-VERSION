@@ -1,66 +1,65 @@
-# Automated Messaging — New Triggers + Settings Entry
+## Goal
 
-Goal: Coach/Manager/Admin can configure auto-messages for **client first sign-in**, **client birthday**, and **client first completed workout** — managed from a new **Automated Messaging** card in Settings. Onboarding collects DOB so birthday firing works.
+Make the lifecycle auto-messages (First Sign-In, First Completed Workout, Birthday) work like Trainerize: a simple list of preset automations with a single ON/OFF toggle + "Customize" button per coach. When toggled ON, the message fires automatically for every client on that coach's roster — no manual trigger creation, no per-client tagging required.
 
-## 1. Database
+## What changes for the coach
 
-Single additive migration (no destructive changes):
+Add a new "Lifecycle Automations" section at the top of the Automated Messaging settings (above the existing Triggers/Templates/History tabs). It shows three fixed rows, one per lifecycle event:
 
-- `profiles`: add `date_of_birth date` (nullable).
-- `onboarding_profiles`: add `date_of_birth date` (nullable).
-- (Reuse existing `auto_message_triggers` / `auto_message_templates` / `auto_message_logs` — no schema change. New `trigger_type` values are just strings.)
+```text
+[chip]  [delay badge]   [event name]                  [Customize]  [toggle]
+ 💬     +35 min          On First Sign-In               Customize     ON
+ 💬     +25 min          First Completed Workout        Customize    OFF
+ 💬     9am local        Client Birthday                Customize     ON
+```
 
-Backfill: none required (existing clients can fill in later via profile or next onboarding edit).
+- Toggle ON = the message sends automatically to every active client of that coach the first time the event happens (lifetime-once for sign-in & first workout; yearly for birthday). No tagging, no selecting clients.
+- Toggle OFF = nothing fires for that event.
+- "Customize" opens a small dialog with one big textarea pre-filled with the coach's current message for that event. `{name}` is supported. Save updates only that coach's copy.
+- Each coach has their own independent toggles + message text. Kevin's edits don't touch Aaron's, and vice versa.
 
-## 2. Onboarding — collect birthday
+The existing "Triggers" / "Templates" / "History" tabs stay as-is for power users who want tag-group or individual targeting, custom cron schedules, missed-workout/check-in nudges, broadcasts, etc. The three lifecycle events are simply removed from the manual "New Trigger" dropdown so the new section is the only path for them — no duplicate firing.
 
-In the existing Onboarding flow, add a **Birthday** field (Month / Day / Year selects, validated to a real date, must be 18+ Saves to `onboarding_profiles.date_of_birth` and mirrors to `profiles.date_of_birth` on completion (same pattern existing fields use). Skippable? No — required, since user explicitly asked for it.
+## How it works under the hood (technical)
 
-## 3. New trigger types
+Reuse the existing `auto_message_triggers` + `auto_message_templates` + `auto_message_logs` tables and the `evaluate-auto-messages` edge function. The lifecycle section is just an opinionated UI wrapper that manages a single trigger row per coach per event.
 
-Extend `AutoMessagingManager.tsx` `TRIGGER_TYPES` with:
+1. Lifecycle config resolution (per coach, per event):
+   - Look for a row in `auto_message_triggers` where `coach_id = me`, `trigger_type IN ('first_signin','first_workout','birthday')`, `target_type = 'all_clients'`, and a sibling template row tagged with a stable `category` value (e.g. `lifecycle_first_signin`).
+   - If none exists, the UI shows the toggle as OFF and the default starter message as the placeholder text inside Customize.
 
-- `first_signin` — "On First Sign-In" (instant)
-- `birthday` — "Client Birthday" (9am client-local)
-- `first_workout` — "First Completed Workout" (instant)
+2. Toggling ON:
+   - If no template exists, insert a default `auto_message_templates` row (coach_id, category = `lifecycle_<event>`, content = the default copy below).
+   - If no trigger exists, insert a default `auto_message_triggers` row (coach_id, template_id, trigger_type, target_type = `all_clients`, is_active = true, excluded_client_ids = []).
+   - If both exist, set `is_active = true`.
 
-UI implications:
+3. Toggling OFF: set `is_active = false` on the trigger row (preserve template + customized copy for next time).
 
-- These triggers don't need a cron — hide the cron input for them (same way `missed_workout` already does).
-- Allow target = all clients / tag group / individual (existing logic).
-- Show an "INSTANT" vs "9am" badge in the trigger list (cosmetic, matches the Trainerize-style screenshot).
+4. Customize dialog: updates `auto_message_templates.content` for that coach's lifecycle template. Saving while OFF is allowed; toggle stays OFF until the coach flips it.
 
-## 4. Edge function `evaluate-auto-messages`
+5. Edge function (`evaluate-auto-messages`): no behavior change needed. It already:
+   - Resolves "all clients" via `coach_clients` scoped to `trigger.coach_id` (coach-isolated).
+   - Honors the 35-min and 25-min delays added previously.
+   - Dedupes via `auto_message_logs` so each event fires once per client lifetime (birthday: once per calendar day match).
 
-Add three new `case` branches in the `switch (trigger.trigger_type)` block. All use the existing "already sent today?" guard via `auto_message_logs` to prevent duplicates, plus a per-trigger uniqueness check:
+6. Manual "New Trigger" dropdown: drop `first_signin`, `first_workout`, `birthday` from the options list so coaches can't accidentally create a second competing trigger. Existing manually-created lifecycle triggers from prior testing are left intact; the lifecycle section will simply pick them up if their `target_type = 'all_clients'`, otherwise the coach will see the toggle as OFF and can flip it to create the canonical one.
 
-- `**first_signin**`: target client where `profiles.created_at` is within the last 24h **and** no prior `auto_message_logs` row exists for `(trigger_id, client_id)` (lifetime-once). Sends immediately on next cron tick after signup.
-- `**first_workout**`: target client where they have ≥1 row in `workout_sessions` with `completed_at IS NOT NULL` **and** no prior `auto_message_logs` row for `(trigger_id, client_id)` (lifetime-once).
-- `**birthday**`: target client where `profiles.date_of_birth`'s `MM-DD` equals today in the client's local timezone (reuse `getTodayLocal(tz)`), gated to fire at the client's local 9am hour (reuse `getClientLocalHour`). Dedup by `(trigger_id, client_id, sent_at::date)`.
+7. Default copy used when a coach first turns one on (editable via Customize):
+   - First Sign-In: "Welcome {name}! Glad to have you on board. Take a look around the app and let me know if you have any questions."
+   - First Workout: "Huge first workout, {name} — that's how it starts. Proud of you. Keep the momentum going."
+   - Birthday: "Happy birthday, {name}! Wishing you an awesome day. Let's make this year your strongest one yet."
 
-All three reuse the existing send pipeline (`auto_message_logs` insert → `message_threads` upsert → `thread_messages` insert → push notification optional). Push notification: send for `birthday` and `first_workout`; `first_signin` skips push (user just opened the app).
+## Files touched
 
-## 5. Settings entry
+- `src/components/messaging/AutoMessagingManager.tsx` — add the new "Lifecycle Automations" section (3 rows, toggle + Customize dialog), wire it to the queries/mutations described above, and remove the 3 lifecycle entries from the manual `TRIGGER_TYPES` dropdown used by the "New Trigger" form.
 
-`src/pages/Profile.tsx`: when `role === "coach" || role === "admin"`, render a new section **Automated Messaging** that mounts `<AutoMessagingManager />` (component already exists). Leave the existing instance inside `CoachMessaging` so the messaging hub view is unchanged.
+No database migration, no edge function change, no changes to other coaches' workflows.
 
-## 6. Verification
+## Verification
 
-- Run migration; confirm `date_of_birth` columns exist.
-- Onboard a fresh test client → DOB saved.
-- As coach in Settings → Automated Messaging: create a template + a `first_signin` trigger active → manually invoke edge function → verify a thread message appears for the newly invited client and a log row exists.
-- Set a test client's `date_of_birth` to today, tz to PST, create a `birthday` trigger → invoke edge fn at 9am PST window → verify single message.
-- Complete a workout as a test client with a `first_workout` trigger active → invoke edge fn → verify single message, then re-run and confirm no duplicate.
-
-## Technical detail (for engineers)
-
-Files touched:
-
-- `supabase/migrations/<new>.sql` — `ALTER TABLE profiles ADD COLUMN date_of_birth date; ALTER TABLE onboarding_profiles ADD COLUMN date_of_birth date;`
-- `src/components/onboarding/*` — new birthday step component, wired into the step sequence + save logic.
-- `src/integrations/supabase/client.ts` types regenerate automatically.
-- `src/components/messaging/AutoMessagingManager.tsx` — extend `TRIGGER_TYPES`, hide cron for instant triggers, add INSTANT/9am badge.
-- `supabase/functions/evaluate-auto-messages/index.ts` — add 3 cases; reuse existing helpers; deploy.
-- `src/pages/Profile.tsx` — render `<AutoMessagingManager />` for coach/admin under a new "Automated Messaging" section.
-
-Out of scope: editing other trigger types, redesigning the messaging manager, changing message templates content (coach writes their own), notifications preferences UI.
+- As coach A, flip "On First Sign-In" ON, sign up a brand new test client, complete onboarding → 35 min later the welcome message appears in that client's thread (and nowhere else).
+- Flip OFF, sign up another test client → no message fires.
+- Click Customize, change the copy, save, repeat → new client receives the edited copy.
+- As coach B, confirm coach A's toggle states and copy do not appear on coach B's screen; coach B has independent toggles.
+- Complete a workout for a test client with "First Completed Workout" ON → 25 min later message arrives, once. Complete a second workout → no duplicate.
+- Birthday: set test client DOB to today in PST, toggle ON → message arrives at 9am local; toggle OFF → nothing.
