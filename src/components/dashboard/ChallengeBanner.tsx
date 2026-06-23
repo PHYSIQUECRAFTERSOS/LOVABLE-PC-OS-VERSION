@@ -30,7 +30,7 @@ const ChallengeBanner = () => {
               size="sm"
               variant="default"
               className="shrink-0 text-xs px-3"
-              onClick={() => navigate("/challenges")}
+              onClick={() => navigate("/challenges", { state: { focusChallengeId: c.id } })}
             >
               View
             </Button>
