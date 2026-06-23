@@ -309,6 +309,67 @@ const Onboarding = () => {
     }
   }, [user, data]);
 
+  // Keep refs current so background-save listeners always see fresh data
+  useEffect(() => {
+    latestDataRef.current = data;
+    latestStepRef.current = step;
+  }, [data, step]);
+
+  // Lightweight fire-and-forget autosave used by the debounce + visibility hooks.
+  // Does not toast, does not set the saving spinner, does not block navigation.
+  const autoSave = useCallback(async () => {
+    if (!user) return;
+    const snapshot = latestDataRef.current;
+    const stepSnapshot = latestStepRef.current;
+    try {
+      const payload: any = {
+        user_id: user.id,
+        ...snapshot,
+        current_step: stepSnapshot,
+        onboarding_completed: false,
+      };
+      const timestampFields = ["waiver_signed_at", "baseline_assessment_date", "completed_at"];
+      for (const field of timestampFields) {
+        if (payload[field] === "" || payload[field] === undefined) {
+          payload[field] = null;
+        }
+      }
+      await supabase
+        .from("onboarding_profiles")
+        .upsert(payload, { onConflict: "user_id" });
+    } catch (err) {
+      console.warn("[Onboarding] autoSave failed (will retry on next change):", err);
+    }
+  }, [user]);
+
+  // Debounced field-level autosave: ~1.5s after the last change
+  useEffect(() => {
+    if (initialLoading || !user) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autoSave();
+    }, 1500);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [data, step, initialLoading, user, autoSave]);
+
+  // Save immediately when the app backgrounds, tab closes, or PWA is swiped away
+  useEffect(() => {
+    if (initialLoading || !user) return;
+    const flush = () => { autoSave(); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
+  }, [initialLoading, user, autoSave]);
+
+
   const validateStep = (): boolean => {
     const errors: Record<string, string> = {};
     
