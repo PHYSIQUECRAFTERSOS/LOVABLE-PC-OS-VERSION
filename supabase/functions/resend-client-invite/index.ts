@@ -116,7 +116,7 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", user.id);
     const userRoles = (rolesData || []).map((r: any) => r.role);
-    if (!userRoles.includes("coach") && !userRoles.includes("admin")) {
+    if (!userRoles.includes("coach") && !userRoles.includes("admin") && !userRoles.includes("manager")) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
 
