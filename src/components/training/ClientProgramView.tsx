@@ -413,14 +413,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                                       setPreviewWorkoutName(pw.workout_name);
                                     }}
                                   >
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-start gap-1.5 flex-wrap">
                                       {isExcluded && pw.custom_tag ? (
                                         <Badge className="text-[9px] h-4 shrink-0 bg-slate-600/30 text-slate-300 border-slate-500/30">{pw.custom_tag}</Badge>
                                       ) : pos != null ? (
-                                        <Badge variant="outline" className="text-[9px] h-4 shrink-0">Day {pos}</Badge>
+                                        <Badge variant="outline" className="text-[9px] h-4 shrink-0 mt-0.5">Day {pos}</Badge>
                                       ) : null}
-                                      <p className="text-sm font-medium truncate">{pw.workout_name}</p>
+                                      <p className="text-sm font-medium break-words whitespace-normal flex-1 min-w-0">{pw.workout_name}</p>
                                     </div>
+
                                     {(pw.exercise_count ?? 0) > 0 && (
                                       <p className="text-[11px] text-muted-foreground mt-0.5">
                                         {pw.exercise_count} exercise{pw.exercise_count !== 1 ? "s" : ""}
