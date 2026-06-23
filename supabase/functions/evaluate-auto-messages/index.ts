@@ -467,23 +467,30 @@ Deno.serve(async (req) => {
             content: content,
           });
 
-          // Send push notification for missed_checkin triggers
-          if (trigger.trigger_type === "missed_checkin" || trigger.trigger_type === "missed_workout") {
-            const notifType = trigger.trigger_type === "missed_checkin" ? "checkin" : "message";
+          // Push notifications for select triggers
+          const pushTriggers: Record<string, { title: string; route: string; type: string }> = {
+            missed_checkin: { title: "Check-In Reminder", route: "/dashboard", type: "checkin" },
+            missed_workout: { title: "Workout Reminder", route: "/training", type: "message" },
+            birthday: { title: "Happy Birthday! 🎉", route: "/messages", type: "message" },
+            first_workout: { title: "First Workout Complete! 💪", route: "/messages", type: "message" },
+          };
+          const pushCfg = pushTriggers[trigger.trigger_type];
+          if (pushCfg) {
             try {
               await supabase.functions.invoke("send-push-notification", {
                 body: {
                   user_id: clientId,
-                  title: trigger.trigger_type === "missed_checkin" ? "Check-In Reminder" : "Workout Reminder",
+                  title: pushCfg.title,
                   body: content.length > 100 ? content.slice(0, 97) + "..." : content,
-                  notification_type: notifType,
-                  data: { route: trigger.trigger_type === "missed_checkin" ? "/dashboard" : "/training" },
+                  notification_type: pushCfg.type,
+                  data: { route: pushCfg.route },
                 },
               });
             } catch (pushErr) {
               console.error(`[Push] Failed for ${clientId}:`, pushErr);
             }
           }
+
         }
 
         totalSent++;
