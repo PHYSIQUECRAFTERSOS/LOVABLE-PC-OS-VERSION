@@ -34,6 +34,7 @@ import {
 import { useActiveSession } from "@/hooks/useActiveSession";
 import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanner";
 import { Button } from "@/components/ui/button";
+import MilestoneRoot from "@/components/milestones/MilestoneRoot";
 
 interface NavItem {
   to: string;
