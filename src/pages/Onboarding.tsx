@@ -193,7 +193,8 @@ const Onboarding = () => {
             navigate("/dashboard", { replace: true });
             return;
           }
-          setStep(existing.current_step || 1);
+          const savedStep = existing.current_step || 1;
+          setStep(savedStep);
           setData(prev => {
             const merged = { ...prev };
             for (const key of Object.keys(prev) as (keyof OnboardingData)[]) {
@@ -204,6 +205,13 @@ const Onboarding = () => {
             }
             return merged;
           });
+          // Show resume modal once per session if they're past step 1
+          const resumeKey = `onboarding_resume_shown_${user.id}`;
+          if (savedStep > 1 && !sessionStorage.getItem(resumeKey)) {
+            setResumeStep(savedStep);
+            setShowResume(true);
+            sessionStorage.setItem(resumeKey, "1");
+          }
         }
         setInitialLoading(false);
       });
