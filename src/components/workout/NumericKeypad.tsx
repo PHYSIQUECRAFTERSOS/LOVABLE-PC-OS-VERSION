@@ -282,7 +282,7 @@ const NumericKeypad = ({
               disabled={!canLog}
             >
               <Check className="h-4 w-4" />
-              Log
+              {logLabel || "Log"}
             </button>
           </div>
         </div>
