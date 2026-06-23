@@ -262,18 +262,18 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
           return (
             <Card key={invite.id} className="hover:border-primary/20 transition-colors">
               <CardContent className="pt-4 pb-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground text-sm truncate">
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <p className="font-medium text-foreground text-sm break-words">
                         {invite.first_name} {invite.last_name}
                       </p>
-                      <Badge variant={config.variant} className="text-[10px] gap-1">
+                      <Badge variant={config.variant} className="text-[10px] gap-1 shrink-0">
                         <StatusIcon className="h-3 w-3" />
                         {config.label}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{invite.email}</p>
+                    <p className="text-xs text-muted-foreground break-all">{invite.email}</p>
                     <p className="text-[10px] text-muted-foreground mt-1">
                       Invited {formatDistanceToNow(new Date(invite.created_at), { addSuffix: true })}
                       {isPending && (
@@ -290,6 +290,7 @@ const InviteList = ({ refreshKey }: InviteListProps) => {
                       </div>
                     )}
                   </div>
+
 
                   <div className="ml-3 flex shrink-0 items-center gap-1.5 flex-wrap justify-end">
                     {canCopySetupLink && (
