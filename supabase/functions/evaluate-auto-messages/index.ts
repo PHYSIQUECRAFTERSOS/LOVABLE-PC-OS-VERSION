@@ -179,15 +179,16 @@ Deno.serve(async (req) => {
 
       if (clientIds.length === 0) continue;
 
-      // Fetch client timezones
+      // Fetch client timezones + DOB + created_at
       const { data: profileRows } = await supabase
         .from("profiles")
-        .select("user_id, full_name, timezone")
+        .select("user_id, full_name, timezone, date_of_birth, created_at")
         .in("user_id", clientIds);
 
       const profileMap = new Map(
         (profileRows || []).map((p: any) => [p.user_id, p])
       );
+
 
       let eligibleClients: string[] = [];
 
