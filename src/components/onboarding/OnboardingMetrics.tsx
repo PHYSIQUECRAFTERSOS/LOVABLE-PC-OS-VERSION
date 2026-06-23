@@ -13,7 +13,9 @@ import {
 interface Props {
   data: OnboardingData;
   updateField: <K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) => void;
+  validationErrors?: Record<string, string>;
 }
+
 
 const activityLevels = [
   { value: "sedentary", label: "Sedentary", desc: "Desk job, little exercise" },
