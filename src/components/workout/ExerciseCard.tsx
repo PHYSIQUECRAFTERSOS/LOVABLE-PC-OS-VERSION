@@ -705,6 +705,7 @@ const ExerciseCard = ({
           : null;
         const weightFilled = activeLog.weight !== undefined && activeLog.weight !== null;
         const repsFilled = activeLog.reps !== undefined && activeLog.reps !== null && activeLog.reps > 0;
+        const isEditingCompleted = !!activeLog.completed;
         const canLog = (weightFilled || isBW) && repsFilled;
         return (
           <NumericKeypad
@@ -716,6 +717,7 @@ const ExerciseCard = ({
             previous={prevStr}
             currentRPE={activeLog.rpe}
             canLog={canLog}
+            logLabel={isEditingCompleted ? "Save" : undefined}
             onChange={commitKeypadValue}
             onClose={() => setKeypadField(null)}
             onNext={keypadField.field === "weight"
@@ -728,6 +730,12 @@ const ExerciseCard = ({
             }
             onLog={canLog ? () => {
               hapticSuccess();
+              if (isEditingCompleted) {
+                // Edits already auto-persist via onUpdateLog → persistSet.
+                // "Save" just confirms and closes the keypad.
+                setKeypadField(null);
+                return;
+              }
               const idx = keypadField.setIdx;
               onCompleteSet(idx);
               // Auto-advance keypad to next unlogged set's weight (Strong-style).
