@@ -612,9 +612,14 @@ const AutoMessagingManager = () => {
                       <div className="flex items-center gap-3">
                         <Zap className="h-4 w-4 text-primary" />
                         <div>
-                          <p className="text-sm font-medium">
-                            {TRIGGER_TYPES.find((tt) => tt.value === t.trigger_type)?.label || t.trigger_type}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {TRIGGER_TYPES.find((tt) => tt.value === t.trigger_type)?.schedule || "—"}
+                            </Badge>
+                            <p className="text-sm font-medium">
+                              {TRIGGER_TYPES.find((tt) => tt.value === t.trigger_type)?.label || t.trigger_type}
+                            </p>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             Template: {t.auto_message_templates?.name} · Target: {t.target_type}
                             {t.target_tag && ` (${t.target_tag})`}
@@ -624,6 +629,7 @@ const AutoMessagingManager = () => {
                           </p>
                         </div>
                       </div>
+
                       <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
