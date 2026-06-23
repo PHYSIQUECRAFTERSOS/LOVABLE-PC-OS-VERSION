@@ -337,8 +337,9 @@ Deno.serve(async (req) => {
 
         case "first_signin": {
           // Fire once (lifetime) per client, 35 minutes after they complete onboarding.
-          // CRITICAL: only fires for onboardings completed AFTER the trigger was
-          // activated, so pre-existing clients never retroactively fire.
+          // CRITICAL: only fires for clients whose ACCOUNT was created AFTER the
+          // trigger was activated, AND whose onboarding completed AFTER activation.
+          // This guarantees pre-existing clients and transferred clients never fire.
           const lookbackMs = Date.now() - 7 * 86400 * 1000;
           const delayMs = 35 * 60 * 1000;
           const now = Date.now();
@@ -346,10 +347,18 @@ Deno.serve(async (req) => {
             trigger.updated_at || trigger.created_at || 0
           ).getTime();
 
+          // Filter to brand-new accounts only (created after activation)
+          const newClientIds = clientIds.filter((cid) => {
+            const p: any = profileMap.get(cid);
+            const created = p?.created_at ? new Date(p.created_at).getTime() : 0;
+            return created > activatedAt;
+          });
+          if (newClientIds.length === 0) break;
+
           const { data: onboardingRows } = await supabase
             .from("onboarding_profiles")
             .select("user_id, completed_at, onboarding_completed")
-            .in("user_id", clientIds)
+            .in("user_id", newClientIds)
             .eq("onboarding_completed", true)
             .not("completed_at", "is", null);
 
@@ -365,7 +374,7 @@ Deno.serve(async (req) => {
               completedAtMap.set(row.user_id, ts);
             }
           }
-          const candidateIds = clientIds.filter((cid) => completedAtMap.has(cid));
+          const candidateIds = newClientIds.filter((cid) => completedAtMap.has(cid));
           if (candidateIds.length === 0) break;
 
           const { data: prior } = await supabase
@@ -379,9 +388,10 @@ Deno.serve(async (req) => {
         }
 
         case "first_workout": {
-          // Fire once (lifetime) per client, 25 minutes after their first workout
-          // completed AFTER the trigger was activated. Existing clients with old
-          // workouts will never retroactively fire.
+          // Fire once (lifetime) per client, 25 minutes after their first workout.
+          // CRITICAL: client account must have been created AFTER trigger activation,
+          // AND the workout must have completed AFTER activation. Existing/transferred
+          // clients (account predates activation) can never fire.
           const delayMs = 25 * 60 * 1000;
           const now = Date.now();
           const activatedAt = new Date(
@@ -389,14 +399,22 @@ Deno.serve(async (req) => {
           ).getTime();
           const activatedAtIso = new Date(activatedAt).toISOString();
 
+          // Filter to brand-new accounts only (created after activation)
+          const newClientIds = clientIds.filter((cid) => {
+            const p: any = profileMap.get(cid);
+            const created = p?.created_at ? new Date(p.created_at).getTime() : 0;
+            return created > activatedAt;
+          });
+          if (newClientIds.length === 0) break;
+
           const { data: prior } = await supabase
             .from("auto_message_logs")
             .select("client_id")
             .eq("trigger_id", trigger.id)
-            .in("client_id", clientIds);
+            .in("client_id", newClientIds);
           const sentSet = new Set((prior || []).map((r: any) => r.client_id));
 
-          for (const cid of clientIds) {
+          for (const cid of newClientIds) {
             if (sentSet.has(cid)) continue;
             const { data: sess } = await supabase
               .from("workout_sessions")
@@ -418,9 +436,17 @@ Deno.serve(async (req) => {
           break;
         }
 
+
         case "birthday": {
+          // Only fires for clients whose account was created AFTER the trigger
+          // was activated. Existing/transferred clients never fire.
+          const activatedAt = new Date(
+            trigger.updated_at || trigger.created_at || 0
+          ).getTime();
           for (const cid of clientIds) {
-            const profile = profileMap.get(cid);
+            const profile: any = profileMap.get(cid);
+            const created = profile?.created_at ? new Date(profile.created_at).getTime() : 0;
+            if (created <= activatedAt) continue;
             const dob: string | null = profile?.date_of_birth || null;
             if (!dob) continue;
             const tz = profile?.timezone || "America/Los_Angeles";
@@ -435,6 +461,7 @@ Deno.serve(async (req) => {
           }
           break;
         }
+
 
         case "recurring":
         case "broadcast": {
