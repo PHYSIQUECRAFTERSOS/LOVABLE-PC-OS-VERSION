@@ -710,7 +710,8 @@ const AutoMessagingManager = () => {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No triggers configured yet.</p>
-          )}
+          );
+          })()}
         </TabsContent>
 
         {/* Templates Tab */}
