@@ -1,37 +1,33 @@
-## Problem
 
-The `first_workout` (and `first_signin`) lifecycle automations are firing for **existing clients** whose first workout / onboarding completion happened months ago. As soon as the toggle was switched ON, the edge function looked at the *earliest ever* completed workout and decided it qualified, then mass-sent "first workout" messages to ~15 existing clients including you.
+## Goal
+Two mobile-only visual fixes so text isn't cut off / squeezed.
 
-Root cause in `supabase/functions/evaluate-auto-messages/index.ts`:
-- `first_workout` picks the earliest `workout_sessions.completed_at` with no check that it happened **after** the trigger was activated.
-- `first_signin` looks back 7 days at `onboarding_profiles.completed_at`, but does not check it happened **after** the trigger was activated either.
+## 1. Training → Program: show full workout names
 
-## Fix
+**File:** `src/components/training/ClientProgramView.tsx` (line ~422)
 
-### 1. Gate both triggers by an activation cutoff
-Use `trigger.created_at` (or `updated_at` when re-enabled) as the cutoff timestamp. A client only qualifies if the qualifying event (`workout_sessions.completed_at` or `onboarding_profiles.completed_at`) is **strictly after** that cutoff.
+- Remove `truncate` from the workout name `<p>` and let it wrap to multiple lines (Trainerize-style).
+- Change the container at line 387 from `items-center` → `items-start` so the row grows vertically and the thumbnail/Start button stay top-aligned.
+- Keep "Day N" badge + name on the same first line via `flex-wrap`; the name itself uses `break-words` and is allowed to wrap to 2–3 lines.
+- Apply the same change inside the `weeks` rendering path (if it mirrors the phase path with the same `truncate`).
 
-This guarantees: only brand-new activity that happens after the coach turns the automation ON can ever fire. Pre-existing workouts and pre-existing onboarding completions are permanently ignored.
+Result: "DAY 1 : B…" becomes the full "DAY 1 : Back & Biceps" wrapping onto a second line if needed. Start button and thumbnail stay aligned, card just gets taller.
 
-### 2. Backfill existing clients as "already sent"
-For every currently-existing lifecycle trigger (`first_signin`, `first_workout`) owned by any coach, insert a row into `auto_message_logs` for every client on that coach's roster with `trigger_reason = '<type>_backfill'` and `message_content = '[backfill — pre-existing client, suppressed]'`. This ensures the dedupe check (`auto_message_logs` lookup by `trigger_id` + `client_id`) skips them forever, even if the cutoff check ever regresses.
+## 2. Clients → Invites: readable name/email + buttons stop crushing the text column
 
-### 3. Stop the misfires that already happened
-Delete the erroneous outbound `thread_messages` and `auto_message_logs` rows created in the last few hours for `first_workout` so other coaches/clients are not stuck with a stray "first workout" message.
-- Scope: `auto_message_logs.trigger_reason = 'first_workout'` AND `sent_at >= now() - interval '6 hours'`.
-- For each row, delete the matching `thread_messages` row by `(thread_id, sender_id=coach_id, content, created_at within ±2 min of sent_at)`, then delete the log row.
-- Surface counts so you can verify what got cleaned.
+**File:** `src/components/clients/InviteList.tsx` (lines ~262–333)
 
-### 4. Verification (browser/Playwright + SQL)
-1. SQL: confirm `auto_message_logs` now has backfill rows for every existing client per active lifecycle trigger.
-2. SQL: confirm no recent `first_workout` log rows remain other than backfills.
-3. Edge function: invoke `evaluate-auto-messages` manually and confirm 0 lifecycle messages sent.
-4. Toggle OFF then ON the "First Completed Workout" automation in Settings → Automated Messaging. Confirm `auto_message_triggers.created_at`/`updated_at` advances and no existing client fires.
-5. Logs: tail `evaluate-auto-messages` for one cycle, confirm no new lifecycle sends.
+The current layout puts name+email and the 3 action buttons on the same horizontal row. On mobile the buttons take all the width and force the name column to ~0px, which is why each letter wraps onto its own line.
 
-## Files touched
+Changes:
+- Switch the outer wrapper from horizontal-only `flex items-start justify-between` to a responsive column → row layout: `flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between`.
+- Move the action button cluster below the text block on mobile; right-align on `sm:` and up.
+- Remove `truncate` from name (`line 268`) and email (`line 276`) — allow them to wrap (`break-words`).
+- Tighten the meta line ("Invited X · Expires Y") so it stays on a single readable line.
+- Keep desktop appearance unchanged.
 
-- `supabase/functions/evaluate-auto-messages/index.ts` — add `activatedAt = trigger.updated_at ?? trigger.created_at` cutoff in both `first_signin` and `first_workout` branches.
-- New migration `supabase/migrations/<ts>_backfill_lifecycle_auto_messages.sql` — backfill `auto_message_logs` for all current clients per lifecycle trigger, and delete the recent misfired `first_workout` rows + their `thread_messages`.
+Result on mobile: full name "John Smith", full email, then a tidy row of [Copy Link] [Cancel] [Resend] beneath — all readable, no vertical letter-stacking.
 
-No UI changes. No changes to other triggers. No schema changes.
+## Out of scope
+- No backend/data/logic changes.
+- No changes to History tab, desktop coach view, or any other page.
