@@ -76,7 +76,9 @@ const Progress = () => {
             <TabsTrigger value="weight" className="flex-shrink-0 text-xs px-2.5">Weight</TabsTrigger>
             <TabsTrigger value="photos" className="flex-shrink-0 text-xs px-2.5">Photos</TabsTrigger>
             <TabsTrigger value="steps" className="flex-shrink-0 text-xs px-2.5">Steps</TabsTrigger>
-            
+            {!isCoach && (
+              <TabsTrigger value="trophies" className="flex-shrink-0 text-xs px-2.5">🏆 Trophies</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="checkin" className="space-y-6 mt-4">
