@@ -428,6 +428,110 @@ const AutoMessagingManager = () => {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  // ── Lifecycle automations (Trainerize-style toggles) ──
+
+  // Resolve the "canonical" lifecycle trigger for a given event: the all_clients
+  // trigger owned by this coach for that trigger_type. Coaches will only ever have
+  // one — created on demand the first time they toggle ON or open Customize.
+  const lifecycleConfigFor = (type: "first_signin" | "first_workout" | "birthday") => {
+    const trigger = (triggers || []).find(
+      (t: any) => t.trigger_type === type && t.target_type === "all_clients"
+    );
+    const template = trigger
+      ? (templates || []).find((tpl: any) => tpl.id === trigger.template_id)
+      : undefined;
+    return { trigger, template };
+  };
+
+  const [customizeEvent, setCustomizeEvent] = useState<typeof LIFECYCLE_EVENTS[number] | null>(null);
+  const [customizeContent, setCustomizeContent] = useState("");
+
+  const openCustomize = (evt: typeof LIFECYCLE_EVENTS[number]) => {
+    const { template } = lifecycleConfigFor(evt.type);
+    setCustomizeEvent(evt);
+    setCustomizeContent(template?.content || evt.defaultContent);
+  };
+
+  // Ensure a template + trigger row exist for this lifecycle event, then set
+  // is_active and (optionally) update template.content. Returns nothing.
+  const ensureLifecycle = async (
+    evt: typeof LIFECYCLE_EVENTS[number],
+    opts: { active?: boolean; content?: string }
+  ) => {
+    if (!user) throw new Error("Not signed in");
+    const { trigger, template } = lifecycleConfigFor(evt.type);
+
+    // 1. Ensure template
+    let templateId = template?.id;
+    const desiredContent = opts.content ?? template?.content ?? evt.defaultContent;
+    if (!templateId) {
+      const { data: newTpl, error: tplErr } = await supabase
+        .from("auto_message_templates")
+        .insert({
+          coach_id: user.id,
+          name: `Lifecycle: ${evt.label}`,
+          content: desiredContent,
+          category: `lifecycle_${evt.type}`,
+        })
+        .select("id")
+        .single();
+      if (tplErr) throw tplErr;
+      templateId = newTpl.id;
+    } else if (opts.content !== undefined && opts.content !== template?.content) {
+      const { error: updErr } = await supabase
+        .from("auto_message_templates")
+        .update({ content: opts.content })
+        .eq("id", templateId);
+      if (updErr) throw updErr;
+    }
+
+    // 2. Ensure trigger
+    if (!trigger) {
+      const { error: trgErr } = await supabase.from("auto_message_triggers").insert({
+        coach_id: user.id,
+        template_id: templateId,
+        trigger_type: evt.type,
+        target_type: "all_clients",
+        is_active: opts.active ?? false,
+        excluded_client_ids: [],
+      });
+      if (trgErr) throw trgErr;
+    } else if (opts.active !== undefined && opts.active !== trigger.is_active) {
+      const { error: trgErr } = await supabase
+        .from("auto_message_triggers")
+        .update({ is_active: opts.active })
+        .eq("id", trigger.id);
+      if (trgErr) throw trgErr;
+    }
+  };
+
+  const lifecycleToggleMutation = useMutation({
+    mutationFn: async (vars: { evt: typeof LIFECYCLE_EVENTS[number]; active: boolean }) =>
+      ensureLifecycle(vars.evt, { active: vars.active }),
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] });
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-templates"] });
+      toast({ title: `${vars.evt.label} ${vars.active ? "enabled" : "disabled"}` });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const lifecycleSaveMutation = useMutation({
+    mutationFn: async () => {
+      if (!customizeEvent) return;
+      await ensureLifecycle(customizeEvent, { content: customizeContent });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] });
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-templates"] });
+      toast({ title: "Message saved" });
+      setCustomizeEvent(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
