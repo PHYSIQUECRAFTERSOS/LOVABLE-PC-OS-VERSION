@@ -438,8 +438,15 @@ Deno.serve(async (req) => {
 
 
         case "birthday": {
+          // Only fires for clients whose account was created AFTER the trigger
+          // was activated. Existing/transferred clients never fire.
+          const activatedAt = new Date(
+            trigger.updated_at || trigger.created_at || 0
+          ).getTime();
           for (const cid of clientIds) {
-            const profile = profileMap.get(cid);
+            const profile: any = profileMap.get(cid);
+            const created = profile?.created_at ? new Date(profile.created_at).getTime() : 0;
+            if (created <= activatedAt) continue;
             const dob: string | null = profile?.date_of_birth || null;
             if (!dob) continue;
             const tz = profile?.timezone || "America/Los_Angeles";
@@ -454,6 +461,7 @@ Deno.serve(async (req) => {
           }
           break;
         }
+
 
         case "recurring":
         case "broadcast": {
