@@ -22,9 +22,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User } from "lucide-react";
+import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User, Sparkles, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 
 const TRIGGER_TYPES = [
