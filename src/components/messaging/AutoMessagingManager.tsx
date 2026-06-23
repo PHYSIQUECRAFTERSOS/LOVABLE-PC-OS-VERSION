@@ -1030,6 +1030,41 @@ const AutoMessagingManager = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Lifecycle Customize Dialog */}
+      <Dialog open={!!customizeEvent} onOpenChange={(open) => !open && setCustomizeEvent(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Customize: {customizeEvent?.label}</DialogTitle>
+            <DialogDescription>
+              {customizeEvent?.description} Use {"{name}"} to insert the client's first name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Message</Label>
+            <Textarea
+              value={customizeContent}
+              onChange={(e) => setCustomizeContent(e.target.value)}
+              rows={5}
+              placeholder={customizeEvent?.defaultContent}
+            />
+            <p className="text-xs text-muted-foreground">
+              Saved per coach — only your own clients receive this message.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomizeEvent(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => lifecycleSaveMutation.mutate()}
+              disabled={!customizeContent.trim() || lifecycleSaveMutation.isPending}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
