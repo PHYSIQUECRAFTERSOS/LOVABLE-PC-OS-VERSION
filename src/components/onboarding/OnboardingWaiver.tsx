@@ -77,6 +77,16 @@ const OnboardingWaiver = ({ data, updateField, validationErrors }: Props) => {
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+
+    // Restore previously-saved signature so the waiver step is resumable
+    if (data.waiver_signature && data.waiver_signature.startsWith("data:image")) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        setHasSignature(true);
+      };
+      img.src = data.waiver_signature;
+    }
   }, [hasScrolledToBottom]);
 
   const getPos = (e: React.TouchEvent | React.MouseEvent) => {
