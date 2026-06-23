@@ -96,6 +96,8 @@ const defaultData: OnboardingData = {
   primary_goal: "",
   gender: "",
   age: null,
+  date_of_birth: null,
+
   height_feet: null,
   height_inches: null,
   height_cm: null,
