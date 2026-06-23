@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import OnboardingGoals from "@/components/onboarding/OnboardingGoals";
 import OnboardingMetrics from "@/components/onboarding/OnboardingMetrics";
