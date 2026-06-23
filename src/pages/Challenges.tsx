@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,16 +12,27 @@ import CreateChallengeWizard from "@/components/challenges/CreateChallengeWizard
 
 const Challenges = () => {
   const { role } = useAuth();
+  const location = useLocation();
   const isCoach = role === "coach" || role === "admin";
   const [wizardOpen, setWizardOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("leaderboard");
   const [focusChallengeId, setFocusChallengeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const incoming = (location.state as any)?.focusChallengeId;
+    if (incoming) {
+      setActiveTab("challenges");
+      setFocusChallengeId(incoming);
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
 
   const handleChallengeCreated = (challengeId: string) => {
     setWizardOpen(false);
     setActiveTab("challenges");
     setFocusChallengeId(challengeId);
   };
+
 
   return (
     <AppLayout>
