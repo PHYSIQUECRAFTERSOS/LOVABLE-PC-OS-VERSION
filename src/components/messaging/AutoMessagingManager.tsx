@@ -22,9 +22,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User } from "lucide-react";
+import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User, Sparkles, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 
 const TRIGGER_TYPES = [
@@ -38,6 +46,43 @@ const TRIGGER_TYPES = [
   { value: "recurring", label: "Recurring Schedule", schedule: "CRON" },
   { value: "broadcast", label: "Broadcast (One-Time)", schedule: "INSTANT" },
 ];
+
+// Lifecycle events shown as Trainerize-style ON/OFF toggles. These are managed
+// from the dedicated section above the Tabs; they are NOT shown in the manual
+// "New Trigger" dropdown so coaches can't create competing duplicates.
+const LIFECYCLE_EVENTS: Array<{
+  type: "first_signin" | "first_workout" | "birthday";
+  label: string;
+  schedule: string;
+  description: string;
+  defaultContent: string;
+}> = [
+  {
+    type: "first_signin",
+    label: "On First Sign-In",
+    schedule: "+35 min after onboarding",
+    description: "Sent once when a new client finishes onboarding.",
+    defaultContent:
+      "Welcome {name}! Glad to have you on board. Take a look around the app and let me know if you have any questions.",
+  },
+  {
+    type: "first_workout",
+    label: "First Completed Workout",
+    schedule: "+25 min after workout",
+    description: "Sent once when a client completes their very first workout.",
+    defaultContent:
+      "Huge first workout, {name} — that's how it starts. Proud of you. Keep the momentum going.",
+  },
+  {
+    type: "birthday",
+    label: "Client Birthday",
+    schedule: "9am client local time",
+    description: "Sent on each client's birthday.",
+    defaultContent:
+      "Happy birthday, {name}! Wishing you an awesome day. Let's make this year your strongest one yet.",
+  },
+];
+const LIFECYCLE_TYPES = new Set(LIFECYCLE_EVENTS.map((e) => e.type));
 
 
 const CATEGORIES = [
@@ -383,6 +428,110 @@ const AutoMessagingManager = () => {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  // ── Lifecycle automations (Trainerize-style toggles) ──
+
+  // Resolve the "canonical" lifecycle trigger for a given event: the all_clients
+  // trigger owned by this coach for that trigger_type. Coaches will only ever have
+  // one — created on demand the first time they toggle ON or open Customize.
+  const lifecycleConfigFor = (type: "first_signin" | "first_workout" | "birthday") => {
+    const trigger = (triggers || []).find(
+      (t: any) => t.trigger_type === type && t.target_type === "all_clients"
+    );
+    const template = trigger
+      ? (templates || []).find((tpl: any) => tpl.id === trigger.template_id)
+      : undefined;
+    return { trigger, template };
+  };
+
+  const [customizeEvent, setCustomizeEvent] = useState<typeof LIFECYCLE_EVENTS[number] | null>(null);
+  const [customizeContent, setCustomizeContent] = useState("");
+
+  const openCustomize = (evt: typeof LIFECYCLE_EVENTS[number]) => {
+    const { template } = lifecycleConfigFor(evt.type);
+    setCustomizeEvent(evt);
+    setCustomizeContent(template?.content || evt.defaultContent);
+  };
+
+  // Ensure a template + trigger row exist for this lifecycle event, then set
+  // is_active and (optionally) update template.content. Returns nothing.
+  const ensureLifecycle = async (
+    evt: typeof LIFECYCLE_EVENTS[number],
+    opts: { active?: boolean; content?: string }
+  ) => {
+    if (!user) throw new Error("Not signed in");
+    const { trigger, template } = lifecycleConfigFor(evt.type);
+
+    // 1. Ensure template
+    let templateId = template?.id;
+    const desiredContent = opts.content ?? template?.content ?? evt.defaultContent;
+    if (!templateId) {
+      const { data: newTpl, error: tplErr } = await supabase
+        .from("auto_message_templates")
+        .insert({
+          coach_id: user.id,
+          name: `Lifecycle: ${evt.label}`,
+          content: desiredContent,
+          category: `lifecycle_${evt.type}`,
+        })
+        .select("id")
+        .single();
+      if (tplErr) throw tplErr;
+      templateId = newTpl.id;
+    } else if (opts.content !== undefined && opts.content !== template?.content) {
+      const { error: updErr } = await supabase
+        .from("auto_message_templates")
+        .update({ content: opts.content })
+        .eq("id", templateId);
+      if (updErr) throw updErr;
+    }
+
+    // 2. Ensure trigger
+    if (!trigger) {
+      const { error: trgErr } = await supabase.from("auto_message_triggers").insert({
+        coach_id: user.id,
+        template_id: templateId,
+        trigger_type: evt.type,
+        target_type: "all_clients",
+        is_active: opts.active ?? false,
+        excluded_client_ids: [],
+      });
+      if (trgErr) throw trgErr;
+    } else if (opts.active !== undefined && opts.active !== trigger.is_active) {
+      const { error: trgErr } = await supabase
+        .from("auto_message_triggers")
+        .update({ is_active: opts.active })
+        .eq("id", trigger.id);
+      if (trgErr) throw trgErr;
+    }
+  };
+
+  const lifecycleToggleMutation = useMutation({
+    mutationFn: async (vars: { evt: typeof LIFECYCLE_EVENTS[number]; active: boolean }) =>
+      ensureLifecycle(vars.evt, { active: vars.active }),
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] });
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-templates"] });
+      toast({ title: `${vars.evt.label} ${vars.active ? "enabled" : "disabled"}` });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const lifecycleSaveMutation = useMutation({
+    mutationFn: async () => {
+      if (!customizeEvent) return;
+      await ensureLifecycle(customizeEvent, { content: customizeContent });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-triggers"] });
+      queryClient.invalidateQueries({ queryKey: ["auto-msg-templates"] });
+      toast({ title: "Message saved" });
+      setCustomizeEvent(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -432,7 +581,67 @@ const AutoMessagingManager = () => {
         </Card>
       )}
 
+      {/* Lifecycle Automations — Trainerize-style toggles */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Lifecycle Automations
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Toggle on to automatically send a message to every one of your clients when the
+            event happens — no tagging required. Each coach's toggles and messages are
+            independent.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2 pt-0">
+          {LIFECYCLE_EVENTS.map((evt) => {
+            const { trigger, template } = lifecycleConfigFor(evt.type);
+            const active = !!trigger?.is_active;
+            const preview = template?.content || evt.defaultContent;
+            return (
+              <div
+                key={evt.type}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-3"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {evt.schedule}
+                      </Badge>
+                      <p className="text-sm font-medium">{evt.label}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      {preview}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs text-primary hover:text-primary"
+                    onClick={() => openCustomize(evt)}
+                  >
+                    Customize
+                  </Button>
+                  <Switch
+                    checked={active}
+                    onCheckedChange={(v) =>
+                      lifecycleToggleMutation.mutate({ evt, active: v })
+                    }
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="triggers" className="w-full">
+
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="triggers">Triggers</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
@@ -454,7 +663,7 @@ const AutoMessagingManager = () => {
                     <Select value={trigType} onValueChange={setTrigType}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {TRIGGER_TYPES.map((t) => (
+                        {TRIGGER_TYPES.filter((t) => !LIFECYCLE_TYPES.has(t.value as any)).map((t) => (
                           <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -603,9 +812,13 @@ const AutoMessagingManager = () => {
             </Card>
           )}
 
-          {triggers && triggers.length > 0 ? (
+          {(() => {
+            const manualTriggers = (triggers || []).filter(
+              (t: any) => !(LIFECYCLE_TYPES.has(t.trigger_type) && t.target_type === "all_clients")
+            );
+            return manualTriggers.length > 0 ? (
             <div className="space-y-2">
-              {triggers.map((t: any) => (
+              {manualTriggers.map((t: any) => (
                 <Card key={t.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
@@ -661,7 +874,8 @@ const AutoMessagingManager = () => {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No triggers configured yet.</p>
-          )}
+          );
+          })()}
         </TabsContent>
 
         {/* Templates Tab */}
@@ -816,6 +1030,41 @@ const AutoMessagingManager = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Lifecycle Customize Dialog */}
+      <Dialog open={!!customizeEvent} onOpenChange={(open) => !open && setCustomizeEvent(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Customize: {customizeEvent?.label}</DialogTitle>
+            <DialogDescription>
+              {customizeEvent?.description} Use {"{name}"} to insert the client's first name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Message</Label>
+            <Textarea
+              value={customizeContent}
+              onChange={(e) => setCustomizeContent(e.target.value)}
+              rows={5}
+              placeholder={customizeEvent?.defaultContent}
+            />
+            <p className="text-xs text-muted-foreground">
+              Saved per coach — only your own clients receive this message.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomizeEvent(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => lifecycleSaveMutation.mutate()}
+              disabled={!customizeContent.trim() || lifecycleSaveMutation.isPending}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
