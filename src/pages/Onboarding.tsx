@@ -564,6 +564,34 @@ const Onboarding = () => {
 
   return (
     <div className="flex h-full overflow-y-auto flex-col bg-background">
+      <Dialog open={showResume} onOpenChange={setShowResume}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PlayCircle className="h-5 w-5 text-primary" />
+              {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
+            </DialogTitle>
+            <DialogDescription className="pt-2 leading-relaxed">
+              You left off on <span className="font-semibold text-foreground">step {resumeStep} of {TOTAL_STEPS} — {stepLabels[resumeStep]}</span>.
+              Your answers are saved. You need to finish onboarding and sign the waiver before you can access the app.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button onClick={() => setShowResume(false)} className="w-full">
+              Resume where I left off
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setStep(1); setShowResume(false); }}
+              className="w-full"
+            >
+              Start over from step 1
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
         <div className="max-w-lg mx-auto space-y-2">
           <div className="flex items-center justify-between">
