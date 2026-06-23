@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
         .from("user_roles")
         .select("role")
         .eq("user_id", targetCoachId);
-      const targetIsCoach = targetRoles?.some((r: any) => r.role === "coach" || r.role === "admin");
+      const targetIsCoach = targetRoles?.some((r: any) => r.role === "coach" || r.role === "admin" || r.role === "manager");
       if (!targetIsCoach) {
         return new Response(JSON.stringify({ error: "Target user is not a coach" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
