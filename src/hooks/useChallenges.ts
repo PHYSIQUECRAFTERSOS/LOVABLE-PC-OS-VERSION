@@ -451,7 +451,15 @@ export function useUndismissedChallenges() {
         .limit(10);
       if (error) throw error;
 
-      let filtered = (challenges || []).filter((c: any) => !dismissedIds.includes(c.id));
+      const now = Date.now();
+      let filtered = (challenges || []).filter((c: any) => {
+        if (dismissedIds.includes(c.id)) return false;
+        if (c.end_date) {
+          const endOfDay = new Date(`${c.end_date}T23:59:59`).getTime();
+          if (endOfDay < now) return false;
+        }
+        return true;
+      });
 
       const inviteOnly = filtered.filter((c: any) => c.visibility === "invite_only");
       if (inviteOnly.length > 0) {
