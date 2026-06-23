@@ -335,11 +335,73 @@ Deno.serve(async (req) => {
           break;
         }
 
+        case "first_signin": {
+          // Fire once (lifetime) per client, shortly after account creation.
+          // Window: within last 48h since profile created.
+          const cutoffMs = Date.now() - 48 * 3600 * 1000;
+          const candidateIds = clientIds.filter((cid) => {
+            const p = profileMap.get(cid);
+            if (!p?.created_at) return false;
+            return new Date(p.created_at).getTime() >= cutoffMs;
+          });
+          if (candidateIds.length === 0) break;
+
+          const { data: prior } = await supabase
+            .from("auto_message_logs")
+            .select("client_id")
+            .eq("trigger_id", trigger.id)
+            .in("client_id", candidateIds);
+          const sentSet = new Set((prior || []).map((r: any) => r.client_id));
+          eligibleClients = candidateIds.filter((cid) => !sentSet.has(cid));
+          break;
+        }
+
+        case "first_workout": {
+          // Fire once (lifetime) per client, when they complete their first workout session.
+          const { data: prior } = await supabase
+            .from("auto_message_logs")
+            .select("client_id")
+            .eq("trigger_id", trigger.id)
+            .in("client_id", clientIds);
+          const sentSet = new Set((prior || []).map((r: any) => r.client_id));
+
+          for (const cid of clientIds) {
+            if (sentSet.has(cid)) continue;
+            const { data: sess } = await supabase
+              .from("workout_sessions")
+              .select("id")
+              .eq("client_id", cid)
+              .eq("status", "completed")
+              .limit(1);
+            if (sess && sess.length > 0) eligibleClients.push(cid);
+          }
+          break;
+        }
+
+        case "birthday": {
+          for (const cid of clientIds) {
+            const profile = profileMap.get(cid);
+            const dob: string | null = profile?.date_of_birth || null;
+            if (!dob) continue;
+            const tz = profile?.timezone || "America/Los_Angeles";
+            const localHour = getClientLocalHour(tz);
+            if (localHour !== 9) continue;
+            const today = getTodayLocal(tz); // YYYY-MM-DD
+            const [, mToday, dToday] = today.split("-");
+            const [, mDob, dDob] = dob.split("-");
+            if (mToday === mDob && dToday === dDob) {
+              eligibleClients.push(cid);
+            }
+          }
+          break;
+        }
+
         case "recurring":
         case "broadcast": {
           eligibleClients = clientIds;
           break;
         }
+
       }
 
       if (eligibleClients.length === 0) continue;
