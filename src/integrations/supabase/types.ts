@@ -5035,6 +5035,7 @@ export type Database = {
           current_weight_kg: number | null
           custom_allergy_text: string | null
           custom_digestive_text: string | null
+          date_of_birth: string | null
           digestive_issues: string[] | null
           equipment_photo_urls: string[] | null
           estimated_body_fat_pct: number | null
@@ -5093,6 +5094,7 @@ export type Database = {
           current_weight_kg?: number | null
           custom_allergy_text?: string | null
           custom_digestive_text?: string | null
+          date_of_birth?: string | null
           digestive_issues?: string[] | null
           equipment_photo_urls?: string[] | null
           estimated_body_fat_pct?: number | null
@@ -5151,6 +5153,7 @@ export type Database = {
           current_weight_kg?: number | null
           custom_allergy_text?: string | null
           custom_digestive_text?: string | null
+          date_of_birth?: string | null
           digestive_issues?: string[] | null
           equipment_photo_urls?: string[] | null
           estimated_body_fat_pct?: number | null
@@ -5419,6 +5422,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          date_of_birth: string | null
           full_name: string | null
           id: string
           measurements_enabled: boolean | null
@@ -5436,6 +5440,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string | null
           id?: string
           measurements_enabled?: boolean | null
@@ -5453,6 +5458,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          date_of_birth?: string | null
           full_name?: string | null
           id?: string
           measurements_enabled?: boolean | null
