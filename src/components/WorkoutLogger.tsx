@@ -1086,6 +1086,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
       // banner for this session even if a stale DB query returns it
       // before the row's status flip is visible to the next read.
       window.dispatchEvent(new CustomEvent("workout-session-ended"));
+      window.dispatchEvent(new Event("milestone:check"));
       if (activeSessionId) {
         window.dispatchEvent(new CustomEvent("workout-session-completed", { detail: { sessionId: activeSessionId } }));
       }
