@@ -20,6 +20,7 @@ interface NumericKeypadProps {
   onLog?: () => void;
   onSelectRPE?: (rpe: number | undefined) => void;
   canLog?: boolean;
+  logLabel?: string;
 }
 
 const RPE_VALUES = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
@@ -45,6 +46,7 @@ const NumericKeypad = ({
   onLog,
   onSelectRPE,
   canLog,
+  logLabel,
 }: NumericKeypadProps) => {
   const freshRef = useRef(true);
   const [showRPE, setShowRPE] = useState(false);
@@ -213,7 +215,7 @@ const NumericKeypad = ({
               onClick={handleLog}
               disabled={!canLog}
             >
-              <Check className="h-4 w-4" /> Log Set
+              <Check className="h-4 w-4" /> {logLabel || "Log Set"}
             </button>
           )}
         </div>
@@ -280,7 +282,7 @@ const NumericKeypad = ({
               disabled={!canLog}
             >
               <Check className="h-4 w-4" />
-              Log
+              {logLabel || "Log"}
             </button>
           </div>
         </div>
