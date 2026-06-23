@@ -28,8 +28,8 @@ import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User } fro
 import { format } from "date-fns";
 
 const TRIGGER_TYPES = [
-  { value: "first_signin", label: "On First Sign-In", schedule: "INSTANT" },
-  { value: "first_workout", label: "First Completed Workout", schedule: "INSTANT" },
+ { value: "first_signin", label: "On First Sign-In", schedule: "+35 min" },
+ { value: "first_workout", label: "First Completed Workout", schedule: "+25 min" },
   { value: "birthday", label: "Client Birthday", schedule: "9am" },
   { value: "missed_workout", label: "Missed Workout", schedule: "5am" },
   { value: "missed_checkin", label: "Missed Check-In", schedule: "5am" },

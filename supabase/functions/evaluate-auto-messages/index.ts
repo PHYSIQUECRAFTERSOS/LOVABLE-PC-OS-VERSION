@@ -336,14 +336,28 @@ Deno.serve(async (req) => {
         }
 
         case "first_signin": {
-          // Fire once (lifetime) per client, shortly after account creation.
-          // Window: within last 48h since profile created.
-          const cutoffMs = Date.now() - 48 * 3600 * 1000;
-          const candidateIds = clientIds.filter((cid) => {
-            const p = profileMap.get(cid);
-            if (!p?.created_at) return false;
-            return new Date(p.created_at).getTime() >= cutoffMs;
-          });
+          // Fire once (lifetime) per client, 35 minutes after they complete onboarding.
+          // Window: look back 7 days to catch any cron cycle, but only fire once total.
+          const lookbackMs = Date.now() - 7 * 86400 * 1000;
+          const delayMs = 35 * 60 * 1000;
+          const now = Date.now();
+
+          // Pull onboarding completion timestamps for these clients
+          const { data: onboardingRows } = await supabase
+            .from("onboarding_profiles")
+            .select("user_id, completed_at, onboarding_completed")
+            .in("user_id", clientIds)
+            .eq("onboarding_completed", true)
+            .not("completed_at", "is", null);
+
+          const completedAtMap = new Map<string, number>();
+          for (const row of onboardingRows || []) {
+            const ts = row.completed_at ? new Date(row.completed_at).getTime() : 0;
+            if (ts && ts >= lookbackMs && now - ts >= delayMs) {
+              completedAtMap.set(row.user_id, ts);
+            }
+          }
+          const candidateIds = clientIds.filter((cid) => completedAtMap.has(cid));
           if (candidateIds.length === 0) break;
 
           const { data: prior } = await supabase
@@ -357,7 +371,10 @@ Deno.serve(async (req) => {
         }
 
         case "first_workout": {
-          // Fire once (lifetime) per client, when they complete their first workout session.
+          // Fire once (lifetime) per client, 25 minutes after they complete their first workout.
+          const delayMs = 25 * 60 * 1000;
+          const now = Date.now();
+
           const { data: prior } = await supabase
             .from("auto_message_logs")
             .select("client_id")
@@ -369,11 +386,20 @@ Deno.serve(async (req) => {
             if (sentSet.has(cid)) continue;
             const { data: sess } = await supabase
               .from("workout_sessions")
-              .select("id")
+              .select("id, completed_at")
               .eq("client_id", cid)
               .eq("status", "completed")
+              .not("completed_at", "is", null)
+              .order("completed_at", { ascending: true })
               .limit(1);
-            if (sess && sess.length > 0) eligibleClients.push(cid);
+            if (!sess || sess.length === 0) continue;
+            const completedTs = sess[0].completed_at
+              ? new Date(sess[0].completed_at).getTime()
+              : 0;
+            if (!completedTs) continue;
+            // Wait at least 25 minutes after completion before sending.
+            if (now - completedTs < delayMs) continue;
+            eligibleClients.push(cid);
           }
           break;
         }
