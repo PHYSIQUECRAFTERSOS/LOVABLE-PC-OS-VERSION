@@ -215,7 +215,7 @@ const NumericKeypad = ({
               onClick={handleLog}
               disabled={!canLog}
             >
-              <Check className="h-4 w-4" /> Log Set
+              <Check className="h-4 w-4" /> {logLabel || "Log Set"}
             </button>
           )}
         </div>
