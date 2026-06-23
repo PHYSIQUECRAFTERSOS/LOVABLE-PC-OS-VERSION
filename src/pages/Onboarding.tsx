@@ -29,6 +29,7 @@ export interface OnboardingData {
   primary_goal: string;
   gender: string;
   age: number | null;
+  date_of_birth: string | null; // YYYY-MM-DD
   height_feet: number | null;
   height_inches: number | null;
   height_cm: number | null;
@@ -36,6 +37,7 @@ export interface OnboardingData {
   current_weight_kg: number | null;
   estimated_body_fat_pct: number | null;
   activity_level: string;
+
   // Nutrition history (existing)
   tracked_macros_before: boolean | null;
   food_intolerances: string[];
@@ -94,6 +96,8 @@ const defaultData: OnboardingData = {
   primary_goal: "",
   gender: "",
   age: null,
+  date_of_birth: null,
+
   height_feet: null,
   height_inches: null,
   height_cm: null,
@@ -301,11 +305,13 @@ const Onboarding = () => {
       case 2:
         if (!data.gender) errors.gender = "This field is required before continuing.";
         if (!data.age) errors.age = "This field is required before continuing.";
+        if (!data.date_of_birth) errors.date_of_birth = "Please enter your birthday.";
         if (data.height_feet == null) errors.height_feet = "This field is required before continuing.";
         if (data.height_inches == null) errors.height_inches = "This field is required before continuing.";
         if (data.weight_lb == null) errors.weight_lb = "This field is required before continuing.";
         if (!data.activity_level) errors.activity_level = "This field is required before continuing.";
         break;
+
       case 3:
         break;
       case 4:
@@ -392,6 +398,17 @@ const Onboarding = () => {
     if (!saved) return; // Don't proceed — user can retry
 
     if (user) {
+      // Mirror date_of_birth to profiles so coach-side queries (birthday auto-msg) can read it.
+      if (data.date_of_birth) {
+        (async () => {
+          const { error } = await supabase
+            .from("profiles")
+            .update({ date_of_birth: data.date_of_birth })
+            .eq("user_id", user.id);
+          if (error) console.error("[Onboarding] DOB profile sync error:", error);
+        })();
+      }
+
       // Sync onboarding weight to weight_logs (non-blocking, fire-and-forget)
       if (data.weight_lb && data.weight_lb > 0) {
         const today = new Date().toISOString().split("T")[0];
@@ -408,6 +425,7 @@ const Onboarding = () => {
           if (error) console.error("[Onboarding] weight sync error:", error);
         })();
       }
+
 
       // Send auto-message to coach (non-blocking, fire-and-forget)
       (async () => {
@@ -496,7 +514,7 @@ const Onboarding = () => {
               </div>
             </>
           )}
-          {step === 2 && <OnboardingMetrics data={data} updateField={updateField} />}
+          {step === 2 && <OnboardingMetrics data={data} updateField={updateField} validationErrors={validationErrors} />}
           {step === 3 && <OnboardingBodyComp data={data} updateField={updateField} />}
           {step === 4 && <OnboardingTrainingEnv data={data} updateField={updateField} validationErrors={validationErrors} />}
           {step === 5 && <OnboardingSchedule data={data} updateField={updateField} validationErrors={validationErrors} />}

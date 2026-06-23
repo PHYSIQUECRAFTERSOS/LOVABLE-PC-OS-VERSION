@@ -13,7 +13,9 @@ import {
 interface Props {
   data: OnboardingData;
   updateField: <K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) => void;
+  validationErrors?: Record<string, string>;
 }
+
 
 const activityLevels = [
   { value: "sedentary", label: "Sedentary", desc: "Desk job, little exercise" },
@@ -22,7 +24,7 @@ const activityLevels = [
   { value: "very_active", label: "Very Active", desc: "6-7 workouts/week + active job" },
 ];
 
-const OnboardingMetrics = ({ data, updateField }: Props) => {
+const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) => {
   const handleHeightChange = (feet: number | null, inches: number | null) => {
     const ft = feet ?? data.height_feet;
     const inc = inches ?? data.height_inches;
@@ -41,6 +43,50 @@ const OnboardingMetrics = ({ data, updateField }: Props) => {
       updateField("current_weight_kg", null);
     }
   };
+
+  // DOB parts derived from stored YYYY-MM-DD
+  const dobParts = (() => {
+    if (!data.date_of_birth) return { y: "", m: "", d: "" };
+    const [y, m, d] = data.date_of_birth.split("-");
+    return { y: y || "", m: m || "", d: d || "" };
+  })();
+
+  const updateDob = (year: string, month: string, day: string) => {
+    if (!year || !month || !day) {
+      updateField("date_of_birth", null);
+      return;
+    }
+    const mm = month.padStart(2, "0");
+    const dd = day.padStart(2, "0");
+    const iso = `${year}-${mm}-${dd}`;
+    // Validate (real calendar date)
+    const dt = new Date(`${iso}T00:00:00`);
+    if (isNaN(dt.getTime()) || dt.getUTCMonth() + 1 !== Number(mm) || dt.getUTCDate() !== Number(dd)) {
+      updateField("date_of_birth", null);
+      return;
+    }
+    updateField("date_of_birth", iso);
+    // Auto-fill age if not already set or appears stale
+    const today = new Date();
+    let age = today.getFullYear() - Number(year);
+    const mDiff = today.getMonth() + 1 - Number(mm);
+    if (mDiff < 0 || (mDiff === 0 && today.getDate() < Number(dd))) age--;
+    if (age > 0 && age < 120) updateField("age", age);
+  };
+
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 90 }, (_, i) => currentYear - 13 - i); // 13+ down to 102
+  const months = [
+    { v: "1", l: "Jan" }, { v: "2", l: "Feb" }, { v: "3", l: "Mar" }, { v: "4", l: "Apr" },
+    { v: "5", l: "May" }, { v: "6", l: "Jun" }, { v: "7", l: "Jul" }, { v: "8", l: "Aug" },
+    { v: "9", l: "Sep" }, { v: "10", l: "Oct" }, { v: "11", l: "Nov" }, { v: "12", l: "Dec" },
+  ];
+  const daysInMonth = (() => {
+    const y = Number(dobParts.y);
+    const m = Number(dobParts.m);
+    if (!y || !m) return 31;
+    return new Date(y, m, 0).getDate();
+  })();
 
   return (
     <div className="space-y-6">
@@ -70,6 +116,45 @@ const OnboardingMetrics = ({ data, updateField }: Props) => {
         </div>
       </div>
 
+      {/* Birthday */}
+      <div className="space-y-2">
+        <Label>Birthday</Label>
+        <div className="grid grid-cols-3 gap-2">
+          <Select
+            value={dobParts.m}
+            onValueChange={(v) => updateDob(dobParts.y, v, dobParts.d)}
+          >
+            <SelectTrigger><SelectValue placeholder="Month" /></SelectTrigger>
+            <SelectContent>
+              {months.map((m) => <SelectItem key={m.v} value={m.v}>{m.l}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select
+            value={dobParts.d}
+            onValueChange={(v) => updateDob(dobParts.y, dobParts.m, v)}
+          >
+            <SelectTrigger><SelectValue placeholder="Day" /></SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+                <SelectItem key={d} value={String(d)}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={dobParts.y}
+            onValueChange={(v) => updateDob(v, dobParts.m, dobParts.d)}
+          >
+            <SelectTrigger><SelectValue placeholder="Year" /></SelectTrigger>
+            <SelectContent>
+              {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {validationErrors.date_of_birth && (
+          <p className="text-xs text-destructive">{validationErrors.date_of_birth}</p>
+        )}
+      </div>
+
       {/* Age */}
       <div className="space-y-2">
         <Label>Age</Label>
@@ -80,6 +165,7 @@ const OnboardingMetrics = ({ data, updateField }: Props) => {
           onChange={(e) => updateField("age", e.target.value ? Number(e.target.value) : null)}
         />
       </div>
+
 
       {/* Height - Feet & Inches */}
       <div className="space-y-2">

@@ -19,6 +19,8 @@ import UnitPreferences from "@/components/settings/UnitPreferences";
 import SignatureRecordsTable from "@/components/signing/SignatureRecordsTable";
 import SubscriptionCard from "@/components/subscription/SubscriptionCard";
 import AppearanceSection from "@/components/settings/AppearanceSection";
+import AutoMessagingManager from "@/components/messaging/AutoMessagingManager";
+
 
 const Profile = () => {
   const { user, role, roles } = useAuth();
@@ -120,7 +122,18 @@ const Profile = () => {
             <NotificationSettings />
             {role === "client" && <UnitPreferences />}
             <ChangePasswordSection />
+            {(role === "coach" || role === "admin") && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Automated Messaging</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <AutoMessagingManager />
+                </CardContent>
+              </Card>
+            )}
             <Card>
+
               <CardHeader>
                 <CardTitle>Legal</CardTitle>
               </CardHeader>

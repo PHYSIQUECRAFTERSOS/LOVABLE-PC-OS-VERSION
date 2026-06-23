@@ -28,13 +28,17 @@ import { Plus, Zap, Mail, Send, Clock, Trash2, Pencil, Search, Users, User } fro
 import { format } from "date-fns";
 
 const TRIGGER_TYPES = [
-  { value: "missed_workout", label: "Missed Workout" },
-  { value: "missed_checkin", label: "Missed Check-In" },
-  { value: "inactivity_7d", label: "7-Day Inactivity" },
-  { value: "goal_milestone", label: "Goal Milestone" },
-  { value: "recurring", label: "Recurring Schedule" },
-  { value: "broadcast", label: "Broadcast (One-Time)" },
+  { value: "first_signin", label: "On First Sign-In", schedule: "INSTANT" },
+  { value: "first_workout", label: "First Completed Workout", schedule: "INSTANT" },
+  { value: "birthday", label: "Client Birthday", schedule: "9am" },
+  { value: "missed_workout", label: "Missed Workout", schedule: "5am" },
+  { value: "missed_checkin", label: "Missed Check-In", schedule: "5am" },
+  { value: "inactivity_7d", label: "7-Day Inactivity", schedule: "INSTANT" },
+  { value: "goal_milestone", label: "Goal Milestone", schedule: "INSTANT" },
+  { value: "recurring", label: "Recurring Schedule", schedule: "CRON" },
+  { value: "broadcast", label: "Broadcast (One-Time)", schedule: "INSTANT" },
 ];
+
 
 const CATEGORIES = [
   { value: "motivational", label: "Motivational" },
@@ -608,9 +612,14 @@ const AutoMessagingManager = () => {
                       <div className="flex items-center gap-3">
                         <Zap className="h-4 w-4 text-primary" />
                         <div>
-                          <p className="text-sm font-medium">
-                            {TRIGGER_TYPES.find((tt) => tt.value === t.trigger_type)?.label || t.trigger_type}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {TRIGGER_TYPES.find((tt) => tt.value === t.trigger_type)?.schedule || "—"}
+                            </Badge>
+                            <p className="text-sm font-medium">
+                              {TRIGGER_TYPES.find((tt) => tt.value === t.trigger_type)?.label || t.trigger_type}
+                            </p>
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             Template: {t.auto_message_templates?.name} · Target: {t.target_type}
                             {t.target_tag && ` (${t.target_tag})`}
@@ -620,6 +629,7 @@ const AutoMessagingManager = () => {
                           </p>
                         </div>
                       </div>
+
                       <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
