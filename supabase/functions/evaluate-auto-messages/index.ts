@@ -337,12 +337,15 @@ Deno.serve(async (req) => {
 
         case "first_signin": {
           // Fire once (lifetime) per client, 35 minutes after they complete onboarding.
-          // Window: look back 7 days to catch any cron cycle, but only fire once total.
+          // CRITICAL: only fires for onboardings completed AFTER the trigger was
+          // activated, so pre-existing clients never retroactively fire.
           const lookbackMs = Date.now() - 7 * 86400 * 1000;
           const delayMs = 35 * 60 * 1000;
           const now = Date.now();
+          const activatedAt = new Date(
+            trigger.updated_at || trigger.created_at || 0
+          ).getTime();
 
-          // Pull onboarding completion timestamps for these clients
           const { data: onboardingRows } = await supabase
             .from("onboarding_profiles")
             .select("user_id, completed_at, onboarding_completed")
@@ -353,7 +356,12 @@ Deno.serve(async (req) => {
           const completedAtMap = new Map<string, number>();
           for (const row of onboardingRows || []) {
             const ts = row.completed_at ? new Date(row.completed_at).getTime() : 0;
-            if (ts && ts >= lookbackMs && now - ts >= delayMs) {
+            if (
+              ts &&
+              ts > activatedAt &&
+              ts >= lookbackMs &&
+              now - ts >= delayMs
+            ) {
               completedAtMap.set(row.user_id, ts);
             }
           }
@@ -371,9 +379,15 @@ Deno.serve(async (req) => {
         }
 
         case "first_workout": {
-          // Fire once (lifetime) per client, 25 minutes after they complete their first workout.
+          // Fire once (lifetime) per client, 25 minutes after their first workout
+          // completed AFTER the trigger was activated. Existing clients with old
+          // workouts will never retroactively fire.
           const delayMs = 25 * 60 * 1000;
           const now = Date.now();
+          const activatedAt = new Date(
+            trigger.updated_at || trigger.created_at || 0
+          ).getTime();
+          const activatedAtIso = new Date(activatedAt).toISOString();
 
           const { data: prior } = await supabase
             .from("auto_message_logs")
@@ -390,6 +404,7 @@ Deno.serve(async (req) => {
               .eq("client_id", cid)
               .eq("status", "completed")
               .not("completed_at", "is", null)
+              .gt("completed_at", activatedAtIso)
               .order("completed_at", { ascending: true })
               .limit(1);
             if (!sess || sess.length === 0) continue;
@@ -397,7 +412,6 @@ Deno.serve(async (req) => {
               ? new Date(sess[0].completed_at).getTime()
               : 0;
             if (!completedTs) continue;
-            // Wait at least 25 minutes after completion before sending.
             if (now - completedTs < delayMs) continue;
             eligibleClients.push(cid);
           }
