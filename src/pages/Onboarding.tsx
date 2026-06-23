@@ -250,7 +250,7 @@ const Onboarding = () => {
         onboarding_completed: completed,
         completed_at: completed ? new Date().toISOString() : null,
       };
-      delete payload.waiver_signature;
+      // waiver_signature persists so a half-completed waiver step is resumable
 
       // Sanitize timestamp columns: convert empty strings to null to avoid PostgREST errors
       const timestampFields = ["waiver_signed_at", "baseline_assessment_date", "completed_at"];
