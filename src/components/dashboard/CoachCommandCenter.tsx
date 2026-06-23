@@ -417,6 +417,8 @@ const CoachCommandCenter = () => {
       for (const sess of yesterdaySessions) {
         const cid = sess.client_id;
         if (!clientIds.includes(cid) || seenCompleted.has(cid)) continue;
+        // Skip accessory workouts (vacuums, stretches, mobility)
+        if ((sess as any).workouts?.is_accessory) continue;
         const profile = profileMap.get(cid);
         const workoutName = (sess as any).workouts?.name || "Workout";
         completedYesterday.push({
@@ -430,6 +432,8 @@ const CoachCommandCenter = () => {
 
       // Then: supplement with calendar events (for completed calendar events not caught by sessions)
       for (const ev of yesterdayEvents) {
+        // Skip accessory workouts entirely — they shouldn't count as completed or missed
+        if ((ev as any).workouts?.is_accessory) continue;
         const cid = ev.effectiveClientId;
         const profile = profileMap.get(cid);
         const entry: YesterdayWorkoutClient = {
