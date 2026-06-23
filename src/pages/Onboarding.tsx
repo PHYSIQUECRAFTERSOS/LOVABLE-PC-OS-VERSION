@@ -305,11 +305,13 @@ const Onboarding = () => {
       case 2:
         if (!data.gender) errors.gender = "This field is required before continuing.";
         if (!data.age) errors.age = "This field is required before continuing.";
+        if (!data.date_of_birth) errors.date_of_birth = "Please enter your birthday.";
         if (data.height_feet == null) errors.height_feet = "This field is required before continuing.";
         if (data.height_inches == null) errors.height_inches = "This field is required before continuing.";
         if (data.weight_lb == null) errors.weight_lb = "This field is required before continuing.";
         if (!data.activity_level) errors.activity_level = "This field is required before continuing.";
         break;
+
       case 3:
         break;
       case 4:
