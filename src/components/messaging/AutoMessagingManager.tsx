@@ -581,7 +581,67 @@ const AutoMessagingManager = () => {
         </Card>
       )}
 
+      {/* Lifecycle Automations — Trainerize-style toggles */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Lifecycle Automations
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Toggle on to automatically send a message to every one of your clients when the
+            event happens — no tagging required. Each coach's toggles and messages are
+            independent.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-2 pt-0">
+          {LIFECYCLE_EVENTS.map((evt) => {
+            const { trigger, template } = lifecycleConfigFor(evt.type);
+            const active = !!trigger?.is_active;
+            const preview = template?.content || evt.defaultContent;
+            return (
+              <div
+                key={evt.type}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-3"
+              >
+                <div className="flex items-start gap-3 min-w-0">
+                  <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {evt.schedule}
+                      </Badge>
+                      <p className="text-sm font-medium">{evt.label}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      {preview}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs text-primary hover:text-primary"
+                    onClick={() => openCustomize(evt)}
+                  >
+                    Customize
+                  </Button>
+                  <Switch
+                    checked={active}
+                    onCheckedChange={(v) =>
+                      lifecycleToggleMutation.mutate({ evt, active: v })
+                    }
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="triggers" className="w-full">
+
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="triggers">Triggers</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
