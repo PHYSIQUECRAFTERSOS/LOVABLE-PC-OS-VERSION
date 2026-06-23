@@ -211,11 +211,11 @@ const CoachCommandCenter = () => {
       // Calendar events for last 7 days (workout + checkin only) — source of truth for compliance
       const calEventsReq = supabase.from("calendar_events").select("user_id, target_client_id, event_type, is_completed, event_date, linked_workout_id, title").in("event_type", ["workout", "checkin"]).gte("event_date", last7Start).lte("event_date", format(now, "yyyy-MM-dd")).abortSignal(signal);
       // Workout sessions for double-verification (catch completed workouts where calendar wasn't flagged)
-      const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal);
+      const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name, is_accessory)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal);
       const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false }).abortSignal(signal);
       const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20).abortSignal(signal);
       // Yesterday's scheduled workouts (coach schedules via target_client_id OR client's own)
-      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title").eq("event_date", yesterday).eq("event_type", "workout").abortSignal(signal);
+      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title, workouts:linked_workout_id(is_accessory)").eq("event_date", yesterday).eq("event_type", "workout").abortSignal(signal);
 
       const [profilesRes, calEventsRes, sessionsRes, riskRes, messagesRes, yesterdayCalRes] = await Promise.all([
         profilesReq, calEventsReq, sessionsReq, riskReq, messagesReq, yesterdayCalReq,
