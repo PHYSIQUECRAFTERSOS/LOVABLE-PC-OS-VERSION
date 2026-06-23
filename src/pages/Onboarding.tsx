@@ -174,6 +174,11 @@ const Onboarding = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [postStep, setPostStep] = useState<"none" | "photo" | "health" | "success">("none");
   const [firstName, setFirstName] = useState("");
+  const [showResume, setShowResume] = useState(false);
+  const [resumeStep, setResumeStep] = useState(1);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestDataRef = useRef<OnboardingData>(defaultData);
+  const latestStepRef = useRef<number>(1);
 
   useEffect(() => {
     if (!user) return;
