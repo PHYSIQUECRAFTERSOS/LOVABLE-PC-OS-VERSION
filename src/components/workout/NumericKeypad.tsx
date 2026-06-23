@@ -46,6 +46,7 @@ const NumericKeypad = ({
   onLog,
   onSelectRPE,
   canLog,
+  logLabel,
 }: NumericKeypadProps) => {
   const freshRef = useRef(true);
   const [showRPE, setShowRPE] = useState(false);
