@@ -20,12 +20,15 @@ import PhotosPopup from "@/components/dashboard/PhotosPopup";
 import { invalidateCache } from "@/hooks/useDataFetch";
 
 
+import TrophyRoom from "@/components/milestones/TrophyRoom";
+
 const TAB_MAP: Record<string, string> = {
   steps: "steps",
   weight: "weight",
   photos: "photos",
   checkin: "checkin",
   forms: "forms",
+  trophies: "trophies",
 };
 
 const Progress = () => {
