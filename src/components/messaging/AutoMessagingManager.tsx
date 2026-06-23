@@ -47,6 +47,43 @@ const TRIGGER_TYPES = [
   { value: "broadcast", label: "Broadcast (One-Time)", schedule: "INSTANT" },
 ];
 
+// Lifecycle events shown as Trainerize-style ON/OFF toggles. These are managed
+// from the dedicated section above the Tabs; they are NOT shown in the manual
+// "New Trigger" dropdown so coaches can't create competing duplicates.
+const LIFECYCLE_EVENTS: Array<{
+  type: "first_signin" | "first_workout" | "birthday";
+  label: string;
+  schedule: string;
+  description: string;
+  defaultContent: string;
+}> = [
+  {
+    type: "first_signin",
+    label: "On First Sign-In",
+    schedule: "+35 min after onboarding",
+    description: "Sent once when a new client finishes onboarding.",
+    defaultContent:
+      "Welcome {name}! Glad to have you on board. Take a look around the app and let me know if you have any questions.",
+  },
+  {
+    type: "first_workout",
+    label: "First Completed Workout",
+    schedule: "+25 min after workout",
+    description: "Sent once when a client completes their very first workout.",
+    defaultContent:
+      "Huge first workout, {name} — that's how it starts. Proud of you. Keep the momentum going.",
+  },
+  {
+    type: "birthday",
+    label: "Client Birthday",
+    schedule: "9am client local time",
+    description: "Sent on each client's birthday.",
+    defaultContent:
+      "Happy birthday, {name}! Wishing you an awesome day. Let's make this year your strongest one yet.",
+  },
+];
+const LIFECYCLE_TYPES = new Set(LIFECYCLE_EVENTS.map((e) => e.type));
+
 
 const CATEGORIES = [
   { value: "motivational", label: "Motivational" },
