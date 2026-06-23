@@ -48,19 +48,20 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", callerId);
     const isAdmin = callerRoles?.some((r: any) => r.role === "admin");
-    const isCoach = callerRoles?.some((r: any) => r.role === "coach" || r.role === "admin");
+    const isManager = callerRoles?.some((r: any) => r.role === "manager");
+    const isCoach = callerRoles?.some((r: any) => r.role === "coach" || r.role === "admin" || r.role === "manager");
 
     if (!isCoach) {
       return new Response(JSON.stringify({ error: "Unauthorized: coach or admin role required" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Verify coach owns this client (or admin)
+    // Verify coach owns this client (or admin/manager — full team access)
     const assignmentQuery = adminClient
       .from("coach_clients")
       .select("id, status, coach_id")
       .eq("client_id", clientId);
 
-    if (!isAdmin) {
+    if (!isAdmin && !isManager) {
       assignmentQuery.eq("coach_id", callerId);
     }
 
@@ -82,7 +83,7 @@ Deno.serve(async (req) => {
         .from("user_roles")
         .select("role")
         .eq("user_id", targetCoachId);
-      const targetIsCoach = targetRoles?.some((r: any) => r.role === "coach" || r.role === "admin");
+      const targetIsCoach = targetRoles?.some((r: any) => r.role === "coach" || r.role === "admin" || r.role === "manager");
       if (!targetIsCoach) {
         return new Response(JSON.stringify({ error: "Target user is not a coach" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
