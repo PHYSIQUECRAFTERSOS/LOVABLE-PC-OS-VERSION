@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, ArrowRight, Check, Loader2, CheckCircle2, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import OnboardingGoals from "@/components/onboarding/OnboardingGoals";
 import OnboardingMetrics from "@/components/onboarding/OnboardingMetrics";
@@ -173,6 +174,11 @@ const Onboarding = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [postStep, setPostStep] = useState<"none" | "photo" | "health" | "success">("none");
   const [firstName, setFirstName] = useState("");
+  const [showResume, setShowResume] = useState(false);
+  const [resumeStep, setResumeStep] = useState(1);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestDataRef = useRef<OnboardingData>(defaultData);
+  const latestStepRef = useRef<number>(1);
 
   useEffect(() => {
     if (!user) return;
@@ -187,7 +193,8 @@ const Onboarding = () => {
             navigate("/dashboard", { replace: true });
             return;
           }
-          setStep(existing.current_step || 1);
+          const savedStep = existing.current_step || 1;
+          setStep(savedStep);
           setData(prev => {
             const merged = { ...prev };
             for (const key of Object.keys(prev) as (keyof OnboardingData)[]) {
@@ -198,6 +205,13 @@ const Onboarding = () => {
             }
             return merged;
           });
+          // Show resume modal once per session if they're past step 1
+          const resumeKey = `onboarding_resume_shown_${user.id}`;
+          if (savedStep > 1 && !sessionStorage.getItem(resumeKey)) {
+            setResumeStep(savedStep);
+            setShowResume(true);
+            sessionStorage.setItem(resumeKey, "1");
+          }
         }
         setInitialLoading(false);
       });
@@ -236,7 +250,7 @@ const Onboarding = () => {
         onboarding_completed: completed,
         completed_at: completed ? new Date().toISOString() : null,
       };
-      delete payload.waiver_signature;
+      // waiver_signature persists so a half-completed waiver step is resumable
 
       // Sanitize timestamp columns: convert empty strings to null to avoid PostgREST errors
       const timestampFields = ["waiver_signed_at", "baseline_assessment_date", "completed_at"];
@@ -294,6 +308,67 @@ const Onboarding = () => {
       setSaving(false);
     }
   }, [user, data]);
+
+  // Keep refs current so background-save listeners always see fresh data
+  useEffect(() => {
+    latestDataRef.current = data;
+    latestStepRef.current = step;
+  }, [data, step]);
+
+  // Lightweight fire-and-forget autosave used by the debounce + visibility hooks.
+  // Does not toast, does not set the saving spinner, does not block navigation.
+  const autoSave = useCallback(async () => {
+    if (!user) return;
+    const snapshot = latestDataRef.current;
+    const stepSnapshot = latestStepRef.current;
+    try {
+      const payload: any = {
+        user_id: user.id,
+        ...snapshot,
+        current_step: stepSnapshot,
+        onboarding_completed: false,
+      };
+      const timestampFields = ["waiver_signed_at", "baseline_assessment_date", "completed_at"];
+      for (const field of timestampFields) {
+        if (payload[field] === "" || payload[field] === undefined) {
+          payload[field] = null;
+        }
+      }
+      await supabase
+        .from("onboarding_profiles")
+        .upsert(payload, { onConflict: "user_id" });
+    } catch (err) {
+      console.warn("[Onboarding] autoSave failed (will retry on next change):", err);
+    }
+  }, [user]);
+
+  // Debounced field-level autosave: ~1.5s after the last change
+  useEffect(() => {
+    if (initialLoading || !user) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      autoSave();
+    }, 1500);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [data, step, initialLoading, user, autoSave]);
+
+  // Save immediately when the app backgrounds, tab closes, or PWA is swiped away
+  useEffect(() => {
+    if (initialLoading || !user) return;
+    const flush = () => { autoSave(); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
+  }, [initialLoading, user, autoSave]);
+
 
   const validateStep = (): boolean => {
     const errors: Record<string, string> = {};
@@ -489,6 +564,34 @@ const Onboarding = () => {
 
   return (
     <div className="flex h-full overflow-y-auto flex-col bg-background">
+      <Dialog open={showResume} onOpenChange={setShowResume}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PlayCircle className="h-5 w-5 text-primary" />
+              {firstName ? `Welcome back, ${firstName}` : "Welcome back"}
+            </DialogTitle>
+            <DialogDescription className="pt-2 leading-relaxed">
+              You left off on <span className="font-semibold text-foreground">step {resumeStep} of {TOTAL_STEPS} — {stepLabels[resumeStep]}</span>.
+              Your answers are saved. You need to finish onboarding and sign the waiver before you can access the app.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button onClick={() => setShowResume(false)} className="w-full">
+              Resume where I left off
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setStep(1); setShowResume(false); }}
+              className="w-full"
+            >
+              Start over from step 1
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
         <div className="max-w-lg mx-auto space-y-2">
           <div className="flex items-center justify-between">
