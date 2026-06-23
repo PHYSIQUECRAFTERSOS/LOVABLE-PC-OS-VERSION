@@ -431,11 +431,13 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
 
                                   <Button
                                     size="sm"
+                                    className="shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       onStartWorkout(pw.workout_id);
                                     }}
                                   >
+
                                     <Play className="h-3.5 w-3.5 mr-1" /> Start
                                   </Button>
                                 </div>
