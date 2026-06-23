@@ -648,9 +648,13 @@ const AutoMessagingManager = () => {
             </Card>
           )}
 
-          {triggers && triggers.length > 0 ? (
+          {(() => {
+            const manualTriggers = (triggers || []).filter(
+              (t: any) => !(LIFECYCLE_TYPES.has(t.trigger_type) && t.target_type === "all_clients")
+            );
+            return manualTriggers.length > 0 ? (
             <div className="space-y-2">
-              {triggers.map((t: any) => (
+              {manualTriggers.map((t: any) => (
                 <Card key={t.id}>
                   <CardContent className="pt-4">
                     <div className="flex items-center justify-between">
