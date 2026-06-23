@@ -284,7 +284,10 @@ export type Database = {
           description: string | null
           icon: string
           id: string
+          lucide_icon: string | null
           name: string
+          threshold: number | null
+          tier: string | null
         }
         Insert: {
           category?: string | null
@@ -292,7 +295,10 @@ export type Database = {
           description?: string | null
           icon?: string
           id?: string
+          lucide_icon?: string | null
           name: string
+          threshold?: number | null
+          tier?: string | null
         }
         Update: {
           category?: string | null
@@ -300,7 +306,10 @@ export type Database = {
           description?: string | null
           icon?: string
           id?: string
+          lucide_icon?: string | null
           name?: string
+          threshold?: number | null
+          tier?: string | null
         }
         Relationships: []
       }
@@ -1589,6 +1598,74 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      client_milestone_progress: {
+        Row: {
+          cardio_completed: number
+          client_id: string
+          nutrition_current_streak: number
+          nutrition_days_total: number
+          nutrition_longest_streak: number
+          updated_at: string
+          workouts_completed: number
+        }
+        Insert: {
+          cardio_completed?: number
+          client_id: string
+          nutrition_current_streak?: number
+          nutrition_days_total?: number
+          nutrition_longest_streak?: number
+          updated_at?: string
+          workouts_completed?: number
+        }
+        Update: {
+          cardio_completed?: number
+          client_id?: string
+          nutrition_current_streak?: number
+          nutrition_days_total?: number
+          nutrition_longest_streak?: number
+          updated_at?: string
+          workouts_completed?: number
+        }
+        Relationships: []
+      }
+      client_milestone_unlocks: {
+        Row: {
+          badge_id: string
+          category: string
+          celebrated_at: string | null
+          client_id: string
+          id: string
+          threshold: number
+          unlocked_at: string
+        }
+        Insert: {
+          badge_id: string
+          category: string
+          celebrated_at?: string | null
+          client_id: string
+          id?: string
+          threshold: number
+          unlocked_at?: string
+        }
+        Update: {
+          badge_id?: string
+          category?: string
+          celebrated_at?: string | null
+          client_id?: string
+          id?: string
+          threshold?: number
+          unlocked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_milestone_unlocks_badge_id_fkey"
+            columns: ["badge_id"]
+            isOneToOne: false
+            referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client_notes: {
         Row: {
@@ -7828,6 +7905,7 @@ export type Database = {
       }
       admin_fan_out_synthetic_log: { Args: { p_log_id: string }; Returns: Json }
       admin_repair_workout_labels: { Args: never; Returns: Json }
+      compute_nutrition_streak: { Args: { p_user_id: string }; Returns: number }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -7926,6 +8004,14 @@ export type Database = {
       recalc_engagement_score: {
         Args: { _user_id: string }
         Returns: undefined
+      }
+      recompute_milestones: {
+        Args: { p_silent?: boolean; p_user_id: string }
+        Returns: {
+          out_badge_id: string
+          out_category: string
+          out_threshold: number
+        }[]
       }
       repair_saved_meals_commit: { Args: { p_run_id: string }; Returns: Json }
       repair_saved_meals_dry_run: { Args: never; Returns: Json }

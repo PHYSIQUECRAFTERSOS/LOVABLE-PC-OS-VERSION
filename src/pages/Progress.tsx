@@ -20,12 +20,15 @@ import PhotosPopup from "@/components/dashboard/PhotosPopup";
 import { invalidateCache } from "@/hooks/useDataFetch";
 
 
+import TrophyRoom from "@/components/milestones/TrophyRoom";
+
 const TAB_MAP: Record<string, string> = {
   steps: "steps",
   weight: "weight",
   photos: "photos",
   checkin: "checkin",
   forms: "forms",
+  trophies: "trophies",
 };
 
 const Progress = () => {
@@ -73,7 +76,9 @@ const Progress = () => {
             <TabsTrigger value="weight" className="flex-shrink-0 text-xs px-2.5">Weight</TabsTrigger>
             <TabsTrigger value="photos" className="flex-shrink-0 text-xs px-2.5">Photos</TabsTrigger>
             <TabsTrigger value="steps" className="flex-shrink-0 text-xs px-2.5">Steps</TabsTrigger>
-            
+            {!isCoach && (
+              <TabsTrigger value="trophies" className="flex-shrink-0 text-xs px-2.5">🏆 Trophies</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="checkin" className="space-y-6 mt-4">
@@ -122,6 +127,12 @@ const Progress = () => {
           <TabsContent value="steps" className="mt-4">
             <StepsScreen />
           </TabsContent>
+
+          {!isCoach && (
+            <TabsContent value="trophies" className="mt-4">
+              <TrophyRoom />
+            </TabsContent>
+          )}
 
         </Tabs>
       </div>

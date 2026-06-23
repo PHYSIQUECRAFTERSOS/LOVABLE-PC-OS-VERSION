@@ -34,6 +34,7 @@ import {
 import { useActiveSession } from "@/hooks/useActiveSession";
 import UnfinishedWorkoutBanner from "@/components/workout/UnfinishedWorkoutBanner";
 import { Button } from "@/components/ui/button";
+import MilestoneRoot from "@/components/milestones/MilestoneRoot";
 
 interface NavItem {
   to: string;
@@ -241,6 +242,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="fixed inset-0 flex overflow-hidden bg-background safe-left safe-right" style={{ overscrollBehavior: 'none' }}>
+      {role === "client" && <MilestoneRoot />}
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card">
         <div className="flex h-16 items-center px-6 border-b border-border">
