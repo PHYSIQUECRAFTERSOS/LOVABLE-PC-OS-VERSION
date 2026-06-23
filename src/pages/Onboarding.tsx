@@ -514,7 +514,7 @@ const Onboarding = () => {
               </div>
             </>
           )}
-          {step === 2 && <OnboardingMetrics data={data} updateField={updateField} />}
+          {step === 2 && <OnboardingMetrics data={data} updateField={updateField} validationErrors={validationErrors} />}
           {step === 3 && <OnboardingBodyComp data={data} updateField={updateField} />}
           {step === 4 && <OnboardingTrainingEnv data={data} updateField={updateField} validationErrors={validationErrors} />}
           {step === 5 && <OnboardingSchedule data={data} updateField={updateField} validationErrors={validationErrors} />}
