@@ -476,12 +476,13 @@ Extract meal plan data. Return JSON in this format:
           "meal_name": "string (e.g. Breakfast, Meal 1)",
           "foods": [
             {
-              "name": "string",
-              "quantity": "string (e.g. '200g', '1 cup', '2 scoops')",
-              "calories": number or null,
-              "protein": number or null,
-              "carbs": number or null,
-              "fat": number or null
+              "name": "string (food name only — never include the quantity)",
+              "quantity_value": number (REQUIRED — numeric amount, e.g. 130, 3, 0.5),
+              "quantity_unit": "string (REQUIRED — one of: 'g','ml','oz','slice','unit','scoop','cup','tbsp','tsp','piece','serving')",
+              "calories": number (REQUIRED — copy verbatim from PDF row),
+              "protein": number (REQUIRED — grams, copy verbatim),
+              "carbs": number (REQUIRED — grams, copy verbatim),
+              "fat": number (REQUIRED — grams, copy verbatim)
             }
           ]
         }
@@ -489,6 +490,22 @@ Extract meal plan data. Return JSON in this format:
     }
   ]
 }
+
+QUANTITY RULES (MANDATORY):
+- Split the printed quantity into number + unit. Examples:
+  "130 grams" → quantity_value: 130, quantity_unit: "g"
+  "3 slice" / "3 slices" → quantity_value: 3, quantity_unit: "slice"
+  "2 unit" / "2 whole" → quantity_value: 2, quantity_unit: "unit"
+  "1 scoop" → quantity_value: 1, quantity_unit: "scoop"
+  "5 ml" → quantity_value: 5, quantity_unit: "ml"
+  "1 tbsp" → quantity_value: 1, quantity_unit: "tbsp"
+- Never store the unit inside "name". "Turkey Bacon" not "Turkey Bacon 3 slices".
+
+MACRO RULES (MANDATORY):
+- If the PDF row gives calories/protein/carbs/fat, those numbers ARE the source of truth.
+  Copy them verbatim. Do NOT round, infer, recalculate, or substitute from any database.
+- Strip the trailing "g" from macro cells (e.g. "13g" → 13).
+- If a macro cell is blank or missing, use 0.
 
 DAY TYPE CLASSIFICATION RULES (MANDATORY):
 - If the day_label or any header above the day contains: "workout", "training", "lift", "lifting", "gym", "high carb", "high-carb", "on day", "on-day" → set day_type = "training"
@@ -499,6 +516,7 @@ DAY TYPE CLASSIFICATION RULES (MANDATORY):
 
 Always include the day_type field. Do NOT omit it.`;
   }
+
 
   // supplement
   return `${base}
