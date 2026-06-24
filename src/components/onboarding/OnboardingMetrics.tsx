@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import type { OnboardingData } from "@/pages/Onboarding";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
