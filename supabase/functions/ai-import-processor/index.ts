@@ -709,7 +709,7 @@ async function matchExercises(db: any, extracted: any) {
   return { exercises: exerciseMatches };
 }
 
-async function matchFoods(db: any, extracted: any) {
+async function matchFoods(db: any, extracted: any, coachId: string) {
   const allFoodNames: string[] = [];
   for (const day of extracted.days || []) {
     for (const meal of day.meals || []) {
@@ -723,33 +723,63 @@ async function matchFoods(db: any, extracted: any) {
   const syn = await loadSynonyms(db);
   const foodMatches: Record<string, any> = {};
 
-  for (const pdfName of allFoodNames) {
-    const normExpanded = expandTokens(normalize(pdfName), syn);
-    const tokens = candidateTokens(pdfName, syn);
+  // Build coach's client_id list (their custom food_items rows are tagged with created_by = client_id)
+  const { data: ccData } = await db
+    .from("coach_clients")
+    .select("client_id")
+    .eq("coach_id", coachId);
+  const clientIds: string[] = (ccData || []).map((r: any) => r.client_id).filter(Boolean);
+
+  async function queryBucket(tokens: string[], pdfName: string, normExpanded: string, filter: (q: any) => any) {
     let candidates: any[] = [];
     if (tokens.length > 0) {
       const orClause = buildOrClause(tokens, "name");
-      const { data } = await db
-        .from("food_items")
-        .select("id, name, brand, calories, protein, carbs, fat")
-        .or(orClause)
-        .limit(50);
+      const q = filter(db.from("food_items").select("id, name, brand, calories, protein, carbs, fat, serving_size, serving_unit, created_by, is_verified")).or(orClause).limit(50);
+      const { data } = await q;
       candidates = data || [];
     }
     if (candidates.length === 0) {
-      const { data } = await db
-        .from("food_items")
-        .select("id, name, brand, calories, protein, carbs, fat")
-        .ilike("name", `%${normExpanded.split(" ")[0] || pdfName}%`)
-        .limit(50);
+      const q = filter(db.from("food_items").select("id, name, brand, calories, protein, carbs, fat, serving_size, serving_unit, created_by, is_verified")).ilike("name", `%${normExpanded.split(" ")[0] || pdfName}%`).limit(50);
+      const { data } = await q;
       candidates = data || [];
+    }
+    return candidates;
+  }
+
+  for (const pdfName of allFoodNames) {
+    const normExpanded = expandTokens(normalize(pdfName), syn);
+    const tokens = candidateTokens(pdfName, syn);
+
+    // Try buckets in priority order
+    let candidates: any[] = [];
+    let source: string = "none";
+
+    candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.eq("created_by", coachId));
+    if (candidates.length > 0) source = "coach_library";
+
+    if (candidates.length === 0 && clientIds.length > 0) {
+      candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.in("created_by", clientIds));
+      if (candidates.length > 0) source = "client_library";
+    }
+
+    if (candidates.length === 0) {
+      candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.eq("is_verified", true));
+      if (candidates.length > 0) source = "verified";
+    }
+
+    if (candidates.length === 0) {
+      candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q);
+      if (candidates.length > 0) source = "global";
     }
 
     let bestMatch: any = null;
     let bestScore = 0;
+    const pdfNorm = normExpanded;
     for (const cat of candidates) {
       const candNorm = expandTokens(normalize(cat.name), syn);
-      const score = scoreNormalized(normExpanded, candNorm);
+      let score = scoreNormalized(pdfNorm, candNorm);
+      // Substring boost
+      if (candNorm.includes(pdfNorm) || pdfNorm.includes(candNorm)) score += 10;
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cat;
@@ -760,6 +790,7 @@ async function matchFoods(db: any, extracted: any) {
       matched_id: bestMatch?.id || null,
       matched_name: bestMatch?.name || null,
       matched_brand: bestMatch?.brand || null,
+      source: bestMatch ? source : "none",
       confidence: Math.round(bestScore) / 100,
       confidence_score: Math.round(bestScore),
       confidence_level: levelFor(bestScore),
@@ -767,6 +798,7 @@ async function matchFoods(db: any, extracted: any) {
   }
   return { foods: foodMatches };
 }
+
 
 async function loadSupplementSynonyms(db: any): Promise<SynonymMap> {
   const map: SynonymMap = new Map();
