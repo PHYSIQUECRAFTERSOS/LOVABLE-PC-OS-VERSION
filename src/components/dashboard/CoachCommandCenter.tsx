@@ -821,7 +821,7 @@ const CoachCommandCenter = () => {
                       <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ends {client.endDate}</p>
+                        <p className="text-xs text-foreground/80 font-medium">{client.phaseName} · ends {client.endDate}</p>
                       </div>
                       <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-warn/20 text-warn">
                         {client.daysLeft}d left
