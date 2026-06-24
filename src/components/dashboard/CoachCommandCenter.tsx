@@ -369,8 +369,8 @@ const CoachCommandCenter = () => {
           const signals: string[] = [];
           if (c.missedWorkouts >= 3) signals.push("3+ missed workouts");
           if (c.missedCheckins >= 1) signals.push("Missed check-in");
-          if (c.daysInactive >= 7) signals.push("7d inactive");
-          if (c.daysInactive >= 7) signals.push("7d inactive");
+          if (c.daysInactive >= 7) signals.push(`${c.daysInactive}d inactive`);
+
           if (c.overallCompliance < 50) signals.push("Low compliance");
           return { clientId: c.clientId, clientName: c.clientName, avatarUrl: c.avatarUrl, riskScore: c.riskScore, daysInactive: c.daysInactive, signals };
         });
@@ -691,7 +691,8 @@ const CoachCommandCenter = () => {
                   <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                    <p className="text-xs text-foreground/80 font-medium truncate">{client.workoutTitle}</p>
+
                   </div>
                   <Button
                     size="sm"
@@ -730,7 +731,7 @@ const CoachCommandCenter = () => {
                   <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                    <p className="text-xs text-foreground/80 font-medium truncate">{client.workoutTitle}</p>
                   </div>
                   <Button
                     size="sm"
@@ -754,7 +755,7 @@ const CoachCommandCenter = () => {
           <CalendarClock className="h-5 w-5 text-primary" />
           Training Phase Deadlines
         </h2>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className="text-xs text-foreground/75 mb-3">
           Showing {phaseDeadlines.filter((c) => c.kind === "overdue").length} overdue and {phaseDeadlines.filter((c) => c.kind === "due").length} due within 7 days, out of {phaseDeadlineSummary.activeClients} active coaching clients.
         </p>
         {phaseDeadlines.length === 0 ? (
@@ -788,7 +789,7 @@ const CoachCommandCenter = () => {
                       <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ended {client.endDate}</p>
+                        <p className="text-xs text-foreground/80 font-medium">{client.phaseName} · ended {client.endDate}</p>
                       </div>
                       <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-destructive/20 text-destructive">
                         {Math.abs(client.daysLeft)}d overdue
@@ -821,7 +822,7 @@ const CoachCommandCenter = () => {
                       <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                        <p className="text-[10px] text-muted-foreground">{client.phaseName} · ends {client.endDate}</p>
+                        <p className="text-xs text-foreground/80 font-medium">{client.phaseName} · ends {client.endDate}</p>
                       </div>
                       <span className="rounded px-1.5 py-0.5 text-[10px] font-bold bg-warn/20 text-warn">
                         {client.daysLeft}d left
@@ -864,7 +865,7 @@ const CoachCommandCenter = () => {
                       <p className="text-sm text-foreground truncate">{client.clientName}</p>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {client.signals.slice(0, 2).map((s, i) => (
-                          <span key={i} className="text-[9px] text-muted-foreground">{s}</span>
+                          <span key={i} className="text-[11px] text-foreground/80 font-medium">{s}</span>
                         ))}
                       </div>
                     </div>
@@ -1152,7 +1153,7 @@ function MetricCard({
       <CardContent className="pt-4 pb-3 px-4">
         <div className="flex items-center justify-between mb-2">
           <Icon className={`h-4 w-4 ${isAlert ? "text-destructive" : "text-muted-foreground"}`} />
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/75">{label}</span>
         </div>
         <p className={`text-2xl font-bold font-display ${pct !== undefined ? complianceColor(pct) : isAlert ? "text-destructive" : "text-foreground"}`}>
           {value}

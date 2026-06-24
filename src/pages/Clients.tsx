@@ -27,7 +27,7 @@ const Clients = () => {
             <h1 className="font-display text-2xl font-bold text-foreground">
               Clients
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-foreground/75 font-medium">
               Manage your client roster, invites, and progress.
             </p>
           </div>
