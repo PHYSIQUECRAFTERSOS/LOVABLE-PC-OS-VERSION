@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
+import AttachmentPreviewDialog from "./AttachmentPreviewDialog";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
 import MessageContextMenu from "./MessageContextMenu";
 import MessageContent from "./MessageContent";
@@ -75,6 +76,9 @@ const ThreadChatView = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const dragDepthRef = useRef(0);
   const initialLoadRef = useRef(true);
   // Tracks the timestamp (ms) when initial scroll-to-bottom happened. We
   // continue to re-pin to bottom while attachments (images/video) load and
@@ -488,8 +492,48 @@ const ThreadChatView = ({
     );
   };
 
+  // Drag-and-drop file upload (desktop). Mobile keeps existing buttons.
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingOver(true);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingOver(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (e.dataTransfer.files.length > 1) {
+      toast({
+        title: "One file at a time",
+        description: "Only the first file was used. Send others one by one.",
+      });
+    }
+    setPendingAttachment(file);
+  };
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col relative"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* ── Header ── */}
       <div className="flex items-center gap-3 border-b border-border px-4 min-h-[56px] shrink-0">
         {(onBack || showBackToDashboard) && (
@@ -725,6 +769,26 @@ const ThreadChatView = ({
           )}
         </div>
       </div>
+
+      {/* Drag-and-drop overlay */}
+      {isDraggingOver && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm">
+          <div className="rounded-2xl border-2 border-dashed border-primary bg-card/80 px-8 py-10 text-center shadow-xl">
+            <p className="text-lg font-semibold text-foreground">Drop to send</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Photos, videos, or PDFs
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Preview dialog after drop */}
+      <AttachmentPreviewDialog
+        file={pendingAttachment}
+        threadId={threadId}
+        onClose={() => setPendingAttachment(null)}
+        onSent={fetchMessages}
+      />
     </div>
   );
 };
