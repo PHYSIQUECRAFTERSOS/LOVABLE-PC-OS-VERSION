@@ -185,6 +185,18 @@
     left: 0;
     right: 0;
     bottom: 0;
+    font-weight: 450;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Readability safety net: low-opacity muted text was rendering too faint.
+     Floor opacity-modified muted-foreground at 0.85 so secondary copy stays AA. */
+  .text-muted-foreground\/50,
+  .text-muted-foreground\/60,
+  .text-muted-foreground\/70 {
+    color: hsl(var(--muted-foreground) / 0.85);
   }
 
   #root {
