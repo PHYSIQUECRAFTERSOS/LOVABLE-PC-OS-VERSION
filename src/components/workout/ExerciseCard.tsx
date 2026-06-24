@@ -391,9 +391,10 @@ const ExerciseCard = ({
 
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2 flex-1 min-w-0">
+          <CardTitle className="text-base flex items-center gap-2 flex-1 min-w-0 font-bold tracking-tight">
             <span className="truncate">{name}</span>
           </CardTitle>
+
           <div className="flex items-center gap-1 shrink-0">
             {allDone && <Check className="h-5 w-5 text-primary" />}
             {(onDeleteExercise || onSwitchExercise) && (
@@ -507,11 +508,11 @@ const ExerciseCard = ({
                 {log.completed ? (
                   <Check className="h-4 w-4 text-primary" />
                 ) : (
-                  <span className="text-sm font-medium text-center">{log.setNumber}</span>
+                  <span className="text-sm font-extrabold text-center font-workout-mono tabular-nums">{log.setNumber}</span>
                 )}
               </div>
 
-              <span className="text-xs text-muted-foreground truncate tabular-nums">{prevLabel}</span>
+              <span className="text-xs text-muted-foreground truncate tabular-nums font-workout-mono">{prevLabel}</span>
 
               <div className="relative">
                 {isMobile ? (
@@ -519,7 +520,8 @@ const ExerciseCard = ({
                     type="button"
                     onClick={() => openKeypad(setIdx, "weight")}
                     className={cn(
-                      "w-full h-8 px-2 rounded-md border bg-background text-sm text-left tabular-nums transition-colors",
+                      "w-full h-8 px-2 rounded-md border bg-background text-base font-extrabold font-workout-mono text-left tabular-nums transition-colors",
+
                       isKeypadActiveWeight ? "border-primary ring-1 ring-primary/40" : "border-input",
                       !weightDisplay && "text-muted-foreground/50",
                     )}
@@ -554,7 +556,8 @@ const ExerciseCard = ({
                       setWeightStrings(prev => { const n = { ...prev }; delete n[setIdx]; return n; });
                     }}
                     placeholder={prevW}
-                    className="text-sm h-8"
+                    className="text-base font-extrabold font-workout-mono tabular-nums h-8"
+
                   />
                 )}
                 {isBW && (log.weight === 0 || log.weight === undefined) && !log.completed && (
@@ -570,7 +573,7 @@ const ExerciseCard = ({
                       <button
                         type="button"
                         onClick={() => openKeypad(setIdx, "reps")}
-                        className="h-8 w-[52px] rounded-md border border-input bg-background text-sm text-center tabular-nums"
+                        className="h-8 w-[52px] rounded-md border border-input bg-background text-base font-extrabold font-workout-mono text-center tabular-nums"
                       >
                         {repsDisplay || "—"}
                       </button>
@@ -589,7 +592,7 @@ const ExerciseCard = ({
                             if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
                           }
                         }}
-                        className="text-sm h-8 w-[52px] text-center tabular-nums"
+                        className="text-base font-extrabold font-workout-mono h-8 w-[52px] text-center tabular-nums"
                       />
                     )}
                     <RPESelector
@@ -612,7 +615,7 @@ const ExerciseCard = ({
                     type="button"
                     onClick={() => openKeypad(setIdx, "reps")}
                     className={cn(
-                      "w-full h-8 px-2 rounded-md border bg-background text-sm text-left tabular-nums transition-colors",
+                      "w-full h-8 px-2 rounded-md border bg-background text-base font-extrabold font-workout-mono text-left tabular-nums transition-colors",
                       isKeypadActiveReps ? "border-primary ring-1 ring-primary/40" : "border-input",
                       !repsDisplay && "text-muted-foreground/50",
                     )}
@@ -635,7 +638,7 @@ const ExerciseCard = ({
                       }
                     }}
                     placeholder={prevR}
-                    className="text-sm h-8"
+                    className="text-base font-extrabold font-workout-mono tabular-nums h-8"
                   />
                 )}
               </div>

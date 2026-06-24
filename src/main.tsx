@@ -2,6 +2,9 @@ import { createRoot } from "react-dom/client";
 import { Capacitor } from '@capacitor/core';
 import App from "./App.tsx";
 import "./index.css";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
+
 
 // Native cache bust: clear WKWebView cache on every app launch
 async function clearNativeCache() {

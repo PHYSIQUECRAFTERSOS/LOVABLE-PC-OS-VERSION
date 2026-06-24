@@ -191,9 +191,10 @@ const InlineRestTimer = ({ seconds: initialSeconds, onComplete, onSkip }: Inline
         ) : (
           <span className="text-sm">⏱</span>
         )}
-        <span className={`text-sm font-bold tabular-nums ${isComplete ? "text-primary" : "text-foreground"}`}>
+        <span className={`text-base font-extrabold tabular-nums font-workout-mono ${isComplete ? "text-primary" : "text-foreground"}`}>
           {isComplete ? "Next set ready! 💪" : `${mins}:${secs.toString().padStart(2, "0")}`}
         </span>
+
       </div>
 
       <button
