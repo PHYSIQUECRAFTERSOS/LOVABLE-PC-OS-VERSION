@@ -358,7 +358,8 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
     if (document_type === "workout") {
       matchResults = await matchExercises(db, extracted);
     } else if (document_type === "meal") {
-      matchResults = await matchFoods(db, extracted);
+      matchResults = await matchFoods(db, extracted, userId);
+
     } else if (document_type === "supplement") {
       matchResults = await matchSupplements(db, extracted);
     }
