@@ -864,7 +864,7 @@ const CoachCommandCenter = () => {
                       <p className="text-sm text-foreground truncate">{client.clientName}</p>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {client.signals.slice(0, 2).map((s, i) => (
-                          <span key={i} className="text-[9px] text-muted-foreground">{s}</span>
+                          <span key={i} className="text-[11px] text-foreground/80 font-medium">{s}</span>
                         ))}
                       </div>
                     </div>
