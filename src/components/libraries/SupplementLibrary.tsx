@@ -18,6 +18,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -122,6 +124,7 @@ const SupplementLibrary = () => {
   // Add item to plan
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemSuppId, setItemSuppId] = useState("");
+  const [suppPickerOpen, setSuppPickerOpen] = useState(false);
   const [itemDosage, setItemDosage] = useState("");
   const [itemDosageUnit, setItemDosageUnit] = useState("");
   const [itemTiming, setItemTiming] = useState("fasted");
@@ -969,21 +972,48 @@ const SupplementLibrary = () => {
           <div className="space-y-4">
             <div>
               <Label>Supplement *</Label>
-              <Select value={itemSuppId} onValueChange={v => {
-                setItemSuppId(v);
-                const s = supplements.find(s => s.id === v);
-                if (s) {
-                  setItemDosage(s.default_dosage || "");
-                  setItemDosageUnit(s.default_dosage_unit || "");
-                }
-              }}>
-                <SelectTrigger><SelectValue placeholder="Choose supplement..." /></SelectTrigger>
-                <SelectContent>
-                  {supplements.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name} {s.brand ? `(${s.brand})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={suppPickerOpen} onOpenChange={setSuppPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between font-normal"
+                  >
+                    {itemSuppId
+                      ? (() => {
+                          const s = supplements.find(s => s.id === itemSuppId);
+                          return s ? `${s.name}${s.brand ? ` (${s.brand})` : ""}` : "Choose supplement...";
+                        })()
+                      : <span className="text-muted-foreground">Choose supplement...</span>}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search supplements..." autoFocus />
+                    <CommandList>
+                      <CommandEmpty>No supplements found.</CommandEmpty>
+                      <CommandGroup>
+                        {supplements.map(s => (
+                          <CommandItem
+                            key={s.id}
+                            value={`${s.name} ${s.brand ?? ""}`}
+                            onSelect={() => {
+                              setItemSuppId(s.id);
+                              setItemDosage(s.default_dosage || "");
+                              setItemDosageUnit(s.default_dosage_unit || "");
+                              setSuppPickerOpen(false);
+                            }}
+                          >
+                            {s.name} {s.brand ? `(${s.brand})` : ""}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {supplements.length === 0 && (
                 <p className="text-xs text-muted-foreground mt-1">Add supplements to catalog first.</p>
               )}
