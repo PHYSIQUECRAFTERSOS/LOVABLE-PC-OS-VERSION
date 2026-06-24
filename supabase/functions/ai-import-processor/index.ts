@@ -749,39 +749,63 @@ async function matchFoods(db: any, extracted: any) {
   return { foods: foodMatches };
 }
 
+async function loadSupplementSynonyms(db: any): Promise<SynonymMap> {
+  const map: SynonymMap = new Map();
+  try {
+    const { data } = await db.from("supplement_synonyms").select("term, canonical");
+    for (const row of data || []) {
+      const term = (row.term || "").toLowerCase().trim();
+      const canon = (row.canonical || "").toLowerCase().trim();
+      if (!term || !canon) continue;
+      const arr = map.get(term) || [];
+      arr.push(canon);
+      map.set(term, arr);
+    }
+  } catch (_e) { /* table may not exist yet */ }
+  return map;
+}
+
 async function matchSupplements(db: any, extracted: any) {
   const supplements = extracted.supplements || [];
   if (supplements.length === 0) return { supplements: {} };
 
-  const syn = await loadSynonyms(db);
+  const syn = await loadSupplementSynonyms(db);
+  const SUPP_AUTO_ACCEPT = 65; // lower than exercises — short supplement names trigram-score lower
 
   const { data: catalog } = await db
     .from("master_supplements")
-    .select("id, name, brand, default_dosage, default_dosage_unit")
+    .select("id, name, brand, default_dosage, default_dosage_unit, is_master")
     .eq("is_active", true)
-    .limit(500);
+    .limit(1000);
 
   const suppMatches: Record<string, any> = {};
   for (const supp of supplements) {
     if (!supp.name) continue;
-    const normExpanded = expandTokens(normalize(supp.name), syn);
+    const pdfNorm = normalize(supp.name);
+    const normExpanded = expandTokens(pdfNorm, syn);
     let bestMatch: any = null;
     let bestScore = 0;
     for (const cat of catalog || []) {
-      const candNorm = expandTokens(normalize(cat.name), syn);
-      const score = scoreNormalized(normExpanded, candNorm);
-      if (score > bestScore) {
+      const catName = normalize(cat.name);
+      const candNorm = expandTokens(catName, syn);
+      let score = scoreNormalized(normExpanded, candNorm);
+      // Substring boost: "multivitamin" ⊂ "multivitamin triumph" → force-accept
+      if (pdfNorm.length >= 4 && (catName.includes(pdfNorm) || pdfNorm.includes(catName))) {
+        score = Math.max(score, 90);
+      }
+      // Prefer is_master canonical rows when scores tie
+      if (score > bestScore || (score === bestScore && cat.is_master && !bestMatch?.is_master)) {
         bestScore = score;
         bestMatch = cat;
       }
     }
     suppMatches[supp.name] = {
       pdf_name: supp.name,
-      matched_id: bestScore >= AUTO_ACCEPT_SCORE ? bestMatch?.id : null,
-      matched_name: bestScore >= AUTO_ACCEPT_SCORE ? bestMatch?.name : null,
+      matched_id: bestScore >= SUPP_AUTO_ACCEPT ? bestMatch?.id : null,
+      matched_name: bestScore >= SUPP_AUTO_ACCEPT ? bestMatch?.name : null,
       confidence: Math.round(bestScore) / 100,
       confidence_score: Math.round(bestScore),
-      confidence_level: levelFor(bestScore),
+      confidence_level: bestScore >= SUPP_AUTO_ACCEPT ? "green" : "red",
     };
   }
   return { supplements: suppMatches };
