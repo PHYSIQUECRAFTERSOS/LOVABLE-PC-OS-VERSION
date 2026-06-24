@@ -727,11 +727,11 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     if (phase.state === "none") {
                       return (
                         <div>
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
-                          <span className="text-[10px] text-muted-foreground truncate block">No active phase</span>
+                          <div className="text-[11px] uppercase tracking-[0.12em] font-semibold text-foreground/70 mb-1">Current Phase</div>
+                          <span className="text-xs text-foreground/75 font-medium truncate block">No active phase</span>
                           <div className="flex items-center gap-2 mt-1">
                             <Progress value={0} className="h-1.5 flex-1" />
-                            <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">—</span>
+                            <span className="text-xs font-bold text-foreground/70 w-8 text-right">—</span>
                           </div>
                         </div>
                       );
@@ -739,16 +739,16 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     if (phase.state === "upcoming") {
                       return (
                         <div>
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
+                          <div className="text-[11px] uppercase tracking-[0.12em] font-semibold text-foreground/70 mb-1">Current Phase</div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] text-muted-foreground truncate">
+                            <span className="text-xs text-foreground/85 font-medium truncate">
                               {phase.phaseName} · Starts {phase.startDate}
                             </span>
-                            <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">Upcoming</span>
+                            <span className="text-xs font-semibold whitespace-nowrap ml-2 text-foreground/80">Upcoming</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Progress value={0} className="h-1.5 flex-1" />
-                            <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">0%</span>
+                            <span className="text-xs font-bold text-foreground/70 w-8 text-right">0%</span>
                           </div>
                         </div>
                       );
@@ -761,14 +761,14 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                         : "hsl(152 69% 41%)";
                     return (
                       <div>
-                        <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Current Phase</div>
+                        <div className="text-[11px] uppercase tracking-[0.12em] font-semibold text-foreground/70 mb-1">Current Phase</div>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-muted-foreground truncate">
+                          <span className="text-xs text-foreground/85 font-medium truncate">
                             {phase.phaseName} · Ends {phase.endDate}
                           </span>
                           <span className={cn(
-                            "text-[10px] font-bold whitespace-nowrap ml-2",
-                            phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-warn" : "text-muted-foreground"
+                            "text-xs font-bold whitespace-nowrap ml-2",
+                            phase.daysLeft <= 0 ? "text-destructive" : phase.daysLeft <= 7 ? "text-warn" : "text-foreground/80"
                           )}>
                             {phase.daysLeft <= 0 ? "Overdue" : `${phase.daysLeft}d left`}
                           </span>
@@ -779,7 +779,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                             className="h-1.5 flex-1"
                             style={{ '--progress-color': barColor } as React.CSSProperties}
                           />
-                          <span className="text-[10px] font-bold text-muted-foreground w-8 text-right">{elapsedPct}%</span>
+                          <span className="text-xs font-bold text-foreground w-8 text-right tabular-nums">{elapsedPct}%</span>
                         </div>
                       </div>
                     );
@@ -789,12 +789,12 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     if (phase.nextPhaseName && phase.nextPhaseStartDate) {
                       return (
                         <div>
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Next Phase</div>
+                          <div className="text-[11px] uppercase tracking-[0.12em] font-semibold text-foreground/70 mb-1">Next Phase</div>
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] text-foreground/90 truncate">
+                            <span className="text-xs text-foreground font-medium truncate">
                               {phase.nextPhaseName}
                             </span>
-                            <span className="text-[10px] font-bold whitespace-nowrap ml-2 text-muted-foreground">
+                            <span className="text-xs font-semibold whitespace-nowrap ml-2 text-foreground/80">
                               {phase.nextPhaseStartDate}
                             </span>
                           </div>
@@ -804,7 +804,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                               className="h-1.5 flex-1"
                               style={{ '--progress-color': 'hsl(var(--primary))' } as React.CSSProperties}
                             />
-                            <span className="text-[10px] font-bold text-primary w-10 text-right">Queued</span>
+                            <span className="text-xs font-bold text-primary w-12 text-right">Queued</span>
                           </div>
                         </div>
                       );
@@ -812,10 +812,10 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                     const isOverdueNoNext = phase.programEnded || (phase.state === "current" && phase.daysLeft < 0);
                     return (
                       <div>
-                        <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Next Phase</div>
+                        <div className="text-[11px] uppercase tracking-[0.12em] font-semibold text-foreground/70 mb-1">Next Phase</div>
                         <div className="flex items-center justify-between mb-1">
                           <span className={cn(
-                            "text-[10px] truncate font-medium",
+                            "text-xs truncate font-semibold",
                             isOverdueNoNext ? "text-destructive" : "text-warn"
                           )}>
                             {isOverdueNoNext ? "Needs new phase" : "No next phase queued"}
@@ -824,8 +824,8 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                         <div className="flex items-center gap-2">
                           <Progress value={0} className="h-1.5 flex-1" />
                           <span className={cn(
-                            "text-[10px] font-bold w-10 text-right",
-                            isOverdueNoNext ? "text-destructive" : "text-muted-foreground"
+                            "text-xs font-bold w-12 text-right",
+                            isOverdueNoNext ? "text-destructive" : "text-foreground/70"
                           )}>
                             {isOverdueNoNext ? "Needed" : "None"}
                           </span>
@@ -833,6 +833,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                       </div>
                     );
                   };
+
 
                   return (
                     <div className="mt-2 pt-2 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-3">
