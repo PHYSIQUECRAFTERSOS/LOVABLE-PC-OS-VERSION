@@ -769,6 +769,26 @@ const ThreadChatView = ({
           )}
         </div>
       </div>
+
+      {/* Drag-and-drop overlay */}
+      {isDraggingOver && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm">
+          <div className="rounded-2xl border-2 border-dashed border-primary bg-card/80 px-8 py-10 text-center shadow-xl">
+            <p className="text-lg font-semibold text-foreground">Drop to send</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Photos, videos, or PDFs
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Preview dialog after drop */}
+      <AttachmentPreviewDialog
+        file={pendingAttachment}
+        threadId={threadId}
+        onClose={() => setPendingAttachment(null)}
+        onSent={fetchMessages}
+      />
     </div>
   );
 };
