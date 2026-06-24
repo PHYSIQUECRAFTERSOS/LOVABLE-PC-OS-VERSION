@@ -227,14 +227,15 @@ serve(async (req) => {
     }
 
     const extractionSuffix = document_type === "workout"
-      ? `Extract ONLY the workout data from the above document.
+      ? `Extract the workout program from the above document.
 
-IGNORE: warmup instructions, tempo explanations, stretching notes, execution notes, any repeated instructional text.
+IGNORE the global tempo / warmup / stretching / execution boilerplate that repeats on every page.
 
-EXTRACT ONLY:
-1. Program name and phase
-2. Each workout day name (e.g. "Day 1: Chest and Back")
-3. For each day, the list of exercises with: name, sets, reps, rest time
+EXTRACT:
+1. program_name and program_phase
+2. workouts[] — ONE entry per UNIQUE day heading (verbatim, including any "[AWAY]" prefix, brackets, casing, and " A" / " B" suffix). If the same heading appears multiple times in the PDF with the same exercise list, define it ONCE here.
+3. For each unique workout: its full exercises[] (name, sets, reps, rest_seconds, tempo, rir, rpe, notes, grouping) AND its per-workout instructions (the text directly under that heading, before the first exercise; skip repeated global boilerplate).
+4. schedule[] — the ordered list of every scheduled day in the program in the order printed in the PDF. Each schedule entry references a workouts[] entry by its EXACT day_name string.
 
 Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start with { and end with }.`
       : `Extract all ${document_type} data from the uploaded document(s). Follow the system instructions exactly.`;
@@ -328,6 +329,32 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
       );
     }
 
+    // Normalize new shape ({ workouts[], schedule[] }) → also populate days[] so the
+    // downstream exercise-matcher and superset rest normalizer keep working unchanged.
+    if (document_type === "workout") {
+      const hasNewShape = Array.isArray(extracted?.workouts) && extracted.workouts.length > 0;
+      if (hasNewShape) {
+        const workoutsByName = new Map<string, any>();
+        for (const w of extracted.workouts) {
+          if (w?.day_name) workoutsByName.set(String(w.day_name), w);
+        }
+        const schedule: any[] = Array.isArray(extracted.schedule) && extracted.schedule.length > 0
+          ? extracted.schedule
+          : extracted.workouts.map((w: any, i: number) => ({ position: i + 1, day_name: w.day_name }));
+        // Build flat days[] mirroring the schedule, each entry referencing the unique template.
+        extracted.days = schedule.map((s: any) => {
+          const tpl = workoutsByName.get(String(s.day_name));
+          return {
+            day_name: s.day_name,
+            instructions: tpl?.instructions ?? null,
+            exercises: tpl?.exercises || [],
+            superset_groups: tpl?.superset_groups || [],
+            _template_key: s.day_name,
+          };
+        });
+      }
+    }
+
     // Server-side guard: even if the AI hallucinates a 60s rest on a superset member,
     // force null. The client-side redistribution then resolves it to 0 for first/middle
     // members and the group's rest_seconds_between_rounds for the last member.
@@ -357,6 +384,29 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
     let matchResults: any = null;
     if (document_type === "workout") {
       matchResults = await matchExercises(db, extracted);
+      // Also look up existing master library workouts by exact name (case-insensitive)
+      // so the importer can REUSE them instead of creating duplicates.
+      const uniqueNames: string[] = Array.from(new Set(
+        ((extracted?.workouts as any[]) || []).map((w: any) => String(w?.day_name || "")).filter(Boolean),
+      ));
+      const masterMatches: Record<string, { id: string; name: string }> = {};
+      if (uniqueNames.length > 0) {
+        const { data: masters } = await db
+          .from("workouts")
+          .select("id, name")
+          .eq("coach_id", userId)
+          .eq("is_template", true)
+          .in("name", uniqueNames);
+        const byLower = new Map<string, { id: string; name: string }>();
+        for (const m of (masters || []) as any[]) {
+          byLower.set(String(m.name).toLowerCase(), { id: m.id, name: m.name });
+        }
+        for (const n of uniqueNames) {
+          const hit = byLower.get(n.toLowerCase());
+          if (hit) masterMatches[n] = hit;
+        }
+      }
+      matchResults = { ...(matchResults || {}), master_workouts: masterMatches };
     } else if (document_type === "meal") {
       matchResults = await matchFoods(db, extracted, userId);
 
@@ -420,9 +470,11 @@ IMPORTANT: This document may have repeated instruction sections on every page (w
 Extract workout program data. Return JSON in this format:
 {
   "program_name": "string",
-  "days": [
+  "program_phase": "string or null",
+  "workouts": [
     {
-      "day_name": "string (e.g. Day 1: Push)",
+      "day_name": "string — copy the heading VERBATIM, including any '[AWAY]' prefix, brackets, casing, and ' A' / ' B' suffix (e.g. '[AWAY]Day 1: Upper', 'Day 1: UPPER A', 'Day 4 : LOWER B & calves & abs')",
+      "instructions": "string or null — the per-workout instructional paragraph(s) printed directly under this heading before its first exercise. Strip the global tempo/warmup/stretching/execution boilerplate that repeats on every page.",
       "exercises": [
         {
           "name": "string (exact name from PDF)",
@@ -444,8 +496,17 @@ Extract workout program data. Return JSON in this format:
         }
       ]
     }
+  ],
+  "schedule": [
+    { "position": 1, "day_name": "string — must EXACTLY match a workouts[].day_name above" }
   ]
 }
+
+CRITICAL DAY-NAME RULES:
+1. NEVER strip, normalize, or merge day_name prefixes/suffixes. '[AWAY]Day 1: Upper' and 'Day 1: UPPER A' are DIFFERENT workouts and MUST stay distinct.
+2. Define each unique day_name ONCE in workouts[]. Reference it from schedule[] every time it is scheduled — do NOT duplicate the exercises.
+3. schedule[] must list every scheduled day in the order the PDF prints them, across all weeks. position starts at 1 and increments by 1.
+4. If the PDF clearly shows only one rotation (e.g. 4 unique days in a single block) and no week-by-week schedule, schedule[] should still list every workouts[] entry once in order.
 
 CRITICAL REST RULES:
 1. If the PDF does NOT specify a rest value for an exercise, return rest_seconds: null. Do NOT invent 60 or any default. Mobility, warmup, and stretching rows almost always have no rest specified — return null for those.

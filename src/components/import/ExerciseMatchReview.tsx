@@ -186,15 +186,48 @@ const ExerciseMatchReview = ({ extracted, matchResults, onUpdateMatches }: Exerc
     setSearchResults([]);
   };
 
-  // Support both "days" and "workout_days" from AI extraction
-  const days = extracted.days || extracted.workout_days || [];
+  // Prefer the new deduplicated `workouts[]` shape so we don't display the same
+  // template repeated for every scheduled day. Falls back to legacy `days[]`.
+  const uniqueWorkouts: any[] = Array.isArray(extracted.workouts) && extracted.workouts.length > 0
+    ? extracted.workouts
+    : (extracted.days || extracted.workout_days || []);
+  const schedule: any[] = Array.isArray(extracted.schedule) ? extracted.schedule : [];
+  const masterMatches: Record<string, { id: string; name: string }> =
+    (matchResults as any)?.master_workouts || {};
+  const reusedCount = Object.keys(masterMatches).length;
+  const tagPrefixes = Array.from(new Set(
+    uniqueWorkouts
+      .map((w: any) => (typeof w?.day_name === "string" ? w.day_name.match(/^\[[^\]]+\]/)?.[0] : null))
+      .filter(Boolean) as string[]
+  ));
 
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-foreground">Exercise Matching</h3>
-      {days.map((day: any, dayIdx: number) => (
+      {(uniqueWorkouts.length > 0) && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground space-y-0.5">
+          <p>
+            <span className="font-medium text-foreground">{uniqueWorkouts.length}</span> unique workout{uniqueWorkouts.length === 1 ? "" : "s"} detected
+            {schedule.length > 0 && <> · scheduled across <span className="font-medium text-foreground">{schedule.length}</span> day{schedule.length === 1 ? "" : "s"}</>}.
+          </p>
+          {reusedCount > 0 && (
+            <p>Reusing <span className="font-medium text-foreground">{reusedCount}</span> existing master library workout{reusedCount === 1 ? "" : "s"} by exact name.</p>
+          )}
+          {tagPrefixes.length > 0 && (
+            <p>Tag prefixes preserved: <span className="font-medium text-foreground">{tagPrefixes.join(", ")}</span></p>
+          )}
+        </div>
+      )}
+      {uniqueWorkouts.map((day: any, dayIdx: number) => (
         <div key={dayIdx} className="space-y-2">
-          <h4 className="text-xs font-medium text-muted-foreground">{day.day_name || `Day ${dayIdx + 1}`}</h4>
+          <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+            <span>{day.day_name || `Day ${dayIdx + 1}`}</span>
+            {masterMatches[day.day_name] && (
+              <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                Reusing master
+              </Badge>
+            )}
+          </h4>
           <div className="space-y-1.5">
             {(day.exercises || []).map((ex: any, exIdx: number) => {
               const match = matchResults.exercises[ex.name];
