@@ -508,19 +508,51 @@ Extract supplement stack data. Return JSON in this format:
   "plan_name": "string (e.g. 'Client Name Stack' or 'Supplement Protocol')",
   "supplements": [
     {
-      "name": "string (supplement name only, e.g. 'Creatine Monohydrate', 'Vitamin D3')",
+      "name": "string (supplement name in Title Case, e.g. 'Multivitamin (Triumph)', 'Vitamin D3 + K2', 'Berberine')",
+      "brand": "string or null (brand if a product line follows the heading, e.g. 'Legion', 'Triumph', 'CanPrev')",
       "dosage": "string (numeric amount only, e.g. '5', '3000', '500')",
-      "dosage_unit": "string (unit only, e.g. 'g', 'mg', 'IU', 'mcg', 'pills', 'tsp', 'TBSP', 'capsule')",
+      "dosage_unit": "string (unit only, e.g. 'g', 'mg', 'IU', 'mcg', 'pills', 'tsp', 'TBSP', 'capsule', 'drop')",
       "timing_slot": "string (MUST be one of: 'fasted', 'meal_1', 'meal_2', 'pre_workout', 'post_workout', 'before_bed', 'with_meal', 'any_time')",
-      "coach_note": "string or null (dosing instructions, when to take, special notes)",
+      "coach_note": "string or null (dosing instructions, when to take, combo dosages, special notes)",
       "reason": "string or null (why this supplement is recommended)"
     }
   ]
 }
 
+CRITICAL NAME RULES (MANDATORY — never break these):
+1. The "name" field MUST NEVER be empty, null, or missing.
+2. If a dosage line ("3 pills / day", "5000 IU", "500mg berberine") has no inline product name, walk UPWARD to the nearest ALL-CAPS or Title-Case section heading (e.g. MULTIVITAMIN, VITAMIN D3 + K2, BERBERINE, FISH OIL, IODINE, PROBIOTICS, PSYLLIUM HUSK, MAGNESIUM, CREATINE) and use that as the "name" in Title Case.
+3. If the line right after the heading is a product/brand line (single word like "Triumph", "Legion", or "Nutrawave"), put it in "brand" — do NOT replace "name" with it.
+4. As an absolute last resort, set "name": "Unmapped Supplement". NEVER leave it blank.
+
+COMBO ENTRY RULES (very important):
+- If a heading combines two ingredients with "+", "&", "and", "/", or "OR" (e.g. "VITAMIN D3 + K2", "MAGNESIUM SUCROSOMIAL OR BIGLYCINATE"), output ONE single supplement row (not two).
+- The "name" is the full combo in Title Case ("Vitamin D3 + K2").
+- "dosage" and "dosage_unit" use the FIRST listed dosage (e.g. for "Vit D 5000 IU /D day, K2 90 MCG" → dosage="5000", dosage_unit="IU").
+- Put ALL component dosages in "coach_note" (e.g. coach_note: "D3 5000 IU + K2 90 MCG").
+
+WORKED EXAMPLES from a typical PC weekly PDF:
+
+PDF text:
+  MULTIVITAMIN
+  Triumph
+  3 pills / day (morning with first meal)
+→ { "name": "Multivitamin (Triumph)", "brand": "Legion", "dosage": "3", "dosage_unit": "pills", "timing_slot": "meal_1", "coach_note": "Morning with first meal" }
+
+PDF text:
+  VITAMIN D3 + K2
+  Vit D 5000 IU /D day (morning with first meal)
+  K2 90 MCG
+→ { "name": "Vitamin D3 + K2", "dosage": "5000", "dosage_unit": "IU", "timing_slot": "meal_1", "coach_note": "D3 5000 IU + K2 90 MCG, morning with first meal" }
+
+PDF text:
+  Berberine
+  WORKOUT DAYS: Take 1 pill with meal 2
+→ { "name": "Berberine", "dosage": "500", "dosage_unit": "mg", "timing_slot": "meal_2", "coach_note": "Workout days: 1 pill with meal 2" }
+
 TIMING SLOT MAPPING RULES:
 - "morning", "fasted", "empty stomach", "before any meal", "with ACV" → "fasted"
-- "with meal 1", "with first meal", "with breakfast" → "meal_1"
+- "with meal 1", "with first meal", "with breakfast", "morning with first meal" → "meal_1"
 - "with meal 2", "with second meal", "with lunch" → "meal_2"
 - "pre-workout", "before workout", "before training" → "pre_workout"
 - "post-workout", "after workout", "after training" → "post_workout"
@@ -528,7 +560,7 @@ TIMING SLOT MAPPING RULES:
 - "with highest carb meal", "with largest meal" → "with_meal"
 - "any time", "as needed", "throughout the day" → "any_time"
 
-If a supplement has MULTIPLE timings (e.g. "1 pill post-workout + 2 pills before bed"), create SEPARATE entries for each timing with appropriate dosage split.
+If a supplement has MULTIPLE timings on DIFFERENT days (e.g. "Workout days: meal 2 / Rest days: meal 1"), still output ONE row and describe the variation in coach_note. Only split into multiple rows if the SAME day has two distinct doses at two distinct times.
 
 IMPORTANT: Extract dosage as a clean number and unit separately. For example "5g/day" → dosage: "5", dosage_unit: "g". For "3 pills" → dosage: "3", dosage_unit: "pills".`;
 }
@@ -717,39 +749,63 @@ async function matchFoods(db: any, extracted: any) {
   return { foods: foodMatches };
 }
 
+async function loadSupplementSynonyms(db: any): Promise<SynonymMap> {
+  const map: SynonymMap = new Map();
+  try {
+    const { data } = await db.from("supplement_synonyms").select("term, canonical");
+    for (const row of data || []) {
+      const term = (row.term || "").toLowerCase().trim();
+      const canon = (row.canonical || "").toLowerCase().trim();
+      if (!term || !canon) continue;
+      const arr = map.get(term) || [];
+      arr.push(canon);
+      map.set(term, arr);
+    }
+  } catch (_e) { /* table may not exist yet */ }
+  return map;
+}
+
 async function matchSupplements(db: any, extracted: any) {
   const supplements = extracted.supplements || [];
   if (supplements.length === 0) return { supplements: {} };
 
-  const syn = await loadSynonyms(db);
+  const syn = await loadSupplementSynonyms(db);
+  const SUPP_AUTO_ACCEPT = 65; // lower than exercises — short supplement names trigram-score lower
 
   const { data: catalog } = await db
     .from("master_supplements")
-    .select("id, name, brand, default_dosage, default_dosage_unit")
+    .select("id, name, brand, default_dosage, default_dosage_unit, is_master")
     .eq("is_active", true)
-    .limit(500);
+    .limit(1000);
 
   const suppMatches: Record<string, any> = {};
   for (const supp of supplements) {
     if (!supp.name) continue;
-    const normExpanded = expandTokens(normalize(supp.name), syn);
+    const pdfNorm = normalize(supp.name);
+    const normExpanded = expandTokens(pdfNorm, syn);
     let bestMatch: any = null;
     let bestScore = 0;
     for (const cat of catalog || []) {
-      const candNorm = expandTokens(normalize(cat.name), syn);
-      const score = scoreNormalized(normExpanded, candNorm);
-      if (score > bestScore) {
+      const catName = normalize(cat.name);
+      const candNorm = expandTokens(catName, syn);
+      let score = scoreNormalized(normExpanded, candNorm);
+      // Substring boost: "multivitamin" ⊂ "multivitamin triumph" → force-accept
+      if (pdfNorm.length >= 4 && (catName.includes(pdfNorm) || pdfNorm.includes(catName))) {
+        score = Math.max(score, 90);
+      }
+      // Prefer is_master canonical rows when scores tie
+      if (score > bestScore || (score === bestScore && cat.is_master && !bestMatch?.is_master)) {
         bestScore = score;
         bestMatch = cat;
       }
     }
     suppMatches[supp.name] = {
       pdf_name: supp.name,
-      matched_id: bestScore >= AUTO_ACCEPT_SCORE ? bestMatch?.id : null,
-      matched_name: bestScore >= AUTO_ACCEPT_SCORE ? bestMatch?.name : null,
+      matched_id: bestScore >= SUPP_AUTO_ACCEPT ? bestMatch?.id : null,
+      matched_name: bestScore >= SUPP_AUTO_ACCEPT ? bestMatch?.name : null,
       confidence: Math.round(bestScore) / 100,
       confidence_score: Math.round(bestScore),
-      confidence_level: levelFor(bestScore),
+      confidence_level: bestScore >= SUPP_AUTO_ACCEPT ? "green" : "red",
     };
   }
   return { supplements: suppMatches };

@@ -641,11 +641,21 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
     let createdCount = 0;
     let matchedCount = 0;
+    let skippedCount = 0;
 
     // Step 2: For each supplement, find or create in catalog, then add to plan
     for (let i = 0; i < supplements.length; i++) {
       const supp = supplements[i];
       setSaveProgress(30 + Math.round((i / supplements.length) * 60));
+
+      // Safety net: never insert blank-named supplements (would show as "Unknown")
+      const cleanName = (supp.name || "").trim();
+      if (!cleanName) {
+        console.warn("Skipping supplement with empty name", supp);
+        skippedCount++;
+        continue;
+      }
+      const finalName = cleanName.length > 0 ? cleanName : "Unmapped Supplement";
 
       let suppId: string | null = null;
 
@@ -661,7 +671,8 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         const { data: newSupp, error: newSuppErr } = await supabase
           .from("master_supplements")
           .insert({
-            name: supp.name,
+            name: finalName,
+            brand: supp.brand || null,
             coach_id: user.id,
             default_dosage: supp.dosage || null,
             default_dosage_unit: supp.dosage_unit || null,
@@ -672,7 +683,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           .select()
           .single();
         if (newSuppErr || !newSupp) {
-          console.error("Failed to create supplement:", supp.name, newSuppErr);
+          console.error("Failed to create supplement:", finalName, newSuppErr);
           continue;
         }
         suppId = (newSupp as any).id;
@@ -690,12 +701,16 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           sort_order: i + 1,
           coach_note: supp.coach_note || null,
         });
-        if (itemErr) console.error("Failed to add plan item:", supp.name, itemErr);
+        if (itemErr) console.error("Failed to add plan item:", finalName, itemErr);
       }
     }
 
     setSaveProgress(95);
-    toast.success(`Import complete! Created "${planName}" with ${supplements.length} supplements (${matchedCount} matched, ${createdCount} new catalog entries).`);
+    const importedCount = supplements.length - skippedCount;
+    toast.success(`Import complete! Created "${planName}" with ${importedCount} supplements (${matchedCount} matched, ${createdCount} new catalog entries).`);
+    if (skippedCount > 0) {
+      toast.warning(`${skippedCount} supplement${skippedCount === 1 ? "" : "s"} skipped — couldn't read name from PDF.`);
+    }
   };
 
   return (
