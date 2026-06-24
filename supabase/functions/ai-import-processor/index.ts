@@ -227,14 +227,15 @@ serve(async (req) => {
     }
 
     const extractionSuffix = document_type === "workout"
-      ? `Extract ONLY the workout data from the above document.
+      ? `Extract the workout program from the above document.
 
-IGNORE: warmup instructions, tempo explanations, stretching notes, execution notes, any repeated instructional text.
+IGNORE the global tempo / warmup / stretching / execution boilerplate that repeats on every page.
 
-EXTRACT ONLY:
-1. Program name and phase
-2. Each workout day name (e.g. "Day 1: Chest and Back")
-3. For each day, the list of exercises with: name, sets, reps, rest time
+EXTRACT:
+1. program_name and program_phase
+2. workouts[] — ONE entry per UNIQUE day heading (verbatim, including any "[AWAY]" prefix, brackets, casing, and " A" / " B" suffix). If the same heading appears multiple times in the PDF with the same exercise list, define it ONCE here.
+3. For each unique workout: its full exercises[] (name, sets, reps, rest_seconds, tempo, rir, rpe, notes, grouping) AND its per-workout instructions (the text directly under that heading, before the first exercise; skip repeated global boilerplate).
+4. schedule[] — the ordered list of every scheduled day in the program in the order printed in the PDF. Each schedule entry references a workouts[] entry by its EXACT day_name string.
 
 Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start with { and end with }.`
       : `Extract all ${document_type} data from the uploaded document(s). Follow the system instructions exactly.`;
