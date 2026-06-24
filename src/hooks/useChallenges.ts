@@ -452,11 +452,20 @@ export function useUndismissedChallenges() {
       if (error) throw error;
 
       const now = Date.now();
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
       let filtered = (challenges || []).filter((c: any) => {
         if (dismissedIds.includes(c.id)) return false;
+        // End date must not be past
         if (c.end_date) {
           const endOfDay = new Date(`${c.end_date}T23:59:59`).getTime();
           if (endOfDay < now) return false;
+        }
+        // Must be active now, OR start within next 7 days
+        if (c.start_date) {
+          const start = new Date(`${c.start_date}T00:00:00`).getTime();
+          const isActiveNow = start <= now;
+          const startsSoon = start > now && start - now <= sevenDaysMs;
+          if (!isActiveNow && !startsSoon) return false;
         }
         return true;
       });
@@ -472,7 +481,17 @@ export function useUndismissedChallenges() {
         filtered = filtered.filter((c: any) => c.visibility !== "invite_only" || myPartIds.has(c.id));
       }
 
-      return filtered.slice(0, 3) as Challenge[];
+      // Dedupe by title (keep most recent, which sorts first due to created_at desc)
+      const seenTitles = new Set<string>();
+      const deduped = filtered.filter((c: any) => {
+        const key = (c.title || "").trim().toLowerCase();
+        if (seenTitles.has(key)) return false;
+        seenTitles.add(key);
+        return true;
+      });
+
+      return deduped.slice(0, 1) as Challenge[];
+
     },
     enabled: !!user,
   });
