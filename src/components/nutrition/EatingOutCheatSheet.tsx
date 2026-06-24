@@ -187,16 +187,17 @@ const EatingOutCheatSheet = () => {
         {STEPS.map((s) => (
           <div
             key={s.n}
-            className="flex items-stretch gap-3 rounded-2xl border border-[hsl(var(--primary))]/25 bg-[hsl(var(--primary))]/[0.04] p-3"
+            className="rounded-2xl border border-[hsl(var(--primary))]/25 bg-[hsl(var(--primary))]/[0.04] p-4 space-y-2.5"
           >
-            <div className="flex-shrink-0 w-12 rounded-xl bg-gradient-to-b from-[hsl(var(--primary))]/25 to-[hsl(var(--primary))]/5 border border-[hsl(var(--primary))]/30 flex items-center justify-center">
-              <span className="font-display text-xl font-black text-[hsl(var(--primary))] leading-none">
-                {s.n}
+            <div className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-gradient-to-b from-[hsl(var(--primary))]/25 to-[hsl(var(--primary))]/5 border border-[hsl(var(--primary))]/30">
+              <span className="font-display text-sm font-black text-[hsl(var(--primary))] leading-none tracking-wide">
+                STEP {s.n}
               </span>
             </div>
-            <div className="flex items-center text-sm text-foreground/90 leading-relaxed">{s.text}</div>
+            <p className="text-[15px] text-foreground/90 leading-relaxed">{s.text}</p>
           </div>
         ))}
+
       </div>
 
       {/* Tip */}

@@ -1,32 +1,37 @@
-# Workout Tracker — Apple-native font pass
+# "How To Approach It" — readability fix
 
-Make only the active workout session screen feel like Strong / iOS. Nothing else in the app changes.
+Scope: only the 3 numbered step cards inside `EatingOutCheatSheet.tsx`. Nothing else on the page changes.
 
-## What changes visually
+## What changes
 
-- New display font: **Geist** for labels, exercise titles, headers
-- New numeric font: **Geist Mono**, weight 800, tabular — for weights, reps, set numbers, the rest timer
-- Tighter letter-spacing on headers (`-0.02em`) to match SF Pro feel
-- Existing dark theme + gold accents stay exactly as-is — this is type only, no color / layout changes
+- Switch each step card from horizontal (number-left, text-right) to **vertical stack**: gold number tile on top, full-width instruction text below
+- Number tile becomes a small inline gold pill (not a tall side rail), sitting at the top-left of the card
+- Instruction text now occupies the full card width on its own line(s) — no narrow column, no awkward wrapping, no overlap with highlighted words
+- Key phrases (`protein`, `side`, `sauce on the side`) stay **gold + bold inline** exactly as before
+- Wording stays verbatim
+- Card padding bumps slightly so the text breathes; gold border tint stays the same
 
-## Scope (files touched)
+## Visual before/after
 
-1. `tailwind.config.ts` — add a `workout` font family (Geist + system fallback) and `workout-mono` (Geist Mono)
-2. `src/main.tsx` — import `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`
-3. `src/components/WorkoutLogger.tsx` — wrap the session container in `font-workout` + tracking-tight so the whole tracker inherits Geist
-4. `src/components/workout/ExerciseCard.tsx` — bump the weight/reps/set-number inputs to `font-workout-mono font-extrabold tabular-nums`, slightly larger; exercise title gets `font-workout font-bold tracking-tight`
-5. `src/components/workout/InlineRestTimer.tsx` — timer numerals → `font-workout-mono font-extrabold tabular-nums`
+```text
+BEFORE                          AFTER
+┌──────────────────┐           ┌──────────────────────────┐
+│      │ Look for  │           │ ┌──┐                     │
+│  01  │ something │           │ │01│                     │
+│      │ protein   │           │ └──┘                     │
+│      │ on the…   │           │ Look for something with  │
+└──────────────────┘           │ protein on the menu. The │
+                               │ protein list above shows │
+                               │ lean sources.            │
+                               └──────────────────────────┘
+```
 
-## What stays untouched
+## Files
 
-- Dashboard, nutrition, messaging, calendar, coach views — still Space Grotesk + Inter
-- All colors, spacing, layout, animations, business logic in the workout tracker
-- Workout summary / history screens (only the live session view gets the new type)
+- `src/components/nutrition/EatingOutCheatSheet.tsx` — restructure only the `STEPS.map(...)` JSX block (lines ~187–199). No other section, no other file touched.
 
-## Install
+## Out of scope
 
-`bun add @fontsource-variable/geist @fontsource-variable/geist-mono`
-
-## Risk
-
-Very low — purely additive font files + class swaps inside two workout components. No data, no behavior, no layout shifts beyond minor optical weight change on numerals.
+- Sides / Protein / Fats / All Orders tiles (unchanged)
+- Tip card, intro banner, Eating Out Examples (unchanged)
+- Step copy, key-phrase styling, gold theme tokens (unchanged)
