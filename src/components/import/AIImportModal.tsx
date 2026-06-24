@@ -354,45 +354,30 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
     let totalExercisesSaved = 0;
 
-    for (let di = 0; di < days.length; di++) {
-      const day = days[di];
-      setSaveProgress(40 + Math.round((di / days.length) * 50));
+    // New shape: extracted.workouts (unique templates) + extracted.schedule (ordered occurrences).
+    // Falls back to flat days[] when the AI returned the legacy shape.
+    const uniqueWorkouts: any[] = Array.isArray((extracted as any).workouts) && (extracted as any).workouts.length > 0
+      ? (extracted as any).workouts
+      : days.map((d: any) => ({
+          day_name: d.day_name,
+          instructions: d.instructions ?? null,
+          exercises: d.exercises || [],
+          superset_groups: d.superset_groups || [],
+        }));
+    const schedule: { position: number; day_name: string }[] =
+      Array.isArray((extracted as any).schedule) && (extracted as any).schedule.length > 0
+        ? (extracted as any).schedule
+        : (Array.isArray((extracted as any).workouts) && (extracted as any).workouts.length > 0
+            ? (extracted as any).workouts.map((w: any, i: number) => ({ position: i + 1, day_name: w.day_name }))
+            : days.map((d: any, i: number) => ({ position: i + 1, day_name: d.day_name || `Day ${i + 1}` })));
+    const masterMatches: Record<string, { id: string; name: string }> =
+      (matchResults?.master_workouts as any) || {};
 
-      // Create workout
-      const { data: workout, error: wErr } = await supabase
-        .from("workouts")
-        .insert({
-          coach_id: user.id,
-          client_id: clientId || null,
-          name: day.day_name || `Day ${di + 1}`,
-          is_template: isLibraryImport,
-        } as any)
-        .select()
-        .single();
-      if (wErr || !workout) {
-        console.error("Failed to create workout for day:", day.day_name, wErr);
-        continue;
-      }
-      console.log("Created workout:", (workout as any).id, "for day:", day.day_name);
-
-      // Link to phase
-      await supabase.from("program_workouts").insert({
-        phase_id: phaseId,
-        workout_id: (workout as any).id,
-        sort_order: startingSortOrder + di + 1,
-        day_label: day.day_name || `Day ${di + 1}`,
-      });
-
-      // Add exercises
-      const dayExercises = day.exercises || [];
-      console.log("Inserting exercises for workout:", (workout as any).id, "count:", dayExercises.length);
-
-      // --- Rest redistribution: build group lookups before inserting ---
-      // Group rest comes from `superset_groups[].rest_seconds_between_rounds` (new schema).
-      // Members of a group: first/middle get 0s rest, the LAST member carries the group rest.
-      // Non-grouped exercises: trust the PDF (`rest_seconds ?? 0`). Never invent 60.
+    // Insert exercises for a given workout_id from a template
+    const insertExercisesForWorkout = async (workoutId: string, tpl: any) => {
+      const dayExercises = tpl.exercises || [];
       const groupRestById = new Map<string, number>();
-      const supersetGroups: any[] = (day as any).superset_groups || [];
+      const supersetGroups: any[] = tpl.superset_groups || [];
       for (const g of supersetGroups) {
         if (g?.grouping_id) {
           groupRestById.set(String(g.grouping_id), Number(g.rest_seconds_between_rounds ?? 0));
@@ -402,15 +387,12 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       dayExercises.forEach((ex: any, idx: number) => {
         if (ex?.grouping_id) lastIndexByGroup.set(String(ex.grouping_id), idx);
       });
-
       const debugRest = import.meta.env.VITE_DEBUG_AI_IMPORT === "true";
 
       for (let ei = 0; ei < dayExercises.length; ei++) {
         const ex = dayExercises[ei];
         const match = matchResults?.exercises?.[ex.name];
         let exerciseId = match?.matched_id;
-
-        // If no match, create new exercise
         if (!exerciseId) {
           const { data: newEx, error: newExErr } = await supabase
             .from("exercises")
@@ -423,53 +405,96 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           }
           exerciseId = (newEx as any)?.id;
         }
+        if (!exerciseId) continue;
 
-        if (exerciseId) {
-          // Resolve final rest_seconds per redistribution rules
-          const groupId = ex?.grouping_id ? String(ex.grouping_id) : null;
-          let finalRest: number;
-          if (groupId && groupRestById.has(groupId)) {
-            const isLast = lastIndexByGroup.get(groupId) === ei;
-            finalRest = isLast ? (groupRestById.get(groupId) ?? 0) : 0;
-          } else if (groupId && !groupRestById.has(groupId)) {
-            // Defensive: model gave us a grouping_id but no superset_groups entry.
-            // Fall back to 0 for all members; coach can edit. Log for tuning.
-            console.warn("[ai-import] grouping_id without superset_groups entry:", groupId, ex?.name);
-            finalRest = 0;
-          } else {
-            // Non-grouped: trust the PDF. null/undefined → 0. Never invent 60.
-            finalRest = typeof ex.rest_seconds === "number" ? ex.rest_seconds : 0;
-          }
-
-          if (debugRest) {
-            console.log("[ai-import][rest]", JSON.stringify({
-              name: ex.name,
-              raw_rest: ex.rest_seconds,
-              grouping_id: groupId,
-              group_rest: groupId ? groupRestById.get(groupId) : null,
-              is_last_in_group: groupId ? lastIndexByGroup.get(groupId) === ei : null,
-              final_rest: finalRest,
-            }));
-          }
-
-          const { data: insertData, error: insertError } = await supabase.from("workout_exercises").insert({
-            workout_id: (workout as any).id,
-            exercise_id: exerciseId,
-            exercise_order: ei + 1,
-            sets: ex.sets || 3,
-            reps: ex.reps || "10",
-            rest_seconds: finalRest,
-            tempo: ex.tempo || null,
-            rir: ex.rir ? parseInt(ex.rir, 10) : null,
-            rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
-            notes: ex.notes || null,
-            grouping_type: ex.grouping_type || null,
-            grouping_id: ex.grouping_id || null,
-          }).select();
-          console.log("Exercise insert result:", insertData, insertError);
-          if (!insertError) totalExercisesSaved++;
+        const groupId = ex?.grouping_id ? String(ex.grouping_id) : null;
+        let finalRest: number;
+        if (groupId && groupRestById.has(groupId)) {
+          const isLast = lastIndexByGroup.get(groupId) === ei;
+          finalRest = isLast ? (groupRestById.get(groupId) ?? 0) : 0;
+        } else if (groupId && !groupRestById.has(groupId)) {
+          console.warn("[ai-import] grouping_id without superset_groups entry:", groupId, ex?.name);
+          finalRest = 0;
+        } else {
+          finalRest = typeof ex.rest_seconds === "number" ? ex.rest_seconds : 0;
         }
+        if (debugRest) {
+          console.log("[ai-import][rest]", JSON.stringify({
+            name: ex.name, raw_rest: ex.rest_seconds, grouping_id: groupId,
+            group_rest: groupId ? groupRestById.get(groupId) : null,
+            is_last_in_group: groupId ? lastIndexByGroup.get(groupId) === ei : null,
+            final_rest: finalRest,
+          }));
+        }
+
+        const { error: insertError } = await supabase.from("workout_exercises").insert({
+          workout_id: workoutId,
+          exercise_id: exerciseId,
+          exercise_order: ei + 1,
+          sets: ex.sets || 3,
+          reps: ex.reps || "10",
+          rest_seconds: finalRest,
+          tempo: ex.tempo || null,
+          rir: ex.rir ? parseInt(ex.rir, 10) : null,
+          rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
+          notes: ex.notes || null,
+          grouping_type: ex.grouping_type || null,
+          grouping_id: ex.grouping_id || null,
+        });
+        if (!insertError) totalExercisesSaved++;
       }
+    };
+
+    // 1. Resolve / create the unique workouts, build name → workout_id map
+    const workoutIdByName = new Map<string, string>();
+    for (let wi = 0; wi < uniqueWorkouts.length; wi++) {
+      const tpl = uniqueWorkouts[wi];
+      const name: string = tpl.day_name || `Day ${wi + 1}`;
+      setSaveProgress(40 + Math.round((wi / uniqueWorkouts.length) * 40));
+
+      const masterHit = masterMatches[name];
+      if (masterHit?.id) {
+        workoutIdByName.set(name, masterHit.id);
+        console.log("[ai-import] Reusing master workout:", name, "→", masterHit.id);
+        continue;
+      }
+
+      const { data: workout, error: wErr } = await supabase
+        .from("workouts")
+        .insert({
+          coach_id: user.id,
+          client_id: clientId || null,
+          name,
+          description: tpl.instructions || null,
+          is_template: isLibraryImport,
+        } as any)
+        .select()
+        .single();
+      if (wErr || !workout) {
+        console.error("Failed to create workout:", name, wErr);
+        continue;
+      }
+      const workoutId = (workout as any).id as string;
+      workoutIdByName.set(name, workoutId);
+      await insertExercisesForWorkout(workoutId, tpl);
+    }
+
+    // 2. Schedule: insert one program_workouts row per scheduled occurrence
+    let scheduledCount = 0;
+    for (let si = 0; si < schedule.length; si++) {
+      const entry = schedule[si];
+      const workoutId = workoutIdByName.get(entry.day_name);
+      if (!workoutId) {
+        console.warn("[ai-import] schedule references missing workout:", entry.day_name);
+        continue;
+      }
+      const { error: pwErr } = await supabase.from("program_workouts").insert({
+        phase_id: phaseId,
+        workout_id: workoutId,
+        sort_order: startingSortOrder + si + 1,
+        day_label: entry.day_name,
+      });
+      if (!pwErr) scheduledCount++;
     }
 
     // If client (legacy new-program flow only), create assignment
@@ -483,9 +508,9 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         status: "active",
       });
     }
-    console.log(`Import complete: ${days.length} workout days, ${totalExercisesSaved} exercises saved`);
+    console.log(`Import complete: ${uniqueWorkouts.length} unique workouts, ${scheduledCount} scheduled days, ${totalExercisesSaved} exercises saved`);
     setSaveProgress(95);
-    return { dayCount: days.length, exerciseCount: totalExercisesSaved };
+    return { dayCount: scheduledCount, exerciseCount: totalExercisesSaved };
   };
 
   const saveMealPlan = async () => {
