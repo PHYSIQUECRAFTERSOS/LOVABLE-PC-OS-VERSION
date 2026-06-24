@@ -731,7 +731,7 @@ const CoachCommandCenter = () => {
                   <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{client.workoutTitle}</p>
+                    <p className="text-xs text-foreground/80 font-medium truncate">{client.workoutTitle}</p>
                   </div>
                   <Button
                     size="sm"
