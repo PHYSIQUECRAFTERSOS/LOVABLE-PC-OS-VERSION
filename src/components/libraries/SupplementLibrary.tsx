@@ -124,6 +124,7 @@ const SupplementLibrary = () => {
   // Add item to plan
   const [showAddItem, setShowAddItem] = useState(false);
   const [itemSuppId, setItemSuppId] = useState("");
+  const [suppPickerOpen, setSuppPickerOpen] = useState(false);
   const [itemDosage, setItemDosage] = useState("");
   const [itemDosageUnit, setItemDosageUnit] = useState("");
   const [itemTiming, setItemTiming] = useState("fasted");
