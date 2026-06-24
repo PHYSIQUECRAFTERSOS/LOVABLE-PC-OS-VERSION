@@ -6692,6 +6692,30 @@ export type Database = {
         }
         Relationships: []
       }
+      supplement_synonyms: {
+        Row: {
+          canonical: string
+          created_at: string
+          id: string
+          term: string
+          weight: number
+        }
+        Insert: {
+          canonical: string
+          created_at?: string
+          id?: string
+          term: string
+          weight?: number
+        }
+        Update: {
+          canonical?: string
+          created_at?: string
+          id?: string
+          term?: string
+          weight?: number
+        }
+        Relationships: []
+      }
       supplements: {
         Row: {
           added_sugars: number | null
