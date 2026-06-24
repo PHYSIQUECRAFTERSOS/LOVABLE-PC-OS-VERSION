@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import MessageAttachment from "./MessageAttachment";
 import EmojiReactions from "./EmojiReactions";
 import AttachmentUploadMenu from "./AttachmentUploadMenu";
+import AttachmentPreviewDialog from "./AttachmentPreviewDialog";
 import VoiceMessageRecorder from "./VoiceMessageRecorder";
 import MessageContextMenu from "./MessageContextMenu";
 import MessageContent from "./MessageContent";
