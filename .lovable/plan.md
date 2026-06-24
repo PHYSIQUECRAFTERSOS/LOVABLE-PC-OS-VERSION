@@ -1,87 +1,70 @@
-## Why "Unknown" appears today
+## Goal
 
-Looking at your PDF + the current import code, three things combine:
+Fix three concrete bugs in the meal-section AI import that show up clearly in Zach Ivie's plan:
 
-1. **AI loses the name on ALL-CAPS section headers.** The PDF writes `MULTIVITAMIN` as a heading, then `Triumph` (brand) on the next line, then `3 pills / day`. The model picks up "3 pills" but submits the supplement with an empty `name`. Same problem for `VITAMIN D3 + K2` → it splits into two rows ("5000 IU", "90 MCG") with no name, and the user-visible `BERBERINE` heading.
-2. **Combo entries get split.** `VITAMIN D3 + K2` becomes two unnamed rows instead of one combo with both dosages.
-3. **Catalog matching is too strict and dirty.** `master_supplements` already has 5+ versions of Berberine, 4 of Magnesium, "Berberbine" (typo), etc. The 80% auto-accept threshold blocks anything that doesn't exactly match, so a brand-new (blank-named) row gets created and surfaces as "Unknown".
+1. **"3 slice" turkey bacon and "2 unit" eggs become 3g / 2g** — the importer regex grabs the number and treats every quantity as grams.
+2. **Brazil Nuts 10g = 71 cal in the PDF becomes ~233 cal in the app** — the importer overwrites PDF macros with whatever `food_items` row was matched, even when the match is a wildly different serving size.
+3. **No coach-library preference** — matching scans the entire 4,300-row `food_items` table by ilike, so generic / wrong-brand rows beat your own custom foods.
 
-## What I'll change
+Per your answers: always trust the PDF macros, prefer your own custom foods first, and preserve non-gram units by auto-creating a sized custom food.
 
-### 1. Harden the AI extraction prompt — `supabase/functions/ai-import-processor/index.ts`
+## What changes
 
-Update the supplement extraction schema/instructions:
+### 1. Edge function — `supabase/functions/ai-import-processor/index.ts`
 
-- **MANDATORY rule:** `name` must never be empty. If a dosage line has no inline product name, walk **upward** to the nearest ALL-CAPS heading (`MULTIVITAMIN`, `VITAMIN D3 + K2`, `BERBERINE`, `FISH OIL`, `IODINE`, `PROBIOTICS`, `PSYLLIUM HUSK`, `MAGNESIUM`, `CREATINE`) and use it as the name (Title Case).
-- **Brand handling:** If a product line follows the heading (e.g. `Triumph`, `Legion`, `CanPrev`), set it as `brand`, not as `name`.
-- **Combo entries (per your answer):** If the heading contains `+` or `/` (e.g. `VITAMIN D3 + K2`, `MAGNESIUM SUCROSOMIAL OR BIGLYCINATE`), output ONE row whose `name` is the full combo, `dosage`/`dosage_unit` use the first listed dosage, and the additional dosages go into `coach_note` (e.g. `coach_note: "D3 5000 IU + K2 90 MCG"`).
-- **Examples block in the prompt** showing the exact Triumph multivitamin / D3+K2 / Berberine patterns from your weekly PDF so the model sees the template it should match.
-- **Final guard:** If the model still can't determine a name, output `"name": "Unmapped Supplement"` (never blank).
+**A. Extraction prompt (meal block)**
+Replace the single `quantity` string with three fields the AI must always emit:
 
-### 2. Seed a clean Master Supplement catalog with synonyms
+- `quantity_value` (number, required)
+- `quantity_unit` (string, required — one of `g`, `ml`, `oz`, `slice`, `unit`, `scoop`, `cup`, `tbsp`, `tsp`, `piece`, `serving`)
+- `calories`, `protein`, `carbs`, `fat` — **required, copied verbatim from the PDF row**, never inferred.
 
-Two-part migration:
+Add: "If the PDF row gives macros, those macros are the source of truth — do not round, infer, or substitute."
 
-**a. Insert canonical master rows** (only if name not already present, `is_master=true`, `is_active=true`) for the Physique Crafters standard list:
+**B. `matchFoods()` rewrite**
+- Add a `coachId` argument (passed from the request).
+- Build candidate list in this order, returning the first non-empty bucket:
+  1. `food_items` where `created_by = coachId` (your coach library)
+  2. `food_items` where `created_by` is in the coach's `coach_clients` list (your clients' custom foods, since `client_custom_foods` is RLS-locked to its owner)
+  3. `food_items` where `is_verified = true`
+  4. global `food_items`
+- Score with existing `scoreNormalized` + a strong substring boost. Require ≥75 to auto-accept; below that we still create a custom food (next step) so the match doesn't matter.
+- Return `{ matched_id, matched_name, source: 'coach_library' | 'client_library' | 'verified' | 'global' | 'none', confidence_score }`.
 
-```text
-Multivitamin (Triumph)         Berberine             Fish Oil
-Vitamin D3 + K2                Magnesium Glycinate   Iodine
-Probiotics (25B)               Psyllium Husk         Creatine Monohydrate
-Ashwagandha KSM-66             Aloe Vera Drink       Apple Cider Vinegar
-Greens Powder                  CoQ10 Ubiquinol       NAC
-Methylcobalamin B12            Methylfolate L-5-MTHF Boron
-Glutamine                      EAA                   Protein Powder (Whey Isolate)
-Caffeine                       Citrus Bergamot       Digestive Enzyme
-DIM                            Krill Oil             Magnesium Citrate
-Melatonin                      Iron                  Taurine
-```
+### 2. Import commit — `src/components/import/AIImportModal.tsx`
 
-**b. Create `supplement_synonyms` table** (mirrors `exercise_synonyms`) and seed common mappings so the matcher resolves variants:
+Replace the gram-only parser (lines ~579–606) with this flow per food row:
 
-```text
-multivit, multi-vit, multi vitamin, triumph multivit → multivitamin
-vit d, vit d3, d3, vitamin d, vitamin d 3 → vitamin d3
-vit k, k2, vit k2, vitamin k → vitamin k2
-vitamin d3 k2, d3 + k2, d3 plus k2 → vitamin d3 + k2
-berberine hcl, berberbine → berberine
-fish oils, omega 3, omega-3, epa dha → fish oil
-mag glycinate, magnesium bisglycinate, mag biglycinate, mag sucrosomial → magnesium glycinate
-psyllium, psyullium husk, meta mucil → psyllium husk
-probiotic, 25b, 25 billion, probiotics 25b → probiotics (25b)
-ashwagandha ksm 66, ashwaganada ksm 66, ashwaghanda → ashwagandha ksm-66
-creatine mono, creatine monohydrate → creatine
-b12, methyl b12 → methylcobalamin b12
-```
+1. Read `quantity_value`, `quantity_unit`, and the PDF macros from the AI output.
+2. **Always store PDF macros** on `meal_plan_items.calories/protein/carbs/fat`. Never recalculate from the matched food_item.
+3. Set `meal_plan_items.servings = quantity_value`, `serving_unit = quantity_unit`, `serving_size = quantity_value` (so the existing UI math `macros × servings / serving_size` resolves to the PDF macros for 1 serving).
+4. For non-gram/ml units OR when the match is below 75 confidence: **create a backing `food_items` row** (or reuse one already created earlier in this import) sized to that quantity:
+   - `name = food.name`, `brand = null`, `created_by = coachId`, `is_verified = false`
+   - `serving_size = quantity_value`, `serving_unit = quantity_unit`
+   - `calories/protein/carbs/fat` = PDF macros (so it represents "1 slice", "2 units", "10g" with those exact macros)
+   - Then link `food_item_id` to this new row.
+5. For high-confidence gram matches, keep the existing `food_item_id` link but still write PDF macros on the meal_plan_item.
 
-The matcher already loads `exercise_synonyms` — I'll add a parallel `loadSupplementSynonyms()` and use it in `matchSupplements()`.
+Skip rows where `quantity_value` is missing or 0.
 
-### 3. Loosen + smarten supplement matching — `matchSupplements()`
+### 3. Backward compatibility
 
-- Lower auto-accept score from **80 → 65** for supplements only (names are short, so trigram scores run lower than for exercises).
-- Add a tie-breaker: if the normalized PDF name is a substring of (or contained in) a catalog name (e.g. `"multivitamin"` ⊂ `"Multivitamin (Triumph)"`), force-accept that match.
-- Prefer `is_master=true` catalog rows when scores tie, so seeded canonical rows win over the duplicates.
+- `meal_plan_items` already has `serving_unit` and `serving_size` — no schema migration needed.
+- `gram_amount` stays populated (set to `quantity_value` when unit is `g`/`ml`, otherwise `quantity_value`) so legacy readers don't break.
+- Existing meal plans are untouched.
 
-### 4. Safety net in the import commit — `src/components/import/AIImportModal.tsx`
+### Verification
 
-In the supplement insert loop:
-- If `supp.name` is empty/whitespace, skip the row entirely (don't create a blank master_supplement) and log a warning toast at the end: "X supplements skipped — couldn't read name."
-- When creating a new master_supplement, default any blank name to `"Unmapped Supplement"` so nothing ever lands as literal empty/`Unknown`.
+Re-run AI Import on Zach Ivie's PDF and confirm in the rest-day Meal 1:
+- Whole Egg (Medium): 2 unit, 120 cal, 12P / 0C / 8F
+- Egg Whites: 100 g, 42 cal, 11P / 0C / 0F
+- Spinach: 20 g, 6 cal
+- Turkey Bacon: 3 slice, 119 cal, 15P / 3C / 5F
+- Brazil Nuts (Greek yogurt meal): 10 g, 71 cal, 1P / 1C / 7F
 
-### 5. Verify against your PDF
+## Files touched
 
-After deploy, I'll re-run AI Import on `Zach Ivie weekly progress updates May 18 2026-2.pdf` and confirm:
-- ✅ `Multivitamin (Triumph)` — 3 pills, with meal 1
-- ✅ `Vitamin D3 + K2` — 5000 IU, with meal 1, note "D3 5000 IU + K2 90 MCG"
-- ✅ `Berberine` — 500 mg, with meal 2 (workout) / meal 1 (rest)
-- ✅ `Fish Oil`, `Iodine`, `Probiotics`, `Psyllium Husk`, `Magnesium` all match cleanly
+- `supabase/functions/ai-import-processor/index.ts` — extraction prompt + `matchFoods()` + threading `coachId` through
+- `src/components/import/AIImportModal.tsx` — quantity/unit parsing + macro-preservation + custom-food creation path
 
-### Files touched
-- `supabase/functions/ai-import-processor/index.ts` — prompt + match logic + synonym loader
-- `src/components/import/AIImportModal.tsx` — commit-time safety net
-- One DB migration — `supplement_synonyms` table + seed canonical master_supplements + seed synonym rows
-
-### What stays the same
-- No existing supplements/plans are touched. Seeding only inserts when the name doesn't already exist (case-insensitive).
-- No UI changes to the supplement library, plans, or import modal layout.
-- The Personal vs Shared distinction is preserved (seeds are `is_master=true`, owned by your admin user).
+No database migrations. No changes to existing meal plans, workout import, or supplement import.
