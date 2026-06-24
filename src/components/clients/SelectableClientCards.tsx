@@ -660,7 +660,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       )}
 
       {/* Column header */}
-      <div className="hidden sm:flex items-center px-4 text-[10px] text-muted-foreground uppercase tracking-wider">
+      <div className="hidden sm:flex items-center px-4 text-[11px] font-semibold text-foreground/70 uppercase tracking-[0.12em]">
         <span className="flex-1">Client</span>
         <span className="w-20 text-right">Today's Cals</span>
       </div>
