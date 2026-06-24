@@ -421,9 +421,11 @@ IMPORTANT: This document may have repeated instruction sections on every page (w
 Extract workout program data. Return JSON in this format:
 {
   "program_name": "string",
-  "days": [
+  "program_phase": "string or null",
+  "workouts": [
     {
-      "day_name": "string (e.g. Day 1: Push)",
+      "day_name": "string — copy the heading VERBATIM, including any '[AWAY]' prefix, brackets, casing, and ' A' / ' B' suffix (e.g. '[AWAY]Day 1: Upper', 'Day 1: UPPER A', 'Day 4 : LOWER B & calves & abs')",
+      "instructions": "string or null — the per-workout instructional paragraph(s) printed directly under this heading before its first exercise. Strip the global tempo/warmup/stretching/execution boilerplate that repeats on every page.",
       "exercises": [
         {
           "name": "string (exact name from PDF)",
@@ -445,8 +447,17 @@ Extract workout program data. Return JSON in this format:
         }
       ]
     }
+  ],
+  "schedule": [
+    { "position": 1, "day_name": "string — must EXACTLY match a workouts[].day_name above" }
   ]
 }
+
+CRITICAL DAY-NAME RULES:
+1. NEVER strip, normalize, or merge day_name prefixes/suffixes. '[AWAY]Day 1: Upper' and 'Day 1: UPPER A' are DIFFERENT workouts and MUST stay distinct.
+2. Define each unique day_name ONCE in workouts[]. Reference it from schedule[] every time it is scheduled — do NOT duplicate the exercises.
+3. schedule[] must list every scheduled day in the order the PDF prints them, across all weeks. position starts at 1 and increments by 1.
+4. If the PDF clearly shows only one rotation (e.g. 4 unique days in a single block) and no week-by-week schedule, schedule[] should still list every workouts[] entry once in order.
 
 CRITICAL REST RULES:
 1. If the PDF does NOT specify a rest value for an exercise, return rest_seconds: null. Do NOT invent 60 or any default. Mobility, warmup, and stretching rows almost always have no rest specified — return null for those.
