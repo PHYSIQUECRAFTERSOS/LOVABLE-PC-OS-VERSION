@@ -1307,7 +1307,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-24 font-workout tracking-tight">
       {/* Recovery Banner */}
       {showRecoveryBanner && (
         <div className="mx-0 rounded-lg border-l-4 border-l-primary bg-primary/10 border border-primary/20 p-3 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
@@ -1338,7 +1338,7 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
             </button>
             <SaveStatusIndicator status={saveStatus} />
           </div>
-          <span className="text-lg font-bold tabular-nums text-foreground">{elapsed}</span>
+          <span className="text-lg font-extrabold tabular-nums text-foreground font-workout-mono">{elapsed}</span>
           <Button
             size="sm"
             onClick={handleFinishTap}
@@ -1353,9 +1353,10 @@ const WorkoutLogger = ({ workoutId, workoutName, workoutInstructions, exercises:
         {/* Progress bar */}
         <div className="flex items-center gap-3 mt-2">
           <Progress value={progressPercent} className="flex-1 h-2.5" />
-          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap tabular-nums">
+          <span className="text-xs font-extrabold text-muted-foreground whitespace-nowrap tabular-nums font-workout-mono">
             {completedSets} / {totalSets} sets
           </span>
+
         </div>
 
         <h2 className="text-sm font-medium text-muted-foreground mt-1 truncate">{workoutName}</h2>
