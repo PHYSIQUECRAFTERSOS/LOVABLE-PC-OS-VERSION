@@ -703,7 +703,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs text-muted-foreground">{client.compliance}% compliance</span>
+                      <span className="text-xs text-foreground/85 font-semibold">{client.compliance}% compliance</span>
                       {client.streak > 0 && (
                         <span className="text-xs text-primary font-medium flex items-center gap-0.5">
                           <Zap className="h-2.5 w-2.5" />{client.streak}d
