@@ -754,7 +754,7 @@ const CoachCommandCenter = () => {
           <CalendarClock className="h-5 w-5 text-primary" />
           Training Phase Deadlines
         </h2>
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className="text-xs text-foreground/75 mb-3">
           Showing {phaseDeadlines.filter((c) => c.kind === "overdue").length} overdue and {phaseDeadlines.filter((c) => c.kind === "due").length} due within 7 days, out of {phaseDeadlineSummary.activeClients} active coaching clients.
         </p>
         {phaseDeadlines.length === 0 ? (
