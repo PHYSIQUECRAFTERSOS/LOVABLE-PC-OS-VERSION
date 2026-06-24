@@ -329,6 +329,32 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
       );
     }
 
+    // Normalize new shape ({ workouts[], schedule[] }) → also populate days[] so the
+    // downstream exercise-matcher and superset rest normalizer keep working unchanged.
+    if (document_type === "workout") {
+      const hasNewShape = Array.isArray(extracted?.workouts) && extracted.workouts.length > 0;
+      if (hasNewShape) {
+        const workoutsByName = new Map<string, any>();
+        for (const w of extracted.workouts) {
+          if (w?.day_name) workoutsByName.set(String(w.day_name), w);
+        }
+        const schedule: any[] = Array.isArray(extracted.schedule) && extracted.schedule.length > 0
+          ? extracted.schedule
+          : extracted.workouts.map((w: any, i: number) => ({ position: i + 1, day_name: w.day_name }));
+        // Build flat days[] mirroring the schedule, each entry referencing the unique template.
+        extracted.days = schedule.map((s: any) => {
+          const tpl = workoutsByName.get(String(s.day_name));
+          return {
+            day_name: s.day_name,
+            instructions: tpl?.instructions ?? null,
+            exercises: tpl?.exercises || [],
+            superset_groups: tpl?.superset_groups || [],
+            _template_key: s.day_name,
+          };
+        });
+      }
+    }
+
     // Server-side guard: even if the AI hallucinates a 60s rest on a superset member,
     // force null. The client-side redistribution then resolves it to 0 for first/middle
     // members and the group's rest_seconds_between_rounds for the last member.
@@ -358,6 +384,29 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
     let matchResults: any = null;
     if (document_type === "workout") {
       matchResults = await matchExercises(db, extracted);
+      // Also look up existing master library workouts by exact name (case-insensitive)
+      // so the importer can REUSE them instead of creating duplicates.
+      const uniqueNames: string[] = Array.from(new Set(
+        ((extracted?.workouts as any[]) || []).map((w: any) => String(w?.day_name || "")).filter(Boolean),
+      ));
+      const masterMatches: Record<string, { id: string; name: string }> = {};
+      if (uniqueNames.length > 0) {
+        const { data: masters } = await db
+          .from("workouts")
+          .select("id, name")
+          .eq("coach_id", userId)
+          .eq("is_template", true)
+          .in("name", uniqueNames);
+        const byLower = new Map<string, { id: string; name: string }>();
+        for (const m of (masters || []) as any[]) {
+          byLower.set(String(m.name).toLowerCase(), { id: m.id, name: m.name });
+        }
+        for (const n of uniqueNames) {
+          const hit = byLower.get(n.toLowerCase());
+          if (hit) masterMatches[n] = hit;
+        }
+      }
+      matchResults = { ...(matchResults || {}), master_workouts: masterMatches };
     } else if (document_type === "meal") {
       matchResults = await matchFoods(db, extracted, userId);
 
