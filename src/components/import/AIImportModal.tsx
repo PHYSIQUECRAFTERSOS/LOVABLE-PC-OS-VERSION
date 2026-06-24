@@ -576,35 +576,77 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
         for (const food of meal.foods || []) {
           itemOrder++;
-          // Parse gram amount from quantity string (e.g. "140g" -> 140)
-          let gramAmount = 0;
-          if (food.quantity) {
-            const gMatch = String(food.quantity).match(/([\d.]+)\s*g/i);
-            if (gMatch) {
-              gramAmount = parseFloat(gMatch[1]);
-            } else {
-              // Try to parse as a plain number
-              const num = parseFloat(String(food.quantity));
-              gramAmount = isNaN(num) ? 100 : num;
+
+          // Source of truth = PDF macros, verbatim
+          const pdfCal = Number(food.calories) || 0;
+          const pdfP = Number(food.protein) || 0;
+          const pdfC = Number(food.carbs) || 0;
+          const pdfF = Number(food.fat) || 0;
+
+          // Quantity: prefer structured fields; fall back to legacy "quantity" string
+          let qtyValue: number = Number(food.quantity_value);
+          let qtyUnit: string = String(food.quantity_unit || "").toLowerCase().trim();
+          if (!qtyValue || isNaN(qtyValue)) {
+            const raw = String(food.quantity || "");
+            const m = raw.match(/([\d.]+)\s*([a-zA-Z]+)?/);
+            if (m) {
+              qtyValue = parseFloat(m[1]);
+              if (!qtyUnit) qtyUnit = (m[2] || "g").toLowerCase();
             }
+          }
+          if (!qtyUnit) qtyUnit = "g";
+          if (!qtyValue || isNaN(qtyValue) || qtyValue <= 0) {
+            // skip rows we can't quantify
+            continue;
+          }
+
+          const match = matchResults?.foods?.[food.name];
+          const matchScore = Number(match?.confidence_score || 0);
+          const isMassUnit = qtyUnit === "g" || qtyUnit === "ml";
+          let foodItemId: string | null = match?.matched_id || null;
+
+          // Auto-create a sized food_items row when:
+          //  - the unit isn't grams/ml (slice, unit, scoop, tbsp, …), OR
+          //  - the matched candidate is weak (< 75 confidence)
+          if (!isMassUnit || matchScore < 75) {
+            const { data: createdFood } = await supabase
+              .from("food_items")
+              .insert({
+                name: food.name,
+                created_by: user.id,
+                is_verified: false,
+                serving_size: qtyValue,
+                serving_unit: qtyUnit,
+                calories: pdfCal,
+                protein: pdfP,
+                carbs: pdfC,
+                fat: pdfF,
+              } as any)
+              .select("id")
+              .single();
+            foodItemId = (createdFood as any)?.id || foodItemId;
           }
 
           await supabase.from("meal_plan_items").insert({
             meal_plan_id: (plan as any).id,
             day_id: (mpDay as any).id,
-            food_item_id: matchResults?.foods?.[food.name]?.matched_id || null,
+            food_item_id: foodItemId,
             custom_name: food.name,
             meal_name: mealName,
             meal_type: mealType,
-            gram_amount: gramAmount || 100,
-            calories: food.calories || 0,
-            protein: food.protein || 0,
-            carbs: food.carbs || 0,
-            fat: food.fat || 0,
+            gram_amount: qtyValue,
+            servings: qtyValue,
+            serving_size: qtyValue,
+            serving_unit: qtyUnit,
+            calories: pdfCal,
+            protein: pdfP,
+            carbs: pdfC,
+            fat: pdfF,
             meal_order: mealOrder,
             item_order: itemOrder,
-          });
+          } as any);
         }
+
       }
     }
     setSaveProgress(95);
