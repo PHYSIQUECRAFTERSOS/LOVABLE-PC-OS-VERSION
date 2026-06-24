@@ -492,8 +492,48 @@ const ThreadChatView = ({
     );
   };
 
+  // Drag-and-drop file upload (desktop). Mobile keeps existing buttons.
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDraggingOver(true);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingOver(false);
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (e.dataTransfer.files.length > 1) {
+      toast({
+        title: "One file at a time",
+        description: "Only the first file was used. Send others one by one.",
+      });
+    }
+    setPendingAttachment(file);
+  };
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col relative"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* ── Header ── */}
       <div className="flex items-center gap-3 border-b border-border px-4 min-h-[56px] shrink-0">
         {(onBack || showBackToDashboard) && (
