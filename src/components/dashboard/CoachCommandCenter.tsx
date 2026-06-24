@@ -836,56 +836,6 @@ const CoachCommandCenter = () => {
         )}
       </div>
 
-      {/* ─── SECTION 4: At-Risk Clients (full width) ─── */}
-      <div>
-        {/* At-Risk Panel */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-display flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-destructive" />
-              At-Risk Clients
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {atRisk.length === 0 ? (
-              <div className="py-4 text-center">
-                <CheckCircle2 className="h-6 w-6 text-success mx-auto mb-1" />
-                <p className="text-xs text-muted-foreground">No at-risk clients detected.</p>
-              </div>
-            ) : (
-              atRisk.map((client) => {
-                const badge = riskBadge(client.riskScore);
-                return (
-                  <div
-                    key={client.clientId}
-                    className="flex items-center gap-3 py-2 px-2 rounded hover:bg-secondary/50 transition-colors"
-                  >
-                    <UserAvatar src={client.avatarUrl} name={client.clientName} className="h-7 w-7" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground truncate">{client.clientName}</p>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {client.signals.slice(0, 2).map((s, i) => (
-                          <span key={i} className="text-[11px] text-foreground/80 font-medium">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${badge.cls}`}>{badge.label}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs text-primary hover:text-primary"
-                      onClick={(e) => { e.stopPropagation(); navigate("/messages"); }}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                      Message
-                    </Button>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
 
       {/* ─── SECTION 5: Messaging Quick Access ─── */}
