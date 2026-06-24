@@ -129,11 +129,11 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
   const startProcessing = async () => {
     if (!user || files.length === 0) return;
 
-    // Check file size limit (50MB total)
+    // Check file size limit (100MB total)
     const totalSize = files.reduce((sum, f) => sum + f.size, 0);
-    if (totalSize > 50 * 1024 * 1024) {
-      setError("File too large. Please use a PDF under 50MB.");
-      toast.error("File too large. Please use a PDF under 50MB.");
+    if (totalSize > 100 * 1024 * 1024) {
+      setError("File too large. Please use a PDF under 100MB.");
+      toast.error("File too large. Please use a PDF under 100MB.");
       return;
     }
 
