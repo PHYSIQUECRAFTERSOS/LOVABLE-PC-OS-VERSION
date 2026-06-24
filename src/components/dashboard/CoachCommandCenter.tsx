@@ -1153,7 +1153,7 @@ function MetricCard({
       <CardContent className="pt-4 pb-3 px-4">
         <div className="flex items-center justify-between mb-2">
           <Icon className={`h-4 w-4 ${isAlert ? "text-destructive" : "text-muted-foreground"}`} />
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/75">{label}</span>
         </div>
         <p className={`text-2xl font-bold font-display ${pct !== undefined ? complianceColor(pct) : isAlert ? "text-destructive" : "text-foreground"}`}>
           {value}
