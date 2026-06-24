@@ -45,14 +45,24 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
     }
   };
 
-  // DOB parts derived from stored YYYY-MM-DD
-  const dobParts = (() => {
+  // DOB parts held locally so partial selections persist in the UI
+  // while data.date_of_birth only gets set once all three are valid.
+  const [dobParts, setDobParts] = useState<{ y: string; m: string; d: string }>(() => {
     if (!data.date_of_birth) return { y: "", m: "", d: "" };
     const [y, m, d] = data.date_of_birth.split("-");
-    return { y: y || "", m: m || "", d: d || "" };
-  })();
+    return { y: y || "", m: m ? String(Number(m)) : "", d: d ? String(Number(d)) : "" };
+  });
+
+  // Sync from parent if date_of_birth changes externally (e.g., resume onboarding)
+  useEffect(() => {
+    if (data.date_of_birth) {
+      const [y, m, d] = data.date_of_birth.split("-");
+      setDobParts({ y: y || "", m: m ? String(Number(m)) : "", d: d ? String(Number(d)) : "" });
+    }
+  }, [data.date_of_birth]);
 
   const updateDob = (year: string, month: string, day: string) => {
+    setDobParts({ y: year, m: month, d: day });
     if (!year || !month || !day) {
       updateField("date_of_birth", null);
       return;
@@ -60,14 +70,12 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
     const mm = month.padStart(2, "0");
     const dd = day.padStart(2, "0");
     const iso = `${year}-${mm}-${dd}`;
-    // Validate (real calendar date)
     const dt = new Date(`${iso}T00:00:00`);
     if (isNaN(dt.getTime()) || dt.getUTCMonth() + 1 !== Number(mm) || dt.getUTCDate() !== Number(dd)) {
       updateField("date_of_birth", null);
       return;
     }
     updateField("date_of_birth", iso);
-    // Auto-fill age if not already set or appears stale
     const today = new Date();
     let age = today.getFullYear() - Number(year);
     const mDiff = today.getMonth() + 1 - Number(mm);
@@ -76,7 +84,7 @@ const OnboardingMetrics = ({ data, updateField, validationErrors = {} }: Props) 
   };
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 90 }, (_, i) => currentYear - 13 - i); // 13+ down to 102
+  const years = Array.from({ length: 90 }, (_, i) => currentYear - 13 - i);
   const months = [
     { v: "1", l: "Jan" }, { v: "2", l: "Feb" }, { v: "3", l: "Mar" }, { v: "4", l: "Apr" },
     { v: "5", l: "May" }, { v: "6", l: "Jun" }, { v: "7", l: "Jul" }, { v: "8", l: "Aug" },
