@@ -369,8 +369,8 @@ const CoachCommandCenter = () => {
           const signals: string[] = [];
           if (c.missedWorkouts >= 3) signals.push("3+ missed workouts");
           if (c.missedCheckins >= 1) signals.push("Missed check-in");
-          if (c.daysInactive >= 7) signals.push("7d inactive");
-          if (c.daysInactive >= 7) signals.push("7d inactive");
+          if (c.daysInactive >= 7) signals.push(`${c.daysInactive}d inactive`);
+
           if (c.overallCompliance < 50) signals.push("Low compliance");
           return { clientId: c.clientId, clientName: c.clientName, avatarUrl: c.avatarUrl, riskScore: c.riskScore, daysInactive: c.daysInactive, signals };
         });
