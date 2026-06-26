@@ -650,7 +650,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
       </div>
 
       {/* Day-type badge (Training / Rest) — read-only, driven by calendar */}
-      {!isCoach && isToday && (
+      {!isCoach && (
         <div className="flex items-center justify-center">
           {dayType === "training_day" ? (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-background shadow-sm">
