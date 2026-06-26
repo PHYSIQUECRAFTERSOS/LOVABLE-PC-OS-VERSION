@@ -183,7 +183,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     if (!user) return;
     const { data: meals } = await supabase
       .from("saved_meals")
-      .select("id, name, calories, protein, carbs, fat, fiber, sugar")
+      .select("id, name, calories, protein, carbs, fat, fiber, sugar, note")
       .eq("client_id", user.id)
       .order("created_at", { ascending: false });
     if (!meals || meals.length === 0) { setSavedMeals([]); return; }
