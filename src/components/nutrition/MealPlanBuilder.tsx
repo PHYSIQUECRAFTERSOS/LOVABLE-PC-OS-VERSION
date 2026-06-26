@@ -627,7 +627,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   };
 
 
-  const addSavedMealFoods = (dayId: string, mealId: string, foods: FoodResult[]) => {
+  const addSavedMealFoods = (
+    dayId: string,
+    mealId: string,
+    foods: FoodResult[],
+    meta?: { mealNote?: string | null }
+  ) => {
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
@@ -637,6 +642,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                 m.id === mealId
                   ? {
                       ...m,
+                      note:
+                        meta?.mealNote && !(m.note || "").trim()
+                          ? meta.mealNote
+                          : m.note,
                       foods: [
                         ...m.foods,
                         ...foods.map((food) => {
@@ -658,6 +667,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                             sugar_per_100: 0,
                             serving_unit: food.serving_unit || "g",
                             serving_size_g: ss,
+                            note: (fr as any).note || "",
                           };
                         }),
                       ],
