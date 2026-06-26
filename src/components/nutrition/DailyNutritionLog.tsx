@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon, Pencil, Check, X, Bookmark } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon, Pencil, Check, X, Bookmark, Dumbbell, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
@@ -649,6 +649,24 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         )}
       </div>
 
+      {/* Day-type badge (Training / Rest) — read-only, driven by calendar */}
+      {!isCoach && isToday && (
+        <div className="flex items-center justify-center">
+          {dayType === "training_day" ? (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-background shadow-sm">
+              <Dumbbell className="h-3.5 w-3.5" />
+              Training Day
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground">
+              <Moon className="h-3.5 w-3.5" />
+              Rest Day
+            </div>
+          )}
+        </div>
+      )}
+
+
       {/* Daily Macro Summary */}
       <div ref={macroRingsRef} className="rounded-lg border border-border bg-card p-4">
         {targets.is_refeed && (
@@ -739,7 +757,13 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                 >
                   <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">
-                    {copyingMeal === key ? "Copying..." : "Copy from meal plan"}
+                    {copyingMeal === key
+                      ? "Copying..."
+                      : copySourcePlanData.source === "all_days"
+                        ? "Copy from meal plan"
+                        : copySourcePlanData.wantKey === "training"
+                          ? "Copy from Training Day plan"
+                          : "Copy from Rest Day plan"}
                   </span>
                 </button>
               )}
