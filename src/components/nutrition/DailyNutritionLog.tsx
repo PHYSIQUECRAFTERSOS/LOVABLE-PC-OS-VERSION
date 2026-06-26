@@ -757,7 +757,13 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
                 >
                   <ClipboardCopy className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">
-                    {copyingMeal === key ? "Copying..." : "Copy from meal plan"}
+                    {copyingMeal === key
+                      ? "Copying..."
+                      : copySourcePlanData.source === "all_days"
+                        ? "Copy from meal plan"
+                        : copySourcePlanData.wantKey === "training"
+                          ? "Copy from Training Day plan"
+                          : "Copy from Rest Day plan"}
                   </span>
                 </button>
               )}
