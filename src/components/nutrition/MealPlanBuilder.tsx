@@ -600,6 +600,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         protein_per_100g: food.protein_per_100,
         carbs_per_100g: food.carbs_per_100,
         fat_per_100g: food.fat_per_100,
+        note: food.note?.trim() || null,
       }));
 
       const { error: rpcErr } = await supabase.rpc("save_meal_with_items" as any, {
@@ -611,6 +612,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         p_fat: Math.round(totalMacros.fat),
         p_servings: 1,
         p_items: items as any,
+        p_meal_note: meal.note?.trim() || null,
       });
       if (rpcErr) throw rpcErr;
 
@@ -625,7 +627,12 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
   };
 
 
-  const addSavedMealFoods = (dayId: string, mealId: string, foods: FoodResult[]) => {
+  const addSavedMealFoods = (
+    dayId: string,
+    mealId: string,
+    foods: FoodResult[],
+    meta?: { mealNote?: string | null }
+  ) => {
     setDays((prev) =>
       prev.map((d) =>
         d.id === dayId
@@ -635,6 +642,10 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                 m.id === mealId
                   ? {
                       ...m,
+                      note:
+                        meta?.mealNote && !(m.note || "").trim()
+                          ? meta.mealNote
+                          : m.note,
                       foods: [
                         ...m.foods,
                         ...foods.map((food) => {
@@ -656,6 +667,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                             sugar_per_100: 0,
                             serving_unit: food.serving_unit || "g",
                             serving_size_g: ss,
+                            note: (fr as any).note || "",
                           };
                         }),
                       ],
@@ -1262,7 +1274,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           <FoodSearchPanel
                             onSelect={(food) => addFoodToMeal(day.id, meal.id, food as any)}
                             onClose={() => setSearchingMealId(null)}
-                            onSelectSavedMeal={(foods) => addSavedMealFoods(day.id, meal.id, foods)}
+                            onSelectSavedMeal={(foods, meta) => addSavedMealFoods(day.id, meal.id, foods, meta)}
                           />
                         ) : (
                           <Button variant="ghost" size="sm" className="h-8 text-sm w-full" onClick={() => setSearchingMealId(`${day.id}::${meal.id}`)}>

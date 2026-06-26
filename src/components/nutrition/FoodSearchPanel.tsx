@@ -61,7 +61,7 @@ export interface FoodResult {
 interface FoodSearchPanelProps {
   onSelect: (food: FoodResult) => void;
   onClose: () => void;
-  onSelectSavedMeal?: (foods: FoodResult[]) => void;
+  onSelectSavedMeal?: (foods: FoodResult[], meta?: { mealNote?: string | null }) => void;
 }
 
 type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic" | "saved";
@@ -183,7 +183,7 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
     if (!user) return;
     const { data: meals } = await supabase
       .from("saved_meals")
-      .select("id, name, calories, protein, carbs, fat, fiber, sugar")
+      .select("id, name, calories, protein, carbs, fat, fiber, sugar, note")
       .eq("client_id", user.id)
       .order("created_at", { ascending: false });
     if (!meals || meals.length === 0) { setSavedMeals([]); return; }
@@ -220,8 +220,9 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
       carbs_per_100: item.carbs_per_100g || null,
       fat_per_100: item.fat_per_100g || null,
       gram_amount: item.quantity,
-    }));
-    onSelectSavedMeal(foods);
+      note: item.note || "",
+    } as any));
+    onSelectSavedMeal(foods, { mealNote: meal.note || null });
   };
 
   const deleteSavedMeal = async (mealId: string) => {

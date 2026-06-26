@@ -398,13 +398,31 @@ const MealPlanTemplateLibrary = () => {
         if (newDay) {
           const { data: items } = await supabase
             .from("meal_plan_items")
-            .select("food_item_id, custom_name, meal_name, meal_type, gram_amount, servings, calories, protein, carbs, fat, item_order, meal_order")
+            .select("food_item_id, custom_name, meal_name, meal_type, gram_amount, servings, calories, protein, carbs, fat, item_order, meal_order, note")
             .eq("meal_plan_id", template.id)
             .eq("day_id", day.id);
 
           if (items && items.length > 0) {
             await supabase.from("meal_plan_items").insert(
               items.map((item: any) => ({ ...item, meal_plan_id: newPlan.id, day_id: newDay.id }))
+            );
+          }
+
+          // Copy per-meal coach notes
+          const { data: mealNotes } = await (supabase as any)
+            .from("meal_plan_meal_notes")
+            .select("meal_order, note")
+            .eq("meal_plan_id", template.id)
+            .eq("day_id", day.id);
+
+          if (mealNotes && mealNotes.length > 0) {
+            await supabase.from("meal_plan_meal_notes").insert(
+              mealNotes.map((n: any) => ({
+                meal_plan_id: newPlan.id,
+                day_id: newDay.id,
+                meal_order: n.meal_order,
+                note: n.note,
+              }))
             );
           }
         }

@@ -6178,6 +6178,7 @@ export type Database = {
           food_item_id: string | null
           food_name: string
           id: string
+          note: string | null
           protein: number
           protein_per_100g: number | null
           quantity: number
@@ -6196,6 +6197,7 @@ export type Database = {
           food_item_id?: string | null
           food_name: string
           id?: string
+          note?: string | null
           protein?: number
           protein_per_100g?: number | null
           quantity?: number
@@ -6214,6 +6216,7 @@ export type Database = {
           food_item_id?: string | null
           food_name?: string
           id?: string
+          note?: string | null
           protein?: number
           protein_per_100g?: number | null
           quantity?: number
@@ -6342,6 +6345,7 @@ export type Database = {
           id: string
           meal_type: string
           name: string
+          note: string | null
           notes: string | null
           protein: number
           servings: number
@@ -6359,6 +6363,7 @@ export type Database = {
           id?: string
           meal_type?: string
           name: string
+          note?: string | null
           notes?: string | null
           protein?: number
           servings?: number
@@ -6376,6 +6381,7 @@ export type Database = {
           id?: string
           meal_type?: string
           name?: string
+          note?: string | null
           notes?: string | null
           protein?: number
           servings?: number
@@ -8045,6 +8051,7 @@ export type Database = {
           p_carbs: number
           p_fat: number
           p_items?: Json
+          p_meal_note?: string
           p_meal_type: string
           p_name: string
           p_protein: number

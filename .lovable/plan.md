@@ -1,40 +1,47 @@
-## Problem
+# Fix Meal Plan Notes & Post-Workout Save Error
 
-Aaron's only role is `manager`. The UI in `useAuth.tsx` treats `manager` as an elevated coach, but **none of the database RLS policies do** — every policy uses `has_role(uid, 'coach')` or `has_role(uid, 'admin')`. So when Aaron's browser queries `calendar_events`, `master_supplements`, `supplements`, `coach_clients`, etc., Postgres returns 0 rows. That's why his calendar is empty and supplement names fall back to "Unknown" (the lookup against `master_supplements` returns nothing, so the UI shows the placeholder).
+## Problems
+1. **Duplicating a template** copies meals/foods but drops both the per-meal coach notes (e.g., "TAKE 1 PILL BERBERINE") and per-food notes.
+2. **Saving a meal to the library** strips coach notes — when pasted back later, the notes are gone.
+3. **Post-Workout meal save fails** with `saved_meal_items_food_item_id_fkey` violation. Cause: that meal contains a food whose `food_item_id` is a UUID string but the referenced row no longer exists in `food_items` (orphan) — the RPC casts the value and the FK rejects it.
 
-This affects every team member with a `manager` role — not just Aaron.
+## Fix Plan
 
-## Fix
+### 1. Template duplication preserves notes
+`src/components/nutrition/MealPlanTemplateLibrary.tsx › duplicateTemplate`
+- Add `note` to the columns selected from `meal_plan_items` and include it in the insert (so per-food notes copy).
+- After inserting items for each new day, also copy rows from `meal_plan_meal_notes` for the original `day.id` → insert duplicates pointing at `newDay.id` (preserve `meal_order` + `note`).
 
-One-line change to the `has_role` security-definer function so that any check for `'coach'` also returns true for users with the `'manager'` role. Because every RLS policy in the project routes through `has_role`, this single change unlocks calendar events, supplement names, client lists, programs, meal plans, etc. for managers — without rewriting ~80 individual policies.
+### 2. Saved meals carry notes
+**Migration** (new):
+- `ALTER TABLE public.saved_meals ADD COLUMN IF NOT EXISTS note TEXT;`
+- `ALTER TABLE public.saved_meal_items ADD COLUMN IF NOT EXISTS note TEXT;`
+- `CREATE OR REPLACE FUNCTION public.save_meal_with_items(...)` updated to:
+  - Accept new `p_meal_note TEXT DEFAULT NULL` param and insert into `saved_meals.note`.
+  - Accept `note TEXT` per item in `p_items` and insert into `saved_meal_items.note`.
+  - **Bug fix**: when `food_item_id` is provided but not found in `public.food_items`, coerce it to `NULL` instead of letting the FK reject the entire insert. Implementation: `LEFT JOIN public.food_items fi ON fi.id = NULLIF(item.food_item_id,'')::uuid` and write `fi.id` (which is NULL on miss). This unblocks the chicken-and-rice post-workout meal.
+  - Re-grant EXECUTE to `authenticated` with the new signature; drop the old signature.
 
-```sql
-CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role app_role)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = _user_id
-      AND (
-        role = _role
-        OR (_role = 'coach' AND role = 'manager')  -- managers inherit coach access
-      )
-  )
-$$;
-```
+**Builder save call** (`MealPlanBuilder.tsx › handleSaveMealToLibrary`)
+- Pass `p_meal_note: meal.note?.trim() || null`.
+- Include `note: food.note?.trim() || null` on each item in `p_items`.
 
-Notes:
-- Admin checks remain strict (manager does NOT get admin).
-- Client-only checks (`has_role(uid, 'client')`) are unaffected.
-- Aaron keeps his `manager` role and his existing invite/team capabilities (Team.tsx already gates on `hasRole('manager')` directly).
-- The frontend `useAuth` already treats manager as coach for UI gating, so this aligns DB behavior with UI behavior.
+### 3. Pasting a saved meal restores notes
+`src/components/nutrition/FoodSearchPanel.tsx`
+- `loadSavedMeals`: also select `note` from `saved_meals`; `saved_meal_items` already `select("*")` so per-item `note` flows through.
+- `handleSelectSavedMeal`: pass `meal.note` and per-food `note` up through a new optional second argument.
+- Change `onSelectSavedMeal` prop signature to `(foods, meta?: { mealNote?: string })` where each `FoodResult` also carries a `note` field.
 
-## Verification after migration
+`src/components/nutrition/MealPlanBuilder.tsx › addSavedMealFoods`
+- Accept `(dayId, mealId, foods, meta)`. When `meta.mealNote` is set and the target meal currently has no note, set `meal.note = meta.mealNote`. Map each incoming food's `note` onto the newly created food row.
 
-1. Have Aaron hard-refresh and open a client's Calendar tab — events should now appear.
-2. Open a client's Supps tab — supplement names should resolve instead of showing "Unknown".
-3. Confirm Aaron still cannot access admin-only screens.
+## Technical Notes
+- `meal_plan_items.note` and `meal_plan_meal_notes` already exist and are used by the builder save path — only the duplication path was missing them.
+- The FK fix is intentionally permissive (NULL out unknown FK) rather than failing; the macros, name, and per-100g fields are already captured on `saved_meal_items` so the saved meal stays nutritionally correct without a linked `food_items` row.
+- No UI redesign — coach-note textareas already exist on every meal.
 
-No schema changes, no policy rewrites, no frontend changes required.
+## Files Touched
+- `supabase/migrations/<new>.sql` (columns + updated RPC)
+- `src/components/nutrition/MealPlanTemplateLibrary.tsx`
+- `src/components/nutrition/MealPlanBuilder.tsx`
+- `src/components/nutrition/FoodSearchPanel.tsx`
