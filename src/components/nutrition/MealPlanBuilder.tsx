@@ -600,6 +600,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         protein_per_100g: food.protein_per_100,
         carbs_per_100g: food.carbs_per_100,
         fat_per_100g: food.fat_per_100,
+        note: food.note?.trim() || null,
       }));
 
       const { error: rpcErr } = await supabase.rpc("save_meal_with_items" as any, {
@@ -611,6 +612,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
         p_fat: Math.round(totalMacros.fat),
         p_servings: 1,
         p_items: items as any,
+        p_meal_note: meal.note?.trim() || null,
       });
       if (rpcErr) throw rpcErr;
 
