@@ -1274,7 +1274,7 @@ const MealPlanBuilder = ({ forceTemplate, editingTemplateId, onSaved, clientId, 
                           <FoodSearchPanel
                             onSelect={(food) => addFoodToMeal(day.id, meal.id, food as any)}
                             onClose={() => setSearchingMealId(null)}
-                            onSelectSavedMeal={(foods) => addSavedMealFoods(day.id, meal.id, foods)}
+                            onSelectSavedMeal={(foods, meta) => addSavedMealFoods(day.id, meal.id, foods, meta)}
                           />
                         ) : (
                           <Button variant="ghost" size="sm" className="h-8 text-sm w-full" onClick={() => setSearchingMealId(`${day.id}::${meal.id}`)}>
