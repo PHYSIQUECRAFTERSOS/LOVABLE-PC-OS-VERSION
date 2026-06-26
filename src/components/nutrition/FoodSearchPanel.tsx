@@ -220,8 +220,9 @@ const FoodSearchPanel = ({ onSelect, onClose, onSelectSavedMeal }: FoodSearchPan
       carbs_per_100: item.carbs_per_100g || null,
       fat_per_100: item.fat_per_100g || null,
       gram_amount: item.quantity,
-    }));
-    onSelectSavedMeal(foods);
+      note: item.note || "",
+    } as any));
+    onSelectSavedMeal(foods, { mealNote: meal.note || null });
   };
 
   const deleteSavedMeal = async (mealId: string) => {
