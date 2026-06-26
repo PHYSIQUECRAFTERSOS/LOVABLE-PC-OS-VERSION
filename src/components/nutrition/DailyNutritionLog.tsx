@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, addDays, subDays } from "date-fns";
-import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon, Pencil, Check, X, Bookmark } from "lucide-react";
+import { Trash2, Plus, ChevronLeft, ChevronRight, CalendarDays, Copy, ClipboardCopy, ChevronRight as ChevronRightIcon, Pencil, Check, X, Bookmark, Dumbbell, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
