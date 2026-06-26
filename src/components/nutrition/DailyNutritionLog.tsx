@@ -649,6 +649,24 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
         )}
       </div>
 
+      {/* Day-type badge (Training / Rest) — read-only, driven by calendar */}
+      {!isCoach && isToday && (
+        <div className="flex items-center justify-center">
+          {dayType === "training_day" ? (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-background shadow-sm">
+              <Dumbbell className="h-3.5 w-3.5" />
+              Training Day
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground">
+              <Moon className="h-3.5 w-3.5" />
+              Rest Day
+            </div>
+          )}
+        </div>
+      )}
+
+
       {/* Daily Macro Summary */}
       <div ref={macroRingsRef} className="rounded-lg border border-border bg-card p-4">
         {targets.is_refeed && (
