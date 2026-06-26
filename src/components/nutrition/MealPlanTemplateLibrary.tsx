@@ -409,7 +409,7 @@ const MealPlanTemplateLibrary = () => {
           }
 
           // Copy per-meal coach notes
-          const { data: mealNotes } = await supabase
+          const { data: mealNotes } = await (supabase as any)
             .from("meal_plan_meal_notes")
             .select("meal_order, note")
             .eq("meal_plan_id", template.id)
