@@ -61,7 +61,7 @@ export interface FoodResult {
 interface FoodSearchPanelProps {
   onSelect: (food: FoodResult) => void;
   onClose: () => void;
-  onSelectSavedMeal?: (foods: FoodResult[]) => void;
+  onSelectSavedMeal?: (foods: FoodResult[], meta?: { mealNote?: string | null }) => void;
 }
 
 type FilterTab = "all" | "favorites" | "recent" | "custom" | "branded" | "generic" | "saved";
