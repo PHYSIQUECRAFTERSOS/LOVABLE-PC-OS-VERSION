@@ -105,6 +105,7 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
     allDays: allMealPlanDays,
     allItems: allMealPlanItems,
     getPlanByDayType,
+    getDayByDayType,
     getItemsForMealSection,
     getCoachMealNameAtPosition,
     copyMealToTracker,
@@ -139,30 +140,71 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
   const subtitleItems = mealPlan && mealPlan.day_type === dayTypeKey ? mealPlanItems : [];
 
   /**
-   * Source plan used by "Copy from meal plan" — driven STRICTLY by the calendar
-   * resolved dayType, independent of the user's browsing pill (`activePlanDayType`).
-   * Lookup order:
-   *   1. Plan matching the resolved day (training or rest)
-   *   2. "all_days" plan
-   *   3. Opposite-day plan (with warning toast on copy)
+   * Source DAY used by "Copy from meal plan" — driven STRICTLY by the calendar
+   * resolved dayType. We scan meal_plan_days across ALL the client's active
+   * plans (coaches commonly put Training + Rest days inside ONE plan), and
+   * only fall back to the opposite day type when none exists.
    */
   const copySourcePlanData = useMemo(() => {
-    const wantKey = dayType === "training_day" ? "training" : "rest";
-    const direct = getPlanByDayType(wantKey);
-    if (direct.plan) return { ...direct, source: "direct" as const, wantKey };
+    const wantKey: "training" | "rest" = dayType === "training_day" ? "training" : "rest";
+    const direct = getDayByDayType(wantKey);
+    if (direct) {
+      return {
+        plan: direct.plan,
+        day: direct.day,
+        days: direct.days,
+        items: direct.items,
+        source: "direct" as const,
+        wantKey,
+      };
+    }
 
-    const allDays = getPlanByDayType("all_days");
-    if (allDays.plan) return { ...allDays, source: "all_days" as const, wantKey };
+    const oppositeKey: "training" | "rest" = wantKey === "training" ? "rest" : "training";
+    const opposite = getDayByDayType(oppositeKey);
+    if (opposite) {
+      return {
+        plan: opposite.plan,
+        day: opposite.day,
+        days: opposite.days,
+        items: opposite.items,
+        source: "opposite" as const,
+        wantKey,
+      };
+    }
 
-    const oppositeKey = wantKey === "training" ? "rest" : "training";
-    const opposite = getPlanByDayType(oppositeKey);
-    if (opposite.plan) return { ...opposite, source: "opposite" as const, wantKey };
+    // Final fallback: any "all_days" plan or first plan, first day
+    const anyAll = getPlanByDayType("all_days");
+    if (anyAll.plan && anyAll.days.length > 0) {
+      return {
+        plan: anyAll.plan,
+        day: anyAll.days[0],
+        days: anyAll.days,
+        items: anyAll.items,
+        source: "all_days" as const,
+        wantKey,
+      };
+    }
 
-    return { plan: null, days: [], items: [], source: "none" as const, wantKey };
-  }, [dayType, getPlanByDayType]);
+    if (allMealPlans.length > 0) {
+      const firstPlan = allMealPlans[0];
+      const days = allMealPlanDays.filter((d) => (d as any).meal_plan_id === firstPlan.id);
+      const items = allMealPlanItems.filter((i) => (i as any).meal_plan_id === firstPlan.id);
+      return {
+        plan: firstPlan,
+        day: days[0] || null,
+        days,
+        items,
+        source: "fallback" as const,
+        wantKey,
+      };
+    }
 
-  const copySourceDayId = copySourcePlanData.days?.[0]?.id || null;
+    return { plan: null, day: null, days: [], items: [], source: "none" as const, wantKey };
+  }, [dayType, getDayByDayType, getPlanByDayType, allMealPlans, allMealPlanDays, allMealPlanItems]);
+
+  const copySourceDayId = copySourcePlanData.day?.id || null;
   const copySourceItems = copySourcePlanData.items;
+
 
 
 
