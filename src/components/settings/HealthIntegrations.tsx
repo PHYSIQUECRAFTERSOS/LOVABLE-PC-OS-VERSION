@@ -174,7 +174,7 @@ const HealthIntegrations = () => {
     setSyncingProvider("all");
 
     // Sync Apple Health if connected on native iOS
-    if (isNativeIOS && healthSync.connection?.is_connected) {
+    if (isNativeHealth && healthSync.connection?.is_connected) {
       await healthSync.syncNow();
     }
 
