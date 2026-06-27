@@ -1,30 +1,43 @@
-## Why it's broken
+I’ll rework the workout AI import so this Trainerize PDF imports as the correct 9 workouts instead of 20+ tiny workouts.
 
-Most coaches build ONE `meal_plans` row containing multiple `meal_plan_days`, where each DAY carries its own `day_type` ("Training Day", "Rest Day", "training", "rest", etc.). The current resolver in `DailyNutritionLog.tsx` calls `getPlanByDayType("rest")`, which only looks at the **plan-level** `day_type` column. If the client only has one plan (day_type='training' on the plan row, but with both training & rest DAYS inside), the rest-day lookup falls through to the "opposite" fallback and copies the Training Day items — exactly the bug shown ("Copy from Rest Day plan" pulling training foods).
+Plan:
 
-Verified in the database: e.g. plans like "Zane Karuna Meal plan", "Scott Szeto - PLAN", "Joshua Williams Back To ABS", "Johan Ramirez cutting plan" all have a single plan row (plan_day_type='training') containing BOTH a Training Day and a Rest Day in `meal_plan_days`.
+1. Improve PDF text extraction before AI processing
+- Preserve line breaks and row order from PDF text instead of joining each page into one long line.
+- This helps the importer keep workout headings, superset blocks, exercise rows, reps, sets, and rest times together.
 
-## Fix
+2. Add a Trainerize-specific pre-parser for workout boundaries
+- Detect Trainerize print-log PDFs by text such as `trainerize.com`, `PrintTrackingLog`, or the known export structure.
+- Extract the real workout headings before sending to AI.
+- Preserve separate headings like:
+  - `[AWAY]Day 1: Upper`
+  - `[AWAY]Day 2: Legs A & Core A`
+  - `Mobility lower body`
+  - `[AWAY]Day 3: Upper`
+  - `[AWAY]Day 4: Lower & Core`
+  - `Day 1: UPPER A`
+  - `Day 2: LOWER A & calves & abs`
+  - `Day 3: UPPER B`
+  - `Day 4 : LOWER B & calves & abs`
+- Treat `[AWAY]Day 1` and `Day 1` as different workouts, not duplicates.
 
-Resolve the copy source by scanning DAYS across all of the client's active plans, not plans.
+3. Send AI a structured boundary summary
+- Prepend a machine-readable summary to the uploaded text showing the exact 9 workout names and their exercise rows.
+- Update the edge-function prompt to require the AI to use that summary as the source of truth when present.
+- Explicitly prevent the AI from turning instruction pages, exercise-demo pages, tracking sheets, previous stats, or repeated boilerplate into new workouts.
 
-### 1. `src/hooks/useMealPlanTracker.ts`
-Add a helper `getDayByDayType(wantKey: "training" | "rest")` that:
-- Normalizes `meal_plan_days.day_type` (lowercase; if it contains "rest" → "rest", contains "training" → "training", else "unknown").
-- Returns the first matching `{ plan, day, items }` across all of the user's active plans, preferring a day whose parent plan's `day_type` also matches (stable ordering by plan `sort_order`, then `day_order`).
-- Returns `null` when no day of that type exists anywhere.
+4. Add server-side validation and cleanup
+- After AI extraction, dedupe repeated headings while preserving `[AWAY]` variants.
+- Reject or repair incorrectly split workout lists when a Trainerize boundary summary is present.
+- Keep only workouts that match the detected heading list.
 
-### 2. `src/components/nutrition/DailyNutritionLog.tsx`
-Replace the `copySourcePlanData` resolution:
-- Primary: use new `getDayByDayType(wantKey)` to find the correct day.
-- Secondary: only if NO day of the wanted type exists across all plans, fall back to the opposite (existing fallback toast already warns the user).
-- Pass the resolved `day.id` directly into `getItemsForMealSection(...)` so items come from that specific day, regardless of which plan owns it.
-- Update the button label logic to read from the new resolver (still shows "Copy from Rest Day plan" / "Copy from Training Day plan").
+5. Test with the attached PDF
+- Add a targeted test using the PDF/text extraction output to verify exactly 9 workouts are detected.
+- Verify the important workout names are preserved exactly.
+- Verify exercises are grouped under the correct workout instead of becoming separate 2–3 exercise workouts.
 
-No DB changes; no UI redesign. Pure logic fix.
-
-## Verification
-
-- Re-read the file, run `tsgo --noEmit`.
-- Spot-check with a SQL query for a couple of affected clients: confirm `getDayByDayType("rest")` would pick the actual Rest Day row.
-- Drive Playwright on `/nutrition` if a logged-in client session is available; otherwise confirm via code trace + unit-level reasoning that on a rest day the button now reads from the Rest Day's `day_id`.
+Files to update:
+- `src/components/import/AIImportModal.tsx`
+- `supabase/functions/ai-import-processor/index.ts`
+- Add a shared/helper parser for Trainerize workout PDFs
+- Add a focused test for this PDF structure

@@ -81,16 +81,43 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+const TRAINERIZE_WORKOUT_SUMMARY_START = "<<<TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
+const TRAINERIZE_WORKOUT_SUMMARY_END = "<<<END_TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
+
+function extractTrainerizeSummaryFromText(text: string): any | null {
+  const start = text.indexOf(TRAINERIZE_WORKOUT_SUMMARY_START);
+  const end = text.indexOf(TRAINERIZE_WORKOUT_SUMMARY_END);
+  if (start < 0 || end <= start) return null;
+  const jsonText = text.slice(start + TRAINERIZE_WORKOUT_SUMMARY_START.length, end).trim();
+  try {
+    const parsed = JSON.parse(jsonText);
+    if (Array.isArray(parsed?.workouts) && parsed.workouts.length > 0) return parsed;
+  } catch (err) {
+    console.warn("Failed to parse Trainerize boundary summary", err);
+  }
+  return null;
+}
+
 function cleanWorkoutText(raw: string): string {
+  // When the client has already prepended a machine-readable Trainerize
+  // boundary summary, keep it intact. The global line de-duper below would
+  // otherwise strip repeated JSON fields like "sets": 3 and corrupt the guard.
+  if (extractTrainerizeSummaryFromText(raw)) {
+    console.log("Trainerize boundary summary detected; preserving uploaded text verbatim");
+    return raw.trim();
+  }
+
   const lines = raw.split("\n");
-  const seen = new Set<string>();
   const deduped: string[] = [];
+  let previousTrimmed = "";
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.length < 3) { deduped.push(line); continue; }
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
+    // Only remove consecutive duplicate OCR/header lines. Global de-duping can
+    // delete legitimate repeated exercises or repeated workout headings.
+    if (trimmed === previousTrimmed) continue;
+    previousTrimmed = trimmed;
     deduped.push(line);
   }
 
@@ -111,6 +138,52 @@ function cleanWorkoutText(raw: string): string {
 
   console.log("Original text length:", raw.length, "Cleaned text length:", cleaned.trim().length);
   return cleaned.trim();
+}
+
+function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
+  if (!summary || !Array.isArray(summary.workouts) || summary.workouts.length === 0) return extracted;
+
+  const summaryWorkouts = summary.workouts.filter((w: any) => w?.day_name && Array.isArray(w?.exercises));
+  if (summaryWorkouts.length === 0) return extracted;
+
+  const summaryByName = new Map(summaryWorkouts.map((w: any) => [String(w.day_name), w]));
+  const aiWorkouts: any[] = Array.isArray(extracted?.workouts) ? extracted.workouts : [];
+  const aiByName = new Map(aiWorkouts.filter((w: any) => w?.day_name).map((w: any) => [String(w.day_name), w]));
+
+  const workouts = summaryWorkouts.map((summaryWorkout: any) => {
+    const name = String(summaryWorkout.day_name);
+    const aiWorkout = aiByName.get(name) || null;
+    const aiExercises = Array.isArray(aiWorkout?.exercises) ? aiWorkout.exercises : [];
+    const summaryExercises = Array.isArray(summaryWorkout.exercises) ? summaryWorkout.exercises : [];
+    const useSummaryExercises = aiExercises.length < Math.max(1, Math.floor(summaryExercises.length * 0.65));
+
+    return {
+      ...(aiWorkout || {}),
+      day_name: name,
+      instructions: aiWorkout?.instructions ?? summaryWorkout.instructions ?? null,
+      exercises: useSummaryExercises ? summaryExercises : aiExercises,
+      superset_groups: Array.isArray(aiWorkout?.superset_groups) && aiWorkout.superset_groups.length > 0
+        ? aiWorkout.superset_groups
+        : (summaryWorkout.superset_groups || []),
+    };
+  });
+
+  const schedule = Array.isArray(summary.schedule) && summary.schedule.length > 0
+    ? summary.schedule
+        .filter((s: any) => summaryByName.has(String(s?.day_name)))
+        .map((s: any, i: number) => ({ position: Number(s.position) || i + 1, day_name: String(s.day_name) }))
+    : workouts.map((w: any, i: number) => ({ position: i + 1, day_name: w.day_name }));
+
+  const result = {
+    ...(extracted || {}),
+    program_name: extracted?.program_name || summary.program_name || "Imported Trainerize Workout Program",
+    program_phase: extracted?.program_phase ?? summary.program_phase ?? null,
+    workouts,
+    schedule,
+  };
+
+  console.log(`[ai-import] Trainerize guard enforced: ${workouts.length} workouts, ${schedule.length} scheduled entries`);
+  return result;
 }
 
 function getServiceClient() {
@@ -168,6 +241,7 @@ serve(async (req) => {
 
     const userContentParts: any[] = [];
     const downloadedPaths: string[] = [];
+    let trainerizeBoundarySummary: any | null = null;
 
     userContentParts.push({
       type: "text",
@@ -202,6 +276,11 @@ serve(async (req) => {
       // Handle .txt files (pre-extracted text from PDFs) as plain text
       if (fileName.toLowerCase().endsWith(".txt")) {
         const rawText = new TextDecoder().decode(arrayBuffer);
+        const parsedSummary = document_type === "workout" ? extractTrainerizeSummaryFromText(rawText) : null;
+        if (parsedSummary && !trainerizeBoundarySummary) {
+          trainerizeBoundarySummary = parsedSummary;
+          console.log(`[ai-import] Trainerize boundary summary found in ${fileName}: ${parsedSummary.workouts?.length || 0} workouts`);
+        }
         const extractedText = cleanWorkoutText(rawText);
         console.log("Extracted text length:", extractedText.length, "characters");
         userContentParts.push({
@@ -228,6 +307,12 @@ serve(async (req) => {
 
     const extractionSuffix = document_type === "workout"
       ? `Extract the workout program from the above document.
+
+If a ${TRAINERIZE_WORKOUT_SUMMARY_START} block is present, it is the SOURCE OF TRUTH for workout boundaries and exercise rows:
+- Return exactly the workouts[] listed in that summary block, no more and no fewer.
+- Keep every day_name EXACTLY as written in that summary block.
+- Do not create workouts from exercise-demo pages, Tracking Sheet rows, Previous Stats, boilerplate, or instruction text.
+- You may clean obvious PDF truncation in exercise names only when the raw text below clearly gives the full name.
 
 IGNORE the global tempo / warmup / stretching / execution boilerplate that repeats on every page.
 
@@ -327,6 +412,10 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    if (document_type === "workout" && trainerizeBoundarySummary) {
+      extracted = normalizeAgainstTrainerizeSummary(extracted, trainerizeBoundarySummary);
     }
 
     // Normalize new shape ({ workouts[], schedule[] }) → also populate days[] so the
