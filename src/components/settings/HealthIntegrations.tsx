@@ -45,8 +45,10 @@ const HealthIntegrations = () => {
   };
 
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+  const isNativeHealth = isNativeIOS || isNativeAndroid;
 
-  // Apple Health hook (used on native iOS)
+  // Apple Health (iOS) / Health Connect (Android) hook
   const healthSync = useHealthSync();
 
   // Fetch wearable connections
