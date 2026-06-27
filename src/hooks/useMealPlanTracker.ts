@@ -231,6 +231,61 @@ export function useMealPlanTracker(selectedDate?: Date) {
   );
 
   /**
+   * Normalize a meal_plan_days.day_type string into "training" | "rest" | "unknown".
+   * Coaches enter free-form labels ("Rest Day", "rest", "HOME PLAN", "Day 1"…),
+   * so we infer by substring.
+   */
+  const normalizeDayKey = (raw: string | null | undefined): "training" | "rest" | "unknown" => {
+    const s = (raw ?? "").toString().toLowerCase();
+    if (!s) return "unknown";
+    if (s.includes("rest")) return "rest";
+    if (s.includes("training") || s.includes("workout") || s.includes("train")) return "training";
+    return "unknown";
+  };
+
+  /**
+   * Find the best matching meal_plan_days row across ALL of the client's active
+   * plans for a wanted day type. Handles the common case where one plan row
+   * contains BOTH a Training Day and a Rest Day inside meal_plan_days.
+   *
+   * Preference order:
+   *   1. Day inside a plan whose plan.day_type also matches the wantKey
+   *   2. Any day whose own day_type normalizes to the wantKey
+   * Within each tier, sorted by plan.sort_order then day.day_order.
+   */
+  const getDayByDayType = useCallback(
+    (wantKey: "training" | "rest") => {
+      if (!plans || plans.length === 0 || !allDays) return null;
+      const planById = new Map(plans.map((p) => [p.id, p]));
+      const candidates = (allDays as Array<MealPlanDay & { meal_plan_id: string }>)
+        .filter((d) => normalizeDayKey(d.day_type) === wantKey)
+        .map((d) => {
+          const p = planById.get(d.meal_plan_id);
+          if (!p) return null;
+          const planMatch = p.day_type === wantKey;
+          return { d, p, planMatch };
+        })
+        .filter((x): x is { d: MealPlanDay & { meal_plan_id: string }; p: MealPlanData; planMatch: boolean } => !!x)
+        .sort((a, b) => {
+          if (a.planMatch !== b.planMatch) return a.planMatch ? -1 : 1;
+          if (a.p.sort_order !== b.p.sort_order) return a.p.sort_order - b.p.sort_order;
+          return a.d.day_order - b.d.day_order;
+        });
+
+      const winner = candidates[0];
+      if (!winner) return null;
+      return {
+        plan: winner.p,
+        day: winner.d,
+        days: (allDays || []).filter((d) => d.meal_plan_id === winner.p.id),
+        items: (allItems || []).filter((i) => i.meal_plan_id === winner.p.id),
+      };
+    },
+    [plans, allDays, allItems]
+  );
+
+
+  /**
    * Group items by tracker key (meal-1..meal-6) using POSITION-based mapping
    * (coach's meal_order).
    */
