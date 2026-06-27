@@ -460,7 +460,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
                 awake_minutes: s.awakeMinutes,
                 bedtime_at: s.bedtimeAt,
                 wake_at: s.wakeAt,
-                source: "apple_health",
+                source: metricSource,
                 source_priority: 100,
                 synced_at: new Date().toISOString(),
               }));
@@ -538,7 +538,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         const metricRows = Array.from(metricsMap.entries()).map(([date, metrics]) => ({
           user_id: user.id,
           metric_date: date,
-          source: "apple_health",
+          source: metricSource,
           synced_at: new Date().toISOString(),
           ...(metrics.steps !== undefined ? { steps: metrics.steps } : {}),
           ...(metrics.active_energy_kcal !== undefined ? { active_energy_kcal: metrics.active_energy_kcal } : {}),
