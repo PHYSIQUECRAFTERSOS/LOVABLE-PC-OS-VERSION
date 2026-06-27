@@ -345,7 +345,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       assertLocalMidnightDateString(today, "syncNow.today");
       assertLocalMidnightDateString(weekAgo, "syncNow.weekAgo");
 
-      if (isNative && platform === "ios") {
+      if (isNative && nativePlugin) {
         // ── Query each metric independently for resilience ──
         let stepsValues: { date: string; value: number }[] = [];
         let energyValues: { date: string; value: number }[] = [];
