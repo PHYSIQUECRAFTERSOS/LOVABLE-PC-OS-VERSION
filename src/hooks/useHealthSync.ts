@@ -85,7 +85,14 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
   const isNative = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
+  // Keep the same `provider` row keys as before so existing DB rows stay valid.
+  // Android Health Connect writes to the same row that "google_fit" used.
   const provider = platform === "ios" ? "apple_health" : "google_fit";
+  // Which native plugin (if any) provides health data on this platform.
+  const nativePlugin = platform === "ios" ? HealthKit : platform === "android" ? HealthConnect : null;
+  const nativeLabel = platform === "ios" ? "Apple Health" : "Health Connect";
+  // Stored in daily_health_metrics.source so coaches can tell where data came from.
+  const metricSource = platform === "ios" ? "apple_health" : "health_connect";
 
   useEffect(() => {
     connectionRef.current = connection;
