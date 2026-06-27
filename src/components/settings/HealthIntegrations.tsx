@@ -45,8 +45,10 @@ const HealthIntegrations = () => {
   };
 
   const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+  const isNativeHealth = isNativeIOS || isNativeAndroid;
 
-  // Apple Health hook (used on native iOS)
+  // Apple Health (iOS) / Health Connect (Android) hook
   const healthSync = useHealthSync();
 
   // Fetch wearable connections
@@ -172,7 +174,7 @@ const HealthIntegrations = () => {
     setSyncingProvider("all");
 
     // Sync Apple Health if connected on native iOS
-    if (isNativeIOS && healthSync.connection?.is_connected) {
+    if (isNativeHealth && healthSync.connection?.is_connected) {
       await healthSync.syncNow();
     }
 
@@ -281,9 +283,16 @@ const HealthIntegrations = () => {
     );
   };
 
-  const renderAppleHealth = () => {
-    if (!isNativeIOS) {
-      // PWA / non-iOS: show grayed-out "Native App Only"
+  // Renders Apple Health (iOS) or Health Connect (Android) tile.
+  // Same Connect / Sync / Disconnect handlers — useHealthSync picks the right plugin.
+  const renderNativeHealth = () => {
+    const label = isNativeIOS ? "Apple Health" : "Health Connect";
+    const tagline = isNativeIOS
+      ? "Sync steps, calories & weight via Apple Health"
+      : "Sync steps, calories & sleep via Health Connect";
+
+    if (!isNativeHealth) {
+      // PWA / desktop: explain that native app is required for either.
       return (
         <div className="flex items-center justify-between rounded-lg border border-border p-4 opacity-60">
           <div className="flex items-center gap-3">
@@ -291,8 +300,8 @@ const HealthIntegrations = () => {
               <Smartphone className="h-5 w-5 text-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Apple Health</p>
-              <p className="text-xs text-muted-foreground">Requires native iOS app (not available in PWA)</p>
+              <p className="text-sm font-medium text-foreground">Apple Health / Health Connect</p>
+              <p className="text-xs text-muted-foreground">Requires the iOS or Android app (not available in PWA)</p>
             </div>
           </div>
           <Badge variant="secondary" className="text-xs">Native App Only</Badge>
@@ -300,7 +309,6 @@ const HealthIntegrations = () => {
       );
     }
 
-    // Native iOS: full Connect/Sync/Disconnect UI
     const connected = healthSync.connection?.is_connected;
     const connecting = connectingProvider === "apple_health";
     const syncing = syncingProvider === "apple_health" || syncingProvider === "all" || healthSync.syncing;
@@ -309,16 +317,20 @@ const HealthIntegrations = () => {
       <div className="flex items-center justify-between rounded-lg border border-border p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
-            <Smartphone className="h-5 w-5 text-foreground" />
+            {isNativeIOS ? (
+              <Smartphone className="h-5 w-5 text-foreground" />
+            ) : (
+              <Activity className="h-5 w-5 text-foreground" />
+            )}
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">Apple Health</p>
+            <p className="text-sm font-medium text-foreground">{label}</p>
             <p className="text-xs text-muted-foreground">
               {connected
                 ? healthSync.connection?.last_sync_at
                   ? `Last synced ${formatDistanceToNow(new Date(healthSync.connection.last_sync_at), { addSuffix: true })}`
                   : "Connected — awaiting first sync"
-                : "Sync steps, calories & weight via Apple Health"}
+                : tagline}
             </p>
           </div>
         </div>
@@ -343,7 +355,7 @@ const HealthIntegrations = () => {
     );
   };
 
-  const hasAnyConnection = wearables.some((w) => isReallyConnected(w.provider)) || (isNativeIOS && healthSync.connection?.is_connected);
+  const hasAnyConnection = wearables.some((w) => isReallyConnected(w.provider)) || (isNativeHealth && healthSync.connection?.is_connected);
 
   return (
     <Card>
@@ -354,22 +366,23 @@ const HealthIntegrations = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Apple Health — full UI on native iOS, grayed out on PWA */}
-        {renderAppleHealth()}
+        {/* Apple Health (iOS) / Health Connect (Android) — full UI on native, info card on PWA */}
+        {renderNativeHealth()}
 
-        {/* OAuth-based integrations */}
+        {/* OAuth-based integrations (Fitbit only — Google Fit REST API was retired by Google on June 30, 2025) */}
         {renderOAuthProvider("Fitbit", "fitbit", <Watch className="h-5 w-5 text-foreground" />, "Sync steps, heart rate & sleep via Fitbit")}
-        {renderOAuthProvider("Google Fit", "google_fit", <Activity className="h-5 w-5 text-foreground" />, "Sync steps & activity via Google Fit")}
 
-        {!isNativeIOS && (
+        {!isNativeHealth && (
           <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3">
             <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-xs text-muted-foreground">
-              Apple Health requires a native iOS app built with Xcode. It cannot be accessed from a web browser or PWA.
-              Use Fitbit or Google Fit for automatic step syncing, or log steps manually below.
+              Automatic step &amp; sleep sync requires the native iOS or Android app.
+              On Android, install Health Connect from the Play Store, then tap Connect inside the app.
+              In a browser/PWA, use Fitbit or log steps manually below.
             </p>
           </div>
         )}
+
 
         {/* Sync All */}
         {hasAnyConnection && (

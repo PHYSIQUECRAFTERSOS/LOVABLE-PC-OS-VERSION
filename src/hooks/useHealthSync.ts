@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import HealthKit from "@/plugins/HealthKitPlugin";
+import HealthConnect from "@/plugins/HealthConnectPlugin";
 import { getLocalDateString } from "@/utils/localDate";
 import {
   logSyncEvent,
@@ -84,7 +85,14 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
   const isNative = Capacitor.isNativePlatform();
   const platform = Capacitor.getPlatform();
+  // Keep the same `provider` row keys as before so existing DB rows stay valid.
+  // Android Health Connect writes to the same row that "google_fit" used.
   const provider = platform === "ios" ? "apple_health" : "google_fit";
+  // Which native plugin (if any) provides health data on this platform.
+  const nativePlugin = platform === "ios" ? HealthKit : platform === "android" ? HealthConnect : null;
+  const nativeLabel = platform === "ios" ? "Apple Health" : "Health Connect";
+  // Stored in daily_health_metrics.source so coaches can tell where data came from.
+  const metricSource = platform === "ios" ? "apple_health" : "health_connect";
 
   useEffect(() => {
     connectionRef.current = connection;
@@ -173,14 +181,14 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
   const connect = useCallback(async (): Promise<HealthConnection> => {
     if (!user) throw new Error("Not authenticated");
 
-    if (isNative && platform === "ios") {
-      console.log("[HealthSync] Starting Apple Health connect flow…");
+    if (isNative && nativePlugin) {
+      console.log(`[HealthSync] Starting ${nativeLabel} connect flow…`);
 
       let available = false;
       {
         const t0 = performance.now();
         try {
-          const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
+          const result = await pluginTimeout(nativePlugin.isAvailable(), 5000, `${nativeLabel}.isAvailable`);
           available = result.available;
           logSyncEvent({
             trigger: "connect", phase: "isAvailable", status: "success",
@@ -197,19 +205,27 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
             detail: msg, platform, isNative,
           });
           console.error("[HealthSync] isAvailable failed:", err);
-          throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+          throw new Error(
+            platform === "ios"
+              ? "Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities."
+              : "Could not check Health Connect availability. Make sure Health Connect is installed from the Play Store."
+          );
         }
       }
 
       if (!available) {
-        throw new Error("HealthKit is not available on this device.");
+        throw new Error(
+          platform === "ios"
+            ? "HealthKit is not available on this device."
+            : "Health Connect is not installed. Open the Play Store, install Health Connect, then try again."
+        );
       }
 
-      console.log("[HealthSync] Requesting HealthKit authorization…");
+      console.log(`[HealthSync] Requesting ${nativeLabel} authorization…`);
       {
         const t0 = performance.now();
         try {
-          await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
+          await pluginTimeout(nativePlugin.requestAuthorization(), 30000, `${nativeLabel}.requestAuthorization`);
           logSyncEvent({
             trigger: "connect", phase: "requestAuth", status: "success",
             durationMs: Math.round(performance.now() - t0),
@@ -224,11 +240,16 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
             detail: msg, platform, isNative,
           });
           console.error("[HealthSync] Authorization failed:", err);
-          throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
+          throw new Error(
+            platform === "ios"
+              ? "HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog."
+              : "Health Connect authorization failed or timed out. Open Health Connect → App permissions → Physique Crafters and allow all data types."
+          );
         }
       }
 
     }
+
 
     const { data, error } = await supabase
       .from("health_connections")
@@ -324,7 +345,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
       assertLocalMidnightDateString(today, "syncNow.today");
       assertLocalMidnightDateString(weekAgo, "syncNow.weekAgo");
 
-      if (isNative && platform === "ios") {
+      if (isNative && nativePlugin) {
         // ── Query each metric independently for resilience ──
         let stepsValues: { date: string; value: number }[] = [];
         let energyValues: { date: string; value: number }[] = [];
@@ -336,7 +357,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const result = await pluginTimeout(
-              HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
+              nativePlugin.querySteps({ startDate: weekAgo, endDate: today }),
               15000, "querySteps"
             );
             stepsValues = result.values;
@@ -364,7 +385,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const result = await pluginTimeout(
-              HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
+              nativePlugin.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
               15000, "queryActiveEnergy"
             );
             energyValues = result.values;
@@ -392,7 +413,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const result = await pluginTimeout(
-              HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
+              nativePlugin.queryDistance({ startDate: weekAgo, endDate: today }),
               15000, "queryDistance"
             );
             distanceValues = result.values;
@@ -422,7 +443,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const sleepRes = await pluginTimeout(
-              HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
+              nativePlugin.querySleep({ startDate: weekAgo, endDate: today }),
               15000, "querySleep"
             );
             const sleepRows = (sleepRes.values || [])
@@ -439,7 +460,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
                 awake_minutes: s.awakeMinutes,
                 bedtime_at: s.bedtimeAt,
                 wake_at: s.wakeAt,
-                source: "apple_health",
+                source: metricSource,
                 source_priority: 100,
                 synced_at: new Date().toISOString(),
               }));
@@ -517,7 +538,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
         const metricRows = Array.from(metricsMap.entries()).map(([date, metrics]) => ({
           user_id: user.id,
           metric_date: date,
-          source: "apple_health",
+          source: metricSource,
           synced_at: new Date().toISOString(),
           ...(metrics.steps !== undefined ? { steps: metrics.steps } : {}),
           ...(metrics.active_energy_kcal !== undefined ? { active_energy_kcal: metrics.active_energy_kcal } : {}),
@@ -604,7 +625,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
   // ── Auto-sync: 30-min interval + foreground resume ──
   useEffect(() => {
-    if (!enableAutoSync || !user || !isNative || platform !== "ios") return;
+    if (!enableAutoSync || !user || !isNative || !nativePlugin) return;
 
     console.log("[HealthSync] Setting up auto-sync (2-hour interval + foreground trigger)");
 
