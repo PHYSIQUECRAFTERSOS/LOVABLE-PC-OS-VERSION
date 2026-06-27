@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import HealthKit from "@/plugins/HealthKitPlugin";
+import HealthConnect from "@/plugins/HealthConnectPlugin";
 import { getLocalDateString } from "@/utils/localDate";
 import {
   logSyncEvent,
