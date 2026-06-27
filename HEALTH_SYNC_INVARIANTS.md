@@ -59,3 +59,33 @@ Order of investigation:
 2. Read the **raw `detail`** of the first failing phase.
 3. Fix in JS unless the log clearly indicates a native registration issue
    (e.g. "not implemented" — see BUILD.md triage procedure).
+
+---
+
+## Android (Health Connect)
+
+The same five invariants apply on Android. The native source of truth is
+Android Health Connect (`androidx.health.connect.client`), exposed to JS
+via `src/plugins/HealthConnectPlugin.ts` and the Kotlin implementation in
+`android-plugin/HealthConnectPlugin.kt` (installed into the Capacitor
+Android project via `scripts/post-cap-sync.sh`).
+
+`useHealthSync.ts` selects the plugin at runtime:
+
+```
+const nativePlugin =
+  platform === "ios"     ? HealthKit :
+  platform === "android" ? HealthConnect :
+  null;
+```
+
+- `connection.provider` stays `"google_fit"` on Android to preserve the
+  existing `health_connections` schema and dashboard queries. The data
+  source written to `daily_health_metrics.source` is `"health_connect"`.
+- The Google Fit REST API was retired by Google on June 30, 2025. The
+  edge function `google-fit-auth-start` now returns HTTP 410 with a
+  human-readable retirement message; do NOT re-introduce OAuth-based
+  Google Fit sync. Use Health Connect on Android instead.
+- If `HealthConnect.isAvailable()` returns `{ available: false }`,
+  Health Connect itself is not installed on the device — direct the
+  user to the Play Store, do not raise a hard error (invariant #3).
