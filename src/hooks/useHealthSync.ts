@@ -357,7 +357,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const result = await pluginTimeout(
-              HealthKit.querySteps({ startDate: weekAgo, endDate: today }),
+              nativePlugin.querySteps({ startDate: weekAgo, endDate: today }),
               15000, "querySteps"
             );
             stepsValues = result.values;
@@ -385,7 +385,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const result = await pluginTimeout(
-              HealthKit.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
+              nativePlugin.queryActiveEnergy({ startDate: weekAgo, endDate: today }),
               15000, "queryActiveEnergy"
             );
             energyValues = result.values;
@@ -413,7 +413,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const result = await pluginTimeout(
-              HealthKit.queryDistance({ startDate: weekAgo, endDate: today }),
+              nativePlugin.queryDistance({ startDate: weekAgo, endDate: today }),
               15000, "queryDistance"
             );
             distanceValues = result.values;
@@ -443,7 +443,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
           const t0 = performance.now();
           try {
             const sleepRes = await pluginTimeout(
-              HealthKit.querySleep({ startDate: weekAgo, endDate: today }),
+              nativePlugin.querySleep({ startDate: weekAgo, endDate: today }),
               15000, "querySleep"
             );
             const sleepRows = (sleepRes.values || [])
