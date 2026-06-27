@@ -1,54 +1,30 @@
-## Problem
-On the website (non-Capacitor) version, new clients hit the Terms of Service step during onboarding, scroll to the bottom, and the "I Accept" button doesn't reliably appear/work — they can't move forward. The same flow works fine inside the native iOS/Android app.
+## Why it's broken
 
-Rather than chase the web-only scroll/acceptance bug, we'll require clients to use the native app to complete onboarding (which is your intended experience anyway).
+Most coaches build ONE `meal_plans` row containing multiple `meal_plan_days`, where each DAY carries its own `day_type` ("Training Day", "Rest Day", "training", "rest", etc.). The current resolver in `DailyNutritionLog.tsx` calls `getPlanByDayType("rest")`, which only looks at the **plan-level** `day_type` column. If the client only has one plan (day_type='training' on the plan row, but with both training & rest DAYS inside), the rest-day lookup falls through to the "opposite" fallback and copies the Training Day items — exactly the bug shown ("Copy from Rest Day plan" pulling training foods).
 
-## Solution: App Download Gate
+Verified in the database: e.g. plans like "Zane Karuna Meal plan", "Scott Szeto - PLAN", "Joshua Williams Back To ABS", "Johan Ramirez cutting plan" all have a single plan row (plan_day_type='training') containing BOTH a Training Day and a Rest Day in `meal_plan_days`.
 
-Add a hard gate **right after the client accepts the invite / signs in** but **before** they reach the Terms of Service / onboarding flow. If they're on the browser (not inside Capacitor), they see a full-screen "Download the app to continue" wall with both store buttons. If they're already on the native app, nothing changes.
+## Fix
 
-### Where the gate lives
-A new component `RequireNativeApp.tsx` wrapped around the onboarding route in `src/App.tsx` (and `AcceptInvite` post-signup redirect). Detection uses `window.Capacitor?.isNativePlatform?.()` — same check already used in `PWAInstallPrompt.tsx`.
+Resolve the copy source by scanning DAYS across all of the client's active plans, not plans.
 
-Gate triggers only for **clients who haven't completed onboarding**. Coaches/admins and already-onboarded clients are unaffected, so existing clients logging in on desktop to check messages aren't blocked.
+### 1. `src/hooks/useMealPlanTracker.ts`
+Add a helper `getDayByDayType(wantKey: "training" | "rest")` that:
+- Normalizes `meal_plan_days.day_type` (lowercase; if it contains "rest" → "rest", contains "training" → "training", else "unknown").
+- Returns the first matching `{ plan, day, items }` across all of the user's active plans, preferring a day whose parent plan's `day_type` also matches (stable ordering by plan `sort_order`, then `day_order`).
+- Returns `null` when no day of that type exists anywhere.
 
-### What the gate screen shows
-Full-screen matte-black + gold panel (matches Physique Crafters aesthetic):
-- PHYSIQUE CRAFTERS logo/wordmark
-- Headline: "Finish setup in the app"
-- Sub: "To complete your onboarding and sign your agreement, please download the Physique Crafters app."
-- Two large buttons:
-  - **App Store** → https://apps.apple.com/ca/app/physique-crafters/id6760598660
-  - **Google Play** → https://play.google.com/store/apps/details?id=com.physiquecrafters.app.twa
-- Smart device detection: iOS UA shows App Store first; Android UA shows Play first; desktop shows both side-by-side with a "Open on your phone" hint.
-- Small "Sign out" link at the bottom so they can switch accounts if needed.
-- No bypass / "continue on web" option — this is a hard gate, per your request.
+### 2. `src/components/nutrition/DailyNutritionLog.tsx`
+Replace the `copySourcePlanData` resolution:
+- Primary: use new `getDayByDayType(wantKey)` to find the correct day.
+- Secondary: only if NO day of the wanted type exists across all plans, fall back to the opposite (existing fallback toast already warns the user).
+- Pass the resolved `day.id` directly into `getItemsForMealSection(...)` so items come from that specific day, regardless of which plan owns it.
+- Update the button label logic to read from the new resolver (still shows "Copy from Rest Day plan" / "Copy from Training Day plan").
 
-### Files touched
-1. **New:** `src/components/onboarding/RequireNativeApp.tsx` — the gate component (Capacitor check + UA detection + store buttons).
-2. **Edit:** `src/App.tsx` — wrap the `/onboarding` route with `<RequireNativeApp>`.
-3. **Edit:** `src/pages/AcceptInvite.tsx` — after successful invite acceptance on the web, route to onboarding (which the gate will then block with the download screen) instead of trying to run the web onboarding.
-4. **Optional small touch:** add the two store badges as imported SVG/PNG assets in `src/assets/` for crisp rendering.
+No DB changes; no UI redesign. Pure logic fix.
 
-### Out of scope (intentionally)
-- Not fixing the underlying web ToS scroll bug — the gate makes it unreachable on web.
-- Not touching coach/admin login.
-- Not touching the in-app onboarding flow itself (already works).
+## Verification
 
-## Visual summary
-```
-Web user accepts invite → signs in → tries to load /onboarding
-        ↓
-RequireNativeApp checks Capacitor.isNativePlatform()
-        ↓                                ↓
-   native (app)                    browser (web)
-        ↓                                ↓
-   onboarding runs           ┌──────────────────────┐
-                             │  Download the app    │
-                             │  [ App Store ]       │
-                             │  [ Google Play ]     │
-                             │   Sign out           │
-                             └──────────────────────┘
-```
-
-Confirm and I'll implement.
+- Re-read the file, run `tsgo --noEmit`.
+- Spot-check with a SQL query for a couple of affected clients: confirm `getDayByDayType("rest")` would pick the actual Rest Day row.
+- Drive Playwright on `/nutrition` if a logged-in client session is available; otherwise confirm via code trace + unit-level reasoning that on a rest day the button now reads from the Rest Day's `day_id`.
