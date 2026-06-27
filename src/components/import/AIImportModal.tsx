@@ -14,6 +14,7 @@ import FoodMatchReview from "./FoodMatchReview";
 import SupplementReview from "./SupplementReview";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { prependTrainerizeWorkoutSummary } from "@/lib/ai-import/trainerizeWorkoutParser";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -24,10 +25,27 @@ async function extractTextFromPDF(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    const pageText = content.items.map((item: any) => item.str).join(" ");
+    const rows: Array<{ y: number; items: Array<{ x: number; str: string }> }> = [];
+    for (const item of content.items as any[]) {
+      const str = String(item.str || "").trim();
+      if (!str) continue;
+      const x = Number(item.transform?.[4] ?? 0);
+      const y = Number(item.transform?.[5] ?? 0);
+      let row = rows.find((r) => Math.abs(r.y - y) <= 2.5);
+      if (!row) {
+        row = { y, items: [] };
+        rows.push(row);
+      }
+      row.items.push({ x, str });
+    }
+    const pageText = rows
+      .sort((a, b) => b.y - a.y)
+      .map((row) => row.items.sort((a, b) => a.x - b.x).map((item) => item.str).join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .join("\n");
     textParts.push(`--- Page ${i} ---\n${pageText}`);
   }
-  return textParts.join("\n");
+  return prependTrainerizeWorkoutSummary(textParts.join("\n"));
 }
 
 /**
