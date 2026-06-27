@@ -625,7 +625,7 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
 
   // ── Auto-sync: 30-min interval + foreground resume ──
   useEffect(() => {
-    if (!enableAutoSync || !user || !isNative || platform !== "ios") return;
+    if (!enableAutoSync || !user || !isNative || !nativePlugin) return;
 
     console.log("[HealthSync] Setting up auto-sync (2-hour interval + foreground trigger)");
 
