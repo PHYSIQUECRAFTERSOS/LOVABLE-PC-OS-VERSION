@@ -18,7 +18,7 @@ import { prependTrainerizeWorkoutSummary } from "@/lib/ai-import/trainerizeWorko
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-async function extractTextFromPDF(file: File): Promise<string> {
+async function extractTextFromPDF(file: File, documentType?: string): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const textParts: string[] = [];
@@ -45,7 +45,8 @@ async function extractTextFromPDF(file: File): Promise<string> {
       .join("\n");
     textParts.push(`--- Page ${i} ---\n${pageText}`);
   }
-  return prependTrainerizeWorkoutSummary(textParts.join("\n"));
+  const extractedText = textParts.join("\n");
+  return documentType === "workout" ? prependTrainerizeWorkoutSummary(extractedText) : extractedText;
 }
 
 /**
@@ -186,7 +187,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
         if (file.type === "application/pdf") {
           toast.info("Extracting text from PDF...");
-          const extractedText = await extractTextFromPDF(file);
+          const extractedText = await extractTextFromPDF(file, docType);
           console.log("Extracted text length:", extractedText.length, "characters");
           uploadBlob = new Blob([extractedText], { type: "text/plain" });
           uploadName = file.name.replace(/\.pdf$/i, ".txt");
