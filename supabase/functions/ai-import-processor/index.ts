@@ -241,6 +241,7 @@ serve(async (req) => {
 
     const userContentParts: any[] = [];
     const downloadedPaths: string[] = [];
+    let trainerizeBoundarySummary: any | null = null;
 
     userContentParts.push({
       type: "text",
@@ -275,6 +276,11 @@ serve(async (req) => {
       // Handle .txt files (pre-extracted text from PDFs) as plain text
       if (fileName.toLowerCase().endsWith(".txt")) {
         const rawText = new TextDecoder().decode(arrayBuffer);
+        const parsedSummary = document_type === "workout" ? extractTrainerizeSummaryFromText(rawText) : null;
+        if (parsedSummary && !trainerizeBoundarySummary) {
+          trainerizeBoundarySummary = parsedSummary;
+          console.log(`[ai-import] Trainerize boundary summary found in ${fileName}: ${parsedSummary.workouts?.length || 0} workouts`);
+        }
         const extractedText = cleanWorkoutText(rawText);
         console.log("Extracted text length:", extractedText.length, "characters");
         userContentParts.push({
@@ -301,6 +307,12 @@ serve(async (req) => {
 
     const extractionSuffix = document_type === "workout"
       ? `Extract the workout program from the above document.
+
+If a ${TRAINERIZE_WORKOUT_SUMMARY_START} block is present, it is the SOURCE OF TRUTH for workout boundaries and exercise rows:
+- Return exactly the workouts[] listed in that summary block, no more and no fewer.
+- Keep every day_name EXACTLY as written in that summary block.
+- Do not create workouts from exercise-demo pages, Tracking Sheet rows, Previous Stats, boilerplate, or instruction text.
+- You may clean obvious PDF truncation in exercise names only when the raw text below clearly gives the full name.
 
 IGNORE the global tempo / warmup / stretching / execution boilerplate that repeats on every page.
 
@@ -400,6 +412,10 @@ Return ONLY a raw JSON object. No markdown. No backticks. No explanation. Start 
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    if (document_type === "workout" && trainerizeBoundarySummary) {
+      extracted = normalizeAgainstTrainerizeSummary(extracted, trainerizeBoundarySummary);
     }
 
     // Normalize new shape ({ workouts[], schedule[] }) → also populate days[] so the
