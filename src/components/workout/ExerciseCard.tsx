@@ -573,7 +573,10 @@ const ExerciseCard = ({
                       <button
                         type="button"
                         onClick={() => openKeypad(setIdx, "reps")}
-                        className="h-8 w-[52px] rounded-md border border-input bg-background text-base font-extrabold font-workout-mono text-center tabular-nums"
+                        className={cn(
+                          "flex-1 min-w-[52px] h-8 px-2 rounded-md border bg-background text-base font-extrabold font-workout-mono text-center tabular-nums transition-colors",
+                          isKeypadActiveReps ? "border-primary ring-1 ring-primary/40" : "border-input",
+                        )}
                       >
                         {repsDisplay || "—"}
                       </button>
@@ -592,7 +595,7 @@ const ExerciseCard = ({
                             if (!isNaN(num) && num >= 0) onUpdateLog(setIdx, "reps", num);
                           }
                         }}
-                        className="text-base font-extrabold font-workout-mono h-8 w-[52px] text-center tabular-nums"
+                        className="text-base font-extrabold font-workout-mono h-8 flex-1 min-w-[52px] text-center tabular-nums"
                       />
                     )}
                     <RPESelector
