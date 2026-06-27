@@ -181,14 +181,14 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
   const connect = useCallback(async (): Promise<HealthConnection> => {
     if (!user) throw new Error("Not authenticated");
 
-    if (isNative && platform === "ios") {
-      console.log("[HealthSync] Starting Apple Health connect flow…");
+    if (isNative && nativePlugin) {
+      console.log(`[HealthSync] Starting ${nativeLabel} connect flow…`);
 
       let available = false;
       {
         const t0 = performance.now();
         try {
-          const result = await pluginTimeout(HealthKit.isAvailable(), 5000, "HealthKit.isAvailable");
+          const result = await pluginTimeout(nativePlugin.isAvailable(), 5000, `${nativeLabel}.isAvailable`);
           available = result.available;
           logSyncEvent({
             trigger: "connect", phase: "isAvailable", status: "success",
@@ -205,19 +205,27 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
             detail: msg, platform, isNative,
           });
           console.error("[HealthSync] isAvailable failed:", err);
-          throw new Error("Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities.");
+          throw new Error(
+            platform === "ios"
+              ? "Could not check HealthKit availability. Make sure HealthKit is enabled in Xcode Capabilities."
+              : "Could not check Health Connect availability. Make sure Health Connect is installed from the Play Store."
+          );
         }
       }
 
       if (!available) {
-        throw new Error("HealthKit is not available on this device.");
+        throw new Error(
+          platform === "ios"
+            ? "HealthKit is not available on this device."
+            : "Health Connect is not installed. Open the Play Store, install Health Connect, then try again."
+        );
       }
 
-      console.log("[HealthSync] Requesting HealthKit authorization…");
+      console.log(`[HealthSync] Requesting ${nativeLabel} authorization…`);
       {
         const t0 = performance.now();
         try {
-          await pluginTimeout(HealthKit.requestAuthorization(), 30000, "HealthKit.requestAuthorization");
+          await pluginTimeout(nativePlugin.requestAuthorization(), 30000, `${nativeLabel}.requestAuthorization`);
           logSyncEvent({
             trigger: "connect", phase: "requestAuth", status: "success",
             durationMs: Math.round(performance.now() - t0),
@@ -232,11 +240,16 @@ export function useHealthSync(options: UseHealthSyncOptions = {}) {
             detail: msg, platform, isNative,
           });
           console.error("[HealthSync] Authorization failed:", err);
-          throw new Error("HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog.");
+          throw new Error(
+            platform === "ios"
+              ? "HealthKit authorization failed or timed out. Please try again and tap 'Allow' on the permission dialog."
+              : "Health Connect authorization failed or timed out. Open Health Connect → App permissions → Physique Crafters and allow all data types."
+          );
         }
       }
 
     }
+
 
     const { data, error } = await supabase
       .from("health_connections")
