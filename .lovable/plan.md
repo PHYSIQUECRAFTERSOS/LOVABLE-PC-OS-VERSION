@@ -1,44 +1,54 @@
-## Goal
-Make the client nutrition tracker visibly state whether today is a **Training Day** or **Rest Day**, and guarantee the per-meal "Copy from meal plan" button auto-pulls foods from the matching plan (training vs rest) inside a single multi-day meal plan — no manual tab switching.
+## Problem
+On the website (non-Capacitor) version, new clients hit the Terms of Service step during onboarding, scroll to the bottom, and the "I Accept" button doesn't reliably appear/work — they can't move forward. The same flow works fine inside the native iOS/Android app.
 
-## Current state (already in place)
-- `src/utils/resolveDayType.ts` already detects training vs rest by scanning `calendar_events` for non-accessory workouts.
-- `DailyNutritionLog.tsx` already computes `copySourcePlanData` for the per-meal "Copy from meal plan" button strictly from the calendar-resolved day type (training → training plan, rest → rest plan, with `all_days` and opposite-day fallbacks).
-- Plan pills ("Training Day" / "Rest Day") already default to the resolved day type.
+Rather than chase the web-only scroll/acceptance bug, we'll require clients to use the native app to complete onboarding (which is your intended experience anyway).
 
-So the per-meal copy is *already wired correctly* — the user's pain is mostly **visibility** (they can't tell at a glance what day the app detected) and confirmation that the right plan is being pulled. We'll surface the detection clearly and label the action.
+## Solution: App Download Gate
 
-## Changes
+Add a hard gate **right after the client accepts the invite / signs in** but **before** they reach the Terms of Service / onboarding flow. If they're on the browser (not inside Capacitor), they see a full-screen "Download the app to continue" wall with both store buttons. If they're already on the native app, nothing changes.
 
-### 1. Day-type badge at top of nutrition tracker
-File: `src/components/nutrition/DailyNutritionLog.tsx`
+### Where the gate lives
+A new component `RequireNativeApp.tsx` wrapped around the onboarding route in `src/App.tsx` (and `AcceptInvite` post-signup redirect). Detection uses `window.Capacitor?.isNativePlatform?.()` — same check already used in `PWAInstallPrompt.tsx`.
 
-Add a small pill/badge directly under the date header (above the macro rings) that shows:
-- **Training Day** — gold background, `Dumbbell` Lucide icon
-- **Rest Day** — neutral dark background, `Moon` Lucide icon
+Gate triggers only for **clients who haven't completed onboarding**. Coaches/admins and already-onboarded clients are unaffected, so existing clients logging in on desktop to check messages aren't blocked.
 
-The value comes from the existing `dayType` (`resolveDayType`) state. Badge is read-only — purely informational. Coach view keeps existing behavior (no badge needed since coach can switch days freely).
+### What the gate screen shows
+Full-screen matte-black + gold panel (matches Physique Crafters aesthetic):
+- PHYSIQUE CRAFTERS logo/wordmark
+- Headline: "Finish setup in the app"
+- Sub: "To complete your onboarding and sign your agreement, please download the Physique Crafters app."
+- Two large buttons:
+  - **App Store** → https://apps.apple.com/ca/app/physique-crafters/id6760598660
+  - **Google Play** → https://play.google.com/store/apps/details?id=com.physiquecrafters.app.twa
+- Smart device detection: iOS UA shows App Store first; Android UA shows Play first; desktop shows both side-by-side with a "Open on your phone" hint.
+- Small "Sign out" link at the bottom so they can switch accounts if needed.
+- No bypass / "continue on web" option — this is a hard gate, per your request.
 
-### 2. Label the per-meal copy button with the source plan
-Same file, around the "Copy from meal plan" button (line 734-745).
+### Files touched
+1. **New:** `src/components/onboarding/RequireNativeApp.tsx` — the gate component (Capacitor check + UA detection + store buttons).
+2. **Edit:** `src/App.tsx` — wrap the `/onboarding` route with `<RequireNativeApp>`.
+3. **Edit:** `src/pages/AcceptInvite.tsx` — after successful invite acceptance on the web, route to onboarding (which the gate will then block with the download screen) instead of trying to run the web onboarding.
+4. **Optional small touch:** add the two store badges as imported SVG/PNG assets in `src/assets/` for crisp rendering.
 
-Update the button label to reflect which plan it pulls from, so the client sees that it's auto-pulling the correct day:
-- Training day detected → "Copy from Training Day plan"
-- Rest day detected → "Copy from Rest Day plan"
-- Falls back to `all_days` → "Copy from meal plan"
-- Falls back to opposite day (no matching plan exists) → "Copy from {Training/Rest} Day plan" with the existing warning toast preserved
+### Out of scope (intentionally)
+- Not fixing the underlying web ToS scroll bug — the gate makes it unreachable on web.
+- Not touching coach/admin login.
+- Not touching the in-app onboarding flow itself (already works).
 
-Derived from `copySourcePlanData.wantKey` + `copySourcePlanData.source`, which already exist.
+## Visual summary
+```
+Web user accepts invite → signs in → tries to load /onboarding
+        ↓
+RequireNativeApp checks Capacitor.isNativePlatform()
+        ↓                                ↓
+   native (app)                    browser (web)
+        ↓                                ↓
+   onboarding runs           ┌──────────────────────┐
+                             │  Download the app    │
+                             │  [ App Store ]       │
+                             │  [ Google Play ]     │
+                             │   Sign out           │
+                             └──────────────────────┘
+```
 
-### 3. Light cleanup
-- Ensure the badge is mobile-friendly (full visible at 375px width, no truncation).
-- No changes to data fetching, no new tables, no schema work.
-- No changes to the existing plan-pill nav (it stays so users can still preview the other day's plan if they want).
-
-## Files touched
-- `src/components/nutrition/DailyNutritionLog.tsx` (add badge, relabel copy button)
-
-## Out of scope
-- Coach-side meal plan builder.
-- Any change to how meal plans are stored or how `resolveDayType` works.
-- Schema/RLS changes.
+Confirm and I'll implement.

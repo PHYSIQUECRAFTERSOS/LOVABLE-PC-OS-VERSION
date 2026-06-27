@@ -13,6 +13,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Setup from "./pages/Setup";
 import AcceptInvite from "./pages/AcceptInvite";
 import Onboarding from "./pages/Onboarding";
+import RequireNativeApp from "./components/onboarding/RequireNativeApp";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import AdminRepairSavedMeals from "./pages/AdminRepairSavedMeals";
@@ -91,7 +92,7 @@ const App = () => (
             <Route path="/setup" element={<Setup />} />
             <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
-            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+            <Route path="/onboarding" element={<ProtectedRoute><RequireNativeApp><Onboarding /></RequireNativeApp></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
             <Route path="/nutrition" element={<ProtectedRoute><Nutrition /></ProtectedRoute>} />
