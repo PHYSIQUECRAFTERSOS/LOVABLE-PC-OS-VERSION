@@ -8,7 +8,6 @@ import { useConsistencyStreak } from "@/components/dashboard/ConsistencyStreak";
 import CommunityQuickAccess from "@/components/dashboard/CommunityQuickAccess";
 import ProgressMomentum from "@/components/dashboard/ProgressMomentum";
 import MacroSummary from "@/components/dashboard/MacroSummary";
-import UpcomingEvents from "@/components/dashboard/UpcomingEvents";
 import QuickLogFAB from "@/components/dashboard/QuickLogFAB";
 import CoachCommandCenter from "@/components/dashboard/CoachCommandCenter";
 import DateNavigator from "@/components/dashboard/DateNavigator";
@@ -118,9 +117,6 @@ const ClientDashboard = () => {
 
       {/* Nutrition */}
       <MacroSummary />
-
-      {/* Upcoming */}
-      <UpcomingEvents />
 
       {/* Quick Log FAB */}
       <QuickLogFAB />
