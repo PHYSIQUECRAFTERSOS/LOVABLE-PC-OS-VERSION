@@ -502,6 +502,7 @@ export function useMealPlanTracker(selectedDate?: Date) {
     allDays: allDays || [],
     allItems: allItems || [],
     getPlanByDayType,
+    getDayByDayType,
     getItemsBySection,
     getItemsForMealSection,
     getCoachMealNameAtPosition,
@@ -509,3 +510,4 @@ export function useMealPlanTracker(selectedDate?: Date) {
     copyEntireDayToTracker,
   };
 }
+
