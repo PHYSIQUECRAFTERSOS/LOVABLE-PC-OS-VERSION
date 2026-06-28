@@ -98,10 +98,10 @@ function extractName(raw: string): string {
   const markers = [
     /\d+\s+sets?\s*x/i,
     /\d+\s+set\s*x/i,
-    /\b\d+\s*-\s*\d+\s*reps\b/i,
-    /\b\d+\s*reps\b/i,
+    /\d+\s*-\s*\d+\s*reps\b/i,
+    /\d+\s*reps\b/i,
     /\bAMRAP\b/i,
-    /\b\d+\s*seconds(?:\s*\/\s*(?:side|exercise))?\b/i,
+    /\d+\s*seconds(?:\s*\/\s*(?:side|exercise))?\b/i,
   ];
   let cut = clean.length;
   for (const marker of markers) {
