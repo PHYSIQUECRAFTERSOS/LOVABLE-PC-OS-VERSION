@@ -40,9 +40,19 @@ function stripDecorations(line: string): string {
 }
 
 function canonicalHeading(line: string): string | null {
-  const clean = stripDecorations(line)
+  let clean = stripDecorations(line)
     .replace(/^EXERCISE\s+/i, "")
     .replace(/\s+Regular workout\b.*$/i, "")
+    .trim();
+
+  // Strip concatenated global boilerplate that often runs into the heading line
+  // (e.g. "Day 1: Chest & Back & arms ATempo [2:0:1:0]FOR ALL EXERCISES except abs")
+  clean = clean
+    .replace(/Tempo\s*\[.*$/i, "")
+    .replace(/FOR ALL EXERCISES.*$/i, "")
+    .replace(/Which is\s*\[.*$/i, "")
+    .replace(/ALL SET SHOULD.*$/i, "")
+    .replace(/2\s+Second eccentric.*$/i, "")
     .trim();
 
   if (/^stretches$/i.test(clean)) return "Stretches";
@@ -65,16 +75,18 @@ function secondsFromRest(raw: string): number | null {
 
 function extractReps(raw: string): string | null {
   const normalized = raw.replace(/\s+/g, " ").trim();
-  const explicitSet = normalized.match(/\b\d+\s+sets?\s*x\s*(.+?)(?=\s+Rest\b|\s*\(|$)/i);
+  // No leading \b — PDFs often concatenate the trailing letter of the name into
+  // the count (e.g. "press3 sets x 8-10 reps").
+  const explicitSet = normalized.match(/\d+\s+sets?\s*x\s*(.+?)(?=\s+Rest\b|\s*\(|$)/i);
   if (explicitSet?.[1]) return explicitSet[1].trim();
-  const reps = normalized.match(/\b(AMRAP|\d+\s*-\s*\d+\s*reps(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*reps(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*seconds\s*\/\s*(?:side|exercise)|\d+\s*seconds?)\b/i);
+  const reps = normalized.match(/\b(AMRAP|\d+\s*-\s*\d+\s*re(?:ps?|s)(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*re(?:ps?|s)(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*seconds\s*\/\s*(?:side|exercise)|\d+\s*seconds?)\b/i);
   return reps?.[1]?.replace(/\s+/g, " ").trim() ?? null;
 }
 
 function extractSets(raw: string, groupSets: number | null): number | null {
-  const explicit = raw.match(/\b(\d+)\s+sets?\s*x\b/i);
+  const explicit = raw.match(/(\d+)\s+sets?\s*x/i);
   if (explicit) return Number(explicit[1]);
-  const single = raw.match(/\b(\d+)\s+set\s*x\b/i);
+  const single = raw.match(/(\d+)\s+set\s*x/i);
   if (single) return Number(single[1]);
   return groupSets;
 }
@@ -84,12 +96,12 @@ function extractName(raw: string): string {
   clean = clean.replace(/\s+Rest\s+(?:for\s+)?\d+\s*(?:sec|secs|second|seconds|min|mins|minute|minutes|m).*$/i, "").trim();
 
   const markers = [
-    /\b\d+\s+sets?\s*x\b/i,
-    /\b\d+\s+set\s*x\b/i,
-    /\b\d+\s*-\s*\d+\s*reps\b/i,
-    /\b\d+\s*reps\b/i,
+    /\d+\s+sets?\s*x/i,
+    /\d+\s+set\s*x/i,
+    /\d+\s*-\s*\d+\s*re(?:ps?|s)\b/i,
+    /\d+\s*re(?:ps?|s)\b/i,
     /\bAMRAP\b/i,
-    /\b\d+\s*seconds(?:\s*\/\s*(?:side|exercise))?\b/i,
+    /\d+\s*seconds(?:\s*\/\s*(?:side|exercise))?\b/i,
   ];
   let cut = clean.length;
   for (const marker of markers) {
@@ -109,10 +121,48 @@ function noteFromRow(raw: string): string | null {
   return notes.length ? Array.from(new Set(notes)).join("; ") : null;
 }
 
-function isExerciseBullet(line: string): boolean {
-  if (!/^\s*▶/.test(line)) return false;
-  if (/^\s*▶\s*$/.test(line)) return false;
-  return /\b(reps?|AMRAP|seconds?|sets?\s*x|Rest\s+\d+)/i.test(line);
+// Lines that look like exercise rows on their own (have a "N sets x M ..." signature).
+// Detection no longer depends on a leading ▶ — many Trainerize PDFs strip the bullet
+// glyph or place it on a separate line below the block.
+function isPlainExerciseRow(line: string): boolean {
+  const c = stripDecorations(line);
+  if (!c || c.length < 4) return false;
+  if (isExerciseInstruction(line)) return false;
+  if (
+    /^(EXERCISE\b|Exercise Name|Tracking Sheet|Previous Stats|Dismiss|Instructions|Warmup|Tempo\b|Superset of|Rest for|Rest\s+\d|Repeat new set|Phase\s+\d|Format:|NAME\s|PRINT\b|Page \d|---|Physique Crafters)/i.test(c)
+  ) return false;
+  if (/^Set\s+\d/i.test(c)) return false;
+  if (/^https?:\/\//i.test(c)) return false;
+  if (/^\d{4}-\d{2}-\d{2}/.test(c)) return false;
+  // Boilerplate / coach-cue prose
+  if (
+    /^(The\b|For\b|If\b|You\b|Then\b|Example\b|ALL\b|IF\b|Which\b|This\b|That\b|We\b|Stand\b|Lower\b|Push\b|Keep\b|Bump\b|2\s+Second|EACH SIDE|Dumbbell bench press\b)/i.test(c)
+  ) return false;
+  // Strong signatures: "N set(s) x ..." (reps, range, or seconds)
+  // Strong signatures: "N set(s) x ..." (reps, range, or seconds). No leading \b
+  // because PDFs often concatenate the name into the count, e.g. "press3 sets x".
+  if (/\d+\s+sets?\s*x\s*\d/i.test(c)) return true;
+  if (/\d+\s+set\s*x\s*\d/i.test(c)) return true;
+  return false;
+}
+
+// Inside a "Superset of N sets" block, members appear as "Name 8-10 reps" — no
+// "sets x" signature. Only accept these while we are actively inside a superset.
+function isSupersetMember(line: string): boolean {
+  const c = stripDecorations(line);
+  if (!c) return false;
+  if (isExerciseInstruction(line)) return false;
+  if (/^(Rest|Repeat|Superset|Tracking|Previous|Set\s+\d|EXERCISE|Dismiss|Instructions|Warmup|Tempo\b|Physique Crafters|Page \d|---|https?:\/\/)/i.test(c)) return false;
+  if (/^\d{4}-\d{2}-\d{2}/.test(c)) return false;
+  if (/^(The\b|For\b|If\b|You\b|Then\b|Example\b|ALL\b|IF\b|Which\b|This\b|That\b|We\b|EACH SIDE)/i.test(c)) return false;
+  // Must START with a non-digit (real name), then contain a reps/seconds/AMRAP token.
+  if (!/^\D/.test(c)) return false;
+  return (
+    /\b\d+\s*-\s*\d+\s*re(?:ps?|s)\b/i.test(c) ||
+    /\b\d+\s*re(?:ps?|s)\b/i.test(c) ||
+    /\b\d+\s*seconds?(?:\s*\/\s*(?:side|exercise|leg|arm))?\b/i.test(c) ||
+    /\bAMRAP\b/i.test(c)
+  );
 }
 
 function isExerciseInstruction(line: string): boolean {
@@ -185,7 +235,10 @@ function parseWorkoutSegment(dayName: string, lines: string[]): ParsedWorkout {
       continue;
     }
 
-    if (!isExerciseBullet(line) || isExerciseInstruction(line)) continue;
+    const isPlain = isPlainExerciseRow(line);
+    const isMember = !isPlain && currentGroup != null && isSupersetMember(line);
+    if (!isPlain && !isMember) continue;
+    if (isExerciseInstruction(line)) continue;
 
     const name = extractName(line);
     const reps = extractReps(line);
@@ -210,11 +263,18 @@ function parseWorkoutSegment(dayName: string, lines: string[]): ParsedWorkout {
     exercises.push(exercise);
   }
 
-  if (trackingNames.length >= exercises.length) {
-    exercises.forEach((exercise, index) => {
-      const fullName = trackingNames[index];
-      if (fullName && (!exercise.name || exercise.name.includes("…") || fullName.length > exercise.name.length)) {
-        exercise.name = fullName;
+  // Repair truncated exercise names (containing "…") by matching against the
+  // Tracking-Sheet's full name list. Avoid positional overrides — those misalign
+  // when the exercise count differs from the tracking-name count.
+  if (trackingNames.length > 0) {
+    exercises.forEach((exercise) => {
+      if (!exercise.name) return;
+      const isTruncated = exercise.name.includes("…") || /…\s*$/.test(exercise.name);
+      const stem = exercise.name.replace(/[.…]+$/g, "").trim().toLowerCase();
+      if (!stem) return;
+      const match = trackingNames.find((tn) => tn.toLowerCase().startsWith(stem));
+      if (match && (isTruncated || match.length > exercise.name.length)) {
+        exercise.name = match;
       }
     });
   }

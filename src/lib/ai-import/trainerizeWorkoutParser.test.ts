@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { extractTrainerizeWorkoutSummary, prependTrainerizeWorkoutSummary } from "./trainerizeWorkoutParser";
 
 const workoutBlock = (name: string, firstExercise: string) => `
@@ -62,5 +64,40 @@ ${workoutBlock("stretches", "Trap stretch")}
     const text = `Physique Crafters\ntrainerize.com\n${workoutBlock("[AWAY]Day 1: Upper", "Row")}\n${workoutBlock("Day 1: UPPER A", "Press")}`;
 
     expect(prependTrainerizeWorkoutSummary(text)).toMatch(/^<<<TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>/);
+  });
+
+  it("parses Lee's 4-day PDF (no ▶ prefix on exercise rows)", () => {
+    const text = fs.readFileSync(
+      path.join(__dirname, "__fixtures__", "lee-4-day.txt"),
+      "utf-8",
+    );
+    const summary = extractTrainerizeWorkoutSummary(text);
+    expect(summary).not.toBeNull();
+    const names = summary!.workouts.map((w) => w.day_name);
+    expect(names).toEqual([
+      "Day 1: Chest & Back & arms A",
+      "Day 2: Shoulders & Legs A & Calves & core A",
+      "Day 3: Chest & Back & arms B",
+      "Day 4: Shoulders & Legs A & Calves & core B",
+    ]);
+
+    const day1 = summary!.workouts[0];
+    const day1Names = day1.exercises.map((e) => e.name.toLowerCase());
+    expect(day1Names).toContain("upper body mobility routine");
+    expect(day1Names).toContain("flat dumbbell bench press");
+    expect(day1Names).toContain("machine neutral row");
+    expect(day1Names.some((n) => n.includes("lying dumbbell curl"))).toBe(true);
+    expect(day1Names.some((n) => n.includes("lying dumbbell tricep"))).toBe(true);
+
+    const day3 = summary!.workouts[2];
+    const day3Names = day3.exercises.map((e) => e.name.toLowerCase());
+    expect(day3Names.some((n) => n.includes("dumbbell hammer curl"))).toBe(true);
+    expect(day3Names.some((n) => n.includes("smith machine close grip bench"))).toBe(true);
+
+    // Bench press in Day 1: 3 sets x 8-10 reps, 120s rest
+    const bench = day1.exercises.find((e) => /flat dumbbell bench press/i.test(e.name))!;
+    expect(bench.sets).toBe(3);
+    expect(bench.reps).toMatch(/8\s*-\s*10/);
+    expect(bench.rest_seconds).toBe(120);
   });
 });
