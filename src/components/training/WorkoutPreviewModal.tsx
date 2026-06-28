@@ -276,8 +276,9 @@ const WorkoutPreviewModal = ({
                           isGrouped ? "ml-2 border-l-2 border-l-primary/30" : ""
                         }`}
                       >
-                        <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                          {ex.youtube_thumbnail ? (
+                        {(() => {
+                          const playUrl = ex.youtube_url || ex.video_url;
+                          const ThumbInner = ex.youtube_thumbnail ? (
                             <img
                               src={ex.youtube_thumbnail}
                               alt={ex.name}
@@ -286,8 +287,27 @@ const WorkoutPreviewModal = ({
                             />
                           ) : (
                             <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
-                          )}
-                        </div>
+                          );
+                          return playUrl ? (
+                            <button
+                              type="button"
+                              aria-label="Watch exercise video"
+                              onClick={() => setVideoUrl(playUrl)}
+                              className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center group"
+                            >
+                              {ThumbInner}
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                                <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-red-600 shadow">
+                                  <Play className="h-3.5 w-3.5 text-white fill-white" />
+                                </span>
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+                              {ThumbInner}
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex-1 min-w-0 space-y-1">
                           <p className="text-sm font-medium text-foreground truncate">
@@ -330,6 +350,17 @@ const WorkoutPreviewModal = ({
                             </p>
                           )}
                         </div>
+
+                        {(ex.youtube_url || ex.video_url) && (
+                          <button
+                            type="button"
+                            aria-label="Watch exercise video"
+                            onClick={() => setVideoUrl(ex.youtube_url || ex.video_url)}
+                            className="shrink-0 self-center inline-flex items-center justify-center h-8 w-11 rounded-md bg-red-600 hover:bg-red-700 transition-colors shadow-sm"
+                          >
+                            <Play className="h-4 w-4 text-white fill-white" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
