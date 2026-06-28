@@ -79,7 +79,7 @@ function extractReps(raw: string): string | null {
   // the count (e.g. "press3 sets x 8-10 reps").
   const explicitSet = normalized.match(/\d+\s+sets?\s*x\s*(.+?)(?=\s+Rest\b|\s*\(|$)/i);
   if (explicitSet?.[1]) return explicitSet[1].trim();
-  const reps = normalized.match(/\b(AMRAP|\d+\s*-\s*\d+\s*reps(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*reps(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*seconds\s*\/\s*(?:side|exercise)|\d+\s*seconds?)\b/i);
+  const reps = normalized.match(/\b(AMRAP|\d+\s*-\s*\d+\s*re(?:ps?|s)(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*re(?:ps?|s)(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*seconds\s*\/\s*(?:side|exercise)|\d+\s*seconds?)\b/i);
   return reps?.[1]?.replace(/\s+/g, " ").trim() ?? null;
 }
 
