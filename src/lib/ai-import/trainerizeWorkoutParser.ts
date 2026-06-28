@@ -40,9 +40,19 @@ function stripDecorations(line: string): string {
 }
 
 function canonicalHeading(line: string): string | null {
-  const clean = stripDecorations(line)
+  let clean = stripDecorations(line)
     .replace(/^EXERCISE\s+/i, "")
     .replace(/\s+Regular workout\b.*$/i, "")
+    .trim();
+
+  // Strip concatenated global boilerplate that often runs into the heading line
+  // (e.g. "Day 1: Chest & Back & arms ATempo [2:0:1:0]FOR ALL EXERCISES except abs")
+  clean = clean
+    .replace(/Tempo\s*\[.*$/i, "")
+    .replace(/FOR ALL EXERCISES.*$/i, "")
+    .replace(/Which is\s*\[.*$/i, "")
+    .replace(/ALL SET SHOULD.*$/i, "")
+    .replace(/2\s+Second eccentric.*$/i, "")
     .trim();
 
   if (/^stretches$/i.test(clean)) return "Stretches";
