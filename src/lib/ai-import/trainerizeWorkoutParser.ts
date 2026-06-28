@@ -119,10 +119,46 @@ function noteFromRow(raw: string): string | null {
   return notes.length ? Array.from(new Set(notes)).join("; ") : null;
 }
 
-function isExerciseBullet(line: string): boolean {
-  if (!/^\s*▶/.test(line)) return false;
-  if (/^\s*▶\s*$/.test(line)) return false;
-  return /\b(reps?|AMRAP|seconds?|sets?\s*x|Rest\s+\d+)/i.test(line);
+// Lines that look like exercise rows on their own (have a "N sets x M ..." signature).
+// Detection no longer depends on a leading ▶ — many Trainerize PDFs strip the bullet
+// glyph or place it on a separate line below the block.
+function isPlainExerciseRow(line: string): boolean {
+  const c = stripDecorations(line);
+  if (!c || c.length < 4) return false;
+  if (isExerciseInstruction(line)) return false;
+  if (
+    /^(EXERCISE\b|Exercise Name|Tracking Sheet|Previous Stats|Dismiss|Instructions|Warmup|Tempo\b|Superset of|Rest for|Rest\s+\d|Repeat new set|Phase\s+\d|Format:|NAME\s|PRINT\b|Page \d|---|Physique Crafters)/i.test(c)
+  ) return false;
+  if (/^Set\s+\d/i.test(c)) return false;
+  if (/^https?:\/\//i.test(c)) return false;
+  if (/^\d{4}-\d{2}-\d{2}/.test(c)) return false;
+  // Boilerplate / coach-cue prose
+  if (
+    /^(The\b|For\b|If\b|You\b|Then\b|Example\b|ALL\b|IF\b|Which\b|This\b|That\b|We\b|Stand\b|Lower\b|Push\b|Keep\b|Bump\b|2\s+Second|EACH SIDE|Dumbbell bench press\b)/i.test(c)
+  ) return false;
+  // Strong signatures: "N set(s) x ..." (reps, range, or seconds)
+  if (/\b\d+\s+sets?\s*x\s*\d/i.test(c)) return true;
+  if (/\b\d+\s+set\s*x\s*\d/i.test(c)) return true;
+  return false;
+}
+
+// Inside a "Superset of N sets" block, members appear as "Name 8-10 reps" — no
+// "sets x" signature. Only accept these while we are actively inside a superset.
+function isSupersetMember(line: string): boolean {
+  const c = stripDecorations(line);
+  if (!c) return false;
+  if (isExerciseInstruction(line)) return false;
+  if (/^(Rest|Repeat|Superset|Tracking|Previous|Set\s+\d|EXERCISE|Dismiss|Instructions|Warmup|Tempo\b|Physique Crafters|Page \d|---|https?:\/\/)/i.test(c)) return false;
+  if (/^\d{4}-\d{2}-\d{2}/.test(c)) return false;
+  if (/^(The\b|For\b|If\b|You\b|Then\b|Example\b|ALL\b|IF\b|Which\b|This\b|That\b|We\b|EACH SIDE)/i.test(c)) return false;
+  // Must START with a non-digit (real name), then contain a reps/seconds/AMRAP token.
+  if (!/^\D/.test(c)) return false;
+  return (
+    /\b\d+\s*-\s*\d+\s*reps?\b/i.test(c) ||
+    /\b\d+\s*reps?\b/i.test(c) ||
+    /\b\d+\s*seconds?(?:\s*\/\s*(?:side|exercise|leg|arm))?\b/i.test(c) ||
+    /\bAMRAP\b/i.test(c)
+  );
 }
 
 function isExerciseInstruction(line: string): boolean {
