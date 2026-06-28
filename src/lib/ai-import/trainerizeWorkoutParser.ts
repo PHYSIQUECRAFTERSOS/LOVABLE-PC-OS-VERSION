@@ -235,13 +235,11 @@ function parseWorkoutSegment(dayName: string, lines: string[]): ParsedWorkout {
 
     const isPlain = isPlainExerciseRow(line);
     const isMember = !isPlain && currentGroup != null && isSupersetMember(line);
-    if (process.env.DEBUG_TPARSER) console.log("[parse]", { line, isPlain, isMember, currentGroup });
     if (!isPlain && !isMember) continue;
     if (isExerciseInstruction(line)) continue;
 
     const name = extractName(line);
     const reps = extractReps(line);
-    if (process.env.DEBUG_TPARSER) console.log("  ->", { name, reps });
     if (!name || !reps) continue;
 
     const exercise: ParsedExercise = {
