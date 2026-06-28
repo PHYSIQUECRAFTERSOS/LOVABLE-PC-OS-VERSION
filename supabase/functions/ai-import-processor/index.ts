@@ -155,16 +155,36 @@ function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
     const aiWorkout = aiByName.get(name) || null;
     const aiExercises = Array.isArray(aiWorkout?.exercises) ? aiWorkout.exercises : [];
     const summaryExercises = Array.isArray(summaryWorkout.exercises) ? summaryWorkout.exercises : [];
-    const useSummaryExercises = aiExercises.length < Math.max(1, Math.floor(summaryExercises.length * 0.65));
+
+    // If the deterministic parser found any exercises, it is the source of truth.
+    // Borrow only tempo/rir/rpe/notes from the AI by position when the summary
+    // doesn't already specify them (the parser doesn't read tempo/RIR).
+    let exercises: any[];
+    if (summaryExercises.length > 0) {
+      exercises = summaryExercises.map((sex: any, i: number) => {
+        const aex = aiExercises[i] || {};
+        return {
+          ...sex,
+          tempo: sex.tempo ?? aex.tempo ?? null,
+          rir: sex.rir ?? aex.rir ?? null,
+          rpe: sex.rpe ?? aex.rpe ?? null,
+          notes: sex.notes ?? aex.notes ?? null,
+        };
+      });
+    } else {
+      exercises = aiExercises;
+    }
 
     return {
       ...(aiWorkout || {}),
       day_name: name,
       instructions: aiWorkout?.instructions ?? summaryWorkout.instructions ?? null,
-      exercises: useSummaryExercises ? summaryExercises : aiExercises,
-      superset_groups: Array.isArray(aiWorkout?.superset_groups) && aiWorkout.superset_groups.length > 0
-        ? aiWorkout.superset_groups
-        : (summaryWorkout.superset_groups || []),
+      exercises,
+      superset_groups: summaryExercises.length > 0
+        ? (summaryWorkout.superset_groups || [])
+        : (Array.isArray(aiWorkout?.superset_groups) && aiWorkout.superset_groups.length > 0
+            ? aiWorkout.superset_groups
+            : (summaryWorkout.superset_groups || [])),
     };
   });
 
