@@ -1,29 +1,25 @@
 ## Goal
-Let clients tap a clear YouTube-style play button on any exercise inside the workout preview (both from Dashboard/Calendar and from the Training tab in their profile) to watch the exercise demo video before starting the workout.
+On the Nutrition → **Meal Plan** tab, auto-open the day that matches today's calendar (Training Day if a workout is scheduled today, Rest Day otherwise) instead of always defaulting to the first day.
 
-## Current state
-- **Dashboard / Calendar** flow uses `src/components/dashboard/WorkoutStartPopup.tsx`, which already shows a per-exercise video button — but the icon is a small gray `HelpCircle` ("?"), which clients don't recognize as "watch video" (screenshot 1).
-- **Client profile → Training tab** uses `src/components/training/WorkoutPreviewModal.tsx` (screenshot 2). It already loads each exercise's `youtube_url` / `video_url` but does **not** expose any way to play the video before starting the workout.
+## Where the bug is
+`src/components/nutrition/ClientStructuredMealPlan.tsx`
 
-## Changes
+- Lines 119–146 already detect today's workout and set `activeDayType`, but only when the coach built **multiple separate plans** (one per day_type). For Kevin's setup ("KEVIN WU 2026 NUTRITION") there is **one plan** with two days inside it labeled `training` / `rest` — so this branch never matches the actual day pills.
+- Lines 156–164 then auto-select `activeDays[0]`, which is always the first day ("training"), regardless of whether today is a rest day.
 
-### 1. `src/components/training/WorkoutPreviewModal.tsx`
-- Add a `videoUrl` state + a small `Dialog` with a YouTube iframe (same pattern as `WorkoutStartPopup`, including a `getYouTubeId()` helper).
-- On each exercise row, when `youtube_url` or `video_url` exists, render a tappable YouTube-style play button on the right side of the row that opens the video.
-- Also make the exercise thumbnail tappable to open the same video (so the existing thumbnail becomes an obvious affordance, with a small play overlay on hover/always for clarity).
+## Fix (single file, presentation only)
 
-### 2. `src/components/dashboard/WorkoutStartPopup.tsx`
-- Replace the `HelpCircle` icon button with the same YouTube-style play button so the UI is consistent and obviously means "watch video".
-
-### 3. New shared icon (inline, no new file)
-Use a small rounded red badge (`bg-red-600`) with a white `Play` triangle (Lucide `Play`, `fill-white`), sized ~28px — visually reads as the standard YouTube play button while staying within the existing Lucide-only constraint.
-
-## Out of scope
-- No DB / RLS / data-fetch changes (videos already load with the exercise).
-- No changes to the in-workout logging screen (that already has per-exercise video).
-- No new routes or pages.
+1. Always run the calendar check on mount (today's date only, per your answer) — independent of `plans.length`.
+2. After `activeDays` is computed, when selecting the initial day, instead of blindly picking `activeDays[0]`:
+   - If `todayIsTraining === true`, pick the first day whose `day_type` (normalized lowercase) contains `"training"` or `"workout"`.
+   - If `todayIsTraining === false`, pick the first day whose `day_type` contains `"rest"`.
+   - Fall back to `activeDays[0]` if no label match is found (preserves current behavior for plans without labeled days).
+3. Only apply this auto-pick on the initial mount / when plans first load — don't override the user if they manually tap a different day pill afterward (guard with a `hasAutoPickedRef`).
+4. Keep the existing multi-plan `activeDayType` selection logic unchanged.
+5. Do NOT touch the "Copy from meal plan" button logic — it already works.
 
 ## Verification
-- Open client profile → Training → tap a workout: each exercise with a video shows the red play button; tapping it opens the YouTube iframe.
-- Open Dashboard "Start workout" popup: same red play button replaces the `?` icon, behavior unchanged.
-- Exercises with no video do not render the button.
+- Read final file to confirm no behavior change for coaches with multi-plan setups.
+- Manual smoke: open Meal Plan tab on a rest day → "rest" pill is preselected; on a training day → "training" pill is preselected; tapping the other pill still works and sticks.
+
+No DB changes, no new components, no styling changes.

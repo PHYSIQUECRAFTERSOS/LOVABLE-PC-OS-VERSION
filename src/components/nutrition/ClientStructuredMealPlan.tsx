@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -115,13 +115,12 @@ const ClientStructuredMealPlan = ({
     return () => { cancelled = true; };
   }, [allDays]);
 
-  // Auto-suggest day type based on calendar
+  // Detect today's training status once (always today, regardless of selectedDate)
   useEffect(() => {
-    if (!user || plans.length === 0) return;
-    if (defaultDayType) { setActiveDayType(defaultDayType); return; }
-
-    const checkToday = async () => {
-      const today = toLocalDateString(selectedDate || new Date());
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const today = toLocalDateString(new Date());
       const { data: events } = await supabase
         .from("calendar_events")
         .select("event_type")
@@ -129,21 +128,26 @@ const ClientStructuredMealPlan = ({
         .eq("event_date", today)
         .eq("event_type", "workout")
         .limit(1);
+      if (cancelled) return;
+      setTodayIsTraining((events || []).length > 0);
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
-      const hasWorkout = (events || []).length > 0;
-      setTodayIsTraining(hasWorkout);
+  // Auto-suggest plan day_type (for coaches who built separate plans per day type)
+  useEffect(() => {
+    if (plans.length === 0 || todayIsTraining === null) return;
+    if (defaultDayType) { setActiveDayType(defaultDayType); return; }
+    if (activeDayType) return; // don't override user selection
 
-      // Pick the best plan
-      if (hasWorkout && plans.find((p) => p.day_type === "training")) {
-        setActiveDayType("training");
-      } else if (!hasWorkout && plans.find((p) => p.day_type === "rest")) {
-        setActiveDayType("rest");
-      } else {
-        setActiveDayType(plans[0].day_type);
-      }
-    };
-    checkToday();
-  }, [user, plans, selectedDate, defaultDayType]);
+    if (todayIsTraining && plans.find((p) => p.day_type === "training")) {
+      setActiveDayType("training");
+    } else if (!todayIsTraining && plans.find((p) => p.day_type === "rest")) {
+      setActiveDayType("rest");
+    } else {
+      setActiveDayType(plans[0].day_type);
+    }
+  }, [plans, todayIsTraining, defaultDayType, activeDayType]);
 
   // Get active plan data
   const activeData = useMemo(() => {
@@ -153,15 +157,36 @@ const ClientStructuredMealPlan = ({
 
   const { plan: activePlan, days: activeDays, items: activeItems } = activeData;
 
-  // Auto-select first day when plan changes
+  // Auto-select day within the plan — prefer the day matching today's training status.
+  // Only runs once per plan load; manual taps stick.
+  const hasAutoPickedRef = useRef(false);
   useEffect(() => {
-    if (activeDays.length > 0) {
-      setSelectedDayId(activeDays[0].id);
-      setCompletedSections(new Set());
-    } else {
+    hasAutoPickedRef.current = false;
+  }, [activeDayType]);
+
+  useEffect(() => {
+    if (activeDays.length === 0) {
       setSelectedDayId(null);
+      return;
     }
-  }, [activeDays]);
+    if (hasAutoPickedRef.current) return;
+    if (todayIsTraining === null) return; // wait for calendar detection
+
+    const matchTraining = (label: string) => /training|workout/i.test(label || "");
+    const matchRest = (label: string) => /rest/i.test(label || "");
+
+    let pick = null as null | typeof activeDays[number];
+    if (todayIsTraining) {
+      pick = activeDays.find((d) => matchTraining(d.day_type)) || null;
+    } else {
+      pick = activeDays.find((d) => matchRest(d.day_type)) || null;
+    }
+    const chosen = pick || activeDays[0];
+    setSelectedDayId(chosen.id);
+    setCompletedSections(new Set());
+    hasAutoPickedRef.current = true;
+  }, [activeDays, todayIsTraining]);
+
 
   // Auto-track
   useEffect(() => {
