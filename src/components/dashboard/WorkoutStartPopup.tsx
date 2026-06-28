@@ -168,14 +168,14 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
                     </p>
                   </div>
                   {ex.video_url && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
+                    <button
+                      type="button"
+                      aria-label="Watch exercise video"
+                      className="shrink-0 inline-flex items-center justify-center h-8 w-11 rounded-md bg-red-600 hover:bg-red-700 active:bg-red-700 transition-colors shadow-sm"
                       onClick={() => setVideoUrl(ex.video_url)}
                     >
-                      <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                    </Button>
+                      <Play className="h-4 w-4 text-white fill-white" />
+                    </button>
                   )}
                 </div>
               ))
