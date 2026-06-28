@@ -66,6 +66,12 @@ const WorkoutPreviewModal = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
   const isMobile = useIsMobile();
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  const getYouTubeId = (url: string): string | null => {
+    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  };
 
   // 3-dot menu state
   const [showMenu, setShowMenu] = useState(false);
