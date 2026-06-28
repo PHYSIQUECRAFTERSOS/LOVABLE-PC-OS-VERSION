@@ -66,6 +66,12 @@ const WorkoutPreviewModal = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
   const isMobile = useIsMobile();
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  const getYouTubeId = (url: string): string | null => {
+    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return m ? m[1] : null;
+  };
 
   // 3-dot menu state
   const [showMenu, setShowMenu] = useState(false);
@@ -270,8 +276,9 @@ const WorkoutPreviewModal = ({
                           isGrouped ? "ml-2 border-l-2 border-l-primary/30" : ""
                         }`}
                       >
-                        <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
-                          {ex.youtube_thumbnail ? (
+                        {(() => {
+                          const playUrl = ex.youtube_url || ex.video_url;
+                          const ThumbInner = ex.youtube_thumbnail ? (
                             <img
                               src={ex.youtube_thumbnail}
                               alt={ex.name}
@@ -280,8 +287,27 @@ const WorkoutPreviewModal = ({
                             />
                           ) : (
                             <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
-                          )}
-                        </div>
+                          );
+                          return playUrl ? (
+                            <button
+                              type="button"
+                              aria-label="Watch exercise video"
+                              onClick={() => setVideoUrl(playUrl)}
+                              className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center group"
+                            >
+                              {ThumbInner}
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                                <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-red-600 shadow">
+                                  <Play className="h-3.5 w-3.5 text-white fill-white" />
+                                </span>
+                              </span>
+                            </button>
+                          ) : (
+                            <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+                              {ThumbInner}
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex-1 min-w-0 space-y-1">
                           <p className="text-sm font-medium text-foreground truncate">
@@ -324,6 +350,17 @@ const WorkoutPreviewModal = ({
                             </p>
                           )}
                         </div>
+
+                        {(ex.youtube_url || ex.video_url) && (
+                          <button
+                            type="button"
+                            aria-label="Watch exercise video"
+                            onClick={() => setVideoUrl(ex.youtube_url || ex.video_url)}
+                            className="shrink-0 self-center inline-flex items-center justify-center h-8 w-11 rounded-md bg-red-600 hover:bg-red-700 transition-colors shadow-sm"
+                          >
+                            <Play className="h-4 w-4 text-white fill-white" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -395,6 +432,26 @@ const WorkoutPreviewModal = ({
             <Button variant="ghost" size="sm" onClick={() => setShowRenameDialog(false)}>Cancel</Button>
             <Button size="sm" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>Rename</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exercise video player */}
+      <Dialog open={!!videoUrl} onOpenChange={() => setVideoUrl(null)}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden">
+          {videoUrl && getYouTubeId(videoUrl) ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${getYouTubeId(videoUrl)}?playsinline=1&rel=0&modestbranding=1&autoplay=1`}
+              title="Exercise Video"
+              width="100%"
+              height="300"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="rounded-lg"
+            />
+          ) : videoUrl ? (
+            <video src={videoUrl} controls autoPlay playsInline className="w-full h-[300px] bg-black" />
+          ) : null}
         </DialogContent>
       </Dialog>
     </>
