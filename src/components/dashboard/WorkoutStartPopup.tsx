@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
-import { Loader2, X, HelpCircle, Play } from "lucide-react";
+import { Loader2, X, Play } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { formatDistanceToNow } from "date-fns";
 import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";

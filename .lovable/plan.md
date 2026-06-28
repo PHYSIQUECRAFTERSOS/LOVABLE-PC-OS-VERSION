@@ -1,52 +1,29 @@
+## Goal
+Let clients tap a clear YouTube-style play button on any exercise inside the workout preview (both from Dashboard/Calendar and from the Training tab in their profile) to watch the exercise demo video before starting the workout.
 
-## Why steps and sleep aren't syncing for Joe (Android)
+## Current state
+- **Dashboard / Calendar** flow uses `src/components/dashboard/WorkoutStartPopup.tsx`, which already shows a per-exercise video button — but the icon is a small gray `HelpCircle` ("?"), which clients don't recognize as "watch video" (screenshot 1).
+- **Client profile → Training tab** uses `src/components/training/WorkoutPreviewModal.tsx` (screenshot 2). It already loads each exercise's `youtube_url` / `video_url` but does **not** expose any way to play the video before starting the workout.
 
-After reviewing the code, there are two real problems — not a small bug:
+## Changes
 
-1. **`useHealthSync.ts` only runs the native sync block when `platform === "ios"`.** On Android it never queries any health source, so the dashboard's Steps / Sleep cards stay blank. The hook currently sets `provider = "google_fit"` on Android but then does nothing with it.
-2. **The Google Fit REST API used by `google-fit-auth-start` / `sync-wearable-steps` was officially shut down by Google on June 30, 2025.** Even when a user completes the OAuth flow, the token works briefly (or not at all) and the aggregate steps/sleep endpoints return errors. Google's replacement on Android is **Health Connect** — a native API, not a REST/OAuth API. There is no working "Google Fit" web sync to fix.
-3. There is no Android native plugin in the repo. `ios-plugin/HealthKitPlugin.swift` exists, but there is no Kotlin/Java counterpart, so Android currently has no way to read step or sleep data at all.
+### 1. `src/components/training/WorkoutPreviewModal.tsx`
+- Add a `videoUrl` state + a small `Dialog` with a YouTube iframe (same pattern as `WorkoutStartPopup`, including a `getYouTubeId()` helper).
+- On each exercise row, when `youtube_url` or `video_url` exists, render a tappable YouTube-style play button on the right side of the row that opens the video.
+- Also make the exercise thumbnail tappable to open the same video (so the existing thumbnail becomes an obvious affordance, with a small play overlay on hover/always for clarity).
 
-The fix is to add **Android Health Connect** as a first-class sync source, mirroring the iOS HealthKit path, and quietly retire the dead Google Fit OAuth flow.
+### 2. `src/components/dashboard/WorkoutStartPopup.tsx`
+- Replace the `HelpCircle` icon button with the same YouTube-style play button so the UI is consistent and obviously means "watch video".
 
-## Plan
+### 3. New shared icon (inline, no new file)
+Use a small rounded red badge (`bg-red-600`) with a white `Play` triangle (Lucide `Play`, `fill-white`), sized ~28px — visually reads as the standard YouTube play button while staying within the existing Lucide-only constraint.
 
-### 1. Add a Capacitor Health Connect plugin (Android)
-- Install `capacitor-health-connect` (community plugin that wraps Android's `androidx.health.connect.client`) and register it in `MainActivity`.
-- Add Health Connect permissions to `android/app/src/main/AndroidManifest.xml` for: `Steps`, `Distance`, `ActiveCaloriesBurned`, `SleepSession`.
-- Add the Health Connect permission-rationale activity declaration required by Google Play's Health Connect policy.
-- Update `scripts/post-cap-sync.sh` so the manifest/plugin glue isn't lost on `npx cap sync`.
+## Out of scope
+- No DB / RLS / data-fetch changes (videos already load with the exercise).
+- No changes to the in-workout logging screen (that already has per-exercise video).
+- No new routes or pages.
 
-### 2. Create a JS wrapper mirroring the HealthKit plugin shape
-- New file `src/plugins/HealthConnectPlugin.ts` exposing the same surface used by iOS today: `isAvailable()`, `requestAuthorization()`, `querySteps`, `queryDistance`, `queryActiveEnergy`, `querySleep` — each returning `{ date, value }[]` keyed by local YYYY-MM-DD via `getLocalDateString()` (invariant #1).
-- Handle the Android-specific "Health Connect app not installed" case by returning `available: false` instead of throwing, so Settings still renders cleanly (invariant #3).
-
-### 3. Wire Android into `useHealthSync.ts`
-- Replace the `if (isNative && platform === "ios")` branch with a shared `if (isNative)` branch that picks `HealthKit` on iOS and `HealthConnect` on Android.
-- Keep the same `allSettled`-style per-metric error handling, global sync lock, 2-hour interval, foreground-resume sync, and `logSyncEvent` calls (invariants #2, #4, #5).
-- Store the connection row with `provider: "google_fit"` (keeps existing `health_connections` rows and dashboard queries working) but write `source: "health_connect"` on `daily_health_metrics` so coaches can tell where data came from.
-
-### 4. Update the Settings UI (`HealthIntegrations.tsx`)
-- On Android native, replace the dead OAuth "Google Fit" tile with a **Health Connect** tile that uses the same Connect / Sync / Disconnect handlers already wired up for Apple Health.
-- Keep the OAuth Fitbit tile (Fitbit API still works).
-- On PWA Android, show a "Requires the Android app" notice and link to the Play Store listing (same pattern already used for iOS).
-
-### 5. Retire the broken Google Fit OAuth path safely
-- Leave the existing edge functions in place but make `google-fit-auth-start` return a clear "Google Fit API was retired by Google — please use Health Connect in the Android app" message instead of an OAuth URL, so any old buttons/links don't silently fail.
-- Don't drop any tables or existing `wearable_connections` rows.
-
-### 6. Verify
-- Typecheck and build.
-- Run a Playwright pass on `/profile` (settings) to confirm the Health Connect tile renders for Android UA and the Apple Health tile is unchanged for iOS UA.
-- Add a short note in `HEALTH_SYNC_INVARIANTS.md` documenting the Android path so future edits don't regress it.
-
-## Technical notes (for the engineer)
-
-- Health Connect APIs require `compileSdk = 34+` and `minSdk = 26`; check `android/variables.gradle` and bump if needed.
-- Sleep is read from `SleepSessionRecord` + `SleepStageRecord`; map stages → `deep/rem/light/awake_minutes` to match the existing `sleep_logs` schema already used by iOS.
-- Health Connect uses an explicit permission contract launched from an Activity. The plugin call must happen after Capacitor bridge ready (invariant #2). The user grants permissions in the Health Connect system UI, not an in-app modal.
-- For Joe specifically: after this ships, he must (a) update to the new Android build, (b) install/open Health Connect from the Play Store if it isn't already on his device, and (c) tap Connect → Allow on the permission screen. The first sync will backfill the last 7 days.
-
-## Open question
-
-Joe — is he using the **Android app from the Play Store** (the Capacitor build), or just the **website / PWA on Chrome**? Health Connect only works inside the native Android app. If he's on the PWA, the fix is to get him onto the Play Store build; there is no working web-based step/sleep sync on Android anymore. Let me know and I'll tailor the messaging in the Settings UI accordingly.
+## Verification
+- Open client profile → Training → tap a workout: each exercise with a video shows the red play button; tapping it opens the YouTube iframe.
+- Open Dashboard "Start workout" popup: same red play button replaces the `?` icon, behavior unchanged.
+- Exercises with no video do not render the button.
