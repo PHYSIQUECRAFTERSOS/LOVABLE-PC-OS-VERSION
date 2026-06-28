@@ -259,11 +259,18 @@ function parseWorkoutSegment(dayName: string, lines: string[]): ParsedWorkout {
     exercises.push(exercise);
   }
 
-  if (trackingNames.length >= exercises.length) {
-    exercises.forEach((exercise, index) => {
-      const fullName = trackingNames[index];
-      if (fullName && (!exercise.name || exercise.name.includes("…") || fullName.length > exercise.name.length)) {
-        exercise.name = fullName;
+  // Repair truncated exercise names (containing "…") by matching against the
+  // Tracking-Sheet's full name list. Avoid positional overrides — those misalign
+  // when the exercise count differs from the tracking-name count.
+  if (trackingNames.length > 0) {
+    exercises.forEach((exercise) => {
+      if (!exercise.name) return;
+      const isTruncated = exercise.name.includes("…") || /…\s*$/.test(exercise.name);
+      const stem = exercise.name.replace(/[.…]+$/g, "").trim().toLowerCase();
+      if (!stem) return;
+      const match = trackingNames.find((tn) => tn.toLowerCase().startsWith(stem));
+      if (match && (isTruncated || match.length > exercise.name.length)) {
+        exercise.name = match;
       }
     });
   }
