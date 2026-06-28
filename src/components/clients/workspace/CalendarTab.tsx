@@ -1026,10 +1026,6 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
                     <Input value={cardioTargetValue} onChange={e => setCardioTargetValue(e.target.value)} className="h-8" placeholder="e.g. Burn 300 calories" />
                   </div>
                 )}
-                <div>
-                  <Label className="text-xs">Notes (optional)</Label>
-                  <Textarea value={cardioNotes} onChange={e => setCardioNotes(e.target.value)} className="h-16 text-xs" placeholder="Additional instructions..." />
-                </div>
               </div>
             )}
 
