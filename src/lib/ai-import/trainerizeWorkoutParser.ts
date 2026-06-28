@@ -158,8 +158,8 @@ function isSupersetMember(line: string): boolean {
   // Must START with a non-digit (real name), then contain a reps/seconds/AMRAP token.
   if (!/^\D/.test(c)) return false;
   return (
-    /\b\d+\s*-\s*\d+\s*reps?\b/i.test(c) ||
-    /\b\d+\s*reps?\b/i.test(c) ||
+    /\b\d+\s*-\s*\d+\s*re(?:ps?|s)\b/i.test(c) ||
+    /\b\d+\s*re(?:ps?|s)\b/i.test(c) ||
     /\b\d+\s*seconds?(?:\s*\/\s*(?:side|exercise|leg|arm))?\b/i.test(c) ||
     /\bAMRAP\b/i.test(c)
   );
