@@ -75,16 +75,18 @@ function secondsFromRest(raw: string): number | null {
 
 function extractReps(raw: string): string | null {
   const normalized = raw.replace(/\s+/g, " ").trim();
-  const explicitSet = normalized.match(/\b\d+\s+sets?\s*x\s*(.+?)(?=\s+Rest\b|\s*\(|$)/i);
+  // No leading \b — PDFs often concatenate the trailing letter of the name into
+  // the count (e.g. "press3 sets x 8-10 reps").
+  const explicitSet = normalized.match(/\d+\s+sets?\s*x\s*(.+?)(?=\s+Rest\b|\s*\(|$)/i);
   if (explicitSet?.[1]) return explicitSet[1].trim();
   const reps = normalized.match(/\b(AMRAP|\d+\s*-\s*\d+\s*reps(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*reps(?:\s*\/\s*(?:side|leg|arm))?|\d+\s*seconds\s*\/\s*(?:side|exercise)|\d+\s*seconds?)\b/i);
   return reps?.[1]?.replace(/\s+/g, " ").trim() ?? null;
 }
 
 function extractSets(raw: string, groupSets: number | null): number | null {
-  const explicit = raw.match(/\b(\d+)\s+sets?\s*x\b/i);
+  const explicit = raw.match(/(\d+)\s+sets?\s*x/i);
   if (explicit) return Number(explicit[1]);
-  const single = raw.match(/\b(\d+)\s+set\s*x\b/i);
+  const single = raw.match(/(\d+)\s+set\s*x/i);
   if (single) return Number(single[1]);
   return groupSets;
 }
@@ -94,8 +96,8 @@ function extractName(raw: string): string {
   clean = clean.replace(/\s+Rest\s+(?:for\s+)?\d+\s*(?:sec|secs|second|seconds|min|mins|minute|minutes|m).*$/i, "").trim();
 
   const markers = [
-    /\b\d+\s+sets?\s*x\b/i,
-    /\b\d+\s+set\s*x\b/i,
+    /\d+\s+sets?\s*x/i,
+    /\d+\s+set\s*x/i,
     /\b\d+\s*-\s*\d+\s*reps\b/i,
     /\b\d+\s*reps\b/i,
     /\bAMRAP\b/i,
