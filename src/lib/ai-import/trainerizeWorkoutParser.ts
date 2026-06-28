@@ -137,8 +137,10 @@ function isPlainExerciseRow(line: string): boolean {
     /^(The\b|For\b|If\b|You\b|Then\b|Example\b|ALL\b|IF\b|Which\b|This\b|That\b|We\b|Stand\b|Lower\b|Push\b|Keep\b|Bump\b|2\s+Second|EACH SIDE|Dumbbell bench press\b)/i.test(c)
   ) return false;
   // Strong signatures: "N set(s) x ..." (reps, range, or seconds)
-  if (/\b\d+\s+sets?\s*x\s*\d/i.test(c)) return true;
-  if (/\b\d+\s+set\s*x\s*\d/i.test(c)) return true;
+  // Strong signatures: "N set(s) x ..." (reps, range, or seconds). No leading \b
+  // because PDFs often concatenate the name into the count, e.g. "press3 sets x".
+  if (/\d+\s+sets?\s*x\s*\d/i.test(c)) return true;
+  if (/\d+\s+set\s*x\s*\d/i.test(c)) return true;
   return false;
 }
 
