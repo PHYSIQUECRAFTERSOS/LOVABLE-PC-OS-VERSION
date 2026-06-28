@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { extractTrainerizeWorkoutSummary, prependTrainerizeWorkoutSummary } from "./trainerizeWorkoutParser";
 
 const workoutBlock = (name: string, firstExercise: string) => `
