@@ -434,6 +434,26 @@ const WorkoutPreviewModal = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Exercise video player */}
+      <Dialog open={!!videoUrl} onOpenChange={() => setVideoUrl(null)}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden">
+          {videoUrl && getYouTubeId(videoUrl) ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${getYouTubeId(videoUrl)}?playsinline=1&rel=0&modestbranding=1&autoplay=1`}
+              title="Exercise Video"
+              width="100%"
+              height="300"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="rounded-lg"
+            />
+          ) : videoUrl ? (
+            <video src={videoUrl} controls autoPlay playsInline className="w-full h-[300px] bg-black" />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
