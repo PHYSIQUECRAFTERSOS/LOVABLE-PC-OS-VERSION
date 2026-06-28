@@ -231,7 +231,10 @@ function parseWorkoutSegment(dayName: string, lines: string[]): ParsedWorkout {
       continue;
     }
 
-    if (!isExerciseBullet(line) || isExerciseInstruction(line)) continue;
+    const isPlain = isPlainExerciseRow(line);
+    const isMember = !isPlain && currentGroup != null && isSupersetMember(line);
+    if (!isPlain && !isMember) continue;
+    if (isExerciseInstruction(line)) continue;
 
     const name = extractName(line);
     const reps = extractReps(line);
