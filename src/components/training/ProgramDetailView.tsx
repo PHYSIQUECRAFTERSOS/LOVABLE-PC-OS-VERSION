@@ -1462,18 +1462,24 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
             <div className="space-y-2">
               <Label className="text-xs">Schedule</Label>
               <RadioGroup value={copyStartOption} onValueChange={(v) => setCopyStartOption(v as any)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="after_last" id="after_last" />
-                  <Label htmlFor="after_last" className="text-sm font-normal cursor-pointer">
-                    Immediately after last scheduled training phase
-                  </Label>
+                <div className="flex items-start space-x-2">
+                  <RadioGroupItem value="after_last" id="after_last" className="mt-0.5" />
+                  <div>
+                    <Label htmlFor="after_last" className="text-sm font-normal cursor-pointer">
+                      Append after current phases
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Adds this phase to the end of the client's active program. Does not touch their current phase.
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="specific_date" id="specific_date" />
                   <Label htmlFor="specific_date" className="text-sm font-normal cursor-pointer">
-                    Start on a specific date
+                    Start on a specific date (replaces current)
                   </Label>
                 </div>
+
               </RadioGroup>
 
               {copyStartOption === "specific_date" && (
