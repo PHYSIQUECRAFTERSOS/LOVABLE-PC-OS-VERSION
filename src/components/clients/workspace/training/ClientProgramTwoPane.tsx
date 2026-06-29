@@ -544,13 +544,12 @@ export const ClientProgramTwoPane = ({
                           strategy={verticalListSortingStrategy}
                         >
                           {(() => {
-                            // Continue position numbering across pages so Day numbers stay correct.
-                            let dayCounter = 1;
-                            // Pre-walk all filtered workouts to establish numbering, then slice.
+                            // We no longer auto-number workouts with "Day N";
+                            // the chronological order is derived from each
+                            // workout's authored name. Custom tags still show.
                             const numbered = filteredWorkouts.map(pw => {
                               const isExcluded = pw.exclude_from_numbering;
-                              const pos = isExcluded ? null : (sortBy === "position" ? dayCounter++ : null);
-                              return { pw, pos, isExcluded };
+                              return { pw, pos: null as number | null, isExcluded };
                             }).slice(pageStart, pageStart + PAGE_SIZE);
 
                             return numbered.map(({ pw, pos, isExcluded }) => (
