@@ -1,56 +1,39 @@
+# Manager = Coach + More (Permissions Audit)
 
-# Goal
-Stop Copy-to-Client from wiping the client's current training phase, and let you bring old phases back from the archive — Trainerize-style.
+## What's already correct
+- `public.has_role(uid, 'coach')` returns `true` when the user has role `coach` OR `manager`. Every policy written as `has_role(auth.uid(), 'coach')` already grants managers full coach-equivalent access.
+- Tables already covered by shared-master visibility for any coach/manager: `programs`, `program_phases`, `program_weeks`, `program_workouts`, `master_workouts`, `master_workout_exercises`, `master_supplements`, `supplement_plans`, `supplement_plan_items`, `exercises` (public).
 
-## Part 1 — Copy Phase to Client should APPEND (not replace)
+## The actual gap
+Several "shared" coach-side libraries gate access on the literal `coach_id = auth.uid()` of the owning coach with no fallback for other coaches/managers. A manager who isn't the original author can't see them — that's why Aaron sees empty lists.
 
-**Where:** `src/components/training/ProgramDetailView.tsx` (the "Copy Phase to Client" dialog launched from Master Libraries).
+The affected tables (all have an owner-only policy today, with no shared/team fallback):
+- `meal_plans` (has `is_template`, no policy reads it)
+- `meal_plan_days`, `meal_plan_items`, `meal_plan_meal_notes` (children of meal_plans)
+- `nutrition_guide_sections` (coach-owned guides shown in Master Libraries → Guides)
+- `checkin_templates` (already broadly readable via "Authenticated read active templates", but manage is owner-only — read is fine)
 
-**Current behavior (the bug that erased Jordan's program):**
-When you pick *"Immediately after last scheduled training phase"*, the code creates a **brand-new program** for the client, then calls `applyMerge()`, which truncates the current active program (e.g. "Jordan C program") and pushes it down to *Previous Programs*. The new phase becomes its own one-phase program.
+`saved_meals` already has "Coaches can view client saved meals" using `has_role('coach')`, which covers managers.
 
-**Fix:**
-- When option = *"Immediately after last scheduled training phase"*, call the existing `copyPhaseToClientProgram()` helper from `src/lib/copyPhaseHelpers.ts`. That helper already does exactly what you described:
-  - Finds the client's active program
-  - Appends the new phase at the end (next `phase_order`)
-  - Deep-clones workouts/exercises/sets
-  - Recomputes program `duration_weeks`
-  - Leaves the current phase, assignment, and calendar events untouched
-- Only when option = *"Start on a specific date"* do we keep the current new-program-and-truncate flow (because a hard date requires cutting the running program).
-- Update the dialog copy: rename the first option to **"Append after current phases"** and add a one-line hint so it's obvious it won't disturb the running program.
-- If the client has no active program at all and *"Append"* is chosen, fall back to today's start date and create a new program (so the action still works for new clients).
+## Changes to make
 
-**Toast:** show "Phase appended to {programName}" with the standard exercise-count summary. No "previous program truncated" warning in append mode.
+### 1. Meal-plan templates visible to all coaches/managers
+Add SELECT policies so any coach/admin/manager can read template meal plans (`meal_plans.is_template = true`) and their day/item/note children. Edits remain owner-only (so managers won't accidentally mutate Kevin's templates unless they own/copy them).
 
-## Part 2 — Restore from Previous Programs (archive)
+- `meal_plans`: new policy "Coaches view template meal plans" → `is_template = true AND has_role(auth.uid(),'coach' or 'admin')`.
+- `meal_plan_days`, `meal_plan_items`, `meal_plan_meal_notes`: matching SELECT policies via the parent `meal_plans.is_template = true` check.
 
-**Where:** `src/components/clients/workspace/TrainingTab.tsx`, the existing **Previous Programs** collapsible (left side of the Training tab — visible in your second screenshot showing "Jordan C program" and "phase 7: triple cluster").
+### 2. Nutrition guide sections visible to all coaches/managers
+- `nutrition_guide_sections`: new SELECT policy → any coach/admin can read every coach's guide sections. (Already public-ish since clients of any coach read them via `coach_clients`; broadening to staff is consistent.)
 
-**Today:** previous programs are read-only — you can't bring them back.
+### 3. Optional sanity sweep — no changes, just verification
+Confirm with a follow-up `pg_policy` query that no other coach-side library table is still gated purely on `coach_id = auth.uid()` without a shared fallback. If anything else surfaces (e.g. `coach_meal_plan_uploads` for client-specific uploads), call it out — those are intentionally client-scoped, not "shared library" content, so we leave them owner-only.
 
-**Add:**
-- For each row, a kebab menu (`⋯`) with two actions:
-  1. **Restore phases to current program** — clones every phase from the archived program and appends them (in their original order) to the client's active program, using the same append helper from Part 1. The archived program stays in *Previous Programs* (so restoring is non-destructive and repeatable).
-  2. **View phases** — opens a read-only modal listing the archived program's phases + workout names, so you can pick what to reuse before restoring. (Uses the same data shape the Training tab already loads.)
-- Add a small **Restore** button (gold, icon = `Undo2`) next to the kebab for one-tap access to action #1.
-- After restore, refresh `useClientProgram` so the new appended phases appear on the right pane immediately, and toast "Restored N phase(s) from {oldProgramName}".
+## Out of scope (intentionally unchanged)
+- Write access (INSERT/UPDATE/DELETE) on other coaches' templates. Managers can still only edit/delete content they own or have admin role for, matching the current coach behavior. If you want managers to also be able to edit any coach's templates, say the word and I'll widen those policies too.
+- Client-private data (`saved_meals.client_id`, `meal_plans.client_id` assignments, etc.) — already correctly scoped.
 
-**No DB schema changes.** Restoration reuses the existing `program_phases` / `program_workouts` / cloning pipeline — the archived assignment row stays `status='completed'` and isn't mutated.
-
-## Technical Details
-
-Files touched:
-- `src/components/training/ProgramDetailView.tsx` — branch on `copyStartOption`; call `copyPhaseToClientProgram` for the append path; update dialog labels.
-- `src/lib/copyPhaseHelpers.ts` — add `restorePreviousProgramPhases({ coachId, sourceProgramId, targetClientId })` that loads all phases of the source program (ordered by `phase_order`) and calls the existing append logic per phase. Returns a combined `CloneWorkoutResult` summary.
-- `src/components/clients/workspace/TrainingTab.tsx` — extend the Previous Programs list rows with a `DropdownMenu` (Restore / View) and a primary Restore icon button; wire it to the new helper and `reload()` the program after success.
-- (Optional) tiny `PreviousProgramViewerDialog.tsx` for the "View phases" action — read-only list of phases + workout names.
-
-Edge cases handled:
-- Client has no active program when restoring → toast "Assign an active program first" (mirrors existing behavior in `copyPhaseToClientProgram`).
-- Source program has zero phases → toast "Nothing to restore".
-- Restore is idempotent: clicking twice creates duplicate appended phases (acceptable and matches Trainerize); the user can delete extras with the existing phase delete action.
-
-## Out of Scope
-- No changes to nutrition meal-plan archive logic.
-- No changes to the "Specific date" branch of Copy-to-Client (still truncates, by design).
-- No DB migrations.
+## Technical notes
+- All new policies follow the existing pattern: `has_role(auth.uid(), 'coach'::app_role) OR has_role(auth.uid(), 'admin'::app_role)`, which automatically includes managers via `has_role`.
+- Single migration. Idempotent `DROP POLICY IF EXISTS` + `CREATE POLICY` so re-runs are safe.
+- No data is changed; only visibility policies are added.
