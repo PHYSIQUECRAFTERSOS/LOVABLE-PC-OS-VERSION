@@ -19,6 +19,7 @@ import { Plus, Download, Search, Dumbbell, ChevronRight, Link2, Unlink } from "l
 import { cn } from "@/lib/utils";
 import { fetchWorkoutMeta, type WorkoutMeta } from "@/lib/workoutMeta";
 import SortableWorkoutCard from "@/components/training/SortableWorkoutCard";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import PhaseActionsMenu from "./PhaseActionsMenu";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
