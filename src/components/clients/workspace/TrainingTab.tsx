@@ -957,7 +957,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             {previousPrograms.map((pp) => (
-              <div key={pp.id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-card/40">
+              <div key={pp.id} className="flex items-center gap-2 p-3 rounded-lg border border-border/40 bg-card/40">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{pp.name}</p>
                   <p className="text-[11px] text-muted-foreground">
@@ -965,8 +965,24 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                     {pp.ended_on && <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[10px]">Truncated</span>}
                   </p>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-primary/40 text-primary hover:bg-primary/10 h-8"
+                  disabled={restoringPrevId === pp.id}
+                  onClick={() => handleRestorePrevious(pp)}
+                  title="Append all phases from this program to the active program"
+                >
+                  {restoringPrevId === pp.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Undo2 className="h-3.5 w-3.5" />
+                  )}
+                  <span className="ml-1 text-xs">Restore</span>
+                </Button>
               </div>
             ))}
+
           </CollapsibleContent>
         </Collapsible>
       )}
