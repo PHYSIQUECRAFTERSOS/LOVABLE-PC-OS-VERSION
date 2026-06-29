@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import {
-  Tag, Plus, Search, Zap, Mail, MessageSquare, Trash2, Save, Loader2,
+  Tag, Plus, Search, Zap, Mail, MessageSquare, Trash2, Save, Loader2, Pencil,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
