@@ -20,8 +20,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight,
   ArrowUp, ArrowDown, Edit2, Link2, Unlink, Search, Pencil,
-  Download, Loader2
+  Download, Loader2, Undo2, MoreHorizontal
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
 import ClientWorkoutEditorModal from "@/components/training/ClientWorkoutEditorModal";
 import MobileWorkoutEditor from "@/components/training/MobileWorkoutEditor";
 import WorkoutPreviewModal from "@/components/training/WorkoutPreviewModal";
