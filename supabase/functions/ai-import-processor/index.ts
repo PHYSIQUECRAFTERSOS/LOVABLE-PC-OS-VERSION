@@ -175,10 +175,19 @@ function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
       exercises = aiExercises;
     }
 
+    // Trust the deterministic parser for per-workout instructions. When the
+    // Trainerize summary matched, the parser intentionally leaves instructions
+    // null because Trainerize print exports almost never carry a true
+    // per-workout description — the text that visually sits "above" the table
+    // is global boilerplate (warmup protocol, tempo rules) repeated on every
+    // page. Letting the AI fill this field caused workouts to inherit
+    // unrelated cues like "Rest: 15 seconds / Set 3: 3 reps (AMRAP)" or the
+    // global warmup paragraph.
+    const sanitizedAiInstructions = sanitizeWorkoutInstructions(aiWorkout?.instructions);
     return {
       ...(aiWorkout || {}),
       day_name: name,
-      instructions: aiWorkout?.instructions ?? summaryWorkout.instructions ?? null,
+      instructions: summaryWorkout.instructions ?? sanitizedAiInstructions ?? null,
       exercises,
       superset_groups: summaryExercises.length > 0
         ? (summaryWorkout.superset_groups || [])
