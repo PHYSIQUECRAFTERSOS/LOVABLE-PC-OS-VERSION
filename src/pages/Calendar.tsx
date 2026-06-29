@@ -18,8 +18,7 @@ import CardioPopup from "@/components/dashboard/CardioPopup";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
-import { withDisplayPositions } from "@/utils/displayPosition";
-import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 
 const Calendar = () => {
