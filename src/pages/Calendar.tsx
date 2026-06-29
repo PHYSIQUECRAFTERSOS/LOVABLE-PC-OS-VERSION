@@ -18,8 +18,7 @@ import CardioPopup from "@/components/dashboard/CardioPopup";
 import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import { useDataFetch, invalidateCache } from "@/hooks/useDataFetch";
 import { CalendarSkeleton, RetryBanner } from "@/components/ui/data-skeleton";
-import { withDisplayPositions } from "@/utils/displayPosition";
-import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import WeightHistoryScreen from "@/components/dashboard/WeightHistoryScreen";
 
 const Calendar = () => {
@@ -124,8 +123,9 @@ const Calendar = () => {
             .eq("phase_id", phaseId)
             .order("sort_order", { ascending: true });
 
-          // Accessory workouts are excluded from sequential "Day N" numbering.
-          const positioned = withDisplayPositions(
+          // Show workouts verbatim using the coach-authored name and order by
+          // any leading "Day N" prefix (Trainerize-style chronological order).
+          const ordered = sortWorkoutsChronologically(
             (pws || []).map((pw: any) => ({
               id: pw.workout_id,
               sort_order: pw.sort_order,
@@ -136,15 +136,12 @@ const Calendar = () => {
             }))
           );
 
-          positioned.forEach((w: any) => {
-            const cleanName = normalizeWorkoutName(w.name);
+          ordered.forEach((w: any) => {
             const label = w.is_accessory
-              ? cleanName
+              ? w.name
               : w.exclude_from_numbering && w.custom_tag
-                ? `${w.custom_tag}: ${cleanName}`
-                : w.displayPosition != null
-                  ? formatWorkoutDayLabel(w.displayPosition, cleanName)
-                  : cleanName;
+                ? `${w.custom_tag}: ${w.name}`
+                : w.name;
             workoutLabelMap.set(w.id, label);
           });
         }

@@ -27,6 +27,7 @@ import { applyMerge } from "@/lib/programMerge";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
 import SortableWorkoutCard from "./SortableWorkoutCard";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import type { WorkoutMeta } from "@/lib/workoutMeta";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
@@ -1355,28 +1356,35 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
                           strategy={verticalListSortingStrategy}
                         >
                           {(() => {
-                            let dayCounter = 1;
-                            return phase.workouts.map((pw, pwIdx) => {
-                              const isExcluded = pw.excludeFromNumbering;
-                              const pos = isExcluded ? null : dayCounter++;
-                              return (
-                                <SortableWorkoutCard
-                                  key={pw.id || pw.workoutId + pwIdx}
-                                  dndId={pw.id || pw.workoutId + pwIdx}
-                                  workoutId={pw.workoutId}
-                                  workoutName={pw.workoutName}
-                                  displayPosition={pos}
-                                  customTag={pw.excludeFromNumbering ? pw.customTag : null}
-                                  meta={workoutMeta[pw.workoutId]}
-                                  initialExcludeFromNumbering={pw.excludeFromNumbering}
-                                  onPrimaryClick={() => openWorkoutBuilder(phaseIdx, pw)}
-                                  onEdit={() => openWorkoutBuilder(phaseIdx, pw)}
-                                  onDelete={() => removeWorkoutFromPhase(phaseIdx, pwIdx)}
-                                  onToggleCustomTag={(exclude, tag) => handleToggleCustomTag(phaseIdx, pwIdx, exclude, tag)}
-                                  onCopyToClient={() => openCopyDayToClient(pw)}
-                                />
-                              );
-                            });
+                            // Trainerize-style ordering: derive order from the
+                            // "Day N" prefix in the authored workout name and
+                            // drop the auto "Day N" badge entirely so the
+                            // coach's verbatim name is the source of truth.
+                            const ordered = sortWorkoutsChronologically(
+                              phase.workouts.map((w) => ({
+                                ...w,
+                                name: w.workoutName,
+                                exclude_from_numbering: w.excludeFromNumbering,
+                                custom_tag: w.customTag,
+                              }))
+                            ) as typeof phase.workouts;
+                            return ordered.map((pw, pwIdx) => (
+                              <SortableWorkoutCard
+                                key={pw.id || pw.workoutId + pwIdx}
+                                dndId={pw.id || pw.workoutId + pwIdx}
+                                workoutId={pw.workoutId}
+                                workoutName={pw.workoutName}
+                                displayPosition={null}
+                                customTag={pw.excludeFromNumbering ? pw.customTag : null}
+                                meta={workoutMeta[pw.workoutId]}
+                                initialExcludeFromNumbering={pw.excludeFromNumbering}
+                                onPrimaryClick={() => openWorkoutBuilder(phaseIdx, pw)}
+                                onEdit={() => openWorkoutBuilder(phaseIdx, pw)}
+                                onDelete={() => removeWorkoutFromPhase(phaseIdx, phase.workouts.indexOf(pw))}
+                                onToggleCustomTag={(exclude, tag) => handleToggleCustomTag(phaseIdx, phase.workouts.indexOf(pw), exclude, tag)}
+                                onCopyToClient={() => openCopyDayToClient(pw)}
+                              />
+                            ));
                           })()}
                         </SortableContext>
                       </DndContext>

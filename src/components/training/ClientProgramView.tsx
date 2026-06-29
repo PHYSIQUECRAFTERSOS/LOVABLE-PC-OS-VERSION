@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import WorkoutPreviewModal from "./WorkoutPreviewModal";
 import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -379,10 +380,15 @@ const ClientProgramView = ({ onStartWorkout }: ClientProgramViewProps) => {
                       ) : (
                         <div className="space-y-2">
                           {(() => {
-                            let dayCounter = 1;
-                            return phase.workouts.map((pw) => {
+                            // Order workouts by the "Day N" prefix in the
+                            // authored name (Trainerize-style) and drop the
+                            // auto "Day N" badge so the verbatim name shows.
+                            const ordered = sortWorkoutsChronologically(
+                              phase.workouts.map((w) => ({ ...w, name: w.workout_name }))
+                            ) as typeof phase.workouts;
+                            return ordered.map((pw) => {
                               const isExcluded = pw.exclude_from_numbering;
-                              const pos = isExcluded ? null : dayCounter++;
+                              const pos: number | null = null;
                               return (
                                 <div key={pw.id} className="flex items-start gap-3 p-3 border rounded-lg bg-card/50">
                                   {/* Thumbnail — clickable to preview */}

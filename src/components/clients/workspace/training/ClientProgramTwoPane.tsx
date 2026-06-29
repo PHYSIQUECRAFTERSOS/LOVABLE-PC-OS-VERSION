@@ -19,6 +19,7 @@ import { Plus, Download, Search, Dumbbell, ChevronRight, Link2, Unlink } from "l
 import { cn } from "@/lib/utils";
 import { fetchWorkoutMeta, type WorkoutMeta } from "@/lib/workoutMeta";
 import SortableWorkoutCard from "@/components/training/SortableWorkoutCard";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import PhaseActionsMenu from "./PhaseActionsMenu";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
@@ -194,6 +195,12 @@ export const ClientProgramTwoPane = ({
     }
     if (sortBy === "name") {
       list.sort((a, b) => a.workout_name.localeCompare(b.workout_name));
+    } else {
+      // "position" now means: chronological by the "Day N" prefix in the
+      // workout name (Trainerize-style). Non-Day items fall to the bottom.
+      list = sortWorkoutsChronologically(
+        list.map(w => ({ ...w, name: w.workout_name }))
+      ) as typeof list;
     }
     return list;
   }, [selectedPhaseWorkouts, search, sortBy]);
@@ -537,13 +544,12 @@ export const ClientProgramTwoPane = ({
                           strategy={verticalListSortingStrategy}
                         >
                           {(() => {
-                            // Continue position numbering across pages so Day numbers stay correct.
-                            let dayCounter = 1;
-                            // Pre-walk all filtered workouts to establish numbering, then slice.
+                            // We no longer auto-number workouts with "Day N";
+                            // the chronological order is derived from each
+                            // workout's authored name. Custom tags still show.
                             const numbered = filteredWorkouts.map(pw => {
                               const isExcluded = pw.exclude_from_numbering;
-                              const pos = isExcluded ? null : (sortBy === "position" ? dayCounter++ : null);
-                              return { pw, pos, isExcluded };
+                              return { pw, pos: null as number | null, isExcluded };
                             }).slice(pageStart, pageStart + PAGE_SIZE);
 
                             return numbered.map(({ pw, pos, isExcluded }) => (
