@@ -232,23 +232,18 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
           .eq("phase_id", phaseId)
           .order("sort_order", { ascending: true });
 
-        const positioned = withDisplayPositions(
-          (pws || []).map((pw: any) => ({
-            id: pw.workout_id,
-            sort_order: pw.sort_order,
-            exclude_from_numbering: pw.exclude_from_numbering || false,
-            custom_tag: pw.custom_tag || null,
-            name: (pw.workouts as any)?.name || "Workout",
-          }))
-        );
+        const rows = (pws || []).map((pw: any) => ({
+          id: pw.workout_id,
+          sort_order: pw.sort_order,
+          exclude_from_numbering: pw.exclude_from_numbering || false,
+          custom_tag: pw.custom_tag || null,
+          name: (pw.workouts as any)?.name || "Workout",
+        }));
 
-        positioned.forEach((w: any) => {
-          const cleanName = normalizeWorkoutName(w.name);
+        sortWorkoutsChronologically(rows).forEach((w: any) => {
           const label = w.exclude_from_numbering && w.custom_tag
-            ? `${w.custom_tag}: ${cleanName}`
-            : w.displayPosition != null
-              ? formatWorkoutDayLabel(w.displayPosition, cleanName)
-              : cleanName;
+            ? `${w.custom_tag}: ${w.name}`
+            : w.name;
           workoutLabelMap.set(w.id, label);
         });
       }
