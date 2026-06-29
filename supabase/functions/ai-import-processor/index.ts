@@ -140,6 +140,41 @@ function cleanWorkoutText(raw: string): string {
   return cleaned.trim();
 }
 
+// Strip global boilerplate, per-set exercise cues, and rep/set fragments that
+// the AI sometimes captures as a workout's top-level instructions. Anything
+// that smells like an exercise row note (e.g. "Set 3: 3 reps (AMRAP)",
+// "Rest: 15 seconds") or the global warmup/tempo paragraph is removed. If
+// nothing legitimate is left we return null so the field stays clean.
+function sanitizeWorkoutInstructions(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const kept: string[] = [];
+  const badPatterns: RegExp[] = [
+    /^warmup\b/i,
+    /^for the main exercise/i,
+    /^get into the gym/i,
+    /^let'?s say my top set/i,
+    /^if you hit top end/i,
+    /tempo\s*\[/i,
+    /^the (first|second|third|final) number/i,
+    /^set\s*\d+\s*[:\-]/i,
+    /^rest\s*[:\-]?\s*\d+\s*(sec|second|min)/i,
+    /^\d+\s*(set|rep)s?\s*(x|@)/i,
+    /\(amrap\)/i,
+    /drop\s*set/i,
+    /myo[-\s]?rep/i,
+    /^\d+\s*reps?\b/i,
+    /^each side as well$/i,
+    /^physique crafters$/i,
+  ];
+  for (const line of lines) {
+    if (badPatterns.some((p) => p.test(line))) continue;
+    kept.push(line);
+  }
+  const result = kept.join("\n").trim();
+  return result.length > 0 ? result : null;
+}
+
 function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
   if (!summary || !Array.isArray(summary.workouts) || summary.workouts.length === 0) return extracted;
 
@@ -175,10 +210,19 @@ function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
       exercises = aiExercises;
     }
 
+    // Trust the deterministic parser for per-workout instructions. When the
+    // Trainerize summary matched, the parser intentionally leaves instructions
+    // null because Trainerize print exports almost never carry a true
+    // per-workout description — the text that visually sits "above" the table
+    // is global boilerplate (warmup protocol, tempo rules) repeated on every
+    // page. Letting the AI fill this field caused workouts to inherit
+    // unrelated cues like "Rest: 15 seconds / Set 3: 3 reps (AMRAP)" or the
+    // global warmup paragraph.
+    const sanitizedAiInstructions = sanitizeWorkoutInstructions(aiWorkout?.instructions);
     return {
       ...(aiWorkout || {}),
       day_name: name,
-      instructions: aiWorkout?.instructions ?? summaryWorkout.instructions ?? null,
+      instructions: summaryWorkout.instructions ?? sanitizedAiInstructions ?? null,
       exercises,
       superset_groups: summaryExercises.length > 0
         ? (summaryWorkout.superset_groups || [])
@@ -583,7 +627,7 @@ Extract workout program data. Return JSON in this format:
   "workouts": [
     {
       "day_name": "string — copy the heading VERBATIM, including any '[AWAY]' prefix, brackets, casing, and ' A' / ' B' suffix (e.g. '[AWAY]Day 1: Upper', 'Day 1: UPPER A', 'Day 4 : LOWER B & calves & abs')",
-      "instructions": "string or null — the per-workout instructional paragraph(s) printed directly under this heading before its first exercise. Strip the global tempo/warmup/stretching/execution boilerplate that repeats on every page.",
+      "instructions": "string or null — ONLY the per-workout instructional paragraph(s) printed directly under this heading before its first exercise. STRICT RULES: (a) return null when nothing custom is written for THIS specific workout; (b) NEVER copy global boilerplate that repeats across pages (warmup protocol starting with 'Warmup' / 'For the main exercise of the session', 'Get into the gym', 'LET'S SAY MY TOP SET', tempo explanation, stretching protocol); (c) NEVER copy text that belongs to a single exercise row such as set/rep counts, 'Rest: 15 seconds', 'Set 3: 3 reps (AMRAP)', drop-set or myo-rep notes — those belong on the exercise, not the workout.",
       "exercises": [
         {
           "name": "string (exact name from PDF)",
