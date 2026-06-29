@@ -140,7 +140,42 @@ function cleanWorkoutText(raw: string): string {
   return cleaned.trim();
 }
 
-function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
+// Strip global boilerplate, per-set exercise cues, and rep/set fragments that
+// the AI sometimes captures as a workout's top-level instructions. Anything
+// that smells like an exercise row note (e.g. "Set 3: 3 reps (AMRAP)",
+// "Rest: 15 seconds") or the global warmup/tempo paragraph is removed. If
+// nothing legitimate is left we return null so the field stays clean.
+function sanitizeWorkoutInstructions(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const kept: string[] = [];
+  const badPatterns: RegExp[] = [
+    /^warmup\b/i,
+    /^for the main exercise/i,
+    /^get into the gym/i,
+    /^let'?s say my top set/i,
+    /^if you hit top end/i,
+    /tempo\s*\[/i,
+    /^the (first|second|third|final) number/i,
+    /^set\s*\d+\s*[:\-]/i,
+    /^rest\s*[:\-]?\s*\d+\s*(sec|second|min)/i,
+    /^\d+\s*(set|rep)s?\s*(x|@)/i,
+    /\(amrap\)/i,
+    /drop\s*set/i,
+    /myo[-\s]?rep/i,
+    /^\d+\s*reps?\b/i,
+    /^each side as well$/i,
+    /^physique crafters$/i,
+  ];
+  for (const line of lines) {
+    if (badPatterns.some((p) => p.test(line))) continue;
+    kept.push(line);
+  }
+  const result = kept.join("\n").trim();
+  return result.length > 0 ? result : null;
+}
+
+
   if (!summary || !Array.isArray(summary.workouts) || summary.workouts.length === 0) return extracted;
 
   const summaryWorkouts = summary.workouts.filter((w: any) => w?.day_name && Array.isArray(w?.exercises));
