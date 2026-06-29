@@ -924,25 +924,92 @@ async function matchExercises(db: any, extracted: any) {
 }
 
 async function matchFoods(db: any, extracted: any, coachId: string) {
-  const allFoodNames: string[] = [];
+  // Collect each food row with its PDF macros so we can use them to disambiguate
+  // verified/global candidates when no coach custom food matches by name.
+  type PdfRow = {
+    name: string;
+    calories?: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    quantity_value?: number;
+    quantity_unit?: string;
+  };
+  const allFoodRows: PdfRow[] = [];
+  const seenNames = new Set<string>();
   for (const day of extracted.days || []) {
     for (const meal of day.meals || []) {
       for (const food of meal.foods || []) {
-        if (food.name) allFoodNames.push(food.name);
+        if (!food?.name) continue;
+        // Match keying is by name (multiple rows with same name reuse same match) —
+        // keep the first occurrence's macros for fallback scoring.
+        if (seenNames.has(food.name)) continue;
+        seenNames.add(food.name);
+        allFoodRows.push({
+          name: food.name,
+          calories: Number(food.calories) || 0,
+          protein: Number(food.protein) || 0,
+          carbs: Number(food.carbs) || 0,
+          fat: Number(food.fat) || 0,
+          quantity_value: Number(food.quantity_value) || 0,
+          quantity_unit: String(food.quantity_unit || "").toLowerCase(),
+        });
       }
     }
   }
-  if (allFoodNames.length === 0) return { foods: {} };
+  if (allFoodRows.length === 0) return { foods: {} };
 
   const syn = await loadSynonyms(db);
   const foodMatches: Record<string, any> = {};
 
-  // Build coach's client_id list (their custom food_items rows are tagged with created_by = client_id)
-  const { data: ccData } = await db
-    .from("coach_clients")
-    .select("client_id")
-    .eq("coach_id", coachId);
-  const clientIds: string[] = (ccData || []).map((r: any) => r.client_id).filter(Boolean);
+  // --- Custom foods threshold (name-first within coach's library) ---
+  const CUSTOM_NAME_THRESHOLD = 60;
+
+  // Estimate per-gram calories for a candidate. Returns null if unknown.
+  function candidatePerGramCal(c: any): number | null {
+    const serving = Number(c.serving_size) || 0;
+    const cal = Number(c.calories) || 0;
+    if (serving > 0 && cal > 0 && String(c.serving_unit || "g").toLowerCase() === "g") {
+      return cal / serving;
+    }
+    return null;
+  }
+
+  // Macro distance: percentage difference between PDF row macros and what the
+  // candidate would produce at the same gram weight. Lower = closer. Range 0..100.
+  function macroDistance(row: PdfRow, c: any): number {
+    const perG = candidatePerGramCal(c);
+    if (perG == null) return 50; // unknown — neutral
+    // Only meaningful when PDF unit is grams (or convertible). Otherwise compare per 100g.
+    const gramBasis =
+      row.quantity_unit === "g" || row.quantity_unit === "grm" || row.quantity_unit === "gram"
+        ? row.quantity_value || 100
+        : 100;
+    const pdfCal = row.quantity_unit === "g" ? row.calories || 0 : (row.calories || 0);
+    const candCalAtBasis = perG * gramBasis;
+    if (!pdfCal && !candCalAtBasis) return 0;
+    const diff = Math.abs(pdfCal - candCalAtBasis) / Math.max(pdfCal, candCalAtBasis, 1);
+    // Also factor protein/carbs/fat per 100g if available
+    const candProteinPer100 = Number(c.protein) && Number(c.serving_size)
+      ? (Number(c.protein) / Number(c.serving_size)) * 100 : 0;
+    const candCarbsPer100 = Number(c.carbs) && Number(c.serving_size)
+      ? (Number(c.carbs) / Number(c.serving_size)) * 100 : 0;
+    const candFatPer100 = Number(c.fat) && Number(c.serving_size)
+      ? (Number(c.fat) / Number(c.serving_size)) * 100 : 0;
+    // Estimate PDF per 100g if grams
+    let macroDiff = 0;
+    if (row.quantity_unit === "g" && (row.quantity_value || 0) > 0) {
+      const k = 100 / row.quantity_value!;
+      const pP = (row.protein || 0) * k;
+      const pC = (row.carbs || 0) * k;
+      const pF = (row.fat || 0) * k;
+      const d = (a: number, b: number) =>
+        a + b === 0 ? 0 : Math.abs(a - b) / Math.max(a, b, 1);
+      macroDiff = (d(pP, candProteinPer100) + d(pC, candCarbsPer100) + d(pF, candFatPer100)) / 3;
+    }
+    // Composite (lower = better). Convert to 0..100 percentage distance.
+    return Math.min(100, Math.round((diff * 0.6 + macroDiff * 0.4) * 100));
+  }
 
   async function queryBucket(tokens: string[], pdfName: string, normExpanded: string, filter: (q: any) => any) {
     let candidates: any[] = [];
@@ -960,58 +1027,100 @@ async function matchFoods(db: any, extracted: any, coachId: string) {
     return candidates;
   }
 
-  for (const pdfName of allFoodNames) {
-    const normExpanded = expandTokens(normalize(pdfName), syn);
-    const tokens = candidateTokens(pdfName, syn);
-
-    // Try buckets in priority order
-    let candidates: any[] = [];
-    let source: string = "none";
-
-    candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.eq("created_by", coachId));
-    if (candidates.length > 0) source = "coach_library";
-
-    if (candidates.length === 0 && clientIds.length > 0) {
-      candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.in("created_by", clientIds));
-      if (candidates.length > 0) source = "client_library";
-    }
-
-    if (candidates.length === 0) {
-      candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.eq("is_verified", true));
-      if (candidates.length > 0) source = "verified";
-    }
-
-    if (candidates.length === 0) {
-      candidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q);
-      if (candidates.length > 0) source = "global";
-    }
-
+  function bestByName(candidates: any[], pdfNorm: string): { match: any; score: number } {
     let bestMatch: any = null;
     let bestScore = 0;
-    const pdfNorm = normExpanded;
     for (const cat of candidates) {
       const candNorm = expandTokens(normalize(cat.name), syn);
       let score = scoreNormalized(pdfNorm, candNorm);
-      // Substring boost
       if (candNorm.includes(pdfNorm) || pdfNorm.includes(candNorm)) score += 10;
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cat;
       }
     }
+    return { match: bestMatch, score: bestScore };
+  }
+
+  function bestByMacrosAndName(candidates: any[], pdfNorm: string, row: PdfRow): { match: any; score: number } {
+    let bestMatch: any = null;
+    let bestComposite = -Infinity;
+    let bestNameScore = 0;
+    for (const cat of candidates) {
+      const candNorm = expandTokens(normalize(cat.name), syn);
+      let nameScore = scoreNormalized(pdfNorm, candNorm);
+      if (candNorm.includes(pdfNorm) || pdfNorm.includes(candNorm)) nameScore += 10;
+      // Macro distance 0 (perfect) .. 100 (far). Convert to "macro score" 0..100.
+      const macroScore = 100 - macroDistance(row, cat);
+      // Composite: name weighted 55%, macro 45% — macros tip the balance among similarly-named candidates.
+      const composite = nameScore * 0.55 + macroScore * 0.45;
+      if (composite > bestComposite) {
+        bestComposite = composite;
+        bestMatch = cat;
+        bestNameScore = nameScore;
+      }
+    }
+    return { match: bestMatch, score: bestNameScore };
+  }
+
+  for (const row of allFoodRows) {
+    const pdfName = row.name;
+    const normExpanded = expandTokens(normalize(pdfName), syn);
+    const tokens = candidateTokens(pdfName, syn);
+
+    let source: string = "none";
+    let chosen: any = null;
+    let chosenScore = 0;
+
+    // Phase 1: Coach's custom foods ONLY — name-first match. Prefer these whenever a reasonable name match exists.
+    const coachCandidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.eq("created_by", coachId));
+    if (coachCandidates.length > 0) {
+      const { match, score } = bestByName(coachCandidates, normExpanded);
+      if (match && score >= CUSTOM_NAME_THRESHOLD) {
+        chosen = match;
+        chosenScore = Math.max(score, 90); // coach custom wins → high confidence
+        source = "coach_library";
+      }
+    }
+
+    // Phase 2: Fallback to verified DB, then global — pick by closest calories + macros to PDF row.
+    if (!chosen) {
+      const verifiedCandidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q.eq("is_verified", true));
+      if (verifiedCandidates.length > 0) {
+        const { match, score } = bestByMacrosAndName(verifiedCandidates, normExpanded, row);
+        if (match) {
+          chosen = match;
+          chosenScore = score;
+          source = "verified";
+        }
+      }
+    }
+    if (!chosen) {
+      const globalCandidates = await queryBucket(tokens, pdfName, normExpanded, (q) => q);
+      if (globalCandidates.length > 0) {
+        const { match, score } = bestByMacrosAndName(globalCandidates, normExpanded, row);
+        if (match) {
+          chosen = match;
+          chosenScore = score;
+          source = "global";
+        }
+      }
+    }
+
     foodMatches[pdfName] = {
       pdf_name: pdfName,
-      matched_id: bestMatch?.id || null,
-      matched_name: bestMatch?.name || null,
-      matched_brand: bestMatch?.brand || null,
-      source: bestMatch ? source : "none",
-      confidence: Math.round(bestScore) / 100,
-      confidence_score: Math.round(bestScore),
-      confidence_level: levelFor(bestScore),
+      matched_id: chosen?.id || null,
+      matched_name: chosen?.name || null,
+      matched_brand: chosen?.brand || null,
+      source: chosen ? source : "none",
+      confidence: Math.round(chosenScore) / 100,
+      confidence_score: Math.round(chosenScore),
+      confidence_level: levelFor(chosenScore),
     };
   }
   return { foods: foodMatches };
 }
+
 
 
 async function loadSupplementSynonyms(db: any): Promise<SynonymMap> {
