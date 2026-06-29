@@ -1,39 +1,35 @@
+## Goal
 
-## Problem
+Stop auto-numbering workouts by their position in the phase. Display each workout's real name verbatim, and use the leading "Day N" found in that name to sort them chronologically. Anything that doesn't start with `Day N:` (e.g. `(tweaked groin) Day 5: …`, `[AWAY] Day 1: …`, `Stretches`) drops into a separate "Other" group below the chronological list — exactly like Trainerize.
 
-Manny Paiz's PDF contains 6 workouts whose names overlap:
+## What changes
 
-- `(tweaked groin) Day 5 : legs B & calves & abs`
-- `(Tweaked Shoulder) Day 3: Push`
-- `Day 1: UPPER`
-- `Day 2: Lower` (and likely repeats further in the PDF)
-- `Day 3: Push`
-- `Day 5: legs B & calves & abs`
+### 1. New helper `src/utils/workoutOrder.ts`
+- `parseLeadingDay(name)` → `{ dayNumber: number | null, rest: string }`. Matches only a clean leading `Day\s*N\s*:` (no parentheses/brackets before it).
+- `sortWorkoutsByName(items)` → returns `{ chronological, other }`. `chronological` is sorted by `dayNumber` ascending then by name; `other` is sorted alphabetically. Each item keeps its real `name` untouched.
 
-Two failures in `src/lib/ai-import/trainerizeWorkoutParser.ts`:
+### 2. Stop prepending positional `Day N:` everywhere
+Update the three call sites that currently build labels with `withDisplayPositions` + `formatWorkoutDayLabel` + `normalizeWorkoutName`:
 
-1. `HEADING_RE` only accepts `Day N: …`, `[AWAY] Day N: …`, or `stretches`. Lines starting with a parenthetical prefix like `(tweaked groin) Day 5 : …` are rejected, so those whole workouts vanish from the boundary summary and get merged into whichever Day-N block the AI picks.
-2. Even when two headings share a canonical name, `extractTrainerizeWorkoutSummary` builds `uniqueNames` by dedup and emits one workout per unique name. Two real "Day 5" sections collapse into one.
+- `src/components/calendar/ScheduleEventForm.tsx` (the "Schedule Events → Link to Workout" dropdown in the screenshot)
+- `src/pages/Calendar.tsx`
+- `src/components/clients/workspace/CalendarTab.tsx` (two spots — workout select + event title resolution)
 
-## Fix
+In each:
+- Use the workout's stored `name` verbatim as the label (no `formatWorkoutDayLabel`, no `normalizeWorkoutName` stripping).
+- Replace the current sort with `sortWorkoutsByName`, render `chronological` first, then an optional `── Other ──` separator (or just a blank disabled item) followed by `other`.
+- Keep `sort_order` only as a tiebreaker inside `other` (so a coach's manual drag order still matters for unnumbered items).
 
-Edit only `src/lib/ai-import/trainerizeWorkoutParser.ts` (plus its unit test). Edge function behavior is unchanged — the deterministic JSON it already trusts simply now contains the right boundaries.
+### 3. Training-program workout list (screenshot 2)
+`src/components/training/ProgramDetailView.tsx` (and `SortableWorkoutCard.tsx` / `ProgramList.tsx` if they format labels) currently order by `sort_order`. Switch the displayed order to the same `sortWorkoutsByName` result so `(Tweaked Shoulder) Day 3: Push` no longer floats above `Day 1: UPPER`. Drag-to-reorder is preserved for items in the "Other" bucket only — chronological items always render in Day-N order regardless of `sort_order`. (If you'd rather keep drag-to-reorder authoritative everywhere, tell me and I'll keep `sort_order` as the source of truth and only fix the calendar dropdowns.)
 
-1. Expand `HEADING_RE` / `canonicalHeading` to accept an optional leading parenthetical OR bracketed tag before `Day N`. Preserve that prefix verbatim in the returned heading so two variants stay distinct, e.g. `(tweaked groin) Day 5: legs B & calves & abs` and `Day 5: legs B & calves & abs` are different names.
-2. Stop deduping headings. Replace the `uniqueNames` loop with one that walks `headingHits` in order and slices the lines between heading `i` and heading `i+1`. Each hit becomes its own `ParsedWorkout`, so two identical "Day 1: UPPER" headings produce two workouts with their own exercise lists.
-3. When two emitted workouts end up with identical `day_name`, append ` (2)`, ` (3)`, … to later occurrences so downstream UIs and Supabase rows stay unique while preserving the original wording for the first one.
-4. Update `schedule` to mirror the emitted workouts in PDF order (it already does — verify with the new ordering).
+### 4. Leave alone
+- DB schema, `program_workouts.sort_order`, `exclude_from_numbering`, `custom_tag` — unchanged. Renames take effect immediately because the order is derived from the live `name`.
+- `formatWorkoutDayLabel` / `withDisplayPositions` stay in the repo for now (other surfaces like meal-plan day badges still use `withDisplayPositions`); only the workout-label call sites stop calling them.
 
-## Verification
+## Result
+- Renaming "Day 2: Neck" → "Day 2: Back" instantly re-sorts; renaming "Day 5: Push" → "Day 1: Push" moves it to the top automatically.
+- `(tweaked groin) Day 5: legs B & calves & abs` and `(Tweaked Shoulder) Day 3: Push` show under "Other", not as `Day 1:` / `Day 2:` of the chronological list.
+- The "Schedule Events → Link to Workout" dropdown in your screenshot will read: `Day 3: UPPER`, `Day 4: LOWER A …`, `Day 5: Push`, `Day 6: Pull`, `Day 7: legs B …`, then under Other: `(tweaked groin) Day 5: legs B …`, `(Tweaked Shoulder) Day 3: Push`.
 
-- Extend `trainerizeWorkoutParser.test.ts` with a fixture mirroring Manny's PDF: two `Day 1: UPPER`, two `Day 2`, two `Day 3` (one prefixed `(Tweaked Shoulder)`), and one `(tweaked groin) Day 5`. Assert the parser returns 7 workouts, that prefixed variants keep their prefix, and that duplicate plain names get `(2)` suffixes with the correct exercise list each.
-- Re-run the existing Lee 4-day and 9-workout fixtures to confirm no regression.
-
-## Technical notes
-
-- `HEADING_RE` becomes something like `/^(?:\([^)]+\)\s*)?(?:\[\s*away\s*\]\s*)?day\s*\d+\s*:.*|stretches$/i`.
-- `canonicalHeading` keeps the parenthetical untouched (no lowercase, no strip) so the user sees the same wording as in the PDF.
-- The segment slicer uses `headingHits[i].index` → `headingHits[i+1].index ?? lines.length`, eliminating the `firstByName` map entirely.
-- Suffix logic runs after parsing so `(tweaked groin) Day 5 …` and `Day 5 …` (different strings) are not renumbered.
-
-No DB migration, no edge-function change, no other component touched.
+Confirm and I'll implement — or tell me to keep drag-order authoritative in the program builder and only fix the calendar/scheduling dropdowns.
