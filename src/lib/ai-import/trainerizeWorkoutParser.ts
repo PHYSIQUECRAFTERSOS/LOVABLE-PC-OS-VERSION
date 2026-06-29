@@ -29,7 +29,7 @@ export type TrainerizeWorkoutSummary = {
 export const TRAINERIZE_WORKOUT_SUMMARY_START = "<<<TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
 export const TRAINERIZE_WORKOUT_SUMMARY_END = "<<<END_TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
 
-const HEADING_RE = /^(?:\[\s*away\s*\]\s*day\s*\d+\s*:.*|day\s*\d+\s*:.*|stretches)$/i;
+const HEADING_RE = /^(?:\([^)]+\)\s*)?(?:\[\s*away\s*\]\s*)?day\s*\d+\s*:.*$|^stretches$/i;
 
 function stripDecorations(line: string): string {
   return line
@@ -53,6 +53,8 @@ function canonicalHeading(line: string): string | null {
     .replace(/Which is\s*\[.*$/i, "")
     .replace(/ALL SET SHOULD.*$/i, "")
     .replace(/2\s+Second eccentric.*$/i, "")
+    .replace(/\s*\[\+\]\s*$/i, "")
+    .replace(/\s+\+\s*$/i, "")
     .trim();
 
   if (/^stretches$/i.test(clean)) return "Stretches";
@@ -60,7 +62,7 @@ function canonicalHeading(line: string): string | null {
   if (/\b(reps|lbs|set\s*\d|previous stats|tracking sheet)\b/i.test(clean)) return null;
 
   return clean
-    .replace(/^\[\s*away\s*\]\s*/i, "[AWAY]")
+    .replace(/\[\s*away\s*\]\s*/i, "[AWAY]")
     .replace(/\s+/g, " ")
     .trim();
 }
