@@ -383,7 +383,7 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
         // Prefer the date-aware phase from a fresh phase fetch.
         const { data: rawPhases } = await supabase
           .from("program_phases")
-          .select("id, name, phase_order, duration_weeks")
+          .select("id, name, phase_order, duration_weeks, start_date")
           .eq("program_id", assignment.program_id)
           .order("phase_order", { ascending: true });
 
