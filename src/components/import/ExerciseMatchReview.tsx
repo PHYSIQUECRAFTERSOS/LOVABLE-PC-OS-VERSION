@@ -22,16 +22,20 @@ interface ExerciseMatchReviewProps {
 }
 
 // Single threshold per spec
-const AUTO_ACCEPT_SCORE = 80;
+// Auto-accept only exact matches; allow swapping for anything below 100%.
+const AUTO_ACCEPT_SCORE = 100;
 
 const ConfidenceBadge = ({ score }: { score: number }) => {
-  const isHigh = score >= AUTO_ACCEPT_SCORE;
-  const cls = isHigh
+  const isPerfect = score >= 100;
+  const isHigh = score >= 80;
+  const cls = isPerfect
     ? "bg-success/20 text-success border-success/30"
+    : isHigh
+    ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
     : "bg-destructive/20 text-destructive border-destructive/30";
   return (
     <Badge variant="outline" className={`text-[10px] ${cls}`}>
-      {isHigh ? "High" : "Low"} {Math.round(score)}%
+      {isPerfect ? "Exact" : isHigh ? "High" : "Low"} {Math.round(score)}%
     </Badge>
   );
 };
