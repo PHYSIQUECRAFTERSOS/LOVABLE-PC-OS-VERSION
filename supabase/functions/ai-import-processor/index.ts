@@ -627,7 +627,7 @@ Extract workout program data. Return JSON in this format:
   "workouts": [
     {
       "day_name": "string — copy the heading VERBATIM, including any '[AWAY]' prefix, brackets, casing, and ' A' / ' B' suffix (e.g. '[AWAY]Day 1: Upper', 'Day 1: UPPER A', 'Day 4 : LOWER B & calves & abs')",
-      "instructions": "string or null — the per-workout instructional paragraph(s) printed directly under this heading before its first exercise. Strip the global tempo/warmup/stretching/execution boilerplate that repeats on every page.",
+      "instructions": "string or null — ONLY the per-workout instructional paragraph(s) printed directly under this heading before its first exercise. STRICT RULES: (a) return null when nothing custom is written for THIS specific workout; (b) NEVER copy global boilerplate that repeats across pages (warmup protocol starting with 'Warmup' / 'For the main exercise of the session', 'Get into the gym', 'LET'S SAY MY TOP SET', tempo explanation, stretching protocol); (c) NEVER copy text that belongs to a single exercise row such as set/rep counts, 'Rest: 15 seconds', 'Set 3: 3 reps (AMRAP)', drop-set or myo-rep notes — those belong on the exercise, not the workout.",
       "exercises": [
         {
           "name": "string (exact name from PDF)",
