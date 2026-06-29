@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import WorkoutPreviewModal from "./WorkoutPreviewModal";
 import { fetchWorkoutThumbnailSummary } from "@/lib/workoutExerciseQueries";
 import ExportPdfButton from "@/components/common/ExportPdfButton";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
