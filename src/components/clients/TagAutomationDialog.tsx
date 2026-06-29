@@ -543,9 +543,11 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
                       </p>
                     )}
                     {automations.map((auto) => (
-                      <div
+                      <button
+                        type="button"
                         key={auto.id}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-secondary/30 transition-colors"
+                        onClick={() => setEditingAuto({ ...auto })}
+                        className="w-full text-left flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-secondary/40 hover:border-primary/40 transition-colors"
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -561,22 +563,30 @@ const TagAutomationDialog = ({ open, onOpenChange, clientId, clientName, onTagsC
                             {auto.send_email && <Mail className="h-3 w-3 text-primary" />}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingAuto({ ...auto })}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingAuto({ ...auto });
+                          }}
+                          className="inline-flex items-center gap-1 h-8 px-2 rounded-md text-xs font-medium text-primary border border-primary/30 hover:bg-primary/10"
                         >
+                          <Pencil className="h-3.5 w-3.5" />
                           Edit
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => deleteAutomation(auto.id)}
+                        </span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAutomation(auto.id);
+                          }}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </ScrollArea>
