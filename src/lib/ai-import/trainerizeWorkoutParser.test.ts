@@ -101,3 +101,38 @@ ${workoutBlock("stretches", "Trap stretch")}
     expect(bench.rest_seconds).toBe(120);
   });
 });
+
+describe("duplicate workout names", () => {
+  it("preserves prefixed variants and suffixes plain duplicates", () => {
+    const text = `
+Physique Crafters 2026-06-29
+https://teaminspirez.trainerize.com/app/PrintTrackingLog.aspx
+${workoutBlock("(tweaked groin) Day 5 : legs B & calves & abs", "leg press sumo")}
+${workoutBlock("(Tweaked Shoulder) Day 3: Push", "flat dumbbell bench press")}
+${workoutBlock("Day 1: UPPER", "Incline dumbbell Bench Press")}
+${workoutBlock("Day 2: Lower", "Back squat")}
+${workoutBlock("Day 3: Push", "barbell bench press")}
+${workoutBlock("Day 5: legs B & calves & abs", "leg press")}
+${workoutBlock("Day 1: UPPER", "Incline dumbbell Bench Press")}
+${workoutBlock("Day 2: Lower", "Back squat")}
+`;
+
+    const summary = extractTrainerizeWorkoutSummary(text);
+    expect(summary).not.toBeNull();
+    const names = summary!.workouts.map((w) => w.day_name);
+    expect(names).toEqual([
+      "(tweaked groin) Day 5 : legs B & calves & abs",
+      "(Tweaked Shoulder) Day 3: Push",
+      "Day 1: UPPER",
+      "Day 2: Lower",
+      "Day 3: Push",
+      "Day 5: legs B & calves & abs",
+      "Day 1: UPPER (2)",
+      "Day 2: Lower (2)",
+    ]);
+    summary!.workouts.forEach((w) => {
+      expect(w.exercises.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+});
+

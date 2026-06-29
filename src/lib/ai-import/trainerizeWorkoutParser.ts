@@ -29,7 +29,7 @@ export type TrainerizeWorkoutSummary = {
 export const TRAINERIZE_WORKOUT_SUMMARY_START = "<<<TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
 export const TRAINERIZE_WORKOUT_SUMMARY_END = "<<<END_TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
 
-const HEADING_RE = /^(?:\[\s*away\s*\]\s*day\s*\d+\s*:.*|day\s*\d+\s*:.*|stretches)$/i;
+const HEADING_RE = /^(?:\([^)]+\)\s*)?(?:\[\s*away\s*\]\s*)?day\s*\d+\s*:.*$|^stretches$/i;
 
 function stripDecorations(line: string): string {
   return line
@@ -53,6 +53,8 @@ function canonicalHeading(line: string): string | null {
     .replace(/Which is\s*\[.*$/i, "")
     .replace(/ALL SET SHOULD.*$/i, "")
     .replace(/2\s+Second eccentric.*$/i, "")
+    .replace(/\s*\[\+\]\s*$/i, "")
+    .replace(/\s+\+\s*$/i, "")
     .trim();
 
   if (/^stretches$/i.test(clean)) return "Stretches";
@@ -60,7 +62,7 @@ function canonicalHeading(line: string): string | null {
   if (/\b(reps|lbs|set\s*\d|previous stats|tracking sheet)\b/i.test(clean)) return null;
 
   return clean
-    .replace(/^\[\s*away\s*\]\s*/i, "[AWAY]")
+    .replace(/\[\s*away\s*\]\s*/i, "[AWAY]")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -304,31 +306,38 @@ export function extractTrainerizeWorkoutSummary(text: string): TrainerizeWorkout
 
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const headingHits: Array<{ index: number; name: string }> = [];
-  const firstByName = new Map<string, number>();
 
   lines.forEach((line, index) => {
     const heading = canonicalHeading(line);
     if (!heading) return;
+    // Collapse adjacent duplicate heading lines (Trainerize prints the title
+    // twice — once at the page header, again just above the table). Treat them
+    // as one heading hit so we don't split a single workout in two.
+    const prev = headingHits[headingHits.length - 1];
+    if (prev && prev.name === heading && index - prev.index <= 40) return;
     headingHits.push({ index, name: heading });
-    if (!firstByName.has(heading)) firstByName.set(heading, index);
   });
 
-  const uniqueNames: string[] = [];
-  for (const hit of headingHits) {
-    if (!uniqueNames.includes(hit.name)) uniqueNames.push(hit.name);
-  }
-
-  if (uniqueNames.length < 2) return null;
+  if (headingHits.length < 2) return null;
 
   const workouts: ParsedWorkout[] = [];
-  for (let i = 0; i < uniqueNames.length; i++) {
-    const name = uniqueNames[i];
-    const nextFirst = i + 1 < uniqueNames.length ? firstByName.get(uniqueNames[i + 1]) ?? lines.length : lines.length;
-    const starts = headingHits.filter((hit) => hit.name === name && hit.index < nextFirst).map((hit) => hit.index);
-    const start = starts.length ? starts[starts.length - 1] : firstByName.get(name) ?? 0;
-    const segment = lines.slice(start, nextFirst);
-    const workout = parseWorkoutSegment(name, segment);
+  for (let i = 0; i < headingHits.length; i++) {
+    const start = headingHits[i].index;
+    const end = i + 1 < headingHits.length ? headingHits[i + 1].index : lines.length;
+    const segment = lines.slice(start, end);
+    const workout = parseWorkoutSegment(headingHits[i].name, segment);
     if (workout.exercises.length > 0) workouts.push(workout);
+  }
+
+  // Suffix duplicates (e.g. two "Day 1: UPPER") with " (2)", " (3)", … so each
+  // workout has a unique day_name downstream. Prefixed variants like
+  // "(tweaked groin) Day 5 …" stay as-is since their name already differs.
+  const seenNames = new Map<string, number>();
+  for (const workout of workouts) {
+    const key = workout.day_name.toLowerCase();
+    const count = (seenNames.get(key) ?? 0) + 1;
+    seenNames.set(key, count);
+    if (count > 1) workout.day_name = `${workout.day_name} (${count})`;
   }
 
   if (workouts.length < 2) return null;

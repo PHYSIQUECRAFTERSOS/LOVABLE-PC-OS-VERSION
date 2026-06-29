@@ -1,39 +1,39 @@
-# Manager = Coach + More (Permissions Audit)
 
-## What's already correct
-- `public.has_role(uid, 'coach')` returns `true` when the user has role `coach` OR `manager`. Every policy written as `has_role(auth.uid(), 'coach')` already grants managers full coach-equivalent access.
-- Tables already covered by shared-master visibility for any coach/manager: `programs`, `program_phases`, `program_weeks`, `program_workouts`, `master_workouts`, `master_workout_exercises`, `master_supplements`, `supplement_plans`, `supplement_plan_items`, `exercises` (public).
+## Problem
 
-## The actual gap
-Several "shared" coach-side libraries gate access on the literal `coach_id = auth.uid()` of the owning coach with no fallback for other coaches/managers. A manager who isn't the original author can't see them — that's why Aaron sees empty lists.
+Manny Paiz's PDF contains 6 workouts whose names overlap:
 
-The affected tables (all have an owner-only policy today, with no shared/team fallback):
-- `meal_plans` (has `is_template`, no policy reads it)
-- `meal_plan_days`, `meal_plan_items`, `meal_plan_meal_notes` (children of meal_plans)
-- `nutrition_guide_sections` (coach-owned guides shown in Master Libraries → Guides)
-- `checkin_templates` (already broadly readable via "Authenticated read active templates", but manage is owner-only — read is fine)
+- `(tweaked groin) Day 5 : legs B & calves & abs`
+- `(Tweaked Shoulder) Day 3: Push`
+- `Day 1: UPPER`
+- `Day 2: Lower` (and likely repeats further in the PDF)
+- `Day 3: Push`
+- `Day 5: legs B & calves & abs`
 
-`saved_meals` already has "Coaches can view client saved meals" using `has_role('coach')`, which covers managers.
+Two failures in `src/lib/ai-import/trainerizeWorkoutParser.ts`:
 
-## Changes to make
+1. `HEADING_RE` only accepts `Day N: …`, `[AWAY] Day N: …`, or `stretches`. Lines starting with a parenthetical prefix like `(tweaked groin) Day 5 : …` are rejected, so those whole workouts vanish from the boundary summary and get merged into whichever Day-N block the AI picks.
+2. Even when two headings share a canonical name, `extractTrainerizeWorkoutSummary` builds `uniqueNames` by dedup and emits one workout per unique name. Two real "Day 5" sections collapse into one.
 
-### 1. Meal-plan templates visible to all coaches/managers
-Add SELECT policies so any coach/admin/manager can read template meal plans (`meal_plans.is_template = true`) and their day/item/note children. Edits remain owner-only (so managers won't accidentally mutate Kevin's templates unless they own/copy them).
+## Fix
 
-- `meal_plans`: new policy "Coaches view template meal plans" → `is_template = true AND has_role(auth.uid(),'coach' or 'admin')`.
-- `meal_plan_days`, `meal_plan_items`, `meal_plan_meal_notes`: matching SELECT policies via the parent `meal_plans.is_template = true` check.
+Edit only `src/lib/ai-import/trainerizeWorkoutParser.ts` (plus its unit test). Edge function behavior is unchanged — the deterministic JSON it already trusts simply now contains the right boundaries.
 
-### 2. Nutrition guide sections visible to all coaches/managers
-- `nutrition_guide_sections`: new SELECT policy → any coach/admin can read every coach's guide sections. (Already public-ish since clients of any coach read them via `coach_clients`; broadening to staff is consistent.)
+1. Expand `HEADING_RE` / `canonicalHeading` to accept an optional leading parenthetical OR bracketed tag before `Day N`. Preserve that prefix verbatim in the returned heading so two variants stay distinct, e.g. `(tweaked groin) Day 5: legs B & calves & abs` and `Day 5: legs B & calves & abs` are different names.
+2. Stop deduping headings. Replace the `uniqueNames` loop with one that walks `headingHits` in order and slices the lines between heading `i` and heading `i+1`. Each hit becomes its own `ParsedWorkout`, so two identical "Day 1: UPPER" headings produce two workouts with their own exercise lists.
+3. When two emitted workouts end up with identical `day_name`, append ` (2)`, ` (3)`, … to later occurrences so downstream UIs and Supabase rows stay unique while preserving the original wording for the first one.
+4. Update `schedule` to mirror the emitted workouts in PDF order (it already does — verify with the new ordering).
 
-### 3. Optional sanity sweep — no changes, just verification
-Confirm with a follow-up `pg_policy` query that no other coach-side library table is still gated purely on `coach_id = auth.uid()` without a shared fallback. If anything else surfaces (e.g. `coach_meal_plan_uploads` for client-specific uploads), call it out — those are intentionally client-scoped, not "shared library" content, so we leave them owner-only.
+## Verification
 
-## Out of scope (intentionally unchanged)
-- Write access (INSERT/UPDATE/DELETE) on other coaches' templates. Managers can still only edit/delete content they own or have admin role for, matching the current coach behavior. If you want managers to also be able to edit any coach's templates, say the word and I'll widen those policies too.
-- Client-private data (`saved_meals.client_id`, `meal_plans.client_id` assignments, etc.) — already correctly scoped.
+- Extend `trainerizeWorkoutParser.test.ts` with a fixture mirroring Manny's PDF: two `Day 1: UPPER`, two `Day 2`, two `Day 3` (one prefixed `(Tweaked Shoulder)`), and one `(tweaked groin) Day 5`. Assert the parser returns 7 workouts, that prefixed variants keep their prefix, and that duplicate plain names get `(2)` suffixes with the correct exercise list each.
+- Re-run the existing Lee 4-day and 9-workout fixtures to confirm no regression.
 
 ## Technical notes
-- All new policies follow the existing pattern: `has_role(auth.uid(), 'coach'::app_role) OR has_role(auth.uid(), 'admin'::app_role)`, which automatically includes managers via `has_role`.
-- Single migration. Idempotent `DROP POLICY IF EXISTS` + `CREATE POLICY` so re-runs are safe.
-- No data is changed; only visibility policies are added.
+
+- `HEADING_RE` becomes something like `/^(?:\([^)]+\)\s*)?(?:\[\s*away\s*\]\s*)?day\s*\d+\s*:.*|stretches$/i`.
+- `canonicalHeading` keeps the parenthetical untouched (no lowercase, no strip) so the user sees the same wording as in the PDF.
+- The segment slicer uses `headingHits[i].index` → `headingHits[i+1].index ?? lines.length`, eliminating the `firstByName` map entirely.
+- Suffix logic runs after parsing so `(tweaked groin) Day 5 …` and `Day 5 …` (different strings) are not renumbered.
+
+No DB migration, no edge-function change, no other component touched.
