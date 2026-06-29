@@ -46,6 +46,7 @@ import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
 import AIImportButton from "@/components/import/AIImportButton";
 import AIImportModal from "@/components/import/AIImportModal";
 import MobileTwoPane from "@/components/libraries/MobileTwoPane";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
