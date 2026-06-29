@@ -143,38 +143,27 @@ const ScheduleEventForm = ({ open, onClose, onSave, selectedDate, isCoach }: Sch
         custom_tag: pw.custom_tag || null,
       }));
 
-      const positioned = withDisplayPositions(normalized);
+      const ordered = sortWorkoutsChronologically(normalized);
 
-      const mapped = positioned.map((w) => {
-        const cleanName = normalizeWorkoutName(w.name);
+      const mapped = ordered.map((w) => {
         const label = w.exclude_from_numbering && w.custom_tag
-          ? `${w.custom_tag}: ${cleanName}`
-          : w.displayPosition != null
-            ? formatWorkoutDayLabel(w.displayPosition, cleanName)
-            : cleanName;
+          ? `${w.custom_tag}: ${w.name}`
+          : w.name;
 
         return {
           id: w.id,
-          name: cleanName,
+          name: w.name,
           label,
-          dayNumber: w.displayPosition ?? undefined,
+          dayNumber: undefined as number | undefined,
           excludeFromNumbering: w.exclude_from_numbering,
           customTag: w.custom_tag,
           sortOrder: w.sort_order,
         };
       });
 
-      mapped.sort((a, b) => {
-        const aTagged = !!a.excludeFromNumbering;
-        const bTagged = !!b.excludeFromNumbering;
-        if (aTagged && !bTagged) return 1;
-        if (!aTagged && bTagged) return -1;
-        if (!aTagged && !bTagged) return (a.dayNumber ?? 999) - (b.dayNumber ?? 999);
-        return (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
-      });
-
       setWorkouts(mapped);
     };
+
 
     loadWorkouts();
   }, [isCoach, user, targetClientId, eventDate, programPhases.length, resolvePhaseForDate]);
