@@ -1464,14 +1464,12 @@ const AssignDialog = ({
           {programs.length === 0 ? (
             <p className="text-xs text-muted-foreground py-3 text-center">No template programs found. Create one in Master Libraries first.</p>
           ) : (
-            <Select value={selected} onValueChange={onSelect}>
-              <SelectTrigger><SelectValue placeholder="Choose a program..." /></SelectTrigger>
-              <SelectContent>
-                {programs.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableClientSelect
+              clients={programs.map(p => ({ id: p.id, name: p.name }))}
+              value={selected}
+              onValueChange={onSelect}
+              placeholder="Choose a program..."
+            />
           )}
         </div>
         {onStartDateChange && (
