@@ -103,13 +103,18 @@ export function scoreNormalized(aNorm: string, bNorm: string): number {
     if (allShared) return 95;
   }
 
-  // Token-subset match
+  // Token-subset match — scale by overlap so candidates that share MORE of the
+  // input's distinctive tokens win over shorter generic subsets.
+  // e.g. "Hammer Grip Incline DB Bench Press Exercise" (overlap 6/7=0.857 → ~93.6)
+  // beats "Incline Dumbbell Bench Press" (overlap 4/6=0.67 → ~91.7) for input
+  // "Hammer Grip Incline DB Bench Press".
   let aInB = true; for (const t of setA) if (!setB.has(t)) { aInB = false; break; }
   let bInA = true; for (const t of setB) if (!setA.has(t)) { bInA = false; break; }
   if ((aInB || bInA) && setA.size > 0 && setB.size > 0) {
     const minSize = Math.min(setA.size, setB.size);
     const maxSize = Math.max(setA.size, setB.size);
-    if (minSize / maxSize >= 0.5) return 90;
+    const overlap = minSize / maxSize;
+    if (overlap >= 0.5) return 85 + overlap * 10;
   }
 
   const lev = levenshteinRatio(aNorm, bNorm) * 85;
