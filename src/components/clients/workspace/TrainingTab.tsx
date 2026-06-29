@@ -153,6 +153,33 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     id: string; program_id: string; name: string; start_date: string | null; ended_on: string | null;
   }>>([]);
   const [showPrevious, setShowPrevious] = useState(false);
+  const [restoringPrevId, setRestoringPrevId] = useState<string | null>(null);
+
+  const handleRestorePrevious = useCallback(async (pp: { id: string; program_id: string; name: string }) => {
+    if (!userId) return;
+    setRestoringPrevId(pp.id);
+    try {
+      const res = await restorePreviousProgramPhases({
+        coachId: userId,
+        sourceProgramId: pp.program_id,
+        targetClientId: clientId,
+      });
+      if (!res.ok) {
+        toast({ title: res.message.title, description: res.message.description, variant: "destructive" });
+      } else {
+        toast({
+          title: "Restored to active program",
+          description: `${res.phasesRestored} phase${res.phasesRestored === 1 ? "" : "s"} from "${pp.name}" appended.`,
+        });
+        await loadClientProgram();
+      }
+    } catch (err: any) {
+      toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRestoringPrevId(null);
+    }
+  }, [userId, clientId, loadClientProgram, toast]);
+
 
   useEffect(() => {
     let cancelled = false;
