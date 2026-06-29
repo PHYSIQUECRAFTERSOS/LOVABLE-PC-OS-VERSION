@@ -232,3 +232,84 @@ export async function copyPhaseToClientProgram(args: {
     };
   }
 }
+
+/**
+ * Restore an archived/previous program by appending each of its phases (in order)
+ * to the target client's CURRENT active program. The source program is left
+ * untouched (still status='completed' in client_program_assignments).
+ *
+ * Returns ok=false with a clear message if the target client has no active program
+ * or the source program has no phases.
+ */
+export async function restorePreviousProgramPhases(args: {
+  coachId: string;
+  sourceProgramId: string;
+  targetClientId: string;
+}): Promise<CopyResult & { phasesRestored: number }> {
+  const { coachId, sourceProgramId, targetClientId } = args;
+
+  // Verify target has an active program first (cheap check, gives a clean error).
+  const { data: activeAssign } = await supabase
+    .from("client_program_assignments")
+    .select("program_id")
+    .eq("client_id", targetClientId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (!activeAssign?.[0]?.program_id) {
+    return {
+      ok: false,
+      summary: buildImportSummary([]),
+      message: { title: "No active program", description: "Assign an active program to this client first.", isWarning: true } as any,
+      error: "No active program",
+      phasesRestored: 0,
+    };
+  }
+
+  // Load source phases in order.
+  const { data: phases } = await supabase
+    .from("program_phases")
+    .select("id, name, description, duration_weeks, training_style, intensity_system, custom_intensity, progression_rule, phase_order")
+    .eq("program_id", sourceProgramId)
+    .order("phase_order");
+
+  if (!phases || phases.length === 0) {
+    return {
+      ok: false,
+      summary: buildImportSummary([]),
+      message: { title: "Nothing to restore", description: "This previous program has no phases.", isWarning: true } as any,
+      error: "Empty program",
+      phasesRestored: 0,
+    };
+  }
+
+  let restored = 0;
+  let lastResult: CopyResult | null = null;
+  for (const p of phases) {
+    const res = await copyPhaseToClientProgram({
+      coachId,
+      targetClientId,
+      sourcePhase: {
+        id: p.id,
+        name: p.name,
+        description: (p as any).description,
+        duration_weeks: p.duration_weeks,
+        training_style: (p as any).training_style,
+        intensity_system: (p as any).intensity_system,
+        custom_intensity: (p as any).custom_intensity,
+        progression_rule: (p as any).progression_rule,
+      },
+    });
+    lastResult = res;
+    if (res.ok) restored++;
+  }
+
+  const summary = lastResult?.summary || buildImportSummary([]);
+  return {
+    ok: restored > 0,
+    summary,
+    message: formatImportSummary(summary),
+    phasesRestored: restored,
+  };
+}
+
