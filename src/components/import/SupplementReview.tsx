@@ -174,12 +174,12 @@ const SupplementReview = ({ extracted, matchResults, onUpdateExtracted }: Supple
                         </Badge>
                       )}
                       {onUpdateExtracted && (
-                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(idx)}>
-                            <Edit className="h-3 w-3" />
+                        <div className="flex gap-0.5 shrink-0">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(idx)}>
+                            <Edit className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeItem(idx)}>
-                            <Trash2 className="h-3 w-3" />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeItem(idx)}>
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       )}
