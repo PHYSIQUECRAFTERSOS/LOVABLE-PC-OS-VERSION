@@ -904,6 +904,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const isLinked = assignment.is_linked_to_master;
 
+  // Sort phases chronologically by derived start_date so the timeline reads
+  // top→bottom in real-world order, regardless of phase_order insertion sequence.
+  const phaseDateMap = derivePhaseDates((program as any)?.start_date || null, phases as any);
+  const orderedPhases = [...phases].sort((a, b) => {
+    const aStart = phaseDateMap[a.id]?.start_date || a.start_date || "";
+    const bStart = phaseDateMap[b.id]?.start_date || b.start_date || "";
+    if (aStart && bStart && aStart !== bStart) return aStart < bStart ? -1 : 1;
+    return (a.phase_order ?? 0) - (b.phase_order ?? 0);
+  });
+
   return (
     <div className="space-y-4">
       {/* Header actions */}
@@ -920,7 +930,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         isLinkedToMaster={isLinked}
         currentPhaseId={assignment.current_phase_id}
         currentWeekNumber={assignment.current_week_number}
-        phases={phases}
+        phases={orderedPhases}
         loading={loading}
         onNewWorkout={(phaseId) => guardEdit(() => { setBuilderPhaseId(phaseId); setBuilderOpen(true); })}
         onImport={(phaseId) => guardEdit(() => openImportDialog(phaseId))}
