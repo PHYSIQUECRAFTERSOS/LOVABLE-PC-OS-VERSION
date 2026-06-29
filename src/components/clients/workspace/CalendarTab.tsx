@@ -428,26 +428,21 @@ const CalendarTab = ({ clientId }: { clientId: string }) => {
       .eq("phase_id", phaseId)
       .order("sort_order", { ascending: true });
 
-    const positioned = withDisplayPositions(
-      (pws || []).map((pw: any) => ({
-        id: pw.workout_id,
-        sort_order: pw.sort_order,
-        exclude_from_numbering: pw.exclude_from_numbering || false,
-        custom_tag: pw.custom_tag || null,
-        name: (pw.workouts as any)?.name || "Workout",
-      }))
-    );
+    // Show workouts verbatim using the coach-authored name and order them by
+    // the "Day N" prefix embedded in that name (Trainerize-style).
+    const rows = (pws || []).map((pw: any) => ({
+      id: pw.workout_id,
+      sort_order: pw.sort_order,
+      exclude_from_numbering: pw.exclude_from_numbering || false,
+      custom_tag: pw.custom_tag || null,
+      name: (pw.workouts as any)?.name || "Workout",
+    }));
 
-    // Root cause note:
-    // The old code used `program_workouts.day_label` directly, which had stale values (e.g. Day 6/7), causing phantom prefixes.
-    // We now derive label from ordered display position + workout name only.
-    const mapped = positioned.map((w: any) => {
-      const cleanName = normalizeWorkoutName(w.name);
+    const ordered = sortWorkoutsChronologically(rows);
+    const mapped = ordered.map((w: any) => {
       const label = w.exclude_from_numbering && w.custom_tag
-        ? `${w.custom_tag}: ${cleanName}`
-        : w.displayPosition != null
-          ? formatWorkoutDayLabel(w.displayPosition, cleanName)
-          : cleanName;
+        ? `${w.custom_tag}: ${w.name}`
+        : w.name;
       return { id: w.id, label };
     });
 
