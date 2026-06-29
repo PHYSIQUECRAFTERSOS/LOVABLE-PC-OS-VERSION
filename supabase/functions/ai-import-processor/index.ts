@@ -175,7 +175,7 @@ function sanitizeWorkoutInstructions(raw: unknown): string | null {
   return result.length > 0 ? result : null;
 }
 
-
+function normalizeAgainstTrainerizeSummary(extracted: any, summary: any): any {
   if (!summary || !Array.isArray(summary.workouts) || summary.workouts.length === 0) return extracted;
 
   const summaryWorkouts = summary.workouts.filter((w: any) => w?.day_name && Array.isArray(w?.exercises));
