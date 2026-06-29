@@ -718,29 +718,52 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
     }
     setCopying(true);
     try {
-      // 1. Determine start date
+      // APPEND mode — preserve the client's current program; just add this phase to the end.
+      if (copyStartOption === "after_last") {
+        const { copyPhaseToClientProgram } = await import("@/lib/copyPhaseHelpers");
+        const res = await copyPhaseToClientProgram({
+          coachId: userId,
+          targetClientId: selectedCopyClient,
+          sourcePhase: {
+            id: phase.id,
+            name: phase.name,
+            description: phase.description || null,
+            duration_weeks: phase.durationWeeks,
+            training_style: phase.trainingStyle,
+            intensity_system: phase.intensitySystem,
+            custom_intensity: phase.customIntensity || null,
+            progression_rule: phase.progressionRule,
+          },
+        });
+        if (!res.ok) {
+          // Fall back: no active program — create one for them.
+          if (res.error === "Target client has no active program. Assign one first.") {
+            // fall through to legacy "new program" path below using today's date
+          } else {
+            toast({ title: res.message.title, description: res.message.description, variant: "destructive" });
+            setCopying(false);
+            return;
+          }
+        } else {
+          toast({
+            title: "Phase appended",
+            description: `${phase.name} added to the client's active program (${res.summary.totalExercises} exercises).`,
+          });
+          setShowCopyToClientDialog(false);
+          setCopying(false);
+          return;
+        }
+      }
+
+      // SPECIFIC-DATE mode (or APPEND fallback when client has no active program):
+      // create a new one-phase program and truncate any overlapping current program.
       let startDate: string;
       if (copyStartOption === "specific_date" && copyStartDate) {
         startDate = format(copyStartDate, "yyyy-MM-dd");
       } else {
-        // Find latest active assignment end date
-        const { data: assignments } = await supabase
-          .from("client_program_assignments")
-          .select("start_date, program_id, programs(duration_weeks)")
-          .eq("client_id", selectedCopyClient)
-          .eq("status", "active")
-          .order("start_date", { ascending: false })
-          .limit(1);
-        const latest = assignments?.[0];
-        if (latest && (latest as any).programs?.duration_weeks) {
-          const endMs = new Date(latest.start_date).getTime() + ((latest as any).programs.duration_weeks * 7 * 86400000);
-          startDate = format(new Date(endMs), "yyyy-MM-dd");
-        } else {
-          startDate = format(new Date(), "yyyy-MM-dd");
-        }
+        startDate = format(new Date(), "yyyy-MM-dd");
       }
 
-      // 2. Create new program for client
       const phaseProgramName = `${phase.name} — ${programDetails?.name || programName}`;
       const { data: newProg, error: progErr } = await supabase
         .from("programs")
@@ -756,7 +779,6 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         .single();
       if (progErr) throw progErr;
 
-      // 3. Clone the phase
       const { data: newPhase, error: phaseErr } = await supabase
         .from("program_phases")
         .insert({
@@ -774,7 +796,6 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         .single();
       if (phaseErr) throw phaseErr;
 
-      // 4. Clone workouts + exercises (sequential)
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
       for (const pw of phase.workouts) {
         const { workout: clonedW, result } = await cloneWorkoutWithExercises(
@@ -783,7 +804,6 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         allCloneResults.push(result);
         if (!clonedW) continue;
 
-        // Link to phase
         await supabase.from("program_workouts").insert({
           phase_id: newPhase.id,
           workout_id: clonedW.id,
@@ -795,10 +815,8 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         });
       }
 
-      // 5. Truncate the client's previous active program (if any) instead of erasing it.
       const mergeResult = await applyMerge(selectedCopyClient, startDate);
 
-      // 6. Create assignment
       const { error: assignErr } = await supabase
         .from("client_program_assignments")
         .insert({
@@ -831,6 +849,7 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
       setCopying(false);
     }
   };
+
 
   // ── Copy Day to Client ──
   const openCopyDayToClient = async (pw: ProgramWorkout) => {
@@ -1443,18 +1462,24 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
             <div className="space-y-2">
               <Label className="text-xs">Schedule</Label>
               <RadioGroup value={copyStartOption} onValueChange={(v) => setCopyStartOption(v as any)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="after_last" id="after_last" />
-                  <Label htmlFor="after_last" className="text-sm font-normal cursor-pointer">
-                    Immediately after last scheduled training phase
-                  </Label>
+                <div className="flex items-start space-x-2">
+                  <RadioGroupItem value="after_last" id="after_last" className="mt-0.5" />
+                  <div>
+                    <Label htmlFor="after_last" className="text-sm font-normal cursor-pointer">
+                      Append after current phases
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Adds this phase to the end of the client's active program. Does not touch their current phase.
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="specific_date" id="specific_date" />
                   <Label htmlFor="specific_date" className="text-sm font-normal cursor-pointer">
-                    Start on a specific date
+                    Start on a specific date (replaces current)
                   </Label>
                 </div>
+
               </RadioGroup>
 
               {copyStartOption === "specific_date" && (

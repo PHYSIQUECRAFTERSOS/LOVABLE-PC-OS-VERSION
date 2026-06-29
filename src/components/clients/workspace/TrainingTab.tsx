@@ -20,8 +20,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dumbbell, Plus, Trash2, Copy, ChevronDown, ChevronRight,
   ArrowUp, ArrowDown, Edit2, Link2, Unlink, Search, Pencil,
-  Download, Loader2
+  Download, Loader2, Undo2, MoreHorizontal
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
 import ClientWorkoutEditorModal from "@/components/training/ClientWorkoutEditorModal";
 import MobileWorkoutEditor from "@/components/training/MobileWorkoutEditor";
 import WorkoutPreviewModal from "@/components/training/WorkoutPreviewModal";
@@ -32,7 +34,7 @@ import ExportPdfButton from "@/components/common/ExportPdfButton";
 import ChangeDurationDialog from "./training/ChangeDurationDialog";
 import CopyPhaseToMasterDialog from "./training/CopyPhaseToMasterDialog";
 import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
-import { copyPhaseToMasterProgram, copyPhaseToClientProgram } from "@/lib/copyPhaseHelpers";
+import { copyPhaseToMasterProgram, copyPhaseToClientProgram, restorePreviousProgramPhases } from "@/lib/copyPhaseHelpers";
 import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { previewMerge, applyMerge, type MergePreview } from "@/lib/programMerge";
@@ -151,6 +153,33 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     id: string; program_id: string; name: string; start_date: string | null; ended_on: string | null;
   }>>([]);
   const [showPrevious, setShowPrevious] = useState(false);
+  const [restoringPrevId, setRestoringPrevId] = useState<string | null>(null);
+
+  const handleRestorePrevious = useCallback(async (pp: { id: string; program_id: string; name: string }) => {
+    if (!userId) return;
+    setRestoringPrevId(pp.id);
+    try {
+      const res = await restorePreviousProgramPhases({
+        coachId: userId,
+        sourceProgramId: pp.program_id,
+        targetClientId: clientId,
+      });
+      if (!res.ok) {
+        toast({ title: res.message.title, description: res.message.description, variant: "destructive" });
+      } else {
+        toast({
+          title: "Restored to active program",
+          description: `${res.phasesRestored} phase${res.phasesRestored === 1 ? "" : "s"} from "${pp.name}" appended.`,
+        });
+        await loadClientProgram();
+      }
+    } catch (err: any) {
+      toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+    } finally {
+      setRestoringPrevId(null);
+    }
+  }, [userId, clientId, loadClientProgram, toast]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -928,7 +957,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             {previousPrograms.map((pp) => (
-              <div key={pp.id} className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-card/40">
+              <div key={pp.id} className="flex items-center gap-2 p-3 rounded-lg border border-border/40 bg-card/40">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{pp.name}</p>
                   <p className="text-[11px] text-muted-foreground">
@@ -936,8 +965,24 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
                     {pp.ended_on && <span className="ml-2 inline-block px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 text-[10px]">Truncated</span>}
                   </p>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-primary/40 text-primary hover:bg-primary/10 h-8"
+                  disabled={restoringPrevId === pp.id}
+                  onClick={() => handleRestorePrevious(pp)}
+                  title="Append all phases from this program to the active program"
+                >
+                  {restoringPrevId === pp.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Undo2 className="h-3.5 w-3.5" />
+                  )}
+                  <span className="ml-1 text-xs">Restore</span>
+                </Button>
               </div>
             ))}
+
           </CollapsibleContent>
         </Collapsible>
       )}
