@@ -81,19 +81,34 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+import { extractTrainerizeWorkoutSummary as runTrainerizeParser } from "../_shared/trainerizeWorkoutParser.ts";
+
 const TRAINERIZE_WORKOUT_SUMMARY_START = "<<<TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
 const TRAINERIZE_WORKOUT_SUMMARY_END = "<<<END_TRAINERIZE_WORKOUT_BOUNDARY_SUMMARY_JSON>>>";
 
 function extractTrainerizeSummaryFromText(text: string): any | null {
   const start = text.indexOf(TRAINERIZE_WORKOUT_SUMMARY_START);
   const end = text.indexOf(TRAINERIZE_WORKOUT_SUMMARY_END);
-  if (start < 0 || end <= start) return null;
-  const jsonText = text.slice(start + TRAINERIZE_WORKOUT_SUMMARY_START.length, end).trim();
+  if (start >= 0 && end > start) {
+    const jsonText = text.slice(start + TRAINERIZE_WORKOUT_SUMMARY_START.length, end).trim();
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (Array.isArray(parsed?.workouts) && parsed.workouts.length > 0) return parsed;
+    } catch (err) {
+      console.warn("Failed to parse client-prepended Trainerize boundary summary; will retry server-side parse", err);
+    }
+  }
+  // Server-side fallback: run the deterministic parser directly on the raw text.
+  // This makes the guard work even when the client failed to prepend the summary
+  // (older clients, network truncation, or a copy-pasted text upload).
   try {
-    const parsed = JSON.parse(jsonText);
-    if (Array.isArray(parsed?.workouts) && parsed.workouts.length > 0) return parsed;
+    const parsed = runTrainerizeParser(text);
+    if (parsed && Array.isArray(parsed.workouts) && parsed.workouts.length > 0) {
+      console.log(`[ai-import] Server-side Trainerize parser produced ${parsed.workouts.length} workouts as fallback`);
+      return parsed;
+    }
   } catch (err) {
-    console.warn("Failed to parse Trainerize boundary summary", err);
+    console.warn("Server-side Trainerize parse failed", err);
   }
   return null;
 }
