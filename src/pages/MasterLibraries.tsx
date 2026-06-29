@@ -46,6 +46,7 @@ import CoachNutritionGuides from "@/components/nutrition/CoachNutritionGuides";
 import AIImportButton from "@/components/import/AIImportButton";
 import AIImportModal from "@/components/import/AIImportModal";
 import MobileTwoPane from "@/components/libraries/MobileTwoPane";
+import SearchableClientSelect from "@/components/ui/searchable-client-select";
 
 const GOAL_LABELS: Record<string, string> = {
   hypertrophy: "Hypertrophy", strength: "Strength", fat_loss: "Fat Loss",
@@ -883,10 +884,12 @@ const MasterLibraries = () => {
             </div>
             <div className="space-y-2">
               <Label>Select Client</Label>
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                <SelectTrigger><SelectValue placeholder="Choose a client..." /></SelectTrigger>
-                <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <SearchableClientSelect
+                clients={clients.map(c => ({ id: c.id, name: c.name }))}
+                value={selectedClientId}
+                onValueChange={setSelectedClientId}
+                placeholder="Choose a client..."
+              />
             </div>
             <div className="space-y-2">
               <Label>Start Date</Label>
