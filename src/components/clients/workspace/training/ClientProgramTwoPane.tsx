@@ -194,6 +194,12 @@ export const ClientProgramTwoPane = ({
     }
     if (sortBy === "name") {
       list.sort((a, b) => a.workout_name.localeCompare(b.workout_name));
+    } else {
+      // "position" now means: chronological by the "Day N" prefix in the
+      // workout name (Trainerize-style). Non-Day items fall to the bottom.
+      list = sortWorkoutsChronologically(
+        list.map(w => ({ ...w, name: w.workout_name }))
+      ) as typeof list;
     }
     return list;
   }, [selectedPhaseWorkouts, search, sortBy]);
