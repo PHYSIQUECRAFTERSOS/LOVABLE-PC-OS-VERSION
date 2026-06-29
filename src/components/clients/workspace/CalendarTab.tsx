@@ -30,8 +30,7 @@ import {
   eachDayOfInterval, isSameDay, isSameMonth, isToday, addMonths, subMonths,
   addDays, addWeeks
 } from "date-fns";
-import { withDisplayPositions } from "@/utils/displayPosition";
-import { formatWorkoutDayLabel } from "@/utils/workoutLabel";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import { usePhaseBoundaries } from "@/hooks/usePhaseBoundaries";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { Flag } from "lucide-react";
