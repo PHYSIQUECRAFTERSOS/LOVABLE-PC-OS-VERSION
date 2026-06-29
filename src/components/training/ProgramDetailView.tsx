@@ -27,6 +27,7 @@ import { applyMerge } from "@/lib/programMerge";
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkoutBuilderModal from "./WorkoutBuilderModal";
 import SortableWorkoutCard from "./SortableWorkoutCard";
+import { sortWorkoutsChronologically } from "@/utils/workoutOrder";
 import type { WorkoutMeta } from "@/lib/workoutMeta";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor,
