@@ -1,61 +1,56 @@
-# Fix Trainerize Workout Import — Name Swap Bug
 
-## Problem
-For Lee's 4-day PDF, the imported workouts have the correct **day names, sets, reps, rest** — but the **exercise names are wrong** (e.g. PDF says "Lying Dumbbell Curl" → app saved "Barbell Straight Bar Curl"; "Upper Body Mobility Routine" → "Mobility lower body"; "dumbbell hammer curl" → "dumbbell incline curl"). Other Trainerize PDFs imported fine, so the regression is specific to this PDF's text layout.
+# Goal
+Stop Copy-to-Client from wiping the client's current training phase, and let you bring old phases back from the archive — Trainerize-style.
 
-## Root cause
-`src/lib/ai-import/trainerizeWorkoutParser.ts` decides a line is an exercise via `isExerciseBullet`, which requires `^\s*▶`. In Lee's PDF the text extractor places every `▶` glyph on its own line at the bottom of the block instead of prefixing the exercise rows:
+## Part 1 — Copy Phase to Client should APPEND (not replace)
 
-```
-Flat dumbbell bench press3 sets x 8-10 reps Rest 2 min between sets
-Machine seated chest press …3 sets x 10-12 reps Rest 2 min between sets
-…
-▶
-▶
-▶
-```
+**Where:** `src/components/training/ProgramDetailView.tsx` (the "Copy Phase to Client" dialog launched from Master Libraries).
 
-Because no line starts with `▶`, the deterministic parser extracts **0 exercises per day**. Then in `ai-import-processor/index.ts → normalizeAgainstTrainerizeSummary`, the rule `useSummaryExercises = aiExercises.length < floor(summaryExercises.length * 0.65)` resolves to `false` (summary is empty), so the AI's free-form guess is accepted. The AI preserves rep ranges (it can read "3 sets x 8-10 reps") but hallucinates exercise names — exactly what the screenshots show.
+**Current behavior (the bug that erased Jordan's program):**
+When you pick *"Immediately after last scheduled training phase"*, the code creates a **brand-new program** for the client, then calls `applyMerge()`, which truncates the current active program (e.g. "Jordan C program") and pushes it down to *Previous Programs*. The new phase becomes its own one-phase program.
 
-The day-name parsing also has a smaller issue: when the heading line concatenates with the tempo boilerplate ("Day 1: Chest & Back & arms ATempo [2:0:1:0]…"), `canonicalHeading` returns the dirty form, and a clean copy appears later, so the same day can be counted twice with two different names.
+**Fix:**
+- When option = *"Immediately after last scheduled training phase"*, call the existing `copyPhaseToClientProgram()` helper from `src/lib/copyPhaseHelpers.ts`. That helper already does exactly what you described:
+  - Finds the client's active program
+  - Appends the new phase at the end (next `phase_order`)
+  - Deep-clones workouts/exercises/sets
+  - Recomputes program `duration_weeks`
+  - Leaves the current phase, assignment, and calendar events untouched
+- Only when option = *"Start on a specific date"* do we keep the current new-program-and-truncate flow (because a hard date requires cutting the running program).
+- Update the dialog copy: rename the first option to **"Append after current phases"** and add a one-line hint so it's obvious it won't disturb the running program.
+- If the client has no active program at all and *"Append"* is chosen, fall back to today's start date and create a new program (so the action still works for new clients).
 
-## Fix (frontend parser only, then re-trigger import)
+**Toast:** show "Phase appended to {programName}" with the standard exercise-count summary. No "previous program truncated" warning in append mode.
 
-### 1. `src/lib/ai-import/trainerizeWorkoutParser.ts`
-Make exercise detection independent of the `▶` glyph:
+## Part 2 — Restore from Previous Programs (archive)
 
-- Replace `isExerciseBullet(line)` with a signature-based check: a line is an exercise row when, after `stripDecorations`, it matches one of:
-  - `\b\d+\s+sets?\s*x\s*\d+` (e.g. "3 sets x 8-10")
-  - `\b\d+\s*set\s*x\s*\d+`
-  - `\b\d+\s*reps?\b` combined with a leading non-numeric name
-  - `\b\d+\s*seconds?(?:\s*\/\s*exercise)?\b` (mobility/stretch rows like "1 set x 15 seconds/exercise")
-  - `\bAMRAP\b`
-  AND does not match the exclusion set already handled by `isExerciseInstruction` (numbered cues, "EACH SIDE AS WELL", "Tempo", "Warmup", "Rest for N", "Repeat new set", "Superset of N sets", "Dismiss", page headers/URLs, `Previous Stats`, `Tracking Sheet`, the global boilerplate paragraphs that start with "The First number"/"The second number"/"The third"/"The final"/"Example:"/"ALL SET SHOULD BE"/"IF YOU HIT"/"Then bump up").
-- Keep the existing superset state machine (`Superset of N sets` → `Rest for N sec` → `Repeat new set`) unchanged; it doesn't depend on `▶`.
-- Strengthen `extractName` so it also trims an optional leading bullet (`▶`) when present, and tolerates the "Name<NoSpace>3 sets x …" concatenation (split at the first run of digits that begins a sets/reps token).
-- Tighten `canonicalHeading`:
-  - Strip a trailing "Tempo [..." / "FOR ALL EXERCISES…" / "Which is […]" / "ALL SET SHOULD BE…" suffix when concatenated to the heading.
-  - After cleaning, run the result back through `HEADING_RE` to confirm.
-  - When the same heading appears in both dirty and clean forms, the cleaned form deduplicates them.
-- Keep the existing Tracking Sheet name upgrade — it still helps when bullet names are truncated with `…`.
+**Where:** `src/components/clients/workspace/TrainingTab.tsx`, the existing **Previous Programs** collapsible (left side of the Training tab — visible in your second screenshot showing "Jordan C program" and "phase 7: triple cluster").
 
-### 2. `supabase/functions/ai-import-processor/index.ts`
-Make the normalizer authoritative when the parser produced a real exercise list:
+**Today:** previous programs are read-only — you can't bring them back.
 
-- In `normalizeAgainstTrainerizeSummary`, change the merge rule to: if `summaryExercises.length > 0`, ALWAYS use `summaryExercises` (names, sets, reps, rest, grouping) and only borrow `tempo / rir / rpe / notes` from the matching AI exercise (by position). Keep AI fallback only when the parser found no exercises for that day.
-- No prompt changes needed; the existing "summary block is source of truth" instruction already covers this.
+**Add:**
+- For each row, a kebab menu (`⋯`) with two actions:
+  1. **Restore phases to current program** — clones every phase from the archived program and appends them (in their original order) to the client's active program, using the same append helper from Part 1. The archived program stays in *Previous Programs* (so restoring is non-destructive and repeatable).
+  2. **View phases** — opens a read-only modal listing the archived program's phases + workout names, so you can pick what to reuse before restoring. (Uses the same data shape the Training tab already loads.)
+- Add a small **Restore** button (gold, icon = `Undo2`) next to the kebab for one-tap access to action #1.
+- After restore, refresh `useClientProgram` so the new appended phases appear on the right pane immediately, and toast "Restored N phase(s) from {oldProgramName}".
 
-### 3. Test fixture
-Add `lee 4 day week.pdf` extracted text as a vitest fixture in `src/lib/ai-import/trainerizeWorkoutParser.test.ts` and assert:
-- 4 unique workouts: "Day 1: Chest & Back & arms A", "Day 2: Shoulders & Legs A & Calves & core A", "Day 3: Chest & Back & arms B", "Day 4: Shoulders & Legs A & Calves & core B".
-- Day 1 contains exactly: Upper Body Mobility Routine, Flat dumbbell bench press (3×8-10, 120s), Machine seated chest press me (3×10-12, 120s), Standing Cable Chest Fly Mid (2×12-15, 120s), lying dumbbell row (3×8-10, 120s), Machine Neutral Row (3×10-12, 120s), superset {Lying Dumbbell Curl 8-10, Lying Dumbbell Tricep Extensions 12-15} rest 60.
-- Day 3 superset is {dumbbell hammer curl 8-10, Smith Machine close grip bench press me 10-12}, not "dumbbell incline curl" / "barbell close grip bench".
-- Re-run the existing test fixture (the previous 9-workout PDF) to confirm no regression.
+**No DB schema changes.** Restoration reuses the existing `program_phases` / `program_workouts` / cloning pipeline — the archived assignment row stays `status='completed'` and isn't mutated.
 
-### 4. Verification
-After build mode:
-- Run `bunx vitest run src/lib/ai-import/trainerizeWorkoutParser.test.ts`.
-- Re-import Lee's PDF via the AI Import flow and visually confirm Day 1/2/3/4 exercise names match the PDF.
+## Technical Details
 
-## Out of scope
-No schema changes, no edge-function prompt rewrite, no UI changes. Server normalizer change is a single function tweak; everything else is in the deterministic parser.
+Files touched:
+- `src/components/training/ProgramDetailView.tsx` — branch on `copyStartOption`; call `copyPhaseToClientProgram` for the append path; update dialog labels.
+- `src/lib/copyPhaseHelpers.ts` — add `restorePreviousProgramPhases({ coachId, sourceProgramId, targetClientId })` that loads all phases of the source program (ordered by `phase_order`) and calls the existing append logic per phase. Returns a combined `CloneWorkoutResult` summary.
+- `src/components/clients/workspace/TrainingTab.tsx` — extend the Previous Programs list rows with a `DropdownMenu` (Restore / View) and a primary Restore icon button; wire it to the new helper and `reload()` the program after success.
+- (Optional) tiny `PreviousProgramViewerDialog.tsx` for the "View phases" action — read-only list of phases + workout names.
+
+Edge cases handled:
+- Client has no active program when restoring → toast "Assign an active program first" (mirrors existing behavior in `copyPhaseToClientProgram`).
+- Source program has zero phases → toast "Nothing to restore".
+- Restore is idempotent: clicking twice creates duplicate appended phases (acceptable and matches Trainerize); the user can delete extras with the existing phase delete action.
+
+## Out of Scope
+- No changes to nutrition meal-plan archive logic.
+- No changes to the "Specific date" branch of Copy-to-Client (still truncates, by design).
+- No DB migrations.
