@@ -473,8 +473,18 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
 
       const masterHit = masterMatches[name];
       if (masterHit?.id) {
+        // Reuse the existing master workout shell, but REPLACE its exercise list
+        // with the freshly-parsed one so a re-import never serves stale rows
+        // from a prior bad import. This was the root cause of "Day N saved with
+        // the wrong workout's exercises" after the user re-ran an import.
         workoutIdByName.set(name, masterHit.id);
-        console.log("[ai-import] Reusing master workout:", name, "→", masterHit.id);
+        console.log("[ai-import] Reusing master workout shell, refreshing exercises:", name, "→", masterHit.id);
+        await supabase.from("workout_exercises").delete().eq("workout_id", masterHit.id);
+        await supabase
+          .from("workouts")
+          .update({ description: tpl.instructions || null })
+          .eq("id", masterHit.id);
+        await insertExercisesForWorkout(masterHit.id, tpl);
         continue;
       }
 
