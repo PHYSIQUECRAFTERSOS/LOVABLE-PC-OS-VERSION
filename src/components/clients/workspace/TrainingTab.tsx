@@ -1476,6 +1476,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 const AssignDialog = ({
   open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange,
   startDate, onStartDateChange, mergePreview,
+  phases, phasesLoading, selectedPhase, onSelectPhase,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   programs: any[]; selected: string; onSelect: (v: string) => void;
@@ -1483,6 +1484,10 @@ const AssignDialog = ({
   mode: "subscribe" | "import"; onModeChange: (m: "subscribe" | "import") => void;
   startDate?: string; onStartDateChange?: (v: string) => void;
   mergePreview?: MergePreview | null;
+  phases?: { id: string; name: string; duration_weeks: number; phase_order: number }[];
+  phasesLoading?: boolean;
+  selectedPhase?: string;
+  onSelectPhase?: (id: string) => void;
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-md">
@@ -1522,6 +1527,25 @@ const AssignDialog = ({
             />
           )}
         </div>
+        {selected && onSelectPhase && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Phase (optional)</Label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={selectedPhase || ""}
+              onChange={(e) => onSelectPhase(e.target.value)}
+              disabled={phasesLoading}
+            >
+              <option value="">Entire program (all phases)</option>
+              {(phases || []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name} · {p.duration_weeks}w</option>
+              ))}
+            </select>
+            {selectedPhase && (
+              <p className="text-[11px] text-muted-foreground">Only this phase will be assigned. It won't stay linked to the master program.</p>
+            )}
+          </div>
+        )}
         {onStartDateChange && (
           <div className="space-y-1.5">
             <Label className="text-sm">Start Date</Label>
