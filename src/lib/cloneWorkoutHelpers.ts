@@ -112,21 +112,38 @@ export async function cloneWorkoutWithExercises(
     };
   }
 
-  // 4. Insert exercises sequentially
+  // 4. Bulk-insert exercises in a single round-trip. Falls back to per-row
+  //    inserts only if the bulk insert fails so we still get partial copies +
+  //    detailed errors instead of a silent total miss.
   let copiedCount = 0;
   const errors: string[] = [];
 
-  for (const ex of exercises) {
-    const { error: exInsertErr } = await supabase
-      .from("workout_exercises")
-      .insert({ ...ex, workout_id: clientW.id });
+  const bulkPayload = exercises.map((ex) => ({ ...ex, workout_id: clientW.id }));
+  const { data: bulkData, error: bulkErr } = await supabase
+    .from("workout_exercises")
+    .insert(bulkPayload)
+    .select("id");
 
-    if (exInsertErr) {
-      errors.push(`Exercise order ${ex.exercise_order} in "${origW.name}": ${exInsertErr.message}`);
-    } else {
-      copiedCount++;
+  if (!bulkErr && bulkData) {
+    copiedCount = bulkData.length;
+    if (copiedCount < exercises.length) {
+      errors.push(`Bulk insert returned ${copiedCount}/${exercises.length} rows for "${origW.name}"`);
+    }
+  } else {
+    // Fallback: per-row inserts so a single bad row can't drop the whole workout.
+    if (bulkErr) errors.push(`Bulk insert failed for "${origW.name}": ${bulkErr.message} — retrying per-row`);
+    for (const ex of exercises) {
+      const { error: exInsertErr } = await supabase
+        .from("workout_exercises")
+        .insert({ ...ex, workout_id: clientW.id });
+      if (exInsertErr) {
+        errors.push(`Exercise order ${ex.exercise_order} in "${origW.name}": ${exInsertErr.message}`);
+      } else {
+        copiedCount++;
+      }
     }
   }
+
 
   return {
     workout: clientW,

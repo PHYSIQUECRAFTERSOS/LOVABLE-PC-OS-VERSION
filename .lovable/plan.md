@@ -1,43 +1,67 @@
+## Problem
 
-## Goal
+When you "Assign to Client" a master program with 9 workouts (e.g., Zach Ivie program → Phase 2), only 3–6 workouts actually end up on the client's profile. You then have to copy the missing days one by one.
 
-Two fixes so coaches can pre-load training for pending (invited but not-yet-signed-up) clients exactly like active ones:
+I confirmed this in the database: the most recent assign for Zach created the new phase but only attached 5 of 9 workouts (sort_orders 0, 1, 6, 7, 8 — gaps at 2, 3, 4, 5). The prior attempt got 6 of 9. The "Zach Ivie program" master phase itself correctly has all 9 workouts, so the source data is fine — the bug is in the assign/clone routine.
 
-1. From a pending client's profile → Assign Training Program dialog: allow choosing a specific **phase** of the master program (not just the whole program).
-2. From Master Libraries → "Assign Phase to Client" picker: include **pending** clients (currently only active clients show up).
+## Root cause
 
-## Changes
+`assignToClient` in `src/pages/MasterLibraries.tsx` clones each workout by calling `cloneWorkoutWithExercises`, which:
 
-### 1. `src/pages/MasterLibraries.tsx` — include pending clients in the assign picker
+1. Reads the source workout.
+2. Inserts a new workout row.
+3. Reads source exercises.
+4. **Inserts exercises one-by-one in a sequential `for` loop** (one HTTP round-trip per exercise).
 
-In `loadClients()` (around line 218):
-- Change the `coach_clients` query from `.eq("status", "active")` to `.in("status", ["active", "pending"])`.
-- Select `status` alongside `client_id`, keep it on each entry in `clients` state (extend the state shape to `{ id, name, status }`).
-- Sort active first, then pending; alphabetical within each group (same pattern already used in `CopyPhaseToClientDialog.tsx`).
-- In the "Assign Dialog" (line 887), append a " (Pending)" suffix to the display name for pending entries before passing to `SearchableClientSelect`, so the coach can tell them apart. Add a small inline note under the picker when the selected client is pending: *"This client hasn't signed up yet — the program/phase will be waiting on first login."*
+For Zach's 9 workouts × ~10 exercises each, that's roughly 90+ sequential round-trips taking ~90 seconds. During that window:
 
-`assignToClient()` already works for any client_id (it inserts into `programs` + `client_program_assignments`), and the existing `assignPhaseId` branch already supports single-phase assignment, so no logic changes are needed beyond surfacing pending clients.
+- Any transient network blip / RLS hiccup on a single exercise insert is logged but **swallowed** (`if (!clientW) continue;` in `MasterLibraries.tsx` line 428).
+- The browser tab can be backgrounded or the dialog re-clicked, aborting the rest.
+- The toast still says "Client subscribed", so you don't see that workouts were skipped.
 
-### 2. `src/components/clients/workspace/TrainingTab.tsx` — add Phase selector to AssignProgramDialog
+That's why the failure is partial and non-deterministic (different count each retry).
 
-The dialog currently only picks a Master Program. Add an optional **Phase** dropdown directly under the Master Program selector.
+## Fix
 
-- Add new state: `selectedAssignPhaseId: string` (default `""` → "Entire program").
-- After a master program is picked, reuse the existing `loadMasterPhases(programId)` helper to populate `masterPhasesList`. (It's already defined and used elsewhere on this page.)
-- Render a second selector in `AssignProgramDialog` (lines 1440–1520):
-  - Label: "Phase (optional)"
-  - First option: "Entire program (all phases)"
-  - Then each phase listed as `{name} · {duration_weeks}w`.
-  - Hidden / disabled until a master program is chosen.
-- Update `handleAssignProgram` (line 348):
-  - If `selectedAssignPhaseId` is set, filter `masterPhases` to only that one phase before the clone loop, set `phase_order = 1`, and compute `programDuration` from that phase only. Use program name `"{master.name} — {phase.name}"` and set `is_linked_to_master: false` for single-phase assigns (matches the MasterLibraries convention so partial assigns don't try to sync from the multi-phase master).
-  - Otherwise behavior is unchanged.
-- Reset `selectedAssignPhaseId` to `""` whenever the master program changes or the dialog closes.
+Three tightly-scoped changes — all on the coach-side assign flow, no schema changes:
 
-Both flows already write to `programs` + `client_program_assignments` keyed by `client_id`, which works for pending clients (their row exists in `coach_clients` and `auth.users` via the invite flow), so no schema or RLS changes are required.
+### 1. Bulk-insert exercises in `cloneWorkoutWithExercises`
+File: `src/lib/cloneWorkoutHelpers.ts`
+
+Replace the per-exercise `for` loop (~lines 119–129) with a single `.insert([...]).select()` call passing all exercises at once. This cuts ~10 round-trips per workout down to 1 and removes the slow window where things get interrupted. Keep the existing per-row error reporting by checking returned row count vs expected.
+
+### 2. Stop silently swallowing failed clones in `assignToClient`
+File: `src/pages/MasterLibraries.tsx` (around lines 423–439)
+
+When `cloneWorkoutWithExercises` returns `workout: null` or the `program_workouts` insert errors, currently the loop just `continue`s. Change it to:
+
+- Collect the failed workout names into a `failedWorkouts: string[]`.
+- After the loop, if `failedWorkouts.length > 0`, show a destructive toast like `"4 of 9 workouts failed to copy: …"` instead of the cheerful "Client subscribed" message.
+- Surface the same info in the existing import summary (`buildImportSummary`).
+
+### 3. Retry the per-workout attach on failure
+File: `src/pages/MasterLibraries.tsx`
+
+Wrap the `program_workouts` insert in a one-time retry (small `await new Promise(r => setTimeout(r, 250))` then re-try) to absorb transient RLS / network blips. If the retry still fails, log it into `failedWorkouts` from step 2.
+
+### 4. Apply the same fixes to the sibling code paths
+
+The same loop pattern exists in:
+- `src/components/clients/workspace/TrainingTab.tsx` (`handleAssignProgram` — used when assigning from the client's profile)
+- `src/lib/copyPhaseHelpers.ts` (`copyPhaseToClientProgram`, `copyPhaseToMasterProgram`, `createSinglePhaseProgramForClient`)
+
+All of them ultimately call `cloneWorkoutWithExercises`, so fix #1 helps every assign flow automatically. I'll also apply fix #2 (visible error reporting) in `TrainingTab.tsx` and the `copyPhaseHelpers` callers so partial failures never go silent again.
+
+## Verification
+
+After the change:
+
+1. Re-assign "Zach Ivie program" → Phase 2 to a test client.
+2. Confirm all 9 workouts (`Day 1–4`, `[AWAY] Day 1–4`, `Stretches`) land in the client's program in the correct sort order.
+3. If anything fails, you'll get a destructive toast naming the workouts that didn't copy, so you can retry instead of discovering it visually.
 
 ## Out of scope
 
-- No DB migration.
-- No changes to `copyPhaseHelpers.ts` (already handles pending clients via `createSinglePhaseProgramForClient`).
-- No UI redesign — keeping the existing dialog layout, only adding one optional select and a status-aware label.
+- No changes to RLS, schema, or the underlying program/phase/workout structure.
+- No changes to client-side training UI or how workouts render.
+- Master-library content is not touched.
