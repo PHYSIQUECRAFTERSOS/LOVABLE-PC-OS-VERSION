@@ -895,11 +895,16 @@ const MasterLibraries = () => {
             <div className="space-y-2">
               <Label>Select Client</Label>
               <SearchableClientSelect
-                clients={clients.map(c => ({ id: c.id, name: c.name }))}
+                clients={clients.map(c => ({ id: c.id, name: c.status === "pending" ? `${c.name} (Pending)` : c.name }))}
                 value={selectedClientId}
                 onValueChange={setSelectedClientId}
                 placeholder="Choose a client..."
               />
+              {selectedClientId && clients.find(c => c.id === selectedClientId)?.status === "pending" && (
+                <p className="text-[11px] text-primary/80 leading-snug">
+                  This client hasn't signed up yet — the {assignPhaseId ? "phase" : "program"} will be waiting for them on first login.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Start Date</Label>
