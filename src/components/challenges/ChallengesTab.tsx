@@ -32,6 +32,7 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
   const isCoach = role === "coach" || role === "admin";
 
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+  const [addClientsTo, setAddClientsTo] = useState<Challenge | null>(null);
   const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
