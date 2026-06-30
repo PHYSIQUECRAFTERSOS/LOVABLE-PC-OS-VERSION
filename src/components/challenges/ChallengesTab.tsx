@@ -166,6 +166,15 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
         open={!!selectedChallenge}
         onOpenChange={(v) => { if (!v) setSelectedChallenge(null); }}
       />
+
+      {addClientsTo && (
+        <AddClientsToChallengeDialog
+          open={!!addClientsTo}
+          onOpenChange={(v) => { if (!v) setAddClientsTo(null); }}
+          challengeId={addClientsTo.id}
+          challengeTitle={addClientsTo.title}
+        />
+      )}
     </div>
   );
 };
