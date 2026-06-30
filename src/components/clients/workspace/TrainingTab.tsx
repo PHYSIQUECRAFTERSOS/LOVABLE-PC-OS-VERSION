@@ -1050,11 +1050,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       {/* Assign Dialog */}
       <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
-        selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
+        selected={selectedMaster} onSelect={(v) => { setSelectedMaster(v); loadAssignPhasesForProgram(v); }} onAssign={handleAssignProgram}
         loading={assigning} mode={assignMode} onModeChange={setAssignMode}
         startDate={assignStartDate}
         onStartDateChange={(v) => { setAssignStartTouched(true); setAssignStartDate(v); }}
-        mergePreview={assignMergePreview} />
+        mergePreview={assignMergePreview}
+        phases={assignPhases} phasesLoading={assignPhasesLoading}
+        selectedPhase={selectedAssignPhaseId} onSelectPhase={setSelectedAssignPhaseId} />
 
 
       {/* Detach Confirmation */}
