@@ -147,6 +147,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [assignStartTouched, setAssignStartTouched] = useState(false);
   const [assignMergePreview, setAssignMergePreview] = useState<MergePreview | null>(null);
   const [assignAutoAdvance, setAssignAutoAdvance] = useState(true);
+  // Optional single-phase scoping for AssignDialog (empty = entire program).
+  const [assignPhases, setAssignPhases] = useState<{ id: string; name: string; duration_weeks: number; phase_order: number }[]>([]);
+  const [assignPhasesLoading, setAssignPhasesLoading] = useState(false);
+  const [selectedAssignPhaseId, setSelectedAssignPhaseId] = useState<string>("");
 
   // Previous (completed) program assignments
   const [previousPrograms, setPreviousPrograms] = useState<Array<{
@@ -314,7 +318,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setMasterPrograms(data || []);
     setAssignStartTouched(false);
     setAssignStartDate(new Date().toLocaleDateString("en-CA"));
+    setAssignPhases([]);
+    setSelectedAssignPhaseId("");
     setShowAssign(true);
+  };
+
+  // Load phases when the user picks a master program in the AssignDialog.
+  const loadAssignPhasesForProgram = async (programId: string) => {
+    setSelectedAssignPhaseId("");
+    setAssignPhases([]);
+    if (!programId) return;
+    setAssignPhasesLoading(true);
+    const { data } = await supabase.from("program_phases")
+      .select("id, name, duration_weeks, phase_order")
+      .eq("program_id", programId)
+      .order("phase_order");
+    setAssignPhases(data || []);
+    setAssignPhasesLoading(false);
   };
 
   // Refresh merge preview when client's existing program is known.
@@ -361,15 +381,31 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       } as any).select().single();
       if (progErr) throw progErr;
 
-      const { data: masterPhases } = await supabase.from("program_phases").select("*")
+      const { data: masterPhasesAll } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
+      const masterPhases = selectedAssignPhaseId
+        ? (masterPhasesAll || []).filter((p: any) => p.id === selectedAssignPhaseId)
+        : (masterPhasesAll || []);
+      if (selectedAssignPhaseId && masterPhases.length === 0) {
+        throw new Error("Selected phase not found.");
+      }
+      // If scoped to a single phase, re-stamp program duration + name and renumber to 1.
+      if (selectedAssignPhaseId) {
+        const onlyPhase = masterPhases[0];
+        await supabase.from("programs").update({
+          duration_weeks: onlyPhase.duration_weeks || 0,
+          name: `${master.name} — ${onlyPhase.name}`,
+        } as any).eq("id", clientProg.id);
+      }
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
-      for (const phase of (masterPhases || [])) {
+      let normalizedOrder = 1;
+      for (const phase of masterPhases) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
           program_id: clientProg.id, name: phase.name, description: phase.description,
-          phase_order: phase.phase_order, duration_weeks: phase.duration_weeks,
+          phase_order: selectedAssignPhaseId ? normalizedOrder++ : phase.phase_order,
+          duration_weeks: phase.duration_weeks,
           training_style: phase.training_style, intensity_system: phase.intensity_system,
           progression_rule: phase.progression_rule,
         }).select().single();
@@ -422,7 +458,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         start_date: assignStartDate,
         forked_from_program_id: selectedMaster, status: "active",
         auto_advance: assignAutoAdvance,
-        is_linked_to_master: isLinked, master_version_number: master.version_number || 1,
+        is_linked_to_master: selectedAssignPhaseId ? false : isLinked, master_version_number: master.version_number || 1,
         last_synced_at: new Date().toISOString(),
       } as any);
 
@@ -436,7 +472,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
       toast({ title: isLinked ? "Client subscribed" : msg.title, description: isLinked ? "Future updates will sync." : msg.description, variant: msg.isWarning ? "destructive" : undefined });
-      setShowAssign(false); setSelectedMaster("");
+      setShowAssign(false); setSelectedMaster(""); setSelectedAssignPhaseId(""); setAssignPhases([]);
       loadClientProgram();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -902,11 +938,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
             </Button>
           </div>
           <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
-            selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
+            selected={selectedMaster} onSelect={(v) => { setSelectedMaster(v); loadAssignPhasesForProgram(v); }} onAssign={handleAssignProgram}
             loading={assigning} mode={assignMode} onModeChange={setAssignMode}
             startDate={assignStartDate}
             onStartDateChange={(v) => { setAssignStartTouched(true); setAssignStartDate(v); }}
-            mergePreview={assignMergePreview} />
+            mergePreview={assignMergePreview}
+            phases={assignPhases} phasesLoading={assignPhasesLoading}
+            selectedPhase={selectedAssignPhaseId} onSelectPhase={setSelectedAssignPhaseId} />
         </CardContent>
       </Card>
     );
@@ -1012,11 +1050,13 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       {/* Assign Dialog */}
       <AssignDialog open={showAssign} onOpenChange={setShowAssign} programs={masterPrograms}
-        selected={selectedMaster} onSelect={setSelectedMaster} onAssign={handleAssignProgram}
+        selected={selectedMaster} onSelect={(v) => { setSelectedMaster(v); loadAssignPhasesForProgram(v); }} onAssign={handleAssignProgram}
         loading={assigning} mode={assignMode} onModeChange={setAssignMode}
         startDate={assignStartDate}
         onStartDateChange={(v) => { setAssignStartTouched(true); setAssignStartDate(v); }}
-        mergePreview={assignMergePreview} />
+        mergePreview={assignMergePreview}
+        phases={assignPhases} phasesLoading={assignPhasesLoading}
+        selectedPhase={selectedAssignPhaseId} onSelectPhase={setSelectedAssignPhaseId} />
 
 
       {/* Detach Confirmation */}
@@ -1436,6 +1476,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 const AssignDialog = ({
   open, onOpenChange, programs, selected, onSelect, onAssign, loading, mode, onModeChange,
   startDate, onStartDateChange, mergePreview,
+  phases, phasesLoading, selectedPhase, onSelectPhase,
 }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   programs: any[]; selected: string; onSelect: (v: string) => void;
@@ -1443,6 +1484,10 @@ const AssignDialog = ({
   mode: "subscribe" | "import"; onModeChange: (m: "subscribe" | "import") => void;
   startDate?: string; onStartDateChange?: (v: string) => void;
   mergePreview?: MergePreview | null;
+  phases?: { id: string; name: string; duration_weeks: number; phase_order: number }[];
+  phasesLoading?: boolean;
+  selectedPhase?: string;
+  onSelectPhase?: (id: string) => void;
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-w-md">
@@ -1482,6 +1527,25 @@ const AssignDialog = ({
             />
           )}
         </div>
+        {selected && onSelectPhase && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Phase (optional)</Label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={selectedPhase || ""}
+              onChange={(e) => onSelectPhase(e.target.value)}
+              disabled={phasesLoading}
+            >
+              <option value="">Entire program (all phases)</option>
+              {(phases || []).map((p) => (
+                <option key={p.id} value={p.id}>{p.name} · {p.duration_weeks}w</option>
+              ))}
+            </select>
+            {selectedPhase && (
+              <p className="text-[11px] text-muted-foreground">Only this phase will be assigned. It won't stay linked to the master program.</p>
+            )}
+          </div>
+        )}
         {onStartDateChange && (
           <div className="space-y-1.5">
             <Label className="text-sm">Start Date</Label>
