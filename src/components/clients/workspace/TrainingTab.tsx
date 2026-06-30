@@ -147,6 +147,10 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [assignStartTouched, setAssignStartTouched] = useState(false);
   const [assignMergePreview, setAssignMergePreview] = useState<MergePreview | null>(null);
   const [assignAutoAdvance, setAssignAutoAdvance] = useState(true);
+  // Optional single-phase scoping for AssignDialog (empty = entire program).
+  const [assignPhases, setAssignPhases] = useState<{ id: string; name: string; duration_weeks: number; phase_order: number }[]>([]);
+  const [assignPhasesLoading, setAssignPhasesLoading] = useState(false);
+  const [selectedAssignPhaseId, setSelectedAssignPhaseId] = useState<string>("");
 
   // Previous (completed) program assignments
   const [previousPrograms, setPreviousPrograms] = useState<Array<{
