@@ -404,6 +404,7 @@ const MasterLibraries = () => {
 
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
+      const failedWorkouts: string[] = [];
 
       let normalizedOrder = 1;
       for (const phase of phasesToClone) {
@@ -418,24 +419,38 @@ const MasterLibraries = () => {
 
         const { data: pws } = await supabase.from("program_workouts")
           .select("workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
-          .eq("phase_id", phase.id);
+          .eq("phase_id", phase.id)
+          .order("sort_order");
 
         for (const w of (pws || [])) {
+          const labelForError = (w as any).day_label || "Unnamed workout";
           const { workout: clientW, result } = await cloneWorkoutWithExercises(
             w.workout_id, user.id, selectedClientId, false
           );
           allCloneResults.push(result);
           if (!clientW) {
-            console.error(`[Import] Failed to clone workout for phase "${phase.name}":`, result.errors);
+            console.error(`[Import] Failed to clone workout "${labelForError}" for phase "${phase.name}":`, result.errors);
+            failedWorkouts.push(labelForError);
             continue;
           }
 
-          await supabase.from("program_workouts").insert({
+          // Attach with one retry to absorb transient RLS/network blips.
+          const attachPayload = {
             phase_id: newPhase!.id, workout_id: clientW.id, week_id: null as any,
             day_of_week: w.day_of_week, day_label: w.day_label, sort_order: w.sort_order,
             exclude_from_numbering: (w as any).exclude_from_numbering || false,
             custom_tag: (w as any).custom_tag || null,
-          });
+          };
+          let { error: attachErr } = await supabase.from("program_workouts").insert(attachPayload);
+          if (attachErr) {
+            await new Promise((r) => setTimeout(r, 250));
+            const retry = await supabase.from("program_workouts").insert(attachPayload);
+            attachErr = retry.error as any;
+          }
+          if (attachErr) {
+            console.error(`[Import] Failed to attach "${labelForError}" to phase "${phase.name}":`, attachErr);
+            failedWorkouts.push(labelForError);
+          }
         }
       }
 
@@ -454,17 +469,23 @@ const MasterLibraries = () => {
       // Show post-import summary
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
-      const successTitle = assignPhaseId
-        ? "Phase assigned to client"
-        : isLinked ? "Client subscribed" : msg.title;
-      const successDesc = assignPhaseId
-        ? `${phasesToClone[0].name} (${phasesToClone[0].duration_weeks}w) assigned.`
-        : isLinked ? "Future updates will sync." : msg.description;
+      const hasFailures = failedWorkouts.length > 0;
+      const successTitle = hasFailures
+        ? `Imported with ${failedWorkouts.length} missing workout${failedWorkouts.length === 1 ? "" : "s"}`
+        : assignPhaseId
+          ? "Phase assigned to client"
+          : isLinked ? "Client subscribed" : msg.title;
+      const successDesc = hasFailures
+        ? `Failed to copy: ${failedWorkouts.join(", ")}. Re-run the assign or use "Copy Day to Client" for the missing ones.`
+        : assignPhaseId
+          ? `${phasesToClone[0].name} (${phasesToClone[0].duration_weeks}w) assigned.`
+          : isLinked ? "Future updates will sync." : msg.description;
       toast({
         title: successTitle,
         description: successDesc,
-        variant: msg.isWarning ? "destructive" : undefined,
+        variant: (hasFailures || msg.isWarning) ? "destructive" : undefined,
       });
+
       setShowAssignDialog(false);
       setSelectedClientId("");
       setAssignPhaseId(null);
