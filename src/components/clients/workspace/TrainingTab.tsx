@@ -553,11 +553,21 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const handleCopyPhaseToClient = async (phase: Phase, targetClientId: string) => {
     if (!user) return;
-    const result = await copyPhaseToClientProgram({
+    let result = await copyPhaseToClientProgram({
       coachId: user.id,
       sourcePhase: phase,
       targetClientId,
     });
+    // Fallback: pending/invited client with no active program → create a fresh
+    // one-phase program so the phase is waiting for them on first login.
+    if (!result.ok && result.error && result.error.toLowerCase().includes("no active program")) {
+      const { createSinglePhaseProgramForClient } = await import("@/lib/copyPhaseHelpers");
+      result = await createSinglePhaseProgramForClient({
+        coachId: user.id,
+        targetClientId,
+        sourcePhase: phase,
+      });
+    }
     if (!result.ok) {
       toast({ title: "Copy failed", description: result.error || "Unknown error", variant: "destructive" });
       return;

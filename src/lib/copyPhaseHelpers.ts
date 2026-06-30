@@ -313,3 +313,121 @@ export async function restorePreviousProgramPhases(args: {
   };
 }
 
+/**
+ * Create a brand-new one-phase program for a client that has no active program
+ * yet (typical case: a coach copies a master-library phase to a pending,
+ * invited-but-not-yet-onboarded client so the plan is ready on first login).
+ *
+ * - Clones the source phase's workouts as client-scoped (non-template) workouts.
+ * - Inserts a `client_program_assignments` row with status='active' starting on
+ *   `startDate` (YYYY-MM-DD). If the client already had another active program,
+ *   `applyMerge` is used to truncate it cleanly before assigning the new one.
+ */
+export async function createSinglePhaseProgramForClient(args: {
+  coachId: string;
+  targetClientId: string;
+  sourcePhase: PhaseSnapshot;
+  /** YYYY-MM-DD; defaults to today (local). */
+  startDate?: string;
+  /** Optional program-level metadata. */
+  programName?: string;
+  programDescription?: string | null;
+}): Promise<CopyResult> {
+  const { coachId, targetClientId, sourcePhase } = args;
+  const startDate = args.startDate || new Date().toLocaleDateString("en-CA");
+  const allCloneResults: CloneWorkoutResult[] = [];
+
+  try {
+    // 1. Create program shell.
+    const { data: newProg, error: progErr } = await supabase
+      .from("programs")
+      .insert({
+        coach_id: coachId,
+        name: args.programName || sourcePhase.name,
+        description: args.programDescription ?? sourcePhase.description ?? null,
+        duration_weeks: sourcePhase.duration_weeks,
+        is_template: false,
+        is_master: false,
+        start_date: startDate,
+      } as any)
+      .select("id")
+      .single();
+    if (progErr || !newProg) throw progErr || new Error("Failed to create program");
+
+    // 2. Create the phase.
+    const { data: newPhase, error: phaseErr } = await supabase
+      .from("program_phases")
+      .insert({
+        program_id: newProg.id,
+        name: sourcePhase.name,
+        description: sourcePhase.description || null,
+        phase_order: 1,
+        duration_weeks: sourcePhase.duration_weeks,
+        training_style: sourcePhase.training_style || null,
+        intensity_system: sourcePhase.intensity_system || null,
+        custom_intensity: sourcePhase.custom_intensity || null,
+        progression_rule: sourcePhase.progression_rule || null,
+      })
+      .select("id")
+      .single();
+    if (phaseErr || !newPhase) throw phaseErr || new Error("Failed to create phase");
+
+    // 3. Clone source workouts → client-scoped (not template).
+    const { data: sourcePws } = await supabase
+      .from("program_workouts")
+      .select("workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+      .eq("phase_id", sourcePhase.id)
+      .order("sort_order");
+
+    for (const pw of sourcePws || []) {
+      const { workout: clonedW, result } = await cloneWorkoutWithExercises(
+        pw.workout_id,
+        coachId,
+        targetClientId,
+        false
+      );
+      allCloneResults.push(result);
+      if (!clonedW) continue;
+      await supabase.from("program_workouts").insert({
+        phase_id: newPhase.id,
+        workout_id: clonedW.id,
+        day_of_week: pw.day_of_week,
+        day_label: pw.day_label,
+        sort_order: pw.sort_order,
+        exclude_from_numbering: pw.exclude_from_numbering || false,
+        custom_tag: pw.custom_tag || null,
+      });
+    }
+
+    // 4. Truncate any prior overlapping program, then insert active assignment.
+    const { applyMerge } = await import("@/lib/programMerge");
+    await applyMerge(targetClientId, startDate);
+
+    const { error: assignErr } = await supabase
+      .from("client_program_assignments")
+      .insert({
+        client_id: targetClientId,
+        coach_id: coachId,
+        program_id: newProg.id,
+        current_phase_id: newPhase.id,
+        start_date: startDate,
+        status: "active",
+        current_week_number: 1,
+        is_linked_to_master: false,
+        master_version_number: 1,
+      });
+    if (assignErr) throw assignErr;
+
+    const summary = buildImportSummary(allCloneResults);
+    return { ok: true, summary, message: formatImportSummary(summary), newPhaseId: newPhase.id };
+  } catch (err: any) {
+    const summary = buildImportSummary(allCloneResults);
+    return {
+      ok: false,
+      summary,
+      message: formatImportSummary(summary),
+      error: err?.message || "Unknown error",
+    };
+  }
+}
+

@@ -24,7 +24,7 @@ export const CopyPhaseToClientDialog = ({
   open, onOpenChange, coachId, excludeClientId, phaseName, onConfirm,
 }: Props) => {
   const [loading, setLoading] = useState(false);
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [clients, setClients] = useState<{ id: string; name: string; status?: string }[]>([]);
   const [selected, setSelected] = useState("");
   const [copying, setCopying] = useState(false);
 
@@ -35,20 +35,28 @@ export const CopyPhaseToClientDialog = ({
     (async () => {
       const { data: cc } = await supabase
         .from("coach_clients")
-        .select("client_id")
+        .select("client_id, status")
         .eq("coach_id", coachId)
-        .eq("status", "active");
-      const ids = (cc || []).map((r: any) => r.client_id).filter((id: string) => id !== excludeClientId);
+        .in("status", ["active", "pending"]);
+      const rows = (cc || []).filter((r: any) => r.client_id !== excludeClientId);
+      const ids = rows.map((r: any) => r.client_id);
       if (ids.length === 0) { setClients([]); setLoading(false); return; }
+      const statusById = new Map(rows.map((r: any) => [r.client_id, r.status]));
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, full_name")
         .in("user_id", ids);
-      setClients(
-        (profiles || [])
-          .map((p: any) => ({ id: p.user_id, name: p.full_name || "Client" }))
-          .sort((a, b) => a.name.localeCompare(b.name))
-      );
+      const list = (profiles || []).map((p: any) => ({
+        id: p.user_id,
+        name: p.full_name || "Client",
+        status: statusById.get(p.user_id) || "active",
+      }));
+      // Active first, then pending; alphabetical within each group.
+      list.sort((a, b) => {
+        if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      setClients(list);
       setLoading(false);
     })();
   }, [open, coachId, excludeClientId]);
@@ -84,6 +92,11 @@ export const CopyPhaseToClientDialog = ({
               onValueChange={setSelected}
               placeholder="Search clients…"
             />
+          )}
+          {selected && clients.find(c => c.id === selected)?.status === "pending" && (
+            <p className="text-xs text-primary/80 leading-snug">
+              This client hasn't signed up yet — a fresh program will be created so the phase is waiting for them on first login.
+            </p>
           )}
         </div>
         <DialogFooter>
