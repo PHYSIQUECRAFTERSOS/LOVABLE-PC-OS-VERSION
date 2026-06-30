@@ -1473,6 +1473,11 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
                   placeholder="Search clients..."
                 />
               )}
+              {selectedCopyClient && copyClients.find(c => c.id === selectedCopyClient)?.status === "pending" && (
+                <p className="text-xs text-primary/80 leading-snug pt-1">
+                  This client hasn't signed up yet — a fresh program will be created so the phase is waiting for them on first login.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
