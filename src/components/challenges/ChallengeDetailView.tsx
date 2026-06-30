@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame, UserMinus } from "lucide-react";
+import { Trophy, Footprints, SlidersHorizontal, Calendar, Users, Star, Dumbbell, Target, Flame, UserMinus, UserPlus } from "lucide-react";
 import { Challenge, useChallengeParticipants, useJoinChallenge, useLogChallengeEntry, useSaveTemplate, useChallengeScoringRules, useRemoveChallengeParticipant } from "@/hooks/useChallenges";
+import AddClientsToChallengeDialog from "./AddClientsToChallengeDialog";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
