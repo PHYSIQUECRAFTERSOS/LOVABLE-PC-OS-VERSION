@@ -219,18 +219,28 @@ const MasterLibraries = () => {
     if (!userId) return;
     const { data, error } = await supabase
       .from("coach_clients")
-      .select("client_id")
+      .select("client_id, status")
       .eq("coach_id", userId)
-      .eq("status", "active");
+      .in("status", ["active", "pending"]);
     if (error || !data) return;
     const clientIds = data.map((d: any) => d.client_id);
     if (clientIds.length === 0) { setClients([]); return; }
+    const statusById = new Map(data.map((d: any) => [d.client_id, d.status]));
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, full_name")
       .in("user_id", clientIds);
     const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p.full_name]));
-    setClients(clientIds.map((id: string) => ({ id, name: profileMap.get(id) || id.slice(0, 8) })));
+    const list = clientIds.map((id: string) => ({
+      id,
+      name: profileMap.get(id) || id.slice(0, 8),
+      status: (statusById.get(id) as string) || "active",
+    }));
+    list.sort((a, b) => {
+      if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+      return String(a.name).localeCompare(String(b.name));
+    });
+    setClients(list);
   };
 
   useEffect(() => { loadPrograms(); loadClients(); }, [userId]);
