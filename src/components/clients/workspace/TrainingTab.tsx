@@ -472,7 +472,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
       toast({ title: isLinked ? "Client subscribed" : msg.title, description: isLinked ? "Future updates will sync." : msg.description, variant: msg.isWarning ? "destructive" : undefined });
-      setShowAssign(false); setSelectedMaster("");
+      setShowAssign(false); setSelectedMaster(""); setSelectedAssignPhaseId(""); setAssignPhases([]);
       loadClientProgram();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
