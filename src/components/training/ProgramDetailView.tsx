@@ -141,7 +141,7 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
   // Copy to client dialog
   const [showCopyToClientDialog, setShowCopyToClientDialog] = useState(false);
   const [copyPhaseIdx, setCopyPhaseIdx] = useState(0);
-  const [copyClients, setCopyClients] = useState<{ id: string; name: string }[]>([]);
+  const [copyClients, setCopyClients] = useState<{ id: string; name: string; status?: string }[]>([]);
   const [selectedCopyClient, setSelectedCopyClient] = useState("");
   const [copyStartOption, setCopyStartOption] = useState<"after_last" | "specific_date">("after_last");
   const [copyStartDate, setCopyStartDate] = useState<Date | undefined>(new Date());
@@ -684,18 +684,26 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
     try {
       const { data: ccRows } = await supabase
         .from("coach_clients")
-        .select("client_id")
+        .select("client_id, status")
         .eq("coach_id", userId)
-        .eq("status", "active");
+        .in("status", ["active", "pending"]);
       const clientIds = (ccRows || []).map(r => r.client_id);
       if (clientIds.length === 0) { setCopyClients([]); return; }
+      const statusById = new Map((ccRows || []).map((r: any) => [r.client_id, r.status]));
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, full_name")
         .in("user_id", clientIds);
-      setCopyClients(
-        (profiles || []).map(p => ({ id: p.user_id, name: p.full_name || "Unknown" })).sort((a, b) => a.name.localeCompare(b.name))
-      );
+      const list = (profiles || []).map(p => ({
+        id: p.user_id,
+        name: p.full_name || "Unknown",
+        status: (statusById.get(p.user_id) as string) || "active",
+      }));
+      list.sort((a, b) => {
+        if (a.status !== b.status) return a.status === "active" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      setCopyClients(list);
     } finally {
       setCopyClientsLoading(false);
     }
