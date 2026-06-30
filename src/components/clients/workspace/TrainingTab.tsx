@@ -318,7 +318,23 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setMasterPrograms(data || []);
     setAssignStartTouched(false);
     setAssignStartDate(new Date().toLocaleDateString("en-CA"));
+    setAssignPhases([]);
+    setSelectedAssignPhaseId("");
     setShowAssign(true);
+  };
+
+  // Load phases when the user picks a master program in the AssignDialog.
+  const loadAssignPhasesForProgram = async (programId: string) => {
+    setSelectedAssignPhaseId("");
+    setAssignPhases([]);
+    if (!programId) return;
+    setAssignPhasesLoading(true);
+    const { data } = await supabase.from("program_phases")
+      .select("id, name, duration_weeks, phase_order")
+      .eq("program_id", programId)
+      .order("phase_order");
+    setAssignPhases(data || []);
+    setAssignPhasesLoading(false);
   };
 
   // Refresh merge preview when client's existing program is known.
