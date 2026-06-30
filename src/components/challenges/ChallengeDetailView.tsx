@@ -46,6 +46,7 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
   const [showLogModal, setShowLogModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState("");
+  const [showAddClients, setShowAddClients] = useState(false);
 
   if (!challenge) return null;
 
