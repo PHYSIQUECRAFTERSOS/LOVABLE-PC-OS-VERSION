@@ -3,7 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp, Trophy, Footprints, SlidersHorizontal } from "lucide-react";
+import { Flame, Users, Calendar, Check, ChevronDown, ChevronUp, Trophy, Footprints, SlidersHorizontal, UserPlus } from "lucide-react";
+import AddClientsToChallengeDialog from "./AddClientsToChallengeDialog";
 import { format } from "date-fns";
 
 // A challenge is only truly active if its DB status is 'active' AND end_date hasn't passed (local day).
@@ -31,6 +32,7 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
   const isCoach = role === "coach" || role === "admin";
 
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
+  const [addClientsTo, setAddClientsTo] = useState<Challenge | null>(null);
   const [showPast, setShowPast] = useState(false);
 
   useEffect(() => {
@@ -114,6 +116,16 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
               Join Challenge
             </Button>
           )}
+          {isCoach && (effectiveStatus === "active" || effectiveStatus === "upcoming") && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={(e) => { e.stopPropagation(); setAddClientsTo(challenge); }}
+            >
+              <UserPlus className="h-4 w-4 mr-1.5" /> Add Clients
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -154,6 +166,15 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
         open={!!selectedChallenge}
         onOpenChange={(v) => { if (!v) setSelectedChallenge(null); }}
       />
+
+      {addClientsTo && (
+        <AddClientsToChallengeDialog
+          open={!!addClientsTo}
+          onOpenChange={(v) => { if (!v) setAddClientsTo(null); }}
+          challengeId={addClientsTo.id}
+          challengeTitle={addClientsTo.title}
+        />
+      )}
     </div>
   );
 };
