@@ -333,6 +333,15 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {challenge && (
+        <AddClientsToChallengeDialog
+          open={showAddClients}
+          onOpenChange={setShowAddClients}
+          challengeId={challenge.id}
+          challengeTitle={challenge.title}
+        />
+      )}
     </>
   );
 };
