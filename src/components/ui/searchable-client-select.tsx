@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 interface ClientOption {
   id: string;
   name: string;
+  /** Optional status — when "pending", a small badge is shown next to the name. */
+  status?: "active" | "pending" | string;
 }
 
 interface SearchableClientSelectProps {
@@ -103,8 +105,13 @@ const SearchableClientSelect = ({
                   value === c.id && "bg-primary/10 text-primary"
                 )}
               >
-                <Check className={cn("h-3.5 w-3.5", value === c.id ? "opacity-100" : "opacity-0")} />
-                {c.name}
+                <Check className={cn("h-3.5 w-3.5 shrink-0", value === c.id ? "opacity-100" : "opacity-0")} />
+                <span className="truncate flex-1 text-left">{c.name}</span>
+                {c.status === "pending" && (
+                  <span className="ml-auto shrink-0 rounded-sm border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                    Pending
+                  </span>
+                )}
               </button>
             ))
           )}
