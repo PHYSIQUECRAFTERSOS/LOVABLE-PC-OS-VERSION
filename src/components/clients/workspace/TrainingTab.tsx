@@ -381,15 +381,31 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       } as any).select().single();
       if (progErr) throw progErr;
 
-      const { data: masterPhases } = await supabase.from("program_phases").select("*")
+      const { data: masterPhasesAll } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
+      const masterPhases = selectedAssignPhaseId
+        ? (masterPhasesAll || []).filter((p: any) => p.id === selectedAssignPhaseId)
+        : (masterPhasesAll || []);
+      if (selectedAssignPhaseId && masterPhases.length === 0) {
+        throw new Error("Selected phase not found.");
+      }
+      // If scoped to a single phase, re-stamp program duration + name and renumber to 1.
+      if (selectedAssignPhaseId) {
+        const onlyPhase = masterPhases[0];
+        await supabase.from("programs").update({
+          duration_weeks: onlyPhase.duration_weeks || 0,
+          name: `${master.name} — ${onlyPhase.name}`,
+        } as any).eq("id", clientProg.id);
+      }
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
 
-      for (const phase of (masterPhases || [])) {
+      let normalizedOrder = 1;
+      for (const phase of masterPhases) {
         const { data: newPhase } = await supabase.from("program_phases").insert({
           program_id: clientProg.id, name: phase.name, description: phase.description,
-          phase_order: phase.phase_order, duration_weeks: phase.duration_weeks,
+          phase_order: selectedAssignPhaseId ? normalizedOrder++ : phase.phase_order,
+          duration_weeks: phase.duration_weeks,
           training_style: phase.training_style, intensity_system: phase.intensity_system,
           progression_rule: phase.progression_rule,
         }).select().single();
