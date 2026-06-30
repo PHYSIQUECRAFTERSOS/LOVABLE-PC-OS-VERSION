@@ -399,6 +399,20 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       }
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
+      const failedWorkouts: string[] = [];
+
+      const attachWithRetry = async (payload: any, label: string) => {
+        let { error } = await supabase.from("program_workouts").insert(payload);
+        if (error) {
+          await new Promise((r) => setTimeout(r, 250));
+          const retry = await supabase.from("program_workouts").insert(payload);
+          error = retry.error as any;
+        }
+        if (error) {
+          console.error(`[Assign] Failed to attach "${label}":`, error);
+          failedWorkouts.push(label);
+        }
+      };
 
       let normalizedOrder = 1;
       for (const phase of masterPhases) {
@@ -416,15 +430,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
         if (phaseDirectPWs && phaseDirectPWs.length > 0) {
           for (const pw of phaseDirectPWs) {
+            const label = pw.day_label || "Unnamed workout";
             const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
             allCloneResults.push(result);
-            if (!clientW) continue;
-            await supabase.from("program_workouts").insert({
+            if (!clientW) { failedWorkouts.push(label); continue; }
+            await attachWithRetry({
               phase_id: newPhase!.id, workout_id: clientW.id,
               day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
               exclude_from_numbering: pw.exclude_from_numbering || false,
               custom_tag: pw.custom_tag || null,
-            });
+            }, label);
           }
         } else {
           const { data: masterWeeks } = await supabase.from("program_weeks").select("*")
@@ -435,15 +450,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
               .select().single();
             const { data: masterPW } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
             for (const pw of (masterPW || [])) {
+              const label = pw.day_label || "Unnamed workout";
               const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
               allCloneResults.push(result);
-              if (!clientW) continue;
-              await supabase.from("program_workouts").insert({
+              if (!clientW) { failedWorkouts.push(label); continue; }
+              await attachWithRetry({
                 week_id: newWeek!.id, workout_id: clientW.id,
                 day_of_week: pw.day_of_week, day_label: pw.day_label, sort_order: pw.sort_order,
                 exclude_from_numbering: pw.exclude_from_numbering || false,
                 custom_tag: pw.custom_tag || null,
-              });
+              }, label);
             }
           }
         }
@@ -471,7 +487,17 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       const summary = buildImportSummary(allCloneResults);
       const msg = formatImportSummary(summary);
-      toast({ title: isLinked ? "Client subscribed" : msg.title, description: isLinked ? "Future updates will sync." : msg.description, variant: msg.isWarning ? "destructive" : undefined });
+      const hasFailures = failedWorkouts.length > 0;
+      toast({
+        title: hasFailures
+          ? `Imported with ${failedWorkouts.length} missing workout${failedWorkouts.length === 1 ? "" : "s"}`
+          : isLinked ? "Client subscribed" : msg.title,
+        description: hasFailures
+          ? `Failed to copy: ${failedWorkouts.join(", ")}. Re-run the assign for the missing ones.`
+          : isLinked ? "Future updates will sync." : msg.description,
+        variant: (hasFailures || msg.isWarning) ? "destructive" : undefined,
+      });
+
       setShowAssign(false); setSelectedMaster(""); setSelectedAssignPhaseId(""); setAssignPhases([]);
       loadClientProgram();
     } catch (err: any) {
