@@ -458,7 +458,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         start_date: assignStartDate,
         forked_from_program_id: selectedMaster, status: "active",
         auto_advance: assignAutoAdvance,
-        is_linked_to_master: isLinked, master_version_number: master.version_number || 1,
+        is_linked_to_master: selectedAssignPhaseId ? false : isLinked, master_version_number: master.version_number || 1,
         last_synced_at: new Date().toISOString(),
       } as any);
 
