@@ -93,6 +93,11 @@ export const CopyPhaseToClientDialog = ({
               placeholder="Search clients…"
             />
           )}
+          {selected && clients.find(c => c.id === selected)?.status === "pending" && (
+            <p className="text-xs text-primary/80 leading-snug">
+              This client hasn't signed up yet — a fresh program will be created so the phase is waiting for them on first login.
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
