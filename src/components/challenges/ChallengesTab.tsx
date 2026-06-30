@@ -116,6 +116,16 @@ const ChallengesTab = ({ focusChallengeId, onFocusChallengeHandled }: Challenges
               Join Challenge
             </Button>
           )}
+          {isCoach && (effectiveStatus === "active" || effectiveStatus === "upcoming") && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={(e) => { e.stopPropagation(); setAddClientsTo(challenge); }}
+            >
+              <UserPlus className="h-4 w-4 mr-1.5" /> Add Clients
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
