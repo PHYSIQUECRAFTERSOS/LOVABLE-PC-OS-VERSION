@@ -212,6 +212,12 @@ const ChallengeDetailView = ({ challenge, open, onOpenChange }: Props) => {
               </Button>
             )}
 
+            {isCoach && (challenge.status === "active" || challenge.status === "upcoming") && (
+              <Button variant="outline" size="sm" onClick={() => setShowAddClients(true)}>
+                <UserPlus className="h-4 w-4 mr-1" /> Add Clients
+              </Button>
+            )}
+
             {isCoach && (challenge.status === "active" || challenge.status === "completed") && (
               <Button variant="ghost" size="sm" onClick={() => { setTemplateName(challenge.title); setShowTemplateModal(true); }}>
                 <Star className="h-4 w-4 mr-1" /> Save as Template
