@@ -1,0 +1,24 @@
+[
+  {
+    "_comment": "Physique Crafters TWA (Google Play). REPLACE the sha256_cert_fingerprints value with the SHA-256 from Google Play Console -> Release -> Setup -> App integrity -> App signing key certificate. Keep the colon-separated hex format.",
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.physiquecrafters.app.twa",
+      "sha256_cert_fingerprints": [
+        "__REPLACE_WITH_PLAY_APP_SIGNING_SHA256__"
+      ]
+    }
+  },
+  {
+    "_comment": "Reserved for the future Capacitor native Android build. Safe to leave with the placeholder until we publish it.",
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.physiquecrafters.app",
+      "sha256_cert_fingerprints": [
+        "__REPLACE_WITH_CAPACITOR_APP_SIGNING_SHA256__"
+      ]
+    }
+  }
+]
