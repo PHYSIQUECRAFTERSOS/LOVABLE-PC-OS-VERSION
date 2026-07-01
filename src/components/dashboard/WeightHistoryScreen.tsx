@@ -224,14 +224,23 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     weight: convert(e.weight),
   }));
 
-  // Recent Entries — last 5 entries from the same deduped, range-filtered set,
+  // Recent Entries — last 7 entries from the same deduped, range-filtered set,
   // shown newest-first. Guaranteed to match graph values exactly.
-  const recentEntries = [...entries].reverse().slice(0, 5);
+  const recentEntries = [...entries].reverse().slice(0, 7);
 
   // Summary bar — first/last of deduped range
   const startingWeight = entries.length > 0 ? convert(entries[0].weight) : null;
   const currentWeight = entries.length > 0 ? convert(entries[entries.length - 1].weight) : null;
   const totalChange = startingWeight !== null && currentWeight !== null ? Number((currentWeight - startingWeight).toFixed(1)) : null;
+
+  // 7-Day Average — only relevant on the 7D range. Sum of the (up to 7) entries
+  // in the current deduped window divided by 7, per user spec.
+  const sevenDayAverage =
+    rangeIdx === 0 && entries.length > 0
+      ? Number(
+          (entries.slice(-7).reduce((s, e) => s + convert(e.weight), 0) / 7).toFixed(1)
+        )
+      : null;
 
   const title = clientName ? `${clientName}'s Weight` : "My Weight";
 
