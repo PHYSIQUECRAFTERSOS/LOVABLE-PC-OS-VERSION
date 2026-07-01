@@ -300,6 +300,31 @@ const ScanFoodLabelButton = ({
         savedFoodId = inserted.id;
       }
 
+      // If parent wants the extracted food (e.g. Create Meal ingredient staging),
+      // save to Custom Foods but skip the nutrition_logs insert.
+      if (onExtracted) {
+        onExtracted({
+          name: name.trim(),
+          brand: brand.trim() || null,
+          serving_size: ss,
+          serving_unit: servingUnit,
+          calories: cal,
+          protein: p,
+          carbs: c,
+          fat: f,
+          fiber: parseFloat(fiber) || 0,
+          sugar: parseFloat(sugar) || 0,
+          sodium: parseFloat(sodium) || 0,
+          custom_food_id: savedFoodId,
+        });
+        toast({ title: `${name} saved to My Foods` });
+        setShowForm(false);
+        setShowDuplicatePrompt(false);
+        resetForm();
+        setSaving(false);
+        return;
+      }
+
       // Now log to nutrition_logs using quantity consumed
       const { getLocalDateString } = await import("@/utils/localDate");
       const effectiveDate = logDate || getLocalDateString();
