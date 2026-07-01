@@ -419,6 +419,15 @@ const ScanFoodLabelButton = ({
       <Camera className="h-4 w-4" />
       <Sparkles className="h-2.5 w-2.5 text-primary absolute -top-0.5 -right-0.5" />
     </Button>
+  ) : variant === "meal-button" ? (
+    <Button
+      variant="outline"
+      onClick={() => setShowPicker(true)}
+      className={cn("w-full h-12 gap-2 border-primary/60 text-foreground hover:bg-primary/10", className)}
+    >
+      <Camera className="h-5 w-5 text-primary" />
+      Scan Label
+    </Button>
   ) : (
     <Button
       variant="outline"
