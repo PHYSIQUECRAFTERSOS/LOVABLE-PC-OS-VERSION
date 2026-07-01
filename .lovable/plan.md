@@ -1,20 +1,27 @@
-## Changes to `src/components/dashboard/WeightHistoryScreen.tsx`
+## Fix 7-Day Average card placement on mobile
 
-**1. Expand "Recent Entries" from 5 → 7**
-Change `.slice(0, 5)` to `.slice(0, 7)` so the list always shows the seven most recent entries (matches the 7D range perfectly, and still looks clean on longer ranges).
+**Problem**
+The 7-Day Average block was accidentally inserted *inside* the "Change" column's `<p>` tag in `WeightHistoryScreen.tsx` (lines ~305–322). That's why on iPhone it renders squeezed into the top-right corner overlapping the chart — it's living inside one of the three grid columns instead of being its own row.
 
-**2. Add a "7-Day Average" stat when the 7D range is active**
-- Compute `avg7 = sum(entries.weight) / 7` (per user's requested formula: sum of the last 7 daily entries divided by 7), converted to the user's display unit and rounded to 1 decimal.
-- Only render when `rangeIdx === 0` (7D tab selected), so it doesn't clutter longer views.
+**Fix (single file: `src/components/dashboard/WeightHistoryScreen.tsx`)**
 
-**3. Placement**
-Add it as a fourth stat directly under the existing Starting / Current / Change summary bar — a full-width highlighted card with a subtle gold accent border so it stands out as the headline number for the 7D view:
+1. **Move the 7-Day Average card out of the grid.** Close the Change column's `<p>` and the grid `<div>` properly first, then render the average card as a sibling *below* the Starting/Current/Change grid — full width of the dialog.
+
+2. **Rework the card to fit mobile cleanly** (matches the compact style of the rest of the summary):
+   - Full-width row, horizontal layout
+   - Left: small uppercase gold label `7-DAY AVERAGE` + tiny helper text `Sum of last 7 entries ÷ 7`
+   - Right: large gold number `200.6 lbs` on a single line (no wrapping)
+   - Subtle gold border + `bg-primary/5`, rounded, `px-4 py-3`
+   - `whitespace-nowrap` + `tabular-nums` on the number so "200.6 lbs" never wraps to two lines like in the screenshot
+
+3. No logic changes — `sevenDayAverage` calculation stays exactly as-is. Purely a JSX structure + styling fix.
+
+**Result**
 
 ```text
-[ Starting ] [ Current ] [ Change ]
-[      7-Day Average: 200.3 lbs      ]
+[ Starting ]  [ Current ]  [ Change ]
+[  7-DAY AVERAGE · Sum ÷ 7        200.6 lbs  ]
+[  chart ...                                  ]
 ```
 
-This keeps it in the summary zone (the natural place to look for aggregate numbers) without disrupting the chart or the entries list.
-
-No database, hook, or business-logic changes — purely presentational in the weight modal.
+Card sits cleanly between the summary row and the chart, readable on 375px iPhone screens, no overlap with the graph.

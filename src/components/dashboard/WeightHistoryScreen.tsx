@@ -287,42 +287,45 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
 
             {/* Summary Bar */}
             {startingWeight !== null && currentWeight !== null && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Starting</p>
-                  <p className="text-lg font-bold text-foreground tabular-nums">{startingWeight} {unitLabel}</p>
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Starting</p>
+                    <p className="text-lg font-bold text-foreground tabular-nums">{startingWeight} {unitLabel}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current</p>
+                    <p className="text-lg font-bold text-foreground tabular-nums">{currentWeight} {unitLabel}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change</p>
+                    <p className={cn(
+                      "text-lg font-bold tabular-nums",
+                      totalChange && totalChange < 0 ? "text-success" : totalChange && totalChange > 0 ? "text-destructive" : "text-foreground"
+                    )}>
+                      {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " " + unitLabel : "—"}
+                      {totalChange !== null && totalChange !== 0 && (
+                        <span className="text-xs ml-1">{totalChange < 0 ? "↓" : "↑"}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Current</p>
-                  <p className="text-lg font-bold text-foreground tabular-nums">{currentWeight} {unitLabel}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Change</p>
-                  <p className={cn(
-                    "text-lg font-bold tabular-nums",
-                    totalChange && totalChange < 0 ? "text-success" : totalChange && totalChange > 0 ? "text-destructive" : "text-foreground"
-                  )}>
-                    {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " " + unitLabel : "—"}
-                    {totalChange !== null && totalChange !== 0 && (
-                      <span className="text-xs ml-1">{totalChange < 0 ? "↓" : "↑"}</span>
+
+                {/* 7-Day Average — only on the 7D range */}
+                {sevenDayAverage !== null && (
+                  <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-primary uppercase tracking-wider font-semibold">7-Day Average</p>
+                      <p className="text-[10px] text-muted-foreground truncate">Sum of last 7 entries ÷ 7</p>
+                    </div>
+                    <p className="text-xl font-bold text-primary tabular-nums whitespace-nowrap shrink-0">
+                      {sevenDayAverage} {unitLabel}
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
 
-            {/* 7-Day Average — only on the 7D range */}
-            {sevenDayAverage !== null && (
-              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] text-primary uppercase tracking-wider font-semibold">7-Day Average</p>
-                  <p className="text-[10px] text-muted-foreground">Sum of last 7 entries ÷ 7</p>
-                </div>
-                <p className="text-xl font-bold text-primary tabular-nums">
-                  {sevenDayAverage} {unitLabel}
-                </p>
-              </div>
-            )}
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* Chart */}
             {loading ? (
