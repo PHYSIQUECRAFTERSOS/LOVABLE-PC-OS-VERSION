@@ -1,61 +1,47 @@
-## What's actually happening on Samsung phones
+## Goal
 
-The app that's live on the Google Play Store is `com.physiquecrafters.app.twa` — a **Trusted Web Activity (TWA)**. A TWA is a thin Android wrapper that loads `app.physiquecrafters.com` inside Chrome under the hood. That's fine *only if* Android can verify the app owns the domain via a Digital Asset Links file. Right now:
+Add a "Scan Label" option inside the Create Meal → Barcode tab that mirrors the Nutrition Tracker's Scan Label flow, relabel the camera button so users know the fallback exists, and fix the "can't save meal" issue Manny reported.
 
-1. `public/.well-known/assetlinks.json` does not exist in the codebase, so Android cannot verify the TWA ↔ domain link.
-2. Because verification fails, Android opens the TWA in a Chrome Custom Tab with the URL bar visible ("physiquecrafters.com" + lock icon — exactly what's in the client's screenshot #3). It looks and behaves like the website.
-3. Because it's essentially Chrome, Samsung Pass hooks the password field and prompts for a fingerprint — the loop the client is stuck in.
-4. Because App Links aren't verified, tapping the invite email link on Samsung does NOT route to the installed TWA; it opens a normal browser tab. So even after installing, the invite link keeps landing them "on the website".
-5. Separately, our `RequireNativeApp` gate only recognizes Capacitor (`Capacitor.isNativePlatform()`). A TWA is not Capacitor, so Android users who ARE inside the installed app still get told to "Finish setup in the app" — reinforcing the loop.
+## Changes
 
-iOS is unaffected: iOS uses the real Capacitor native app (`com.physiquecrafters.app`), Universal Links work, and no Samsung Pass exists.
+### 1. `src/components/nutrition/CreateMealSheet.tsx` (Barcode tab UI)
 
-## The fix (Android-only, iOS untouched)
+- Rename the existing button from `Start Camera Scanner` to a two-line label:
+  - Line 1 (bold): `Start Camera Scanner`
+  - Line 2 (smaller, muted): `If not working, use Scan Label below and take a picture of the label`
+- Add a new full-width `Scan Label` button directly beneath it, styled to match (same height, gold outline, `Camera` icon).
+- On tap, open the same Scan Label picker used in the tracker (Take Photo / Choose from Library → AI extraction → confirm sheet).
+- When the user confirms the extracted label, instead of writing to `nutrition_logs`, push the scanned food into the meal's `items` array via the existing `mapFoodToStaged()` helper — so it becomes an ingredient of the meal being built (name, brand, calories, protein, carbs, fat, serving size, serving unit).
+- Keep the manual barcode input row unchanged.
 
-### 1. Ship `assetlinks.json` for the TWA
+### 2. `src/components/nutrition/ScanFoodLabelButton.tsx` (make it reusable)
 
-Create `public/.well-known/assetlinks.json` listing the Play Store TWA package. This single file:
-- Removes the Chrome URL bar inside the TWA (true full-screen "native app" feel).
-- Enables Android App Links so the invite email URL opens directly in the installed TWA instead of a browser tab.
-- Stops Samsung Pass from treating the sign-in as a browser autofill (Samsung Pass hooks Chrome, not verified TWAs).
+- Add a new optional prop `onExtracted?: (result: ScanResult) => void`.
+- When `onExtracted` is provided, after the user confirms the parsed values the component invokes `onExtracted(result)` and closes — it skips the `nutrition_logs` insert entirely.
+- When `onExtracted` is not provided, existing behavior (log to nutrition_logs) is preserved — no regression for the tracker.
+- Add a new `variant: "meal-button"` styled to fit inside the Create Meal barcode tab (full width, matte-black + gold outline, matches the Start Camera Scanner button).
 
-Package + SHA-256 fingerprints to include:
-- `com.physiquecrafters.app.twa` — production TWA (Play Console → App integrity → App signing key certificate SHA-256).
-- `com.physiquecrafters.app` — future Capacitor native Android build, listed proactively so we can swap seamlessly.
+### 3. Fix "can't save meal" bug
 
-Because the exact SHA-256 fingerprint from Play Console is a value only the user has access to, the plan is to scaffold the file with a `__REPLACE_WITH_PLAY_APP_SIGNING_SHA256__` placeholder and clear inline instructions on where to paste it. Once dropped in, the file is served at `https://app.physiquecrafters.com/.well-known/assetlinks.json` (Lovable static hosting handles this automatically).
+Root cause suspects to verify and patch:
 
-### 2. Recognize the TWA as "the native app" in the onboarding gate
+- `saved_meal_items` inserts use `serving_unit: item.serving_unit === "g" ? "g" : item.serving_label`. If a barcode/scan result returns `serving_label = null` (common for FatSecret 100g entries and for AI-scanned labels where only unit is known), this writes `null` into a NOT NULL column and the insert fails silently to the user (they only see "Couldn't save meal items"). Fix: fall back to `item.serving_unit || "g"` so a valid string is always written.
+- Verify `mapFoodToStaged()` always populates `serving_size_g`, `calories_per_100g`, etc. for barcode + scan-label results. Add a safety normalizer so any missing per-100g field is derived from the absolute macros / serving grams before staging (prevents NaN → insert rejection).
+- Add a specific error toast that surfaces the DB error message (already partially there) and log the offending row shape to console for future debugging.
 
-Update `src/components/onboarding/RequireNativeApp.tsx` to also treat a verified TWA session as native. Detection signals (any one is enough, persisted to `sessionStorage` because `document.referrer` is only set on first load):
-- `document.referrer.startsWith('android-app://com.physiquecrafters.app.twa')`
-- URL parameter `?utm_source=trusted_web_activity` (the TWA passes this by default)
-- `window.matchMedia('(display-mode: standalone)').matches` AND Android UA (fallback)
+### 4. Mobile layout polish
 
-When any signal fires, treat as native and render children — no more "Finish setup in the app" wall for Samsung users who are already in the app.
+- Ensure both buttons are 48px tall, full width, 12px vertical spacing, single column on mobile (matches Trainerize/current design system).
+- Confirm the confirm sheet opened from Scan Label uses the existing `OverlayPortal` at `z-[70]` so it sits above the Create Meal overlay (`z-[55]`).
 
-### 3. Nothing else changes
+## Out of scope
 
-- iOS Capacitor detection path is untouched — `Capacitor.isNativePlatform()` still short-circuits first.
-- Desktop and mobile web browsers still see the download gate.
-- Invite email URL construction (`setupUrl`), Play Store link, and App Store link stay the same.
-- No auth, RLS, or edge function changes.
+- No changes to the daily nutrition tracker's Scan Label behavior.
+- No changes to barcode camera/zxing logic itself.
+- No schema changes.
 
-## Files touched
+## Clarifying question
 
-- **New:** `public/.well-known/assetlinks.json` (with placeholder SHA-256 + instructions).
-- **Edit:** `src/components/onboarding/RequireNativeApp.tsx` (add TWA detection alongside existing Capacitor check).
+When a user scans a label from inside Create Meal, should the extracted food also be saved into their Custom Foods library (so it's reusable later), or should it stay ephemeral to just this meal? Default in the plan above is ephemeral — let me know if you want it saved as a custom food too. yes it should be saved to their custom food
 
-## What the user needs to do after I ship this
-
-1. Open Google Play Console → **Release → Setup → App integrity → App signing key certificate**, copy the **SHA-256** fingerprint.
-2. Paste it into `public/.well-known/assetlinks.json` (replacing the placeholder — I'll leave a comment showing exactly where).
-3. Publish. Within a few minutes Android will re-verify the domain, the URL bar disappears inside the TWA, Samsung Pass stops hijacking sign-in, and invite email links open straight into the installed app.
-
-No republish of the Android TWA app itself is needed — only the website file must exist.
-
-## Technical notes
-
-- Lovable static hosting serves `public/.well-known/*` at the site root with the required `Content-Type: application/json` — no server config needed.
-- Android caches asset link verification aggressively; after the file is live, clients may need to reinstall the app once, or wait ~24h for Play Services to re-verify. We'll include this in the message back to the user.
-- The TWA UA string contains `; wv)` and `Chrome/`; combined with `android-app://` referrer, false positives are essentially zero.
+&nbsp;
