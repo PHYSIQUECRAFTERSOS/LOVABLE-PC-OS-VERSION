@@ -44,16 +44,35 @@ const SUSPICIOUS_THRESHOLDS: Record<string, number> = {
   sodium_mg: 5000,
 };
 
+export interface ScanExtractedFood {
+  name: string;
+  brand: string | null;
+  serving_size: number;
+  serving_unit: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  sodium: number;
+  custom_food_id?: string;
+}
+
 interface ScanFoodLabelButtonProps {
   mealType: string;
   mealLabel: string;
   logDate?: string;
   onLogged: () => void;
-  variant?: "icon" | "full" | "grid" | "headless";
+  variant?: "icon" | "full" | "grid" | "headless" | "meal-button";
   className?: string;
   /** External open control – when provided, the picker opens/closes via parent */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** When provided, after the user confirms the scanned label the extracted food is
+   *  saved to their Custom Foods library and returned via this callback instead of
+   *  being logged to nutrition_logs. Used by CreateMealSheet to stage as ingredient. */
+  onExtracted?: (food: ScanExtractedFood) => void;
 }
 
 interface ScanResult {
