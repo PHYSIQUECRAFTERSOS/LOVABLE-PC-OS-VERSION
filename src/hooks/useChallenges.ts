@@ -334,52 +334,22 @@ export function useChallengeLeaderboard() {
       // Use the most recently started active challenge as the "current" one
       const currentChallenge = activeChallenges[0];
 
-      // Get participants for this specific challenge only
-      const { data: participants, error: pErr } = await db
-        .from("challenge_participants")
-        .select("user_id, current_value, best_value")
-        .eq("challenge_id", currentChallenge.id)
-        .eq("status", "active");
-      if (pErr) throw pErr;
-      if (!participants?.length) return [];
+      // Use SECURITY DEFINER RPC so clients can see all eligible participants
+      // (RLS on coach_clients/user_roles would otherwise restrict client callers
+      // to only their own rows, hiding the rest of the leaderboard).
+      const { data: rows, error: rpcErr } = await (supabase as any).rpc(
+        "get_challenge_leaderboard",
+        { _challenge_id: currentChallenge.id }
+      );
+      if (rpcErr) throw rpcErr;
+      if (!rows?.length) return [];
 
-      // Fetch active client IDs — only show active clients on leaderboard
-      const { data: activeClients } = await db
-        .from("coach_clients")
-        .select("client_id")
-        .eq("status", "active");
-      const activeClientIds = new Set((activeClients || []).map((c: any) => c.client_id));
-
-      // Exclude coaches/admins
-      const { data: staffRoles } = await db
-        .from("user_roles")
-        .select("user_id")
-        .in("role", ["admin", "coach", "manager"]);
-      const staffIds = new Set((staffRoles || []).map((r: any) => r.user_id));
-
-      // Filter participants
-      const validParticipants = (participants || []).filter((p: any) => {
-        return activeClientIds.has(p.user_id) && !staffIds.has(p.user_id);
-      });
-
-      if (!validParticipants.length) return [];
-
-      const userIds = validParticipants.map((p: any) => p.user_id);
-
-      // Get profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", userIds);
-      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.user_id, p]));
-
-      // Build sorted leaderboard using best_value per participant
-      const entries: LeaderboardEntry[] = validParticipants
-        .map((p: any) => ({
-          user_id: p.user_id,
-          full_name: profileMap[p.user_id]?.full_name || "Unknown",
-          avatar_url: profileMap[p.user_id]?.avatar_url || null,
-          total_points: Number(p.best_value || 0),
+      const entries: LeaderboardEntry[] = (rows as any[])
+        .map((r) => ({
+          user_id: r.user_id,
+          full_name: r.full_name || "Unknown",
+          avatar_url: r.avatar_url || null,
+          total_points: Number(r.best_value || 0),
           rank: 0,
         }))
         .sort((a, b) => b.total_points - a.total_points);
