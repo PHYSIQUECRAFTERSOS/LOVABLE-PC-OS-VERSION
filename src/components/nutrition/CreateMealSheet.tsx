@@ -667,13 +667,46 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
             ) : (
               <Button
                 variant="outline"
-                className="w-full h-12 gap-2"
+                className="w-full h-auto min-h-14 py-2 gap-2 flex-col"
                 onClick={startBarcodeScanner}
                 disabled={barcodeLoading}
               >
-                <ScanBarcode className="h-5 w-5" />
-                Start Camera Scanner
+                <div className="flex items-center gap-2">
+                  <ScanBarcode className="h-5 w-5" />
+                  <span className="font-semibold">Start Camera Scanner</span>
+                </div>
+                <span className="text-[11px] text-muted-foreground font-normal leading-tight">
+                  If not working, use Scan Label below and take a picture of the label
+                </span>
               </Button>
+            )}
+
+            {/* Scan Label fallback — mirrors the Nutrition Tracker's scan-label flow.
+                Saves to Custom Foods AND stages the food as a meal ingredient. */}
+            {!barcodeScanning && (
+              <ScanFoodLabelButton
+                mealType={mealType}
+                mealLabel="meal"
+                variant="meal-button"
+                onLogged={() => { /* no-op — we use onExtracted instead */ }}
+                onExtracted={(food) => {
+                  const staged = mapFoodToStaged({
+                    name: food.name,
+                    brand: food.brand,
+                    serving_size: food.serving_size,
+                    serving_size_g: food.serving_size,
+                    serving_unit: food.serving_unit,
+                    serving_label: `${food.serving_size} ${food.serving_unit}`,
+                    calories: food.calories,
+                    protein: food.protein,
+                    carbs: food.carbs,
+                    fat: food.fat,
+                  });
+                  setItems(prev => [...prev, staged]);
+                  setShowFoodSearch(false);
+                  toast({ title: `${food.name} added to meal` });
+                }}
+              />
             )}
 
             {/* Manual Barcode Input */}
