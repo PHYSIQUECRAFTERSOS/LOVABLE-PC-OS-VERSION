@@ -305,7 +305,20 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                     {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " " + unitLabel : "—"}
                     {totalChange !== null && totalChange !== 0 && (
                       <span className="text-xs ml-1">{totalChange < 0 ? "↓" : "↑"}</span>
-                    )}
+            )}
+
+            {/* 7-Day Average — only on the 7D range */}
+            {sevenDayAverage !== null && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-primary uppercase tracking-wider font-semibold">7-Day Average</p>
+                  <p className="text-[10px] text-muted-foreground">Sum of last 7 entries ÷ 7</p>
+                </div>
+                <p className="text-xl font-bold text-primary tabular-nums">
+                  {sevenDayAverage} {unitLabel}
+                </p>
+              </div>
+            )}
                   </p>
                 </div>
               </div>
