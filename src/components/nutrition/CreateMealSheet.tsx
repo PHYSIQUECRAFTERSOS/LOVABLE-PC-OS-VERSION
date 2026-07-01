@@ -451,7 +451,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
       food_item_id: item.food_item_id || null,
       food_name: item.food_name,
       quantity: item.quantity,
-      serving_unit: item.serving_unit === "g" ? "g" : item.serving_label,
+      serving_unit: item.serving_unit === "g" ? "g" : (item.serving_label || item.serving_unit || "serving"),
       calories: Math.round(item.calories),
       protein: Math.round(item.protein),
       carbs: Math.round(item.carbs),
