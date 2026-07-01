@@ -98,6 +98,7 @@ const ScanFoodLabelButton = ({
   className,
   open: externalOpen,
   onOpenChange: externalOnOpenChange,
+  onExtracted,
 }: ScanFoodLabelButtonProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
