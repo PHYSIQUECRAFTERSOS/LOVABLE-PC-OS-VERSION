@@ -1,37 +1,61 @@
-## Goal
-Fix the PR Challenge sitting on "Upcoming" past its start date, ensure scoring/leaderboard fires correctly from activation onward, and notify participants when a challenge goes active.
+## What's actually happening on Samsung phones
 
-## 1. Auto-activation via daily cron
-- Enable `pg_cron` + `pg_net` (if not already).
-- Schedule `challenge-lifecycle` edge function to run **daily at 00:05 UTC** via `cron.schedule` calling the function URL with the anon key.
-- On activation, `challenge-lifecycle` also inserts an in-app notification (see #3).
-- Immediately invoke the function once to flip today's PR Challenge (July 1) from `upcoming` → `active`.
+The app that's live on the Google Play Store is `com.physiquecrafters.app.twa` — a **Trusted Web Activity (TWA)**. A TWA is a thin Android wrapper that loads `app.physiquecrafters.com` inside Chrome under the hood. That's fine *only if* Android can verify the app owns the domain via a Digital Asset Links file. Right now:
 
-## 2. Verify + backfill scoring
-- Inspect `challenge_scoring_rules` for the current PR Challenge to confirm rules exist (workout completion, PR set, etc.). If none, that's why no points would score — surface the finding to you.
-- Confirm `autoScoreChallengePoints` (already wired to workout/nutrition/cardio logging via `src/utils/challengeAutoScore.ts`) filters by `status='active'` — so once activation runs, new logs today will score correctly.
-- **Backfill**: after activation, run a one-time backfill pass for each newly-activated challenge:
-  - For every participant, look at today's `workout_sessions` (completed), `personal_records` set today, `cardio_logs` (completed), and `nutrition_logs` (day complete) that occurred *after* the challenge's `start_date` at 00:00.
-  - Insert matching `challenge_logs` rows respecting `daily_cap`, then recompute `challenge_participants.current_value`.
-- This backfill runs inside `challenge-lifecycle` right after the `upcoming → active` flip, so it's automatic on every future activation too.
+1. `public/.well-known/assetlinks.json` does not exist in the codebase, so Android cannot verify the TWA ↔ domain link.
+2. Because verification fails, Android opens the TWA in a Chrome Custom Tab with the URL bar visible ("physiquecrafters.com" + lock icon — exactly what's in the client's screenshot #3). It looks and behaves like the website.
+3. Because it's essentially Chrome, Samsung Pass hooks the password field and prompts for a fingerprint — the loop the client is stuck in.
+4. Because App Links aren't verified, tapping the invite email link on Samsung does NOT route to the installed TWA; it opens a normal browser tab. So even after installing, the invite link keeps landing them "on the website".
+5. Separately, our `RequireNativeApp` gate only recognizes Capacitor (`Capacitor.isNativePlatform()`). A TWA is not Capacitor, so Android users who ARE inside the installed app still get told to "Finish setup in the app" — reinforcing the loop.
 
-## 3. Notifications on activation
-For each participant of a newly-activated challenge:
-- **In-app message thread**: post a system message from the coach into the existing thread with that client (`thread_messages` insert), body: `🔥 The "{title}" challenge is now LIVE! Tap Challenges to see the leaderboard.`
-- **Banner**: Existing `ChallengeBanner` already surfaces active challenges — no code change needed; the flip alone re-shows it. Clear any prior dismissal for the newly-active challenge so participants see it again by deleting matching rows from `challenge_banner_dismissals` for this challenge.
+iOS is unaffected: iOS uses the real Capacitor native app (`com.physiquecrafters.app`), Universal Links work, and no Samsung Pass exists.
 
-No push notifications (per your selection).
+## The fix (Android-only, iOS untouched)
+
+### 1. Ship `assetlinks.json` for the TWA
+
+Create `public/.well-known/assetlinks.json` listing the Play Store TWA package. This single file:
+- Removes the Chrome URL bar inside the TWA (true full-screen "native app" feel).
+- Enables Android App Links so the invite email URL opens directly in the installed TWA instead of a browser tab.
+- Stops Samsung Pass from treating the sign-in as a browser autofill (Samsung Pass hooks Chrome, not verified TWAs).
+
+Package + SHA-256 fingerprints to include:
+- `com.physiquecrafters.app.twa` — production TWA (Play Console → App integrity → App signing key certificate SHA-256).
+- `com.physiquecrafters.app` — future Capacitor native Android build, listed proactively so we can swap seamlessly.
+
+Because the exact SHA-256 fingerprint from Play Console is a value only the user has access to, the plan is to scaffold the file with a `__REPLACE_WITH_PLAY_APP_SIGNING_SHA256__` placeholder and clear inline instructions on where to paste it. Once dropped in, the file is served at `https://app.physiquecrafters.com/.well-known/assetlinks.json` (Lovable static hosting handles this automatically).
+
+### 2. Recognize the TWA as "the native app" in the onboarding gate
+
+Update `src/components/onboarding/RequireNativeApp.tsx` to also treat a verified TWA session as native. Detection signals (any one is enough, persisted to `sessionStorage` because `document.referrer` is only set on first load):
+- `document.referrer.startsWith('android-app://com.physiquecrafters.app.twa')`
+- URL parameter `?utm_source=trusted_web_activity` (the TWA passes this by default)
+- `window.matchMedia('(display-mode: standalone)').matches` AND Android UA (fallback)
+
+When any signal fires, treat as native and render children — no more "Finish setup in the app" wall for Samsung users who are already in the app.
+
+### 3. Nothing else changes
+
+- iOS Capacitor detection path is untouched — `Capacitor.isNativePlatform()` still short-circuits first.
+- Desktop and mobile web browsers still see the download gate.
+- Invite email URL construction (`setupUrl`), Play Store link, and App Store link stay the same.
+- No auth, RLS, or edge function changes.
 
 ## Files touched
-- `supabase/functions/challenge-lifecycle/index.ts` — add backfill + notification logic on activation.
-- Migration/Insert (via correct tool):
-  - Enable `pg_cron`/`pg_net` extensions (migration).
-  - Schedule the cron (insert tool, since URL/key are project-specific).
 
-## Not changed
-- `autoScoreChallengePoints` logic (already correct once challenges are active).
-- Leaderboard component (reads `challenge_participants.current_value`, which backfill will populate).
-- `ChallengeBanner` UI.
+- **New:** `public/.well-known/assetlinks.json` (with placeholder SHA-256 + instructions).
+- **Edit:** `src/components/onboarding/RequireNativeApp.tsx` (add TWA detection alongside existing Capacitor check).
 
-## Verification
-- After deploy, invoke `challenge-lifecycle` once. Confirm the PR Challenge status flips to `active` in the DB, participants receive a thread message, and any of today's completed workouts show up as `challenge_logs` rows with points.
+## What the user needs to do after I ship this
+
+1. Open Google Play Console → **Release → Setup → App integrity → App signing key certificate**, copy the **SHA-256** fingerprint.
+2. Paste it into `public/.well-known/assetlinks.json` (replacing the placeholder — I'll leave a comment showing exactly where).
+3. Publish. Within a few minutes Android will re-verify the domain, the URL bar disappears inside the TWA, Samsung Pass stops hijacking sign-in, and invite email links open straight into the installed app.
+
+No republish of the Android TWA app itself is needed — only the website file must exist.
+
+## Technical notes
+
+- Lovable static hosting serves `public/.well-known/*` at the site root with the required `Content-Type: application/json` — no server config needed.
+- Android caches asset link verification aggressively; after the file is live, clients may need to reinstall the app once, or wait ~24h for Play Services to re-verify. We'll include this in the message back to the user.
+- The TWA UA string contains `; wv)` and `Chrome/`; combined with `android-app://` referrer, false positives are essentially zero.

@@ -9,8 +9,44 @@ interface Props {
   children: ReactNode;
 }
 
+const TWA_PACKAGE = "com.physiquecrafters.app.twa";
+const TWA_SESSION_KEY = "pc_twa_detected";
+
+const detectTwa = (): boolean => {
+  if (typeof window === "undefined") return false;
+  try {
+    if (sessionStorage.getItem(TWA_SESSION_KEY) === "1") return true;
+  } catch {}
+  let detected = false;
+  try {
+    const ref = typeof document !== "undefined" ? document.referrer || "" : "";
+    if (ref.startsWith(`android-app://${TWA_PACKAGE}`)) detected = true;
+  } catch {}
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("utm_source") === "trusted_web_activity") detected = true;
+  } catch {}
+  try {
+    const ua = navigator.userAgent || "";
+    const isAndroid = /Android/i.test(ua);
+    const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches;
+    // TWAs also render in "fullscreen" or "minimal-ui" display modes.
+    const fullscreen = window.matchMedia?.("(display-mode: fullscreen)")?.matches;
+    if (isAndroid && (standalone || fullscreen) && /; wv\)/.test(ua) === false && /Chrome\//.test(ua)) {
+      // Standalone Android Chrome launch (installed PWA/TWA). Treat as native.
+      detected = true;
+    }
+  } catch {}
+  if (detected) {
+    try { sessionStorage.setItem(TWA_SESSION_KEY, "1"); } catch {}
+  }
+  return detected;
+};
+
 const RequireNativeApp = ({ children }: Props) => {
-  const isNative = !!(window as any).Capacitor?.isNativePlatform?.();
+  const isCapacitorNative = !!(window as any).Capacitor?.isNativePlatform?.();
+  const isTwa = useMemo(() => detectTwa(), []);
+  const isNative = isCapacitorNative || isTwa;
 
   const platform = useMemo<"ios" | "android" | "desktop">(() => {
     if (typeof navigator === "undefined") return "desktop";
