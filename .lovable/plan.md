@@ -1,47 +1,29 @@
-## Goal
 
-Add a "Scan Label" option inside the Create Meal → Barcode tab that mirrors the Nutrition Tracker's Scan Label flow, relabel the camera button so users know the fallback exists, and fix the "can't save meal" issue Manny reported.
+## Goal
+Stop sending the automated mass message to participants when a challenge activates. Instead, surface a clear "LIVE NOW" indicator on the client dashboard's challenge banner so clients see it themselves.
 
 ## Changes
 
-### 1. `src/components/nutrition/CreateMealSheet.tsx` (Barcode tab UI)
+### 1. Remove the auto-message (backend)
+- File: `supabase/functions/challenge-lifecycle/index.ts`
+- Remove the block that creates message threads / inserts coach-to-participant messages when a challenge transitions from `upcoming` → `active`.
+- Keep everything else intact: status flip, workout/nutrition backfill, cron scheduling.
+- No database migration needed.
 
-- Rename the existing button from `Start Camera Scanner` to a two-line label:
-  - Line 1 (bold): `Start Camera Scanner`
-  - Line 2 (smaller, muted): `If not working, use Scan Label below and take a picture of the label`
-- Add a new full-width `Scan Label` button directly beneath it, styled to match (same height, gold outline, `Camera` icon).
-- On tap, open the same Scan Label picker used in the tracker (Take Photo / Choose from Library → AI extraction → confirm sheet).
-- When the user confirms the extracted label, instead of writing to `nutrition_logs`, push the scanned food into the meal's `items` array via the existing `mapFoodToStaged()` helper — so it becomes an ingredient of the meal being built (name, brand, calories, protein, carbs, fat, serving size, serving unit).
-- Keep the manual barcode input row unchanged.
+### 2. Add "LIVE NOW" indicator on the dashboard banner (frontend)
+- File: `src/components/dashboard/ChallengeBanner.tsx`
+- For each challenge already returned by `useChallenges` (active + upcoming within 7 days), compute status from `start_date`/`end_date`.
+- If active today: show a small pulsing gold/green pill labeled **"LIVE NOW"** next to the challenge title (e.g., `PR Challenge · LIVE NOW`).
+- If upcoming: show a muted pill like **"Starts <relative date>"** (e.g., "Starts in 3 days").
+- Keep the existing `View` button behavior (deep link to the challenge).
 
-### 2. `src/components/nutrition/ScanFoodLabelButton.tsx` (make it reusable)
+### 3. No changes to
+- Challenge activation logic (still auto-activates on start date).
+- Points/leaderboard/backfill.
+- Coach-side manual messaging (coaches can still message manually if they want).
 
-- Add a new optional prop `onExtracted?: (result: ScanResult) => void`.
-- When `onExtracted` is provided, after the user confirms the parsed values the component invokes `onExtracted(result)` and closes — it skips the `nutrition_logs` insert entirely.
-- When `onExtracted` is not provided, existing behavior (log to nutrition_logs) is preserved — no regression for the tracker.
-- Add a new `variant: "meal-button"` styled to fit inside the Create Meal barcode tab (full width, matte-black + gold outline, matches the Start Camera Scanner button).
+## Notes / Confirmations
+- This is retroactive only for future activations — the PR Challenge message already sent will remain.
+- Banner styling stays in the existing matte-black + gold palette; the LIVE pill will use a subtle pulse animation for dopamine without being loud.
 
-### 3. Fix "can't save meal" bug
-
-Root cause suspects to verify and patch:
-
-- `saved_meal_items` inserts use `serving_unit: item.serving_unit === "g" ? "g" : item.serving_label`. If a barcode/scan result returns `serving_label = null` (common for FatSecret 100g entries and for AI-scanned labels where only unit is known), this writes `null` into a NOT NULL column and the insert fails silently to the user (they only see "Couldn't save meal items"). Fix: fall back to `item.serving_unit || "g"` so a valid string is always written.
-- Verify `mapFoodToStaged()` always populates `serving_size_g`, `calories_per_100g`, etc. for barcode + scan-label results. Add a safety normalizer so any missing per-100g field is derived from the absolute macros / serving grams before staging (prevents NaN → insert rejection).
-- Add a specific error toast that surfaces the DB error message (already partially there) and log the offending row shape to console for future debugging.
-
-### 4. Mobile layout polish
-
-- Ensure both buttons are 48px tall, full width, 12px vertical spacing, single column on mobile (matches Trainerize/current design system).
-- Confirm the confirm sheet opened from Scan Label uses the existing `OverlayPortal` at `z-[70]` so it sits above the Create Meal overlay (`z-[55]`).
-
-## Out of scope
-
-- No changes to the daily nutrition tracker's Scan Label behavior.
-- No changes to barcode camera/zxing logic itself.
-- No schema changes.
-
-## Clarifying question
-
-When a user scans a label from inside Create Meal, should the extracted food also be saved into their Custom Foods library (so it's reusable later), or should it stay ephemeral to just this meal? Default in the plan above is ephemeral — let me know if you want it saved as a custom food too. yes it should be saved to their custom food
-
-&nbsp;
+Want me to proceed?
