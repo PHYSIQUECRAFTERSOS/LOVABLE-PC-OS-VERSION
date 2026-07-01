@@ -414,7 +414,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
   const save = async () => {
     if (!user || !name.trim()) return;
 
-    // Guard #1: never persist a meal with zero items
+    // Guard: never persist a meal with zero items
     if (items.length === 0) {
       toast({ title: "Add at least one food before saving." });
       return;
@@ -422,73 +422,41 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
 
     setSaving(true);
 
-    // Step 1: insert parent meal
-    const { data: meal, error } = await supabase
-      .from("saved_meals")
-      .insert({
-        client_id: user.id,
-        name: name.trim(),
-        meal_type: mealType,
-        calories: Math.round(totals.calories),
-        protein: Math.round(totals.protein),
-        carbs: Math.round(totals.carbs),
-        fat: Math.round(totals.fat),
-        servings: 1,
-      } as any)
-      .select()
-      .single();
-
-    if (error || !meal) {
-      console.error("[CreateMealSheet] Parent meal insert failed", error);
-      toast({ title: "Couldn't save meal.", description: error?.message });
-      setSaving(false);
-      return;
-    }
-
-    // Step 2: insert child items, with explicit error checking
-    const mealItems = items.map(item => ({
-      saved_meal_id: meal.id,
+    // Use atomic RPC — separate inserts fail against the deferred
+    // enforce_saved_meal_has_items constraint trigger (parent commits before
+    // children exist in a separate PostgREST request).
+    const rpcItems = items.map(item => ({
       food_item_id: item.food_item_id || null,
       food_name: item.food_name,
       quantity: item.quantity,
       serving_unit: item.serving_unit === "g" ? "g" : (item.serving_label || item.serving_unit || "serving"),
+      serving_size_g: item.serving_size_g ?? null,
       calories: Math.round(item.calories),
       protein: Math.round(item.protein),
       carbs: Math.round(item.carbs),
       fat: Math.round(item.fat),
-      serving_size_g: item.serving_size_g,
-      calories_per_100g: item.calories_per_100g,
-      protein_per_100g: item.protein_per_100g,
-      carbs_per_100g: item.carbs_per_100g,
-      fat_per_100g: item.fat_per_100g,
+      calories_per_100g: item.calories_per_100g ?? 0,
+      protein_per_100g: item.protein_per_100g ?? 0,
+      carbs_per_100g: item.carbs_per_100g ?? 0,
+      fat_per_100g: item.fat_per_100g ?? 0,
+      note: null,
     }));
 
-    const { error: itemsError } = await supabase
-      .from("saved_meal_items" as any)
-      .insert(mealItems);
+    const { data: newId, error } = await supabase.rpc("save_meal_with_items", {
+      p_name: name.trim(),
+      p_meal_type: mealType || "snack",
+      p_calories: Math.round(totals.calories),
+      p_protein: Math.round(totals.protein),
+      p_carbs: Math.round(totals.carbs),
+      p_fat: Math.round(totals.fat),
+      p_servings: 1,
+      p_items: rpcItems as any,
+      p_meal_note: null,
+    });
 
-    if (itemsError) {
-      // Rollback: delete the orphan parent so we never leave an empty meal
-      console.error("[CreateMealSheet] Child items insert failed — rolling back parent", itemsError);
-      await supabase.from("saved_meals").delete().eq("id", meal.id);
-      toast({
-        title: "Couldn't save meal items.",
-        description: itemsError.message,
-      });
-      setSaving(false);
-      return;
-    }
-
-    // Step 3: verify at least one child row landed (defense against partial RLS or trigger rejections)
-    const { count: childCount } = await supabase
-      .from("saved_meal_items" as any)
-      .select("id", { count: "exact", head: true })
-      .eq("saved_meal_id", meal.id);
-
-    if (!childCount || childCount === 0) {
-      console.error("[CreateMealSheet] Post-insert verification: 0 child rows persisted — rolling back");
-      await supabase.from("saved_meals").delete().eq("id", meal.id);
-      toast({ title: "Couldn't save meal items.", description: "No items persisted." });
+    if (error || !newId) {
+      console.error("[CreateMealSheet] save_meal_with_items failed", error);
+      toast({ title: "Couldn't save meal.", description: error?.message });
       setSaving(false);
       return;
     }
