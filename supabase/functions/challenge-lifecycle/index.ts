@@ -109,19 +109,7 @@ Deno.serve(async (req: Request) => {
           .eq("challenge_id", ch.id)
           .eq("user_id", p.user_id);
 
-        // ── In-app thread notification (coach → client) ──
-        const { data: thread } = await supabase
-          .from("message_threads")
-          .select("id, coach_id")
-          .eq("client_id", p.user_id)
-          .maybeSingle();
-        if (thread?.id && thread?.coach_id) {
-          await supabase.from("thread_messages").insert({
-            thread_id: thread.id,
-            sender_id: thread.coach_id,
-            content: `🔥 The "${ch.title}" challenge is now LIVE! Tap the Challenges tab to see the leaderboard and start earning points.`,
-          });
-        }
+        // Auto-message on activation intentionally removed — dashboard banner shows "LIVE NOW" instead.
       }
     }
 
