@@ -1,22 +1,20 @@
-## Goal
-Let coaches add clients to an already-created challenge (especially as new clients onboard daily), with a one-click "Add All Clients" option plus selective add — the same capability that currently only exists inside the Create Challenge wizard.
+## Changes to `src/components/dashboard/WeightHistoryScreen.tsx`
 
-## Where it lives
-On every active/upcoming challenge card in the Challenges tab (coach view) and inside `ChallengeDetailView`, add a new **"Add Clients"** button next to the existing controls. Past/completed challenges won't show it.
+**1. Expand "Recent Entries" from 5 → 7**
+Change `.slice(0, 5)` to `.slice(0, 7)` so the list always shows the seven most recent entries (matches the 7D range perfectly, and still looks clean on longer ranges).
 
-## Behavior
-Clicking opens a new `AddClientsToChallengeDialog` with:
-- **"Add All Clients"** button — one click enrolls every client on the coach's roster who isn't already a participant.
-- A searchable, multi-select list of clients (using the existing `SearchableClientSelect` pattern) showing only clients not yet enrolled, so the coach can quickly add just new ones.
-- Counter: "X clients available to add".
-- Confirms with a toast: "Added N clients to {challenge title}".
+**2. Add a "7-Day Average" stat when the 7D range is active**
+- Compute `avg7 = sum(entries.weight) / 7` (per user's requested formula: sum of the last 7 daily entries divided by 7), converted to the user's display unit and rounded to 1 decimal.
+- Only render when `rangeIdx === 0` (7D tab selected), so it doesn't clutter longer views.
 
-## Technical notes
-- New file: `src/components/challenges/AddClientsToChallengeDialog.tsx`.
-- Reuses the same insert pattern as `CreateChallengeWizard.tsx` (lines 238–246): bulk insert into `challenge_participants` with `{ challenge_id, user_id }`.
-- Filters roster against current `challenge_participants.user_id` for that challenge to avoid duplicate-key errors.
-- Wire button into `ChallengesTab.tsx` (card actions, coach-only) and `ChallengeDetailView.tsx` header (coach-only).
-- No DB schema changes; existing RLS on `challenge_participants` already permits coach inserts.
+**3. Placement**
+Add it as a fourth stat directly under the existing Starting / Current / Change summary bar — a full-width highlighted card with a subtle gold accent border so it stands out as the headline number for the 7D view:
 
-## Out of scope
-No changes to the Create Challenge wizard, leaderboard, or scoring logic.
+```text
+[ Starting ] [ Current ] [ Change ]
+[      7-Day Average: 200.3 lbs      ]
+```
+
+This keeps it in the summary zone (the natural place to look for aggregate numbers) without disrupting the chart or the entries list.
+
+No database, hook, or business-logic changes — purely presentational in the weight modal.

@@ -224,14 +224,23 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
     weight: convert(e.weight),
   }));
 
-  // Recent Entries — last 5 entries from the same deduped, range-filtered set,
+  // Recent Entries — last 7 entries from the same deduped, range-filtered set,
   // shown newest-first. Guaranteed to match graph values exactly.
-  const recentEntries = [...entries].reverse().slice(0, 5);
+  const recentEntries = [...entries].reverse().slice(0, 7);
 
   // Summary bar — first/last of deduped range
   const startingWeight = entries.length > 0 ? convert(entries[0].weight) : null;
   const currentWeight = entries.length > 0 ? convert(entries[entries.length - 1].weight) : null;
   const totalChange = startingWeight !== null && currentWeight !== null ? Number((currentWeight - startingWeight).toFixed(1)) : null;
+
+  // 7-Day Average — only relevant on the 7D range. Sum of the (up to 7) entries
+  // in the current deduped window divided by 7, per user spec.
+  const sevenDayAverage =
+    rangeIdx === 0 && entries.length > 0
+      ? Number(
+          (entries.slice(-7).reduce((s, e) => s + convert(e.weight), 0) / 7).toFixed(1)
+        )
+      : null;
 
   const title = clientName ? `${clientName}'s Weight` : "My Weight";
 
@@ -296,7 +305,20 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                     {totalChange !== null ? (totalChange > 0 ? "+" : "") + totalChange + " " + unitLabel : "—"}
                     {totalChange !== null && totalChange !== 0 && (
                       <span className="text-xs ml-1">{totalChange < 0 ? "↓" : "↑"}</span>
-                    )}
+            )}
+
+            {/* 7-Day Average — only on the 7D range */}
+            {sevenDayAverage !== null && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-primary uppercase tracking-wider font-semibold">7-Day Average</p>
+                  <p className="text-[10px] text-muted-foreground">Sum of last 7 entries ÷ 7</p>
+                </div>
+                <p className="text-xl font-bold text-primary tabular-nums">
+                  {sevenDayAverage} {unitLabel}
+                </p>
+              </div>
+            )}
                   </p>
                 </div>
               </div>
