@@ -22,6 +22,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import ScanFoodLabelButton from "@/components/nutrition/ScanFoodLabelButton";
 
 export interface StagedItem {
   food_item_id?: string;
