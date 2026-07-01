@@ -7945,6 +7945,15 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_challenge_leaderboard: {
+        Args: { _challenge_id: string }
+        Returns: {
+          avatar_url: string
+          best_value: number
+          full_name: string
+          user_id: string
+        }[]
+      }
       get_logging_streak: { Args: { p_user_id: string }; Returns: number }
       get_logging_streak_v2:
         | { Args: { p_today: string; p_user_id: string }; Returns: number }
