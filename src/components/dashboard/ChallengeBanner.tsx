@@ -14,6 +14,13 @@ const ChallengeBanner = () => {
     <div className="space-y-2">
       {challenges.map((c: Challenge) => {
         const Icon = c.challenge_type === "pr" ? Trophy : c.challenge_type === "steps" ? Footprints : SlidersHorizontal;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const start = c.start_date ? new Date(`${c.start_date}T00:00:00`) : null;
+        const isLive = c.status === "active" || (start && start.getTime() <= today.getTime());
+        const daysUntil = start ? Math.ceil((start.getTime() - today.getTime()) / 86400000) : null;
+        const startsLabel =
+          daysUntil === null ? null : daysUntil <= 0 ? null : daysUntil === 1 ? "Starts tomorrow" : `Starts in ${daysUntil} days`;
         return (
           <div
             key={c.id}
@@ -21,7 +28,19 @@ const ChallengeBanner = () => {
           >
             <Icon className="h-5 w-5 text-primary shrink-0" />
             <div className="flex-1 min-w-0 pr-5">
-              <p className="text-sm font-semibold text-foreground truncate">{c.title}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-semibold text-foreground truncate">{c.title}</p>
+                {isLive ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary ring-1 ring-primary/40">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                    Live Now
+                  </span>
+                ) : startsLabel ? (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {startsLabel}
+                  </span>
+                ) : null}
+              </div>
               {c.description && (
                 <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
               )}
