@@ -782,10 +782,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!user) return;
     setMasterProgramsLoading(true);
     // RLS surfaces both the coach's own templates and shared masters
-    const { data } = await supabase.from("programs")
+    const { data, error } = await supabase.from("programs")
       .select("id, name, duration_weeks, version_number, is_master")
       .eq("is_template", true)
       .order("name");
+    if (error) {
+      console.error("[TrainingTab] master programs load failed:", error);
+      toast({ title: "Could not load master programs", description: error.message, variant: "destructive" });
+      setMasterProgramsLoading(false);
+      return;
+    }
     setMasterProgramsList(data || []);
     setMasterProgramsLoading(false);
   };
@@ -796,10 +802,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setSelectedMasterPhaseId("");
     setMasterPhaseWorkouts([]);
     setSelectedMasterWorkoutIds(new Set());
-    const { data } = await supabase.from("program_phases")
+    const { data, error } = await supabase.from("program_phases")
       .select("id, name, phase_order, duration_weeks")
       .eq("program_id", programId)
       .order("phase_order");
+    if (error) {
+      console.error("[TrainingTab] master phases load failed:", error);
+      toast({ title: "Could not load program phases", description: error.message, variant: "destructive" });
+      setMasterPhasesLoading(false);
+      return;
+    }
     setMasterPhasesList(data || []);
     setMasterPhasesLoading(false);
   };
@@ -808,10 +820,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setMasterPhaseWorkoutsLoading(true);
     setMasterPhaseWorkouts([]);
     setSelectedMasterWorkoutIds(new Set());
-    const { data: pws } = await supabase.from("program_workouts")
+    const { data: pws, error: pwsError } = await supabase.from("program_workouts")
       .select("workout_id, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name, workout_type)")
       .eq("phase_id", phaseId)
       .order("sort_order");
+    if (pwsError) {
+      console.error("[TrainingTab] master phase workouts load failed:", pwsError);
+      toast({ title: "Could not load workouts", description: pwsError.message, variant: "destructive" });
+      setMasterPhaseWorkoutsLoading(false);
+      return;
+    }
     // Fetch exercise counts in parallel
     const workoutIds = (pws || []).map((p: any) => p.workout_id).filter(Boolean);
     let countsByWid: Record<string, number> = {};
@@ -842,9 +860,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const loadImportClients = async () => {
     if (!user) return;
-    const { data } = await supabase.from("coach_clients")
+    const { data, error } = await supabase.from("coach_clients")
       .select("client_id, profiles!coach_clients_client_id_fkey(full_name)")
       .eq("coach_id", user.id).eq("status", "active");
+    if (error) {
+      console.error("[TrainingTab] import clients load failed:", error);
+      toast({ title: "Could not load clients", description: error.message, variant: "destructive" });
+      return;
+    }
     setImportClients((data || []).filter((c: any) => c.client_id !== clientId).map((c: any) => ({
       id: c.client_id,
       name: (c.profiles as any)?.full_name || "Client",
@@ -855,18 +878,33 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setImportLoading(true);
     setImportClientWorkouts([]);
     setSelectedMasterWorkoutIds(new Set());
-    const { data: assignData } = await supabase.from("client_program_assignments")
+    const { data: assignData, error: assignError } = await supabase.from("client_program_assignments")
       .select("program_id").eq("client_id", selectedClientId)
       .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (assignError) {
+      toast({ title: "Could not load client program", description: assignError.message, variant: "destructive" });
+      setImportLoading(false);
+      return;
+    }
     if (!assignData) { setImportLoading(false); return; }
-    const { data: phasesData } = await supabase.from("program_phases")
+    const { data: phasesData, error: phasesError } = await supabase.from("program_phases")
       .select("id").eq("program_id", assignData.program_id);
+    if (phasesError) {
+      toast({ title: "Could not load client phases", description: phasesError.message, variant: "destructive" });
+      setImportLoading(false);
+      return;
+    }
     const phaseIds = (phasesData || []).map(p => p.id);
     if (phaseIds.length === 0) { setImportLoading(false); return; }
-    const { data: pws } = await supabase.from("program_workouts")
+    const { data: pws, error: pwsError } = await supabase.from("program_workouts")
       .select("workout_id, workouts(id, name, workout_type)")
       .in("phase_id", phaseIds);
+    if (pwsError) {
+      toast({ title: "Could not load client workouts", description: pwsError.message, variant: "destructive" });
+      setImportLoading(false);
+      return;
+    }
     const unique = new Map<string, any>();
     for (const pw of (pws || [])) {
       const w = (pw as any).workouts;
