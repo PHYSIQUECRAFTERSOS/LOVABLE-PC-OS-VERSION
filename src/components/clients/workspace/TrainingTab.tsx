@@ -268,45 +268,65 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const duplicateWorkout = async (pw: ProgramWorkout, phaseId: string) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
     if (!user) return;
-    const { data: origW } = await supabase.from("workouts")
+    try {
+    const { data: origW, error: origErr } = await supabase.from("workouts")
       .select("name, description, instructions, phase, workout_type").eq("id", pw.workout_id).single();
+    if (origErr) throw origErr;
     if (!origW) return;
-    const { data: newW } = await supabase.from("workouts").insert({
+    const { data: newW, error: newErr } = await supabase.from("workouts").insert({
       coach_id: user.id, client_id: clientId, name: `${origW.name} (Copy)`,
       description: origW.description, instructions: origW.instructions, phase: origW.phase,
       is_template: false, workout_type: (origW as any).workout_type || "regular",
     } as any).select().single();
+    if (newErr) throw newErr;
     if (!newW) return;
-    const { data: exes } = await supabase.from("workout_exercises")
+    const { data: exes, error: exErr } = await supabase.from("workout_exercises")
       .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
       .eq("workout_id", pw.workout_id);
+    if (exErr) throw exErr;
     if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
+      const { error } = await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
+      if (error) throw error;
     }
-    await supabase.from("program_workouts").insert({
+    const { error: attachErr } = await supabase.from("program_workouts").insert({
       phase_id: phaseId, workout_id: newW.id, day_of_week: pw.day_of_week,
       day_label: `${pw.day_label} (Copy)`, sort_order: 99,
     });
+    if (attachErr) throw attachErr;
     toast({ title: "Workout duplicated" });
     loadClientProgram();
+    } catch (err: any) {
+      console.error("[TrainingTab] duplicate workout failed:", err);
+      toast({ title: "Could not duplicate workout", description: err?.message || "Please try again.", variant: "destructive" });
+    }
   };
 
   // ── Delete workouts ──
   const deleteWorkouts = async (programWorkoutIds: string[]) => {
-    for (const pwId of programWorkoutIds) {
-      await supabase.from("program_workouts").delete().eq("id", pwId);
+    try {
+      for (const pwId of programWorkoutIds) {
+        const { error } = await supabase.from("program_workouts").delete().eq("id", pwId);
+        if (error) throw error;
+      }
+      toast({ title: `${programWorkoutIds.length} workout(s) deleted` });
+      setSelectedWorkouts(new Set());
+      setSelectionMode(false);
+      setDeleteTarget(null);
+      loadClientProgram();
+    } catch (err: any) {
+      console.error("[TrainingTab] delete workout failed:", err);
+      toast({ title: "Could not delete workout", description: err?.message || "Please try again.", variant: "destructive" });
     }
-    toast({ title: `${programWorkoutIds.length} workout(s) deleted` });
-    setSelectedWorkouts(new Set());
-    setSelectionMode(false);
-    setDeleteTarget(null);
-    loadClientProgram();
   };
 
   // ── Move workout to different phase ──
   const moveWorkoutToPhase = async (programWorkoutId: string, targetPhaseId: string) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    await supabase.from("program_workouts").update({ phase_id: targetPhaseId, week_id: null } as any).eq("id", programWorkoutId);
+    const { error } = await supabase.from("program_workouts").update({ phase_id: targetPhaseId, week_id: null } as any).eq("id", programWorkoutId);
+    if (error) {
+      toast({ title: "Could not move workout", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Workout moved" });
     loadClientProgram();
   };
