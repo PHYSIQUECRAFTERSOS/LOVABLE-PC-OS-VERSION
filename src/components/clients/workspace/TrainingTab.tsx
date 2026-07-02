@@ -268,53 +268,77 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const duplicateWorkout = async (pw: ProgramWorkout, phaseId: string) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
     if (!user) return;
-    const { data: origW } = await supabase.from("workouts")
+    try {
+    const { data: origW, error: origErr } = await supabase.from("workouts")
       .select("name, description, instructions, phase, workout_type").eq("id", pw.workout_id).single();
+    if (origErr) throw origErr;
     if (!origW) return;
-    const { data: newW } = await supabase.from("workouts").insert({
+    const { data: newW, error: newErr } = await supabase.from("workouts").insert({
       coach_id: user.id, client_id: clientId, name: `${origW.name} (Copy)`,
       description: origW.description, instructions: origW.instructions, phase: origW.phase,
       is_template: false, workout_type: (origW as any).workout_type || "regular",
     } as any).select().single();
+    if (newErr) throw newErr;
     if (!newW) return;
-    const { data: exes } = await supabase.from("workout_exercises")
+    const { data: exes, error: exErr } = await supabase.from("workout_exercises")
       .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
       .eq("workout_id", pw.workout_id);
+    if (exErr) throw exErr;
     if (exes && exes.length > 0) {
-      await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
+      const { error } = await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
+      if (error) throw error;
     }
-    await supabase.from("program_workouts").insert({
+    const { error: attachErr } = await supabase.from("program_workouts").insert({
       phase_id: phaseId, workout_id: newW.id, day_of_week: pw.day_of_week,
       day_label: `${pw.day_label} (Copy)`, sort_order: 99,
     });
+    if (attachErr) throw attachErr;
     toast({ title: "Workout duplicated" });
     loadClientProgram();
+    } catch (err: any) {
+      console.error("[TrainingTab] duplicate workout failed:", err);
+      toast({ title: "Could not duplicate workout", description: err?.message || "Please try again.", variant: "destructive" });
+    }
   };
 
   // ── Delete workouts ──
   const deleteWorkouts = async (programWorkoutIds: string[]) => {
-    for (const pwId of programWorkoutIds) {
-      await supabase.from("program_workouts").delete().eq("id", pwId);
+    try {
+      for (const pwId of programWorkoutIds) {
+        const { error } = await supabase.from("program_workouts").delete().eq("id", pwId);
+        if (error) throw error;
+      }
+      toast({ title: `${programWorkoutIds.length} workout(s) deleted` });
+      setSelectedWorkouts(new Set());
+      setSelectionMode(false);
+      setDeleteTarget(null);
+      loadClientProgram();
+    } catch (err: any) {
+      console.error("[TrainingTab] delete workout failed:", err);
+      toast({ title: "Could not delete workout", description: err?.message || "Please try again.", variant: "destructive" });
     }
-    toast({ title: `${programWorkoutIds.length} workout(s) deleted` });
-    setSelectedWorkouts(new Set());
-    setSelectionMode(false);
-    setDeleteTarget(null);
-    loadClientProgram();
   };
 
   // ── Move workout to different phase ──
   const moveWorkoutToPhase = async (programWorkoutId: string, targetPhaseId: string) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
-    await supabase.from("program_workouts").update({ phase_id: targetPhaseId, week_id: null } as any).eq("id", programWorkoutId);
+    const { error } = await supabase.from("program_workouts").update({ phase_id: targetPhaseId, week_id: null } as any).eq("id", programWorkoutId);
+    if (error) {
+      toast({ title: "Could not move workout", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Workout moved" });
     loadClientProgram();
   };
 
   // ── Assign (Subscribe / Import) ──
   const openAssignDialog = async () => {
-    const { data } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
+    const { data, error } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
       .eq("coach_id", user!.id).eq("is_template", true).order("name");
+    if (error) {
+      toast({ title: "Could not load programs", description: error.message, variant: "destructive" });
+      return;
+    }
     setMasterPrograms(data || []);
     setAssignStartTouched(false);
     setAssignStartDate(new Date().toLocaleDateString("en-CA"));
@@ -329,10 +353,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setAssignPhases([]);
     if (!programId) return;
     setAssignPhasesLoading(true);
-    const { data } = await supabase.from("program_phases")
+    const { data, error } = await supabase.from("program_phases")
       .select("id, name, duration_weeks, phase_order")
       .eq("program_id", programId)
       .order("phase_order");
+    if (error) {
+      toast({ title: "Could not load phases", description: error.message, variant: "destructive" });
+      setAssignPhasesLoading(false);
+      return;
+    }
     setAssignPhases(data || []);
     setAssignPhasesLoading(false);
   };
@@ -381,8 +410,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       } as any).select().single();
       if (progErr) throw progErr;
 
-      const { data: masterPhasesAll } = await supabase.from("program_phases").select("*")
+      const { data: masterPhasesAll, error: phasesErr } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
+      if (phasesErr) throw phasesErr;
       const masterPhases = selectedAssignPhaseId
         ? (masterPhasesAll || []).filter((p: any) => p.id === selectedAssignPhaseId)
         : (masterPhasesAll || []);
@@ -392,10 +422,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       // If scoped to a single phase, re-stamp program duration + name and renumber to 1.
       if (selectedAssignPhaseId) {
         const onlyPhase = masterPhases[0];
-        await supabase.from("programs").update({
+        const { error } = await supabase.from("programs").update({
           duration_weeks: onlyPhase.duration_weeks || 0,
           name: `${master.name} — ${onlyPhase.name}`,
         } as any).eq("id", clientProg.id);
+        if (error) throw error;
       }
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
@@ -416,17 +447,19 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       let normalizedOrder = 1;
       for (const phase of masterPhases) {
-        const { data: newPhase } = await supabase.from("program_phases").insert({
+        const { data: newPhase, error: newPhaseErr } = await supabase.from("program_phases").insert({
           program_id: clientProg.id, name: phase.name, description: phase.description,
           phase_order: selectedAssignPhaseId ? normalizedOrder++ : phase.phase_order,
           duration_weeks: phase.duration_weeks,
           training_style: phase.training_style, intensity_system: phase.intensity_system,
           progression_rule: phase.progression_rule,
         }).select().single();
+        if (newPhaseErr || !newPhase) throw newPhaseErr || new Error("Failed to create phase");
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-        const { data: phaseDirectPWs } = await supabase.from("program_workouts")
+        const { data: phaseDirectPWs, error: phasePwErr } = await supabase.from("program_workouts")
           .select("*").eq("phase_id", phase.id).order("sort_order");
+        if (phasePwErr) throw phasePwErr;
 
         if (phaseDirectPWs && phaseDirectPWs.length > 0) {
           for (const pw of phaseDirectPWs) {
@@ -442,13 +475,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
             }, label);
           }
         } else {
-          const { data: masterWeeks } = await supabase.from("program_weeks").select("*")
+          const { data: masterWeeks, error: weeksErr } = await supabase.from("program_weeks").select("*")
             .eq("program_id", selectedMaster).eq("phase_id", phase.id).order("week_number");
+          if (weeksErr) throw weeksErr;
           for (const week of (masterWeeks || [])) {
-            const { data: newWeek } = await supabase.from("program_weeks")
+            const { data: newWeek, error: newWeekErr } = await supabase.from("program_weeks")
               .insert({ program_id: clientProg.id, phase_id: newPhase!.id, week_number: week.week_number, name: week.name })
               .select().single();
-            const { data: masterPW } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
+            if (newWeekErr || !newWeek) throw newWeekErr || new Error("Failed to create week");
+            const { data: masterPW, error: masterPwErr } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
+            if (masterPwErr) throw masterPwErr;
             for (const pw of (masterPW || [])) {
               const label = pw.day_label || "Unnamed workout";
               const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
@@ -468,7 +504,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       // Truncate the client's previous active program (if any) instead of erasing it.
       const mergeResult = await applyMerge(clientId, assignStartDate, assignMergePreview || undefined);
 
-      await supabase.from("client_program_assignments").insert({
+      const { error: assignmentErr } = await supabase.from("client_program_assignments").insert({
         client_id: clientId, coach_id: user.id, program_id: clientProg.id,
         current_phase_id: firstPhaseId, current_week_number: 1,
         start_date: assignStartDate,
@@ -477,6 +513,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         is_linked_to_master: selectedAssignPhaseId ? false : isLinked, master_version_number: master.version_number || 1,
         last_synced_at: new Date().toISOString(),
       } as any);
+      if (assignmentErr) throw assignmentErr;
 
       if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
         toast({
@@ -507,7 +544,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const detachFromMaster = async () => {
     if (!assignment) return;
-    await supabase.from("client_program_assignments").update({ is_linked_to_master: false } as any).eq("id", assignment.id);
+    const { error } = await supabase.from("client_program_assignments").update({ is_linked_to_master: false } as any).eq("id", assignment.id);
+    if (error) {
+      toast({ title: "Could not detach program", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Detached from master", description: "This program is now fully independent." });
     setShowDetach(false);
     loadClientProgram();
@@ -585,12 +626,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const handleAddPhase = async () => {
     if (!program) return;
-    await supabase.from("program_phases").insert({
+    const { error } = await supabase.from("program_phases").insert({
       program_id: program.id,
       name: `Phase ${phases.length + 1}`,
       phase_order: phases.length + 1,
       duration_weeks: 4,
     });
+    if (error) {
+      toast({ title: "Could not add phase", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Phase added" });
     loadClientProgram();
   };
@@ -701,10 +746,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!builderPhaseId) return;
     const phase = phases.find(p => p.id === builderPhaseId);
     const sortOrder = phase ? phase.directWorkouts.length + 1 : 1;
-    await supabase.from("program_workouts").insert({
+    const { error } = await supabase.from("program_workouts").insert({
       phase_id: builderPhaseId, workout_id: workoutId,
       day_of_week: 0, day_label: workoutName, sort_order: sortOrder,
     });
+    if (error) {
+      toast({ title: "Workout created but could not attach to phase", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Workout added to phase" });
     setBuilderOpen(false);
     setBuilderPhaseId(null);
@@ -733,10 +782,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!user) return;
     setMasterProgramsLoading(true);
     // RLS surfaces both the coach's own templates and shared masters
-    const { data } = await supabase.from("programs")
+    const { data, error } = await supabase.from("programs")
       .select("id, name, duration_weeks, version_number, is_master")
       .eq("is_template", true)
       .order("name");
+    if (error) {
+      console.error("[TrainingTab] master programs load failed:", error);
+      toast({ title: "Could not load master programs", description: error.message, variant: "destructive" });
+      setMasterProgramsLoading(false);
+      return;
+    }
     setMasterProgramsList(data || []);
     setMasterProgramsLoading(false);
   };
@@ -747,10 +802,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setSelectedMasterPhaseId("");
     setMasterPhaseWorkouts([]);
     setSelectedMasterWorkoutIds(new Set());
-    const { data } = await supabase.from("program_phases")
+    const { data, error } = await supabase.from("program_phases")
       .select("id, name, phase_order, duration_weeks")
       .eq("program_id", programId)
       .order("phase_order");
+    if (error) {
+      console.error("[TrainingTab] master phases load failed:", error);
+      toast({ title: "Could not load program phases", description: error.message, variant: "destructive" });
+      setMasterPhasesLoading(false);
+      return;
+    }
     setMasterPhasesList(data || []);
     setMasterPhasesLoading(false);
   };
@@ -759,10 +820,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setMasterPhaseWorkoutsLoading(true);
     setMasterPhaseWorkouts([]);
     setSelectedMasterWorkoutIds(new Set());
-    const { data: pws } = await supabase.from("program_workouts")
+    const { data: pws, error: pwsError } = await supabase.from("program_workouts")
       .select("workout_id, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name, workout_type)")
       .eq("phase_id", phaseId)
       .order("sort_order");
+    if (pwsError) {
+      console.error("[TrainingTab] master phase workouts load failed:", pwsError);
+      toast({ title: "Could not load workouts", description: pwsError.message, variant: "destructive" });
+      setMasterPhaseWorkoutsLoading(false);
+      return;
+    }
     // Fetch exercise counts in parallel
     const workoutIds = (pws || []).map((p: any) => p.workout_id).filter(Boolean);
     let countsByWid: Record<string, number> = {};
@@ -793,9 +860,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const loadImportClients = async () => {
     if (!user) return;
-    const { data } = await supabase.from("coach_clients")
+    const { data, error } = await supabase.from("coach_clients")
       .select("client_id, profiles!coach_clients_client_id_fkey(full_name)")
       .eq("coach_id", user.id).eq("status", "active");
+    if (error) {
+      console.error("[TrainingTab] import clients load failed:", error);
+      toast({ title: "Could not load clients", description: error.message, variant: "destructive" });
+      return;
+    }
     setImportClients((data || []).filter((c: any) => c.client_id !== clientId).map((c: any) => ({
       id: c.client_id,
       name: (c.profiles as any)?.full_name || "Client",
@@ -806,18 +878,33 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setImportLoading(true);
     setImportClientWorkouts([]);
     setSelectedMasterWorkoutIds(new Set());
-    const { data: assignData } = await supabase.from("client_program_assignments")
+    const { data: assignData, error: assignError } = await supabase.from("client_program_assignments")
       .select("program_id").eq("client_id", selectedClientId)
       .in("status", ["active", "subscribed"])
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (assignError) {
+      toast({ title: "Could not load client program", description: assignError.message, variant: "destructive" });
+      setImportLoading(false);
+      return;
+    }
     if (!assignData) { setImportLoading(false); return; }
-    const { data: phasesData } = await supabase.from("program_phases")
+    const { data: phasesData, error: phasesError } = await supabase.from("program_phases")
       .select("id").eq("program_id", assignData.program_id);
+    if (phasesError) {
+      toast({ title: "Could not load client phases", description: phasesError.message, variant: "destructive" });
+      setImportLoading(false);
+      return;
+    }
     const phaseIds = (phasesData || []).map(p => p.id);
     if (phaseIds.length === 0) { setImportLoading(false); return; }
-    const { data: pws } = await supabase.from("program_workouts")
+    const { data: pws, error: pwsError } = await supabase.from("program_workouts")
       .select("workout_id, workouts(id, name, workout_type)")
       .in("phase_id", phaseIds);
+    if (pwsError) {
+      toast({ title: "Could not load client workouts", description: pwsError.message, variant: "destructive" });
+      setImportLoading(false);
+      return;
+    }
     const unique = new Map<string, any>();
     for (const pw of (pws || [])) {
       const w = (pw as any).workouts;
@@ -933,15 +1020,18 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         const { data: newPhase } = await supabase.from("program_phases").insert({
           program_id: newProg.id, name: "Phase 1", phase_order: 1, duration_weeks: 4,
         }).select().single();
+        if (!newPhase) throw new Error("Failed to create phase");
 
-        await supabase.from("client_program_assignments").update({ status: "completed" })
+        const { error: archiveErr } = await supabase.from("client_program_assignments").update({ status: "completed" })
           .eq("client_id", clientId).eq("status", "active");
+        if (archiveErr) throw archiveErr;
 
-        await supabase.from("client_program_assignments").insert({
+        const { error: assignmentErr } = await supabase.from("client_program_assignments").insert({
           client_id: clientId, coach_id: user.id, program_id: newProg.id,
           current_phase_id: newPhase?.id || null, status: "active",
           is_linked_to_master: false, master_version_number: 1,
         });
+        if (assignmentErr) throw assignmentErr;
 
         toast({ title: "Program created", description: "Start adding workouts to your new program." });
         loadClientProgram();
@@ -1151,7 +1241,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           if (pw) { setPreviewOpen(false); setDeleteTarget({ ids: [pw.id], names: [pw.workout_name] }); }
         }}
         onRename={async (wId, newName) => {
-          await supabase.from("workouts").update({ name: newName }).eq("id", wId);
+          const { error } = await supabase.from("workouts").update({ name: newName }).eq("id", wId);
+          if (error) {
+            toast({ title: "Could not rename workout", description: error.message, variant: "destructive" });
+            return;
+          }
           toast({ title: "Workout renamed" });
           setPreviewWorkoutName(newName);
           loadClientProgram();

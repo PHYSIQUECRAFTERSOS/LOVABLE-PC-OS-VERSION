@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
+import { getLocalDateString } from "@/utils/localDate";
 
 /** Rest (s) input that uses local string state to avoid stuck-zero bug */
 const RestSecondsInput = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
@@ -140,8 +141,14 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
       .select("id", { count: "exact", head: true })
       .eq("linked_workout_id", editWorkoutId)
       .eq("event_type", "workout")
-      .gte("event_date", new Date().toISOString().slice(0, 10))
-      .then(({ count }) => setScheduledCount(count ?? 0));
+      .gte("event_date", getLocalDateString())
+      .then(({ count, error }) => {
+        if (error) {
+          console.error("[WorkoutBuilder] scheduled count failed:", error);
+          return;
+        }
+        setScheduledCount(count ?? 0);
+      });
   }, [editWorkoutId, open]);
   const [filterMuscle, setFilterMuscle] = useState("all");
   const [filterEquipment, setFilterEquipment] = useState("all");
@@ -164,13 +171,18 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
 
   const loadLibrary = useCallback(async () => {
     setLibraryLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("exercises")
       .select("id, name, primary_muscle, equipment, youtube_thumbnail, youtube_url, tags")
       .order("name");
-    setLibraryExercises((data as Exercise[]) || []);
+    if (error) {
+      console.error("[WorkoutBuilder] library load failed:", error);
+      toast({ title: "Failed to load exercise library", description: error.message, variant: "destructive" });
+    } else {
+      setLibraryExercises((data as Exercise[]) || []);
+    }
     setLibraryLoading(false);
-  }, []);
+  }, [toast]);
 
   useEffect(() => { if (open) loadLibrary(); }, [open, loadLibrary]);
 

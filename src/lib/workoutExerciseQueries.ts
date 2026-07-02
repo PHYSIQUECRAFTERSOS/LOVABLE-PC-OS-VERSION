@@ -48,7 +48,7 @@ export async function fetchWorkoutExerciseDetails(
   let workoutExercisesQuery = supabase
     .from("workout_exercises")
     .select(
-      "id, workout_id, exercise_id, exercise_order, sets, reps, rest_seconds, tempo, rir, rpe_target, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, grouping_type, grouping_id",
+      "id, workout_id, exercise_id, exercise_order, sets, reps, rest_seconds, tempo, rir, rpe_target, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, grouping_type, grouping_id, exercises(id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail, equipment)",
     )
     .eq("workout_id", workoutId)
     .order("exercise_order", { ascending: true });
@@ -63,35 +63,11 @@ export async function fetchWorkoutExerciseDetails(
     throw workoutExercisesError;
   }
 
-  const rows = (workoutExerciseRows ?? []) as WorkoutExerciseRow[];
-  const exerciseIds = [...new Set(rows.map((row) => row.exercise_id).filter(Boolean))];
+  const rows = (workoutExerciseRows ?? []) as Array<WorkoutExerciseRow & { exercises?: ExerciseRow | ExerciseRow[] | null }>;
 
-  if (exerciseIds.length === 0) {
-    return rows.map((row) => ({ ...row, exercise: null }));
-  }
-
-  let exercisesQuery = supabase
-    .from("exercises")
-    .select("id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail, equipment")
-    .in("id", exerciseIds);
-
-  if (signal) {
-    exercisesQuery = exercisesQuery.abortSignal(signal);
-  }
-
-  const { data: exerciseRows, error: exercisesError } = await exercisesQuery;
-
-  if (exercisesError) {
-    throw exercisesError;
-  }
-
-  const exerciseMap = new Map(
-    ((exerciseRows ?? []) as ExerciseRow[]).map((exercise) => [exercise.id, exercise]),
-  );
-
-  return rows.map((row) => ({
+  return rows.map(({ exercises, ...row }) => ({
     ...row,
-    exercise: exerciseMap.get(row.exercise_id) ?? null,
+    exercise: Array.isArray(exercises) ? exercises[0] ?? null : exercises ?? null,
   }));
 }
 

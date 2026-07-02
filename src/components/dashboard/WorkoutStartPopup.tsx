@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -48,26 +48,31 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
   const [lastPerformed, setLastPerformed] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
-  useEffect(() => {
-    if (!open || !workoutId || !user) return;
+  const loadWorkout = useCallback(async (signal?: AbortSignal) => {
+    if (!workoutId || !user) return;
     setLoading(true);
     setLoadError(null);
 
-    const load = async () => {
-      try {
-      const [exerciseDetails, sessionRes] = await Promise.all([  
-        fetchWorkoutExerciseDetails(workoutId),
-        supabase
-          .from("workout_sessions")
-          .select("completed_at")
-          .eq("client_id", user.id)
-          .eq("workout_id", workoutId)
-          .eq("status", "completed")
-          .order("completed_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+    try {
+      let sessionQuery = supabase
+        .from("workout_sessions")
+        .select("completed_at")
+        .eq("client_id", user.id)
+        .eq("workout_id", workoutId)
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(1);
+
+      if (signal) sessionQuery = sessionQuery.abortSignal(signal);
+
+      const [exerciseDetails, sessionRes] = await Promise.all([
+        fetchWorkoutExerciseDetails(workoutId, signal),
+        sessionQuery.maybeSingle(),
       ]);
+
+      if (sessionRes.error) throw sessionRes.error;
 
       const mapped: ExercisePreview[] = exerciseDetails.map((we) => ({
         id: we.exercise?.id || we.exercise_id,
@@ -80,23 +85,37 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
         video_url: we.exercise?.youtube_url || we.exercise?.video_url || null,
         thumbnail_url: we.exercise?.youtube_thumbnail || null,
       }));
-      setExercises(mapped);
 
-      if (sessionRes.data?.completed_at) {
-        setLastPerformed(formatDistanceToNow(new Date(sessionRes.data.completed_at), { addSuffix: true }));
+      setExercises(mapped);
+      setLastPerformed(sessionRes.data?.completed_at
+        ? formatDistanceToNow(new Date(sessionRes.data.completed_at), { addSuffix: true })
+        : null);
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        setLoadError("timeout");
       } else {
-        setLastPerformed(null);
-      }
-      setLoading(false);
-      } catch (err: any) {
         console.error("[WorkoutStartPopup] load error:", err);
-        setExercises([]);
         setLoadError(err?.message?.includes("timeout") || err?.code === "57014" ? "timeout" : "error");
-        setLoading(false);
       }
+      setExercises([]);
+      setLastPerformed(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [workoutId, user]);
+
+  useEffect(() => {
+    if (!open || !workoutId || !user) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+
+    void loadWorkout(controller.signal).finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
     };
-    load();
-  }, [open, workoutId, user]);
+  }, [open, workoutId, user, retryNonce, loadWorkout]);
 
   const getMuscleInitial = (mg: string | null) => {
     if (!mg) return "?";
@@ -140,7 +159,7 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
                 <p className="text-sm text-destructive font-medium">
                   {loadError === "timeout" ? "Workout took too long to load" : "Failed to load workout"}
                 </p>
-                <Button variant="outline" size="sm" onClick={() => { setLoadError(null); setLoading(true); /* re-trigger effect */ }}>
+                <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
                   Retry
                 </Button>
               </div>
