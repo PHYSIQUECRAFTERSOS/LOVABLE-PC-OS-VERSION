@@ -333,8 +333,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   // ── Assign (Subscribe / Import) ──
   const openAssignDialog = async () => {
-    const { data } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
+    const { data, error } = await supabase.from("programs").select("id, name, goal_type, duration_weeks, is_master, version_number")
       .eq("coach_id", user!.id).eq("is_template", true).order("name");
+    if (error) {
+      toast({ title: "Could not load programs", description: error.message, variant: "destructive" });
+      return;
+    }
     setMasterPrograms(data || []);
     setAssignStartTouched(false);
     setAssignStartDate(new Date().toLocaleDateString("en-CA"));
@@ -349,10 +353,15 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     setAssignPhases([]);
     if (!programId) return;
     setAssignPhasesLoading(true);
-    const { data } = await supabase.from("program_phases")
+    const { data, error } = await supabase.from("program_phases")
       .select("id, name, duration_weeks, phase_order")
       .eq("program_id", programId)
       .order("phase_order");
+    if (error) {
+      toast({ title: "Could not load phases", description: error.message, variant: "destructive" });
+      setAssignPhasesLoading(false);
+      return;
+    }
     setAssignPhases(data || []);
     setAssignPhasesLoading(false);
   };
@@ -401,8 +410,9 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       } as any).select().single();
       if (progErr) throw progErr;
 
-      const { data: masterPhasesAll } = await supabase.from("program_phases").select("*")
+      const { data: masterPhasesAll, error: phasesErr } = await supabase.from("program_phases").select("*")
         .eq("program_id", selectedMaster).order("phase_order");
+      if (phasesErr) throw phasesErr;
       const masterPhases = selectedAssignPhaseId
         ? (masterPhasesAll || []).filter((p: any) => p.id === selectedAssignPhaseId)
         : (masterPhasesAll || []);
@@ -412,10 +422,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       // If scoped to a single phase, re-stamp program duration + name and renumber to 1.
       if (selectedAssignPhaseId) {
         const onlyPhase = masterPhases[0];
-        await supabase.from("programs").update({
+        const { error } = await supabase.from("programs").update({
           duration_weeks: onlyPhase.duration_weeks || 0,
           name: `${master.name} — ${onlyPhase.name}`,
         } as any).eq("id", clientProg.id);
+        if (error) throw error;
       }
       let firstPhaseId: string | null = null;
       const allCloneResults: import("@/lib/cloneWorkoutHelpers").CloneWorkoutResult[] = [];
@@ -436,17 +447,19 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
       let normalizedOrder = 1;
       for (const phase of masterPhases) {
-        const { data: newPhase } = await supabase.from("program_phases").insert({
+        const { data: newPhase, error: newPhaseErr } = await supabase.from("program_phases").insert({
           program_id: clientProg.id, name: phase.name, description: phase.description,
           phase_order: selectedAssignPhaseId ? normalizedOrder++ : phase.phase_order,
           duration_weeks: phase.duration_weeks,
           training_style: phase.training_style, intensity_system: phase.intensity_system,
           progression_rule: phase.progression_rule,
         }).select().single();
+        if (newPhaseErr || !newPhase) throw newPhaseErr || new Error("Failed to create phase");
         if (!firstPhaseId) firstPhaseId = newPhase?.id || null;
 
-        const { data: phaseDirectPWs } = await supabase.from("program_workouts")
+        const { data: phaseDirectPWs, error: phasePwErr } = await supabase.from("program_workouts")
           .select("*").eq("phase_id", phase.id).order("sort_order");
+        if (phasePwErr) throw phasePwErr;
 
         if (phaseDirectPWs && phaseDirectPWs.length > 0) {
           for (const pw of phaseDirectPWs) {
@@ -462,13 +475,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
             }, label);
           }
         } else {
-          const { data: masterWeeks } = await supabase.from("program_weeks").select("*")
+          const { data: masterWeeks, error: weeksErr } = await supabase.from("program_weeks").select("*")
             .eq("program_id", selectedMaster).eq("phase_id", phase.id).order("week_number");
+          if (weeksErr) throw weeksErr;
           for (const week of (masterWeeks || [])) {
-            const { data: newWeek } = await supabase.from("program_weeks")
+            const { data: newWeek, error: newWeekErr } = await supabase.from("program_weeks")
               .insert({ program_id: clientProg.id, phase_id: newPhase!.id, week_number: week.week_number, name: week.name })
               .select().single();
-            const { data: masterPW } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
+            if (newWeekErr || !newWeek) throw newWeekErr || new Error("Failed to create week");
+            const { data: masterPW, error: masterPwErr } = await supabase.from("program_workouts").select("*").eq("week_id", week.id).order("sort_order");
+            if (masterPwErr) throw masterPwErr;
             for (const pw of (masterPW || [])) {
               const label = pw.day_label || "Unnamed workout";
               const { workout: clientW, result } = await cloneWorkoutToClientTracked(pw.workout_id);
@@ -488,7 +504,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       // Truncate the client's previous active program (if any) instead of erasing it.
       const mergeResult = await applyMerge(clientId, assignStartDate, assignMergePreview || undefined);
 
-      await supabase.from("client_program_assignments").insert({
+      const { error: assignmentErr } = await supabase.from("client_program_assignments").insert({
         client_id: clientId, coach_id: user.id, program_id: clientProg.id,
         current_phase_id: firstPhaseId, current_week_number: 1,
         start_date: assignStartDate,
@@ -497,6 +513,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         is_linked_to_master: selectedAssignPhaseId ? false : isLinked, master_version_number: master.version_number || 1,
         last_synced_at: new Date().toISOString(),
       } as any);
+      if (assignmentErr) throw assignmentErr;
 
       if (mergeResult.truncated || mergeResult.deletedEvents > 0) {
         toast({
@@ -527,7 +544,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const detachFromMaster = async () => {
     if (!assignment) return;
-    await supabase.from("client_program_assignments").update({ is_linked_to_master: false } as any).eq("id", assignment.id);
+    const { error } = await supabase.from("client_program_assignments").update({ is_linked_to_master: false } as any).eq("id", assignment.id);
+    if (error) {
+      toast({ title: "Could not detach program", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Detached from master", description: "This program is now fully independent." });
     setShowDetach(false);
     loadClientProgram();
@@ -605,12 +626,16 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const handleAddPhase = async () => {
     if (!program) return;
-    await supabase.from("program_phases").insert({
+    const { error } = await supabase.from("program_phases").insert({
       program_id: program.id,
       name: `Phase ${phases.length + 1}`,
       phase_order: phases.length + 1,
       duration_weeks: 4,
     });
+    if (error) {
+      toast({ title: "Could not add phase", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Phase added" });
     loadClientProgram();
   };
@@ -721,10 +746,14 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!builderPhaseId) return;
     const phase = phases.find(p => p.id === builderPhaseId);
     const sortOrder = phase ? phase.directWorkouts.length + 1 : 1;
-    await supabase.from("program_workouts").insert({
+    const { error } = await supabase.from("program_workouts").insert({
       phase_id: builderPhaseId, workout_id: workoutId,
       day_of_week: 0, day_label: workoutName, sort_order: sortOrder,
     });
+    if (error) {
+      toast({ title: "Workout created but could not attach to phase", description: error.message, variant: "destructive" });
+      return;
+    }
     toast({ title: "Workout added to phase" });
     setBuilderOpen(false);
     setBuilderPhaseId(null);
