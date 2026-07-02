@@ -74,6 +74,19 @@ function sanitizeStorageKey(name: string): string {
 
 type Step = "upload" | "processing" | "review" | "saving" | "done";
 
+async function getFunctionErrorMessage(error: any): Promise<string> {
+  const fallback = error?.message || "Processing failed";
+  const response = error?.context;
+  if (!response || typeof response.json !== "function") return fallback;
+
+  try {
+    const body = await response.json();
+    return body?.message || body?.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 interface AIImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -220,7 +233,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         },
       });
 
-      if (fnErr) throw new Error(fnErr.message || "Processing failed");
+      if (fnErr) throw new Error(await getFunctionErrorMessage(fnErr));
 
       // Step 4: Poll for completion
       pollRef.current = setInterval(async () => {
