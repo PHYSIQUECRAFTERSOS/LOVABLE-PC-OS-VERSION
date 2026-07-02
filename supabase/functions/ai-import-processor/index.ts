@@ -292,7 +292,10 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", userId);
     const userRoles = (roles || []).map((r: any) => r.role);
-    if (!userRoles.includes("coach") && !userRoles.includes("admin")) {
+    const canUseAiImport = userRoles.some((role: string) =>
+      role === "coach" || role === "manager" || role === "admin"
+    );
+    if (!canUseAiImport) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
 
