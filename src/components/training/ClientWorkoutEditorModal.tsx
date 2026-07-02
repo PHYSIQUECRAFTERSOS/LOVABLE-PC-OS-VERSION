@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
+import { getLocalDateString } from "@/utils/localDate";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -80,6 +81,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [scheduledCount, setScheduledCount] = useState(0);
 
   // Check future scheduled calendar events for this workout
@@ -90,8 +92,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
       .select("id", { count: "exact", head: true })
       .eq("linked_workout_id", workoutId)
       .eq("event_type", "workout")
-      .gte("event_date", new Date().toISOString().slice(0, 10))
-      .then(({ count }) => setScheduledCount(count ?? 0));
+      .gte("event_date", getLocalDateString())
+      .then(({ count, error }) => {
+        if (error) {
+          console.error("[ClientWorkoutEditor] scheduled count failed:", error);
+          return;
+        }
+        setScheduledCount(count ?? 0);
+      });
   }, [workoutId, open]);
   const [hasChanges, setHasChanges] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
@@ -130,11 +138,16 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
   const loadLibrary = useCallback(async () => {
     setLibraryLoading(true);
-    const { data } = await supabase.from("exercises")
+    const { data, error } = await supabase.from("exercises")
       .select("id, name, primary_muscle, equipment, youtube_thumbnail, tags").order("name");
-    setLibraryExercises((data as Exercise[]) || []);
+    if (error) {
+      console.error("[ClientWorkoutEditor] library load failed:", error);
+      toast({ title: "Failed to load exercise library", description: error.message, variant: "destructive" });
+    } else {
+      setLibraryExercises((data as Exercise[]) || []);
+    }
     setLibraryLoading(false);
-  }, []);
+  }, [toast]);
 
   useEffect(() => { if (open) loadLibrary(); }, [open, loadLibrary]);
 
@@ -142,12 +155,16 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     if (!workoutId || !open) return;
     const load = async () => {
       setLoading(true);
-      const { data: workout } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).single();
+      setLoadError(null);
+      try {
+      const { data: workout, error: workoutError } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).single();
+      if (workoutError) throw workoutError;
       if (workout) { setWorkoutName(workout.name); setInstructions(workout.instructions || ""); }
 
-      const { data: exRows } = await supabase.from("workout_exercises")
+      const { data: exRows, error: exerciseError } = await supabase.from("workout_exercises")
         .select("id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id, exercises(name, youtube_thumbnail)")
         .eq("workout_id", workoutId).order("exercise_order");
+      if (exerciseError) throw exerciseError;
 
       if (exRows) {
         const loaded = exRows.map((ex: any) => ({
@@ -164,11 +181,17 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
         if (loaded.some((e: WorkoutExercise) => e.tempo)) setUseTempo(true);
         initialStateRef.current = JSON.stringify({ name: workout?.name, instructions: workout?.instructions || "", exercises: loaded });
       }
-      setLoading(false);
       setHasChanges(false);
+      } catch (err: any) {
+        console.error("[ClientWorkoutEditor] workout load failed:", err);
+        setLoadError(err?.message || "Failed to load workout");
+        toast({ title: "Failed to load workout", description: err?.message || "Please try again.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     };
     load();
-  }, [workoutId, open]);
+  }, [workoutId, open, toast]);
 
   // Only reset state after a successful save — never on tab switch / focus loss
   useEffect(() => {
@@ -289,11 +312,13 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     if (!workoutName.trim()) { toast({ title: "Workout name required", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", workoutId);
-      await supabase.from("workout_exercises").delete().eq("workout_id", workoutId);
+      const { error: updateError } = await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", workoutId);
+      if (updateError) throw updateError;
+      const { error: deleteError } = await supabase.from("workout_exercises").delete().eq("workout_id", workoutId);
+      if (deleteError) throw deleteError;
 
       if (exercises.length > 0) {
-        const { data: insertedExercises } = await supabase.from("workout_exercises").insert(
+        const { data: insertedExercises, error: insertError } = await supabase.from("workout_exercises").insert(
           exercises.map((ex, i) => ({
             workout_id: workoutId, exercise_id: ex.exerciseId, exercise_order: i + 1,
             sets: ex.sets, reps: ex.reps || null, tempo: useTempo ? (ex.tempo || null) : null,
@@ -302,6 +327,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
             notes: ex.notes || null, grouping_type: ex.groupingType || null, grouping_id: ex.groupingId || null,
           }))
         ).select("id");
+        if (insertError) throw insertError;
 
         if (insertedExercises) {
           const setRows: any[] = [];
@@ -314,7 +340,10 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
               });
             }
           });
-          if (setRows.length > 0) await supabase.from("workout_sets").insert(setRows);
+          if (setRows.length > 0) {
+            const { error: setError } = await supabase.from("workout_sets").insert(setRows);
+            if (setError) throw setError;
+          }
         }
       }
 
@@ -355,6 +384,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
 
           {loading ? (
             <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          ) : loadError ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <p className="text-sm font-medium text-destructive">Workout failed to load</p>
+              <p className="text-xs text-muted-foreground max-w-md">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={() => { setLoadError(null); setLoading(true); }}>
+                Close and reopen
+              </Button>
+            </div>
           ) : (
             <div className="flex-1 flex overflow-hidden">
               {/* LEFT PANEL — Workout Structure */}
