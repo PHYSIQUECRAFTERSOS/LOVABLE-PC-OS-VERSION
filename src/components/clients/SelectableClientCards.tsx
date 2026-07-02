@@ -135,6 +135,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
     if (!user) return;
     const fetchClients = async () => {
       setLoading(true);
+      try {
 
       let coachId: string | null = null;
       if (coachFilter === "mine") coachId = user.id;
@@ -146,7 +147,8 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         .in("status", ["active", "pending"]);
       if (coachId) query = query.eq("coach_id", coachId);
 
-      const { data: assignments } = await query;
+      const { data: assignments, error: assignmentError } = await query;
+      if (assignmentError) throw assignmentError;
 
       if (!assignments?.length) {
         setClients([]);
@@ -166,13 +168,22 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
 
       const clientIds = assignments.map((a) => a.client_id);
 
-      const [profilesRes, tagsRes] = await Promise.all([
+      const [profilesRes, tagsRes] = await Promise.allSettled([
         supabase.from("profiles").select("*").in("user_id", clientIds),
         supabase.from("client_tags").select("client_id, tag").in("client_id", clientIds),
       ]);
 
+      if (profilesRes.status === "rejected" || profilesRes.value.error) {
+        throw profilesRes.status === "rejected" ? profilesRes.reason : profilesRes.value.error;
+      }
+
+      if (tagsRes.status === "rejected" || tagsRes.value.error) {
+        console.warn("[SelectableClientCards] tags load failed:", tagsRes.status === "rejected" ? tagsRes.reason : tagsRes.value.error);
+      }
+
       const tagMap: Record<string, string[]> = {};
-      (tagsRes.data || []).forEach((t) => {
+      const tagRows = tagsRes.status === "fulfilled" && !tagsRes.value.error ? tagsRes.value.data || [] : [];
+      tagRows.forEach((t) => {
         if (!tagMap[t.client_id]) tagMap[t.client_id] = [];
         tagMap[t.client_id].push(t.tag);
       });
@@ -182,8 +193,23 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         format(subDays(new Date(), 6 - i), "yyyy-MM-dd")
       );
 
-      // Batch-fetch calendar events (workouts + cardio) and nutrition logs for all clients
-      const [calEventsRes, nutritionLogsRes, nutritionTargetsRes] = await Promise.all([
+      const profileRows = profilesRes.value.data || [];
+      const initialClientsData = profileRows.map((p) => ({
+        id: p.user_id,
+        name: p.full_name || "Client",
+        avatar_url: p.avatar_url,
+        compliance: 0,
+        streak: 0,
+        tags: tagMap[p.user_id] || [],
+        isPending: pendingSet.has(p.user_id),
+      }));
+
+      setClients(initialClientsData);
+      setLoading(false);
+
+      // Batch-fetch calendar events (workouts + cardio) and nutrition logs for all clients.
+      // These are secondary metrics; failures must not make clients disappear.
+      const [calEventsRes, nutritionLogsRes, nutritionTargetsRes] = await Promise.allSettled([
         supabase
           .from("calendar_events")
           .select("target_client_id, user_id, event_date, event_type, is_completed")
@@ -203,9 +229,21 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
           .in("client_id", clientIds),
       ]);
 
-      const calEvents = calEventsRes.data || [];
-      const nutritionLogs = nutritionLogsRes.data || [];
-      const nutritionTargets = nutritionTargetsRes.data || [];
+      const unwrapMetric = <T,>(result: PromiseSettledResult<{ data: T[] | null; error: any }>, label: string): T[] => {
+        if (result.status === "rejected") {
+          console.warn(`[SelectableClientCards] ${label} failed:`, result.reason);
+          return [];
+        }
+        if (result.value.error) {
+          console.warn(`[SelectableClientCards] ${label} failed:`, result.value.error);
+          return [];
+        }
+        return result.value.data || [];
+      };
+
+      const calEvents = unwrapMetric<any>(calEventsRes, "calendar metrics");
+      const nutritionLogs = unwrapMetric<any>(nutritionLogsRes, "nutrition logs");
+      const nutritionTargets = unwrapMetric<any>(nutritionTargetsRes, "nutrition targets");
 
       // Build nutrition target set (clients who have a nutrition target)
       const hasNutritionTarget = new Set<string>();
@@ -222,7 +260,7 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
         }
       });
 
-      const clientsData = (profilesRes.data || []).map((p) => {
+      const clientsData = profileRows.map((p) => {
         // Calendar events for this client (as target or creator)
         const clientEvents = calEvents.filter(
           (e) => e.target_client_id === p.user_id || e.user_id === p.user_id
@@ -266,7 +304,13 @@ const SelectableClientCards = ({ onSelectionChange, onSendMessage, onClientStatu
       });
 
       setClients(clientsData);
-      setLoading(false);
+      } catch (error: any) {
+        console.error("[SelectableClientCards] roster load failed:", error);
+        toast.error("Failed to load clients");
+        setClients([]);
+        setProgramTypeMap({});
+        setLoading(false);
+      }
     };
     fetchClients();
   }, [user, coachFilter]);
