@@ -66,8 +66,8 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
           .eq("status", "completed")
           .order("completed_at", { ascending: false })
           .limit(1)
-          .maybeSingle()
-          .abortSignal(signal),
+          .abortSignal(signal)
+          .maybeSingle(),
       ]);
 
       if (sessionRes.error) throw sessionRes.error;
