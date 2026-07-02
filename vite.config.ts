@@ -31,10 +31,17 @@ export default defineConfig(({ mode }) => ({
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
-          ui: ["@radix-ui/react-dialog", "@radix-ui/react-tabs", "@radix-ui/react-select"],
-          charts: ["recharts"],
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("react-router")) return "vendor";
+          if (id.match(/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/)) return "vendor";
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("recharts") || id.includes("d3-")) return "charts";
+          if (id.includes("@supabase")) return "supabase";
+          if (id.includes("jspdf") || id.includes("html2canvas")) return "pdf";
+          if (id.includes("@tanstack")) return "query";
+          if (id.includes("lucide-react")) return "icons";
+          return "deps";
         },
       },
     },

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,47 +9,49 @@ import { RankedXPProvider } from "@/hooks/useXPAward";
 import { SubscriptionProvider } from "@/hooks/useSubscription";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Setup from "./pages/Setup";
-import AcceptInvite from "./pages/AcceptInvite";
-import Onboarding from "./pages/Onboarding";
-import RequireNativeApp from "./components/onboarding/RequireNativeApp";
-import Dashboard from "./pages/Dashboard";
-import Admin from "./pages/Admin";
-import AdminRepairSavedMeals from "./pages/AdminRepairSavedMeals";
-import Training from "./pages/Training";
-import Nutrition from "./pages/Nutrition";
-import Analytics from "./pages/Analytics";
-import Messages from "./pages/Messages";
-import Progress from "./pages/Progress";
-import Profile from "./pages/Profile";
-import Calendar from "./pages/Calendar";
-import Community from "./pages/Community";
-import Challenges from "./pages/Challenges";
-import Ranked from "./pages/Ranked";
-import Team from "./pages/Team";
-import Clients from "./pages/Clients";
-import MasterLibraries from "./pages/MasterLibraries";
-import ClientDetail from "./pages/ClientDetail";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfService from "./pages/TermsOfService";
-import DeleteAccount from "./pages/DeleteAccount";
-import Support from "./pages/Support";
-import BodyStats from "./pages/BodyStats";
 import NotFound from "./pages/NotFound";
-import Subscribe from "./pages/Subscribe";
-import Info from "./pages/Info";
-import Pricing from "./pages/Pricing";
-import Unsubscribe from "./pages/Unsubscribe";
-import ClientTracker from "./pages/ClientTracker";
-import SyncLogDebug from "./pages/SyncLogDebug";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { PushNotificationsInit } from "./components/PushNotificationsInit";
 import HealthSyncBootstrap from "./components/HealthSyncBootstrap";
 import SplashGate from "./components/SplashScreen/SplashGate";
 import { ThemeProvider } from "./hooks/useTheme";
+
+// Lazy-loaded routes — desktop web downloads only the current page's chunk.
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Setup = lazy(() => import("./pages/Setup"));
+const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const RequireNativeApp = lazy(() => import("./components/onboarding/RequireNativeApp"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Admin = lazy(() => import("./pages/Admin"));
+const AdminRepairSavedMeals = lazy(() => import("./pages/AdminRepairSavedMeals"));
+const Training = lazy(() => import("./pages/Training"));
+const Nutrition = lazy(() => import("./pages/Nutrition"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Messages = lazy(() => import("./pages/Messages"));
+const Progress = lazy(() => import("./pages/Progress"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Calendar = lazy(() => import("./pages/Calendar"));
+const Community = lazy(() => import("./pages/Community"));
+const Challenges = lazy(() => import("./pages/Challenges"));
+const Ranked = lazy(() => import("./pages/Ranked"));
+const Team = lazy(() => import("./pages/Team"));
+const Clients = lazy(() => import("./pages/Clients"));
+const MasterLibraries = lazy(() => import("./pages/MasterLibraries"));
+const ClientDetail = lazy(() => import("./pages/ClientDetail"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const DeleteAccount = lazy(() => import("./pages/DeleteAccount"));
+const Support = lazy(() => import("./pages/Support"));
+const BodyStats = lazy(() => import("./pages/BodyStats"));
+const Subscribe = lazy(() => import("./pages/Subscribe"));
+const Info = lazy(() => import("./pages/Info"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
+const ClientTracker = lazy(() => import("./pages/ClientTracker"));
+const SyncLogDebug = lazy(() => import("./pages/SyncLogDebug"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +67,8 @@ const queryClient = new QueryClient({
   },
 });
 
+const RouteFallback = () => null;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -78,6 +83,7 @@ const App = () => (
         <PushNotificationsInit />
         <HealthSyncBootstrap />
         <BrowserRouter>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -116,6 +122,7 @@ const App = () => (
             <Route path="/debug/sync-log" element={<ProtectedRoute><SyncLogDebug /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
         </RankedXPProvider>
         </SubscriptionProvider>
@@ -126,4 +133,3 @@ const App = () => (
 );
 
 export default App;
-
