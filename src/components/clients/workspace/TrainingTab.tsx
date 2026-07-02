@@ -1020,15 +1020,18 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         const { data: newPhase } = await supabase.from("program_phases").insert({
           program_id: newProg.id, name: "Phase 1", phase_order: 1, duration_weeks: 4,
         }).select().single();
+        if (!newPhase) throw new Error("Failed to create phase");
 
-        await supabase.from("client_program_assignments").update({ status: "completed" })
+        const { error: archiveErr } = await supabase.from("client_program_assignments").update({ status: "completed" })
           .eq("client_id", clientId).eq("status", "active");
+        if (archiveErr) throw archiveErr;
 
-        await supabase.from("client_program_assignments").insert({
+        const { error: assignmentErr } = await supabase.from("client_program_assignments").insert({
           client_id: clientId, coach_id: user.id, program_id: newProg.id,
           current_phase_id: newPhase?.id || null, status: "active",
           is_linked_to_master: false, master_version_number: 1,
         });
+        if (assignmentErr) throw assignmentErr;
 
         toast({ title: "Program created", description: "Start adding workouts to your new program." });
         loadClientProgram();
@@ -1238,7 +1241,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
           if (pw) { setPreviewOpen(false); setDeleteTarget({ ids: [pw.id], names: [pw.workout_name] }); }
         }}
         onRename={async (wId, newName) => {
-          await supabase.from("workouts").update({ name: newName }).eq("id", wId);
+          const { error } = await supabase.from("workouts").update({ name: newName }).eq("id", wId);
+          if (error) {
+            toast({ title: "Could not rename workout", description: error.message, variant: "destructive" });
+            return;
+          }
           toast({ title: "Workout renamed" });
           setPreviewWorkoutName(newName);
           loadClientProgram();
