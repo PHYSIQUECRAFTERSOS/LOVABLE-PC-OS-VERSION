@@ -82,6 +82,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [scheduledCount, setScheduledCount] = useState(0);
 
   // Check future scheduled calendar events for this workout
@@ -191,7 +192,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
       }
     };
     load();
-  }, [workoutId, open, toast]);
+  }, [workoutId, open, retryNonce, toast]);
 
   // Only reset state after a successful save — never on tab switch / focus loss
   useEffect(() => {
@@ -388,8 +389,8 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
             <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-sm font-medium text-destructive">Workout failed to load</p>
               <p className="text-xs text-muted-foreground max-w-md">{loadError}</p>
-              <Button variant="outline" size="sm" onClick={() => { setLoadError(null); setLoading(true); }}>
-                Close and reopen
+              <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
+                Retry
               </Button>
             </div>
           ) : (
