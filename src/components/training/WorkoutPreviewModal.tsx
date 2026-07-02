@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,7 @@ const WorkoutPreviewModal = ({
   const [instructions, setInstructions] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const getYouTubeId = (url: string): string | null => {
     const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/))([a-zA-Z0-9_-]{11})/);
@@ -79,21 +80,24 @@ const WorkoutPreviewModal = ({
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameValue, setRenameValue] = useState("");
 
-  useEffect(() => {
-    if (!open || !workoutId) return;
+  const loadWorkout = useCallback(async (signal?: AbortSignal) => {
+    if (!workoutId) return;
     setLoading(true);
     setLoadError(null);
     setShowMenu(false);
-    const load = async () => {
-      try {
+
+    try {
       const [exerciseDetails, wRes] = await Promise.all([
-        fetchWorkoutExerciseDetails(workoutId),
+        fetchWorkoutExerciseDetails(workoutId, signal),
         supabase
           .from("workouts")
           .select("instructions")
           .eq("id", workoutId)
+          .abortSignal(signal)
           .maybeSingle(),
       ]);
+
+      if (wRes.error) throw wRes.error;
 
       setInstructions(wRes.data?.instructions || null);
 
@@ -118,15 +122,29 @@ const WorkoutPreviewModal = ({
 
       setExercises(mapped);
       setLoading(false);
-      } catch (err: any) {
+    } catch (err: any) {
+      if (err?.name !== "AbortError") {
         console.error("[WorkoutPreviewModal] load error:", err);
-        setExercises([]);
-        setLoadError(err?.message?.includes("timeout") || err?.code === "57014" ? "timeout" : "error");
-        setLoading(false);
       }
+      setExercises([]);
+      setInstructions(null);
+      setLoadError(err?.name === "AbortError" || err?.message?.includes("timeout") || err?.code === "57014" ? "timeout" : "error");
+      setLoading(false);
+    }
+  }, [workoutId]);
+
+  useEffect(() => {
+    if (!open || !workoutId) return;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 9000);
+
+    void loadWorkout(controller.signal).finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
     };
-    load();
-  }, [open, workoutId]);
+  }, [open, workoutId, retryNonce, loadWorkout]);
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -242,7 +260,7 @@ const WorkoutPreviewModal = ({
                   <p className="text-sm text-destructive font-medium">
                     {loadError === "timeout" ? "Workout took too long to load" : "Failed to load workout"}
                   </p>
-                  <Button variant="outline" size="sm" onClick={() => { setLoadError(null); setLoading(true); }}>
+                  <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
                     Retry
                   </Button>
                 </div>
