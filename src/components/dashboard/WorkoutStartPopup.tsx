@@ -56,18 +56,20 @@ const WorkoutStartPopup = ({ open, onClose, workoutId, workoutName, calendarEven
     setLoadError(null);
 
     try {
+      let sessionQuery = supabase
+        .from("workout_sessions")
+        .select("completed_at")
+        .eq("client_id", user.id)
+        .eq("workout_id", workoutId)
+        .eq("status", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(1);
+
+      if (signal) sessionQuery = sessionQuery.abortSignal(signal);
+
       const [exerciseDetails, sessionRes] = await Promise.all([
         fetchWorkoutExerciseDetails(workoutId, signal),
-        supabase
-          .from("workout_sessions")
-          .select("completed_at")
-          .eq("client_id", user.id)
-          .eq("workout_id", workoutId)
-          .eq("status", "completed")
-          .order("completed_at", { ascending: false })
-          .limit(1)
-          .abortSignal(signal)
-          .maybeSingle(),
+        sessionQuery.maybeSingle(),
       ]);
 
       if (sessionRes.error) throw sessionRes.error;
