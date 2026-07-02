@@ -87,14 +87,16 @@ const WorkoutPreviewModal = ({
     setShowMenu(false);
 
     try {
+      let workoutQuery = supabase
+        .from("workouts")
+        .select("instructions")
+        .eq("id", workoutId);
+
+      if (signal) workoutQuery = workoutQuery.abortSignal(signal);
+
       const [exerciseDetails, wRes] = await Promise.all([
         fetchWorkoutExerciseDetails(workoutId, signal),
-        supabase
-          .from("workouts")
-          .select("instructions")
-          .eq("id", workoutId)
-          .abortSignal(signal)
-          .maybeSingle(),
+        workoutQuery.maybeSingle(),
       ]);
 
       if (wRes.error) throw wRes.error;
