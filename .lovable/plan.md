@@ -1,43 +1,54 @@
+## Why mobile is fast but desktop web is slow
 
-# Why the app is slow
+The native iOS/Android app is a Capacitor wrapper — the entire JS bundle is **shipped inside the app binary** and loads from local disk. There is no network download, no cold cache, no TLS handshake. That's why it feels instant.
 
-I ran a health check on the Lovable Cloud backend (the database and auth that power the app):
+Desktop web has to fetch the same bundle over the network on every cold load (and after every deploy, since the file hashes change). Right now that bundle is one enormous file because `src/App.tsx` statically imports all 40+ pages — Admin, Analytics, PDF exports, Charts, MasterLibraries, WorkoutBuilder, ClientDetail, etc. Even a client who only opens `/dashboard` downloads the entire coach + admin app.
 
-- **Memory: 82% used** — the backend instance is close to its ceiling.
-- **Connections: 45 / 60 (high)** — nearly saturated. When it hits the cap, new queries wait in line, which is exactly what the "spinner that never resolves" in your screenshots looks like.
-- Data disk is fine (30%), so this is a compute/RAM problem, not a storage problem.
-- No single query is slow on its own — the slowest is ~325 ms total. That means the app code isn't broken; the box is just overloaded.
+The database is not the problem anymore — current snapshot is 24% memory, 19/90 connections, top query 8ms. This is purely a browser/network payload issue.
 
-Slowness has grown over the last few days because we recently added a lot of new Row-Level Security policies (for the manager role, shared master libraries, AI import). Each extra policy adds a small subquery to every read. On an already-saturated instance that pushes latency over the edge.
+## Plan (desktop web only — no mobile impact)
 
-## Fix — two parts
+All changes are frontend build-configuration and import-shape only. Nothing changes for the native app except it will also be slightly leaner.
 
-### 1. Upgrade the Lovable Cloud instance (biggest lever, do first)
+### Step 1 — Route-level code splitting in `src/App.tsx`
+Convert every page import to `React.lazy(() => import("./pages/X"))` and wrap `<Routes>` in `<Suspense fallback={<SplashGate />}>`. Keep `Index`, `Auth`, and `NotFound` eager so the login path stays instant.
 
-Open the project → **Backend** → **Advanced settings** → **Upgrade instance** and move up one tier. This is the intended fix when memory and connections are saturated. It usually takes a few minutes and may affect Cloud billing — the product UI shows the pricing before you confirm. This alone should immediately fix the "loads forever" behavior in both screenshots (Import from Master Library, Day 1: UPPER workout dialog).
+Effect on desktop: the browser downloads a small shell + only the current route's chunk instead of the entire app. Typical drop for a coach loading `/clients/:id`: 60-80% smaller initial JS. First paint on a fresh desktop tab should improve by 2-5 seconds.
 
-### 2. Consolidate the recent RLS policies (code-side cleanup)
+### Step 2 — Split vendor chunks in `vite.config.ts`
+Current `manualChunks` groups only `vendor / ui / charts`. Expand so heavy libs are separate cache-friendly files:
+- `pdf` chunk — `jspdf`, `html2canvas`, `src/utils/pdf/*` (loaded only when exporting a PDF).
+- `charts` chunk — keep recharts isolated.
+- `radix` chunk — all `@radix-ui/*`.
+- `supabase` chunk — `@supabase/supabase-js`.
 
-The last two migrations added ~40 separate manager-only policies on top of existing coach/admin policies. Postgres evaluates every SELECT policy on every row. I'll:
+Effect: after the first visit, most navigations reuse cached chunks. Deploys only bust the chunks that actually changed, so returning users don't re-download everything.
 
-- Merge the manager-only SELECT/INSERT/UPDATE/DELETE policies on `workouts`, `workout_exercises`, `exercises`, `programs`, `program_phases`, `program_workouts`, `meal_plans`, `meal_plan_days`, `meal_plan_items`, `master_supplements`, `supplement_plans`, `supplement_plan_items`, and `ai_import_jobs` into the existing coach/admin policies (single policy per action using `has_role(auth.uid(),'manager') OR has_role(auth.uid(),'coach') OR has_role(auth.uid(),'admin')`).
-- Keep behavior identical — managers keep all the access they got in the previous fix.
-- Add missing indexes on hot filter columns surfaced by the slow-query report: `calendar_events(event_date, event_type)`, `thread_messages(thread_id, sender_id, read_at)`, `nutrition_logs(client_id, logged_at)`, `meal_plan_items(meal_plan_id, meal_order, item_order)`. These are the queries the coach dashboard and Today's Actions hit constantly.
+### Step 3 — Lazy-load the two heavy dialogs
+- `ImportFromMasterLibrary` (supplement plan import) — dynamic-import inside its parent, mount only when opened.
+- `Day 1: UPPER` workout dialog on `ClientDetail` — same pattern; the exercise picker + workout builder are large.
+
+These are the two "spins forever" dialogs from your earlier screenshots. Direct fix.
+
+### Step 4 — Preconnect hints in `index.html`
+Add `<link rel="preconnect">` for the Lovable Cloud URL so the first API call doesn't pay a fresh TLS handshake on cold desktop loads (~100-300ms saved). Also add `<link rel="dns-prefetch">` as a fallback for older browsers.
+
+### Step 5 — Enable brotli-friendly, hashed asset caching
+Confirm Vite's default hashed asset filenames are in use (they are) and that `index.html` has no long-lived cache header (Lovable hosting already does this). No code change unless something is misconfigured — I'll verify during build.
+
+### Step 6 — Verify on desktop
+- `npm run build` — compare emitted chunk sizes before/after (should show one big chunk splitting into ~15 smaller ones).
+- Hard-reload `/dashboard` on desktop with DevTools Network tab open — confirm total JS transfer drops significantly.
+- Open the two heavy dialogs — confirm they render quickly.
 
 ### What I will NOT touch
+- No database migrations, RLS, or edge function changes.
+- No changes to native (iOS/Android) code, Capacitor config, or the service worker cache policy.
+- No auth, business logic, or schema changes.
+- No dependency upgrades.
 
-- No schema changes to any table, no data migrations, no destructive drops.
-- No changes to app business logic, auth, or the AI import feature.
-- Client integrations file, RLS behavior for clients, and existing coach/admin access remain the same.
-
-## Verify after
-
-- Re-check `db_health` — memory and connections should drop.
-- Re-check `slow_queries` — the calendar / thread_messages entries should fall.
-- Reload the two screens from the screenshots (Import from Master Library, Day 1 workout) and confirm they open in <1s.
-
-## Order of operations
-
-1. You upgrade the instance from the Backend settings (I can't do this for you — it's a billing action).
-2. I ship the RLS consolidation + index migration.
-3. We verify with health + slow-query snapshots.
+### Expected result on desktop web
+- Cold-load first paint: 2-5 seconds faster.
+- Returning-visit navigation: near-instant (cached chunks).
+- The Import-from-Library and Day 1 workout dialogs: open in well under a second.
+- Native app: unchanged behavior, marginally smaller install size.
