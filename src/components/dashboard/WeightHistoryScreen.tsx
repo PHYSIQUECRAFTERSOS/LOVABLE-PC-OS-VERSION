@@ -233,14 +233,25 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
   const currentWeight = entries.length > 0 ? convert(entries[entries.length - 1].weight) : null;
   const totalChange = startingWeight !== null && currentWeight !== null ? Number((currentWeight - startingWeight).toFixed(1)) : null;
 
-  // 7-Day Average — only relevant on the 7D range. Sum of the (up to 7) entries
-  // in the current deduped window divided by 7, per user spec.
-  const sevenDayAverage =
-    rangeIdx === 0 && entries.length > 0
-      ? Number(
-          (entries.slice(-7).reduce((s, e) => s + convert(e.weight), 0) / 7).toFixed(1)
-        )
-      : null;
+  // 7-Day Average — only on the 7D range. Averages only the entries actually
+  // logged within the last 7 calendar days (dividing by real count, not 7),
+  // so missed days don't drag the number down.
+  let sevenDayAverage: number | null = null;
+  if (rangeIdx === 0 && entries.length > 0) {
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - 6); // include today + previous 6 days = 7 days
+    const inWindow = entries.filter((e) => {
+      const d = new Date(e.logged_at + "T00:00:00");
+      return d >= cutoff;
+    });
+    if (inWindow.length > 0) {
+      sevenDayAverage = Number(
+        (inWindow.reduce((s, e) => s + convert(e.weight), 0) / inWindow.length).toFixed(1)
+      );
+    }
+  }
+
 
   const title = clientName ? `${clientName}'s Weight` : "My Weight";
 
