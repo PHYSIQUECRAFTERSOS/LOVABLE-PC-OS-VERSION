@@ -45,6 +45,44 @@ export async function fetchWorkoutExerciseDetails(
   workoutId: string,
   signal?: AbortSignal,
 ): Promise<WorkoutExerciseDetail[]> {
+  const rpcQuery = (supabase as any).rpc("get_workout_exercise_details", {
+    _workout_id: workoutId,
+  });
+
+  const { data: rpcRows, error: rpcError } = await (signal
+    ? rpcQuery.abortSignal(signal)
+    : rpcQuery);
+
+  if (!rpcError) {
+    return ((rpcRows ?? []) as Array<
+      WorkoutExerciseRow & {
+        exercise_name: string | null;
+        primary_muscle: string | null;
+        youtube_url: string | null;
+        video_url: string | null;
+        youtube_thumbnail: string | null;
+        equipment: string | null;
+      }
+    >).map(({ exercise_name, primary_muscle, youtube_url, video_url, youtube_thumbnail, equipment, ...row }) => ({
+      ...row,
+      exercise: row.exercise_id
+        ? {
+            id: row.exercise_id,
+            name: exercise_name || "Exercise",
+            primary_muscle,
+            youtube_url,
+            video_url,
+            youtube_thumbnail,
+            equipment,
+          }
+        : null,
+    }));
+  }
+
+  if (rpcError?.code !== "42883" && rpcError?.code !== "PGRST202") {
+    throw rpcError;
+  }
+
   let workoutExercisesQuery = supabase
     .from("workout_exercises")
     .select(
