@@ -654,13 +654,17 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       .single();
     if (planErr || !plan) throw new Error(planErr?.message || "Failed to create meal plan");
 
+    let savedDayCount = 0;
+    let savedItemCount = 0;
+    const dayErrors: string[] = [];
+
     for (let di = 0; di < days.length; di++) {
       const day = days[di];
       setSaveProgress(20 + Math.round((di / days.length) * 70));
 
       const dayType = classifications[di];
 
-      const { data: mpDay } = await supabase
+      const { data: mpDay, error: mpDayErr } = await supabase
         .from("meal_plan_days")
         .insert({
           meal_plan_id: (plan as any).id,
@@ -669,8 +673,11 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         })
         .select()
         .single();
-      if (!mpDay) continue;
-
+      if (mpDayErr || !mpDay) {
+        dayErrors.push(`${day.day_label || `Day ${di + 1}`}: ${mpDayErr?.message || "day insert failed"}`);
+        continue;
+      }
+      savedDayCount++;
 
       let mealOrder = 0;
       for (const meal of day.meals || []) {
@@ -714,7 +721,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           //  - the unit isn't grams/ml (slice, unit, scoop, tbsp, …), OR
           //  - the matched candidate is weak (< 75 confidence)
           if (!isMassUnit || matchScore < 75) {
-            const { data: createdFood } = await supabase
+            const { data: createdFood, error: createdFoodErr } = await supabase
               .from("food_items")
               .insert({
                 name: food.name,
@@ -729,10 +736,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
               } as any)
               .select("id")
               .single();
+            if (createdFoodErr) {
+              console.warn("[ai-import][meal] food_items insert failed", createdFoodErr.message, food.name);
+            }
             foodItemId = (createdFood as any)?.id || foodItemId;
           }
 
-          await supabase.from("meal_plan_items").insert({
+          const { error: itemErr } = await supabase.from("meal_plan_items").insert({
             meal_plan_id: (plan as any).id,
             day_id: (mpDay as any).id,
             food_item_id: foodItemId,
@@ -750,17 +760,27 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
             meal_order: mealOrder,
             item_order: itemOrder,
           } as any);
+          if (itemErr) {
+            dayErrors.push(`${day.day_label || `Day ${di + 1}`} / ${mealName} / ${food.name}: ${itemErr.message}`);
+          } else {
+            savedItemCount++;
+          }
         }
 
       }
     }
     setSaveProgress(95);
 
-    const dayCount = days.length;
-    const foodCount = days.reduce((sum: number, d: any) =>
-      sum + (d.meals || []).reduce((ms: number, m: any) => ms + (m.foods || []).length, 0), 0);
-    toast.success(`Import complete! Saved ${dayCount} day types with ${foodCount} food items.`);
+    if (savedItemCount === 0) {
+      throw new Error(dayErrors[0] || "No meal items were saved. Check permissions and try again.");
+    }
+    if (dayErrors.length > 0) {
+      console.warn("[ai-import][meal] partial errors:", dayErrors);
+      toast.warning(`Saved ${savedItemCount} items, but ${dayErrors.length} row(s) failed. See console.`);
+    }
+    toast.success(`Import complete! Saved ${savedDayCount} day${savedDayCount === 1 ? "" : "s"} with ${savedItemCount} food items.`);
   };
+
 
   const saveSupplements = async () => {
     if (!user || !extracted) return;
