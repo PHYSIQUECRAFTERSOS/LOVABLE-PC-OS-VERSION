@@ -679,8 +679,10 @@ const SupplementLibrary = () => {
                 />
               </div>
             </div>
-
+            <ScrollArea className="flex-1">
+              <div className="p-2 space-y-1">
                 {loading ? (
+
                   Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)
                 ) : plans.length === 0 ? (
                   <div className="flex flex-col items-center py-12 text-center px-4">
