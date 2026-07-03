@@ -48,7 +48,7 @@ export async function fetchWorkoutExerciseDetails(
   let workoutExercisesQuery = supabase
     .from("workout_exercises")
     .select(
-      "id, workout_id, exercise_id, exercise_order, sets, reps, rest_seconds, tempo, rir, rpe_target, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, grouping_type, grouping_id, exercises(id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail, equipment)",
+      "id, workout_id, exercise_id, exercise_order, sets, reps, rest_seconds, tempo, rir, rpe_target, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, grouping_type, grouping_id",
     )
     .eq("workout_id", workoutId)
     .order("exercise_order", { ascending: true });
@@ -63,11 +63,39 @@ export async function fetchWorkoutExerciseDetails(
     throw workoutExercisesError;
   }
 
-  const rows = (workoutExerciseRows ?? []) as Array<WorkoutExerciseRow & { exercises?: ExerciseRow | ExerciseRow[] | null }>;
+  const rows = (workoutExerciseRows ?? []) as WorkoutExerciseRow[];
 
-  return rows.map(({ exercises, ...row }) => ({
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const exerciseIds = [...new Set(rows.map((row) => row.exercise_id).filter(Boolean))];
+  const exerciseMap = new Map<string, ExerciseRow>();
+
+  if (exerciseIds.length > 0) {
+    let exercisesQuery = supabase
+      .from("exercises")
+      .select("id, name, primary_muscle, youtube_url, video_url, youtube_thumbnail, equipment")
+      .in("id", exerciseIds);
+
+    if (signal) {
+      exercisesQuery = exercisesQuery.abortSignal(signal);
+    }
+
+    const { data: exerciseRows, error: exercisesError } = await exercisesQuery;
+
+    if (exercisesError) {
+      throw exercisesError;
+    }
+
+    ((exerciseRows ?? []) as ExerciseRow[]).forEach((exercise) => {
+      exerciseMap.set(exercise.id, exercise);
+    });
+  }
+
+  return rows.map((row) => ({
     ...row,
-    exercise: Array.isArray(exercises) ? exercises[0] ?? null : exercises ?? null,
+    exercise: exerciseMap.get(row.exercise_id) ?? null,
   }));
 }
 
@@ -115,6 +143,18 @@ export async function fetchWorkoutThumbnailSummary(
         .filter(Boolean),
     ),
   ];
+
+  if (firstExerciseIds.length === 0) {
+    const summaryMap = new Map<string, WorkoutThumbnailSummary>();
+    rows.forEach((row) => {
+      const current = summaryMap.get(row.workout_id);
+      summaryMap.set(row.workout_id, {
+        thumbnail: current?.thumbnail ?? null,
+        count: (current?.count ?? 0) + 1,
+      });
+    });
+    return summaryMap;
+  }
 
   let exercisesQuery = supabase
     .from("exercises")

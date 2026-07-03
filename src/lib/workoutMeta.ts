@@ -56,18 +56,55 @@ export function estimateWorkoutMinutes(
 export async function fetchWorkoutMeta(workoutIds: string[]): Promise<Record<string, WorkoutMeta>> {
   if (workoutIds.length === 0) return {};
 
-  const { data: exerciseRows } = await supabase
+  const { data: exerciseRows, error: exerciseRowsError } = await supabase
     .from("workout_exercises")
-    .select("workout_id, sets, rest_seconds, exercise_id, exercises(youtube_url, youtube_thumbnail)")
+    .select("workout_id, sets, rest_seconds, exercise_id, exercise_order")
     .in("workout_id", workoutIds)
+    .order("workout_id")
     .order("exercise_order");
+
+  if (exerciseRowsError) throw exerciseRowsError;
+
+  const rows = (exerciseRows || []) as Array<{
+    workout_id: string;
+    sets: number | null;
+    rest_seconds: number | null;
+    exercise_id: string | null;
+  }>;
+
+  const firstExerciseIds = [
+    ...new Set(
+      workoutIds
+        .map((wId) => rows.find((row) => row.workout_id === wId)?.exercise_id)
+        .filter(Boolean) as string[],
+    ),
+  ];
+
+  const thumbnailMap = new Map<string, { youtube_url: string | null; youtube_thumbnail: string | null }>();
+
+  if (firstExerciseIds.length > 0) {
+    const { data: thumbnails, error: thumbnailsError } = await supabase
+      .from("exercises")
+      .select("id, youtube_url, youtube_thumbnail")
+      .in("id", firstExerciseIds);
+
+    if (thumbnailsError) throw thumbnailsError;
+
+    (thumbnails || []).forEach((exercise) => {
+      thumbnailMap.set(exercise.id, {
+        youtube_url: exercise.youtube_url,
+        youtube_thumbnail: exercise.youtube_thumbnail,
+      });
+    });
+  }
 
   const meta: Record<string, WorkoutMeta> = {};
   for (const wId of workoutIds) {
-    const exes = (exerciseRows || []).filter((r: any) => r.workout_id === wId);
+    const exes = rows.filter((r) => r.workout_id === wId);
     const firstEx = exes[0];
+    const firstExerciseMedia = firstEx?.exercise_id ? thumbnailMap.get(firstEx.exercise_id) : null;
     const thumb = firstEx
-      ? ((firstEx as any).exercises?.youtube_thumbnail || getYouTubeThumbnail((firstEx as any).exercises?.youtube_url))
+      ? (firstExerciseMedia?.youtube_thumbnail || getYouTubeThumbnail(firstExerciseMedia?.youtube_url))
       : null;
     meta[wId] = {
       exerciseCount: exes.length,
