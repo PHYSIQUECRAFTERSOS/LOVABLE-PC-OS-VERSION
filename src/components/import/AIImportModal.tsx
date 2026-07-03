@@ -654,13 +654,17 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
       .single();
     if (planErr || !plan) throw new Error(planErr?.message || "Failed to create meal plan");
 
+    let savedDayCount = 0;
+    let savedItemCount = 0;
+    const dayErrors: string[] = [];
+
     for (let di = 0; di < days.length; di++) {
       const day = days[di];
       setSaveProgress(20 + Math.round((di / days.length) * 70));
 
       const dayType = classifications[di];
 
-      const { data: mpDay } = await supabase
+      const { data: mpDay, error: mpDayErr } = await supabase
         .from("meal_plan_days")
         .insert({
           meal_plan_id: (plan as any).id,
@@ -669,8 +673,11 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         })
         .select()
         .single();
-      if (!mpDay) continue;
-
+      if (mpDayErr || !mpDay) {
+        dayErrors.push(`${day.day_label || `Day ${di + 1}`}: ${mpDayErr?.message || "day insert failed"}`);
+        continue;
+      }
+      savedDayCount++;
 
       let mealOrder = 0;
       for (const meal of day.meals || []) {
@@ -714,7 +721,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           //  - the unit isn't grams/ml (slice, unit, scoop, tbsp, …), OR
           //  - the matched candidate is weak (< 75 confidence)
           if (!isMassUnit || matchScore < 75) {
-            const { data: createdFood } = await supabase
+            const { data: createdFood, error: createdFoodErr } = await supabase
               .from("food_items")
               .insert({
                 name: food.name,
@@ -729,10 +736,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
               } as any)
               .select("id")
               .single();
+            if (createdFoodErr) {
+              console.warn("[ai-import][meal] food_items insert failed", createdFoodErr.message, food.name);
+            }
             foodItemId = (createdFood as any)?.id || foodItemId;
           }
 
-          await supabase.from("meal_plan_items").insert({
+          const { error: itemErr } = await supabase.from("meal_plan_items").insert({
             meal_plan_id: (plan as any).id,
             day_id: (mpDay as any).id,
             food_item_id: foodItemId,
@@ -750,17 +760,27 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
             meal_order: mealOrder,
             item_order: itemOrder,
           } as any);
+          if (itemErr) {
+            dayErrors.push(`${day.day_label || `Day ${di + 1}`} / ${mealName} / ${food.name}: ${itemErr.message}`);
+          } else {
+            savedItemCount++;
+          }
         }
 
       }
     }
     setSaveProgress(95);
 
-    const dayCount = days.length;
-    const foodCount = days.reduce((sum: number, d: any) =>
-      sum + (d.meals || []).reduce((ms: number, m: any) => ms + (m.foods || []).length, 0), 0);
-    toast.success(`Import complete! Saved ${dayCount} day types with ${foodCount} food items.`);
+    if (savedItemCount === 0) {
+      throw new Error(dayErrors[0] || "No meal items were saved. Check permissions and try again.");
+    }
+    if (dayErrors.length > 0) {
+      console.warn("[ai-import][meal] partial errors:", dayErrors);
+      toast.warning(`Saved ${savedItemCount} items, but ${dayErrors.length} row(s) failed. See console.`);
+    }
+    toast.success(`Import complete! Saved ${savedDayCount} day${savedDayCount === 1 ? "" : "s"} with ${savedItemCount} food items.`);
   };
+
 
   const saveSupplements = async () => {
     if (!user || !extracted) return;
@@ -789,31 +809,29 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     let createdCount = 0;
     let matchedCount = 0;
     let skippedCount = 0;
+    let savedItemCount = 0;
+    const itemErrors: string[] = [];
 
     // Step 2: For each supplement, find or create in catalog, then add to plan
     for (let i = 0; i < supplements.length; i++) {
       const supp = supplements[i];
       setSaveProgress(30 + Math.round((i / supplements.length) * 60));
 
-      // Safety net: never insert blank-named supplements (would show as "Unknown")
       const cleanName = (supp.name || "").trim();
       if (!cleanName) {
         console.warn("Skipping supplement with empty name", supp);
         skippedCount++;
         continue;
       }
-      const finalName = cleanName.length > 0 ? cleanName : "Unmapped Supplement";
+      const finalName = cleanName;
 
       let suppId: string | null = null;
-
-      // Check if we have a match from the edge function
       const match = matchResults?.supplements?.[supp.name];
       if (match?.matched_id && match.confidence >= 0.5) {
         suppId = match.matched_id;
         matchedCount++;
       }
 
-      // If no match, create new master supplement
       if (!suppId) {
         const { data: newSupp, error: newSuppErr } = await supabase
           .from("master_supplements")
@@ -830,14 +848,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           .select()
           .single();
         if (newSuppErr || !newSupp) {
-          console.error("Failed to create supplement:", finalName, newSuppErr);
+          itemErrors.push(`${finalName}: catalog insert failed — ${newSuppErr?.message || "unknown"}`);
           continue;
         }
         suppId = (newSupp as any).id;
         createdCount++;
       }
 
-      // Add item to the plan
       if (suppId) {
         const { error: itemErr } = await supabase.from("supplement_plan_items").insert({
           plan_id: (plan as any).id,
@@ -848,16 +865,27 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           sort_order: i + 1,
           coach_note: supp.coach_note || null,
         });
-        if (itemErr) console.error("Failed to add plan item:", finalName, itemErr);
+        if (itemErr) {
+          itemErrors.push(`${finalName}: ${itemErr.message}`);
+        } else {
+          savedItemCount++;
+        }
       }
     }
 
     setSaveProgress(95);
-    const importedCount = supplements.length - skippedCount;
-    toast.success(`Import complete! Created "${planName}" with ${importedCount} supplements (${matchedCount} matched, ${createdCount} new catalog entries).`);
+    if (savedItemCount === 0) {
+      throw new Error(itemErrors[0] || "No supplements were saved. Check permissions and try again.");
+    }
+    if (itemErrors.length > 0) {
+      console.warn("[ai-import][supp] partial errors:", itemErrors);
+      toast.warning(`Saved ${savedItemCount}, but ${itemErrors.length} failed. See console.`);
+    }
+    toast.success(`Import complete! Created "${planName}" with ${savedItemCount} supplement${savedItemCount === 1 ? "" : "s"} (${matchedCount} matched, ${createdCount} new).`);
     if (skippedCount > 0) {
       toast.warning(`${skippedCount} supplement${skippedCount === 1 ? "" : "s"} skipped — couldn't read name from PDF.`);
     }
+
   };
 
   return (
