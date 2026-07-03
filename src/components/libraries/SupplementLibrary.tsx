@@ -93,6 +93,8 @@ const SupplementLibrary = () => {
   const [plans, setPlans] = useState<SupplementPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [planSearchQuery, setPlanSearchQuery] = useState("");
+
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [sharedExpanded, setSharedExpanded] = useState(true);
   const [personalExpanded, setPersonalExpanded] = useState(true);
@@ -429,8 +431,12 @@ const SupplementLibrary = () => {
   const canEditSelectedPlan = selectedPlan ? canEdit(selectedPlan) : false;
 
   // Separate plans into shared/personal
-  const sharedPlans = plans.filter(p => p.is_master);
-  const personalPlans = plans.filter(p => !p.is_master && p.coach_id === user?.id);
+  const planQ = planSearchQuery.trim().toLowerCase();
+  const filteredPlans = planQ ? plans.filter(p => p.name?.toLowerCase().includes(planQ)) : plans;
+  const sharedPlans = filteredPlans.filter(p => p.is_master);
+  const personalPlans = filteredPlans.filter(p => !p.is_master && p.coach_id === user?.id);
+
+
 
   // Separate catalog into shared/personal
   const sharedSupps = filteredSupps.filter(s => s.is_master);
@@ -663,10 +669,20 @@ const SupplementLibrary = () => {
                   </Button>
                 </div>
               </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search plans..."
+                  value={planSearchQuery}
+                  onChange={(e) => setPlanSearchQuery(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
             </div>
             <ScrollArea className="flex-1">
               <div className="p-2 space-y-1">
                 {loading ? (
+
                   Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)
                 ) : plans.length === 0 ? (
                   <div className="flex flex-col items-center py-12 text-center px-4">
