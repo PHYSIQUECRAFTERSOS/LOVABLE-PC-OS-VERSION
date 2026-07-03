@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 import { getLocalDateString } from "@/utils/localDate";
-import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
+import { fetchWorkoutExerciseDetails, replaceWorkoutExercisePlan } from "@/lib/workoutExerciseQueries";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -311,40 +311,25 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     if (!workoutName.trim()) { toast({ title: "Workout name required", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      const { error: updateError } = await supabase.from("workouts").update({ name: workoutName, instructions: instructions || null }).eq("id", workoutId);
-      if (updateError) throw updateError;
-      const { error: deleteError } = await supabase.from("workout_exercises").delete().eq("workout_id", workoutId);
-      if (deleteError) throw deleteError;
-
-      if (exercises.length > 0) {
-        const { data: insertedExercises, error: insertError } = await supabase.from("workout_exercises").insert(
-          exercises.map((ex, i) => ({
-            workout_id: workoutId, exercise_id: ex.exerciseId, exercise_order: i + 1,
-            sets: ex.sets, reps: ex.reps || null, tempo: useTempo ? (ex.tempo || null) : null,
-            rest_seconds: ex.restSeconds ?? null, rir: ex.rir ? parseInt(ex.rir) : null,
-            rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
-            notes: ex.notes || null, grouping_type: ex.groupingType || null, grouping_id: ex.groupingId || null,
-          }))
-        ).select("id");
-        if (insertError) throw insertError;
-
-        if (insertedExercises) {
-          const setRows: any[] = [];
-          insertedExercises.forEach((we, idx) => {
-            const ex = exercises[idx];
-            for (let s = 1; s <= ex.sets; s++) {
-              setRows.push({
-                workout_exercise_id: we.id, set_number: s, rep_target: ex.reps || null,
-                rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null, set_type: "working",
-              });
-            }
-          });
-          if (setRows.length > 0) {
-            const { error: setError } = await supabase.from("workout_sets").insert(setRows);
-            if (setError) throw setError;
-          }
-        }
-      }
+      await replaceWorkoutExercisePlan({
+        workoutId,
+        name: workoutName.trim(),
+        instructions: instructions || null,
+        isAccessory: null,
+        exercises: exercises.map((ex, i) => ({
+          exercise_id: ex.exerciseId,
+          exercise_order: i + 1,
+          sets: ex.sets,
+          reps: ex.reps || null,
+          tempo: useTempo ? (ex.tempo || null) : null,
+          rest_seconds: ex.restSeconds ?? null,
+          rir: ex.rir ? parseInt(ex.rir, 10) : null,
+          rpe_target: useRpe ? (ex.rpe ? parseFloat(ex.rpe) : null) : null,
+          notes: ex.notes || null,
+          grouping_type: ex.groupingType || null,
+          grouping_id: ex.groupingId || null,
+        })),
+      });
 
       toast({ title: "Workout saved" });
       setHasChanges(false);

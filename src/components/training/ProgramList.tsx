@@ -364,23 +364,8 @@ const ProgramList = () => {
               .select("workout_id, day_of_week, day_label, sort_order").eq("week_id", week.id);
 
             for (const w of (pws || [])) {
-              const { data: origW } = await supabase.from("workouts")
-                .select("name, description, instructions, phase, workout_type").eq("id", w.workout_id).single();
-              if (!origW) continue;
-
-              const { data: clientW } = await supabase.from("workouts").insert({
-                coach_id: user.id, client_id: target.clientId, name: origW.name, description: origW.description,
-                instructions: origW.instructions, phase: origW.phase, is_template: false,
-                workout_type: (origW as any).workout_type || "regular",
-              } as any).select().single();
-              if (!clientW) continue;
-
-              const { data: exes } = await supabase.from("workout_exercises")
-                .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
-                .eq("workout_id", w.workout_id);
-              if (exes && exes.length > 0) {
-                await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: clientW.id })));
-              }
+              const { workout: clientW, result } = await cloneWorkoutWithExercises(w.workout_id, user.id, target.clientId, false);
+              if (!clientW) throw new Error(result.errors.join("\n") || "Failed to clone workout");
 
               await supabase.from("program_workouts").insert({
                 week_id: newWeek!.id, workout_id: clientW.id,

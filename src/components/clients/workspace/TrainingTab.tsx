@@ -38,6 +38,7 @@ import { copyPhaseToMasterProgram, copyPhaseToClientProgram, restorePreviousProg
 import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 import { derivePhaseDates } from "@/lib/phaseDates";
 import { previewMerge, applyMerge, type MergePreview } from "@/lib/programMerge";
+import { fetchWorkoutMeta } from "@/lib/workoutMeta";
 
 const addDaysLocal = (ymd: string, days: number) => {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -269,25 +270,11 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (assignment?.is_linked_to_master) { setShowDetach(true); return; }
     if (!user) return;
     try {
-    const { data: origW, error: origErr } = await supabase.from("workouts")
-      .select("name, description, instructions, phase, workout_type").eq("id", pw.workout_id).single();
-    if (origErr) throw origErr;
-    if (!origW) return;
-    const { data: newW, error: newErr } = await supabase.from("workouts").insert({
-      coach_id: user.id, client_id: clientId, name: `${origW.name} (Copy)`,
-      description: origW.description, instructions: origW.instructions, phase: origW.phase,
-      is_template: false, workout_type: (origW as any).workout_type || "regular",
-    } as any).select().single();
-    if (newErr) throw newErr;
-    if (!newW) return;
-    const { data: exes, error: exErr } = await supabase.from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
-      .eq("workout_id", pw.workout_id);
-    if (exErr) throw exErr;
-    if (exes && exes.length > 0) {
-      const { error } = await supabase.from("workout_exercises").insert(exes.map((ex: any) => ({ ...ex, workout_id: newW.id })));
-      if (error) throw error;
-    }
+    const { workout: newW, result } = await cloneWorkoutWithExercises(pw.workout_id, user.id, clientId, false);
+    if (!newW || result.errors.length > 0) throw new Error(result.errors.join("\n") || "Failed to duplicate workout");
+    const copyName = `${result.workoutName} (Copy)`;
+    const { error: renameErr } = await supabase.from("workouts").update({ name: copyName }).eq("id", newW.id);
+    if (renameErr) throw renameErr;
     const { error: attachErr } = await supabase.from("program_workouts").insert({
       phase_id: phaseId, workout_id: newW.id, day_of_week: pw.day_of_week,
       day_label: `${pw.day_label} (Copy)`, sort_order: 99,
@@ -830,22 +817,12 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
       setMasterPhaseWorkoutsLoading(false);
       return;
     }
-    // Fetch exercise counts in parallel
+    // Fetch exercise counts in one optimized call to avoid RLS-heavy per-workout counts.
     const workoutIds = (pws || []).map((p: any) => p.workout_id).filter(Boolean);
     let countsByWid: Record<string, number> = {};
     if (workoutIds.length > 0) {
-      const countResults = await Promise.allSettled(
-        workoutIds.map(async (wid: string) => {
-          const { count } = await supabase
-            .from("workout_exercises")
-            .select("id", { count: "exact", head: true })
-            .eq("workout_id", wid);
-          return { wid, count: count || 0 };
-        })
-      );
-      for (const r of countResults) {
-        if (r.status === "fulfilled") countsByWid[r.value.wid] = r.value.count;
-      }
+      const meta = await fetchWorkoutMeta(workoutIds);
+      countsByWid = Object.fromEntries(Object.entries(meta).map(([wid, value]) => [wid, value.exerciseCount]));
     }
     const list = (pws || []).map((pw: any) => ({
       id: pw.workout_id,
