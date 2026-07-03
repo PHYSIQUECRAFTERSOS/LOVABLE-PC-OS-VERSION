@@ -15,6 +15,7 @@ import SupplementReview from "./SupplementReview";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { prependTrainerizeWorkoutSummary } from "@/lib/ai-import/trainerizeWorkoutParser";
+import { replaceWorkoutExercisePlan, type WorkoutExercisePlanInput } from "@/lib/workoutExerciseQueries";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
@@ -316,7 +317,6 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     let startingSortOrder = 0;
 
     if (targetMode === "append-to-phase" && targetPhaseId && targetProgramId) {
-      // Append workouts directly into existing phase
       programId = targetProgramId;
       phaseId = targetPhaseId;
       const { data: existing } = await supabase
@@ -326,9 +326,7 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         .order("sort_order", { ascending: false })
         .limit(1);
       startingSortOrder = (existing?.[0] as any)?.sort_order ?? 0;
-      console.log("Appending to existing phase:", phaseId, "starting sort_order:", startingSortOrder);
     } else if (targetMode === "append-phase" && targetProgramId) {
-      // Append a new auto-numbered phase to existing program
       programId = targetProgramId;
       const { data: existingPhases } = await supabase
         .from("program_phases")
@@ -343,29 +341,27 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           program_id: programId,
           name: `Phase ${nextPhaseOrder}`,
           phase_order: nextPhaseOrder,
-          duration_weeks: 4,
-        })
+        } as any)
         .select()
         .single();
       if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
       phaseId = (phase as any).id;
-      console.log("Appended new phase:", phaseId, "as Phase", nextPhaseOrder, "to program", programId);
     } else {
       // Legacy: create new program + first phase
-      const { data: prog, error: progErr } = await supabase
+      const { data: program, error: progErr } = await supabase
         .from("programs")
         .insert({
           coach_id: user.id,
+          client_id: clientId || null,
           name: extracted.program_name || "Imported Program",
+          description: extracted.program_description || null,
           is_template: isLibraryImport,
           is_master: isLibraryImport,
-          client_id: clientId || null,
         } as any)
         .select()
         .single();
-      if (progErr || !prog) throw new Error(progErr?.message || "Failed to create program");
-      programId = (prog as any).id;
-      console.log("Created program:", programId, "Full record:", prog);
+      if (progErr || !program) throw new Error(progErr?.message || "Failed to create program");
+      programId = (program as any).id;
 
       const { data: phase, error: phaseErr } = await supabase
         .from("program_phases")
@@ -373,18 +369,14 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           program_id: programId,
           name: extracted.program_phase || "Phase 1",
           phase_order: 1,
-          duration_weeks: 4,
-        })
+        } as any)
         .select()
         .single();
       if (phaseErr || !phase) throw new Error(phaseErr?.message || "Failed to create phase");
       phaseId = (phase as any).id;
-      console.log("Created phase:", phaseId);
     }
 
     setSaveProgress(40);
-
-    let totalExercisesSaved = 0;
 
     // New shape: extracted.workouts (unique templates) + extracted.schedule (ordered occurrences).
     // Falls back to flat days[] when the AI returned the legacy shape.
@@ -402,104 +394,91 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         : (Array.isArray((extracted as any).workouts) && (extracted as any).workouts.length > 0
             ? (extracted as any).workouts.map((w: any, i: number) => ({ position: i + 1, day_name: w.day_name }))
             : days.map((d: any, i: number) => ({ position: i + 1, day_name: d.day_name || `Day ${i + 1}` })));
-    const masterMatches: Record<string, { id: string; name: string }> =
-      (matchResults?.master_workouts as any) || {};
 
-    // Insert exercises for a given workout_id from a template
-    const insertExercisesForWorkout = async (workoutId: string, tpl: any) => {
-      const dayExercises = tpl.exercises || [];
+    if (uniqueWorkouts.length === 0) {
+      throw new Error("No workouts found in the extracted data. The AI could not identify any workout days.");
+    }
+
+    // Build the exercise plan for one template using the resolved exercise IDs.
+    const buildExercisePlan = async (tpl: any): Promise<{ plan: WorkoutExercisePlanInput[]; failed: string[] }> => {
+      const dayExercises: any[] = tpl.exercises || [];
+      const failed: string[] = [];
+
+      // Precompute group rest map (applied to last exercise of each superset only)
       const groupRestById = new Map<string, number>();
       const supersetGroups: any[] = tpl.superset_groups || [];
       for (const g of supersetGroups) {
-        if (g?.grouping_id) {
-          groupRestById.set(String(g.grouping_id), Number(g.rest_seconds_between_rounds ?? 0));
-        }
+        if (g?.grouping_id) groupRestById.set(String(g.grouping_id), Number(g.rest_seconds_between_rounds ?? 0));
       }
       const lastIndexByGroup = new Map<string, number>();
       dayExercises.forEach((ex: any, idx: number) => {
         if (ex?.grouping_id) lastIndexByGroup.set(String(ex.grouping_id), idx);
       });
-      const debugRest = import.meta.env.VITE_DEBUG_AI_IMPORT === "true";
 
+      const plan: WorkoutExercisePlanInput[] = [];
       for (let ei = 0; ei < dayExercises.length; ei++) {
         const ex = dayExercises[ei];
         const match = matchResults?.exercises?.[ex.name];
-        let exerciseId = match?.matched_id;
+        let exerciseId = match?.matched_id as string | undefined;
+
         if (!exerciseId) {
           const { data: newEx, error: newExErr } = await supabase
             .from("exercises")
             .insert({ name: ex.name, coach_id: user.id } as any)
             .select()
             .single();
-          if (newExErr) {
-            console.error("Failed to create exercise:", ex.name, newExErr);
+          if (newExErr || !newEx) {
+            console.error("[ai-import] failed to create exercise:", ex.name, newExErr);
+            failed.push(ex.name);
             continue;
           }
-          exerciseId = (newEx as any)?.id;
+          exerciseId = (newEx as any).id;
         }
-        if (!exerciseId) continue;
+        if (!exerciseId) {
+          failed.push(ex.name);
+          continue;
+        }
 
         const groupId = ex?.grouping_id ? String(ex.grouping_id) : null;
         let finalRest: number;
         if (groupId && groupRestById.has(groupId)) {
           const isLast = lastIndexByGroup.get(groupId) === ei;
           finalRest = isLast ? (groupRestById.get(groupId) ?? 0) : 0;
-        } else if (groupId && !groupRestById.has(groupId)) {
-          console.warn("[ai-import] grouping_id without superset_groups entry:", groupId, ex?.name);
-          finalRest = 0;
         } else {
           finalRest = typeof ex.rest_seconds === "number" ? ex.rest_seconds : 0;
         }
-        if (debugRest) {
-          console.log("[ai-import][rest]", JSON.stringify({
-            name: ex.name, raw_rest: ex.rest_seconds, grouping_id: groupId,
-            group_rest: groupId ? groupRestById.get(groupId) : null,
-            is_last_in_group: groupId ? lastIndexByGroup.get(groupId) === ei : null,
-            final_rest: finalRest,
-          }));
-        }
 
-        const { error: insertError } = await supabase.from("workout_exercises").insert({
-          workout_id: workoutId,
+        plan.push({
           exercise_id: exerciseId,
           exercise_order: ei + 1,
           sets: ex.sets || 3,
           reps: ex.reps || "10",
-          rest_seconds: finalRest,
           tempo: ex.tempo || null,
-          rir: ex.rir ? parseInt(ex.rir, 10) : null,
-          rpe_target: ex.rpe ? parseFloat(ex.rpe) : null,
+          rest_seconds: finalRest,
+          rir: ex.rir != null ? parseInt(String(ex.rir), 10) : null,
+          rpe_target: ex.rpe != null ? parseFloat(String(ex.rpe)) : null,
           notes: ex.notes || null,
+          superset_group: null,
           grouping_type: ex.grouping_type || null,
           grouping_id: ex.grouping_id || null,
         });
-        if (!insertError) totalExercisesSaved++;
       }
+
+      return { plan, failed };
     };
 
-    // 1. Resolve / create the unique workouts, build name → workout_id map
+    // 1. Always create a FRESH workout row per template (never mutate master shells).
+    //    Reusing a matched master workout would delete/rewrite its exercises and
+    //    silently fail under RLS for non-owner coaches. Cloning is safe for
+    //    admins, coaches, and managers alike.
     const workoutIdByName = new Map<string, string>();
+    const perDayResults: { dayName: string; exercisesExpected: number; exercisesCopied: number; errors: string[] }[] = [];
+    let totalExercisesSaved = 0;
+
     for (let wi = 0; wi < uniqueWorkouts.length; wi++) {
       const tpl = uniqueWorkouts[wi];
       const name: string = tpl.day_name || `Day ${wi + 1}`;
       setSaveProgress(40 + Math.round((wi / uniqueWorkouts.length) * 40));
-
-      const masterHit = masterMatches[name];
-      if (masterHit?.id) {
-        // Reuse the existing master workout shell, but REPLACE its exercise list
-        // with the freshly-parsed one so a re-import never serves stale rows
-        // from a prior bad import. This was the root cause of "Day N saved with
-        // the wrong workout's exercises" after the user re-ran an import.
-        workoutIdByName.set(name, masterHit.id);
-        console.log("[ai-import] Reusing master workout shell, refreshing exercises:", name, "→", masterHit.id);
-        await supabase.from("workout_exercises").delete().eq("workout_id", masterHit.id);
-        await supabase
-          .from("workouts")
-          .update({ description: tpl.instructions || null })
-          .eq("id", masterHit.id);
-        await insertExercisesForWorkout(masterHit.id, tpl);
-        continue;
-      }
 
       const { data: workout, error: wErr } = await supabase
         .from("workouts")
@@ -512,22 +491,60 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         } as any)
         .select()
         .single();
+
       if (wErr || !workout) {
-        console.error("Failed to create workout:", name, wErr);
+        const msg = wErr?.message || "unknown error";
+        console.error("[ai-import] Failed to create workout row:", name, wErr);
+        perDayResults.push({ dayName: name, exercisesExpected: (tpl.exercises || []).length, exercisesCopied: 0, errors: [`Create workout failed: ${msg}`] });
         continue;
       }
+
       const workoutId = (workout as any).id as string;
       workoutIdByName.set(name, workoutId);
-      await insertExercisesForWorkout(workoutId, tpl);
+
+      const { plan, failed } = await buildExercisePlan(tpl);
+      const errors: string[] = failed.length > 0 ? [`Skipped exercises: ${failed.join(", ")}`] : [];
+
+      if (plan.length > 0) {
+        try {
+          await replaceWorkoutExercisePlan({
+            workoutId,
+            name,
+            instructions: tpl.instructions || null,
+            isAccessory: null,
+            exercises: plan,
+          });
+          totalExercisesSaved += plan.length;
+        } catch (planErr: any) {
+          const msg = planErr?.message || "unknown error";
+          console.error("[ai-import] replace_workout_exercise_plan failed:", name, planErr);
+          errors.push(`Save exercises failed: ${msg}`);
+        }
+      }
+
+      perDayResults.push({
+        dayName: name,
+        exercisesExpected: (tpl.exercises || []).length,
+        exercisesCopied: plan.length,
+        errors,
+      });
     }
+
+    if (workoutIdByName.size === 0) {
+      const firstErr = perDayResults.find((r) => r.errors.length > 0)?.errors[0] || "unknown error";
+      throw new Error(`Failed to create any workouts. ${firstErr}. Check that you have permission to create workouts in this program.`);
+    }
+
+    setSaveProgress(85);
 
     // 2. Schedule: insert one program_workouts row per scheduled occurrence
     let scheduledCount = 0;
+    const scheduleErrors: string[] = [];
     for (let si = 0; si < schedule.length; si++) {
       const entry = schedule[si];
       const workoutId = workoutIdByName.get(entry.day_name);
       if (!workoutId) {
-        console.warn("[ai-import] schedule references missing workout:", entry.day_name);
+        scheduleErrors.push(`Missing workout: ${entry.day_name}`);
         continue;
       }
       const { error: pwErr } = await supabase.from("program_workouts").insert({
@@ -536,7 +553,16 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         sort_order: startingSortOrder + si + 1,
         day_label: entry.day_name,
       });
-      if (!pwErr) scheduledCount++;
+      if (pwErr) {
+        console.error("[ai-import] program_workouts insert failed:", entry.day_name, pwErr);
+        scheduleErrors.push(`${entry.day_name}: ${pwErr.message}`);
+      } else {
+        scheduledCount++;
+      }
+    }
+
+    if (scheduledCount === 0) {
+      throw new Error(`No workouts were attached to the phase. ${scheduleErrors[0] || "Check RLS permissions."}`);
     }
 
     // If client (legacy new-program flow only), create assignment
@@ -550,10 +576,22 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
         status: "active",
       });
     }
-    console.log(`Import complete: ${uniqueWorkouts.length} unique workouts, ${scheduledCount} scheduled days, ${totalExercisesSaved} exercises saved`);
+
+    // Warn about partial failures
+    const partialDays = perDayResults.filter((r) => r.exercisesCopied < r.exercisesExpected || r.errors.length > 0);
+    if (partialDays.length > 0 || scheduleErrors.length > 0) {
+      const lines = [
+        ...partialDays.map((d) => `• ${d.dayName}: ${d.exercisesCopied}/${d.exercisesExpected} exercises`),
+        ...scheduleErrors.map((e) => `• Schedule: ${e}`),
+      ];
+      toast.warning(`Import completed with warnings\n${lines.slice(0, 5).join("\n")}`);
+    }
+
+    console.log(`[ai-import] Complete: ${uniqueWorkouts.length} unique workouts, ${scheduledCount} scheduled days, ${totalExercisesSaved} exercises saved`);
     setSaveProgress(95);
     return { dayCount: scheduledCount, exerciseCount: totalExercisesSaved };
   };
+
 
   const saveMealPlan = async () => {
     if (!user || !extracted) return;
@@ -823,8 +861,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(next) => { if (!next && step === "saving") return; onOpenChange(next); }}>
+      <DialogContent
+        className="max-w-2xl max-h-[85vh] overflow-y-auto"
+        onEscapeKeyDown={(e) => { if (step === "saving") e.preventDefault(); }}
+        onPointerDownOutside={(e) => { if (step === "saving") e.preventDefault(); }}
+        onInteractOutside={(e) => { if (step === "saving") e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
