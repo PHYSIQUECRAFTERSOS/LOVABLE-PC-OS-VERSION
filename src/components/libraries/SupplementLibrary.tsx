@@ -429,10 +429,11 @@ const SupplementLibrary = () => {
   const canEditSelectedPlan = selectedPlan ? canEdit(selectedPlan) : false;
 
   // Separate plans into shared/personal
-  const planQ = searchQuery.trim().toLowerCase();
+  const planQ = planSearchQuery.trim().toLowerCase();
   const filteredPlans = planQ ? plans.filter(p => p.name?.toLowerCase().includes(planQ)) : plans;
   const sharedPlans = filteredPlans.filter(p => p.is_master);
   const personalPlans = filteredPlans.filter(p => !p.is_master && p.coach_id === user?.id);
+
 
 
   // Separate catalog into shared/personal
