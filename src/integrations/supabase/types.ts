@@ -8095,6 +8095,16 @@ export type Database = {
       }
       repair_saved_meals_commit: { Args: { p_run_id: string }; Returns: Json }
       repair_saved_meals_dry_run: { Args: never; Returns: Json }
+      replace_workout_exercise_plan: {
+        Args: {
+          _exercises: Json
+          _instructions: string
+          _is_accessory: boolean
+          _name: string
+          _workout_id: string
+        }
+        Returns: undefined
+      }
       save_meal_with_items: {
         Args: {
           p_calories: number

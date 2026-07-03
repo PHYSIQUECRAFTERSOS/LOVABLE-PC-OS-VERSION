@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 import { getLocalDateString } from "@/utils/localDate";
-import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
+import { fetchWorkoutExerciseDetails, replaceWorkoutExercisePlan } from "@/lib/workoutExerciseQueries";
 
 /** Rest (s) input that uses local string state to avoid stuck-zero bug */
 const RestSecondsInput = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
@@ -251,67 +251,38 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
     }
   }, []);
 
+  const buildExercisePlanRows = useCallback(() => exercises.map((exercise, index) => ({
+    exercise_id: exercise.exerciseId,
+    exercise_order: index + 1,
+    sets: exercise.sets,
+    reps: exercise.reps || null,
+    tempo: useTempo ? (exercise.tempo || null) : null,
+    rest_seconds: exercise.restSeconds ?? null,
+    rir: useRir ? (exercise.rir ? parseInt(exercise.rir, 10) : null) : null,
+    rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
+    notes: exercise.notes || null,
+    superset_group: null,
+    grouping_type: exercise.groupingType || null,
+    grouping_id: exercise.groupingId || null,
+  })), [exercises, useTempo, useRir, useRpe]);
+
   const persistExistingWorkoutChanges = useCallback(async () => {
     if (!editWorkoutId) return false;
     const trimmedName = workoutName.trim();
     if (!trimmedName) return false;
 
-    const { error: updateErr } = await supabase
-      .from("workouts")
-      .update({ name: trimmedName, instructions: instructions || null, is_accessory: isAccessory } as any)
-      .eq("id", editWorkoutId);
-    if (updateErr) throw updateErr;
-
-    const { error: deleteErr } = await supabase
-      .from("workout_exercises")
-      .delete()
-      .eq("workout_id", editWorkoutId);
-    if (deleteErr) throw deleteErr;
-
-    if (exercises.length > 0) {
-      const { data: insertedExercises, error: insertErr } = await supabase
-        .from("workout_exercises")
-        .insert(
-          exercises.map((exercise, index) => ({
-            workout_id: editWorkoutId,
-            exercise_id: exercise.exerciseId,
-            exercise_order: index + 1,
-            sets: exercise.sets,
-            reps: exercise.reps || null,
-            tempo: useTempo ? (exercise.tempo || null) : null,
-            rest_seconds: exercise.restSeconds ?? null,
-            rir: useRir ? (exercise.rir ? parseInt(exercise.rir, 10) : null) : null,
-            rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
-            notes: exercise.notes || null,
-            superset_group: null,
-            grouping_type: exercise.groupingType || null,
-            grouping_id: exercise.groupingId || null,
-          }))
-        )
-        .select("id");
-      if (insertErr) throw insertErr;
-
-      const setRows = (insertedExercises || []).flatMap((workoutExercise, index) => {
-        const exercise = exercises[index];
-        return Array.from({ length: exercise.sets }, (_, setIndex) => ({
-          workout_exercise_id: workoutExercise.id,
-          set_number: setIndex + 1,
-          rep_target: exercise.reps || null,
-          rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
-          set_type: "working",
-        }));
-      });
-
-      if (setRows.length > 0) {
-        const { error: setErr } = await supabase.from("workout_sets").insert(setRows);
-        if (setErr) throw setErr;
-      }
-    }
+    await replaceWorkoutExercisePlan({
+      workoutId: editWorkoutId,
+      name: trimmedName,
+      instructions: instructions || null,
+      isAccessory,
+      exercises: buildExercisePlanRows(),
+    });
 
     lastPersistedSnapshotRef.current = buildDraftSnapshot();
     syncedDuringSessionRef.current = true;
     return true;
-  }, [editWorkoutId, workoutName, instructions, exercises, useTempo, useRir, useRpe, buildDraftSnapshot]);
+  }, [editWorkoutId, workoutName, instructions, isAccessory, buildExercisePlanRows, buildDraftSnapshot]);
 
   const triggerAutoSave = useCallback(async () => {
     if (!open || !editWorkoutId || !hydratedRef.current || loading || saving) return;
@@ -763,45 +734,13 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
         if (workoutErr) throw workoutErr;
         workoutId = newWorkout.id;
 
-        if (exercises.length > 0) {
-          const { data: insertedExercises, error: insertErr } = await supabase
-            .from("workout_exercises")
-            .insert(
-              exercises.map((exercise, index) => ({
-                workout_id: workoutId,
-                exercise_id: exercise.exerciseId,
-                exercise_order: index + 1,
-                sets: exercise.sets,
-                reps: exercise.reps || null,
-                tempo: useTempo ? (exercise.tempo || null) : null,
-                rest_seconds: exercise.restSeconds ?? null,
-                rir: useRir ? (exercise.rir ? parseInt(exercise.rir, 10) : null) : null,
-                rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
-                notes: exercise.notes || null,
-                superset_group: null,
-                grouping_type: exercise.groupingType || null,
-                grouping_id: exercise.groupingId || null,
-              }))
-            )
-            .select("id");
-          if (insertErr) throw insertErr;
-
-          const setRows = (insertedExercises || []).flatMap((workoutExercise, index) => {
-            const exercise = exercises[index];
-            return Array.from({ length: exercise.sets }, (_, setIndex) => ({
-              workout_exercise_id: workoutExercise.id,
-              set_number: setIndex + 1,
-              rep_target: exercise.reps || null,
-              rpe_target: useRpe ? (exercise.rpe ? parseFloat(exercise.rpe) : null) : null,
-              set_type: "working",
-            }));
-          });
-
-          if (setRows.length > 0) {
-            const { error: setErr } = await supabase.from("workout_sets").insert(setRows);
-            if (setErr) throw setErr;
-          }
-        }
+        await replaceWorkoutExercisePlan({
+          workoutId: workoutId!,
+          name: trimmedName,
+          instructions: instructions || null,
+          isAccessory,
+          exercises: buildExercisePlanRows(),
+        });
       }
 
       try { sessionStorage.removeItem(draftKey); } catch {}

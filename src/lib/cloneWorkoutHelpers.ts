@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchWorkoutExerciseDetails, replaceWorkoutExercisePlan } from "@/lib/workoutExerciseQueries";
 
 /**
  * Result of cloning a single workout (day) with its exercises.
@@ -84,14 +85,12 @@ export async function cloneWorkoutWithExercises(
     };
   }
 
-  // 3. Read source exercises
-  const { data: exes, error: exeReadErr } = await supabase
-    .from("workout_exercises")
-    .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, video_override, progression_type, weight_increment, increment_type, rpe_threshold, progression_mode, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, grouping_type, grouping_id")
-    .eq("workout_id", sourceWorkoutId)
-    .order("exercise_order");
-
-  if (exeReadErr) {
+  // 3. Read source exercises through the optimized workout RPC. This avoids
+  // RLS-heavy direct table reads that can time out for coaches on desktop.
+  let exercises: Awaited<ReturnType<typeof fetchWorkoutExerciseDetails>> = [];
+  try {
+    exercises = await fetchWorkoutExerciseDetails(sourceWorkoutId);
+  } catch (exeReadErr: any) {
     return {
       workout: clientW,
       result: {
@@ -102,7 +101,6 @@ export async function cloneWorkoutWithExercises(
     };
   }
 
-  const exercises = exes || [];
   emptyResult.exercisesExpected = exercises.length;
 
   if (exercises.length === 0) {
@@ -112,36 +110,31 @@ export async function cloneWorkoutWithExercises(
     };
   }
 
-  // 4. Bulk-insert exercises in a single round-trip. Falls back to per-row
-  //    inserts only if the bulk insert fails so we still get partial copies +
-  //    detailed errors instead of a silent total miss.
-  let copiedCount = 0;
   const errors: string[] = [];
 
-  const bulkPayload = exercises.map((ex) => ({ ...ex, workout_id: clientW.id }));
-  const { data: bulkData, error: bulkErr } = await supabase
-    .from("workout_exercises")
-    .insert(bulkPayload)
-    .select("id");
-
-  if (!bulkErr && bulkData) {
-    copiedCount = bulkData.length;
-    if (copiedCount < exercises.length) {
-      errors.push(`Bulk insert returned ${copiedCount}/${exercises.length} rows for "${origW.name}"`);
-    }
-  } else {
-    // Fallback: per-row inserts so a single bad row can't drop the whole workout.
-    if (bulkErr) errors.push(`Bulk insert failed for "${origW.name}": ${bulkErr.message} — retrying per-row`);
-    for (const ex of exercises) {
-      const { error: exInsertErr } = await supabase
-        .from("workout_exercises")
-        .insert({ ...ex, workout_id: clientW.id });
-      if (exInsertErr) {
-        errors.push(`Exercise order ${ex.exercise_order} in "${origW.name}": ${exInsertErr.message}`);
-      } else {
-        copiedCount++;
-      }
-    }
+  try {
+    await replaceWorkoutExercisePlan({
+      workoutId: clientW.id,
+      name: origW.name || "Workout",
+      instructions: origW.instructions || null,
+      isAccessory: null,
+      exercises: exercises.map((ex, index) => ({
+        exercise_id: ex.exercise_id,
+        exercise_order: ex.exercise_order ?? index + 1,
+        sets: ex.sets || 3,
+        reps: ex.reps || null,
+        tempo: ex.tempo || null,
+        rest_seconds: ex.rest_seconds ?? null,
+        rir: ex.rir ?? null,
+        rpe_target: ex.rpe_target ?? null,
+        notes: ex.notes || null,
+        superset_group: null,
+        grouping_type: ex.grouping_type || null,
+        grouping_id: ex.grouping_id || null,
+      })),
+    });
+  } catch (copyErr: any) {
+    errors.push(`Failed to copy exercises for "${origW.name}": ${copyErr.message}`);
   }
 
 
@@ -151,7 +144,7 @@ export async function cloneWorkoutWithExercises(
       workoutId: clientW.id,
       workoutName: origW.name || "Workout",
       exercisesExpected: exercises.length,
-      exercisesCopied: copiedCount,
+      exercisesCopied: errors.length === 0 ? exercises.length : 0,
       errors,
     },
   };

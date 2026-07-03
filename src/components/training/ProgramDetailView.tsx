@@ -1006,7 +1006,6 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
           .single();
         await supabase.from("program_workouts").delete().eq("id", copyDayConflict.existingId);
         if (existingPw) {
-          await supabase.from("workout_exercises").delete().eq("workout_id", existingPw.workout_id);
           await supabase.from("workouts").delete().eq("id", existingPw.workout_id);
         }
       }

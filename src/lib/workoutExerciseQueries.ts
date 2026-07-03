@@ -41,6 +41,45 @@ export interface WorkoutThumbnailSummary {
   count: number;
 }
 
+export interface WorkoutExercisePlanInput {
+  exercise_id: string;
+  exercise_order: number;
+  sets: number;
+  reps: string | null;
+  tempo: string | null;
+  rest_seconds: number | null;
+  rir: number | null;
+  rpe_target: number | null;
+  notes: string | null;
+  superset_group?: string | null;
+  grouping_type: string | null;
+  grouping_id: string | null;
+}
+
+export async function replaceWorkoutExercisePlan({
+  workoutId,
+  name,
+  instructions,
+  isAccessory = null,
+  exercises,
+}: {
+  workoutId: string;
+  name: string;
+  instructions: string | null;
+  isAccessory?: boolean | null;
+  exercises: WorkoutExercisePlanInput[];
+}): Promise<void> {
+  const { error } = await (supabase as any).rpc("replace_workout_exercise_plan", {
+    _workout_id: workoutId,
+    _name: name,
+    _instructions: instructions,
+    _is_accessory: isAccessory,
+    _exercises: exercises,
+  });
+
+  if (error) throw error;
+}
+
 export async function fetchWorkoutExerciseDetails(
   workoutId: string,
   signal?: AbortSignal,
