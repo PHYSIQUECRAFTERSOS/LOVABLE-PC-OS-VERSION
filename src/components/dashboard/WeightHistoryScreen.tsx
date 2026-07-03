@@ -327,7 +327,7 @@ const WeightHistoryScreen = ({ open, onClose, clientId, clientName, readOnly = f
                   <div className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[10px] text-primary uppercase tracking-wider font-semibold">7-Day Average</p>
-                      <p className="text-[10px] text-muted-foreground truncate">Sum of last 7 entries ÷ 7</p>
+                      <p className="text-[10px] text-muted-foreground truncate">Average of your logged entries</p>
                     </div>
                     <p className="text-xl font-bold text-primary tabular-nums whitespace-nowrap shrink-0">
                       {sevenDayAverage} {unitLabel}
