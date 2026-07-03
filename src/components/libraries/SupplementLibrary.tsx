@@ -429,8 +429,11 @@ const SupplementLibrary = () => {
   const canEditSelectedPlan = selectedPlan ? canEdit(selectedPlan) : false;
 
   // Separate plans into shared/personal
-  const sharedPlans = plans.filter(p => p.is_master);
-  const personalPlans = plans.filter(p => !p.is_master && p.coach_id === user?.id);
+  const planQ = searchQuery.trim().toLowerCase();
+  const filteredPlans = planQ ? plans.filter(p => p.name?.toLowerCase().includes(planQ)) : plans;
+  const sharedPlans = filteredPlans.filter(p => p.is_master);
+  const personalPlans = filteredPlans.filter(p => !p.is_master && p.coach_id === user?.id);
+
 
   // Separate catalog into shared/personal
   const sharedSupps = filteredSupps.filter(s => s.is_master);
