@@ -669,9 +669,17 @@ const SupplementLibrary = () => {
                   </Button>
                 </div>
               </div>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search plans..."
+                  value={planSearchQuery}
+                  onChange={(e) => setPlanSearchQuery(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
             </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1">
+
                 {loading ? (
                   Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)
                 ) : plans.length === 0 ? (
