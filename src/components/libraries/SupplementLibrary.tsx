@@ -93,6 +93,8 @@ const SupplementLibrary = () => {
   const [plans, setPlans] = useState<SupplementPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [planSearchQuery, setPlanSearchQuery] = useState("");
+
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [sharedExpanded, setSharedExpanded] = useState(true);
   const [personalExpanded, setPersonalExpanded] = useState(true);
