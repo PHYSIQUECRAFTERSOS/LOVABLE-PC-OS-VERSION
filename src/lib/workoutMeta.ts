@@ -56,6 +56,31 @@ export function estimateWorkoutMinutes(
 export async function fetchWorkoutMeta(workoutIds: string[]): Promise<Record<string, WorkoutMeta>> {
   if (workoutIds.length === 0) return {};
 
+  const { data: batchRows, error: batchError } = await (supabase as any).rpc("get_workout_meta_batch", {
+    _workout_ids: workoutIds,
+  });
+
+  if (!batchError) {
+    const meta: Record<string, WorkoutMeta> = {};
+    workoutIds.forEach((workoutId) => {
+      meta[workoutId] = { exerciseCount: 0, estimatedMinutes: 0, thumbnailUrl: null };
+    });
+
+    (batchRows || []).forEach((row: any) => {
+      meta[row.workout_id] = {
+        exerciseCount: row.exercise_count || 0,
+        estimatedMinutes: row.estimated_minutes || 0,
+        thumbnailUrl: row.thumbnail_url || getYouTubeThumbnail(row.youtube_url) || null,
+      };
+    });
+
+    return meta;
+  }
+
+  if (batchError?.code !== "42883" && batchError?.code !== "PGRST202") {
+    throw batchError;
+  }
+
   const settled = await Promise.allSettled(
     workoutIds.map((workoutId) => fetchWorkoutExerciseDetails(workoutId)),
   );
