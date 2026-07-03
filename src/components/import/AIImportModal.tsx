@@ -809,31 +809,29 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
     let createdCount = 0;
     let matchedCount = 0;
     let skippedCount = 0;
+    let savedItemCount = 0;
+    const itemErrors: string[] = [];
 
     // Step 2: For each supplement, find or create in catalog, then add to plan
     for (let i = 0; i < supplements.length; i++) {
       const supp = supplements[i];
       setSaveProgress(30 + Math.round((i / supplements.length) * 60));
 
-      // Safety net: never insert blank-named supplements (would show as "Unknown")
       const cleanName = (supp.name || "").trim();
       if (!cleanName) {
         console.warn("Skipping supplement with empty name", supp);
         skippedCount++;
         continue;
       }
-      const finalName = cleanName.length > 0 ? cleanName : "Unmapped Supplement";
+      const finalName = cleanName;
 
       let suppId: string | null = null;
-
-      // Check if we have a match from the edge function
       const match = matchResults?.supplements?.[supp.name];
       if (match?.matched_id && match.confidence >= 0.5) {
         suppId = match.matched_id;
         matchedCount++;
       }
 
-      // If no match, create new master supplement
       if (!suppId) {
         const { data: newSupp, error: newSuppErr } = await supabase
           .from("master_supplements")
@@ -850,14 +848,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           .select()
           .single();
         if (newSuppErr || !newSupp) {
-          console.error("Failed to create supplement:", finalName, newSuppErr);
+          itemErrors.push(`${finalName}: catalog insert failed — ${newSuppErr?.message || "unknown"}`);
           continue;
         }
         suppId = (newSupp as any).id;
         createdCount++;
       }
 
-      // Add item to the plan
       if (suppId) {
         const { error: itemErr } = await supabase.from("supplement_plan_items").insert({
           plan_id: (plan as any).id,
@@ -868,16 +865,27 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
           sort_order: i + 1,
           coach_note: supp.coach_note || null,
         });
-        if (itemErr) console.error("Failed to add plan item:", finalName, itemErr);
+        if (itemErr) {
+          itemErrors.push(`${finalName}: ${itemErr.message}`);
+        } else {
+          savedItemCount++;
+        }
       }
     }
 
     setSaveProgress(95);
-    const importedCount = supplements.length - skippedCount;
-    toast.success(`Import complete! Created "${planName}" with ${importedCount} supplements (${matchedCount} matched, ${createdCount} new catalog entries).`);
+    if (savedItemCount === 0) {
+      throw new Error(itemErrors[0] || "No supplements were saved. Check permissions and try again.");
+    }
+    if (itemErrors.length > 0) {
+      console.warn("[ai-import][supp] partial errors:", itemErrors);
+      toast.warning(`Saved ${savedItemCount}, but ${itemErrors.length} failed. See console.`);
+    }
+    toast.success(`Import complete! Created "${planName}" with ${savedItemCount} supplement${savedItemCount === 1 ? "" : "s"} (${matchedCount} matched, ${createdCount} new).`);
     if (skippedCount > 0) {
       toast.warning(`${skippedCount} supplement${skippedCount === 1 ? "" : "s"} skipped — couldn't read name from PDF.`);
     }
+
   };
 
   return (
