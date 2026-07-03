@@ -271,7 +271,7 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     if (!user) return;
     try {
     const { workout: newW, result } = await cloneWorkoutWithExercises(pw.workout_id, user.id, clientId, false);
-    if (!newW) throw new Error(result.errors.join("\n") || "Failed to duplicate workout");
+    if (!newW || result.errors.length > 0) throw new Error(result.errors.join("\n") || "Failed to duplicate workout");
     const copyName = `${result.workoutName} (Copy)`;
     const { error: renameErr } = await supabase.from("workouts").update({ name: copyName }).eq("id", newW.id);
     if (renameErr) throw renameErr;
