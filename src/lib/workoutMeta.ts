@@ -9,7 +9,6 @@
  * Used by both Master Libraries' ProgramDetailView and the client-profile
  * Training tab (ClientProgramTwoPane).
  */
-import { supabase } from "@/integrations/supabase/client";
 import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 export interface WorkoutMeta {
