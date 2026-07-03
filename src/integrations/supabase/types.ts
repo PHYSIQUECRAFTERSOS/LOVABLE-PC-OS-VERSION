@@ -7969,6 +7969,36 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_workout_exercise_details: {
+        Args: { _workout_id: string }
+        Returns: {
+          equipment: string
+          exercise_id: string
+          exercise_name: string
+          exercise_order: number
+          grouping_id: string
+          grouping_type: string
+          id: string
+          increment_type: string
+          notes: string
+          primary_muscle: string
+          progression_mode: string
+          progression_type: string
+          reps: string
+          rest_seconds: number
+          rir: number
+          rpe_target: number
+          rpe_threshold: number
+          sets: number
+          tempo: string
+          video_override: string
+          video_url: string
+          weight_increment: number
+          workout_id: string
+          youtube_thumbnail: string
+          youtube_url: string
+        }[]
+      }
       get_workout_streak: {
         Args: { p_today: string; p_tz_only?: boolean; p_user_id: string }
         Returns: number
