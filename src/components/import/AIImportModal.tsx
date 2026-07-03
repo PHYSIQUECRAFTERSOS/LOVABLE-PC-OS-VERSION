@@ -15,6 +15,7 @@ import SupplementReview from "./SupplementReview";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { prependTrainerizeWorkoutSummary } from "@/lib/ai-import/trainerizeWorkoutParser";
+import { replaceWorkoutExercisePlan, type WorkoutExercisePlanInput } from "@/lib/workoutExerciseQueries";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
