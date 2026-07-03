@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 import { getLocalDateString } from "@/utils/localDate";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 /** Rest (s) input that uses local string state to avoid stuck-zero bug */
 const RestSecondsInput = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
@@ -383,21 +384,16 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
           .single();
         if (workoutErr) throw workoutErr;
 
-        const { data: exRows, error: exerciseErr } = await supabase
-          .from("workout_exercises")
-          .select("id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id, exercises(name, youtube_thumbnail, youtube_url)")
-          .eq("workout_id", editWorkoutId)
-          .order("exercise_order");
-        if (exerciseErr) throw exerciseErr;
+        const exRows = await fetchWorkoutExerciseDetails(editWorkoutId);
 
         if (cancelled) return;
 
-        const loadedExercises = (exRows || []).map((exercise: any) => ({
+        const loadedExercises = (exRows || []).map((exercise) => ({
           id: exercise.id,
           exerciseId: exercise.exercise_id,
-          exerciseName: exercise.exercises?.name || "Unknown",
-          thumbnail: exercise.exercises?.youtube_thumbnail || null,
-          youtubeUrl: exercise.exercises?.youtube_url || null,
+          exerciseName: exercise.exercise?.name || "Unknown",
+          thumbnail: exercise.exercise?.youtube_thumbnail || null,
+          youtubeUrl: exercise.exercise?.youtube_url || null,
           exerciseOrder: exercise.exercise_order,
           sets: exercise.sets || 3,
           reps: exercise.reps || "10",

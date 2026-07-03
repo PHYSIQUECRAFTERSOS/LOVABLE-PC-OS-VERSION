@@ -20,6 +20,7 @@ import NutritionGoalComparison, { getComplianceDot } from "./NutritionGoalCompar
 import BodyStatsEventPanel from "./BodyStatsEventPanel";
 import PhotosEventPanel from "./PhotosEventPanel";
 import CoachEventNote from "./CoachEventNote";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 const TYPE_LABELS: Record<string, string> = {
   workout: "Workout", cardio: "Cardio", checkin: "Check-in", rest: "Rest Day",
@@ -196,18 +197,14 @@ const EventDetailModal = ({
     const loadExercises = async () => {
       setLoadingExercises(true);
       try {
-        const { data } = await supabase
-          .from("workout_exercises")
-          .select("sets, reps, rest_seconds, exercises(name, youtube_url, video_url, youtube_thumbnail)")
-          .eq("workout_id", event.linked_workout_id!)
-          .order("exercise_order");
+        const data = await fetchWorkoutExerciseDetails(event.linked_workout_id!);
 
-        const exercises = (data || []).map((we: any) => ({
-          name: we.exercises?.name || "Unknown",
+        const exercises = data.map((we) => ({
+          name: we.exercise?.name || "Unknown",
           sets: we.sets,
           reps: we.reps,
           rest_seconds: we.rest_seconds,
-          thumbnail: resolveExerciseThumbnail(we.exercises),
+          thumbnail: resolveExerciseThumbnail(we.exercise),
         }));
         setWorkoutExercises(exercises);
 

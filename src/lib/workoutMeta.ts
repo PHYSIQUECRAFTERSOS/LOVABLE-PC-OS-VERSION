@@ -10,6 +10,7 @@
  * Training tab (ClientProgramTwoPane).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 
 export interface WorkoutMeta {
   exerciseCount: number;
@@ -56,26 +57,51 @@ export function estimateWorkoutMinutes(
 export async function fetchWorkoutMeta(workoutIds: string[]): Promise<Record<string, WorkoutMeta>> {
   if (workoutIds.length === 0) return {};
 
-  const { data: exerciseRows } = await supabase
-    .from("workout_exercises")
-    .select("workout_id, sets, rest_seconds, exercise_id, exercises(youtube_url, youtube_thumbnail)")
-    .in("workout_id", workoutIds)
-    .order("exercise_order");
+  const { data: batchRows, error: batchError } = await (supabase as any).rpc("get_workout_meta_batch", {
+    _workout_ids: workoutIds,
+  });
+
+  if (!batchError) {
+    const meta: Record<string, WorkoutMeta> = {};
+    workoutIds.forEach((workoutId) => {
+      meta[workoutId] = { exerciseCount: 0, estimatedMinutes: 0, thumbnailUrl: null };
+    });
+
+    (batchRows || []).forEach((row: any) => {
+      meta[row.workout_id] = {
+        exerciseCount: row.exercise_count || 0,
+        estimatedMinutes: row.estimated_minutes || 0,
+        thumbnailUrl: row.thumbnail_url || getYouTubeThumbnail(row.youtube_url) || null,
+      };
+    });
+
+    return meta;
+  }
+
+  if (batchError?.code !== "42883" && batchError?.code !== "PGRST202") {
+    throw batchError;
+  }
+
+  const settled = await Promise.allSettled(
+    workoutIds.map((workoutId) => fetchWorkoutExerciseDetails(workoutId)),
+  );
 
   const meta: Record<string, WorkoutMeta> = {};
-  for (const wId of workoutIds) {
-    const exes = (exerciseRows || []).filter((r: any) => r.workout_id === wId);
+  workoutIds.forEach((wId, index) => {
+    const result = settled[index];
+    const exes = result.status === "fulfilled" ? result.value : [];
     const firstEx = exes[0];
     const thumb = firstEx
-      ? ((firstEx as any).exercises?.youtube_thumbnail || getYouTubeThumbnail((firstEx as any).exercises?.youtube_url))
+      ? (firstEx.exercise?.youtube_thumbnail || getYouTubeThumbnail(firstEx.exercise?.youtube_url))
       : null;
     meta[wId] = {
       exerciseCount: exes.length,
       estimatedMinutes: estimateWorkoutMinutes(
-        exes.map((e: any) => ({ sets: e.sets, rest_seconds: e.rest_seconds }))
+        exes.map((e) => ({ sets: e.sets, rest_seconds: e.rest_seconds }))
       ),
       thumbnailUrl: thumb,
     };
-  }
+  });
+
   return meta;
 }
