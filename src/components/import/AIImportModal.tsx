@@ -861,8 +861,13 @@ const AIImportModal = ({ open, onOpenChange, entryPoint, clientId, importType, o
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(next) => { if (!next && step === "saving") return; onOpenChange(next); }}>
+      <DialogContent
+        className="max-w-2xl max-h-[85vh] overflow-y-auto"
+        onEscapeKeyDown={(e) => { if (step === "saving") e.preventDefault(); }}
+        onPointerDownOutside={(e) => { if (step === "saving") e.preventDefault(); }}
+        onInteractOutside={(e) => { if (step === "saving") e.preventDefault(); }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
