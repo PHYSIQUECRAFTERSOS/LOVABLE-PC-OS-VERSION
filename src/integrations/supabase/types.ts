@@ -7999,6 +7999,16 @@ export type Database = {
           youtube_url: string
         }[]
       }
+      get_workout_meta_batch: {
+        Args: { _workout_ids: string[] }
+        Returns: {
+          estimated_minutes: number
+          exercise_count: number
+          thumbnail_url: string
+          workout_id: string
+          youtube_url: string
+        }[]
+      }
       get_workout_streak: {
         Args: { p_today: string; p_tz_only?: boolean; p_user_id: string }
         Returns: number
