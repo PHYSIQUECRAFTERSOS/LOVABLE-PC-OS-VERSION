@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 import { getLocalDateString } from "@/utils/localDate";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -162,17 +163,14 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
       if (workoutError) throw workoutError;
       if (workout) { setWorkoutName(workout.name); setInstructions(workout.instructions || ""); }
 
-      const { data: exRows, error: exerciseError } = await supabase.from("workout_exercises")
-        .select("id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id, exercises(name, youtube_thumbnail)")
-        .eq("workout_id", workoutId).order("exercise_order");
-      if (exerciseError) throw exerciseError;
+      const exRows = await fetchWorkoutExerciseDetails(workoutId);
 
       if (exRows) {
-        const loaded = exRows.map((ex: any) => ({
+        const loaded = exRows.map((ex) => ({
           id: ex.id,
           dndId: ex.id || crypto.randomUUID(),
-          exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
-          thumbnail: ex.exercises?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
+          exerciseId: ex.exercise_id, exerciseName: ex.exercise?.name || "Unknown",
+          thumbnail: ex.exercise?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
           sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds ?? 60,
           rir: ex.rir?.toString() || "", rpe: ex.rpe_target?.toString() || "", notes: ex.notes || "",
           groupingType: (ex as any).grouping_type || null, groupingId: (ex as any).grouping_id || null, selected: false,

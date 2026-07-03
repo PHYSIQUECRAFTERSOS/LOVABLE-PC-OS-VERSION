@@ -875,12 +875,9 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
 
     // Load exercises for preview
     setCopyDayExercisesLoading(true);
-    const { data: exes } = await supabase
-      .from("workout_exercises")
-      .select("exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, exercises(name)")
-      .eq("workout_id", pw.workoutId)
-      .order("exercise_order");
-    setCopyDayExercises(exes || []);
+    const { fetchWorkoutExerciseDetails } = await import("@/lib/workoutExerciseQueries");
+    const exes = await fetchWorkoutExerciseDetails(pw.workoutId);
+    setCopyDayExercises(exes.map((ex) => ({ ...ex, exercises: { name: ex.exercise?.name || "Unknown" } })));
     setCopyDayExercisesLoading(false);
   };
 

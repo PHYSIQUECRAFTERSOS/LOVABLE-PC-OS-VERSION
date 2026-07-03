@@ -12,6 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { fetchWorkoutExerciseDetails } from "@/lib/workoutExerciseQueries";
 import MobileExercisePickerSheet from "./MobileExercisePickerSheet";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
@@ -90,19 +91,17 @@ const MobileWorkoutEditor = ({ open, onClose, onSaved, workoutId, workoutName: i
       const { data: workout } = await supabase.from("workouts").select("name, instructions").eq("id", workoutId).single();
       if (workout) { setWorkoutName(workout.name); setInstructions(workout.instructions || ""); }
 
-      const { data: exRows } = await supabase.from("workout_exercises")
-        .select("id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, rpe_target, grouping_type, grouping_id, exercises(name, youtube_thumbnail)")
-        .eq("workout_id", workoutId).order("exercise_order");
+      const exRows = await fetchWorkoutExerciseDetails(workoutId);
 
       if (exRows) {
-        const loaded: WorkoutExercise[] = exRows.map((ex: any) => ({
+        const loaded: WorkoutExercise[] = exRows.map((ex) => ({
           id: ex.id,
           dndId: ex.id || crypto.randomUUID(),
-          exerciseId: ex.exercise_id, exerciseName: ex.exercises?.name || "Unknown",
-          thumbnail: ex.exercises?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
+          exerciseId: ex.exercise_id, exerciseName: ex.exercise?.name || "Unknown",
+          thumbnail: ex.exercise?.youtube_thumbnail || null, exerciseOrder: ex.exercise_order,
           sets: ex.sets || 3, reps: ex.reps || "10", tempo: ex.tempo || "", restSeconds: ex.rest_seconds ?? 60,
           rir: ex.rir?.toString() || "", rpe: ex.rpe_target?.toString() || "", notes: ex.notes || "",
-          groupingType: (ex as any).grouping_type || null, groupingId: (ex as any).grouping_id || null, selected: false,
+          groupingType: ex.grouping_type || null, groupingId: ex.grouping_id || null, selected: false,
         }));
         setExercises(loaded);
         initialStateRef.current = JSON.stringify({ name: workout?.name, instructions: workout?.instructions || "", exercises: loaded });
