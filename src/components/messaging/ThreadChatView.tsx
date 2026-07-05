@@ -640,7 +640,7 @@ const ThreadChatView = ({
                 senderId={msg.sender_id}
                 isOwn={isOwn}
                 hasAttachment={!!msg.attachment_url}
-                onEdit={handleEditMessage}
+                onStartEdit={handleStartEdit}
                 onDelete={handleDeleteMessage}
               >
                 <div
@@ -662,12 +662,14 @@ const ThreadChatView = ({
                     {/* Bubble */}
                     <div
                       className={cn(
-                        "rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed",
+                        "rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed transition-shadow",
                         isOwn
                           ? "bg-primary text-primary-foreground rounded-br-md"
-                          : "bg-muted text-foreground rounded-bl-md"
+                          : "bg-muted text-foreground rounded-bl-md",
+                        editingMessageId === msg.id && "ring-2 ring-primary/70 ring-offset-2 ring-offset-background"
                       )}
                     >
+
                       {msg.attachment_url && msg.attachment_type && (
                         <div className="mb-1.5">
                           <MessageAttachment
