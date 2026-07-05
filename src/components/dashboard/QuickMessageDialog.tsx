@@ -46,7 +46,12 @@ const QuickMessageDialog = ({
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
 
   useEffect(() => {
     if (open && prefillMessage) {
