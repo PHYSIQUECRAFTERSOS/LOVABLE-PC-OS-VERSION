@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile } from "lucide-react";
+import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
 import {
