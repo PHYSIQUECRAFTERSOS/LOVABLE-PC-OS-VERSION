@@ -613,18 +613,22 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const handleAddPhase = async () => {
     if (!program) return;
-    const { error } = await supabase.from("program_phases").insert({
+    const nextOrder = phases.length > 0
+      ? Math.max(...phases.map(p => p.phase_order || 0)) + 1
+      : 1;
+    const { data, error } = await supabase.from("program_phases").insert({
       program_id: program.id,
-      name: `Phase ${phases.length + 1}`,
-      phase_order: phases.length + 1,
+      name: `Phase ${nextOrder}`,
+      phase_order: nextOrder,
       duration_weeks: 4,
-    });
-    if (error) {
-      toast({ title: "Could not add phase", description: error.message, variant: "destructive" });
+    }).select("id").single();
+    if (error || !data) {
+      console.error("[TrainingTab.handleAddPhase] insert failed:", error);
+      toast({ title: "Could not add phase", description: error?.message || "Unknown error", variant: "destructive" });
       return;
     }
     toast({ title: "Phase added" });
-    loadClientProgram();
+    await loadClientProgram();
   };
 
   const handleCopyPhaseToMaster = async (phase: Phase, targetMasterProgramId: string) => {
