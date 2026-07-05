@@ -1,48 +1,62 @@
-## Issues
+## Problem
 
-**1. Add Phase does nothing on client Training tab**
-`handleAddPhase` in `src/components/clients/workspace/TrainingTab.tsx` (line 614) inserts a `program_phases` row, but the button is wrapped in `guardEdit(...)` which opens the "Detach from master" modal whenever `assignment.is_linked_to_master` is true. On detached programs the insert runs but nothing appears because `phase_order` collides with an existing phase, or the reload races the insert. Net effect: silent no-op.
+`src/components/messaging/MessageContextMenu.tsx` (lines 170–194) renders the edit UI **inline where the message bubble sits**, wrapped in `max-w-[85%]` with a `min-h-[40px]` textarea and tiny ghost icon buttons. That's why editing feels cramped on desktop and mobile — the editor lives inside the message row instead of taking over the composer.
 
-**2. Duplicate Phase copies phase row only — no workouts, no exercises**
-`duplicatePhase` in the same file (line 684) only inserts a `program_phases` row. It never copies `program_workouts`, and never deep-clones the underlying `workouts` + `workout_exercises`. Result matches your screenshot: "Phase 1 (Copy)" shows `0 workouts`.
-
-The deep-copy plumbing already exists — `copyPhaseToClientProgram` in `src/lib/copyPhaseHelpers.ts` clones phase + workouts + exercises via `cloneWorkoutWithExercises`. In-place duplicate just isn't using it.
+Trainerize (screenshot 3) does the opposite: as soon as you tap Edit, the bottom composer is replaced by a full-width "Editing message" strip with a tall multi-line textarea, a Cancel action, and a large primary Send button.
 
 ## Plan
 
-### A. Fix `handleAddPhase` (client Training tab)
+### 1. Lift edit state out of `MessageContextMenu.tsx` into `ThreadChatView.tsx`
 
-`src/components/clients/workspace/TrainingTab.tsx`:
+Currently each `MessageContextMenu` owns its own `editing` / `editText` / `saving` state. Move that up so the parent thread knows which message is being edited and can render the editor at the bottom.
 
-- Compute `phase_order` as `Math.max(...phases.map(p => p.phase_order), 0) + 1` instead of `phases.length + 1` (avoids collisions after deletes/reorders).
-- Insert with `.select().single()` so we can surface real errors and confirm the row.
-- Await `loadClientProgram()` and toast only on success. Log the insert error to console with `[TrainingTab.handleAddPhase]` prefix.
-- Keep `guardEdit` behavior unchanged (Trainerize-style: linked-to-master programs must be detached first).
+- Add `editingMessageId: string | null` + `editingText: string` state in `ThreadChatView.tsx`.
+- Change `MessageContextMenu`'s "Edit" action from `setEditing(true)` to `onStartEdit(messageId, content)` (new prop).
+- Remove the inline `if (editing)` render block from `MessageContextMenu.tsx` entirely — the menu goes back to just being a menu.
 
-### B. Deep-duplicate a phase in place
+### 2. Build a bottom "Editing message" composer strip
 
-Add a helper `duplicatePhaseInPlace` in `src/lib/copyPhaseHelpers.ts` that:
+In `ThreadChatView.tsx`, when `editingMessageId` is set, replace the normal send composer (the block around line 700 with the `<Textarea ref={textareaRef}>`) with an edit composer that matches Trainerize:
 
-1. Loads the source phase's `program_workouts` rows (with `day_of_week`, `day_label`, `sort_order`, `exclude_from_numbering`, `custom_tag`).
-2. Inserts a new `program_phases` row in the same `program_id`, name `"<source> (Copy)"`, next `phase_order`, copying `duration_weeks`, `training_style`, `intensity_system`, `custom_intensity`, `progression_rule`, `description`.
-3. For each source `program_workouts` row, calls `cloneWorkoutWithExercises(sourceWorkoutId, coachId, clientId, false)` to create a brand-new `workouts` row with all `workout_exercises` (sets, reps, rest, RIR, RPE, tempo, notes, groupings) — exactly what the existing Import → Master flow does.
-4. Inserts the new `program_workouts` row against the new phase preserving `day_of_week`, `day_label`, `sort_order`, `exclude_from_numbering`, `custom_tag`.
-5. Runs workout clones sequentially (matches project convention — avoids race conditions on `sort_order`), collects `CloneWorkoutResult[]`, returns an `ImportSummary` toast payload.
+```
+┌─────────────────────────────────────────────┐
+│ ✎ Editing message              Cancel       │  ← header row, subtle border-bottom
+├─────────────────────────────────────────────┤
+│                                             │
+│  [large multi-line textarea, auto-grow,     │
+│   min-h ~96px, max-h ~40vh]                 │
+│                                             │
+│                                    [ ➤ ]    │  ← gold primary Send, bottom-right
+└─────────────────────────────────────────────┘
+```
 
-Wire `TrainingTab.duplicatePhase` to call the new helper and show the summary toast (success / warning-with-mismatches, same UX as Import).
+Behavior:
+- Autofocus the textarea and place caret at end of text on open.
+- `Enter` = save, `Shift+Enter` = newline, `Esc` = cancel (matches Trainerize desktop; keeps current thread composer convention which is also Enter-to-send).
+- Cancel restores original message unchanged and clears `editingMessageId`.
+- Save calls the existing `handleEditMessage(messageId, newContent)` path (already wired), then clears edit state.
+- If the new text equals the original, treat Save as Cancel (no-op, no `edited` label).
+- Empty text after trim → Save is disabled (existing behavior in the current handler).
+- While the strip is open, hide/disable the normal send composer entirely so there's no ambiguity about which box is active.
 
-### C. Master Libraries "Add Phase"
+### 3. Highlight the message being edited
 
-The master-library ProgramDetailView already has an `Add Phase` button (line 1414) and a working `duplicatePhase` (line 371, deep-copies workouts client-side then persists on Save). No fix needed there — confirming that's what you meant, or did you want a new entry point elsewhere (e.g., inline in the phase list dropdown, matching the client tab)?
+To match Trainerize's yellow outline (screenshot 2): when `msg.id === editingMessageId`, add a `ring-2 ring-primary/70` (gold) around that message bubble in `ThreadChatView.tsx`. Clears automatically when edit state clears.
+
+### 4. Mobile ergonomics
+
+- The edit strip is the same component on desktop and mobile — sits above the keyboard just like the normal composer, so keyboard behavior needs no special work.
+- Add `inputMode="text"` and `enterKeyHint="send"` to the edit textarea on mobile.
+- Ensure the strip respects existing safe-area padding used by the normal composer (reuse the same wrapper classes).
+
+## Files touched
+- `src/components/messaging/MessageContextMenu.tsx` — remove inline edit UI + `editing`/`editText`/`saving` state, add `onStartEdit` prop, wire Edit action to it.
+- `src/components/messaging/ThreadChatView.tsx` — add `editingMessageId`/`editingText` state, render bottom edit strip, highlight edited bubble, pass `onStartEdit` to `MessageContextMenu`.
 
 ## Out of scope
-
-- Changing `guardEdit` behavior for linked-to-master programs.
-- Any schema/RLS migrations (existing policies already allow these inserts).
-- Program-level duplicate (this covers phase-level only).
+- Message reactions, delete flow, attachments, or send-composer redesign.
+- No DB/RLS changes — `handleEditMessage` already writes to `thread_messages`.
+- No new dependencies.
 
 ## Clarifying question
-
-For **#1 master libraries**: Master Libraries already has a working "Add Phase" button on the program detail view (bottom of the phase list). Is your ask that you want (a) nothing new there — it already works, or (b) an additional "Add Phase" entry in the phase context menu (next to "AI Create New Phase" / "Rename" / "Duplicate")? I'll assume (a) unless you say otherwise. I want  (b) an additional "Add Phase" entry in the phase context menu (next to "AI Create New Phase"
-
-&nbsp;
+Trainerize's edit composer uses **Enter = save, Shift+Enter = newline**. Your current send composer likely uses the same convention. Confirm — or would you prefer **Cmd/Ctrl+Enter = save** for edits so a stray Enter doesn't accidentally commit a bad edit? I'll go with **Enter = save** unless you say otherwise.
