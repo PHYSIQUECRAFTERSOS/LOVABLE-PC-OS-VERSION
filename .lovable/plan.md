@@ -1,62 +1,44 @@
+# Scope Training PDF Export to Current Phase Only
+
 ## Problem
+`exportTrainingPdf` loops over every phase in the client's active program. For a client like Scott with an expired Phase 1 and a currently-active Phase 2, this both bloats the PDF and (based on your test) produced a PDF where no exercises came through for the phase you actually care about. Behavior should match Trainerize: export only the phase the client is on right now, with all its workouts and exercises.
 
-`src/components/messaging/MessageContextMenu.tsx` (lines 170–194) renders the edit UI **inline where the message bubble sits**, wrapped in `max-w-[85%]` with a `min-h-[40px]` textarea and tiny ghost icon buttons. That's why editing feels cramped on desktop and mobile — the editor lives inside the message row instead of taking over the composer.
+## Fix (single file: `src/utils/pdf/exportTrainingPdf.ts`)
 
-Trainerize (screenshot 3) does the opposite: as soon as you tap Edit, the bottom composer is replaced by a full-width "Editing message" strip with a tall multi-line textarea, a Cancel action, and a large primary Send button.
+1. **Resolve the current phase** using the same rules the rest of the app uses (see `TrainingTab.tsx`, `CalendarTab.tsx`):
+   - Fetch `program_phases` for the active program (already done).
+   - Fetch `programs.start_date` (already fetched).
+   - Run `derivePhaseDates(program.start_date, phases)` from `@/lib/phaseDates`.
+   - Pick the phase in this priority:
+     1. The phase where `derived[phase.id].isCurrent === true`.
+     2. Else `assignment.current_phase_id` if it still exists in the list.
+     3. Else the first phase whose `isCompleted === false` in `phase_order`.
+     4. Else the last phase (program fully ended — still gives the coach something usable).
+   - If nothing resolves, return `{ ok: false, reason: "No current training phase found." }`.
 
-## Plan
+2. **Restrict all downstream queries to that one phase**:
+   - `program_weeks` fetched with `.eq("phase_id", currentPhase.id)`.
+   - `program_workouts` `or()` filter built from just that phase's id and its week ids (keeps the existing "attached via phase_id OR week_id" support).
+   - `workout_exercises` query stays the same but now naturally receives only the current phase's workout ids, so no cross-phase noise.
 
-### 1. Lift edit state out of `MessageContextMenu.tsx` into `ThreadChatView.tsx`
+3. **PDF output**:
+   - Cover page unchanged (title, program name, client, coach).
+   - Render exactly one phase section: `Phase N: <name>` where N is the phase's real `phase_order` position (1-based within the program), not always "Phase 1".
+   - Include the same meta bits, description, day cards, exercise tables, and coach notes that already work.
+   - Filename unchanged: `<client>-TrainingProgram-<date>.pdf`.
 
-Currently each `MessageContextMenu` owns its own `editing` / `editText` / `saving` state. Move that up so the parent thread knows which message is being edited and can render the editor at the bottom.
+4. **Error surfacing**:
+   - Keep existing early returns for "No active program", "Program not found", "Program has no phases yet".
+   - Add the new "No current training phase found." case above.
+   - No changes to callers — they already handle `{ ok, reason }`.
 
-- Add `editingMessageId: string | null` + `editingText: string` state in `ThreadChatView.tsx`.
-- Change `MessageContextMenu`'s "Edit" action from `setEditing(true)` to `onStartEdit(messageId, content)` (new prop).
-- Remove the inline `if (editing)` render block from `MessageContextMenu.tsx` entirely — the menu goes back to just being a menu.
-
-### 2. Build a bottom "Editing message" composer strip
-
-In `ThreadChatView.tsx`, when `editingMessageId` is set, replace the normal send composer (the block around line 700 with the `<Textarea ref={textareaRef}>`) with an edit composer that matches Trainerize:
-
-```
-┌─────────────────────────────────────────────┐
-│ ✎ Editing message              Cancel       │  ← header row, subtle border-bottom
-├─────────────────────────────────────────────┤
-│                                             │
-│  [large multi-line textarea, auto-grow,     │
-│   min-h ~96px, max-h ~40vh]                 │
-│                                             │
-│                                    [ ➤ ]    │  ← gold primary Send, bottom-right
-└─────────────────────────────────────────────┘
-```
-
-Behavior:
-- Autofocus the textarea and place caret at end of text on open.
-- `Enter` = save, `Shift+Enter` = newline, `Esc` = cancel (matches Trainerize desktop; keeps current thread composer convention which is also Enter-to-send).
-- Cancel restores original message unchanged and clears `editingMessageId`.
-- Save calls the existing `handleEditMessage(messageId, newContent)` path (already wired), then clears edit state.
-- If the new text equals the original, treat Save as Cancel (no-op, no `edited` label).
-- Empty text after trim → Save is disabled (existing behavior in the current handler).
-- While the strip is open, hide/disable the normal send composer entirely so there's no ambiguity about which box is active.
-
-### 3. Highlight the message being edited
-
-To match Trainerize's yellow outline (screenshot 2): when `msg.id === editingMessageId`, add a `ring-2 ring-primary/70` (gold) around that message bubble in `ThreadChatView.tsx`. Clears automatically when edit state clears.
-
-### 4. Mobile ergonomics
-
-- The edit strip is the same component on desktop and mobile — sits above the keyboard just like the normal composer, so keyboard behavior needs no special work.
-- Add `inputMode="text"` and `enterKeyHint="send"` to the edit textarea on mobile.
-- Ensure the strip respects existing safe-area padding used by the normal composer (reuse the same wrapper classes).
-
-## Files touched
-- `src/components/messaging/MessageContextMenu.tsx` — remove inline edit UI + `editing`/`editText`/`saving` state, add `onStartEdit` prop, wire Edit action to it.
-- `src/components/messaging/ThreadChatView.tsx` — add `editingMessageId`/`editingText` state, render bottom edit strip, highlight edited bubble, pass `onStartEdit` to `MessageContextMenu`.
-
-## Out of scope
-- Message reactions, delete flow, attachments, or send-composer redesign.
-- No DB/RLS changes — `handleEditMessage` already writes to `thread_messages`.
+## Out of Scope
+- No schema changes.
+- No changes to the meal-plan PDF export.
+- No changes to the training builder UI, phase duplication, or Add Phase.
 - No new dependencies.
 
-## Clarifying question
-Trainerize's edit composer uses **Enter = save, Shift+Enter = newline**. Your current send composer likely uses the same convention. Confirm — or would you prefer **Cmd/Ctrl+Enter = save** for edits so a stray Enter doesn't accidentally commit a bad edit? I'll go with **Enter = save** unless you say otherwise.
+## Verification
+- Scott (2 phases, Phase 1 completed, Phase 2 current): PDF contains only Phase 2 with every workout and every exercise row.
+- Client with a single active phase: PDF looks the same as today for that phase.
+- Client whose program has fully ended: PDF renders the last phase rather than erroring out silently.
