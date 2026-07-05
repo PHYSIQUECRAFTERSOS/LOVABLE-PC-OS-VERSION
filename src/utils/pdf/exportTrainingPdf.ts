@@ -19,12 +19,15 @@ type ExportWorkoutExercise = {
   rest_seconds: number | null;
   rir: number | null;
   notes: string | null;
-  superset_group: string | null;
+  superset_group?: string | null;
+  grouping_id?: string | null;
+  grouping_type?: string | null;
   intensity_type: string | null;
-  loading_type: string | null;
-  loading_percentage: number | null;
+  loading_type?: string | null;
+  loading_percentage?: number | null;
   rpe_target: number | null;
   is_amrap: boolean | null;
+  exercise_name?: string | null;
   exerciseName?: string;
 };
 
@@ -108,41 +111,33 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
   const workoutIds = (programWorkouts || []).map((pw: any) => pw.workout_id).filter(Boolean);
 
   // 5. Exercises for each workout.
-  // Keep this as two flat queries. The previous nested exercises(...) join can
-  // trigger statement timeouts on exports because RLS has to evaluate the join
-  // path for every workout exercise row.
-  const { data: workoutExerciseRows, error: workoutExercisesError } = workoutIds.length
-    ? await supabase
-        .from("workout_exercises")
-        .select("id, workout_id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
-        .in("workout_id", workoutIds)
-        .order("workout_id")
-        .order("exercise_order")
-    : { data: [] as ExportWorkoutExercise[], error: null };
+  // Use the same security-definer RPC as the workout detail UI. Direct bulk
+  // workout_exercises queries can time out through RLS on larger client plans.
+  const exerciseResults = await Promise.allSettled(
+    workoutIds.map((workoutId) =>
+      supabase.rpc("get_workout_exercise_details", { _workout_id: workoutId }),
+    ),
+  );
 
-  if (workoutExercisesError) {
-    console.error("[exportTrainingPdf] workout exercises error:", workoutExercisesError);
-    return { ok: false, reason: "Could not load workout exercises for this phase." };
-  }
-
-  const workoutExercises = (workoutExerciseRows || []) as ExportWorkoutExercise[];
-  const exerciseIds = [...new Set(workoutExercises.map((we) => we.exercise_id).filter(Boolean))];
-  const exerciseNameMap = new Map<string, string>();
-
-  if (exerciseIds.length > 0) {
-    const { data: exerciseRows, error: exercisesError } = await supabase
-      .from("exercises")
-      .select("id, name")
-      .in("id", exerciseIds);
-
-    if (exercisesError) {
-      console.error("[exportTrainingPdf] exercises lookup error:", exercisesError);
-      return { ok: false, reason: "Could not load exercise names for this phase." };
+  const workoutExercises: ExportWorkoutExercise[] = [];
+  const exerciseErrors: unknown[] = [];
+  exerciseResults.forEach((result) => {
+    if (result.status === "rejected") {
+      exerciseErrors.push(result.reason);
+      return;
     }
 
-    (exerciseRows || []).forEach((exercise: any) => {
-      exerciseNameMap.set(exercise.id, exercise.name || "Exercise");
-    });
+    if (result.value.error) {
+      exerciseErrors.push(result.value.error);
+      return;
+    }
+
+    workoutExercises.push(...(((result.value.data || []) as unknown) as ExportWorkoutExercise[]));
+  });
+
+  if (exerciseErrors.length > 0) {
+    console.error("[exportTrainingPdf] workout exercise RPC errors:", exerciseErrors);
+    return { ok: false, reason: "Could not load workout exercises for this phase." };
   }
 
   const exByWorkout = new Map<string, any[]>();
@@ -150,7 +145,7 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
     if (!exByWorkout.has(we.workout_id)) exByWorkout.set(we.workout_id, []);
     exByWorkout.get(we.workout_id)!.push({
       ...we,
-      exerciseName: exerciseNameMap.get(we.exercise_id) || "Exercise",
+      exerciseName: we.exercise_name || we.exerciseName || "Exercise",
     });
   }
 
@@ -235,7 +230,8 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
         // Group by superset_group for row prefix; also compute display name with SS block indicator
         const body = exercises.map((we: any) => {
           const name = we.exerciseName || "Exercise";
-          const ssPrefix = we.superset_group ? `SS ${we.superset_group}  ` : "";
+          const ssLabel = we.superset_group || (we.grouping_type === "superset" ? we.grouping_id : null);
+          const ssPrefix = ssLabel ? `SS ${ssLabel}  ` : "";
           const intensity =
             we.loading_type === "percentage" && we.loading_percentage
               ? `${we.loading_percentage}%`
