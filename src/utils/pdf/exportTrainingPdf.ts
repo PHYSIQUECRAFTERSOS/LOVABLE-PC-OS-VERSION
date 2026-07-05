@@ -39,39 +39,51 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
     .eq("program_id", program.id)
     .order("phase_order");
 
-  const phaseList = phases || [];
+  const phaseList = (phases || []).slice().sort(
+    (a: any, b: any) => (a.phase_order ?? 0) - (b.phase_order ?? 0),
+  );
   if (!phaseList.length) return { ok: false, reason: "Program has no phases yet." };
 
-  const phaseIds = phaseList.map((p: any) => p.id);
+  // Resolve THE current phase (mirrors TrainingTab/CalendarTab rules):
+  //   1. Date-derived isCurrent
+  //   2. assignment.current_phase_id if still present
+  //   3. First non-completed phase in phase_order
+  //   4. Last phase (program fully ended)
+  const derived = derivePhaseDates(program.start_date, phaseList as PhaseLike[]);
+  const currentPhase =
+    phaseList.find((p: any) => derived[p.id]?.isCurrent) ||
+    phaseList.find((p: any) => p.id === (assign as any).current_phase_id) ||
+    phaseList.find((p: any) => !derived[p.id]?.isCompleted) ||
+    phaseList[phaseList.length - 1];
 
-  // 3b. Weeks belonging to those phases (program_workouts may be attached via week_id)
+  if (!currentPhase) return { ok: false, reason: "No current training phase found." };
+
+  const phaseIds = [currentPhase.id];
+  const phasePositionIndex = phaseList.findIndex((p: any) => p.id === currentPhase.id) + 1;
+
+  // 3b. Weeks belonging to the current phase
   const { data: weeks } = await supabase
     .from("program_weeks")
     .select("id, phase_id, week_number")
-    .in("phase_id", phaseIds);
+    .eq("phase_id", currentPhase.id);
 
-  const weeksByPhase = new Map<string, string[]>();
   const weekPhaseMap = new Map<string, string>();
   (weeks || []).forEach((w: any) => {
-    if (!weeksByPhase.has(w.phase_id)) weeksByPhase.set(w.phase_id, []);
-    weeksByPhase.get(w.phase_id)!.push(w.id);
     weekPhaseMap.set(w.id, w.phase_id);
   });
   const weekIds = (weeks || []).map((w: any) => w.id);
 
-  // 4. Workouts for all phases — attached via phase_id OR week_id
+  // 4. Workouts for the current phase — attached via phase_id OR week_id
   const orFilter = [
-    phaseIds.length ? `phase_id.in.(${phaseIds.join(",")})` : null,
+    `phase_id.in.(${phaseIds.join(",")})`,
     weekIds.length ? `week_id.in.(${weekIds.join(",")})` : null,
   ].filter(Boolean).join(",");
 
-  const { data: programWorkouts } = orFilter
-    ? await supabase
-        .from("program_workouts")
-        .select("id, phase_id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name, description, notes, is_accessory, estimated_duration)")
-        .or(orFilter)
-        .order("sort_order")
-    : { data: [] as any[] };
+  const { data: programWorkouts } = await supabase
+    .from("program_workouts")
+    .select("id, phase_id, week_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(id, name, description, notes, is_accessory, estimated_duration)")
+    .or(orFilter)
+    .order("sort_order");
 
   const workoutIds = (programWorkouts || []).map((pw: any) => pw.workout_id).filter(Boolean);
 
