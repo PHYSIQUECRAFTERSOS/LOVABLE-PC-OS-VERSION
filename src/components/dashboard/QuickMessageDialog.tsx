@@ -188,6 +188,48 @@ const QuickMessageDialog = ({
     setMessages(prev => prev.filter(m => m.id !== messageId));
   };
 
+  const handleStartEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(content);
+    setTimeout(() => {
+      const ta = editTextareaRef.current;
+      if (ta) {
+        ta.focus();
+        const pos = ta.value.length;
+        ta.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId) return;
+    const trimmed = editingText.trim();
+    const original = messages.find(m => m.id === editingMessageId)?.content ?? "";
+    if (!trimmed || trimmed === original) {
+      handleCancelEdit();
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("thread_messages")
+      .update({ content: trimmed, edited_at: new Date().toISOString() } as any)
+      .eq("id", editingMessageId);
+    setSavingEdit(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    handleEditMessage(editingMessageId, trimmed);
+    handleCancelEdit();
+  };
+
+
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0 gap-0">
