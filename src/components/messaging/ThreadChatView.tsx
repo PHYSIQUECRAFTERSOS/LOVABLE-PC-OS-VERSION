@@ -75,9 +75,14 @@ const ThreadChatView = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const dragDepthRef = useRef(0);
   const initialLoadRef = useRef(true);
   // Tracks the timestamp (ms) when initial scroll-to-bottom happened. We
