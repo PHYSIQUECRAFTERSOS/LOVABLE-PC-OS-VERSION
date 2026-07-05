@@ -2,9 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { Pencil, Copy, Trash2, X, Check, MoreVertical } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import { Pencil, Copy, Trash2, MoreVertical } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +31,8 @@ interface MessageContextMenuProps {
   senderId: string;
   isOwn: boolean;
   hasAttachment?: boolean;
-  onEdit: (messageId: string, newContent: string) => void;
+  /** Delegates to parent — parent opens the bottom "Editing message" composer. */
+  onStartEdit: (messageId: string, content: string) => void;
   onDelete: (messageId: string) => void;
   children: React.ReactNode;
 }
@@ -44,7 +43,7 @@ const MessageContextMenu = ({
   senderId,
   isOwn,
   hasAttachment,
-  onEdit,
+  onStartEdit,
   onDelete,
   children,
 }: MessageContextMenuProps) => {
@@ -52,9 +51,6 @@ const MessageContextMenu = ({
   const { toast } = useToast();
   const [showSheet, setShowSheet] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(content);
-  const [saving, setSaving] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchMoved = useRef(false);
   const isTouchDevice = useRef(false);
@@ -70,29 +66,10 @@ const MessageContextMenu = ({
   }, [content, toast]);
 
   const handleEditStart = useCallback(() => {
-    setEditText(content);
-    setEditing(true);
     setShowSheet(false);
-  }, [content]);
+    onStartEdit(messageId, content);
+  }, [messageId, content, onStartEdit]);
 
-  const handleEditSave = useCallback(async () => {
-    if (!editText.trim() || editText.trim() === content) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    const { error } = await supabase
-      .from("thread_messages")
-      .update({ content: editText.trim(), edited_at: new Date().toISOString() } as any)
-      .eq("id", messageId);
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      onEdit(messageId, editText.trim());
-    }
-    setSaving(false);
-    setEditing(false);
-  }, [editText, content, messageId, onEdit, toast]);
 
   const handleDeleteConfirm = useCallback(async () => {
     const { error } = await supabase
@@ -167,33 +144,9 @@ const MessageContextMenu = ({
     </>
   );
 
-  // If editing, render inline edit mode
-  if (editing) {
-    return (
-      <div className="flex gap-2 items-start w-full max-w-[85%]">
-        <Textarea
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); handleEditSave(); }
-            if (e.key === "Escape") setEditing(false);
-          }}
-          className="flex-1 text-sm min-h-[40px] max-h-[200px] resize-none"
-          autoFocus
-          disabled={saving}
-          rows={2}
-        />
-        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleEditSave} disabled={saving}>
-          <Check className="h-4 w-4 text-primary" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditing(false)}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
-
   const hasActions = (isOwn && content && !hasAttachment) || content || isOwn;
+
+
 
   return (
     <>

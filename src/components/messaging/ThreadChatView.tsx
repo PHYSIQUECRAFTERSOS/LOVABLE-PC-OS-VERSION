@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile } from "lucide-react";
+import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile, Pencil } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
 import {
@@ -75,9 +75,14 @@ const ThreadChatView = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<File | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const dragDepthRef = useRef(0);
   const initialLoadRef = useRef(true);
   // Tracks the timestamp (ms) when initial scroll-to-bottom happened. We
@@ -472,9 +477,51 @@ const ThreadChatView = ({
     );
   };
 
+  const handleStartEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(content);
+    // Focus and place caret at end after render
+    setTimeout(() => {
+      const ta = editTextareaRef.current;
+      if (ta) {
+        ta.focus();
+        const pos = ta.value.length;
+        ta.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId) return;
+    const trimmed = editingText.trim();
+    const original = messages.find((m) => m.id === editingMessageId)?.content ?? "";
+    if (!trimmed || trimmed === original) {
+      handleCancelEdit();
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("thread_messages")
+      .update({ content: trimmed, edited_at: new Date().toISOString() } as any)
+      .eq("id", editingMessageId);
+    setSavingEdit(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    handleEditMessage(editingMessageId, trimmed);
+    handleCancelEdit();
+  };
+
   const handleDeleteMessage = (messageId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   };
+
 
   /** Render a date separator like Trainerize ("Today", "Yesterday", "Mar 12") */
   const renderDateSeparator = (dateStr: string) => {
@@ -593,7 +640,7 @@ const ThreadChatView = ({
                 senderId={msg.sender_id}
                 isOwn={isOwn}
                 hasAttachment={!!msg.attachment_url}
-                onEdit={handleEditMessage}
+                onStartEdit={handleStartEdit}
                 onDelete={handleDeleteMessage}
               >
                 <div
@@ -615,12 +662,14 @@ const ThreadChatView = ({
                     {/* Bubble */}
                     <div
                       className={cn(
-                        "rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed",
+                        "rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed transition-shadow",
                         isOwn
                           ? "bg-primary text-primary-foreground rounded-br-md"
-                          : "bg-muted text-foreground rounded-bl-md"
+                          : "bg-muted text-foreground rounded-bl-md",
+                        editingMessageId === msg.id && "ring-2 ring-primary/70 ring-offset-2 ring-offset-background"
                       )}
                     >
+
                       {msg.attachment_url && msg.attachment_type && (
                         <div className="mb-1.5">
                           <MessageAttachment
@@ -689,86 +738,138 @@ const ThreadChatView = ({
         <div ref={bottomRef} />
       </div>
 
-      {/* ── Input Bar ── */}
-      <div
-        className="border-t border-border px-4 py-3 shrink-0"
-        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-      >
-        <div className="flex gap-2 items-center">
-          {!isRecording && (
-            <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
-          )}
-          {!isRecording && (
-            <Textarea
-              ref={textareaRef}
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              className="flex-1 min-h-[40px] max-h-[120px] text-[15px] resize-none py-2"
-              rows={1}
-            />
-          )}
-          {!isRecording && (
-            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="hidden sm:inline-flex shrink-0"
-                  aria-label="Insert emoji"
-                >
-                  <Smile className="h-5 w-5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="top"
-                align="end"
-                sideOffset={8}
-                className="p-0 w-auto border-none bg-transparent shadow-none"
-              >
-                <EmojiPicker
-                  theme={Theme.DARK}
-                  emojiStyle={EmojiStyle.NATIVE}
-                  lazyLoadEmojis
-                  onEmojiClick={(data) => {
-                    const ta = textareaRef.current;
-                    const emoji = data.emoji;
-                    if (ta && typeof ta.selectionStart === "number") {
-                      const start = ta.selectionStart;
-                      const end = ta.selectionEnd ?? start;
-                      setNewMessage((prev) => prev.slice(0, start) + emoji + prev.slice(end));
-                      requestAnimationFrame(() => {
-                        ta.focus();
-                        const pos = start + emoji.length;
-                        ta.setSelectionRange(pos, pos);
-                      });
-                    } else {
-                      setNewMessage((prev) => prev + emoji);
-                    }
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
-          {newMessage.trim() ? (
-            <Button
-              size="icon"
-              onClick={handleSend}
-              disabled={sending || !newMessage.trim()}
+      {/* ── Input Bar / Edit Strip ── */}
+      {editingMessageId ? (
+        <div
+          className="border-t border-border shrink-0 bg-muted/20"
+          style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border/60">
+            <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+              <Pencil className="h-3.5 w-3.5 text-primary" />
+              Editing message
+            </div>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Send className="h-4 w-4" />
-            </Button>
-          ) : (
-            <VoiceMessageRecorder
-              threadId={threadId}
-              onSent={fetchMessages}
-              onRecordingStateChange={setIsRecording}
+              Cancel
+            </button>
+          </div>
+          <div className="px-4 pt-3 pb-2">
+            <Textarea
+              ref={editTextareaRef}
+              value={editingText}
+              onChange={(e) => setEditingText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { e.preventDefault(); handleCancelEdit(); }
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
+              }}
+              disabled={savingEdit}
+              inputMode="text"
+              enterKeyHint="send"
+              placeholder="Edit your message..."
+              className="w-full min-h-[96px] max-h-[40vh] text-[15px] resize-none"
             />
-          )}
+            <div className="flex justify-end pt-2">
+              <Button
+                size="icon"
+                onClick={handleSaveEdit}
+                disabled={
+                  savingEdit ||
+                  !editingText.trim() ||
+                  editingText.trim() === (messages.find((m) => m.id === editingMessageId)?.content ?? "")
+                }
+                aria-label="Save edit"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className="border-t border-border px-4 py-3 shrink-0"
+          style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="flex gap-2 items-center">
+            {!isRecording && (
+              <AttachmentUploadMenu threadId={threadId} onSent={fetchMessages} />
+            )}
+            {!isRecording && (
+              <Textarea
+                ref={textareaRef}
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message..."
+                className="flex-1 min-h-[40px] max-h-[120px] text-[15px] resize-none py-2"
+                rows={1}
+              />
+            )}
+            {!isRecording && (
+              <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="hidden sm:inline-flex shrink-0"
+                    aria-label="Insert emoji"
+                  >
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="end"
+                  sideOffset={8}
+                  className="p-0 w-auto border-none bg-transparent shadow-none"
+                >
+                  <EmojiPicker
+                    theme={Theme.DARK}
+                    emojiStyle={EmojiStyle.NATIVE}
+                    lazyLoadEmojis
+                    onEmojiClick={(data) => {
+                      const ta = textareaRef.current;
+                      const emoji = data.emoji;
+                      if (ta && typeof ta.selectionStart === "number") {
+                        const start = ta.selectionStart;
+                        const end = ta.selectionEnd ?? start;
+                        setNewMessage((prev) => prev.slice(0, start) + emoji + prev.slice(end));
+                        requestAnimationFrame(() => {
+                          ta.focus();
+                          const pos = start + emoji.length;
+                          ta.setSelectionRange(pos, pos);
+                        });
+                      } else {
+                        setNewMessage((prev) => prev + emoji);
+                      }
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+            {newMessage.trim() ? (
+              <Button
+                size="icon"
+                onClick={handleSend}
+                disabled={sending || !newMessage.trim()}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            ) : (
+              <VoiceMessageRecorder
+                threadId={threadId}
+                onSent={fetchMessages}
+                onRecordingStateChange={setIsRecording}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* Drag-and-drop overlay */}
       {isDraggingOver && (

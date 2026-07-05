@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import UserAvatar from "@/components/profile/UserAvatar";
 import MessageContextMenu from "@/components/messaging/MessageContextMenu";
-import { Send, X, CheckCheck, Check } from "lucide-react";
+import { Send, X, CheckCheck, Check, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
 
 interface Message {
   id: string;
@@ -44,7 +46,12 @@ const QuickMessageDialog = ({
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
 
   useEffect(() => {
     if (open && prefillMessage) {
@@ -181,6 +188,48 @@ const QuickMessageDialog = ({
     setMessages(prev => prev.filter(m => m.id !== messageId));
   };
 
+  const handleStartEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(content);
+    setTimeout(() => {
+      const ta = editTextareaRef.current;
+      if (ta) {
+        ta.focus();
+        const pos = ta.value.length;
+        ta.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId) return;
+    const trimmed = editingText.trim();
+    const original = messages.find(m => m.id === editingMessageId)?.content ?? "";
+    if (!trimmed || trimmed === original) {
+      handleCancelEdit();
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("thread_messages")
+      .update({ content: trimmed, edited_at: new Date().toISOString() } as any)
+      .eq("id", editingMessageId);
+    setSavingEdit(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    handleEditMessage(editingMessageId, trimmed);
+    handleCancelEdit();
+  };
+
+
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0 gap-0">
@@ -214,13 +263,14 @@ const QuickMessageDialog = ({
                   content={msg.content}
                   senderId={msg.sender_id}
                   isOwn={isMe}
-                  onEdit={handleEditMessage}
+                  onStartEdit={handleStartEdit}
                   onDelete={handleDeleteMessage}
                 >
                   <div className={cn("flex", isMe ? "justify-end" : "justify-start")}>
                     <div className={cn(
-                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-                      isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
+                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm transition-shadow",
+                      isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md",
+                      editingMessageId === msg.id && "ring-2 ring-primary/70 ring-offset-2 ring-offset-background"
                     )}>
                       <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                       <div className={cn("flex items-center gap-1 text-[10px] mt-1 opacity-60", isMe ? "justify-end" : "justify-start")}>
@@ -231,31 +281,76 @@ const QuickMessageDialog = ({
                     </div>
                   </div>
                 </MessageContextMenu>
+
               );
             })
           )}
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div className="border-t border-border px-4 py-3 flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            className="flex-1"
-            autoFocus
-          />
-          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* Input / Edit strip */}
+        {editingMessageId ? (
+          <div className="border-t border-border bg-muted/20">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/60">
+              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <Pencil className="h-3.5 w-3.5 text-primary" />
+                Editing message
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="px-4 py-3">
+              <Textarea
+                ref={editTextareaRef}
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); handleCancelEdit(); }
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
+                }}
+                disabled={savingEdit}
+                inputMode="text"
+                enterKeyHint="send"
+                className="w-full min-h-[96px] max-h-[40vh] text-[15px] resize-none"
+              />
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="icon"
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit || !editingText.trim() || editingText.trim() === (messages.find(m => m.id === editingMessageId)?.content ?? "")}
+                  aria-label="Save edit"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="border-t border-border px-4 py-3 flex gap-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              className="flex-1"
+              autoFocus
+            />
+            <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
       </DialogContent>
     </Dialog>
   );
