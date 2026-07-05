@@ -263,13 +263,14 @@ const QuickMessageDialog = ({
                   content={msg.content}
                   senderId={msg.sender_id}
                   isOwn={isMe}
-                  onEdit={handleEditMessage}
+                  onStartEdit={handleStartEdit}
                   onDelete={handleDeleteMessage}
                 >
                   <div className={cn("flex", isMe ? "justify-end" : "justify-start")}>
                     <div className={cn(
-                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-                      isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
+                      "max-w-[75%] rounded-2xl px-3 py-2 text-sm transition-shadow",
+                      isMe ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md",
+                      editingMessageId === msg.id && "ring-2 ring-primary/70 ring-offset-2 ring-offset-background"
                     )}>
                       <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                       <div className={cn("flex items-center gap-1 text-[10px] mt-1 opacity-60", isMe ? "justify-end" : "justify-start")}>
@@ -280,6 +281,7 @@ const QuickMessageDialog = ({
                     </div>
                   </div>
                 </MessageContextMenu>
+
               );
             })
           )}
