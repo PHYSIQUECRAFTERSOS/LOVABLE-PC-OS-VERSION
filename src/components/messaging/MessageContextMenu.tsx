@@ -144,33 +144,9 @@ const MessageContextMenu = ({
     </>
   );
 
-  // If editing, render inline edit mode
-  if (editing) {
-    return (
-      <div className="flex gap-2 items-start w-full max-w-[85%]">
-        <Textarea
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); handleEditSave(); }
-            if (e.key === "Escape") setEditing(false);
-          }}
-          className="flex-1 text-sm min-h-[40px] max-h-[200px] resize-none"
-          autoFocus
-          disabled={saving}
-          rows={2}
-        />
-        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleEditSave} disabled={saving}>
-          <Check className="h-4 w-4 text-primary" />
-        </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => setEditing(false)}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
-
   const hasActions = (isOwn && content && !hasAttachment) || content || isOwn;
+
+
 
   return (
     <>
