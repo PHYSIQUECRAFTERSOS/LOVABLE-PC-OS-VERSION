@@ -8,6 +8,26 @@ import { loadClientContext } from "./pdfShared";
 import { estimateWorkoutMinutes } from "@/lib/workoutMeta";
 import { derivePhaseDates, type PhaseLike } from "@/lib/phaseDates";
 
+type ExportWorkoutExercise = {
+  id: string;
+  workout_id: string;
+  exercise_id: string;
+  exercise_order: number | null;
+  sets: number | null;
+  reps: string | null;
+  tempo: string | null;
+  rest_seconds: number | null;
+  rir: number | null;
+  notes: string | null;
+  superset_group: string | null;
+  intensity_type: string | null;
+  loading_type: string | null;
+  loading_percentage: number | null;
+  rpe_target: number | null;
+  is_amrap: boolean | null;
+  exerciseName?: string;
+};
+
 export async function exportTrainingPdf(clientId: string, opts: { preWin?: Window | null; returnAsset?: boolean } = {}): Promise<{ ok: boolean; reason?: string; saveResult?: PdfSaveResult }> {
   const ctx = await loadClientContext(clientId);
 
@@ -87,19 +107,51 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
 
   const workoutIds = (programWorkouts || []).map((pw: any) => pw.workout_id).filter(Boolean);
 
-  // 5. Exercises for each workout
-  const { data: workoutExercises } = workoutIds.length
+  // 5. Exercises for each workout.
+  // Keep this as two flat queries. The previous nested exercises(...) join can
+  // trigger statement timeouts on exports because RLS has to evaluate the join
+  // path for every workout exercise row.
+  const { data: workoutExerciseRows, error: workoutExercisesError } = workoutIds.length
     ? await supabase
         .from("workout_exercises")
-        .select("id, workout_id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, exercises(id, name)")
+        .select("id, workout_id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap")
         .in("workout_id", workoutIds)
+        .order("workout_id")
         .order("exercise_order")
-    : { data: [] as any[] };
+    : { data: [] as ExportWorkoutExercise[], error: null };
+
+  if (workoutExercisesError) {
+    console.error("[exportTrainingPdf] workout exercises error:", workoutExercisesError);
+    return { ok: false, reason: "Could not load workout exercises for this phase." };
+  }
+
+  const workoutExercises = (workoutExerciseRows || []) as ExportWorkoutExercise[];
+  const exerciseIds = [...new Set(workoutExercises.map((we) => we.exercise_id).filter(Boolean))];
+  const exerciseNameMap = new Map<string, string>();
+
+  if (exerciseIds.length > 0) {
+    const { data: exerciseRows, error: exercisesError } = await supabase
+      .from("exercises")
+      .select("id, name")
+      .in("id", exerciseIds);
+
+    if (exercisesError) {
+      console.error("[exportTrainingPdf] exercises lookup error:", exercisesError);
+      return { ok: false, reason: "Could not load exercise names for this phase." };
+    }
+
+    (exerciseRows || []).forEach((exercise: any) => {
+      exerciseNameMap.set(exercise.id, exercise.name || "Exercise");
+    });
+  }
 
   const exByWorkout = new Map<string, any[]>();
-  for (const we of workoutExercises || []) {
+  for (const we of workoutExercises) {
     if (!exByWorkout.has(we.workout_id)) exByWorkout.set(we.workout_id, []);
-    exByWorkout.get(we.workout_id)!.push(we);
+    exByWorkout.get(we.workout_id)!.push({
+      ...we,
+      exerciseName: exerciseNameMap.get(we.exercise_id) || "Exercise",
+    });
   }
 
   // Build PDF
@@ -182,7 +234,7 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
       } else {
         // Group by superset_group for row prefix; also compute display name with SS block indicator
         const body = exercises.map((we: any) => {
-          const name = we.exercises?.name || "Exercise";
+          const name = we.exerciseName || "Exercise";
           const ssPrefix = we.superset_group ? `SS ${we.superset_group}  ` : "";
           const intensity =
             we.loading_type === "percentage" && we.loading_percentage
