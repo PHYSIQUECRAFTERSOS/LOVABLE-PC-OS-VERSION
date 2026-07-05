@@ -288,25 +288,69 @@ const QuickMessageDialog = ({
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
-        <div className="border-t border-border px-4 py-3 flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            className="flex-1"
-            autoFocus
-          />
-          <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* Input / Edit strip */}
+        {editingMessageId ? (
+          <div className="border-t border-border bg-muted/20">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border/60">
+              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <Pencil className="h-3.5 w-3.5 text-primary" />
+                Editing message
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="px-4 py-3">
+              <Textarea
+                ref={editTextareaRef}
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); handleCancelEdit(); }
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSaveEdit(); }
+                }}
+                disabled={savingEdit}
+                inputMode="text"
+                enterKeyHint="send"
+                className="w-full min-h-[96px] max-h-[40vh] text-[15px] resize-none"
+              />
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="icon"
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit || !editingText.trim() || editingText.trim() === (messages.find(m => m.id === editingMessageId)?.content ?? "")}
+                  aria-label="Save edit"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="border-t border-border px-4 py-3 flex gap-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type a message..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              className="flex-1"
+              autoFocus
+            />
+            <Button size="icon" onClick={handleSend} disabled={sending || !newMessage.trim()}>
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
       </DialogContent>
     </Dialog>
   );
