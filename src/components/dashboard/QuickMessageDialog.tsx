@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import UserAvatar from "@/components/profile/UserAvatar";
 import MessageContextMenu from "@/components/messaging/MessageContextMenu";
-import { Send, X, CheckCheck, Check } from "lucide-react";
+import { Send, X, CheckCheck, Check, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
 
 interface Message {
   id: string;
