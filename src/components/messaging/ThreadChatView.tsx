@@ -477,9 +477,51 @@ const ThreadChatView = ({
     );
   };
 
+  const handleStartEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(content);
+    // Focus and place caret at end after render
+    setTimeout(() => {
+      const ta = editTextareaRef.current;
+      if (ta) {
+        ta.focus();
+        const pos = ta.value.length;
+        ta.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMessageId) return;
+    const trimmed = editingText.trim();
+    const original = messages.find((m) => m.id === editingMessageId)?.content ?? "";
+    if (!trimmed || trimmed === original) {
+      handleCancelEdit();
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("thread_messages")
+      .update({ content: trimmed, edited_at: new Date().toISOString() } as any)
+      .eq("id", editingMessageId);
+    setSavingEdit(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    handleEditMessage(editingMessageId, trimmed);
+    handleCancelEdit();
+  };
+
   const handleDeleteMessage = (messageId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   };
+
 
   /** Render a date separator like Trainerize ("Today", "Yesterday", "Mar 12") */
   const renderDateSeparator = (dateStr: string) => {
