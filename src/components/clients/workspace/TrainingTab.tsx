@@ -686,14 +686,32 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   };
 
   const duplicatePhase = async (phase: Phase) => {
-    if (!program) return;
-    await supabase.from("program_phases").insert({
-      program_id: program.id, name: `${phase.name} (Copy)`, description: phase.description,
-      phase_order: phases.length + 1, duration_weeks: phase.duration_weeks,
-      training_style: phase.training_style, intensity_system: phase.intensity_system,
-      progression_rule: phase.progression_rule,
+    if (!program || !user) return;
+    const { duplicatePhaseInPlace } = await import("@/lib/copyPhaseHelpers");
+    const result = await duplicatePhaseInPlace({
+      coachId: user.id,
+      clientId: clientId!,
+      programId: program.id,
+      sourcePhase: {
+        id: phase.id,
+        name: phase.name,
+        description: phase.description,
+        duration_weeks: phase.duration_weeks,
+        training_style: phase.training_style,
+        intensity_system: phase.intensity_system,
+        progression_rule: phase.progression_rule,
+      },
     });
-    toast({ title: "Phase duplicated" }); loadClientProgram();
+    if (!result.ok) {
+      toast({ title: "Duplicate failed", description: result.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: result.message.title,
+      description: result.message.description,
+      variant: result.message.isWarning ? "destructive" : undefined,
+    });
+    await loadClientProgram();
   };
 
   const deletePhase = async (phaseId: string) => {
