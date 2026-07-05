@@ -114,11 +114,10 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
   const resolvePhaseId = (pw: any): string | undefined =>
     pw.phase_id || (pw.week_id ? weekPhaseMap.get(pw.week_id) : undefined);
 
-  let phaseIndex = 0;
-  for (const phase of phaseList) {
-    phaseIndex++;
+  {
+    const phase: any = currentPhase;
     let y = newContentPage(doc);
-    y = drawSectionTitle(doc, `Phase ${phaseIndex}: ${phase.name}`, y);
+    y = drawSectionTitle(doc, `Phase ${phasePositionIndex}: ${phase.name}`, y);
 
     const metaBits = [
       phase.duration_weeks ? `${phase.duration_weeks} weeks` : null,
