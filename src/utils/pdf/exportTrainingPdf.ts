@@ -6,6 +6,7 @@ import {
 } from "./brandedPdf";
 import { loadClientContext } from "./pdfShared";
 import { estimateWorkoutMinutes } from "@/lib/workoutMeta";
+import { derivePhaseDates, type PhaseLike } from "@/lib/phaseDates";
 
 export async function exportTrainingPdf(clientId: string, opts: { preWin?: Window | null; returnAsset?: boolean } = {}): Promise<{ ok: boolean; reason?: string; saveResult?: PdfSaveResult }> {
   const ctx = await loadClientContext(clientId);
