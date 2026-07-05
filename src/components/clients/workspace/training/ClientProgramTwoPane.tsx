@@ -443,6 +443,7 @@ export const ClientProgramTwoPane = ({
                           onCopyToMaster={() => onCopyPhaseToMaster(p)}
                           onCopyToClient={() => onCopyPhaseToClient(p)}
                           onAICreate={onAICreatePhase ? () => onAICreatePhase(p) : undefined}
+                          onAddPhase={onAddPhase}
                         />
                       </div>
                     </div>
