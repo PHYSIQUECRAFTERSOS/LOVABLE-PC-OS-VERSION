@@ -93,7 +93,8 @@ function renderPlanSection(
   let y = startY;
   y = drawSectionTitle(doc, sectionTitle || plan.day_type_label || plan.name, y);
 
-  // Targets row
+  // Totals from actual food items — mirrors the "Nutrition Goal" the coach sees
+  // in the builder, which is the sum of the day's foods.
   const totals = items.reduce(
     (a, it) => {
       a.cals += Number(it.calories || 0);
@@ -105,11 +106,12 @@ function renderPlanSection(
     { cals: 0, p: 0, c: 0, f: 0 },
   );
   y = drawStatsRow(doc, [
-    { label: "Calories", value: plan.target_calories ? `${plan.target_calories}` : `${Math.round(totals.cals)}` },
-    { label: "Protein",  value: `${plan.target_protein ?? Math.round(totals.p)}g` },
-    { label: "Carbs",    value: `${plan.target_carbs ?? Math.round(totals.c)}g` },
-    { label: "Fat",      value: `${plan.target_fat ?? Math.round(totals.f)}g` },
+    { label: "Calories", value: `${Math.round(totals.cals)}` },
+    { label: "Protein",  value: `${Math.round(totals.p)}g` },
+    { label: "Carbs",    value: `${Math.round(totals.c)}g` },
+    { label: "Fat",      value: `${Math.round(totals.f)}g` },
   ], y);
+
 
   if (plan.description) y = drawParagraph(doc, plan.description, y + 4);
 
