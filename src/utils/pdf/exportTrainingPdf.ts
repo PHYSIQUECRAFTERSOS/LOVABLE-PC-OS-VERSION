@@ -8,6 +8,29 @@ import { loadClientContext } from "./pdfShared";
 import { estimateWorkoutMinutes } from "@/lib/workoutMeta";
 import { derivePhaseDates, type PhaseLike } from "@/lib/phaseDates";
 
+type ExportWorkoutExercise = {
+  id: string;
+  workout_id: string;
+  exercise_id: string;
+  exercise_order: number | null;
+  sets: number | null;
+  reps: string | null;
+  tempo: string | null;
+  rest_seconds: number | null;
+  rir: number | null;
+  notes: string | null;
+  superset_group?: string | null;
+  grouping_id?: string | null;
+  grouping_type?: string | null;
+  intensity_type: string | null;
+  loading_type?: string | null;
+  loading_percentage?: number | null;
+  rpe_target: number | null;
+  is_amrap: boolean | null;
+  exercise_name?: string | null;
+  exerciseName?: string;
+};
+
 export async function exportTrainingPdf(clientId: string, opts: { preWin?: Window | null; returnAsset?: boolean } = {}): Promise<{ ok: boolean; reason?: string; saveResult?: PdfSaveResult }> {
   const ctx = await loadClientContext(clientId);
 
@@ -87,19 +110,43 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
 
   const workoutIds = (programWorkouts || []).map((pw: any) => pw.workout_id).filter(Boolean);
 
-  // 5. Exercises for each workout
-  const { data: workoutExercises } = workoutIds.length
-    ? await supabase
-        .from("workout_exercises")
-        .select("id, workout_id, exercise_id, exercise_order, sets, reps, tempo, rest_seconds, rir, notes, superset_group, intensity_type, loading_type, loading_percentage, rpe_target, is_amrap, exercises(id, name)")
-        .in("workout_id", workoutIds)
-        .order("exercise_order")
-    : { data: [] as any[] };
+  // 5. Exercises for each workout.
+  // Use the same security-definer RPC as the workout detail UI. Direct bulk
+  // workout_exercises queries can time out through RLS on larger client plans.
+  const exerciseResults = await Promise.allSettled(
+    workoutIds.map((workoutId) =>
+      supabase.rpc("get_workout_exercise_details", { _workout_id: workoutId }),
+    ),
+  );
+
+  const workoutExercises: ExportWorkoutExercise[] = [];
+  const exerciseErrors: unknown[] = [];
+  exerciseResults.forEach((result) => {
+    if (result.status === "rejected") {
+      exerciseErrors.push(result.reason);
+      return;
+    }
+
+    if (result.value.error) {
+      exerciseErrors.push(result.value.error);
+      return;
+    }
+
+    workoutExercises.push(...(((result.value.data || []) as unknown) as ExportWorkoutExercise[]));
+  });
+
+  if (exerciseErrors.length > 0) {
+    console.error("[exportTrainingPdf] workout exercise RPC errors:", exerciseErrors);
+    return { ok: false, reason: "Could not load workout exercises for this phase." };
+  }
 
   const exByWorkout = new Map<string, any[]>();
-  for (const we of workoutExercises || []) {
+  for (const we of workoutExercises) {
     if (!exByWorkout.has(we.workout_id)) exByWorkout.set(we.workout_id, []);
-    exByWorkout.get(we.workout_id)!.push(we);
+    exByWorkout.get(we.workout_id)!.push({
+      ...we,
+      exerciseName: we.exercise_name || we.exerciseName || "Exercise",
+    });
   }
 
   // Build PDF
@@ -182,8 +229,9 @@ export async function exportTrainingPdf(clientId: string, opts: { preWin?: Windo
       } else {
         // Group by superset_group for row prefix; also compute display name with SS block indicator
         const body = exercises.map((we: any) => {
-          const name = we.exercises?.name || "Exercise";
-          const ssPrefix = we.superset_group ? `SS ${we.superset_group}  ` : "";
+          const name = we.exerciseName || "Exercise";
+          const ssLabel = we.superset_group || (we.grouping_type === "superset" ? we.grouping_id : null);
+          const ssPrefix = ssLabel ? `SS ${ssLabel}  ` : "";
           const intensity =
             we.loading_type === "percentage" && we.loading_percentage
               ? `${we.loading_percentage}%`
