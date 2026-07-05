@@ -234,6 +234,96 @@ export async function copyPhaseToClientProgram(args: {
 }
 
 /**
+ * Deep-duplicate a phase IN PLACE within the same client program.
+ * Clones the phase row and every attached workout (with all exercises/sets)
+ * via cloneWorkoutWithExercises. New workouts are client-scoped (is_template=false).
+ */
+export async function duplicatePhaseInPlace(args: {
+  coachId: string;
+  clientId: string;
+  sourcePhase: PhaseSnapshot;
+  programId: string;
+}): Promise<CopyResult> {
+  const { coachId, clientId, sourcePhase, programId } = args;
+  const allCloneResults: CloneWorkoutResult[] = [];
+
+  try {
+    // 1. Next phase_order in this program.
+    const { data: existing } = await supabase
+      .from("program_phases")
+      .select("phase_order")
+      .eq("program_id", programId)
+      .order("phase_order", { ascending: false })
+      .limit(1);
+    const nextOrder = (existing?.[0]?.phase_order || 0) + 1;
+
+    // 2. Insert new phase row.
+    const { data: newPhase, error: phaseErr } = await supabase
+      .from("program_phases")
+      .insert({
+        program_id: programId,
+        name: `${sourcePhase.name} (Copy)`,
+        description: sourcePhase.description || null,
+        phase_order: nextOrder,
+        duration_weeks: sourcePhase.duration_weeks,
+        training_style: sourcePhase.training_style || null,
+        intensity_system: sourcePhase.intensity_system || null,
+        custom_intensity: sourcePhase.custom_intensity || null,
+        progression_rule: sourcePhase.progression_rule || null,
+      })
+      .select("id")
+      .single();
+    if (phaseErr || !newPhase) throw phaseErr || new Error("Failed to create phase");
+
+    // 3. Clone attached workouts sequentially.
+    const { data: sourcePws } = await supabase
+      .from("program_workouts")
+      .select("workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag")
+      .eq("phase_id", sourcePhase.id)
+      .order("sort_order");
+
+    for (const pw of sourcePws || []) {
+      const { workout: clonedW, result } = await cloneWorkoutWithExercises(
+        pw.workout_id,
+        coachId,
+        clientId,
+        false,
+      );
+      allCloneResults.push(result);
+      if (!clonedW) continue;
+      await supabase.from("program_workouts").insert({
+        phase_id: newPhase.id,
+        workout_id: clonedW.id,
+        day_of_week: pw.day_of_week,
+        day_label: pw.day_label,
+        sort_order: pw.sort_order,
+        exclude_from_numbering: pw.exclude_from_numbering || false,
+        custom_tag: pw.custom_tag || null,
+      });
+    }
+
+    // 4. Recompute program total weeks.
+    const { data: allPhases } = await supabase
+      .from("program_phases")
+      .select("duration_weeks")
+      .eq("program_id", programId);
+    const totalWeeks = (allPhases || []).reduce((s, p: any) => s + (p.duration_weeks || 0), 0);
+    await supabase.from("programs").update({ duration_weeks: totalWeeks } as any).eq("id", programId);
+
+    const summary = buildImportSummary(allCloneResults);
+    return { ok: true, summary, message: formatImportSummary(summary), newPhaseId: newPhase.id };
+  } catch (err: any) {
+    const summary = buildImportSummary(allCloneResults);
+    return {
+      ok: false,
+      summary,
+      message: formatImportSummary(summary),
+      error: err?.message || "Unknown error",
+    };
+  }
+}
+
+/**
  * Restore an archived/previous program by appending each of its phases (in order)
  * to the target client's CURRENT active program. The source program is left
  * untouched (still status='completed' in client_program_assignments).

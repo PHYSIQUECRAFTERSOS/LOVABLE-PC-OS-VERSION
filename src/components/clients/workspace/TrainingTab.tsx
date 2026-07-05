@@ -613,18 +613,22 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
 
   const handleAddPhase = async () => {
     if (!program) return;
-    const { error } = await supabase.from("program_phases").insert({
+    const nextOrder = phases.length > 0
+      ? Math.max(...phases.map(p => p.phase_order || 0)) + 1
+      : 1;
+    const { data, error } = await supabase.from("program_phases").insert({
       program_id: program.id,
-      name: `Phase ${phases.length + 1}`,
-      phase_order: phases.length + 1,
+      name: `Phase ${nextOrder}`,
+      phase_order: nextOrder,
       duration_weeks: 4,
-    });
-    if (error) {
-      toast({ title: "Could not add phase", description: error.message, variant: "destructive" });
+    }).select("id").single();
+    if (error || !data) {
+      console.error("[TrainingTab.handleAddPhase] insert failed:", error);
+      toast({ title: "Could not add phase", description: error?.message || "Unknown error", variant: "destructive" });
       return;
     }
     toast({ title: "Phase added" });
-    loadClientProgram();
+    await loadClientProgram();
   };
 
   const handleCopyPhaseToMaster = async (phase: Phase, targetMasterProgramId: string) => {
@@ -682,14 +686,32 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   };
 
   const duplicatePhase = async (phase: Phase) => {
-    if (!program) return;
-    await supabase.from("program_phases").insert({
-      program_id: program.id, name: `${phase.name} (Copy)`, description: phase.description,
-      phase_order: phases.length + 1, duration_weeks: phase.duration_weeks,
-      training_style: phase.training_style, intensity_system: phase.intensity_system,
-      progression_rule: phase.progression_rule,
+    if (!program || !user) return;
+    const { duplicatePhaseInPlace } = await import("@/lib/copyPhaseHelpers");
+    const result = await duplicatePhaseInPlace({
+      coachId: user.id,
+      clientId: clientId!,
+      programId: program.id,
+      sourcePhase: {
+        id: phase.id,
+        name: phase.name,
+        description: phase.description,
+        duration_weeks: phase.duration_weeks,
+        training_style: phase.training_style,
+        intensity_system: phase.intensity_system,
+        progression_rule: phase.progression_rule,
+      },
     });
-    toast({ title: "Phase duplicated" }); loadClientProgram();
+    if (!result.ok) {
+      toast({ title: "Duplicate failed", description: result.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: result.message.title,
+      description: result.message.description,
+      variant: result.message.isWarning ? "destructive" : undefined,
+    });
+    await loadClientProgram();
   };
 
   const deletePhase = async (phaseId: string) => {

@@ -9,7 +9,7 @@ import {
   DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Pencil, Clock, Copy, Trash2, Library, Users, Sparkles } from "lucide-react";
+import { MoreVertical, Pencil, Clock, Copy, Trash2, Library, Users, Sparkles, Plus } from "lucide-react";
 
 interface Props {
   onRename: () => void;
@@ -19,10 +19,11 @@ interface Props {
   onCopyToMaster: () => void;
   onCopyToClient: () => void;
   onAICreate?: () => void;
+  onAddPhase?: () => void;
 }
 
 export const PhaseActionsMenu = ({
-  onRename, onChangeDuration, onDuplicate, onDelete, onCopyToMaster, onCopyToClient, onAICreate,
+  onRename, onChangeDuration, onDuplicate, onDelete, onCopyToMaster, onCopyToClient, onAICreate, onAddPhase,
 }: Props) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
@@ -41,6 +42,19 @@ export const PhaseActionsMenu = ({
         <>
           <DropdownMenuItem onClick={onAICreate} className="text-primary focus:text-primary">
             <Sparkles className="h-3.5 w-3.5 mr-2" /> AI Create New Phase
+          </DropdownMenuItem>
+          {onAddPhase && (
+            <DropdownMenuItem onClick={onAddPhase}>
+              <Plus className="h-3.5 w-3.5 mr-2" /> Add Phase
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+        </>
+      )}
+      {!onAICreate && onAddPhase && (
+        <>
+          <DropdownMenuItem onClick={onAddPhase}>
+            <Plus className="h-3.5 w-3.5 mr-2" /> Add Phase
           </DropdownMenuItem>
           <DropdownMenuSeparator />
         </>

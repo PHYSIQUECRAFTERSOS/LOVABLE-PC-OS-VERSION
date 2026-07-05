@@ -1286,6 +1286,8 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
                         <Button size="icon" variant="ghost" className="h-7 w-7"><MoreHorizontal className="h-3.5 w-3.5" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={addPhase}><Plus className="h-3.5 w-3.5 mr-2" /> Add Phase</DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => startRenamePhase(phaseIdx)}><Pencil className="h-3.5 w-3.5 mr-2" /> Rename</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => duplicatePhase(phaseIdx)}><Copy className="h-3.5 w-3.5 mr-2" /> Duplicate</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openCopyToClientDialog(phaseIdx)}><Users className="h-3.5 w-3.5 mr-2" /> Copy to Client</DropdownMenuItem>
