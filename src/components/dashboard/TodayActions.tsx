@@ -299,14 +299,19 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     },
   });
 
-  // Fire onDataLoaded whenever data updates (including cache hits and refetches)
+  // Fire onDataLoaded whenever data updates (including cache hits and refetches).
+  // Persist today's actions to the snapshot for instant paint on cold boot.
   useEffect(() => {
     if (onDataLoaded && actions.length > 0) {
       onDataLoaded(actions);
     }
-  }, [actions, onDataLoaded]);
+    if (isTodayView && user?.id && actions && actions.length >= 0 && !loading) {
+      writeSnapshotSlice(user.id, "todayActions", { items: actions } as TodayActionsSlice);
+    }
+  }, [actions, onDataLoaded, isTodayView, user?.id, loading]);
 
   refetchRef.current = refetch;
+
 
   // Resolve the effective type from event_type + title keywords
   const resolveActionType = (action: ActionItem): string => {
