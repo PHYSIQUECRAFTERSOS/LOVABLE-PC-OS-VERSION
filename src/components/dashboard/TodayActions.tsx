@@ -396,10 +396,11 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
           </div>
         </CardHeader>
         <CardContent className="space-y-1">
-          {actions.length === 0 ? (
+          {effectiveActions.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">No actions scheduled today. Enjoy your rest!</p>
           ) : (
-            actions.map((action) => (
+            effectiveActions.map((action) => (
+
               <button
                 key={action.id}
                 onClick={() => handleActionClick(action)}
