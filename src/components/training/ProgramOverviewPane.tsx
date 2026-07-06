@@ -23,9 +23,12 @@ interface ProgramOverviewPaneProps {
   versionNumber?: number | null;
   onSelectPhase: (phaseId: string) => void;
   onAssignPhase: (phaseId: string) => void;
+  /** Optional: shows a "+ Add Phase" button in the header and empty state. */
+  onAddPhase?: () => void;
   /** Optional refresh trigger key — bump to refetch */
   refreshKey?: number;
 }
+
 
 const ProgramOverviewPane = ({
   programId,
