@@ -293,9 +293,20 @@ export async function duplicatePhaseInPlace(args: {
       (sourcePws || []).map((pw) =>
         cloneWorkoutWithExercises(pw.workout_id, coachId, clientId, false)
           .then(({ workout, result }) => ({ pw, workout, result }))
-          .catch((err) => ({ pw, workout: null as any, result: { ok: false, name: "unknown", exercisesImported: 0, exercisesFailed: 0, error: err?.message } as CloneWorkoutResult }))
+          .catch((err) => ({
+            pw,
+            workout: null as any,
+            result: {
+              workoutId: pw.workout_id,
+              workoutName: "unknown",
+              exercisesExpected: 0,
+              exercisesCopied: 0,
+              errors: [err?.message || "clone failed"],
+            } as CloneWorkoutResult,
+          }))
       )
     );
+
 
     const joinRows: any[] = [];
     for (const { pw, workout, result } of cloneOutcomes) {
