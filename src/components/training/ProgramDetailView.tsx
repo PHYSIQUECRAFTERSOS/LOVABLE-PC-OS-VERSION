@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -132,6 +134,13 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
   // Rename phase
   const [renamingPhase, setRenamingPhase] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Delete phase — two-step confirmation
+  const [deletingPhase, setDeletingPhase] = useState<{ idx: number; name: string } | null>(null);
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
+  const [deletingInFlight, setDeletingInFlight] = useState(false);
+
+
 
   // Import dialog
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -369,8 +378,38 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
 
   const removePhase = (idx: number) => {
     if (phases.length <= 1) return;
-    setPhases(phases.filter((_, i) => i !== idx).map((p, i) => ({ ...p, phaseOrder: i + 1 })));
+    setDeleteAcknowledged(false);
+    setDeletingPhase({ idx, name: phases[idx]?.name || "this phase" });
   };
+
+  const confirmRemovePhase = async () => {
+    if (!deletingPhase) return;
+    if (phases.length <= 1) { setDeletingPhase(null); return; }
+    const { idx } = deletingPhase;
+    const removedId = phases[idx]?.id;
+    const nextPhases = phases
+      .filter((_, i) => i !== idx)
+      .map((p, i) => ({ ...p, phaseOrder: i + 1 }));
+
+    setDeletingInFlight(true);
+    try {
+      setPhases(nextPhases);
+      // Persist immediately so a page refresh does not resurrect the phase.
+      await saveProgramWithPhases(nextPhases);
+      // If we were focused on the phase we just deleted, jump back to overview.
+      if (focusPhaseId && removedId && focusPhaseId === removedId) {
+        onBackToOverview?.();
+      }
+      setDeletingPhase(null);
+      setDeleteAcknowledged(false);
+    } catch (err) {
+      console.error("[removePhase] failed:", err);
+      toast({ title: "Delete failed", description: "Could not delete the phase. Please try again.", variant: "destructive" });
+    } finally {
+      setDeletingInFlight(false);
+    }
+  };
+
 
   const duplicatePhase = (idx: number) => {
     const source = phases[idx];
@@ -1431,6 +1470,56 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
           <DialogFooter><Button onClick={confirmRenamePhase}>Rename</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Phase — two-step confirmation */}
+      <AlertDialog
+        open={deletingPhase !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingInFlight) {
+            setDeletingPhase(null);
+            setDeleteAcknowledged(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Delete "{deletingPhase?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the phase and all workouts assigned to it from this program.
+              Client workout history and completed sessions are not affected. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm cursor-pointer">
+            <Checkbox
+              checked={deleteAcknowledged}
+              onCheckedChange={(v) => setDeleteAcknowledged(v === true)}
+              className="mt-0.5"
+            />
+            <span className="text-foreground">
+              I understand this will permanently delete <span className="font-semibold">{deletingPhase?.name}</span> and cannot be undone.
+            </span>
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingInFlight}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!deleteAcknowledged || deletingInFlight}
+              onClick={(e) => { e.preventDefault(); confirmRemovePhase(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingInFlight ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting…</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-2" /> Yes, delete permanently</>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+
 
       {/* Import Dialog */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
