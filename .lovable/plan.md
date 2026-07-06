@@ -1,60 +1,90 @@
-# Messaging: Inactive Client Handling & Thread Archive Management
 
-Match Trainerize behavior: no new messages fire to inactive clients, their threads are muted, and coaches can delete a thread archive with a double confirmation — but the underlying message history is preserved so re-opening a conversation with the same client restores everything.
+## Current state
 
-## Definitions
+Your DB is not the bottleneck — slow-query snapshot shows the worst read at ~160ms; almost all queries are <10ms. Bundle is already code-split and lazily loaded per route. So the remaining desktop slowness is coming from **client-side patterns**, not the server.
 
-An **inactive client** is any client where `coach_clients.status != 'active'` (i.e. `deactivated` or `pending`) OR who has been fully deleted from the app (no active `coach_clients` row and no profile / auth user).
+Signals I can already see:
+- `[Perf] 🟡 coach-command-center-…: 2074ms` in your console today
+- `sw.js` is set to **bypass cache** with 5-minute polling (per project memory) — this is safe for correctness but forces network on every navigation
+- Many pages use `useDataFetch` (custom, in-memory) alongside React Query — two caches that don't share, so a lot of re-fetching per route switch
+- Coach pages fan out large `Promise.allSettled` bundles on mount, blocking first meaningful paint
 
-## 1. Block outgoing messages to inactive clients
+## Speed plan — highest ROI first
 
-- In `ThreadChatView`, after loading the thread, look up the client's `coach_clients` row (or profile existence).
-- If inactive/deleted:
-  - Show a muted banner at the bottom of the chat: *"This client is inactive — messaging is disabled. Reactivate them from Clients to resume."*
-  - Disable the composer (textarea, attachment button, voice recorder, send button).
-  - Guard `handleSend` with an early-return + toast so send is impossible even if the UI is bypassed.
-- Auto-messaging (`AutoMessagingManager`, broadcasts, triggers, tag automations) already filters `coach_clients.status = 'active'`. Add the same guard inside the message-send edge functions as a belt-and-suspenders check, so no automation can ever deliver to an inactive client.
+### 1. Route prefetch on hover/focus (biggest perceived win)
+Trainerize feels instant because the next screen is already downloaded before you click. Add a tiny prefetch wrapper on `NavLink` and coach dashboard cards:
+- On `mouseenter` / `focus`, call the same `import("./pages/Xxx")` used by `lazy()`
+- Prefetch the top 3 destinations from every screen (Dashboard, Clients, Messages, Calendar)
+- Result: route transitions drop from ~400–900ms to <100ms on desktop
 
-## 2. Mute inactive threads in the coach thread list
+### 2. Unify caching on React Query, kill duplicate fetches
+Right now `useDataFetch` and React Query maintain separate caches. Same client list gets refetched when switching Dashboard ↔ Clients ↔ ClientDetail.
+- Migrate hot coach paths (`useClientProgram`, roster fetch, coach-command-center, messages thread list) to React Query with shared query keys
+- Set `staleTime: 60_000` for roster/program data, `staleTime: 10_000` for messaging
+- Keep `useDataFetch` for one-off leaf reads; stop using it for anything queried on more than one page
 
-- `CoachThreadList` fetches `coach_clients` for the coach and computes an `inactive` flag per thread.
-- Inactive threads are moved to a collapsible **"Inactive"** section at the bottom of the list (collapsed by default, count badge shown).
-- Inactive threads render greyed out, are excluded from unread-count badges, and do not surface push notifications or the app-badge count (client-side filter in the notification handler).
-- Search still finds inactive threads.
+### 3. Fix the 2-second coach-command-center fetch
+The perf log flagged it today. Likely a serial waterfall of 4–6 queries.
+- Convert to a single RPC (`get_coach_command_center(coach_id)`) that returns the whole payload in one round trip
+- Or batch with `Promise.all` and drop any unused columns (`select` only what the widget renders)
+- Target: <400ms
 
-## 3. Delete conversation thread archive (double confirm)
+### 4. Trim what ships to the browser
+Even with code-splitting, the first paint pulls a chunk that includes libs it doesn't need.
+- `lucide-react`: switch imports to `lucide-react/icons/<name>` (per-icon, tree-shakes properly). Currently a single "icons" chunk is loaded up-front for everyone.
+- `recharts` + `d3`: lazy-import chart components inside the pages that use them (Analytics, Progress) so coach dashboard doesn't pay the cost
+- `jspdf` + `html2canvas`: already in a "pdf" chunk — verify it's only imported from PDF export buttons via `await import()` (not statically)
+- Drop `terser` in favor of the default `esbuild` minifier for faster builds and equivalent output
 
-- Add a small **⋯** menu on each row in `CoachThreadList` and inside `ThreadChatView`'s header with a **Delete conversation** option.
-- Tapping opens **AlertDialog #1**: *"Delete this conversation? It will be removed from your inbox."* → Continue / Cancel.
-- Continue opens **AlertDialog #2** (typed confirmation): coach must type the client's first name to unlock the destructive red **Delete permanently** button.
-- Delete behavior is a **soft-hide, not a hard delete**: sets a new `coach_hidden_at` timestamp on `message_threads` so the thread disappears from the coach's inbox but every `thread_messages` row is preserved. This satisfies the "messages save through when a new conversation is started with the same client" requirement.
-- Client-side view (`ClientMessaging`) is unaffected — the client still sees the thread and their history.
+### 5. Service worker: cache the shell, revalidate in background
+Today `sw.js` bypasses cache entirely to fix stale PWA builds. That's overkill for desktop.
+- Switch to **stale-while-revalidate** for JS/CSS/font assets (they're hashed — safe to cache forever)
+- Keep network-first only for `index.html` and API calls
+- Preserves your auto-reload guarantee, but subsequent loads become instant
 
-## 4. Re-opening = restore, not recreate
+### 6. Real-time subscriptions: batch and scope
+`ThreadChatView` and the coach thread list open a Supabase channel per thread. Every unread-check triggers an INSERT event handler that refetches. On a coach with 40 threads this is dozens of open sockets.
+- One channel per coach filtered by `client_id in (…)` for the roster
+- Debounce refresh handlers to 250ms
 
-- `message_threads` has a `UNIQUE(coach_id, client_id)` constraint, so a coach cannot create a duplicate thread with the same client.
-- The **New Conversation** flow (`NewConversationDialog`) is updated: when the coach picks a client, we look up any existing thread (hidden or not). If found, we clear `coach_hidden_at`, mark it unread for the coach's view, and open it — all previous messages appear immediately.
-- Only active clients are pickable in the new-conversation dialog (already the case; verified against `status = 'active'`).
+### 7. Perf HUD (so this doesn't happen again)
+Add a floating dev-only overlay (admin-only in prod, toggle with `?perf=1`) that shows:
+- Route transition time
+- Top 5 slowest queries this session from `getPerfSummary()`
+- Bundle chunk sizes loaded
+This is how Trainerize keeps regressions from shipping — you'll see any new slow query the moment it appears.
 
-## 5. Data & security
+### 8. Small polish
+- Enable `refetchOnReconnect: false` on React Query (currently defaults on)
+- Warm the auth session cache from `localStorage` synchronously on `main.tsx` so `AuthProvider` doesn't block first paint (already partially done — verify)
+- Preload the Inter font with `<link rel="preload" as="font" crossorigin>` in `index.html`
 
-Additive migration on `message_threads`:
-- New column `coach_hidden_at timestamptz null` (default null).
-- New index on `(coach_id, coach_hidden_at)` for fast inbox filters.
-- RLS unchanged — the column is coach-controlled and clients don't read it.
-- No changes to `thread_messages` — history is preserved by design.
+## What I will NOT touch
+- Business logic, RLS policies, schemas
+- Design system / colors / layout
+- Data correctness (offline soft-delete, coach authority, etc.)
 
-## 6. Files touched
+## Order of execution
+1. Route prefetch on hover (Section 1) — 1 file, immediate feel improvement
+2. Service worker stale-while-revalidate (Section 5)
+3. Icon + chart lazy imports (Section 4)
+4. Coach-command-center RPC (Section 3)
+5. React Query consolidation on hot paths (Section 2)
+6. Real-time channel batching (Section 6)
+7. Perf HUD (Section 7)
+8. Polish (Section 8)
 
-- Migration: add `coach_hidden_at` on `message_threads` (+ index).
-- `src/components/messaging/CoachThreadList.tsx` — active/inactive split, ⋯ menu, hidden filter.
-- `src/components/messaging/ThreadChatView.tsx` — inactive banner, disabled composer, send guard, header menu with Delete flow.
-- `src/components/messaging/NewConversationDialog.tsx` — reopen-existing-thread logic that unhides.
-- `src/components/messaging/AutoMessagingManager.tsx` and any broadcast/trigger edge functions — enforce `status = 'active'` recipient filter.
-- New small component `DeleteThreadDialog.tsx` — two-step AlertDialog with typed confirmation.
+## Notes on Cloud compute
+Your DB is barely working (max 160ms). **Upgrading the Cloud instance will not help right now** — this is a frontend + query-shape problem. Save that lever for when you cross ~500 active clients or start seeing >1s DB queries in slow_queries.
 
-## Out of scope
-
-- No hard delete of message rows (would break the "prior messages persist" requirement).
-- No changes to the client-side messaging UI.
-- No changes to the account-deletion flow itself; we just react to it correctly.
+## Files that will change (approximate)
+- `src/components/NavLink.tsx`, `src/App.tsx` — hover prefetch
+- `public/sw.js` — SWR strategy
+- Icon-heavy components — per-icon imports (codemod)
+- `src/pages/Analytics.tsx`, `src/pages/Progress.tsx` — lazy charts
+- `src/hooks/useDataFetch.ts` consumers on hot paths — swap to React Query
+- One new SQL function `get_coach_command_center`
+- `src/components/dashboard/CoachCommandCenter.tsx` — single RPC call
+- `src/components/messaging/CoachThreadList.tsx`, `ThreadChatView.tsx` — channel batching
+- New `src/components/dev/PerfHUD.tsx`
+- `vite.config.ts` — swap terser → esbuild
