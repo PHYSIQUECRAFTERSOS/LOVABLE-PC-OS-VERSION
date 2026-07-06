@@ -374,10 +374,15 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     refetch();
   };
 
-  if (loading) return <CardSkeleton lines={5} />;
+  // Instant paint from snapshot on cold boot; otherwise skeleton.
+  const hasSnapshot = !!snapshot && snapshot.items.length >= 0;
+  if (loading && actions.length === 0 && !hasSnapshot) return <CardSkeleton lines={5} />;
 
-  const completedCount = actions.filter((a) => a.completed).length;
-  const totalCount = actions.length;
+  const effectiveActions: ActionItem[] =
+    actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  const completedCount = effectiveActions.filter((a) => a.completed).length;
+  const totalCount = effectiveActions.length;
+
 
   return (
     <>
