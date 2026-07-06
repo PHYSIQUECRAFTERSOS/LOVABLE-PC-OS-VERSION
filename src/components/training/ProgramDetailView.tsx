@@ -378,8 +378,38 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
 
   const removePhase = (idx: number) => {
     if (phases.length <= 1) return;
-    setPhases(phases.filter((_, i) => i !== idx).map((p, i) => ({ ...p, phaseOrder: i + 1 })));
+    setDeleteAcknowledged(false);
+    setDeletingPhase({ idx, name: phases[idx]?.name || "this phase" });
   };
+
+  const confirmRemovePhase = async () => {
+    if (!deletingPhase) return;
+    if (phases.length <= 1) { setDeletingPhase(null); return; }
+    const { idx } = deletingPhase;
+    const removedId = phases[idx]?.id;
+    const nextPhases = phases
+      .filter((_, i) => i !== idx)
+      .map((p, i) => ({ ...p, phaseOrder: i + 1 }));
+
+    setDeletingInFlight(true);
+    try {
+      setPhases(nextPhases);
+      // Persist immediately so a page refresh does not resurrect the phase.
+      await saveProgramWithPhases(nextPhases);
+      // If we were focused on the phase we just deleted, jump back to overview.
+      if (focusPhaseId && removedId && focusPhaseId === removedId) {
+        onBackToOverview?.();
+      }
+      setDeletingPhase(null);
+      setDeleteAcknowledged(false);
+    } catch (err) {
+      console.error("[removePhase] failed:", err);
+      toast({ title: "Delete failed", description: "Could not delete the phase. Please try again.", variant: "destructive" });
+    } finally {
+      setDeletingInFlight(false);
+    }
+  };
+
 
   const duplicatePhase = (idx: number) => {
     const source = phases[idx];
