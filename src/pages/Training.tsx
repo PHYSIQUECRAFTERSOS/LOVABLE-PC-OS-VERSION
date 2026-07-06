@@ -38,7 +38,6 @@ const Training = () => {
     fallback: [],
     queryFn: async (signal) => {
       if (!user) return [];
-      console.log("[Training] queryFn start, role:", role, "userId:", user.id.slice(0, 8));
       if (isCoachOrAdmin) {
         const { data, error } = await supabase
           .from("workouts")
@@ -46,58 +45,14 @@ const Training = () => {
           .eq("coach_id", user.id)
           .abortSignal(signal);
         if (error) throw error;
-        console.log("[Training] coach workouts:", data?.length ?? 0);
         return data || [];
       }
-      // Client: only show workouts from assigned programs (no duplicates)
-      const { data: assignments } = await supabase
-        .from("client_program_assignments")
-        .select("program_id")
-        .eq("client_id", user.id)
-        .in("status", ["active", "subscribed"])
-        .abortSignal(signal);
-
-      console.log("[Training] client assignments:", assignments?.length ?? 0);
-
-      if (assignments && assignments.length > 0) {
-        const programIds = assignments.map(a => a.program_id);
-        // Get phases AND weeks for these programs
-        const [phasesResult, weeksResult] = await Promise.allSettled([
-          supabase.from("program_phases").select("id").in("program_id", programIds),
-          supabase.from("program_weeks").select("id").in("program_id", programIds),
-        ]);
-        const phases = phasesResult.status === "fulfilled" ? phasesResult.value.data : [];
-        const weeks = weeksResult.status === "fulfilled" ? weeksResult.value.data : [];
-        const phaseIds = (phases || []).map(p => p.id);
-        const weekIds = (weeks || []).map(w => w.id);
-
-        // Get workout IDs from program_workouts via phase_id OR week_id
-        const pwQueries = [];
-        if (phaseIds.length > 0) pwQueries.push(supabase.from("program_workouts").select("workout_id").in("phase_id", phaseIds));
-        if (weekIds.length > 0) pwQueries.push(supabase.from("program_workouts").select("workout_id").in("week_id", weekIds));
-        const pwResults = await Promise.allSettled(pwQueries);
-        const workoutIds = [...new Set(pwResults.flatMap(r => r.status === "fulfilled" ? (r.value.data || []).map((pw: any) => pw.workout_id) : []))];
-
-        if (workoutIds.length > 0) {
-          const { data, error: wErr } = await supabase
-            .from("workouts")
-            .select("id, name, description, phase, is_template, instructions")
-            .in("id", workoutIds)
-            .abortSignal(signal);
-          if (wErr) throw wErr;
-          console.log("[Training] client program workouts:", data?.length ?? 0);
-          if (data && data.length > 0) return data;
-        }
-      }
-      // Fallback: direct client_id workouts (always runs if program path returned nothing)
-      console.log("[Training] falling back to direct client_id workouts");
-      const { data, error: fErr } = await supabase
-        .from("workouts")
-        .select("id, name, description, phase, is_template, instructions")
-        .eq("client_id", user.id)
-        .abortSignal(signal);
-      if (fErr) throw fErr;
-      console.log("[Training] fallback workouts:", data?.length ?? 0);
+      // Client: single RPC returns program workouts (or fallback to direct client_id).
+      // Replaces 4 sequential round-trips (assignments → phases/weeks → program_workouts → workouts).
+      const { data, error } = await (supabase as any).rpc("get_client_training_workouts", {
+        _client_id: user.id,
+      });
+      if (error) throw error;
       return data || [];
     },
   });
