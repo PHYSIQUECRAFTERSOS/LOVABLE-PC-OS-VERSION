@@ -51,6 +51,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { activeSession, online, dismiss: dismissBanner } = useActiveSession();
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Warm the top nav destinations after first paint so the first click after
+  // landing is instant (chunk already downloaded).
+  useEffect(() => {
+    if (roleLoading) return;
+    if (role === "coach" || role === "admin") warmCoachRoutes();
+    else if (role === "client") warmClientRoutes();
+  }, [role, roleLoading]);
+
+
   // Fetch unread message count
   const fetchUnread = useCallback(async () => {
     if (!user) return;
