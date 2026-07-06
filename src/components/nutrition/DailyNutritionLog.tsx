@@ -243,7 +243,20 @@ const DailyNutritionLog = ({ selectedDate: controlledSelectedDate, onDateChange 
 
     if (error) {
       console.error("[fetchLogs] Query error:", error);
-      toast({ title: "Couldn't load food log", description: error.message, variant: "destructive" });
+      // Suppress transient network aborts (Safari mobile tab-switch mid-flight, LTE
+      // hiccups). These show up as "Load failed" / "AbortError" / "Failed to fetch"
+      // and should NOT surface as a red toast — we just keep whatever's already on
+      // screen and try again on the next mount/refetch.
+      const msg = (error.message || "").toLowerCase();
+      const isTransient =
+        msg.includes("load failed") ||
+        msg.includes("failed to fetch") ||
+        msg.includes("networkerror") ||
+        msg.includes("aborted") ||
+        (error as any).name === "AbortError";
+      if (!isTransient) {
+        toast({ title: "Couldn't load food log", description: error.message, variant: "destructive" });
+      }
       return;
     }
 

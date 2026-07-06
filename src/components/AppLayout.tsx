@@ -85,6 +85,50 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             3 * 60 * 1000,
           ),
         );
+
+        // Calendar: prime today's rolling window so tapping the tab paints instantly.
+        registerRouteDataPrefetch("/calendar", async () => {
+          const today = new Date();
+          const start = new Date(today); start.setDate(today.getDate() - 31);
+          const end = new Date(today); end.setDate(today.getDate() + 15);
+          const fmt = (d: Date) => d.toLocaleDateString("en-CA");
+          const startStr = fmt(start);
+          const endStr = fmt(end);
+          await primeQuery(
+            `calendar-${user.id}-${startStr}-${endStr}`,
+            // Cheap warm — just prime the raw calendar_events fetch (the label chain
+            // is a separate DB call that runs in parallel on the real page mount).
+            async () => {
+              const { data } = await (supabase as any)
+                .from("calendar_events")
+                .select("id")
+                .or(`user_id.eq.${user.id},target_client_id.eq.${user.id}`)
+                .gte("event_date", startStr)
+                .lte("event_date", endStr)
+                .limit(1);
+              return data || [];
+            },
+            60 * 1000,
+          );
+        });
+
+        // Nutrition: prime today's food log so the Tracker tab paints instantly.
+        registerRouteDataPrefetch("/nutrition", async () => {
+          const dateStr = new Date().toLocaleDateString("en-CA");
+          await primeQuery(
+            `nutrition-logs-${user.id}-${dateStr}`,
+            async () => {
+              const { data } = await (supabase as any)
+                .from("nutrition_logs")
+                .select("id")
+                .eq("client_id", user.id)
+                .eq("logged_at", dateStr)
+                .limit(1);
+              return data || [];
+            },
+            60 * 1000,
+          );
+        });
       }
     })();
     return () => { cancelled = true; };
@@ -141,26 +185,35 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     fetchUnread();
 
-    // Subscribe to realtime changes on thread_messages
+    // Debounce: a burst of realtime events (e.g. coach receives 10 messages in
+    // a second) should only trigger ONE refetch, not ten. Each refetch on the
+    // coach path is an N+1 count loop, so this alone can save ~30 round-trips.
+    let debounceId: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (debounceId) clearTimeout(debounceId);
+      debounceId = setTimeout(() => { debounceId = null; fetchUnread(); }, 500);
+    };
+
     const channel = supabase
       .channel("unread-badge")
       .on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "thread_messages" },
-        () => fetchUnread()
+        scheduleRefetch
       )
       .on(
         "postgres_changes" as any,
         { event: "UPDATE", schema: "public", table: "message_threads" },
-        () => fetchUnread()
+        scheduleRefetch
       )
       .subscribe();
 
     // Listen for manual "messages-read" events from ThreadChatView
-    const onRead = () => fetchUnread();
+    const onRead = () => scheduleRefetch();
     window.addEventListener("messages-read", onRead);
 
     return () => {
+      if (debounceId) clearTimeout(debounceId);
       supabase.removeChannel(channel);
       window.removeEventListener("messages-read", onRead);
     };
