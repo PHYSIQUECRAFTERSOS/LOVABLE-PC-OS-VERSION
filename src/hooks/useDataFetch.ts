@@ -22,6 +22,65 @@ interface UseDataFetchResult<T> {
 // Simple in-memory cache
 const cache = new Map<string, { data: any; timestamp: number }>();
 
+// ── Persistent (localStorage) SWR cache ──
+// Mirrors the in-memory cache so screens paint instantly on cold navigation.
+// Namespaced by app version so a deploy invalidates everything cleanly.
+const PERSIST_PREFIX = "pc.cache.v1:";
+const MAX_PERSIST_BYTES = 200 * 1024; // per entry — skip large payloads
+const PERSIST_MAX_AGE = 24 * 60 * 60 * 1000; // 24h hard ceiling on disk
+
+function persistKey(k: string) { return PERSIST_PREFIX + k; }
+
+function loadPersisted<T>(queryKey: string): { data: T; timestamp: number } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(persistKey(queryKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: T; timestamp: number };
+    if (!parsed || typeof parsed.timestamp !== "number") return null;
+    if (Date.now() - parsed.timestamp > PERSIST_MAX_AGE) {
+      localStorage.removeItem(persistKey(queryKey));
+      return null;
+    }
+    return parsed;
+  } catch { return null; }
+}
+
+function savePersisted(queryKey: string, data: any) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload = JSON.stringify({ data, timestamp: Date.now() });
+    if (payload.length > MAX_PERSIST_BYTES) return;
+    localStorage.setItem(persistKey(queryKey), payload);
+  } catch { /* quota / serialization — best effort */ }
+}
+
+function deletePersisted(queryKey: string) {
+  if (typeof window === "undefined") return;
+  try { localStorage.removeItem(persistKey(queryKey)); } catch { /* noop */ }
+}
+
+function deletePersistedByPrefix(prefix: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const full = PERSIST_PREFIX + prefix;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(full)) localStorage.removeItem(k);
+    }
+  } catch { /* noop */ }
+}
+
+function hydrateFromDisk(queryKey: string) {
+  if (cache.has(queryKey)) return cache.get(queryKey)!;
+  const persisted = loadPersisted(queryKey);
+  if (persisted) {
+    cache.set(queryKey, persisted);
+    return persisted;
+  }
+  return null;
+}
+
 // ── Performance log buffer ──
 interface PerfLogEntry {
   queryKey: string;
