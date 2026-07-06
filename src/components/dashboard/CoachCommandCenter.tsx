@@ -186,9 +186,13 @@ const CoachCommandCenter = () => {
     // 5-min cache — returning to /dashboard after visiting Clients/Messages
     // shouldn't re-run this 6-query fan-out.
     staleTime: 5 * 60 * 1000,
-    timeout: 5000,
+    // Fan-out uses Promise.allSettled below, so one slow sibling can't blank the
+    // dashboard. Bump the outer wall clock accordingly — the previous 5s abort
+    // was cancelling every card via the shared AbortController and rendering
+    // the all-zeros fallback even though data existed.
+    timeout: 30000,
     fallback: { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] },
-    queryFn: async (signal) => {
+    queryFn: async (_signal) => {
       if (!user) throw new Error("No user");
 
       // 1. Get assigned clients
@@ -196,8 +200,7 @@ const CoachCommandCenter = () => {
         .from("coach_clients")
         .select("client_id")
         .eq("coach_id", user.id)
-        .eq("status", "active")
-        .abortSignal(signal);
+        .eq("status", "active");
 
       if (!assignments?.length)
         return { actionItems: [], snapshot: { trainingPct: 0, checkinPct: 0, overallPct: 0, activeClients: 0, atRiskClients: 0 }, leaderboard: [], atRisk: [], unreadThreads: [], completedYesterday: [], missedYesterday: [], phaseDeadlines: [], phaseDeadlineSummary: { activeClients: 0 }, newClients: [], programRenewals: [], m2mClients: [] };
@@ -208,26 +211,46 @@ const CoachCommandCenter = () => {
       const last7Days = Array.from({ length: 7 }, (_, i) => format(subDays(now, 6 - i), "yyyy-MM-dd"));
       const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
 
-      // 2. Parallel data fetch — calendar-events-driven compliance
-      const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds).abortSignal(signal);
+      // 2. Parallel data fetch — Promise.allSettled so a single slow / failed
+      // query degrades only its own card instead of zeroing the whole dashboard.
+      // Do NOT thread the shared AbortSignal into these — that's what caused the
+      // all-or-nothing cancel in the prior implementation.
+      const profilesReq = supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", clientIds);
       // Calendar events for last 7 days (workout + checkin only) — source of truth for compliance
-      const calEventsReq = supabase.from("calendar_events").select("user_id, target_client_id, event_type, is_completed, event_date, linked_workout_id, title").in("event_type", ["workout", "checkin"]).gte("event_date", last7Start).lte("event_date", format(now, "yyyy-MM-dd")).abortSignal(signal);
+      const calEventsReq = supabase.from("calendar_events").select("user_id, target_client_id, event_type, is_completed, event_date, linked_workout_id, title").in("event_type", ["workout", "checkin"]).gte("event_date", last7Start).lte("event_date", format(now, "yyyy-MM-dd"));
       // Workout sessions for double-verification (catch completed workouts where calendar wasn't flagged)
-      const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name, is_accessory)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`).abortSignal(signal);
-      const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false }).abortSignal(signal);
-      const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20).abortSignal(signal);
+      const sessionsReq = supabase.from("workout_sessions").select("client_id, created_at, completed_at, session_date, workout_id, workouts:workout_id(name, is_accessory)").in("client_id", clientIds).gte("created_at", `${last7Start}T00:00:00`);
+      const riskReq = supabase.from("client_risk_scores").select("client_id, score, risk_level, signals, calculated_at").in("client_id", clientIds).order("calculated_at", { ascending: false });
+      const messagesReq = supabase.from("messages").select("id, sender_id, conversation_id, content, created_at").neq("sender_id", user.id).order("created_at", { ascending: false }).limit(20);
       // Yesterday's scheduled workouts (coach schedules via target_client_id OR client's own)
-      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title, workouts:linked_workout_id(is_accessory)").eq("event_date", yesterday).eq("event_type", "workout").abortSignal(signal);
+      const yesterdayCalReq = supabase.from("calendar_events").select("user_id, target_client_id, linked_workout_id, is_completed, title, workouts:linked_workout_id(is_accessory)").eq("event_date", yesterday).eq("event_type", "workout");
 
-      const [profilesRes, calEventsRes, sessionsRes, riskRes, messagesRes, yesterdayCalRes] = await Promise.all([
+      const [profilesSettled, calEventsSettled, sessionsSettled, riskSettled, messagesSettled, yesterdayCalSettled] = await Promise.allSettled([
         profilesReq, calEventsReq, sessionsReq, riskReq, messagesReq, yesterdayCalReq,
       ]);
 
-      const profiles = (profilesRes.data || []) as ClientProfile[];
-      const allCalEvents = calEventsRes.data || [];
-      const sessions = sessionsRes.data || [];
-      const riskScores = riskRes.data || [];
-      const unreadMessages = messagesRes.data || [];
+      // Per-query unwrap: fulfilled → use .data (may still carry a Supabase
+      // error object, treat as empty); rejected → empty array, log for triage,
+      // never propagate to sibling cards.
+      const unwrap = <T,>(settled: PromiseSettledResult<any>, label: string, fallback: T): T => {
+        if (settled.status === "rejected") {
+          console.error(`[CoachCommandCenter] ${label} rejected:`, settled.reason);
+          return fallback;
+        }
+        const { data, error: qErr } = settled.value || {};
+        if (qErr) {
+          console.error(`[CoachCommandCenter] ${label} query error:`, qErr);
+          return fallback;
+        }
+        return (data ?? fallback) as T;
+      };
+
+      const profiles = unwrap<ClientProfile[]>(profilesSettled, "profiles", []);
+      const allCalEvents = unwrap<any[]>(calEventsSettled, "calendar_events(7d)", []);
+      const sessions = unwrap<any[]>(sessionsSettled, "workout_sessions", []);
+      const riskScores = unwrap<any[]>(riskSettled, "client_risk_scores", []);
+      const unreadMessages = unwrap<any[]>(messagesSettled, "messages", []);
+      const yesterdayCalRes = { data: unwrap<any[]>(yesterdayCalSettled, "calendar_events(yesterday)", []) };
 
       const profileMap = new Map(profiles.map((p) => [p.user_id, p]));
 
