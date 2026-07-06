@@ -75,7 +75,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       if (isClient) {
         registerRouteDataPrefetch("/training", () =>
           primeQuery(
-            `workouts-${user.id}-client`,
+            `workouts-${user.id}-${role}`,
             async () => {
               const { data } = await (supabase as any).rpc("get_client_training_workouts", {
                 _client_id: user.id,
