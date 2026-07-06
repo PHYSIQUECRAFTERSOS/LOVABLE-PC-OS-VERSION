@@ -564,7 +564,7 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
         userId={user?.id || ""}
         onExerciseCreated={(newEx) => {
           addExercise({ id: newEx.id, name: newEx.name, primary_muscle: newEx.primary_muscle, equipment: newEx.equipment, youtube_thumbnail: newEx.youtube_thumbnail, tags: newEx.tags || [] });
-          loadLibrary();
+          loadLibrary(debouncedSearch, filterMuscle);
         }}
       />
     </>
