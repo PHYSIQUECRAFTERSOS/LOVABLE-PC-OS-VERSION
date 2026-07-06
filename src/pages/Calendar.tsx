@@ -203,6 +203,8 @@ const Calendar = () => {
         : Promise.resolve({ data: null });
 
       const [calResult, sessResult, cardioResult, nutResult, weightResult] = await Promise.allSettled([calendarPromise, sessionsPromise, cardioPromise, nutritionFetch, weightFetch]);
+      // Ensure the workout-label map is ready before we render (it ran in parallel).
+      await labelChainPromise.catch(() => { /* labels are best-effort */ });
 
       const calRes = calResult.status === "fulfilled" ? calResult.value : { data: null, error: { message: "Failed" } };
       const sessRes = sessResult.status === "fulfilled" ? sessResult.value : { data: null };
