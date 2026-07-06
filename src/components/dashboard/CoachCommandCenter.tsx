@@ -1049,51 +1049,60 @@ const CoachCommandCenter = () => {
       {/* ─── SECTION 9: Program Renewals ─── */}
       {programRenewals.length > 0 && (
         <div>
-          <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setRenewalsOpen(o => !o)}
+            className="w-full font-display text-lg font-bold text-foreground flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity"
+            aria-expanded={renewalsOpen}
+          >
+            {renewalsOpen ? <ChevronDown className="h-5 w-5 text-primary" /> : <ChevronRight className="h-5 w-5 text-primary" />}
             <CalendarClock className="h-5 w-5 text-primary" />
             Program Renewals
             <span className="ml-2 rounded-full bg-warn/20 px-2 py-0.5 text-xs font-bold text-warn">{programRenewals.length}</span>
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {programRenewals.map((r) => {
-              const urgBg = r.daysLeft <= 7 ? "border-destructive/40 bg-destructive/5" : r.daysLeft <= 14 ? "border-warn/40 bg-warn/5" : "border-warn/40 bg-warn/5";
-              const urgText = r.daysLeft <= 7 ? "text-destructive" : r.daysLeft <= 14 ? "text-warn" : "text-warn";
-              return (
-                <Card key={r.clientId} className={`cursor-pointer hover:bg-accent/10 transition-colors ${urgBg}`} onClick={() => navigate(`/clients/${r.clientId}`)}>
-                  <CardContent className="p-3 flex items-center gap-3">
-                    <UserAvatar src={r.avatarUrl} name={r.clientName} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{r.clientName}</p>
-                      <p className="text-[11px] text-muted-foreground">{r.tierName || "—"} · ends {r.endDate}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className={`text-lg font-bold font-display ${urgText}`}>{r.daysLeft <= 0 ? "Expired" : `${r.daysLeft}d`}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const firstName = r.clientName.split(" ")[0];
-                        setQuickMsgClient({
-                          id: r.clientId,
-                          name: r.clientName,
-                          avatar: r.avatarUrl,
-                          prefill: `Hey ${firstName}, your program wraps up on ${r.endDate}! I'd love to set up a quick renewal call to discuss your next phase. When works best for you? 💪`,
-                        });
-                      }}
-                    >
-                      <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                      Message
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          </button>
+          {renewalsOpen && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {programRenewals.map((r) => {
+                const urgBg = r.daysLeft <= 7 ? "border-destructive/40 bg-destructive/5" : r.daysLeft <= 14 ? "border-warn/40 bg-warn/5" : "border-warn/40 bg-warn/5";
+                const urgText = r.daysLeft <= 7 ? "text-destructive" : r.daysLeft <= 14 ? "text-warn" : "text-warn";
+                return (
+                  <Card key={r.clientId} className={`cursor-pointer hover:bg-accent/10 transition-colors ${urgBg}`} onClick={() => navigate(`/clients/${r.clientId}`)}>
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <UserAvatar src={r.avatarUrl} name={r.clientName} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{r.clientName}</p>
+                        <p className="text-[11px] text-muted-foreground">{r.tierName || "—"} · ends {r.endDate}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-lg font-bold font-display ${urgText}`}>{r.daysLeft <= 0 ? "Expired" : `${r.daysLeft}d`}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-primary hover:text-primary shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const firstName = r.clientName.split(" ")[0];
+                          setQuickMsgClient({
+                            id: r.clientId,
+                            name: r.clientName,
+                            avatar: r.avatarUrl,
+                            prefill: `Hey ${firstName}, your program wraps up on ${r.endDate}! I'd love to set up a quick renewal call to discuss your next phase. When works best for you? 💪`,
+                          });
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                        Message
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
+
 
 
       {/* ─── SECTION 10: Compliance Snapshot (moved to bottom) ─── */}
