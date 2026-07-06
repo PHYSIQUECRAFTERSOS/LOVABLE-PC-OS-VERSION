@@ -63,7 +63,7 @@ const TransferClientDialog = ({
       const { data: roles, error: rolesErr } = await supabase
         .from("user_roles")
         .select("user_id, role")
-        .in("role", ["coach", "admin"]);
+        .in("role", ["coach", "admin", "manager"]);
 
       if (rolesErr) throw rolesErr;
 
