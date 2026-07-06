@@ -144,7 +144,7 @@ const TransferClientDialog = ({
             </p>
           ) : (
             <div className="space-y-3">
-              <label className="text-sm font-medium text-foreground">Select New Coach</label>
+              <label className="text-sm font-medium text-foreground">Select New Coach or Manager</label>
               <Select value={selectedCoach} onValueChange={setSelectedCoach}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a coach..." />
