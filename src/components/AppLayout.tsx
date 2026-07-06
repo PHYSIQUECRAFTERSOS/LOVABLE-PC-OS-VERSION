@@ -59,6 +59,37 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     else if (role === "client") warmClientRoutes();
   }, [role, roleLoading]);
 
+  // Register data prefetchers for high-traffic client routes so hovering /
+  // tapping the bottom nav also warms the SWR cache — not just the JS chunk.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const [{ registerRouteDataPrefetch }, { primeQuery }, { supabase }] = await Promise.all([
+        import("@/lib/routePrefetch"),
+        import("@/hooks/useDataFetch"),
+        import("@/integrations/supabase/client"),
+      ]);
+      if (cancelled) return;
+      const isClient = role === "client";
+      if (isClient) {
+        registerRouteDataPrefetch("/training", () =>
+          primeQuery(
+            `workouts-${user.id}-client`,
+            async () => {
+              const { data } = await (supabase as any).rpc("get_client_training_workouts", {
+                _client_id: user.id,
+              });
+              return data || [];
+            },
+            3 * 60 * 1000,
+          ),
+        );
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, role]);
+
 
   // Fetch unread message count
   const fetchUnread = useCallback(async () => {
