@@ -848,6 +848,21 @@ const ThreadChatView = ({
             </div>
           </div>
         </div>
+      ) : isCoachOfThread && clientInactive ? (
+        <div
+          className="border-t border-border shrink-0 bg-muted/30 px-4 py-4"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-3">
+            <UserX className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">This client is inactive</p>
+              <p className="mt-0.5">
+                Messaging is disabled. Reactivate them from the Clients page to resume.
+              </p>
+            </div>
+          </div>
+        </div>
       ) : (
         <div
           className="border-t border-border px-4 py-3 shrink-0"
