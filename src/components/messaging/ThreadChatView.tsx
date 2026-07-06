@@ -26,6 +26,7 @@ import MessageContextMenu from "./MessageContextMenu";
 import MessageContent from "./MessageContent";
 import { type LinkPreview } from "./LinkPreviewCard";
 import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
+import DeleteThreadDialog from "./DeleteThreadDialog";
 
 interface Message {
   id: string;
