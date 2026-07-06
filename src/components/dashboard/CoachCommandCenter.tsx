@@ -29,6 +29,8 @@ import {
   ClipboardList,
   Eye,
   Repeat,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
 import QuickMessageDialog from "@/components/dashboard/QuickMessageDialog";
