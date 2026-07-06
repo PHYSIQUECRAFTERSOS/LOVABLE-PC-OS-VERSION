@@ -26,12 +26,11 @@ const ProgressMomentum = () => {
     queryKey: `progress-momentum-${user?.id}-${today}`,
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
-    timeout: 5000,
     fallback: { weightChange: null, currentWeight: null, workoutCompletion: 0, stepAvg: 0 },
     queryFn: async (signal) => {
       if (!user) throw new Error("No user");
 
-      const [weightsRes, sessionsRes, metricsRes] = await Promise.all([
+      const [weightsSettled, sessionsSettled, metricsSettled] = await Promise.allSettled([
         supabase
           .from("weight_logs")
           .select("weight, logged_at")
@@ -53,7 +52,7 @@ const ProgressMomentum = () => {
           .abortSignal(signal),
       ]);
 
-      const weights = weightsRes.data || [];
+      const weights = (weightsSettled.status === "fulfilled" ? weightsSettled.value.data : null) || [];
       let weightChange: number | null = null;
       let currentWeight: number | null = null;
       if (weights.length >= 2) {
@@ -63,12 +62,12 @@ const ProgressMomentum = () => {
         currentWeight = weights[0].weight;
       }
 
-      const sessions = sessionsRes.data || [];
+      const sessions = (sessionsSettled.status === "fulfilled" ? sessionsSettled.value.data : null) || [];
       const workoutCompletion = sessions.length > 0
         ? Math.round((sessions.filter((s) => s.completed_at).length / sessions.length) * 100)
         : 0;
 
-      const metrics = metricsRes.data || [];
+      const metrics = (metricsSettled.status === "fulfilled" ? metricsSettled.value.data : null) || [];
       const stepsWithData = metrics.filter((m) => m.steps && m.steps > 0);
       const stepAvg = stepsWithData.length > 0
         ? Math.round(stepsWithData.reduce((sum, m) => sum + (m.steps || 0), 0) / stepsWithData.length)
@@ -77,6 +76,7 @@ const ProgressMomentum = () => {
       return { weightChange, currentWeight, workoutCompletion, stepAvg };
     },
   });
+
 
   if (loading) return <CardSkeleton lines={3} />;
 
