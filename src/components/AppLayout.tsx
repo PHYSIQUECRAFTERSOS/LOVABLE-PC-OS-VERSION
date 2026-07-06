@@ -185,26 +185,35 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     fetchUnread();
 
-    // Subscribe to realtime changes on thread_messages
+    // Debounce: a burst of realtime events (e.g. coach receives 10 messages in
+    // a second) should only trigger ONE refetch, not ten. Each refetch on the
+    // coach path is an N+1 count loop, so this alone can save ~30 round-trips.
+    let debounceId: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (debounceId) clearTimeout(debounceId);
+      debounceId = setTimeout(() => { debounceId = null; fetchUnread(); }, 500);
+    };
+
     const channel = supabase
       .channel("unread-badge")
       .on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "thread_messages" },
-        () => fetchUnread()
+        scheduleRefetch
       )
       .on(
         "postgres_changes" as any,
         { event: "UPDATE", schema: "public", table: "message_threads" },
-        () => fetchUnread()
+        scheduleRefetch
       )
       .subscribe();
 
     // Listen for manual "messages-read" events from ThreadChatView
-    const onRead = () => fetchUnread();
+    const onRead = () => scheduleRefetch();
     window.addEventListener("messages-read", onRead);
 
     return () => {
+      if (debounceId) clearTimeout(debounceId);
       supabase.removeChannel(channel);
       window.removeEventListener("messages-read", onRead);
     };
