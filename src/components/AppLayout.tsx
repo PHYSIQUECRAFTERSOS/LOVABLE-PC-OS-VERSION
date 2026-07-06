@@ -169,6 +169,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
     { to: "/messages", icon: MessageSquare, label: "Messages" },
     { to: "/community", icon: UsersRound, label: "Community" },
+    { to: "/courses", icon: BookOpen, label: "Courses" },
     { to: "/challenges", icon: Flame, label: "Challenges" },
     { to: "/ranked", icon: Trophy, label: "Ranked" },
     { to: "/clients", icon: Users, label: "Clients" },
