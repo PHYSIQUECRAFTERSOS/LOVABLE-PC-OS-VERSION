@@ -628,10 +628,16 @@ const MasterLibraries = () => {
                   <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate
                 </DropdownMenuItem>
                 {canEditProgram(program) && (
+                  <DropdownMenuItem onClick={() => handleAddMasterPhase(program.id)}>
+                    <Plus className="h-3.5 w-3.5 mr-2" /> Add Phase
+                  </DropdownMenuItem>
+                )}
+                {canEditProgram(program) && (
                   <DropdownMenuItem onClick={() => setAiImportTarget({ programId: program.id })}>
                     <Sparkles className="h-3.5 w-3.5 mr-2 text-primary" /> AI Import (new phase)
                   </DropdownMenuItem>
                 )}
+
                 {canDeleteProgram(program) && (
                   <>
                     <DropdownMenuSeparator />
