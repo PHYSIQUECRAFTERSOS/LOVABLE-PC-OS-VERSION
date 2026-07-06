@@ -136,7 +136,7 @@ const QuickMessageDialog = ({
 
       await supabase
         .from("message_threads")
-        .update({ coach_last_seen_at: new Date().toISOString(), coach_marked_unread: false } as any)
+        .update({ coach_last_seen_at: new Date().toISOString(), coach_marked_unread: false, coach_hidden_at: null } as any)
         .eq("id", existingThread.id)
         .eq("coach_id", user.id);
     } else {

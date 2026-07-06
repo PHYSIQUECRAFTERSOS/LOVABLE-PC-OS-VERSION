@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile, Pencil } from "lucide-react";
+import { Send, CheckCheck, Check, ArrowLeft, MoreVertical, EyeOff, Smile, Pencil, Trash2, UserX } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
 import {
@@ -26,6 +26,7 @@ import MessageContextMenu from "./MessageContextMenu";
 import MessageContent from "./MessageContent";
 import { type LinkPreview } from "./LinkPreviewCard";
 import { clearPushBadge, sendPushToUser } from "@/hooks/usePushNotifications";
+import DeleteThreadDialog from "./DeleteThreadDialog";
 
 interface Message {
   id: string;
@@ -82,6 +83,9 @@ const ThreadChatView = ({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [isCoachOfThread, setIsCoachOfThread] = useState(false);
+  const [clientInactive, setClientInactive] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const dragDepthRef = useRef(0);
   const initialLoadRef = useRef(true);
@@ -93,6 +97,40 @@ const ThreadChatView = ({
   const userScrolledAwayRef = useRef(false);
   const lastScrollTopRef = useRef<number>(0);
   const lastResizeAtRef = useRef<number>(0);
+
+  // Determine if current user is the coach in this thread and if the client is inactive
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) return;
+      const { data: thread } = await supabase
+        .from("message_threads")
+        .select("coach_id, client_id")
+        .eq("id", threadId)
+        .maybeSingle();
+      if (!thread || cancelled) return;
+      const amCoach = thread.coach_id === user.id;
+      setIsCoachOfThread(amCoach);
+      if (!amCoach) {
+        setClientInactive(false);
+        return;
+      }
+      const { data: cc } = await supabase
+        .from("coach_clients")
+        .select("status")
+        .eq("coach_id", thread.coach_id)
+        .eq("client_id", thread.client_id)
+        .maybeSingle();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", thread.client_id)
+        .maybeSingle();
+      const inactive = !prof || !cc || cc.status !== "active";
+      if (!cancelled) setClientInactive(inactive);
+    })();
+    return () => { cancelled = true; };
+  }, [threadId, user]);
 
 
   const handleBackAction = () => {
@@ -340,7 +378,20 @@ const ThreadChatView = ({
 
   const handleSend = async () => {
     if (!user || !newMessage.trim()) return;
+    if (isCoachOfThread && clientInactive) {
+      toast({ title: "Client is inactive", description: "Reactivate them from Clients to resume messaging.", variant: "destructive" });
+      return;
+    }
     setSending(true);
+    // Unhide thread if this coach previously deleted it — sending re-opens the conversation
+    if (isCoachOfThread) {
+      supabase
+        .from("message_threads")
+        .update({ coach_hidden_at: null } as any)
+        .eq("id", threadId)
+        .eq("coach_id", user.id)
+        .then(() => {});
+    }
     const messageContent = newMessage.trim();
     const { data: insertedMsg, error: insertError } = await supabase
       .from("thread_messages")
@@ -612,6 +663,15 @@ const ThreadChatView = ({
               <EyeOff className="h-4 w-4 mr-2" />
               Mark as Unread
             </DropdownMenuItem>
+            {isCoachOfThread && (
+              <DropdownMenuItem
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete conversation
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -788,6 +848,21 @@ const ThreadChatView = ({
             </div>
           </div>
         </div>
+      ) : isCoachOfThread && clientInactive ? (
+        <div
+          className="border-t border-border shrink-0 bg-muted/30 px-4 py-4"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-3">
+            <UserX className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">This client is inactive</p>
+              <p className="mt-0.5">
+                Messaging is disabled. Reactivate them from the Clients page to resume.
+              </p>
+            </div>
+          </div>
+        </div>
       ) : (
         <div
           className="border-t border-border px-4 py-3 shrink-0"
@@ -890,6 +965,19 @@ const ThreadChatView = ({
         onClose={() => setPendingAttachment(null)}
         onSent={fetchMessages}
       />
+
+      {isCoachOfThread && (
+        <DeleteThreadDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          threadId={threadId}
+          clientName={otherUserName}
+          onDeleted={() => {
+            (window as any).__refetchCoachThreads?.();
+            onBack?.();
+          }}
+        />
+      )}
     </div>
   );
 };
