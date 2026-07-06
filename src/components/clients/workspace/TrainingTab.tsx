@@ -221,6 +221,8 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
   const [changeDurationPhase, setChangeDurationPhase] = useState<Phase | null>(null);
   const [copyToMasterPhase, setCopyToMasterPhase] = useState<Phase | null>(null);
   const [copyToClientPhase, setCopyToClientPhase] = useState<Phase | null>(null);
+  const [duplicatePhaseTarget, setDuplicatePhaseTarget] = useState<Phase | null>(null);
+
   const [deletePhaseTarget, setDeletePhaseTarget] = useState<Phase | null>(null);
   const [aiCreateOpen, setAiCreateOpen] = useState(false);
   const [clientDisplayName, setClientDisplayName] = useState<string>("Client");
