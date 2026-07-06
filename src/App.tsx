@@ -35,6 +35,7 @@ const Progress = lazy(() => import("./pages/Progress"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const Community = lazy(() => import("./pages/Community"));
+const Courses = lazy(() => import("./pages/Courses"));
 const Challenges = lazy(() => import("./pages/Challenges"));
 const Ranked = lazy(() => import("./pages/Ranked"));
 const Team = lazy(() => import("./pages/Team"));
