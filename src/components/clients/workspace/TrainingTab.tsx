@@ -705,10 +705,17 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
     loadClientProgram();
   };
 
-  const duplicatePhase = async (phase: Phase) => {
+  const duplicatePhase = async (
+    phase: Phase,
+    overrides?: { nameOverride?: string; durationWeeksOverride?: number },
+  ) => {
     if (!program || !user) return;
     const { duplicatePhaseInPlace } = await import("@/lib/copyPhaseHelpers");
-    const result = await duplicatePhaseInPlace({
+
+    // Fire the deep clone in the background with a promise toast so the
+    // dialog closes instantly (Trainerize-style feel).
+    const { toast: sonnerToast } = await import("sonner");
+    const promise = duplicatePhaseInPlace({
       coachId: user.id,
       clientId: clientId!,
       programId: program.id,
@@ -721,18 +728,20 @@ const ClientWorkspaceTraining = ({ clientId }: { clientId: string }) => {
         intensity_system: phase.intensity_system,
         progression_rule: phase.progression_rule,
       },
+      nameOverride: overrides?.nameOverride,
+      durationWeeksOverride: overrides?.durationWeeksOverride,
     });
-    if (!result.ok) {
-      toast({ title: "Duplicate failed", description: result.error || "Unknown error", variant: "destructive" });
-      return;
-    }
-    toast({
-      title: result.message.title,
-      description: result.message.description,
-      variant: result.message.isWarning ? "destructive" : undefined,
+
+    sonnerToast.promise(promise, {
+      loading: "Duplicating phase…",
+      success: (result) => {
+        loadClientProgram();
+        return result.ok ? "Phase duplicated" : (result.error || "Duplicate failed");
+      },
+      error: (err) => (err as any)?.message || "Duplicate failed",
     });
-    await loadClientProgram();
   };
+
 
   const deletePhase = async (phaseId: string) => {
     const phaseWeekIds = weeks.filter(w => w.phase_id === phaseId).map(w => w.id);
