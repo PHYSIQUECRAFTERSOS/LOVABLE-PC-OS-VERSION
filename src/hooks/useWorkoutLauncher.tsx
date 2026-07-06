@@ -31,7 +31,7 @@ export function useWorkoutLauncher() {
     if (loading) return;
     setLoading(true);
     try {
-      const [exerciseDetails, workoutRes] = await Promise.all([
+      const [exSettled, workoutSettled] = await Promise.allSettled([
         fetchWorkoutExerciseDetails(workoutId),
         supabase
           .from("workouts")
@@ -40,7 +40,9 @@ export function useWorkoutLauncher() {
           .maybeSingle(),
       ]);
 
-      if (workoutRes.error) throw workoutRes.error;
+      if (exSettled.status === "rejected") throw exSettled.reason;
+      const exerciseDetails = exSettled.value;
+      const workoutRes = workoutSettled.status === "fulfilled" ? workoutSettled.value : { data: null as any };
 
       const exerciseLogs = exerciseDetails.map((we) => {
         const equipment = we.exercise?.equipment || null;

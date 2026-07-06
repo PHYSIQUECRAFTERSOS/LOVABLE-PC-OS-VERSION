@@ -30,7 +30,7 @@ const TodayWorkout = () => {
       if (!user) return null;
 
       // Calendar is the source of truth — check calendar first, then sessions
-      const [calendarRes, sessionsRes] = await Promise.all([
+      const [calSettled, sessSettled] = await Promise.allSettled([
         supabase
           .from("calendar_events")
           .select("id, title, linked_workout_id, is_completed, completed_at")
@@ -49,6 +49,8 @@ const TodayWorkout = () => {
           .limit(5)
           .abortSignal(signal),
       ]);
+      const calendarRes = calSettled.status === "fulfilled" ? calSettled.value : { data: [] as any[] };
+      const sessionsRes = sessSettled.status === "fulfilled" ? sessSettled.value : { data: [] as any[] };
 
       // Priority 1: Scheduled calendar event for today (calendar is source of truth)
       const calEvent = calendarRes.data?.[0];
@@ -65,7 +67,7 @@ const TodayWorkout = () => {
           );
           if (matchingSession?.completed_at) completed = true;
 
-          const [workoutRes, exRes] = await Promise.all([
+          const [workoutSettled, exSettled] = await Promise.allSettled([
             supabase
               .from("workouts")
               .select("id, name, phase")
@@ -74,9 +76,11 @@ const TodayWorkout = () => {
             fetchWorkoutExerciseDetails(calEvent.linked_workout_id, signal),
           ]);
 
-          if (workoutRes.data) {
-            workoutName = workoutRes.data.name || calEvent.title;
-            phase = workoutRes.data.phase;
+          const workoutData = workoutSettled.status === "fulfilled" ? workoutSettled.value.data : null;
+          const exRes = exSettled.status === "fulfilled" ? exSettled.value : [];
+          if (workoutData) {
+            workoutName = workoutData.name || calEvent.title;
+            phase = workoutData.phase;
           }
           exercises = exRes.map((e) => ({
             name: e.exercise?.name || "",

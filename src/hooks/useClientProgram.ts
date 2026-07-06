@@ -50,19 +50,48 @@ export interface ClientProgramData {
   weeks: ProgramWeek[];
 }
 
+// In-memory cache keyed by clientId. Coach navigating between clients gets
+// instant loads for previously visited clients; realtime mutations invalidate.
+const CACHE_TTL_MS = 60 * 1000;
+const programCache = new Map<string, { data: ClientProgramData; ts: number }>();
+
+export function invalidateClientProgramCache(clientId?: string) {
+  if (clientId) programCache.delete(clientId);
+  else programCache.clear();
+}
+
 export function useClientProgram(clientId: string | undefined) {
-  const [data, setData] = useState<ClientProgramData>({
-    assignment: null,
-    program: null,
-    phases: [],
-    weeks: [],
+  const [data, setData] = useState<ClientProgramData>(() => {
+    const cached = clientId ? programCache.get(clientId) : null;
+    return cached && Date.now() - cached.ts < CACHE_TTL_MS
+      ? cached.data
+      : { assignment: null, program: null, phases: [], weeks: [] };
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const cached = clientId ? programCache.get(clientId) : null;
+    return !(cached && Date.now() - cached.ts < CACHE_TTL_MS);
+  });
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { force?: boolean }) => {
     if (!clientId) { setLoading(false); return; }
-    setLoading(true);
+
+    // Serve from cache when fresh (unless caller forced a reload).
+    const cached = programCache.get(clientId);
+    const fresh = cached && Date.now() - cached.ts < CACHE_TTL_MS;
+    if (fresh && !opts?.force) {
+      setData(cached!.data);
+      setLoading(false);
+      return;
+    }
+
+    // Stale-while-revalidate: show cached data instantly, refresh in background.
+    if (cached) {
+      setData(cached.data);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
@@ -79,13 +108,17 @@ export function useClientProgram(clientId: string | undefined) {
       if (assignErr) {
         console.error("[useClientProgram] assignment error:", assignErr);
         setError(assignErr.message);
-        setData({ assignment: null, program: null, phases: [], weeks: [] });
+        const empty = { assignment: null, program: null, phases: [], weeks: [] };
+        programCache.set(clientId, { data: empty, ts: Date.now() });
+        setData(empty);
         setLoading(false);
         return;
       }
 
       if (!assignData) {
-        setData({ assignment: null, program: null, phases: [], weeks: [] });
+        const empty = { assignment: null, program: null, phases: [], weeks: [] };
+        programCache.set(clientId, { data: empty, ts: Date.now() });
+        setData(empty);
         setLoading(false);
         return;
       }
@@ -99,7 +132,9 @@ export function useClientProgram(clientId: string | undefined) {
 
       if (progErr || !prog) {
         console.error("[useClientProgram] program error:", progErr);
-        setData({ assignment: null, program: null, phases: [], weeks: [] });
+        const empty = { assignment: null, program: null, phases: [], weeks: [] };
+        programCache.set(clientId, { data: empty, ts: Date.now() });
+        setData(empty);
         setLoading(false);
         return;
       }
@@ -172,7 +207,9 @@ export function useClientProgram(clientId: string | undefined) {
         }));
       }
 
-      setData({ assignment: assignData, program: prog, phases, weeks });
+      const next = { assignment: assignData, program: prog, phases, weeks };
+      programCache.set(clientId, { data: next, ts: Date.now() });
+      setData(next);
     } catch (err: any) {
       console.error("[useClientProgram] unexpected error:", err);
       setError(err.message);
@@ -183,5 +220,14 @@ export function useClientProgram(clientId: string | undefined) {
 
   useEffect(() => { load(); }, [load]);
 
-  return { ...data, loading, error, reload: load };
+  return {
+    ...data,
+    loading,
+    error,
+    reload: useCallback(() => {
+      if (clientId) programCache.delete(clientId);
+      return load({ force: true });
+    }, [clientId, load]),
+  };
 }
+
