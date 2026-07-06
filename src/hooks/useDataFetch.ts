@@ -138,12 +138,13 @@ export function useDataFetch<T>({
   isAI = false,
   fallback,
 }: UseDataFetchOptions<T>): UseDataFetchResult<T> {
-  const effectiveTimeout = timeout ?? (isAI ? TIMEOUTS.AI_PROCESS : TIMEOUTS.STANDARD_API);
+  // Base timeout: what the caller (or defaults) asked for
+  const baseTimeout = timeout ?? (isAI ? TIMEOUTS.AI_PROCESS : TIMEOUTS.STANDARD_API);
+
+  // Hydrate from persistent (localStorage) cache so cold mobile navigations paint instantly.
   const [data, setData] = useState<T | undefined>(() => {
-    const cached = cache.get(queryKey);
-    if (cached && Date.now() - cached.timestamp < staleTime) {
-      return cached.data as T;
-    }
+    const cached = hydrateFromDisk(queryKey);
+    if (cached) return cached.data as T;
     return undefined;
   });
   const [loading, setLoading] = useState(!data);
@@ -155,14 +156,14 @@ export function useDataFetch<T>({
   const fetchData = useCallback(async () => {
     if (!enabled) return;
 
-    const cached = cache.get(queryKey);
+    const cached = hydrateFromDisk(queryKey);
     if (cached && Date.now() - cached.timestamp < staleTime) {
       setData(cached.data as T);
       setLoading(false);
       return;
     }
 
-    // Stale-while-revalidate
+    // Stale-while-revalidate: render cache instantly, revalidate silently.
     if (cached) {
       setData(cached.data as T);
       setLoading(false);
@@ -177,6 +178,10 @@ export function useDataFetch<T>({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // When we already have cache to show, give the network far more slack
+    // so slow LTE never surfaces a "Failed to load" while data is on screen.
+    // Only enforce the tight timeout when the user is actually staring at a skeleton.
+    const effectiveTimeout = cached ? Math.max(baseTimeout * 3, 20000) : Math.max(baseTimeout, 12000);
     const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     const startTime = performance.now();
 
@@ -190,6 +195,7 @@ export function useDataFetch<T>({
       logPerf({ queryKey, durationMs: elapsed, success: true, timestamp: Date.now() });
 
       cache.set(queryKey, { data: result, timestamp: Date.now() });
+      savePersisted(queryKey, result);
       setData(result);
       setLoading(false);
     } catch (err: any) {
@@ -200,23 +206,27 @@ export function useDataFetch<T>({
 
       if (err.name === "AbortError") {
         logPerf({ queryKey, durationMs: elapsed, success: false, error: "timeout", timestamp: Date.now() });
-        setTimedOut(true);
+        // Only show the timed-out banner when there's no cache to show.
         if (cached) {
           setData(cached.data as T);
-        } else if (fallback !== undefined) {
-          setData(fallback);
+        } else {
+          setTimedOut(true);
+          if (fallback !== undefined) setData(fallback);
         }
       } else {
         logPerf({ queryKey, durationMs: elapsed, success: false, error: err.message, timestamp: Date.now() });
         console.error(`[Perf] ${queryKey} error:`, err.message);
-        setError(err.message);
-        if (fallback !== undefined && !data) {
-          setData(fallback);
+        // Same rule for errors: cache wins over an error banner.
+        if (cached) {
+          setData(cached.data as T);
+        } else {
+          setError(err.message);
+          if (fallback !== undefined && !data) setData(fallback);
         }
       }
       setLoading(false);
     }
-  }, [queryKey, enabled, staleTime, effectiveTimeout]);
+  }, [queryKey, enabled, staleTime, baseTimeout]);
 
   useEffect(() => {
     mountedRef.current = true;
