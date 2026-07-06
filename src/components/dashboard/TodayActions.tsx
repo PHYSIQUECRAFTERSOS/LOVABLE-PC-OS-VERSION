@@ -12,6 +12,9 @@ import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import CardioPopup from "@/components/dashboard/CardioPopup";
 import PhotosPopup from "@/components/dashboard/PhotosPopup";
 import { useWorkoutLauncher } from "@/hooks/useWorkoutLauncher";
+import { getLocalDateString } from "@/utils/localDate";
+import { readSnapshotSlice, writeSnapshotSlice, type TodayActionsSlice } from "@/lib/dashboardSnapshot";
+
 
 export interface ActionItem {
   id: string;
@@ -81,6 +84,9 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
   const workoutLauncher = useWorkoutLauncher();
+  const isTodayView = targetDate === getLocalDateString();
+  const snapshot = isTodayView ? readSnapshotSlice(user?.id, "todayActions") : null;
+
 
   // Popup state
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
@@ -293,14 +299,19 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     },
   });
 
-  // Fire onDataLoaded whenever data updates (including cache hits and refetches)
+  // Fire onDataLoaded whenever data updates (including cache hits and refetches).
+  // Persist today's actions to the snapshot for instant paint on cold boot.
   useEffect(() => {
     if (onDataLoaded && actions.length > 0) {
       onDataLoaded(actions);
     }
-  }, [actions, onDataLoaded]);
+    if (isTodayView && user?.id && actions && actions.length >= 0 && !loading) {
+      writeSnapshotSlice(user.id, "todayActions", { items: actions } as TodayActionsSlice);
+    }
+  }, [actions, onDataLoaded, isTodayView, user?.id, loading]);
 
   refetchRef.current = refetch;
+
 
   // Resolve the effective type from event_type + title keywords
   const resolveActionType = (action: ActionItem): string => {
@@ -363,10 +374,15 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
     refetch();
   };
 
-  if (loading) return <CardSkeleton lines={5} />;
+  // Instant paint from snapshot on cold boot; otherwise skeleton.
+  const hasSnapshot = !!snapshot && snapshot.items.length >= 0;
+  if (loading && actions.length === 0 && !hasSnapshot) return <CardSkeleton lines={5} />;
 
-  const completedCount = actions.filter((a) => a.completed).length;
-  const totalCount = actions.length;
+  const effectiveActions: ActionItem[] =
+    actions.length > 0 || !hasSnapshot ? actions : (snapshot!.items as ActionItem[]);
+  const completedCount = effectiveActions.filter((a) => a.completed).length;
+  const totalCount = effectiveActions.length;
+
 
   return (
     <>
@@ -380,10 +396,11 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
           </div>
         </CardHeader>
         <CardContent className="space-y-1">
-          {actions.length === 0 ? (
+          {effectiveActions.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">No actions scheduled today. Enjoy your rest!</p>
           ) : (
-            actions.map((action) => (
+            effectiveActions.map((action) => (
+
               <button
                 key={action.id}
                 onClick={() => handleActionClick(action)}

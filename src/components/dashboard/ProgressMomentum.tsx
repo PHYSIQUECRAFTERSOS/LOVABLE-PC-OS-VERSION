@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnitPreferences } from "@/hooks/useUnitPreferences";
@@ -7,6 +8,7 @@ import { format, subDays } from "date-fns";
 import { useDataFetch } from "@/hooks/useDataFetch";
 import { CardSkeleton } from "@/components/ui/data-skeleton";
 import { cn } from "@/lib/utils";
+import { readSnapshotSlice, writeSnapshotSlice, type ProgressMomentumSlice } from "@/lib/dashboardSnapshot";
 
 interface MomentumData {
   weightChange: number | null;
@@ -21,6 +23,7 @@ const ProgressMomentum = () => {
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 29), "yyyy-MM-dd");
   const sevenDaysAgo = format(subDays(new Date(), 6), "yyyy-MM-dd");
+  const snapshot = readSnapshotSlice(user?.id, "progressMomentum");
 
   const { data, loading } = useDataFetch<MomentumData>({
     queryKey: `progress-momentum-${user?.id}-${today}`,
@@ -77,12 +80,18 @@ const ProgressMomentum = () => {
     },
   });
 
+  useEffect(() => {
+    if (data && user?.id) {
+      writeSnapshotSlice(user.id, "progressMomentum", data as ProgressMomentumSlice);
+    }
+  }, [data, user?.id]);
 
-  if (loading) return <CardSkeleton lines={3} />;
+  if (loading && !data && !snapshot) return <CardSkeleton lines={3} />;
 
-  const { weightChange, currentWeight, workoutCompletion, stepAvg } = data || {
+  const { weightChange, currentWeight, workoutCompletion, stepAvg } = data ?? snapshot ?? {
     weightChange: null, currentWeight: null, workoutCompletion: 0, stepAvg: 0,
   };
+
 
   const displayWeightChange = weightChange !== null ? convertWeight(Math.abs(weightChange)) * (weightChange < 0 ? -1 : 1) : null;
   const displayCurrentWeight = currentWeight !== null ? convertWeight(currentWeight) : null;

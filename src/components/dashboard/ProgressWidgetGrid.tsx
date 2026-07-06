@@ -16,6 +16,8 @@ import ProgressPhotosModal from "./ProgressPhotosModal";
 import SleepCard from "./SleepCard";
 import SleepHistoryModal from "./SleepHistoryModal";
 import { getLocalDateString } from "@/utils/localDate";
+import { readSnapshotSlice, writeSnapshotSlice, type ProgressWidgetSlice } from "@/lib/dashboardSnapshot";
+
 
 interface SparkData {
   value: number;
@@ -186,14 +188,38 @@ const ProgressWidgetGrid = () => {
     };
   }, [uid, refetchPhotos, refetchMetrics]);
 
-  const dbSteps = metricsData?.dbSteps ?? null;
-  const dbDistance = metricsData?.dbDistance ?? null;
-  const dbStepGoal = metricsData?.dbStepGoal ?? null;
-  const stepsSpark = metricsData?.stepsSpark ?? [];
-  const distanceSpark = metricsData?.distanceSpark ?? [];
-  const photoUrls = photoData ?? [];
-  const todayCals = caloriesData?.todayCals ?? 0;
-  const calSpark = caloriesData?.calSpark ?? [];
+  // Snapshot hydration: fall back to last-known values when the live fetches
+  // haven't populated yet (cold boot after CacheBuster wipes web caches).
+  const snapshot = user ? readSnapshotSlice(user.id, "progressWidget", today) : null;
+
+  const dbSteps = metricsData?.dbSteps ?? snapshot?.dbSteps ?? null;
+  const dbDistance = metricsData?.dbDistance ?? snapshot?.dbDistance ?? null;
+  const dbStepGoal = metricsData?.dbStepGoal ?? snapshot?.dbStepGoal ?? null;
+  const stepsSpark = metricsData?.stepsSpark ?? snapshot?.stepsSpark ?? [];
+  const distanceSpark = metricsData?.distanceSpark ?? snapshot?.distanceSpark ?? [];
+  const photoUrls = photoData ?? snapshot?.photoUrls ?? [];
+  const todayCals = caloriesData?.todayCals ?? snapshot?.todayCals ?? 0;
+  const calSpark = caloriesData?.calSpark ?? snapshot?.calSpark ?? [];
+
+  // Persist current merged state back to the snapshot whenever any slice
+  // resolves. Writes are tiny and validated inside the helper.
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!metricsData && !photoData && !caloriesData) return;
+    const slice: ProgressWidgetSlice = {
+      dbSteps: metricsData?.dbSteps ?? snapshot?.dbSteps ?? null,
+      dbDistance: metricsData?.dbDistance ?? snapshot?.dbDistance ?? null,
+      dbStepGoal: metricsData?.dbStepGoal ?? snapshot?.dbStepGoal ?? null,
+      stepsSpark: metricsData?.stepsSpark ?? snapshot?.stepsSpark ?? [],
+      distanceSpark: metricsData?.distanceSpark ?? snapshot?.distanceSpark ?? [],
+      photoUrls: photoData ?? snapshot?.photoUrls ?? [],
+      todayCals: caloriesData?.todayCals ?? snapshot?.todayCals ?? 0,
+      calSpark: caloriesData?.calSpark ?? snapshot?.calSpark ?? [],
+    };
+    writeSnapshotSlice(user.id, "progressWidget", slice, today);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metricsData, photoData, caloriesData, user?.id, today]);
+
 
   // Merge: take the higher of DB value or live HealthKit value
   const isConnected = (isNative && connection?.is_connected) || todayMetrics?.source === "apple_health";
