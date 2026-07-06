@@ -65,7 +65,7 @@ const TAB_CONFIG = [
 ] as const;
 
 const MasterLibraries = () => {
-  const { user, role } = useAuth();
+  const { user, role, hasRole } = useAuth();
   const userId = user?.id;
   const isAdmin = role === "admin";
   const { toast } = useToast();
@@ -252,8 +252,10 @@ const MasterLibraries = () => {
   const sharedPrograms = filteredPrograms.filter(p => p.is_master === true);
   const personalPrograms = filteredPrograms.filter(p => p.is_master !== true && p.coach_id === userId);
 
-  const canEditProgram = (program: any) => program.coach_id === userId || isAdmin;
+  const canEditSharedMasterProgram = (program: any) => program.is_master === true && hasRole("manager");
+  const canEditProgram = (program: any) => program.coach_id === userId || isAdmin || canEditSharedMasterProgram(program);
   const canDeleteProgram = (program: any) => program.coach_id === userId || isAdmin;
+  const canChangeSharing = (program: any) => program.coach_id === userId || isAdmin;
 
   const duplicateProgram = async (programId: string) => {
     if (!user) return;
@@ -567,7 +569,7 @@ const MasterLibraries = () => {
                 <DropdownMenuItem onClick={() => openVersionHistory(program.id)}>
                   <History className="h-3.5 w-3.5 mr-2" /> Versions
                 </DropdownMenuItem>
-                {canEditProgram(program) && (
+                {canChangeSharing(program) && (
                   <DropdownMenuItem onClick={() => markAsMaster(program.id, !program.is_master)}>
                     {program.is_master ? <Lock className="h-3.5 w-3.5 mr-2" /> : <Share2 className="h-3.5 w-3.5 mr-2" />}
                     {program.is_master ? "Make Private" : "Share with Team"}
