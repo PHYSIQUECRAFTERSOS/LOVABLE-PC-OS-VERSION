@@ -34,6 +34,8 @@ import ExportPdfButton from "@/components/common/ExportPdfButton";
 import ChangeDurationDialog from "./training/ChangeDurationDialog";
 import CopyPhaseToMasterDialog from "./training/CopyPhaseToMasterDialog";
 import CopyPhaseToClientDialog from "./training/CopyPhaseToClientDialog";
+import DuplicatePhaseDialog from "@/components/training/DuplicatePhaseDialog";
+
 import { copyPhaseToMasterProgram, copyPhaseToClientProgram, restorePreviousProgramPhases } from "@/lib/copyPhaseHelpers";
 import AICreateProgramModal from "@/components/training/AICreateProgramModal";
 import { derivePhaseDates } from "@/lib/phaseDates";
