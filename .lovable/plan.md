@@ -1,60 +1,50 @@
-# Physique Crafters OS: Command Center Resilience Fix (Phase 2, Step 1 of 3)
+# Master Libraries N+1 Fix — Phase 2, Step 2
 
-## STOP. SCOPE THIS TIGHTLY.
+Scope: **only** `src/components/training/ProgramDetailView.tsx`, function `loadProgram()` (lines ~222–307).
 
-This is Step 1 of a 3-step fix sequence approved after the Phase 1 diagnostic. Implement ONLY the change described here, in ONLY the Command Center component. Do not touch Master Libraries, ProgramDetailView, RLS, indexes, or the shared `useDataFetch` hook's behavior for other callers. Do NOT add owner-column query predicates in this step, that is Step 3. If you find yourself editing any file other than the Command Center component, stop and report.
+## Change
 
-## ROLE
+Replace the sequential `for (const phase of phaseRows) { await supabase.from("program_workouts")... }` loop with a single batched query, mirroring the pattern already used in `useClientProgram.ts` and `ProgramOverviewPane.tsx`.
 
-You are a senior full stack engineer working inside my Lovable project for "Physique Crafters OS". Make one precise, contained change.
+### New flow inside `loadProgram()`
 
-## CONFIRMED ROOT CAUSE (from Phase 1 diagnostic, already verified)
+1. Load `programs` row (unchanged).
+2. Load `program_phases` rows (unchanged).
+3. Collect `phaseIds = (phaseRows || []).map(p => p.id)`.
+4. **One** batched query:
+   ```ts
+   const { data: allPws } = await supabase
+     .from("program_workouts")
+     .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+     .in("phase_id", phaseIds)
+     .order("sort_order");
+   ```
+   (Adds `phase_id` to the selected columns so we can group in memory. All other columns and ordering are identical to today.)
+5. Group `allPws` by `phase_id` into `pwByPhase: Record<string, ProgramWorkout[]>` using the exact same row-to-`ProgramWorkout` mapping as today.
+6. Iterate `phaseRows` and build `loadedPhases` using `pwByPhase[phase.id] || []`.
+7. **Legacy fallback**: only for phases where `pwByPhase[phase.id]` is empty/undefined, run the existing `program_weeks` + `program_workouts(week_id in …)` fallback for that specific phase. All non-empty phases skip the fallback entirely. The fallback code path itself is unchanged in behavior.
+8. Rest of `loadProgram` (empty-program seed, `setPhases`, meta load, `setLoading(false)`) unchanged.
 
-`src/components/dashboard/CoachCommandCenter.tsx` fans out 6 parallel Supabase queries using `Promise.all` with a shared 5000 ms AbortController. When any single query exceeds the 5 s wall clock (typically the roster-wide `calendar_events` 7-day query or the `messages` query), the shared AbortController cancels all six and the fetcher returns an all-zeros fallback. The dashboard then renders every card as 0 or empty even though the data exists (39 active clients confirmed in `coach_clients`). This is why the dashboard shows "nothing loaded". Using `Promise.all` here also violates the project invariant that parallel fetches must use `Promise.allSettled`.
+No parallelism is being introduced (single batched query + rare per-empty-phase fallback), so no `Promise.all` / `Promise.allSettled` needed. If any parallelism is added for fallback phases, it will use `Promise.allSettled`.
 
-## THE FIX (single logical change)
+## Explicitly not touched
 
-Make the Command Center fan-out resilient so a slow or failed individual query can never blank the entire dashboard.
+- `getDisplayPosition()` and all display numbering.
+- `loadWorkoutMeta()` / `get_workout_meta_batch` RPC.
+- Any owner predicate, RLS policy, index, schema, migration.
+- `ProgramOverviewPane`, `useClientProgram`, Command Center.
+- Save/duplicate/delete paths lower in the file.
+- Dates (still en-CA where relevant), and no "Track Water".
 
-1. Replace `Promise.all` with `Promise.allSettled` for the six-query fan-out.
-2. Handle each query's result independently. A fulfilled query populates its own card. A rejected or timed-out query falls back to that card's own empty state only, ideally showing a brief per-card loading or "unavailable" indicator, without affecting the other five cards.
-3. Remove the shared all-or-nothing 5000 ms abort that cancels every query. If you want a timeout, apply it per query so one slow query cannot cancel its siblings. The fast queries (`coach_clients`, `profiles`, `workout_sessions`, `client_risk_scores`) must render immediately with their real values.
-4. Do NOT change the queries themselves in this step. No new WHERE predicates, no column changes, no RLS. Only the orchestration and result handling change.
+## Acceptance
 
-## IMPLEMENTATION CONSTRAINTS
+- `loadProgram()` fires **one** `program_workouts` query with `.in("phase_id", phaseIds)` instead of one per phase.
+- 7-phase program renders identical phases, workouts, order, and numbering.
+- Network requests on program load drop from ~1-per-phase (+meta RPC) to 1 batched + unchanged meta RPC.
+- Legacy fallback still runs only for genuinely empty phases.
 
-- Edit only `src/components/dashboard/CoachCommandCenter.tsx`. Edit it in place. Do not recreate it.
-- Do NOT modify `src/hooks/useDataFetch.ts` in any way that changes behavior for other callers. It is a shared hook. Achieve the resilient fan-out by changing how the Command Center orchestrates and handles its queries. If you believe `useDataFetch` itself must change, STOP and report before editing it.
-- Do NOT add owner-column predicates to `calendar_events` or `messages` in this step. That is Step 3 and requires separate verification.
-- Do NOT modify any RLS policy, index, schema, or migration.
-- Preserve `calendar_events` as the single source of truth for completion state.
-- Preserve `en-CA` local date formatting for the "yesterday" and "last 7 days" calculations. Do not switch to UTC.
-- Use `Promise.allSettled`, never `Promise.all`.
-- "Track Water" must not appear anywhere. If encountered in this file, remove it.
+## Reporting after implementation
 
-## ACCEPTANCE CRITERIA (all mandatory)
-
-1. The fan-out uses `Promise.allSettled`, not `Promise.all`.
-2. Every card whose underlying query succeeds renders its real value on load, regardless of whether other queries are still pending or have failed.
-3. No card displays 0 or "none" when its own underlying query returned data. Specifically, the active client count reflects the real `coach_clients` rows.
-4. A single slow or failed query never cancels or zeroes the other queries or cards.
-5. `useDataFetch` behavior is unchanged for every other screen that uses it.
-6. No RLS policy, index, schema, or query predicate was changed.
-7. Date logic still uses `en-CA` local formatting, not UTC.
-
-## DO NOT TOUCH
-
-- Master Libraries, `ProgramDetailView`, `ProgramOverviewPane`, `useClientProgram`.
-- RLS policies, indexes, schema, migrations.
-- The shared `useDataFetch` hook's contract or behavior for other callers.
-- Query predicates or owner filters on `calendar_events` and `messages` (deferred to Step 3).
-- Desktop and mobile layout.
-- `getDisplayPosition()`, the `calendar_events` source-of-truth rule, `en-CA` formatting.
-
-## AFTER IMPLEMENTING, REPORT
-
-- Which lines changed in the Command Center component.
-- Confirmation that the fast cards now populate with real data on load.
-- Confirmation that the two heavy cards resolve on their own without zeroing the rest of the dashboard.
-- Do not proceed to Master Libraries or the query-predicate optimization. Those are separate approved steps.
-- &nbsp;
+- Exact line range changed in `ProgramDetailView.tsx`.
+- Before/after request count for the 7-phase program load.
+- Confirmation that rendered output is identical.

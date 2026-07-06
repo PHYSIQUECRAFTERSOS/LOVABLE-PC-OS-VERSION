@@ -240,27 +240,40 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
         .order("phase_order");
 
       const loadedPhases: ProgramPhase[] = [];
+      const phaseIds = (phaseRows || []).map((p: any) => p.id);
 
-      for (const phase of (phaseRows || [])) {
-        // Load workouts directly linked to phase (new structure)
-        const { data: pwRows } = await supabase
+      const mapPw = (pw: any): ProgramWorkout => ({
+        id: pw.id,
+        workoutId: pw.workout_id,
+        workoutName: (pw.workouts as any)?.name || "Workout",
+        dayOfWeek: pw.day_of_week ?? 0,
+        dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
+        sortOrder: pw.sort_order ?? 0,
+        excludeFromNumbering: pw.exclude_from_numbering || false,
+        customTag: pw.custom_tag || null,
+      });
+
+      // Batched: single query for ALL phases' workouts, grouped in memory.
+      const pwByPhase: Record<string, ProgramWorkout[]> = {};
+      if (phaseIds.length > 0) {
+        const { data: allPws } = await supabase
           .from("program_workouts")
-          .select("id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
-          .eq("phase_id", phase.id)
+          .select("id, phase_id, workout_id, day_of_week, day_label, sort_order, exclude_from_numbering, custom_tag, workouts(name)")
+          .in("phase_id", phaseIds)
           .order("sort_order");
 
-        let workouts: ProgramWorkout[] = (pwRows || []).map((pw: any) => ({
-          id: pw.id,
-          workoutId: pw.workout_id,
-          workoutName: (pw.workouts as any)?.name || "Workout",
-          dayOfWeek: pw.day_of_week ?? 0,
-          dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-          sortOrder: pw.sort_order ?? 0,
-          excludeFromNumbering: pw.exclude_from_numbering || false,
-          customTag: pw.custom_tag || null,
-        }));
+        for (const pw of (allPws || [])) {
+          const pid = (pw as any).phase_id;
+          if (!pid) continue;
+          if (!pwByPhase[pid]) pwByPhase[pid] = [];
+          pwByPhase[pid].push(mapPw(pw));
+        }
+      }
 
-        // Fallback: load from weeks if no direct phase workouts found (legacy data)
+      for (const phase of (phaseRows || [])) {
+        let workouts: ProgramWorkout[] = pwByPhase[phase.id] || [];
+
+        // Legacy fallback: only for phases that genuinely have no direct workouts.
         if (workouts.length === 0) {
           const { data: weekRows } = await supabase
             .from("program_weeks")
@@ -278,16 +291,7 @@ const ProgramDetailView = ({ programId, programName, onBack, focusPhaseId, onBac
             const seen = new Set<string>();
             workouts = (legacyPws || [])
               .filter((pw: any) => { if (seen.has(pw.workout_id)) return false; seen.add(pw.workout_id); return true; })
-              .map((pw: any) => ({
-                id: pw.id,
-                workoutId: pw.workout_id,
-                workoutName: (pw.workouts as any)?.name || "Workout",
-                dayOfWeek: pw.day_of_week ?? 0,
-                dayLabel: pw.day_label || DAY_LABELS[pw.day_of_week ?? 0],
-                sortOrder: pw.sort_order ?? 0,
-                excludeFromNumbering: pw.exclude_from_numbering || false,
-                customTag: pw.custom_tag || null,
-              }));
+              .map(mapPw);
           }
         }
 
