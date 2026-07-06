@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { App, type AppState } from "@capacitor/app";
 import { format, isToday as isDateToday } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
@@ -18,9 +19,11 @@ import { useWorkoutStreak } from "@/hooks/useWorkoutStreak";
 import { Skeleton } from "@/components/ui/skeleton";
 import ChallengeBanner from "@/components/dashboard/ChallengeBanner";
 import MyRankDashboardCard from "@/components/dashboard/MyRankDashboardCard";
+import { invalidateCacheByPrefix } from "@/hooks/useDataFetch";
 
 import PendingRankUpPopup from "@/components/ranked/PendingRankUpPopup";
 import DailyRewardsPopup from "@/components/ranked/DailyRewardsPopup";
+
 const Dashboard = () => {
   const { role } = useAuth();
   const isClient = role === "client";
