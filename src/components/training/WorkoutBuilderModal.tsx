@@ -957,7 +957,7 @@ const WorkoutBuilderModal = ({ open, onClose, onSave, editWorkoutId, coachId }: 
                               <Badge variant="secondary" className="text-[10px] px-1.5 min-w-[24px] justify-center">{idx + 1}</Badge>
                               {ex.thumbnail ? (
                                 <button onClick={() => setPreviewExerciseIdx(previewExerciseIdx === idx ? null : idx)} className="relative flex-shrink-0">
-                                  <img src={ex.thumbnail} alt="" className="w-10 h-7 rounded object-cover bg-secondary" />
+                                  <img src={ex.thumbnail} alt="" loading="lazy" decoding="async" className="w-10 h-7 rounded object-cover bg-secondary" />
                                   <div className="absolute inset-0 flex items-center justify-center bg-background/40 rounded opacity-0 hover:opacity-100 transition-opacity">
                                     <Play className="h-3 w-3 text-foreground" />
                                   </div>

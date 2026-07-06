@@ -395,7 +395,7 @@ const WorkoutBuilder = ({ onSave, editWorkoutId }: WorkoutBuilderProps) => {
                     <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab flex-shrink-0" />
                     <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
                     {ex.youtubeThumbnail ? (
-                      <img src={ex.youtubeThumbnail} alt="" className="w-10 h-7 rounded object-cover" />
+                      <img src={ex.youtubeThumbnail} alt="" loading="lazy" decoding="async" className="w-10 h-7 rounded object-cover" />
                     ) : (
                       <div className="w-10 h-7 rounded bg-secondary flex items-center justify-center">
                         <Dumbbell className="h-3 w-3 text-muted-foreground" />

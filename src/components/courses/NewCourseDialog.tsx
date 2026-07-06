@@ -152,7 +152,7 @@ const NewCourseDialog = ({ open, onOpenChange, modules, existing, onSaved }: Pro
 
           {thumbnailUrl && (
             <div className="overflow-hidden rounded-lg border border-border">
-              <img src={thumbnailUrl} alt="preview" className="aspect-video w-full object-cover" />
+              <img src={thumbnailUrl} alt="preview" loading="lazy" decoding="async" className="aspect-video w-full object-cover" />
             </div>
           )}
 
