@@ -8053,6 +8053,10 @@ export type Database = {
       }
       admin_fan_out_synthetic_log: { Args: { p_log_id: string }; Returns: Json }
       admin_repair_workout_labels: { Args: never; Returns: Json }
+      can_manage_shared_master_library: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
       compute_nutrition_streak: { Args: { p_user_id: string }; Returns: number }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -8144,6 +8148,14 @@ export type Database = {
       }
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_shared_master_program: {
+        Args: { _program_id: string }
+        Returns: boolean
+      }
+      is_shared_master_workout: {
+        Args: { _workout_id: string }
         Returns: boolean
       }
       list_empty_saved_meals: {
