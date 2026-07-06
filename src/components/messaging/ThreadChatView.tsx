@@ -879,9 +879,10 @@ const ThreadChatView = ({
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a message..."
-                className="flex-1 min-h-[40px] max-h-[120px] text-[15px] resize-none py-2"
+                className="flex-1 min-h-[40px] max-h-[60vh] text-base leading-relaxed resize-none py-2 overflow-y-auto"
                 rows={1}
               />
+
             )}
             {!isRecording && (
               <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
