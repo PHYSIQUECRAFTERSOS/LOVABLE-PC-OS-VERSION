@@ -84,6 +84,9 @@ const TodayActions = ({ date, onDataLoaded, sectionTitle = "Today's Actions" }: 
   const navigate = useNavigate();
   const targetDate = date || format(new Date(), "yyyy-MM-dd");
   const workoutLauncher = useWorkoutLauncher();
+  const isTodayView = targetDate === getLocalDateString();
+  const snapshot = isTodayView ? readSnapshotSlice(user?.id, "todayActions") : null;
+
 
   // Popup state
   const [workoutPopup, setWorkoutPopup] = useState<{ workoutId: string; workoutName: string; calendarEventId: string } | null>(null);
