@@ -918,7 +918,16 @@ const MasterLibraries = () => {
                           setAssignPhaseId(phaseId);
                           setShowAssignDialog(true);
                         }}
+                        onAddPhase={
+                          (() => {
+                            const prog = programs.find(p => p.id === selectedProgramId);
+                            return prog && canEditProgram(prog)
+                              ? () => handleAddMasterPhase(selectedProgramId)
+                              : undefined;
+                          })()
+                        }
                       />
+
                     )}
                   </div>
                 ) : null
