@@ -4675,6 +4675,7 @@ export type Database = {
       message_threads: {
         Row: {
           client_id: string
+          coach_hidden_at: string | null
           coach_id: string
           coach_last_seen_at: string | null
           coach_marked_unread: boolean
@@ -4685,6 +4686,7 @@ export type Database = {
         }
         Insert: {
           client_id: string
+          coach_hidden_at?: string | null
           coach_id: string
           coach_last_seen_at?: string | null
           coach_marked_unread?: boolean
@@ -4695,6 +4697,7 @@ export type Database = {
         }
         Update: {
           client_id?: string
+          coach_hidden_at?: string | null
           coach_id?: string
           coach_last_seen_at?: string | null
           coach_marked_unread?: boolean

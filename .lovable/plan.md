@@ -1,65 +1,60 @@
-# Courses Section (Skool-style YouTube library)
+# Messaging: Inactive Client Handling & Thread Archive Management
 
-A dedicated area where you and Aaron can post YouTube recordings of your weekly Zoom group calls, organized into modules with tags and pinning, so clients can easily browse and rewatch past trainings.
+Match Trainerize behavior: no new messages fire to inactive clients, their threads are muted, and coaches can delete a thread archive with a double confirmation — but the underlying message history is preserved so re-opening a conversation with the same client restores everything.
 
-## Navigation
+## Definitions
 
-- New nav entry **Courses** (BookOpen icon) added to the client hamburger menu directly under **Community**.
-- Also added to the coach hamburger menu under Community (so you and Aaron can manage from the same place).
-- Not added to the mobile bottom tab bar (keeps the pinned nav stable per the layout stability rule).
+An **inactive client** is any client where `coach_clients.status != 'active'` (i.e. `deactivated` or `pending`) OR who has been fully deleted from the app (no active `coach_clients` row and no profile / auth user).
 
-## Page: `/courses`
+## 1. Block outgoing messages to inactive clients
 
-Layout (mobile-first, matte black + gold aesthetic):
+- In `ThreadChatView`, after loading the thread, look up the client's `coach_clients` row (or profile existence).
+- If inactive/deleted:
+  - Show a muted banner at the bottom of the chat: *"This client is inactive — messaging is disabled. Reactivate them from Clients to resume."*
+  - Disable the composer (textarea, attachment button, voice recorder, send button).
+  - Guard `handleSend` with an early-return + toast so send is impossible even if the UI is bypassed.
+- Auto-messaging (`AutoMessagingManager`, broadcasts, triggers, tag automations) already filters `coach_clients.status = 'active'`. Add the same guard inside the message-send edge functions as a belt-and-suspenders check, so no automation can ever deliver to an inactive client.
 
-1. **Header** — "Courses" title, search bar, and (coach only) a **+ New Video** button.
-2. **Filter row** — horizontal scrollable chips: `All`, then each Module (Nutrition, Training, Mindset, etc.), plus a "Pinned" toggle.
-3. **Pinned strip** — up to ~3 featured cards at the top when the "All" filter is selected.
-4. **Chronological grid** — newest first. Card shows: YouTube thumbnail, title, module chip, duration, posted date, small "Watched" checkmark badge in the corner once viewed.
-5. Empty and loading skeletons follow existing patterns.
+## 2. Mute inactive threads in the coach thread list
 
-## Video Detail / Player
+- `CoachThreadList` fetches `coach_clients` for the coach and computes an `inactive` flag per thread.
+- Inactive threads are moved to a collapsible **"Inactive"** section at the bottom of the list (collapsed by default, count badge shown).
+- Inactive threads render greyed out, are excluded from unread-count badges, and do not surface push notifications or the app-badge count (client-side filter in the notification handler).
+- Search still finds inactive threads.
 
-- Tapping a card opens a full-screen sheet on mobile / centered dialog on desktop.
-- **Embedded YouTube iframe player** at the top (16:9, respects safe areas).
-- Below: title, module + tags, posted date, duration, description/show notes (whitespace-pre-wrap so line breaks are preserved), and an **Open in YouTube** button.
-- Watching auto-marks the video as watched for that client (after ~10s of play or on close).
+## 3. Delete conversation thread archive (double confirm)
 
-## Coach Management
+- Add a small **⋯** menu on each row in `CoachThreadList` and inside `ThreadChatView`'s header with a **Delete conversation** option.
+- Tapping opens **AlertDialog #1**: *"Delete this conversation? It will be removed from your inbox."* → Continue / Cancel.
+- Continue opens **AlertDialog #2** (typed confirmation): coach must type the client's first name to unlock the destructive red **Delete permanently** button.
+- Delete behavior is a **soft-hide, not a hard delete**: sets a new `coach_hidden_at` timestamp on `message_threads` so the thread disappears from the coach's inbox but every `thread_messages` row is preserved. This satisfies the "messages save through when a new conversation is started with the same client" requirement.
+- Client-side view (`ClientMessaging`) is unaffected — the client still sees the thread and their history.
 
-- **+ New Video** dialog: paste YouTube URL → auto-fetches thumbnail, title, and duration via the oEmbed endpoint (client-side, no key). Coach can override title, pick a Module, add tags, description, toggle Pinned, and set the posted date (defaults to today).
-- Edit and delete via a "…" menu on each card (coach/admin only). Admin can delete anything; coaches can edit/delete their own.
-- Modules are managed by admin from the same page (small "Manage Modules" link in the header for admin only).
+## 4. Re-opening = restore, not recreate
 
-## Suggested Improvements Included
+- `message_threads` has a `UNIQUE(coach_id, client_id)` constraint, so a coach cannot create a duplicate thread with the same client.
+- The **New Conversation** flow (`NewConversationDialog`) is updated: when the coach picks a client, we look up any existing thread (hidden or not). If found, we clear `coach_hidden_at`, mark it unread for the coach's view, and open it — all previous messages appear immediately.
+- Only active clients are pickable in the new-conversation dialog (already the case; verified against `status = 'active'`).
 
-- **Watched indicator per client** so clients can see what they've missed.
-- **Search bar** covers title, description, and tags — makes finding "that macro talk from 2 months ago" trivial.
-- **Pinned strip** so you can spotlight onboarding-worthy calls (e.g., "Start Here").
-- **Community cross-post button** (optional, coach-only) — after adding a video, one tap creates a community post linking to it, so you can stop double-posting manually.
-- **"New this week" badge** on cards posted in the last 7 days for a small dopamine hit.
+## 5. Data & security
 
-## Data Model (technical)
+Additive migration on `message_threads`:
+- New column `coach_hidden_at timestamptz null` (default null).
+- New index on `(coach_id, coach_hidden_at)` for fast inbox filters.
+- RLS unchanged — the column is coach-controlled and clients don't read it.
+- No changes to `thread_messages` — history is preserved by design.
 
-Three new tables under Lovable Cloud, all with RLS + GRANTs per project standards:
+## 6. Files touched
 
-- `course_modules` — id, name, sort_order, created_by, timestamps. Read: all authenticated. Write: coach/admin.
-- `courses` — id, title, youtube_url, youtube_video_id, thumbnail_url, duration_seconds, description, module_id (FK), tags (text[]), is_pinned, posted_at, created_by, timestamps. Read: all authenticated. Insert/Update: coach/admin (creator or admin can edit/delete). Delete: admin or creator.
-- `course_watches` — id, course_id, user_id, watched_at. Read/Write: own rows only. Unique on (course_id, user_id).
+- Migration: add `coach_hidden_at` on `message_threads` (+ index).
+- `src/components/messaging/CoachThreadList.tsx` — active/inactive split, ⋯ menu, hidden filter.
+- `src/components/messaging/ThreadChatView.tsx` — inactive banner, disabled composer, send guard, header menu with Delete flow.
+- `src/components/messaging/NewConversationDialog.tsx` — reopen-existing-thread logic that unhides.
+- `src/components/messaging/AutoMessagingManager.tsx` and any broadcast/trigger edge functions — enforce `status = 'active'` recipient filter.
+- New small component `DeleteThreadDialog.tsx` — two-step AlertDialog with typed confirmation.
 
-Seed with a few starter modules: Nutrition, Training, Mindset, Q&A, Start Here.
+## Out of scope
 
-## Files (technical)
-
-- New page `src/pages/Courses.tsx`.
-- New components under `src/components/courses/`: `CourseCard.tsx`, `CoursePlayerSheet.tsx`, `NewCourseDialog.tsx`, `ModuleFilterChips.tsx`, `ManageModulesDialog.tsx`.
-- New hook `src/hooks/useCourses.ts` (list + mutations, cached via existing useDataFetch pattern with a short TTL).
-- Route registered in `src/App.tsx` (`/courses`, ProtectedRoute — all roles).
-- Nav entry added to `src/components/AppLayout.tsx` in both `clientNav` and `coachNav`, positioned directly after the Community entry.
-- Small util `src/utils/youtube.ts` for parsing video IDs and calling YouTube's public oEmbed endpoint.
-
-## Out of Scope
-
-- No native video hosting or uploads — YouTube links only.
-- No comments/likes inside Courses (Community already handles discussion).
-- No progress %/scrubbing analytics beyond a single "watched" flag.
+- No hard delete of message rows (would break the "prior messages persist" requirement).
+- No changes to the client-side messaging UI.
+- No changes to the account-deletion flow itself; we just react to it correctly.

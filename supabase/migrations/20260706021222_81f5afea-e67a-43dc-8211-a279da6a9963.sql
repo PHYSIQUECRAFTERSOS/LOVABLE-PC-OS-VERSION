@@ -1,0 +1,2 @@
+ALTER TABLE public.message_threads ADD COLUMN IF NOT EXISTS coach_hidden_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_message_threads_coach_hidden ON public.message_threads(coach_id, coach_hidden_at);
