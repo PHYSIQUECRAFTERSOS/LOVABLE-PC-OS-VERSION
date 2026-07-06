@@ -12,6 +12,9 @@ import WorkoutStartPopup from "@/components/dashboard/WorkoutStartPopup";
 import CardioPopup from "@/components/dashboard/CardioPopup";
 import PhotosPopup from "@/components/dashboard/PhotosPopup";
 import { useWorkoutLauncher } from "@/hooks/useWorkoutLauncher";
+import { getLocalDateString } from "@/utils/localDate";
+import { readSnapshotSlice, writeSnapshotSlice, type TodayActionsSlice } from "@/lib/dashboardSnapshot";
+
 
 export interface ActionItem {
   id: string;
