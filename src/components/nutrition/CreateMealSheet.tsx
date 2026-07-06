@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { getFoodEmoji } from "@/utils/foodEmoji";
 import { lookupBarcode } from "@/utils/barcodeService";
-import { BrowserMultiFormatReader, NotFoundException, DecodeHintType, BarcodeFormat } from "@zxing/library";
+import type { BrowserMultiFormatReader as BrowserMultiFormatReaderT } from "@zxing/library";
+import { loadZxing } from "@/lib/lazyZxing";
 import {
   ArrowLeft, Plus, X, Search, Loader2, Minus, Clock, ScanBarcode, UtensilsCrossed,
 } from "lucide-react";
@@ -88,7 +89,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
   const [barcodeLoading, setBarcodeLoading] = useState(false);
   const [barcodeScanning, setBarcodeScanning] = useState(false);
   const barcodeVideoRef = useRef<HTMLVideoElement>(null);
-  const barcodeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const barcodeReaderRef = useRef<BrowserMultiFormatReaderT | null>(null);
   const barcodeStreamRef = useRef<MediaStream | null>(null);
   const barcodeDetectedRef = useRef(false);
   
@@ -331,14 +332,15 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
       video.srcObject = stream;
       try { await video.play(); } catch {}
 
+      const zxing = await loadZxing();
       const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.EAN_13, BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A, BarcodeFormat.UPC_E,
-        BarcodeFormat.CODE_128, BarcodeFormat.CODE_39,
+      hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [
+        zxing.BarcodeFormat.EAN_13, zxing.BarcodeFormat.EAN_8,
+        zxing.BarcodeFormat.UPC_A, zxing.BarcodeFormat.UPC_E,
+        zxing.BarcodeFormat.CODE_128, zxing.BarcodeFormat.CODE_39,
       ]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      const reader = new BrowserMultiFormatReader(hints, 90);
+      hints.set(zxing.DecodeHintType.TRY_HARDER, true);
+      const reader = new zxing.BrowserMultiFormatReader(hints, 90);
       barcodeReaderRef.current = reader;
 
       reader.decodeFromStream(stream, video, (result, err) => {
@@ -348,7 +350,7 @@ const CreateMealSheet = ({ mealType, onClose, onSaved }: CreateMealSheetProps) =
           stopBarcodeScanner();
           handleBarcodeLookupForMeal(result.getText());
         }
-        if (err && !(err instanceof NotFoundException)) {
+        if (err && !(err instanceof zxing.NotFoundException)) {
           console.warn("[CreateMeal Barcode] Error:", err);
         }
       }).catch(err => {

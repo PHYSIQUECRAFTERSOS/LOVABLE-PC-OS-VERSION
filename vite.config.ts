@@ -29,6 +29,13 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
+          // Heavy libraries that must code-split into their own async chunks
+          // (loaded on demand at the feature call site). Do NOT bucket these
+          // into any shared chunk or they end up in the eager initial bundle.
+          if (id.includes("@zxing")) return undefined;
+          if (id.includes("emoji-picker-react")) return undefined;
+          if (id.includes("pdfjs-dist")) return undefined;
+          if (id.includes("@ffmpeg")) return undefined;
           // Keep the big shared runtime libs in dedicated chunks so a route
           // switch only pays for the diff. Do NOT bucket lucide-react — that
           // forces every icon into a single up-front chunk. Leaving it out

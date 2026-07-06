@@ -12,14 +12,12 @@ import { toast } from "sonner";
 import ExerciseMatchReview from "./ExerciseMatchReview";
 import FoodMatchReview from "./FoodMatchReview";
 import SupplementReview from "./SupplementReview";
-import * as pdfjsLib from "pdfjs-dist";
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { loadPdfjsModern } from "@/lib/lazyPdfjs";
 import { prependTrainerizeWorkoutSummary } from "@/lib/ai-import/trainerizeWorkoutParser";
 import { replaceWorkoutExercisePlan, type WorkoutExercisePlanInput } from "@/lib/workoutExerciseQueries";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
-
 async function extractTextFromPDF(file: File, documentType?: string): Promise<string> {
+  const pdfjsLib: any = await loadPdfjsModern();
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const textParts: string[] = [];

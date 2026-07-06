@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { BrowserMultiFormatReader, NotFoundException, DecodeHintType, BarcodeFormat } from "@zxing/library";
+import type { BrowserMultiFormatReader as BrowserMultiFormatReaderT } from "@zxing/library";
+import { loadZxing } from "@/lib/lazyZxing";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -36,19 +37,20 @@ interface BarcodeScannerProps {
 }
 
 /** Build a configured BrowserMultiFormatReader with optimal hints */
-function createReader(): BrowserMultiFormatReader {
+async function createReader(): Promise<BrowserMultiFormatReaderT> {
+  const zxing = await loadZxing();
   const hints = new Map();
-  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-    BarcodeFormat.EAN_13,
-    BarcodeFormat.EAN_8,
-    BarcodeFormat.UPC_A,
-    BarcodeFormat.UPC_E,
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.CODE_39,
+  hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, [
+    zxing.BarcodeFormat.EAN_13,
+    zxing.BarcodeFormat.EAN_8,
+    zxing.BarcodeFormat.UPC_A,
+    zxing.BarcodeFormat.UPC_E,
+    zxing.BarcodeFormat.CODE_128,
+    zxing.BarcodeFormat.CODE_39,
   ]);
-  hints.set(DecodeHintType.TRY_HARDER, true);
+  hints.set(zxing.DecodeHintType.TRY_HARDER, true);
   // Aggressive interval for near-instant read while staying stable on mobile.
-  return new BrowserMultiFormatReader(hints, 90);
+  return new zxing.BrowserMultiFormatReader(hints, 90);
 }
 
 /** Primary camera constraints for distance scanning */
@@ -95,7 +97,7 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
   const [manualProtein, setManualProtein] = useState("");
   const [manualCarbs, setManualCarbs] = useState("");
   const [manualFat, setManualFat] = useState("");
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReaderT | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hasDetectedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
@@ -260,8 +262,13 @@ const BarcodeScanner = ({ onLogged, open: controlledOpen, onOpenChange, defaultM
       await tryEnableTorch(warmStream);
 
       // Keep the warm stream alive — decode directly from it (single-stream pattern)
-      const reader = createReader();
+      const reader = await createReader();
+      if (token !== startTokenRef.current) {
+        try { reader.reset(); } catch { /* ignore */ }
+        return;
+      }
       readerRef.current = reader;
+      const { NotFoundException } = await loadZxing();
 
       reader
         .decodeFromStream(warmStream, videoEl, (result, err) => {
