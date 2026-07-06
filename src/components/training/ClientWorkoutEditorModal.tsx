@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AddCustomExerciseModal from "./AddCustomExerciseModal";
 import { getLocalDateString } from "@/utils/localDate";
 import { fetchWorkoutExerciseDetails, replaceWorkoutExercisePlan } from "@/lib/workoutExerciseQueries";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -138,10 +139,20 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     });
   };
 
-  const loadLibrary = useCallback(async () => {
+  // Server-side paginated exercise library search. Avoids downloading the
+  // entire exercises table on every open — critical as the catalog grows.
+  const debouncedSearch = useDebounce(searchQuery, 200);
+  const loadLibrary = useCallback(async (search: string, muscle: string) => {
     setLibraryLoading(true);
-    const { data, error } = await supabase.from("exercises")
-      .select("id, name, primary_muscle, equipment, youtube_thumbnail, tags").order("name");
+    let q = supabase
+      .from("exercises")
+      .select("id, name, primary_muscle, equipment, youtube_thumbnail, tags")
+      .order("name")
+      .limit(200);
+    const term = search.trim();
+    if (term) q = q.ilike("name", `%${term}%`);
+    if (muscle !== "all") q = q.eq("primary_muscle", muscle);
+    const { data, error } = await q;
     if (error) {
       console.error("[ClientWorkoutEditor] library load failed:", error);
       toast({ title: "Failed to load exercise library", description: error.message, variant: "destructive" });
@@ -151,7 +162,9 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     setLibraryLoading(false);
   }, [toast]);
 
-  useEffect(() => { if (open) loadLibrary(); }, [open, loadLibrary]);
+  useEffect(() => {
+    if (open) loadLibrary(debouncedSearch, filterMuscle);
+  }, [open, debouncedSearch, filterMuscle, loadLibrary]);
 
   useEffect(() => {
     if (!workoutId || !open) return;
@@ -220,15 +233,9 @@ const ClientWorkoutEditorModal = ({ open, onClose, onSaved, workoutId, workoutNa
     onClose();
   };
 
-  const filteredLibrary = libraryExercises.filter((ex) => {
-    const matchSearch = !searchQuery || (() => {
-      const name = ex.name.toLowerCase();
-      const tokens = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
-      return tokens.every(token => name.includes(token));
-    })();
-    const matchMuscle = filterMuscle === "all" || ex.primary_muscle === filterMuscle;
-    return matchSearch && matchMuscle;
-  });
+  // Server has already filtered by search + muscle; keep a lightweight local
+  // filter for safety (e.g. optimistic UI paths that pre-populate the list).
+  const filteredLibrary = libraryExercises;
 
   const addExercise = (ex: Exercise) => {
     setExercises(prev => [...prev, {
